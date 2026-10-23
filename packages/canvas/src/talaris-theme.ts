@@ -26,7 +26,10 @@ export function wearTheme(): void {
       --text-faint: var(--muted);
       --text-secondary: var(--muted);
       --border: var(--line);
-      --border-strong: var(--frame);
+      /* A shape's default outline is drawn in this. Hermes' strong border is a
+         hairline on a light page; on Talaris's dark canvas it all but vanished,
+         so an ellipse looked like loose text. Muted reads, and stays quiet. */
+      --border-strong: var(--muted);
       --accent-ink: var(--text);
       --font-body: var(--font);
       --font-chrome: var(--font);
@@ -46,6 +49,10 @@ export function wearTheme(): void {
     }
     html, body { background: transparent; }
     body { color: var(--text); font-family: var(--font); }
+    /* Form fields take the theme's ink; left alone they draw black, which is
+       how the zoom box's percentage disappeared into its dark field. */
+    input, select, textarea, button { color: inherit; }
+    .cv-zoom { color: var(--text); background: var(--desk); border-color: var(--line); }
 
     /* The paper: dots, graph lines, or nothing. Drawn here so it wins over the
        forked sheet's one fixed dot grid, and moves and scales with the view. */
