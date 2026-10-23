@@ -56,9 +56,6 @@ def _checked(c: dict) -> str:
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
-    speeds = ("slow", "normal", "fast", "fastest")
-    if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
-        return "Speed is slow, normal, fast or very fast"
     if t.get("motion") not in ("slide", "draw", "chaos", "none"):
         return "Motion is slide, draw, chaos or none"
     k = c["clock"]
@@ -78,6 +75,9 @@ def _checked(c: dict) -> str:
     if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
         return "A drawer is a quarter to nine tenths of the screen"
     p, b, d = c["panels"], c["bar"], c["dock"]
+    speeds = ("slow", "normal", "fast", "fastest")
+    if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
+        return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool):
         return "Not a drawer outline or shadow"
     if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
@@ -114,7 +114,8 @@ class SettingsBridge(Bridge):
     def save(self, text: str) -> str:
         try:
             return self.owner.apply(json.loads(text))
-        except (ValueError, KeyError, TypeError) as e:
+        except Exception as e:  # noqa: BLE001 — said on the page, not lost: a save that fails silently looks like a dead control
+            log(f"settings: save failed: {e!r}")
             return f"That cannot be saved ({e})"
 
     @Slot(str, result=str)
