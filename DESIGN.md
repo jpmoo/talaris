@@ -689,6 +689,16 @@ can link to a canvas in another project.
 On disk each canvas is its own file in `.talaris/canvases/`, its parent named
 inside it, and each is versioned on its own.
 
+### Daily notes
+
+Decided 2026-10-23. **A daily note is a page at `Writing/Daily/<YYYY-MM-DD>.md`**
+— the same editor, the same versions, never a second kind of document. The
+writing drawer shows a **Daily** section above the pages, with a month
+calendar: each day that has a note shows how many words it holds (a number, not
+a dot), today is outlined, and ◂ TODAY ▸ step through days. A day becomes a
+note only once something is written, so opening an empty day makes no file.
+**On by default in Home**, off elsewhere; a project's `daily` setting turns it on.
+
 ### Starting a file in a project
 
 **"New …" comes from `~/Templates`**, the folder file managers already use for

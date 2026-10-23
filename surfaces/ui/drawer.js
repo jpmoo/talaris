@@ -217,8 +217,82 @@ function setMode(next) {
   drawEditor();
 }
 
+// ---------------------------------------------------------------- daily
+
+/*
+ * Daily notes: pages at `Daily/<date>`, opened from a month calendar. A day is
+ * a note once something is written in it, so opening a day makes no file.
+ * Each day with a note shows how many words it holds — a number, not a dot,
+ * because a number says something.
+ */
+const DAILY = "Daily";
+const pad = (n) => String(n).padStart(2, "0");
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => iso(new Date());
+let shownMonth = today().slice(0, 7);
+let dailyOn = false;
+const isDaily = (path) => path && path.startsWith(`${DAILY}/`);
+
+function step(date, days) {
+  const [y, m, d] = date.split("-").map(Number);
+  return iso(new Date(y, m - 1, d + days));
+}
+
+async function drawCalendar() {
+  const host = $("calendar");
+  if (!host) return;
+  const { enabled, days } = await core("GET", `/projects/${state.project.id}/daily?month=${shownMonth}`);
+  dailyOn = enabled;
+  const words = new Map(days.map((d) => [d.date, d.words]));
+  const [y, m] = shownMonth.split("-").map(Number);
+  const first = new Date(y, m - 1, 1);
+  const count = new Date(y, m, 0).getDate();
+  const name = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const openDate = isDaily(open) ? open.slice(DAILY.length + 1) : null;
+  const month = (delta) => () => {
+    const d = new Date(y, m - 1 + delta, 1);
+    shownMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    drawCalendar();
+  };
+  const grid = el("div", { class: "cal-grid" });
+  for (const w of ["S", "M", "T", "W", "T", "F", "S"]) grid.append(el("span", { class: "cal-head" }, w));
+  for (let i = 0; i < first.getDay(); i++) grid.append(el("span"));
+  for (let day = 1; day <= count; day++) {
+    const date = `${shownMonth}-${pad(day)}`;
+    const n = words.get(date);
+    const cls = ["cal-day", n ? "has" : "", date === today() ? "today" : "", date === openDate ? "on" : ""].filter(Boolean).join(" ");
+    grid.append(el("button", { class: cls, title: n ? `${n} words` : "", onclick: () => edit(`${DAILY}/${date}`) },
+      el("span", {}, String(day)), el("small", {}, n ? String(n) : "")));
+  }
+  host.replaceChildren(
+    el("div", { class: "cal-bar" },
+      el("span", { class: "label" }, "DAILY"),
+      el("span", { class: "cal-nav" },
+        el("button", { title: "Previous day", onclick: () => edit(`${DAILY}/${step(openDate ?? today(), -1)}`) }, "◂"),
+        el("button", { onclick: () => { shownMonth = today().slice(0, 7); edit(`${DAILY}/${today()}`); } }, "TODAY"),
+        el("button", { title: "Next day", onclick: () => edit(`${DAILY}/${step(openDate ?? today(), 1)}`) }, "▸"))),
+    el("div", { class: "cal-month" },
+      el("button", { class: "flat", onclick: month(-1) }, "‹"), el("span", { class: "label" }, name.toUpperCase()),
+      el("button", { class: "flat", onclick: month(1) }, "›")),
+    grid);
+}
+
+function pageHeading() {
+  if (!open) return "";
+  if (isDaily(open)) {
+    const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+  }
+  return open.split("/").join(" / ").toUpperCase();
+}
+
 async function loadWriting() {
-  const pages = await core("GET", `/projects/${state.project.id}/pages`);
+  const daily = await core("GET", `/projects/${state.project.id}/daily?month=${shownMonth}`);
+  dailyOn = daily.enabled;
+  // Home opens on today.
+  if (!open && dailyOn) open = `${DAILY}/${today()}`;
+  if (isDaily(open)) shownMonth = open.slice(DAILY.length + 1, DAILY.length + 8);
+  const pages = (await core("GET", `/projects/${state.project.id}/pages`)).filter((n) => !(dailyOn && n.path === DAILY));
   const shut = shutSet(WRITING_SHUT);
   let count = 0;
   const branch = (nodes) => {
@@ -234,20 +308,27 @@ async function loadWriting() {
     }
     return wrap;
   };
-  const tree = el("div", { class: "tree" }, pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
+  const tree = el("div", { class: "tree" },
+    dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
+    dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
+    pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
-  const pane = el("div", { class: "pane" }, modes, el("div", { class: "editor", id: "editorHost" }));
+  const pane = el("div", { class: "pane" },
+    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), modes),
+    el("div", { class: "editor", id: "editorHost" }));
   $("body").replaceChildren(tree, pane);
   $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [el("button", { onclick: () => newPage(null) }, "New page")];
-  if (open) {
+  if (open && !isDaily(open)) {
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
   }
   $("actions").replaceChildren(...actions);
-  if (open) text = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
+  // A day with no note yet reads as empty; the file appears when you write.
+  if (open) text = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`).catch(() => "");
   drawEditor();
+  drawCalendar();
 }
 
 async function edit(path) {
@@ -262,6 +343,7 @@ async function save() {
   try {
     await core("PUT", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`, text);
     status("SAVED");
+    if (isDaily(open)) drawCalendar();
   } catch (e) {
     status("NOT SAVED");
     console.error(e);

@@ -232,3 +232,36 @@ export function pageLocation(projectId: string, path: string): string {
   const { folder } = findProject(projectId);
   return relative(folder, pageFile(folder, path));
 }
+
+/**
+ * Daily notes: pages at `Writing/Daily/<YYYY-MM-DD>.md`. Ordinary pages in
+ * every other way — same editor, same versions — so a day's note is never a
+ * second kind of document. A day has a note only once something is written:
+ * opening an empty day makes no file.
+ *
+ * A project keeps daily notes when its `daily` is true; Home does unless told
+ * otherwise.
+ */
+export const DAILY = "Daily";
+
+export function dailyEnabled(projectId: string): boolean {
+  const { folder, home } = findProject(projectId);
+  const project = readJson<Record<string, unknown>>(join(folder, MACHINERY, "project.json"));
+  return typeof project.daily === "boolean" ? project.daily : home;
+}
+
+/** The days of `month` (`YYYY-MM`) that have a note, and how many words each holds. */
+export function dailyMonth(projectId: string, month: string): Array<{ date: string; words: number }> {
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new Conflict("a month is YYYY-MM");
+  const { folder } = findProject(projectId);
+  const dir = join(writingDir(folder), DAILY);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((n) => n.startsWith(`${month}-`) && /^\d{4}-\d{2}-\d{2}\.md$/.test(n))
+    .sort()
+    .map((n) => {
+      const text = readFileSync(join(dir, n), "utf8");
+      return { date: n.slice(0, 10), words: text.split(/\s+/).filter(Boolean).length };
+    })
+    .filter((d) => d.words > 0);
+}

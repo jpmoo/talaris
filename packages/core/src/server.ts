@@ -21,6 +21,8 @@ import {
 } from "./canvases.js";
 import {
   createPage,
+  dailyEnabled,
+  dailyMonth,
   deletePage,
   movePage,
   pageTree,
@@ -128,6 +130,7 @@ route("POST", "/projects/:id/canvases/:cid/versions/:name/restore", (_r, [id, ci
   restoreCanvas(id!, cid!, name!));
 
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
+route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {
   const b = await json<{ parent?: string | null; title?: string }>(req);
   return createPage(id!, b.parent ?? null, b.title ?? "Untitled");

@@ -161,6 +161,18 @@ test("moving a page takes its children, versions and order with it", () => {
   assert.throws(() => pages.movePage(p.id, "B", "B/Renamed"), /inside itself/);
 });
 
+test("daily notes are pages in Writing/Daily, on in Home, counted by month", () => {
+  const home = projects.ensureHome();
+  assert.equal(pages.dailyEnabled(home.id), true, "Home keeps daily notes by default");
+  assert.equal(pages.dailyEnabled(projects.createProject("No dailies").id), false);
+  pages.writePage(home.id, "Daily/2026-10-23", "Three words here");
+  pages.writePage(home.id, "Daily/2026-10-24", "");
+  pages.writePage(home.id, "Daily/2026-11-01", "Next month");
+  assert.ok(existsSync(join(home.folder, "Writing", "Daily", "2026-10-23.md")));
+  assert.deepEqual(pages.dailyMonth(home.id, "2026-10"), [{ date: "2026-10-23", words: 3 }], "an emptied day is not a note");
+  assert.throws(() => pages.dailyMonth(home.id, "October"), projects.Conflict);
+});
+
 test("page paths cannot leave Writing", () => {
   const p = projects.createProject("Escapes");
   assert.throws(() => pages.writePage(p.id, "../../etc/x", "no"), projects.Conflict);
