@@ -177,8 +177,10 @@ const WRITING_SHUT = "talaris.writing.shut";
 const MODE_KEY = "talaris.writing.mode";
 let mode = (() => { try { return localStorage.getItem(MODE_KEY) || "live"; } catch { return "live"; } })();
 let modules = null;
-const editorModules = () => (modules ??= Promise.all([import("./notefield.js"), import("./markdown.js")])
-  .then(([nf, md]) => ({ noteField: nf.noteField, render: md.render })));
+// The editor is CodeMirror 6 with live preview, built from packages/editor.
+const editorModules = () => (modules ??= Promise.all([import("./editor.js"), import("./markdown.js")])
+  .then(([ed, md]) => ({ createEditor: ed.createEditor, render: md.render })));
+let editor = null;   // the one editor, kept across Live and Raw
 
 function changed(next) {
   text = next;
@@ -193,22 +195,28 @@ async function drawEditor() {
   host.dataset.mode = mode;
   for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("on", b.dataset.mode === mode);
   if (!open) { host.replaceChildren(el("div", { class: "empty" }, "Pick a page, or make one")); return; }
-  const { noteField, render } = await editorModules();
-  if (mode === "raw") {
-    const area = el("textarea", { spellcheck: "true" });
-    area.value = text;
-    area.addEventListener("input", () => changed(area.value));
-    host.replaceChildren(area);
-    area.focus();
-  } else if (mode === "preview") {
+  const { createEditor, render } = await editorModules();
+  if (mode === "preview") {
+    if (editor) { editor.destroy(); editor = null; }
     const view = el("div", { class: "preview" });
     view.append(text.trim() ? render(text) : el("p", { class: "empty" }, "Nothing written yet"));
     host.replaceChildren(view);
-  } else {
-    const wrap = el("div", { class: "live" });
-    host.replaceChildren(wrap);
-    noteField(wrap, text, changed);
+    return;
   }
+  // Live and Raw are the same editor with the preview on or off, so switching
+  // between them keeps the cursor and the undo history.
+  if (editor && host.contains(document.querySelector(".cm-editor"))) {
+    editor.setLive(mode === "live");
+  } else {
+    if (editor) editor.destroy();
+    host.replaceChildren();
+    editor = createEditor(host, text, {
+      live: mode === "live",
+      onChange: changed,
+      onOpenUrl: (url) => bridge && bridge.openUrl(url),
+    });
+  }
+  editor.focus();
 }
 
 function setMode(next) {
@@ -333,6 +341,7 @@ async function loadWriting() {
 
 async function edit(path) {
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
+  if (editor) { editor.destroy(); editor = null; }
   open = path;
   loadWriting();
 }
@@ -366,6 +375,7 @@ function deletePage() {
   confirmDelete(`Delete “${title}”?`, "It can be brought back from its versions.", async () => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
     await core("DELETE", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
+    if (editor) { editor.destroy(); editor = null; }
     open = null;
     text = "";
     loadWriting();
@@ -429,9 +439,9 @@ function touched() {
 for (const type of ["pointerdown", "keydown", "wheel", "pointermove"]) addEventListener(type, touched, { passive: true, capture: true });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || state.mode !== "pulled") return;
-  // The live editor uses Escape to leave a block, and a confirmation to cancel;
-  // only an Escape nothing else wanted puts the drawer away.
-  if (e.target.closest && e.target.closest(".note-source, .confirm")) return;
+  // A confirmation takes Escape to cancel; only an Escape nothing else wanted
+  // puts the drawer away.
+  if (e.target.closest && e.target.closest(".confirm")) return;
   e.preventDefault();
   if (saveTimer) save();
   bridge.file();

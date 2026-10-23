@@ -20,6 +20,9 @@ first, all of it. Its *Order* section says what is done and what is next.
 - `packages/core` — the core: projects, canvases, writing and versions, on a
   Unix socket. TypeScript compiled by `tsc` (Ubuntu's Node cannot run
   TypeScript directly). Tests run against a throwaway folder, never `~/Projects`.
+- `packages/editor` — the Markdown editor: CodeMirror 6 with live preview
+  (`src/live.ts` is the rules, tested without a screen). esbuild bundles it to
+  `surfaces/ui/editor.js`, which is built, not committed.
 - `surfaces/` — the screen furniture: one PySide6 process under layer-shell
   (`talaris-surfaces` sets that before Qt starts). Pages in `surfaces/ui/`
   reach the core through a `QWebChannel` bridge, never through a URL scheme

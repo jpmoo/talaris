@@ -689,6 +689,18 @@ can link to a canvas in another project.
 On disk each canvas is its own file in `.talaris/canvases/`, its parent named
 inside it, and each is versioned on its own.
 
+### The editor
+
+Decided 2026-10-23. **Pages are edited in CodeMirror 6 with live preview**, as
+Obsidian does it: one continuous editor in which formatting renders in place as
+you type, and only the Markdown right around the cursor shows — block marks
+(`#`, `>`, bullets, task boxes, rules) on the cursor's line, inline marks
+(`**`, `_`, backticks, a link's address) only in the span the cursor touches.
+**The document is the file at every moment**: live preview changes how the
+text looks, never the text, so nothing is converted and nothing can be lost.
+Raw is the same editor with the preview off; Preview is read-only rendering.
+A rendered link opens on a click, in the browser.
+
 ### Daily notes
 
 Decided 2026-10-23. **A daily note is a page at `Writing/Daily/<YYYY-MM-DD>.md`**

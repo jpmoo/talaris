@@ -1,0 +1,26 @@
+{
+  "name": "@talaris/editor",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p . --noEmit && esbuild src/index.ts --bundle --format=esm --target=es2022 --minify --sourcemap --outfile=../../surfaces/ui/editor.js",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "esbuild test/live.test.ts --bundle --platform=node --format=esm --outfile=dist/live.test.js && node --test dist/live.test.js"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/common": "^1.5.4",
+    "@lezer/markdown": "^1.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.3"
+  }
+}
