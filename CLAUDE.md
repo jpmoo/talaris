@@ -2,10 +2,13 @@
 
 Orientation for a coding agent. Short on purpose.
 
-**Talaris is a desktop for Hyprland**: it draws everything on the screen that
+**Talaris is a thinking-space desktop for Hyprland, with an assistant built
+in**: it draws everything on the screen that
 is not an application window, organizes work into projects with a canvas and a
 writing surface each, has Morgan built in as its one assistant, and connects to
-anything outside — Hermes Notes first — through plugins.
+anything outside — Hermes Notes first — through plugins. **Hyprland is the
+first compositor backend, not the only one**: nothing outside the backend talks
+to Hyprland directly.
 
 **Nothing is built yet.** `DESIGN.md` is the plan and the reasoning; read it
 first, all of it. Its *Order* section is where work starts.

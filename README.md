@@ -1,5 +1,7 @@
 # Talaris
 
+**A thinking-space desktop for Hyprland, with an assistant built in.**
+
 A desktop for Hyprland built around projects instead of workspaces. Each
 project has a canvas and a writing surface, kept in drawers at the screen's
 edges; applications open from cards on the canvas and are put away again when

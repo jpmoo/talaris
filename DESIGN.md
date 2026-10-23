@@ -1,5 +1,10 @@
 # Talaris — design
 
+> **A thinking-space desktop for Hyprland, with an assistant built in.**
+>
+> At greater length: a project-centric desktop shell for Hyprland, with a
+> built-in assistant and plugins for your knowledge tools.
+
 **Status: design, not built.** Worked out in conversation on 2026-10-22 and
 23, first as a plan for Talaria's Linux front end and then, once it was plainly
 its own thing, as this. One spike has run (see *What the layer spike found*).
@@ -29,8 +34,10 @@ See *Plugins*.
 
 **Its own thing.** It is not Talaria, and does not need Talaria's daemon.
 Talaria is the Hermes companion on macOS and KDE and stays that; Talaris took
-what it had learned and a few of its parts (`from-talaria/`). Hyprland only —
-there is no KDE path and no KRunner.
+what it had learned and a few of its parts (`from-talaria/`). There is no KRunner
+and no KDE path.
+
+**Hyprland first, not Hyprland only.** See *The compositor is a backend*.
 
 The name is the adjective *talaris*, "of the ankle," of which Hermes' winged
 sandals, *talaria*, are the plural.
@@ -411,6 +418,32 @@ When, gentlest first:
 SIGSTOP is not an answer — it frees the CPU and keeps every byte. **Always
 visible:** cards show live or asleep, a notification says what was closed and
 that it is on the canvas, and the dock counts live windows per project.
+
+## The compositor is a backend
+
+Decided 2026-10-23. Talaris needs two things from a compositor, and they are not
+equally portable:
+
+- **Drawing the furniture** — bar, dock, drawers, launcher — needs
+  `wlr-layer-shell`. Hyprland, Sway, niri, river, Wayfire, labwc and KWin have
+  it; GNOME does not, and X11 window managers cannot. That line is permanent.
+- **Driving the windows** — list them, follow focus, make a named workspace,
+  launch an app onto one with a size and place, bind a window to a card — has no
+  common protocol for the parts that matter. Listing, focusing and closing have
+  standard Wayland protocols (`ext-foreign-toplevel-list`,
+  `wlr-foreign-toplevel-management`), and `ext-workspace-v1` is young and thinly
+  supported; "open this on the Ogham workspace, floating, here" is
+  compositor-specific everywhere.
+
+So the core never talks to Hyprland directly. It asks a **backend** — one small
+interface: windows, workspaces, launch-with-placement, focus, and the event
+stream — and Hyprland is the first one. This is Talaria's `wm/` pattern, kept
+from the first line rather than retrofitted.
+
+**Sway** would be the easiest second backend; its i3-style IPC covers the same
+ground. **niri** would need thought rather than code — it scrolls a strip of
+windows instead of switching workspaces, which changes what "a project's
+workspace" means.
 
 ## Where it runs
 
