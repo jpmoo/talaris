@@ -67,7 +67,8 @@ CONFIG = os.path.join(
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
     "drawers": {
-        "canvas": {"edge": "left", "size": 0.62, "outWhenEmpty": True},
+        # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
+        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": True},
         "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False},
     },
     # A pulled drawer files itself after this long with no input. Idle, not a

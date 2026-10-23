@@ -70,38 +70,76 @@ function update(next) {
   document.body.dataset.edge = state.edge;
   applyTheme(state.theme || {});
   $("handle").title = NAMES[state.drawer] || state.drawer;
+  document.body.dataset.drawer = state.drawer;
+  // Canvas: a framed grid with a card on it. Writing: lines of a page.
+  $("mark").innerHTML = state.drawer === "writing"
+    ? '<path d="M2 3h10M2 6h10M2 9h10M2 12h6"/>'
+    : '<rect x="1.5" y="1.5" width="11" height="11" rx="2"/><rect x="4" y="4.5" width="4" height="3" rx=".6"/>';
   $("where").innerHTML = "";
   $("where").append(state.project.name || "Home", el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
   if (state.mode !== "filed" && was === "filed") arrive();
   if (state.mode !== "filed") load();
 }
 
+// ---------------------------------------------------------------- trees
+
+/**
+ * The twisty for one node: ▾ open, ▸ shut, · no children. Which branches are
+ * shut is the viewer's, not the project's, so it lives in this page's storage
+ * under `store`, and survives a restart.
+ */
+function shutSet(store) {
+  try { return new Set(JSON.parse(localStorage.getItem(store) || "[]")); } catch { return new Set(); }
+}
+function twisty(key, hasKids, kids, shut, store) {
+  if (shut.has(key)) kids.classList.add("shut");
+  const t = el("span", { class: "tw" }, hasKids ? (shut.has(key) ? "▸" : "▾") : "·");
+  if (!hasKids) return t;
+  t.addEventListener("click", (e) => {
+    e.stopPropagation();
+    kids.classList.toggle("shut");
+    if (kids.classList.contains("shut")) shut.add(key); else shut.delete(key);
+    try { localStorage.setItem(store, JSON.stringify([...shut])); } catch { /* fine */ }
+    t.textContent = kids.classList.contains("shut") ? "▸" : "▾";
+  });
+  return t;
+}
+
 // ---------------------------------------------------------------- canvas
+
+const CANVAS_SHUT = "talaris.canvas.shut";
+let chosen = null;   // the canvas picked in the tree; new canvases go inside it
 
 async function loadCanvas() {
   const body = $("body");
   const tree = await core("GET", `/projects/${state.project.id}/canvases`);
   const top = await core("GET", `/projects/${state.project.id}/canvases/${tree.id}`);
+  const shut = shutSet(CANVAS_SHUT);
   let count = 0;
-  const walk = (node, depth) => {
+  const walk = (node) => {
     count++;
     const kids = el("div", { class: "kids" });
-    for (const c of node.children) kids.append(walk(c, depth + 1));
+    for (const c of node.children) kids.append(walk(c));
     return el("div", {},
-      el("div", { class: "row" },
-        el("span", {}, el("span", { class: "tw" }, node.children.length ? "▾" : "·"), node.title),
+      el("div", { class: "row" + (node.id === (chosen ?? tree.id) ? " on" : ""), onclick: () => { chosen = node.id; loadCanvas(); } },
+        el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title),
         el("span", { class: "label" }, node.id === tree.id ? "TOP" : "")),
       kids);
   };
-  body.replaceChildren(el("div", { class: "tree", style: "flex:1" }, walk(tree, 0)));
+  body.replaceChildren(el("div", { class: "tree", style: "flex:1" }, walk(tree)));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"} · ${top.items.length} ITEMS`;
-  $("actions").replaceChildren(el("button", { onclick: newCanvas }, "New canvas"));
+  $("actions").replaceChildren(el("button", { onclick: newCanvas }, "New canvas inside"));
   status("");
 }
 
 async function newCanvas() {
   const tree = await core("GET", `/projects/${state.project.id}/canvases`);
-  await core("POST", `/projects/${state.project.id}/canvases/${tree.id}/children`, { title: "Untitled" });
+  const parent = chosen ?? tree.id;
+  await core("POST", `/projects/${state.project.id}/canvases/${parent}/children`, { title: "Untitled" });
+  // Open the branch it went into, so the new one is in view.
+  const shut = shutSet(CANVAS_SHUT);
+  shut.delete(parent);
+  try { localStorage.setItem(CANVAS_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
   loadCanvas();
 }
 
@@ -109,26 +147,19 @@ async function newCanvas() {
 
 let open = null;      // path of the page in the editor
 let saveTimer = null;
-const shut = new Set(JSON.parse(localStorage.getItem("talaris.writing.shut") || "[]"));
+const WRITING_SHUT = "talaris.writing.shut";
 
 async function loadWriting() {
   const pages = await core("GET", `/projects/${state.project.id}/pages`);
+  const shut = shutSet(WRITING_SHUT);
   let count = 0;
   const branch = (nodes) => {
     const wrap = el("div");
     for (const n of nodes) {
       count++;
       const kids = branch(n.children);
-      kids.className = "kids" + (shut.has(n.path) ? " shut" : "");
-      const twist = el("span", { class: "tw", onclick: (e) => {
-        e.stopPropagation();
-        if (!n.children.length) return;
-        kids.classList.toggle("shut");
-        if (kids.classList.contains("shut")) shut.add(n.path); else shut.delete(n.path);
-        // Which branches are open is the viewer's, not the project's.
-        try { localStorage.setItem("talaris.writing.shut", JSON.stringify([...shut])); } catch { /* fine */ }
-        twist.textContent = kids.classList.contains("shut") ? "▸" : "▾";
-      } }, n.children.length ? (shut.has(n.path) ? "▸" : "▾") : "·");
+      kids.className = "kids";
+      const twist = twisty(n.path, n.children.length > 0, kids, shut, WRITING_SHUT);
       wrap.append(el("div", {},
         el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path) }, el("span", {}, twist, n.title)),
         kids));
@@ -176,7 +207,11 @@ async function save() {
 
 async function newPage(parent) {
   const made = await core("POST", `/projects/${state.project.id}/pages`, { parent, title: "Untitled" });
-  if (parent) shut.delete(parent);
+  if (parent) {
+    const shut = shutSet(WRITING_SHUT);
+    shut.delete(parent);
+    try { localStorage.setItem(WRITING_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
+  }
   edit(made.path);
 }
 
@@ -210,6 +245,10 @@ addEventListener("keydown", (e) => {
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("close").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
+// The drawer you are in shows it — two pulled out at once must not look alike.
+addEventListener("focus", () => { document.body.dataset.focus = "1"; });
+addEventListener("blur", () => { delete document.body.dataset.focus; });
+if (document.hasFocus()) document.body.dataset.focus = "1";
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge = channel.objects.bridge;

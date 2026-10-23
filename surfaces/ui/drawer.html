@@ -22,9 +22,23 @@ body[data-edge="bottom"] #handle { border-bottom: 0; border-radius: 9px 9px 0 0;
 #handle:hover { color: var(--accent); border-color: var(--accent); cursor: pointer; }
 #handle .grip { width: 2px; height: 22px; background: currentColor; border-radius: 1px; }
 body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 22px; height: 2px; }
-#close { display: none; margin-left: 14px; border: 0; padding: 0 2px; border-radius: 0; color: var(--muted); font-size: 11px; letter-spacing: 2px; }
-#close:hover { color: var(--accent); }
-body[data-mode="pulled"] #close { display: inline; }
+/* Close: a round control at the header's far end, set apart by a hairline. */
+.ends { display: flex; align-items: center; gap: 12px; }
+#close { display: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); align-items: center; justify-content: center; transition: border-color .15s, color .15s, background .15s; }
+#close svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+#close:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+#close:active { transform: scale(.94); }
+.divider { display: none; width: 1px; height: 16px; background: var(--line); }
+body[data-mode="pulled"] #close { display: inline-flex; }
+body[data-mode="pulled"] .divider { display: block; }
+
+/* Which drawer is which, at a glance: its own mark, and a writing surface on
+   a paper-toned panel. Which one has you: an accent frame and a lit title;
+   the other dims a little. */
+.mark { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 1.4; fill: none; margin-right: 8px; vertical-align: -2px; }
+body[data-drawer="writing"] #panel { background: var(--paper); }
+body[data-mode="pulled"][data-focus] #panel { border-color: var(--accent); }
+body[data-mode="pulled"]:not([data-focus]) header { opacity: .62; }
 body[data-mode="filed"] #handle { display: flex; }
 body[data-mode="filed"] #panel { display: none; }
 
@@ -55,8 +69,8 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
   <span class="xh" style="left:-6px;top:-6px"></span><span class="xh" style="right:-6px;top:-6px"></span>
   <span class="xh" style="left:-6px;bottom:-6px"></span><span class="xh" style="right:-6px;bottom:-6px"></span>
   <header>
-    <span class="title" id="where"></span>
-    <span><span class="label" id="count"></span><button id="close" title="Put it away (Esc)">CLOSE ✕</button></span>
+    <span class="title"><svg class="mark" id="mark" viewBox="0 0 14 14"></svg><span id="where"></span></span>
+    <span class="ends"><span class="label" id="count"></span><span class="divider"></span><button id="close" title="Put it away (Esc)" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1 1 9 9M9 1 1 9"/></svg></button></span>
   </header>
   <main id="body"></main>
   <footer>

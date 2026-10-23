@@ -9,6 +9,7 @@ disagree, decide which is right and change the other.
 :root {
   --desk: #16181a;
   --surface: #222528;
+  --paper: #272a2d;
   --frame: #3a3f44;
   --line: #3a3f44;
   --text: #d5d9dc;
@@ -21,6 +22,7 @@ disagree, decide which is right and change the other.
 :root[data-mode="light"] {
   --desk: #d9dcdf;
   --surface: #eceef0;
+  --paper: #f3f4f5;
   --frame: #b7bcc1;
   --line: #c3c8cd;
   --text: #25292d;
