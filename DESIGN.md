@@ -117,6 +117,13 @@ icons, the system's own font rendering, keyboard everywhere, no first frame at
 the wrong size, and the compositor's own blur, rounding and shadow behind
 translucent surfaces rather than a page drawing them.
 
+**One set of controls.** Every button, menu and field — the drawers' and the
+canvas's, which came from Hermes with its own — takes its look from one file,
+`surfaces/ui/controls.css`: icon buttons are rounded squares, text buttons are
+pills, menus are one kind of panel. A control that looks unlike its neighbor
+is a bug in that file, not a local style to add. The tuner's table has the
+measurements.
+
 **Themes are swappable.** The look is a theme, and more can be added later; the
 first one ships as the default.
 

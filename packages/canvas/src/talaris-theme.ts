@@ -18,6 +18,11 @@ export function wearTheme(): void {
   // Only the values: theme.css's element styles would restyle the canvas's own buttons.
   link.href = "../tokens.css";
   document.head.append(link);
+  // Every control's look, shared with the drawers — see controls.css.
+  const controls = document.createElement("link");
+  controls.rel = "stylesheet";
+  controls.href = "../controls.css";
+  document.head.append(controls);
   const style = document.createElement("style");
   style.textContent = `
     :root {
@@ -55,16 +60,7 @@ export function wearTheme(): void {
     /* Form fields take the theme's ink; left alone they draw black, which is
        how the zoom box's percentage disappeared into its dark field. */
     input, select, textarea, button { color: inherit; }
-    .cv-zoom { color: var(--text); background: var(--desk); border-color: var(--line); }
-    /* Text fields — a region's title being renamed, an edge's label — on the
-       theme's ground, not the engine's white. */
-    input:not([type]), input[type="text"], input[type="search"], textarea {
-      background: var(--desk); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; }
-    input:not([type]):focus, input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--accent); }
     .cv-region-title { font-family: var(--font); letter-spacing: 1px; color: var(--muted); }
-    .cv-region-add { background: var(--muted) !important; color: var(--surface) !important; }
-    .cv-region-add:hover { background: var(--text) !important; }
-    .cv-region-add.on { background: var(--accent) !important; }
     .cv-marquee { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
 
     /* The paper: dots, graph lines, or nothing. Drawn here so it wins over the
@@ -112,31 +108,20 @@ export function wearTheme(): void {
        nowhere to be moved to. Taller text than note still scrolls. */
     .cv-note .cv-body > .longtext { flex: 0 1 auto !important; height: auto !important; min-height: 0; max-height: 100%; overflow: auto; }
 
-    /* The canvas's own confirmation, dressed like the drawer's. */
+    /* The canvas's own confirmation, dressed like the drawer's; its buttons are controls.css's. */
     .modal-backdrop { background: rgba(0, 0, 0, .45) !important; backdrop-filter: none !important; }
     .modal-card { background: var(--surface) !important; color: var(--text); border: 1px solid var(--frame) !important;
-      border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, .45) !important; font-family: var(--font); }
+      border-radius: var(--radius-control) !important; box-shadow: var(--menu-shadow) !important; font-family: var(--font); }
     .modal-title { font-weight: 500 !important; font-size: 15px !important; letter-spacing: 1px; color: var(--text) !important; }
     .modal-message { color: var(--muted) !important; }
-    .modal-actions button { font: inherit; border: 1px solid var(--line); border-radius: 14px; padding: 3px 14px;
-      background: transparent !important; color: var(--text); cursor: pointer; }
-    .modal-actions button:hover { border-color: var(--accent); color: var(--accent); }
-    .modal-actions button.danger { border-color: var(--danger); color: var(--danger); }
-    .modal-actions button.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent) !important; }
-    .modal-actions button:disabled { opacity: .45; cursor: default; }
 
-    .cv-swatch.cv-align { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: transparent; border: 1px solid var(--line); }
-    .cv-swatch.cv-align:hover { color: var(--accent); border-color: var(--accent); }
-    .cv-swatch.cv-align.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
     /* Only as wide as its six icons. */
     /* Opens straight out to the right of the shape button, level with it,
        rather than pushing the rest of the strip down. */
     .tool-menu.shape-row { display: flex; flex-direction: row !important; gap: 4px; padding: 5px; min-width: 0 !important; width: max-content;
       position: absolute; left: 38px; top: -5px; z-index: 2; }
-    .shape-pick { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
-    .shape-pick:hover { color: var(--accent); border-color: var(--accent); }
-    .shape-pick.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+    .cv-region-add { border-radius: 4px !important; background: transparent !important; border: 1px solid var(--muted) !important; color: var(--muted) !important; }
+    .cv-region-add:hover, .cv-region-add.on { border-color: var(--accent) !important; color: var(--accent) !important; }
     .cv-menu-gap { width: 10px; display: inline-block; }
     .cv-missing { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4px;
       padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); }

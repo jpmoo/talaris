@@ -23,12 +23,11 @@ body[data-edge="bottom"] #handle { border-bottom: 0; border-radius: 9px 9px 0 0;
 body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 22px; height: 2px; }
 /* Close: a round control at the header's far end, set apart by a hairline. */
 .ends { display: flex; align-items: center; gap: 12px; }
-#close { display: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); align-items: center; justify-content: center; transition: border-color .15s, color .15s, background .15s; }
+/* Close is an icon button (controls.css), shown only when pulled. */
+#close { display: none !important; }
 #close svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-#close:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
-#close:active { transform: scale(.94); }
 .divider { display: none; width: 1px; height: 16px; background: var(--line); }
-body[data-mode="pulled"] #close { display: inline-flex; }
+body[data-mode="pulled"] #close { display: inline-flex !important; }
 body[data-mode="pulled"] .divider { display: block; }
 
 /* Which drawer is which, at a glance: its own mark, and a writing surface on
@@ -50,17 +49,17 @@ body[data-edge="bottom"] #panel { border-bottom: 0; border-radius: 12px 12px 0 0
 header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 10px; }
 main { flex: 1; min-height: 0; display: flex; gap: 12px; }
 .tree { overflow: auto; min-width: 180px; }
-.row { padding: 4px 8px; margin: 2px 0; border-radius: 6px; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+.row { padding: 4px 8px; margin: 2px 0; border-radius: var(--radius-row); display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
 .row:hover { background: var(--accent-wash); }
-.row.on { background: var(--accent-wash); border-left: 2px solid var(--accent); border-radius: 0 6px 6px 0; }
+.row.on { background: var(--accent-wash); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-row) var(--radius-row) 0; }
 .row .tw { width: 12px; color: var(--muted); display: inline-block; }
 .kids { margin-left: 14px; }
 .kids.shut { display: none; }
 .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .modes { display: flex; gap: 2px; align-self: flex-end; border: 1px solid var(--line); border-radius: 14px; padding: 2px; }
-.modes button { border: 0; border-radius: 12px; padding: 1px 10px; font-size: 11px; letter-spacing: 2px; color: var(--muted); }
+.modes button { border: 0; border-radius: var(--radius-pill); padding: 1px 10px; font-size: 11px; letter-spacing: 2px; color: var(--muted); }
 .modes button.on { background: var(--accent-wash); color: var(--accent); }
-.editor { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; user-select: text; -webkit-user-select: text; }
+.editor { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px 12px; user-select: text; -webkit-user-select: text; }
 .editor[data-mode="live"], .editor[data-mode="raw"] { padding: 0; overflow: hidden; display: flex; }
 .editor .cm-editor { flex: 1; min-width: 0; }
 .editor h1, .editor h2, .editor h3 { font-weight: 500; letter-spacing: 1px; margin: 10px 0 4px; }
@@ -81,7 +80,7 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 
 .canvas-tree { min-width: 150px; max-width: 200px; }
 .tree.hidden { display: none; }
-.canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--desk); }
+.canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: var(--desk); }
 .canvas-frame { flex: 1; border: 0; background: transparent; }
 .crumb { cursor: pointer; }
 .crumb:hover { color: var(--accent); }
@@ -94,7 +93,7 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 button.flat { border: 0; padding: 0 6px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .cal-head { text-align: center; font-size: 10px; color: var(--muted); letter-spacing: 1px; }
-.cal-day { border: 1px solid transparent; border-radius: 6px; padding: 2px 0; display: flex; flex-direction: column; align-items: center; line-height: 1.1; min-height: 30px; color: var(--muted); }
+.cal-day { border: 1px solid transparent; border-radius: var(--radius-row); padding: 2px 0; display: flex; flex-direction: column; align-items: center; line-height: 1.1; min-height: 30px; color: var(--muted); }
 .cal-day small { font-size: 9px; letter-spacing: .5px; color: var(--accent); min-height: 10px; }
 .cal-day.has { color: var(--text); }
 .cal-day.today { border-color: var(--line); }
@@ -102,19 +101,13 @@ button.flat { border: 0; padding: 0 6px; }
 .cal-day:hover { border-color: var(--accent); }
 button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; border-radius: inherit; }
-.confirm .box { background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; padding: 16px 18px; min-width: 260px; max-width: 70%; }
+.confirm .box { background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); padding: 16px 18px; min-width: 260px; max-width: 70%; }
 .confirm .title { letter-spacing: 1px; margin-bottom: 4px; }
 .confirm p { margin: 4px 0; color: var(--muted); }
 .confirm .said { color: var(--danger); }
 .confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
-.context { position: fixed; z-index: 50; min-width: 150px; background: var(--surface); border: 1px solid var(--frame); border-radius: 8px; padding: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-.context .menu-item { display: block; width: 100%; text-align: left; border: 0; border-radius: 5px; padding: 4px 10px; }
-.context .menu-item:hover { background: var(--accent-wash); color: var(--accent); }
-.context .menu-item.off { color: var(--muted); opacity: .5; }
-.context .menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
-.exported { cursor: pointer; color: var(--accent); }
-.exported:hover { text-decoration: underline; text-underline-offset: 2px; }
+.context { position: fixed; z-index: 50; min-width: 150px; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>
@@ -122,8 +115,8 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
 <body data-mode="filed" data-edge="left">
 <div id="handle" title=""><div class="grip"></div></div>
 <div id="panel">
-  <span class="xh" style="left:-6px;top:-6px"></span><span class="xh" style="right:-6px;top:-6px"></span>
-  <span class="xh" style="left:-6px;bottom:-6px"></span><span class="xh" style="right:-6px;bottom:-6px"></span>
+  <span class="xh" style="left:4px;top:4px"></span><span class="xh" style="right:4px;top:4px"></span>
+  <span class="xh" style="left:4px;bottom:4px"></span><span class="xh" style="right:4px;bottom:4px"></span>
   <header>
     <span class="title"><svg class="mark" id="mark" viewBox="0 0 14 14"></svg><span id="where"></span></span>
     <span class="ends"><span class="label" id="count"></span><span class="divider"></span><button id="close" title="Put it away (Esc)" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1 1 9 9M9 1 1 9"/></svg></button></span>
