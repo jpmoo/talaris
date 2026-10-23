@@ -328,6 +328,29 @@ in its repository moves the brain to the home server so one Morgan serves every
 device. In that plan this laptop is a satellite, and Talaris is the satellite's
 face.
 
+**Talaris always talks to the Morgan on this machine** (decided 2026-10-23).
+Out of the box that Morgan is in its **local** role — brain, ears and voice all
+here. Moving the brain to the home server later is one setting, *Morgan's home*
+in Connections: Morgan becomes a **client**, which already means a
+`~/.config/heyclaude/client.json` naming the server and Morgan forwarding to it
+from the same local socket. So Talaris never needs to know where the brain is,
+and is built and tested against a local Morgan from the first day. The DIY Echo
+Dot is another client of the same home, with no Talaris on it at all.
+
+**What lives where.** Morgan's repository keeps everything that is not a
+screen — the brain, its roles, speech, memory, connections, and the Echo build.
+Talaris keeps Morgan's face. Between them is **Morgan's client protocol** —
+commands, the event stream, the admin calls — written down and versioned in
+Morgan's repository, as `pkm-interchange` is for Hermes, so the two can change
+independently and a mismatch is reported rather than half-working. Out of the
+box, typed conversation works at once; voice's models (about 820 MB today) are
+fetched the first time voice is turned on, with progress shown.
+
+**Before Talaris depends on it, in Morgan's repository:** rename it Morgan (the
+repository, the command, the unit); give it a license — it is public with none,
+which means nobody may legally use it — matching Talaris's GPL-3.0-only and
+contributor agreement; and write the client protocol down.
+
 **The one chat.** Talaria had two — *Ask Hermes Notes* and Canvas Chat. Neither
 comes across. Canvas Chat's one job, building and editing a canvas, becomes
 **tools** on Talaris's MCP that Morgan calls; questions about the library go to
