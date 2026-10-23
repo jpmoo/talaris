@@ -549,8 +549,13 @@ can link to a canvas in another project.
   card opens the child *out of it* — the same rule as every other card. The
   drawer's header says where you are (`OGHAM / CANVAS / CAMP`), each part of it
   a step back up; Escape is one step.
-- **Each canvas has exactly one parent.** Anywhere else it is wanted, it is a
-  **link card** — in this project or another. Opening a link to another
+- **Each canvas has exactly one parent, and any number of links.** Anywhere
+  else it is wanted, it is a **link card** — in this project or another, as many
+  as you like. *Stage 3* lives under *X Project*'s canvas, and Home can carry a
+  link to it beside every other place that does. The parent decides only where
+  the canvas lives (its project, its place in the tree, what deleting it means);
+  a link card and the parent's card open it the same way, and differ on the
+  canvas only by a small link mark. Opening a link to another
   project's canvas is `go` to that project, then open that canvas. One parent
   keeps "where does this live" answerable; links keep it from being limiting.
 - **The drawer can show the tree**, expanding and collapsing, as the writing
