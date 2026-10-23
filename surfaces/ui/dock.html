@@ -23,6 +23,7 @@ body[data-edge="top"] { align-items: flex-start; }
 }
 body[data-edge="top"] #dock { margin: 3px 0 0; }
 body[data-outline="none"] #dock { border-color: transparent; }
+body[data-outline="accent"] #dock { border-color: var(--accent); }
 body[data-shadow] #dock { box-shadow: 0 -2px 10px rgba(0, 0, 0, .45), 0 0 2px rgba(0, 0, 0, .3); }
 #dock:empty::after { content: "NOTHING OPEN"; font-size: 10px; letter-spacing: 3px; color: var(--muted); padding: 0 10px; }
 /* Between the pinned and the rest. */

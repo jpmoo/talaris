@@ -72,7 +72,7 @@ function draw() {
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
   seg("bar-shape", [["strip", "Strip"], ["floating", "Floating"]], cfg.bar.shape, (shape) => save({ bar: { shape } }));
   const edgeMotion = [["slide", "Slide"], ["none", "None"]];
-  const outlines = [["line", "Line"], ["none", "None"]];
+  const outlines = [["accent", "Accent"], ["line", "Line"], ["none", "None"]];
   for (const [part, c] of [["bar", cfg.bar], ["dock", cfg.dock]]) {
     seg(`${part}-motion`, edgeMotion, c.motion || "slide", (motion) => save({ [part]: { motion } }));
     seg(`${part}-speed`, SPEEDS, c.speed || "normal", (speed) => save({ [part]: { speed } }));
