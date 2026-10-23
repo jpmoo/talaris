@@ -35,9 +35,32 @@ if [ -d "$HYPR" ]; then
   cat > "$HYPR/talaris.conf" <<CONF
 # Written by $ROOT/install.sh — changes here are overwritten.
 # Talaris's surfaces need the compositor's environment, so it is handed to the
-# user manager first, then the service is started.
-exec-once = systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP QT_SCALE_FACTOR && systemctl --user start talaris-surfaces.service
+# user manager first, then the service is started — and with it what Talaris
+# borrows rather than builds (DESIGN.md, "What Talaris borrows"): the polkit
+# agent, without which password prompts quietly never appear, and hyprpaper
+# for the wallpaper. Notifications are mako's until Talaris holds the bus;
+# mako starts itself the first time something notifies.
+exec-once = systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP QT_SCALE_FACTOR && systemctl --user start talaris-surfaces.service hyprpolkitagent.service hyprpaper.service
 CONF
+  # hyprpaper's own file, only if there is none and a picture was named
+  # (TALARIS_WALLPAPER): the wallpaper is yours, and a file you have is kept.
+  if [ ! -e "$HYPR/hyprpaper.conf" ] && [ -n "${TALARIS_WALLPAPER:-}" ]; then
+    cat > "$HYPR/hyprpaper.conf" <<CONF
+# Written once by $ROOT/install.sh; yours to change.
+wallpaper {
+    monitor =
+    path = $TALARIS_WALLPAPER
+    fit_mode = cover
+}
+splash = false
+CONF
+  fi
+  # mako in Talaris's default look, only if it has no settings of its own.
+  MAKO="${XDG_CONFIG_HOME:-$HOME/.config}/mako"
+  if [ ! -e "$MAKO/config" ]; then
+    mkdir -p "$MAKO"
+    cp "$ROOT/systemd/mako.config" "$MAKO/config"
+  fi
   if ! grep -qs 'talaris.conf' "$HYPR/hyprland.conf"; then
     echo "    To start Talaris with Hyprland, add this line to the end of $HYPR/hyprland.conf:"
     echo "      source = $HYPR/talaris.conf"

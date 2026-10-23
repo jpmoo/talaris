@@ -341,8 +341,9 @@ plugin provides.
 |---|---|
 | Lock screen | **`hyprlock`**, installed. Never build a lock screen. |
 | Idle | **`hypridle`**, installed and already in `hyprland.conf`. |
-| Polkit agent | **`hyprpolkitagent`**, not installed. Install it before removing Noctalia, or password prompts quietly stop appearing. |
-| Notifications, for now | **`mako`**, not installed, until Talaris holds the bus. |
+| Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
+| Notifications, for now | **`mako`**, D-Bus-activated, in Talaris's look (`systemd/mako.config`), until Talaris holds the bus. |
+| Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture. |
 | Network and Bluetooth settings | `nmtui`, `bluetoothctl`, opened from the bar. |
 
 ## Morgan
