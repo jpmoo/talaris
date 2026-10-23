@@ -59,8 +59,13 @@ function draw() {
   const t = cfg.theme;
   // Appearance.
   seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => save({ theme: { mode } }));
+  // The tuner's five, then the picker for any other — wearing the custom
+  // accent once one is chosen.
+  const custom = !ACCENTS.includes(t.accent);
+  const pick = el("button", { class: "swatch pick" + (custom ? " custom on" : ""), title: "Any color", style: custom ? `--custom:${t.accent}` : "",
+    onclick: () => { $("picker").classList.toggle("open"); if ($("picker").classList.contains("open")) picker.set(t.accent); } });
   $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === t.accent ? " on" : ""), style: `background:${c}`, title: c,
-    onclick: () => save({ theme: { accent: c } }) })));
+    onclick: () => { $("picker").classList.remove("open"); save({ theme: { accent: c } }); } })), pick);
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
   seg("motion", [["slide", "Slide"], ["draw", "Draw"], ["chaos", "Chaos"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
@@ -140,6 +145,46 @@ $("drawer-auto").addEventListener("click", () => {
   save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });
 });
 $("canvas-out").addEventListener("click", () => save({ drawers: { canvas: { outWhenEmpty: !cfg.drawers.canvas.outWhenEmpty } } }));
+// ---------------------------------------------------------------- the picker
+//
+// Hue, saturation and value; the page's accent follows as you drag, and the
+// accent is saved when you let go.
+const picker = (() => {
+  let h = 0, s = 1, v = 1;
+  const hex = () => {
+    const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return "#" + [f(5), f(3), f(1)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+  };
+  const show = () => {
+    $("sv").style.setProperty("--hue", h);
+    $("sv-knob").style.left = `${s * 100}%`;
+    $("sv-knob").style.top = `${(1 - v) * 100}%`;
+    $("hue-knob").style.top = `${(h / 360) * 100}%`;
+    const c = hex();
+    $("picked").style.background = c;
+    $("hex").value = c;
+    Surface.applyTheme({ ...(cfg ? cfg.theme : {}), accent: c });
+  };
+  const set = (color) => {
+    const n = parseInt(color.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    v = max; s = max ? d / max : 0;
+    h = !d ? h : max === r ? 60 * (((g - b) / d) % 6) : max === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+    if (h < 0) h += 360;
+    show();
+  };
+  const drag = (box, move) => box.addEventListener("pointerdown", (e) => {
+    box.setPointerCapture(e.pointerId);
+    const at = (ev) => { const r = box.getBoundingClientRect(); move(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height))); show(); };
+    at(e);
+    box.onpointermove = at;
+    box.onpointerup = () => { box.onpointermove = box.onpointerup = null; save({ theme: { accent: hex() } }); };
+  });
+  drag($("sv"), (x, y) => { s = x; v = 1 - y; });
+  drag($("hue"), (_x, y) => { h = Math.min(359, y * 360); });
+  return { set };
+})();
+
 $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   const v = $("hex").value.trim();

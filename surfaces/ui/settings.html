@@ -46,6 +46,20 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .swatch { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; padding: 0; }
 .swatch.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text); }
 #hex { min-width: 0 !important; width: 100px; font-variant-numeric: tabular-nums; }
+/* The picker's swatch: the colors of a wheel, or the custom accent itself. */
+.swatch.pick { background: conic-gradient(#e0605a, #e0c25a, #6ac46a, #5ab8c8, #6a6ae0, #c45ac4, #e0605a); }
+.swatch.pick.custom { background: var(--custom); }
+/* A picker of its own: Qt's color dialog would open as a surface of its own,
+   behind this one. Saturation and brightness in the square, hue in the strip. */
+#picker { display: none; gap: 10px; align-items: flex-start; margin: 6px 0 4px 204px; }
+#picker.open { display: flex; }
+#sv { position: relative; width: 200px; height: 130px; border-radius: 8px; cursor: crosshair; touch-action: none;
+      background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--hue, 0) 100% 50%)); }
+#hue { position: relative; width: 14px; height: 130px; border-radius: 7px; cursor: ns-resize; touch-action: none;
+       background: linear-gradient(to bottom, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.knob { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+#hue .knob { left: 50%; }
+#picked { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
 .faces { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
 .face { text-align: left; border-radius: var(--radius-control) !important; padding: 8px 12px !important; }
 .face b { display: block; font-weight: 500; font-size: 15px; }
@@ -78,6 +92,7 @@ footer #msg.err { color: var(--danger); }
       <h2>Look</h2>
       <div class="row"><span class="name">Mode</span><span class="what"><span class="seg" id="mode"></span></span></div>
       <div class="row"><span class="name">Accent</span><span class="what"><span class="swatches" id="swatches"></span><input id="hex" spellcheck="false" maxlength="7"></span></div>
+      <div id="picker"><div id="sv"><span class="knob" id="sv-knob"></span></div><div id="hue"><span class="knob" id="hue-knob"></span></div><div id="picked"></div></div>
       <h3>Typeface</h3>
       <div class="faces" id="faces"></div>
     </section>
