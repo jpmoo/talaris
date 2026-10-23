@@ -19,7 +19,8 @@ import json
 import os
 import socket
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
+from PySide6.QtGui import QDesktopServices
 
 SOCKET = os.environ.get(
     "TALARIS_SOCKET",
@@ -96,6 +97,12 @@ class Bridge(QObject):
     def activity(self) -> None:
         """The page saw input. The idle timeout counts from the last of these."""
         self.owner.touched()
+
+    @Slot(str)
+    def openUrl(self, url: str) -> None:  # noqa: N802 — called from the page by this name
+        """A web link from a page opens in the browser — never inside a drawer, never anything but http(s)."""
+        if url.startswith(("http://", "https://")):
+            QDesktopServices.openUrl(QUrl(url))
 
     @Slot(result=str)
     def current(self) -> str:

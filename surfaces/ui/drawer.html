@@ -57,8 +57,42 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; }
 .row .tw { width: 12px; color: var(--muted); display: inline-block; }
 .kids { margin-left: 14px; }
 .kids.shut { display: none; }
-textarea { flex: 1; resize: none; background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; line-height: 1.6; }
-textarea:focus { border-color: var(--accent); }
+.pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.modes { display: flex; gap: 2px; align-self: flex-end; border: 1px solid var(--line); border-radius: 14px; padding: 2px; }
+.modes button { border: 0; border-radius: 12px; padding: 1px 10px; font-size: 11px; letter-spacing: 2px; color: var(--muted); }
+.modes button.on { background: var(--accent-wash); color: var(--accent); }
+.editor { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; user-select: text; -webkit-user-select: text; }
+.editor[data-mode="raw"] { padding: 0; overflow: hidden; display: flex; }
+.editor textarea { flex: 1; resize: none; background: transparent; border: 0; padding: 10px 12px; line-height: 1.6; }
+.editor h1, .editor h2, .editor h3 { font-weight: 500; letter-spacing: 1px; margin: 10px 0 4px; }
+.editor h1 { font-size: 20px; } .editor h2 { font-size: 17px; } .editor h3 { font-size: 15px; }
+.editor a { color: var(--accent); }
+.editor code { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--accent-wash); border-radius: 4px; padding: 0 4px; }
+.editor pre { background: var(--desk); border-radius: 6px; padding: 8px 10px; overflow: auto; }
+.editor pre code { background: none; padding: 0; }
+.editor table { border-collapse: collapse; } .editor td, .editor th { border: 1px solid var(--line); padding: 3px 8px; }
+
+/* The live editor: blocks rendered, the one being edited as its own Markdown,
+   in the same place, so the line does not jump when you click it. */
+.note-field { display: flex; flex-direction: column; gap: 2px; }
+.note-block { padding: 2px 4px; border-radius: 6px; cursor: text; transition: background .12s; }
+.note-block:hover { background: var(--accent-wash); }
+.note-block > :first-child { margin-top: 0; } .note-block > :last-child { margin-bottom: 0; }
+.note-block p, .note-block ul, .note-block ol { margin: 3px 0; }
+.note-empty { color: var(--muted); }
+.note-source textarea { width: 100%; resize: none; overflow: hidden; border: 1px solid var(--accent); border-radius: 6px; padding: 2px 4px; min-height: 1.6em; font: 13px/1.55 ui-monospace, monospace; background: var(--desk); color: var(--text); }
+li.task { list-style: none; margin-left: -1.2em; display: flex; gap: 7px; align-items: baseline; }
+li.task input { margin: 0; flex: none; accent-color: var(--accent); }
+li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
+
+button.danger:hover { color: var(--danger); border-color: var(--danger); }
+.confirm { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; border-radius: inherit; }
+.confirm .box { background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; padding: 16px 18px; min-width: 260px; max-width: 70%; }
+.confirm .title { letter-spacing: 1px; margin-bottom: 4px; }
+.confirm p { margin: 4px 0; color: var(--muted); }
+.confirm .said { color: var(--danger); }
+.confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>

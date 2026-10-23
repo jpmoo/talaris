@@ -128,8 +128,22 @@ async function loadCanvas() {
   };
   body.replaceChildren(el("div", { class: "tree", style: "flex:1" }, walk(tree)));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"} · ${top.items.length} ITEMS`;
-  $("actions").replaceChildren(el("button", { onclick: newCanvas }, "New canvas inside"));
+  const actions = [el("button", { onclick: newCanvas }, "New canvas inside")];
+  if (chosen && chosen !== tree.id) {
+    const find = (n) => n.id === chosen ? n : n.children.map(find).find(Boolean);
+    const node = find(tree);
+    if (node) actions.push(" ", el("button", { class: "danger", onclick: () => deleteCanvas(node) }, "Delete"));
+  }
+  $("actions").replaceChildren(...actions);
   status("");
+}
+
+function deleteCanvas(node) {
+  confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. It can be brought back from its versions.", async () => {
+    await core("DELETE", `/projects/${state.project.id}/canvases/${node.id}`);
+    chosen = null;
+    loadCanvas();
+  });
 }
 
 async function newCanvas() {
@@ -145,9 +159,63 @@ async function newCanvas() {
 
 // ---------------------------------------------------------------- writing
 
-let open = null;      // path of the page in the editor
+/*
+ * Three ways to look at a page, remembered per viewer:
+ *
+ * - **Live** — every block rendered except the one the caret is in, which shows
+ *   its own Markdown. Talaria's editor, Obsidian's idea. The default.
+ * - **Raw** — the whole file as text.
+ * - **Preview** — rendered, to read.
+ *
+ * The text is the same in all three, and the file round-trips byte for byte:
+ * the live editor rejoins its blocks exactly as they were cut.
+ */
+let open = null;      // path of the page being edited
+let text = "";        // its Markdown, as the page holds it now
 let saveTimer = null;
 const WRITING_SHUT = "talaris.writing.shut";
+const MODE_KEY = "talaris.writing.mode";
+let mode = (() => { try { return localStorage.getItem(MODE_KEY) || "live"; } catch { return "live"; } })();
+let modules = null;
+const editorModules = () => (modules ??= Promise.all([import("./notefield.js"), import("./markdown.js")])
+  .then(([nf, md]) => ({ noteField: nf.noteField, render: md.render })));
+
+function changed(next) {
+  text = next;
+  clearTimeout(saveTimer);
+  status("EDITING");
+  saveTimer = setTimeout(save, 600);
+}
+
+async function drawEditor() {
+  const host = $("editorHost");
+  if (!host) return;
+  host.dataset.mode = mode;
+  for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("on", b.dataset.mode === mode);
+  if (!open) { host.replaceChildren(el("div", { class: "empty" }, "Pick a page, or make one")); return; }
+  const { noteField, render } = await editorModules();
+  if (mode === "raw") {
+    const area = el("textarea", { spellcheck: "true" });
+    area.value = text;
+    area.addEventListener("input", () => changed(area.value));
+    host.replaceChildren(area);
+    area.focus();
+  } else if (mode === "preview") {
+    const view = el("div", { class: "preview" });
+    view.append(text.trim() ? render(text) : el("p", { class: "empty" }, "Nothing written yet"));
+    host.replaceChildren(view);
+  } else {
+    const wrap = el("div", { class: "live" });
+    host.replaceChildren(wrap);
+    noteField(wrap, text, changed);
+  }
+}
+
+function setMode(next) {
+  mode = next;
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* fine */ }
+  drawEditor();
+}
 
 async function loadWriting() {
   const pages = await core("GET", `/projects/${state.project.id}/pages`);
@@ -167,23 +235,19 @@ async function loadWriting() {
     return wrap;
   };
   const tree = el("div", { class: "tree" }, pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
-  const editor = el("textarea", { id: "editor", placeholder: open ? "" : "Pick a page, or make one", spellcheck: "true" });
-  if (!open) editor.disabled = true;
-  editor.addEventListener("input", () => {
-    clearTimeout(saveTimer);
-    status("EDITING");
-    saveTimer = setTimeout(save, 600);
-  });
-  $("body").replaceChildren(tree, editor);
+  const modes = el("div", { class: "modes", id: "modes" },
+    ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
+  const pane = el("div", { class: "pane" }, modes, el("div", { class: "editor", id: "editorHost" }));
+  $("body").replaceChildren(tree, pane);
   $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
-  $("actions").replaceChildren(
-    el("button", { onclick: () => newPage(null) }, "New page"),
-    " ",
-    el("button", { onclick: () => open && newPage(open) }, "New page inside"));
+  const actions = [el("button", { onclick: () => newPage(null) }, "New page")];
   if (open) {
-    editor.value = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
-    editor.focus();
+    actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
+      " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
   }
+  $("actions").replaceChildren(...actions);
+  if (open) text = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
+  drawEditor();
 }
 
 async function edit(path) {
@@ -194,10 +258,9 @@ async function edit(path) {
 
 async function save() {
   saveTimer = null;
-  const editor = $("editor");
-  if (!open || !editor) return;
+  if (!open) return;
   try {
-    await core("PUT", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`, editor.value);
+    await core("PUT", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`, text);
     status("SAVED");
   } catch (e) {
     status("NOT SAVED");
@@ -213,6 +276,50 @@ async function newPage(parent) {
     try { localStorage.setItem(WRITING_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
   }
   edit(made.path);
+}
+
+function deletePage() {
+  if (!open) return;
+  const title = open.split("/").pop();
+  confirmDelete(`Delete “${title}”?`, "It can be brought back from its versions.", async () => {
+    if (saveTimer) { clearTimeout(saveTimer); await save(); }
+    await core("DELETE", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
+    open = null;
+    text = "";
+    loadWriting();
+  });
+}
+
+// ---------------------------------------------------------------- confirming
+
+/*
+ * A confirmation inside the drawer, in the theme — never the browser's own
+ * dialog. The core has the last word: what it refuses (a canvas with others
+ * below it, a page with pages inside) is said here in its words, and nothing
+ * is deleted.
+ */
+function confirmDelete(title, detail, act) {
+  const said = el("p", { class: "said" });
+  const close = () => sheet.remove();
+  const yes = el("button", { class: "danger" }, "Delete");
+  const sheet = el("div", { class: "confirm", role: "dialog" },
+    el("div", { class: "box" },
+      el("div", { class: "title" }, title),
+      el("p", {}, detail),
+      said,
+      el("div", { class: "buttons" }, el("button", { onclick: close }, "Cancel"), " ", yes)));
+  yes.addEventListener("click", async () => {
+    try {
+      await act();
+      close();
+    } catch (e) {
+      said.textContent = e.message;
+      yes.remove();
+    }
+  });
+  sheet.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } });
+  $("panel").append(sheet);
+  sheet.querySelector("button").focus();
 }
 
 // ---------------------------------------------------------------- the rest
@@ -239,12 +346,25 @@ function touched() {
 }
 for (const type of ["pointerdown", "keydown", "wheel", "pointermove"]) addEventListener(type, touched, { passive: true, capture: true });
 addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && state.mode === "pulled") { e.preventDefault(); if (saveTimer) save(); bridge.file(); }
+  if (e.key !== "Escape" || state.mode !== "pulled") return;
+  // The live editor uses Escape to leave a block, and a confirmation to cancel;
+  // only an Escape nothing else wanted puts the drawer away.
+  if (e.target.closest && e.target.closest(".note-source, .confirm")) return;
+  e.preventDefault();
+  if (saveTimer) save();
+  bridge.file();
 });
 // The Super key of a compositor bind arrives as a stray keydown; it means nothing here.
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("close").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
+// A link opens in the browser, not in the drawer.
+addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest("a[href]");
+  if (!a || !/^https?:/.test(a.href)) return;
+  e.preventDefault();
+  bridge && bridge.openUrl(a.href);
+}, true);
 // The drawer you are in shows it — two pulled out at once must not look alike.
 addEventListener("focus", () => { document.body.dataset.focus = "1"; });
 addEventListener("blur", () => { delete document.body.dataset.focus; });

@@ -16,6 +16,8 @@ disagree, decide which is right and change the other.
   --muted: #868c92;
   --accent: #c98a5b;
   --accent-wash: rgba(201, 138, 91, .14);
+  /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
+  --danger: #c26b6b;
   --font: 'Barlow Semi Condensed', system-ui, sans-serif;
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
