@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statS
 import { join, resolve } from "node:path";
 import { FORMAT_VERSION, type CanvasDocument, type Project, type ProjectSummary } from "@talaris/model";
 import { CONFIG_DIR, MACHINERY, WRITING, projectsRoot } from "./paths.js";
-import { newId, readJson, writeJson } from "./store.js";
+import { newId, readJson, writeAtomic, writeJson } from "./store.js";
 
 /**
  * A project is a folder: whatever the user and their applications put there,
@@ -161,4 +161,24 @@ export function ensureHome(): ProjectSummary {
   const home = listProjects().find((p) => p.home);
   if (home) return home;
   return initialize(join(projectsRoot(), "Home"), "Home", { home: true });
+}
+
+/**
+ * Files Talaris makes for you — a canvas exported as a picture — go in the
+ * project's visible `Exports/` folder, beside `Writing/`: the project is a
+ * folder, and what comes out of it belongs in it. No save dialog: the name is
+ * the canvas's and the date, made unique if the day already has one.
+ */
+export const EXPORTS = "Exports";
+
+export function writeExport(projectId: string, base: string, ext: string, data: Buffer): string {
+  if (!/^(png|pdf)$/.test(ext)) throw new Conflict("an export is a png or a pdf");
+  const { folder } = findProject(projectId);
+  const dir = join(folder, EXPORTS);
+  mkdirSync(dir, { recursive: true });
+  const stem = (base.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim() || "Canvas").slice(0, 120);
+  let name = `${stem}.${ext}`;
+  for (let n = 2; existsSync(join(dir, name)); n++) name = `${stem} ${n}.${ext}`;
+  writeAtomic(join(dir, name), data);
+  return join(EXPORTS, name);
 }

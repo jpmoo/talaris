@@ -236,6 +236,15 @@ function shareTheme(frame) {
 addEventListener("message", (e) => {
   const m = e.data;
   if (m && m.talaris === "open-url" && /^https?:/.test(m.url || "")) { bridge && bridge.openUrl(m.url); return; }
+  if (m && m.talaris === "status") { status(String(m.text || "").toUpperCase().slice(0, 90)); return; }
+  if (m && m.talaris === "exported") {
+    // Where it went, said once, and a click away from opening.
+    const full = `${m.folder}/${m.path}`;
+    const said = $("status");
+    said.replaceChildren(el("span", { class: "exported", title: "Open it", onclick: () => bridge && bridge.openPath(full) },
+      `SAVED TO ${m.path.toUpperCase()} — OPEN ↗`));
+    return;
+  }
   if (!m || m.talaris !== "open-canvas") return;
   if (m.project && m.project !== state.project.id) {
     status("OTHER PROJECTS ARRIVE WITH PROJECTS");

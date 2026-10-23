@@ -8,6 +8,18 @@ this: Talaris's button and form styles would otherwise reach into it and undo
 its own (they pushed its tool icons off center). theme.css imports it.
 */
 
+/* The typefaces, shipped with Talaris (fonts/, SIL Open Font License) rather
+   fetched from Google on every start — no outside request, and the canvas can
+   embed them when it exports a picture, which it cannot do across origins. */
+@font-face { font-family: 'Barlow Semi Condensed'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/barlow-semi-condensed-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Semi Condensed'; font-style: normal; font-weight: 500; font-display: swap; src: url('fonts/barlow-semi-condensed-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/rajdhani-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 500; font-display: swap; src: url('fonts/rajdhani-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira Semi Condensed'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/saira-semi-condensed-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira Semi Condensed'; font-style: normal; font-weight: 500; font-display: swap; src: url('fonts/saira-semi-condensed-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Exo 2'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/exo-2-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Exo 2'; font-style: normal; font-weight: 500; font-display: swap; src: url('fonts/exo-2-latin-500-normal.woff2') format('woff2'); }
+
 :root {
   --desk: #16181a;
   --surface: #222528;

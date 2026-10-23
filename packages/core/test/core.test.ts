@@ -173,6 +173,16 @@ test("daily notes are pages in Writing/Daily, on in Home, counted by month", () 
   assert.throws(() => pages.dailyMonth(home.id, "October"), projects.Conflict);
 });
 
+test("an export lands in the project's Exports folder, named and never overwriting", () => {
+  const p = projects.createProject("Exporting");
+  const one = projects.writeExport(p.id, "Camp / plan", "png", Buffer.from("x"));
+  const two = projects.writeExport(p.id, "Camp / plan", "png", Buffer.from("y"));
+  assert.equal(one, "Exports/Camp - plan.png");
+  assert.equal(two, "Exports/Camp - plan 2.png");
+  assert.equal(readFileSync(join(p.folder, "Exports", "Camp - plan.png"), "utf8"), "x");
+  assert.throws(() => projects.writeExport(p.id, "x", "exe", Buffer.from("")), projects.Conflict);
+});
+
 test("page paths cannot leave Writing", () => {
   const p = projects.createProject("Escapes");
   assert.throws(() => pages.writePage(p.id, "../../etc/x", "no"), projects.Conflict);

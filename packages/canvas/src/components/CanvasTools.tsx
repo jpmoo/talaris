@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Image as ImageIcon, Search, SquareDashed, Type } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
+import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
 
 /** The six the format has, in the Mac's order. */
@@ -98,6 +99,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
   const [shape, setShape] = useState("postIt");
   const [shapesOpen, setShapesOpen] = useState(false);
   const [fileOpen, setFileOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<{ id: string; title: string; typeName?: string }[]>([]);
@@ -232,11 +234,18 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
   }
 
   /** Ask the shell for a picture of this canvas. */
-  function exportAs(kind: "png" | "pdf") {
+  async function exportAs(kind: "png" | "pdf") {
     setFileOpen(false);
-    // Fire and forget: the shell answers at once and does the work behind a file
-    // dialog, so nothing here waits on a modal window somebody is typing into.
-    void ask("GET", `/shell/export?kind=${kind}`).catch(() => {});
+    setExporting(true);
+    window.parent.postMessage({ talaris: "status", text: `EXPORTING ${kind.toUpperCase()}…` }, "*");
+    try {
+      const { path, folder } = await exportCanvas(kind);
+      window.parent.postMessage({ talaris: "exported", path, folder }, "*");
+    } catch (err) {
+      window.parent.postMessage({ talaris: "status", text: String((err as Error).message || err) }, "*");
+    } finally {
+      setExporting(false);
+    }
   }
 
   /** One kept picture, as base64 — the shape a saved canvas carries. */
@@ -468,29 +477,17 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
 
       {LATER && tool("image", "A picture on the canvas", <ImageIcon size={15} />, () => picture.current?.click())}
 
-      {LATER && tool("file", "Save or load this canvas", <FileText size={15} />, () => {
+      {tool("file", "Export this canvas", <FileText size={15} />, () => {
         setFileOpen((o) => !o);
         setFinding(false);
       })}
-      {LATER && fileOpen && (
-        <div className="tool-menu">
-          <button className="menu-item" onClick={save}>Save…</button>
-          <button className="menu-item" onClick={() => loader.current?.click()}>Load…</button>
-          <div className="menu-sep" />
-          {/*
-            * Exporting is the shell's job, not this page's.
-            *
-            * A page cannot render itself to a PDF, cannot take its own picture
-            * larger than its window, and cannot ask where to put a file. The
-            * shell can: it opens this same canvas off-screen with `?export=1`,
-            * sizes the window to the drawing and photographs it. So what comes
-            * out is what you are looking at, drawn by the same code — the Mac
-            * gets there by walking the items and drawing them again in Swift,
-            * which is the one route not open to a canvas that lives in a
-            * browser.
-            */}
-          <button className="menu-item" onClick={() => exportAs("png")}>Export PNG…</button>
-          <button className="menu-item" onClick={() => exportAs("pdf")}>Export PDF…</button>
+      {fileOpen && (
+        <div className="tool-menu export-menu">
+          {/* Talaris: export draws the whole canvas into a file in the
+              project's Exports folder — see export.ts. Saving and loading
+              canvas files comes back later. */}
+          <button className="menu-item" disabled={exporting} onClick={() => void exportAs("png")}>Export PNG</button>
+          <button className="menu-item" disabled={exporting} onClick={() => void exportAs("pdf")}>Export PDF</button>
         </div>
       )}
 

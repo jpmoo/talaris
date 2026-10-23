@@ -111,6 +111,18 @@ class Bridge(QObject):
         if url.startswith(("http://", "https://")):
             QDesktopServices.openUrl(QUrl(url))
 
+    @Slot(str)
+    def openPath(self, path: str) -> None:  # noqa: N802 — called from the page by this name
+        """
+        Open a file Talaris made — an export — in its default application.
+        Only something inside the projects root: a page cannot name any file
+        on the machine and have it opened.
+        """
+        root = os.path.realpath(os.path.expanduser(os.environ.get("TALARIS_PROJECTS", "~/Projects")))
+        real = os.path.realpath(path)
+        if real.startswith(root + os.sep) and os.path.isfile(real):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(real))
+
     @Slot(result=str)
     def current(self) -> str:
         return json.dumps(self.owner.describe())

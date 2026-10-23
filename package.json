@@ -7,5 +7,11 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },
-  "packageManager": "pnpm@9.12.0"
+  "packageManager": "pnpm@9.12.0",
+  "devDependencies": {
+    "@fontsource/barlow-semi-condensed": "^5.3.0",
+    "@fontsource/exo-2": "^5.3.0",
+    "@fontsource/rajdhani": "^5.3.0",
+    "@fontsource/saira-semi-condensed": "^5.3.0"
+  }
 }

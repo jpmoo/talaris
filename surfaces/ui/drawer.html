@@ -11,7 +11,6 @@ keeps its state across that.
 <head>
 <meta charset="utf-8">
 <title>Talaris drawer</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500&family=Rajdhani:wght@400;500&family=Saira+Semi+Condensed:wght@400;500&family=Exo+2:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="theme.css">
 <style>
 #handle { display: none; position: absolute; inset: 0; background: var(--surface); border: 1px solid var(--frame); align-items: center; justify-content: center; color: var(--muted); }
@@ -114,6 +113,8 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .context .menu-item:hover { background: var(--accent-wash); color: var(--accent); }
 .context .menu-item.off { color: var(--muted); opacity: .5; }
 .context .menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.exported { cursor: pointer; color: var(--accent); }
+.exported:hover { text-decoration: underline; text-underline-offset: 2px; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>

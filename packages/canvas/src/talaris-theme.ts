@@ -12,12 +12,7 @@
  * and typeface on this frame as it does on itself.
  */
 export function wearTheme(): void {
-  // The same typefaces the drawer loads — this frame is its own page, so it
-  // would otherwise fall back to the system font while the theme named Barlow.
-  const fonts = document.createElement("link");
-  fonts.rel = "stylesheet";
-  fonts.href = "https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500&family=Rajdhani:wght@400;500&family=Saira+Semi+Condensed:wght@400;500&family=Exo+2:wght@400;500&display=swap";
-  document.head.append(fonts);
+  // The typefaces come with tokens.css, from the drawer's own fonts/ folder.
   const link = document.createElement("link");
   link.rel = "stylesheet";
   // Only the values: theme.css's element styles would restyle the canvas's own buttons.

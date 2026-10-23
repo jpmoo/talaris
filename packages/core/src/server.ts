@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs"
 import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
-import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, readProject } from "./projects.js";
+import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, readProject, writeExport } from "./projects.js";
 import {
   backlinks,
   canvasTree,
@@ -129,6 +129,12 @@ route("GET", "/projects/:id/canvases/:cid/versions/:name", (_r, [id, cid, name])
 route("POST", "/projects/:id/canvases/:cid/versions/:name/restore", (_r, [id, cid, name]) =>
   restoreCanvas(id!, cid!, name!));
 
+route("POST", "/projects/:id/exports", async (req, [id]) => {
+  const b = await json<{ name?: string; kind?: string; data?: string }>(req);
+  if (!b.data || !b.kind) throw new BadRequest("an export needs its kind and its data, base64");
+  const path = writeExport(id!, b.name ?? "Canvas", b.kind, Buffer.from(b.data, "base64"));
+  return { path, folder: findProject(id!).folder };
+});
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
 route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {
