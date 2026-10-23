@@ -27,7 +27,7 @@ DEFAULTS = {
     "dock": {"edge": "bottom"},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
-        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": True},
+        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": False},
         "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False},
     },
     # A pulled drawer files itself after this long with no input. Idle, not a
