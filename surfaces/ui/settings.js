@@ -118,6 +118,8 @@ function draw() {
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
+  slider("touch-thick", cfg.touch.thick, (v) => `${v}px`, (v) => save({ touch: { thick: v } }));
+  slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));

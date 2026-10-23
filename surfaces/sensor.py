@@ -29,9 +29,10 @@ from core import Bridge
 from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement
 from views import make_view
 
-#: How thick the sensor is, in Qt's units: easy to reach, and still inside
-#: the space kept round the windows, so it never lies over one.
-THICK = 6
+#: The touch target, as Settings sets it (Desktop keeps this current): how
+#: thick, in Qt's units, and how much of the edge it covers, in percent,
+#: centered. Thicker than the space round the windows, it lies over their edge.
+TARGET = {"thick": 6, "length": 100}
 #: How long the pointer must be away before a revealed thing goes again.
 AWAY_MS = 700
 
@@ -61,9 +62,15 @@ class EdgeSensor(QObject):
             self.surface.placement = None
         screen = QApplication.primaryScreen().geometry()
         across = self.edge in ("left", "right")
-        w = THICK if across else screen.width()
-        h = screen.height() if across else THICK
-        self.surface.apply(Placement(TOP, EDGE_ANCHOR[self.edge] | EDGE_SPAN[self.edge], w, h, KEYBOARD_NONE))
+        thick = int(TARGET["thick"])
+        share = max(10, min(100, int(TARGET["length"]))) / 100
+        long = int((screen.height() if across else screen.width()) * share)
+        w, h = (thick, long) if across else (long, thick)
+        # The whole edge spans it; a part of it, anchored to the edge alone, is
+        # centered along it by the compositor.
+        anchors = EDGE_ANCHOR[self.edge] | (EDGE_SPAN[self.edge] if share >= 1 else 0)
+        self.surface.placement = None
+        self.surface.apply(Placement(TOP, anchors, w, h, KEYBOARD_NONE))
         self.up = True
 
     def hide(self) -> None:

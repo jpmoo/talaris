@@ -93,6 +93,8 @@ def _checked(c: dict) -> str:
             return "Not a bar or dock outline, shadow or motion"
     if b.get("shape") not in ("strip", "floating") or not all(0 <= int(v) <= 40 for v in (b.get("margins") or {}).values()):
         return "The bar is a strip or floating, its margins up to 40 pixels"
+    if not (2 <= int(c["touch"]["thick"]) <= 30 and 10 <= int(c["touch"]["length"]) <= 100):
+        return "A touch target is 2 to 30 thick and 10 to 100 percent of its edge"
     if not 0 <= int(c["windows"]["gap"]) <= 40:
         return "The space round windows is 0 to 40 pixels"
     if not 0 <= int(c["windows"].get("between", 10)) <= 40:
@@ -191,7 +193,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels"):
+        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

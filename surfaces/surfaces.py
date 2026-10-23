@@ -48,6 +48,7 @@ from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
 from sensor import EdgeSensor, Hover
+import sensor as sensor_module
 from settings import Settings
 from machine import Machine
 from views import log, make_view
@@ -288,6 +289,7 @@ class Desktop(QObject):
         self.files = Files(self, self.apps)
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
+        sensor_module.TARGET.update(self.config["touch"])
         self.machine = Machine(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
@@ -406,6 +408,13 @@ class Desktop(QObject):
 
     # ---------------------------------------------------------------- settings
 
+    def touch_targets(self) -> None:
+        """Every edge sensor, made again at the size Settings gives."""
+        sensor_module.TARGET.update(self.config["touch"])
+        for s in [self.bar.hider.sensor, self.dock.hider.sensor, *(d.sensor for d in self.drawers.values())]:
+            if s.up:
+                s.show()
+
     def every_surface(self) -> list:
         """Everything that draws a page and wears the theme."""
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
@@ -432,6 +441,8 @@ class Desktop(QObject):
                 d.mode = ""
                 d.settle()
         self.style_compositor()
+        if after["touch"] != before["touch"]:
+            self.touch_targets()
         if after["launcher"]["keys"] != before["launcher"]["keys"]:
             hypr.unbind(before["launcher"]["keys"])
             hypr.bind(after["launcher"]["keys"], f"{LAUNCHER} --launcher")

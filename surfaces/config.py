@@ -42,6 +42,9 @@ DEFAULTS = {
     # How the drawers look: their outline (in the accent while in use, a plain
     # line, or none), a shadow, and their opacity in percent.
     "panels": {"outline": "focus", "shadow": True, "opacity": 100},
+    # The edge you touch to bring out a hidden bar or dock, or a drawer set to
+    # touch-to-show: how thick (Qt units) and how much of the edge (percent).
+    "touch": {"thick": 6, "length": 100},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},
