@@ -56,8 +56,8 @@ def _checked(c: dict) -> str:
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
-    if t.get("motion") not in ("slide", "none"):
-        return "Motion is slide or none"
+    if t.get("motion") not in ("slide", "draw", "chaos", "none"):
+        return "Motion is slide, draw, chaos or none"
     k = c["clock"]
     if k.get("hours") not in ("12", "24") or k.get("date") not in DATE_STYLES or not isinstance(k.get("seconds"), bool):
         return "Not a clock setting"

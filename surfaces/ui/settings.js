@@ -62,7 +62,7 @@ function draw() {
   $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === t.accent ? " on" : ""), style: `background:${c}`, title: c,
     onclick: () => save({ theme: { accent: c } }) })));
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
-  seg("motion", [["slide", "Slide"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
+  seg("motion", [["slide", "Slide"], ["draw", "Draw"], ["chaos", "Chaos"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
   const k = cfg.clock;
   seg("hours", [["12", "12 hour"], ["24", "24 hour"]], k.hours, (hours) => save({ clock: { hours } }));
   $("seconds").classList.toggle("on", !!k.seconds);

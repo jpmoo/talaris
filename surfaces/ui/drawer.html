@@ -46,7 +46,14 @@ body[data-edge="top"] #tuck { top: 0; left: calc(50% - 28px); width: 56px; heigh
 body[data-edge="bottom"] #tuck { bottom: 0; left: calc(50% - 28px); width: 56px; height: 10px; border-bottom: 0; border-radius: 9px 9px 0 0; }
 body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width: 22px; height: 2px; }
 .xh { display: none; }
-:root[data-motion="draw"] .xh, :root[data-motion="connect"] .xh { display: block; }
+:root[data-motion="draw"] .xh, :root[data-motion="chaos"] .xh { display: block; }
+/* Draw and chaos (drawer.js): lines in the accent, on a layer over the panel. */
+.fx { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 20; }
+.fx-seg { position: absolute; background: var(--accent); }
+.fx-mark { position: absolute; width: 11px; height: 11px; margin: -5px 0 0 -5px; }
+.fx-mark::before, .fx-mark::after { content: ""; position: absolute; background: var(--accent); }
+.fx-mark::before { left: 5px; top: 0; width: 1px; height: 11px; }
+.fx-mark::after { top: 5px; left: 0; height: 1px; width: 11px; }
 #panel { position: absolute; inset: 0; background: var(--surface); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
 /* Flush with the edge it comes from, so that side has no line. */
 body[data-edge="left"] #panel { border-left: 0; border-radius: 0 12px 12px 0; }

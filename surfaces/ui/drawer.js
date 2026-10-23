@@ -58,14 +58,99 @@ function applyTheme(theme) {
   if (frame) shareTheme(frame);
 }
 
-// Slide in from the edge the drawer belongs to. The other motions in the theme
-// (draw in, connect) come with the canvas; this is the default.
+// ---------------------------------------------------------------- motion
+//
+// The theme's four motions, as design/theme-tuner.html first showed them:
+// slide in from the edge; draw (the frame traced, then filled); chaos (marks
+// first, then lines between them in random order, direction and timing —
+// always mark to mark, never loose — then filled); and none.
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
-const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "none";
+const motion = () => document.documentElement.dataset.motion || "slide";
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || motion() === "none";
 
 function arrive() {
   if (still()) return;
+  if (motion() === "draw" || motion() === "chaos") { trace(motion()); return; }
   $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
+}
+
+/*
+ * Draw and chaos are drawn once, as for a drawer on the left edge — depth
+ * across, breadth down, the flush side at x = 0 — on a layer that one
+ * transform turns to the edge the drawer is really on.
+ */
+function fxLayer() {
+  const panel = $("panel");
+  const Wp = panel.offsetWidth, Hp = panel.offsetHeight;
+  const across = state.edge === "left" || state.edge === "right";
+  const W = across ? Wp : Hp, H = across ? Hp : Wp;
+  const turn = { left: "none", right: `matrix(-1,0,0,1,${Wp},0)`, top: "matrix(0,1,1,0,0,0)", bottom: `matrix(0,-1,1,0,0,${Hp})` }[state.edge];
+  document.querySelectorAll(".fx").forEach((n) => n.remove());
+  const fx = el("div", { class: "fx", style: `width:${W}px;height:${H}px;transform:${turn}` });
+  document.body.append(fx);
+  return { fx, W, H, across };
+}
+function segment(fx, p, q, far) {
+  const flat = p[1] === q[1];
+  const s = el("div", { class: "fx-seg" });
+  Object.assign(s.style, flat
+    ? { left: `${Math.min(p[0], q[0])}px`, top: `${p[1]}px`, width: `${Math.abs(q[0] - p[0])}px`, height: "1px", transformOrigin: far ? "right" : "left" }
+    : { left: `${p[0]}px`, top: `${Math.min(p[1], q[1])}px`, width: "1px", height: `${Math.abs(q[1] - p[1])}px`, transformOrigin: far ? "bottom" : "top" });
+  fx.append(s);
+  return [s, flat ? "scaleX" : "scaleY"];
+}
+function grow([s, axis], delay, duration) {
+  s.animate([
+    { transform: `${axis}(0)`, opacity: 1 },
+    { transform: `${axis}(1)`, opacity: 1, offset: .55 },
+    { transform: `${axis}(1)`, opacity: 0 },
+  ], { duration, delay, easing: "ease-out", fill: "both" }).onfinish = () => s.remove();
+}
+// The panel stays empty — no fill, no frame, no contents — until the lines have done.
+function fillAfter(at) {
+  const panel = $("panel");
+  panel.animate([{ background: "transparent", borderColor: "transparent" }, { background: "transparent", borderColor: "transparent", offset: at }, {}], { duration: 1100, easing: "ease-out" });
+  for (const child of panel.children) {
+    if (!child.classList.contains("xh")) child.animate([{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1 }], { duration: 1100, easing: "ease-out" });
+  }
+}
+function trace(kind) {
+  const { fx, W, H, across } = fxLayer();
+  if (kind === "draw") {
+    // The frame traced: the two sides away from the screen edge together, then the far side.
+    fillAfter(.6);
+    for (const [p, q, d] of [[[0, 0], [W, 0], 0], [[0, H], [W, H], 0], [[W, 0], [W, H], 330]]) grow(segment(fx, p, q, false), d, 600);
+    setTimeout(() => fx.remove(), 1200);
+    return;
+  }
+  // Chaos: marks, then the lines between them, each in its own time and direction.
+  fillAfter(.68);
+  // The flush side has no line, as it has no border. The two sides across are
+  // split at a point that changes each time; on a side drawer the far side is
+  // split where the header's rule meets it, and the rule itself is drawn.
+  const mid = Math.round(W * (.35 + Math.random() * .3));
+  const header = document.querySelector("header");
+  const rule = across && header ? header.offsetTop + header.offsetHeight : null;
+  const P = { tl: [0, 0], tm: [mid, 0], tr: [W, 0], bl: [0, H], bm: [mid, H], br: [W, H] };
+  const edges = [["tl", "tm"], ["tm", "tr"], ["bl", "bm"], ["bm", "br"]];
+  if (rule) {
+    P.hl = [0, rule]; P.hr = [W, rule];
+    edges.push(["tr", "hr"], ["hr", "br"], ["hl", "hr"]);
+  } else {
+    edges.push(["tr", "br"]);
+  }
+  const marks = Object.values(P).map(([x, y]) => {
+    const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
+    fx.append(m);
+    m.animate([{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.4)", opacity: 1, offset: .6 }, { transform: "scale(1)", opacity: 1 }],
+      { duration: 220, delay: Math.random() * 160, fill: "both" });
+    return m;
+  });
+  edges.sort(() => Math.random() - .5).forEach(([a, b]) => grow(segment(fx, P[a], P[b], Math.random() < .5), 200 + Math.random() * 360, 420 + Math.random() * 260));
+  setTimeout(() => {
+    marks.forEach((m) => { m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: "forwards" }); });
+    setTimeout(() => fx.remove(), 300);
+  }, 1050);
 }
 
 /*
@@ -77,9 +162,11 @@ function leave() {
   if (saveTimer) save();
   if (still() || state.mode === "filed") { bridge.left(); return; }
   // Held at the edge until the new mode arrives, so the panel never springs
-  // back into view between the slide ending and the surface moving.
-  leaving = $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }],
-    { duration: 300, easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+  // back into view between the slide ending and the surface moving. Drawn
+  // in, it goes the quiet way: it fades.
+  leaving = motion() === "slide"
+    ? $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }], { duration: 300, easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" })
+    : $("panel").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in", fill: "forwards" });
   leaving.onfinish = () => bridge.left();
 }
 let leaving = null;
