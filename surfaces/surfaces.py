@@ -34,6 +34,7 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import (
     QWebEnginePage,
     QWebEngineProfile,
+    QWebEngineSettings,
     QWebEngineUrlRequestJob,
     QWebEngineUrlScheme,
     QWebEngineUrlSchemeHandler,
@@ -161,8 +162,16 @@ class Drawer(QObject):
         self.view = QWebEngineView()
         self.view.setWindowTitle(f"talaris-{name}")
         self.view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # The engine's own right-click menu — Back, Reload, View source — is a
+        # browser showing through. Pages draw their own menus instead.
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         page = Page(profile, self.view, name)
         page.setBackgroundColor(QColor(0, 0, 0, 0))
+        # So a page's own Cut / Copy / Paste can reach the clipboard.
+        for attr in ("JavascriptCanAccessClipboard", "JavascriptCanPaste"):
+            flag = getattr(QWebEngineSettings.WebAttribute, attr, None)
+            if flag is not None:
+                page.settings().setAttribute(flag, True)
         self.view.setPage(page)
         self.bridge = Bridge(self, self)
         self.channel = QWebChannel(self)

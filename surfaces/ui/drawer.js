@@ -567,6 +567,39 @@ addEventListener("keydown", (e) => {
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("close").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
+/*
+ * Right-click in the writing editor: the drawer's own small menu, never the
+ * engine's. Everywhere else in the drawer a right-click does nothing; the
+ * canvas, in its own frame, has its own menu.
+ */
+let menu = null;
+function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  closeMenu();
+  if (!e.target.closest || !e.target.closest(".editor .cm-editor")) return;
+  const picked = (document.getSelection()?.toString() ?? "").length > 0;
+  const item = (label, command, on = true) =>
+    el("button", { class: "menu-item" + (on ? "" : " off"), onclick: () => {
+      closeMenu();
+      if (!on) return;
+      editor && editor.focus();
+      document.execCommand(command);
+    } }, label);
+  menu = el("div", { class: "context" },
+    item("Cut", "cut", picked), item("Copy", "copy", picked), item("Paste", "paste"),
+    el("div", { class: "menu-sep" }), item("Select all", "selectAll"));
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  document.body.append(menu);
+  // Keep it on screen.
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth) menu.style.left = `${innerWidth - r.width - 4}px`;
+  if (r.bottom > innerHeight) menu.style.top = `${innerHeight - r.height - 4}px`;
+});
+addEventListener("pointerdown", (e) => { if (menu && !menu.contains(e.target)) closeMenu(); }, true);
+addEventListener("keydown", (e) => { if (e.key === "Escape" && menu) { e.stopImmediatePropagation(); closeMenu(); } }, true);
+
 // A link opens in the browser, not in the drawer.
 addEventListener("click", (e) => {
   const a = e.target.closest && e.target.closest("a[href]");

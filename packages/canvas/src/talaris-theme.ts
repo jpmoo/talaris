@@ -91,6 +91,15 @@ export function wearTheme(): void {
       pointer-events: none;
     }
 
+    .cv-swatch.cv-align { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: transparent; border: 1px solid var(--line); }
+    .cv-swatch.cv-align:hover { color: var(--accent); border-color: var(--accent); }
+    .cv-swatch.cv-align.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+    .tool-menu.shape-row { display: flex; gap: 4px; padding: 6px; }
+    .shape-pick { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+    .shape-pick:hover { color: var(--accent); border-color: var(--accent); }
+    .shape-pick.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+    .cv-menu-gap { width: 10px; display: inline-block; }
     .cv-missing { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4px;
       padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); }
     .cv-missing-label { font-size: 10px; letter-spacing: 2px; }

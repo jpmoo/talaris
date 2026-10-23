@@ -1,4 +1,4 @@
-import { Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Pipette, Plus, Lock, Unlock } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Pipette, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
@@ -2346,6 +2346,18 @@ export function CanvasView({
     return `${w}px ${r.strokeStyle ?? "solid"} ${r.stroke ?? "var(--border-strong)"}`;
   };
 
+  const setNodeAlign = (id: string, align: { hAlign?: string; vAlign?: string }) => {
+    if (id.startsWith("n:")) {
+      saveNotes(notes.map((n) => (n.id === id ? { ...n, ...align } : n)));
+    } else {
+      const r = rectOf(id) as NodeCtx | null;
+      if (!r) return;
+      const ctx = { ...r, ...align };
+      setLocal((p) => ({ ...p, [id]: ctx }));
+      persistMemberCtx(id, ctx);
+    }
+  };
+
   const setNodeShape = (id: string, shape: string | null) => {
     if (id.startsWith("n:")) {
       saveNotes(notes.map((n) => (n.id === id ? { ...n, shape } : n)));
@@ -3697,33 +3709,42 @@ export function CanvasView({
                 />
               ))}
             </div>
-            {menuNote && (
-              <>
-                <div className="menu-sep" />
-                <div className="hint" style={{ padding: "4px 10px" }}>Convert to…</div>
-                {orderedTypes.map((t) => (
-                  <button
-                    key={t.id}
-                    className="menu-item menu-item-icon"
-                    onClick={() => {
-                      void convertNote(menuNote, t);
-                      setNodeMenu(null);
-                    }}
-                  >
-                    {/* The same icon the type wears everywhere else. A list of
-                        type names with no icons is a list you read; with them it
-                        is a list you recognise, and these are the same seven
-                        words every time. */}
-                    <BlockIcon
-                      iconKey={t.isText ? "type" : t.iconKey}
-                      color={t.isText ? null : t.iconColor}
-                      size={14}
-                    />
-                    <span>{t.isText ? "Note (text)" : t.name}</span>
-                  </button>
-                ))}
-              </>
-            )}
+            {/* Talaris: "Convert to…" — making a library block from a note — is a
+                plugin's to offer, and comes back with the Hermes plugin. */}
+            {(() => {
+              /*
+               * Where the words sit in the box: across, and down. The note
+               * already carries `hAlign` and `vAlign`; this is the control.
+               */
+              const nr = (nodeMenu.id.startsWith("n:")
+                ? notes.find((n) => n.id === nodeMenu.id)
+                : rectOf(nodeMenu.id)) as NodeCtx | null;
+              const h = nr?.hAlign ?? "leading";
+              const v = nr?.vAlign ?? "top";
+              const across = [["leading", "Left", AlignLeft], ["center", "Center", AlignCenter], ["trailing", "Right", AlignRight]] as const;
+              const down = [["top", "Top", AlignVerticalJustifyStart], ["middle", "Middle", AlignVerticalJustifyCenter], ["bottom", "Bottom", AlignVerticalJustifyEnd]] as const;
+              return (
+                <>
+                  <div className="menu-sep" />
+                  <div className="hint" style={{ padding: "4px 10px" }}>Text</div>
+                  <div className="cv-menu-row">
+                    {across.map(([key, name, Icon]) => (
+                      <button key={key} className={`cv-swatch cv-align${h === key ? " is-on" : ""}`} title={name}
+                        onClick={() => setNodeAlign(nodeMenu.id, { hAlign: key })}>
+                        <Icon size={13} />
+                      </button>
+                    ))}
+                    <span className="cv-menu-gap" />
+                    {down.map(([key, name, Icon]) => (
+                      <button key={key} className={`cv-swatch cv-align${v === key ? " is-on" : ""}`} title={name}
+                        onClick={() => setNodeAlign(nodeMenu.id, { vAlign: key })}>
+                        <Icon size={13} />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
             <div className="menu-sep" />
             <button
               className="menu-item"
@@ -3754,21 +3775,6 @@ export function CanvasView({
                 text={note.text}
                 onChange={(v) => saveNotes(notes.map((x) => (x.id === note.id ? { ...x, text: v } : x)))}
               />
-              <div className="hint" style={{ margin: "6px 0" }}>Convert to…</div>
-              <div className="cv-menu-row" style={{ padding: 0 }}>
-                {orderedTypes.map((t) => (
-                  <button
-                    key={t.id}
-                    className="seg"
-                    onClick={() => {
-                      void convertNote(note, t);
-                      setEphSel(null);
-                    }}
-                  >
-                    {t.isText ? "Note" : t.name}
-                  </button>
-                ))}
-              </div>
             </>,
             bottomSlotEl,
           );

@@ -157,6 +157,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
   });
 
   function dropText(clientX: number, clientY: number) {
+    console.warn(`talaris-debug: placing shape "${shape}"`);
     const at = atPoint(clientX, clientY);
     const { fill, strokeWidth } = defaults(shape);
     void place({
@@ -375,6 +376,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
           window.removeEventListener("pointerup", finish);
           setDragging(null);
           const over = window.document.elementFromPoint(up.clientX, up.clientY);
+          console.warn(`talaris-debug: tool released over "${(over as HTMLElement | null)?.className ?? "nothing"}" with shape "${shape}"`);
           if (over?.closest(".cv-wrap")) dropText(up.clientX, up.clientY);
         };
         window.addEventListener("pointerup", finish);
@@ -405,14 +407,22 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
         )}
       </div>
       {shapesOpen && (
-        <div className="tool-menu">
+        // Talaris: the shapes as a row of their own pictures, named on hover —
+        // the same marks the button wears, so the choice and the button agree.
+        <div className="tool-menu shape-row">
           {SHAPES.map((s) => (
             <button
               key={s.key}
-              className={`menu-item${shape === s.key ? " on" : ""}`}
-              onClick={() => { setShape(s.key); setShapesOpen(false); }}
+              className={`shape-pick${shape === s.key ? " on" : ""}`}
+              title={s.name}
+              aria-label={s.name}
+              onClick={() => {
+                console.warn(`talaris-debug: shape picked "${s.key}"`);
+                setShape(s.key);
+                setShapesOpen(false);
+              }}
             >
-              {s.name}
+              <ShapeMark shape={s.key} />
             </button>
           ))}
         </div>

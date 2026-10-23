@@ -109,6 +109,11 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm .said { color: var(--danger); }
 .confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
+.context { position: fixed; z-index: 50; min-width: 150px; background: var(--surface); border: 1px solid var(--frame); border-radius: 8px; padding: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.context .menu-item { display: block; width: 100%; text-align: left; border: 0; border-radius: 5px; padding: 4px 10px; }
+.context .menu-item:hover { background: var(--accent-wash); color: var(--accent); }
+.context .menu-item.off { color: var(--muted); opacity: .5; }
+.context .menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>
