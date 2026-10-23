@@ -156,6 +156,7 @@ class Drawer(QObject):
         self.out_when_empty = bool(config.get("outWhenEmpty"))
         self.pulled = False
         self.mode = ""
+        self.leaving = False
 
         self.view = QWebEngineView()
         self.view.setWindowTitle(f"talaris-{name}")
@@ -196,8 +197,36 @@ class Drawer(QObject):
         h = screen.height() if across else int(screen.height() * self.size)
         return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, KEYBOARD_ON_DEMAND)
 
+    #: How long a page has to finish leaving before the surface goes anyway.
+    #: A page that never answers must not leave a drawer stuck over the screen.
+    LEAVE_LIMIT_MS = 800
+
     def settle(self) -> None:
         mode = "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
+        if mode == self.mode or self.leaving:
+            return
+        # Going back to a handle: the page plays its leaving first, then says
+        # so, and only then does the surface move. Moving it first is what made
+        # closing a snap rather than a slide.
+        if mode == "filed" and self.mode in ("pulled", "out"):
+            self.leaving = True
+            self.idle.stop()
+            self.bridge.leave.emit()
+            QTimer.singleShot(self.LEAVE_LIMIT_MS, lambda: self.left(late=True))
+            return
+        self._become(mode)
+
+    def left(self, late: bool = False) -> None:
+        """The page has finished leaving — or ran out of time to."""
+        if not self.leaving:
+            return
+        if late:
+            log(f"{self.name}: the page did not finish leaving in time; filed anyway")
+        self.leaving = False
+        mode = "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
+        self._become(mode)
+
+    def _become(self, mode: str) -> None:
         if mode == self.mode:
             return
         self.mode = mode
@@ -210,6 +239,8 @@ class Drawer(QObject):
         log(f"{self.name}: {mode}")
 
     def toggle(self) -> None:
+        if self.leaving:
+            return
         self.pulled = not self.pulled
         self.settle()
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
-// Adopted from Talaria (from-talaria/ui/markdown.js), unchanged in behavior.
+// Adopted from Talaria (jpmoo/hermesnotes, talaria/linux/shell/ui/markdown.js), unchanged in behavior.
 
 /*
  * Just enough Markdown, ported from `MarkdownText` in `app/Sources/Theme.swift`.

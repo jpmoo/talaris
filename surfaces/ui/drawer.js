@@ -57,16 +57,35 @@ function applyTheme(theme) {
 
 // Slide in from the edge the drawer belongs to. The other motions in the theme
 // (draw in, connect) come with the canvas; this is the default.
+const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 function arrive() {
-  const from = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" }[state.edge];
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  $("panel").animate([{ transform: from }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
+  if (still()) return;
+  $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
 }
+
+/*
+ * Leaving is the arrival backwards: back into the edge it came from, a little
+ * quicker and accelerating, the way something is pushed away rather than
+ * drawn out. Then the process is told, and moves the surface to its handle.
+ */
+function leave() {
+  if (saveTimer) save();
+  if (still() || state.mode === "filed") { bridge.left(); return; }
+  // Held at the edge until the new mode arrives, so the panel never springs
+  // back into view between the slide ending and the surface moving.
+  leaving = $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }],
+    { duration: 300, easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+  leaving.onfinish = () => bridge.left();
+}
+let leaving = null;
 
 function update(next) {
   const was = state.mode;
   state = next;
   document.body.dataset.mode = state.mode;
+  if (leaving) { leaving.cancel(); leaving = null; }
   document.body.dataset.edge = state.edge;
   applyTheme(state.theme || {});
   $("handle").title = NAMES[state.drawer] || state.drawer;
@@ -466,5 +485,6 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge = channel.objects.bridge;
   bridge.replied.connect(onReply);
   bridge.state.connect((json) => update(JSON.parse(json)));
+  bridge.leave.connect(leave);
   bridge.current((json) => update(JSON.parse(json)));
 });

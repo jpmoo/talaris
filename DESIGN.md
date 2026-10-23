@@ -34,7 +34,7 @@ See *Plugins*.
 
 **Its own thing.** It is not Talaria, and does not need Talaria's daemon.
 Talaria is the Hermes companion on macOS and KDE and stays that; Talaris took
-what it had learned and a few of its parts (`from-talaria/`). There is no KRunner
+what it had learned and a few of its parts. There is no KRunner
 and no KDE path.
 
 **Hyprland first, not Hyprland only.** See *The compositor is a backend*.
@@ -798,7 +798,8 @@ Plugins, being separate processes, may be written in anything.
 
 ### What the layer spike found
 
-`from-talaria/spikes/layer_canvas.py`, run on Hyprland 0.53.3, Qt 6.10.2 and
+The spike — `talaria/linux/spikes/layer_canvas.py` in `jpmoo/hermesnotes`, since
+superseded by `surfaces/layershell.py` — ran on Hyprland 0.53.3, Qt 6.10.2 and
 LayerShellQt 6.6.4 (Ubuntu's `layer-shell-qt`, unpacked rather than installed —
 **Talaris will need it as a dependency**). Talaria's canvas fork, through
 Talaria's `scheme.py`, on a full-screen `bottom` surface. **The Qt route holds;

@@ -39,12 +39,7 @@ curl -s --unix-socket $XDG_RUNTIME_DIR/talaris.sock http://talaris/projects
 ```
 
 - `DESIGN.md` — the design, the decisions, and what the one spike found.
-- `from-talaria/` — pieces copied from Talaria, unedited, to be taken from. Its
-  `README.md` says where each came from and why. **Nothing in it runs as it
-  stands.** Move a piece out when it is adopted and change it there.
-
-## Related repositories
-
+- `from-talaria/` — only the canvas, still to be adopted; everything retired is deleted, not kept (see its README).
 - `jpmoo/hermesnotes` — Hermes Notes, the `pkm-interchange` format, and Talaria.
   Talaris does **not** depend on Talaria's daemon. The Hermes plugin speaks the
   format and only the format. `talaria/linux/CLAUDE.md` there holds a great deal

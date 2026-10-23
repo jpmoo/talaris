@@ -73,6 +73,8 @@ class Bridge(QObject):
     replied = Signal(int, int, str)
     #: Pushed to the page: its mode and its project.
     state = Signal(str)
+    #: Pushed to the page: play your leaving, then call `left`.
+    leave = Signal()
 
     def __init__(self, owner, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -92,6 +94,11 @@ class Bridge(QObject):
     def file(self) -> None:
         """Escape, from the page: put it back."""
         self.owner.file_away()
+
+    @Slot()
+    def left(self) -> None:
+        """The page has played its leaving; the surface can go to its handle now."""
+        self.owner.left()
 
     @Slot()
     def activity(self) -> None:
