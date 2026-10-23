@@ -110,18 +110,26 @@ terminal, and not a starship console. Settled 2026-10-23:
   on grays rather than going white. Both, plus following the time of day.
 - **Mostly gray, one accent.** Neutral grays carry everything; a single color
   marks what is selected, live or actionable. **The accent is the user's
-  choice**, and the offered ones are soft and muted — an orange, a green —
-  never neon.
+  choice**: a handful of soft, muted ones are offered — an orange, a green, a
+  steel blue, an amber, a dusty rose — and a standard color picker takes any
+  other.
 - **Softly rounded corners.**
 - **Technical type**, in the *Minority Report* family but a little less narrow
-  — a semi-condensed sans. Which face is still being chosen.
+  — a semi-condensed sans. **The user chooses the face**; a few are offered
+  (Rajdhani, Barlow Semi Condensed, Saira Semi Condensed, Exo 2 were tried).
 - **The detail is part of the look**: thin rules, small letter-spaced labels,
   quiet codes and counts in the margins (`PRJ-03 · 14 ITEMS`, `LIVE`,
   `ASLEEP`). Information first — every small label says something true — never
   decoration for its own sake.
-- **Motion is a setting.** Drawers slide in smoothly by default; the other choice
-  draws the frame in lines first and then fills it. Both honor a reduced-motion
-  setting that makes them near-instant.
+- **Motion is a setting.** Drawers slide in smoothly by default. The other
+  choice is **chaos**: short lines burst across the drawer's area at once, in
+  different directions and at random, and the panel resolves out of them — a
+  *Chaos Computer* feeling rather than a frame being traced. Both honor a
+  reduced-motion setting that makes them near-instant.
+- **Small instrument touches, where they mean something**: a blinking block
+  cursor in a field that is waiting for you; crosshair marks at a surface's
+  corners; a crosshair and live coordinates over a canvas, where position is
+  real information. Same rule as the labels — never where they say nothing.
 
 ## The model
 
