@@ -89,6 +89,10 @@ when the pointer leaves, as an autohiding bar does: a thin, invisible strip on
 the edge watches for the pointer. A pulled drawer also has its own **close**
 control, not only Escape and the keys.
 
+**How a drawer closes is a setting** (later): the close button only; clicking
+anywhere outside the drawer, with no close button; or both, with the button
+shown. Escape, the keys and the idle timeout work under all three.
+
 That is the spike's two layers given a meaning: `bottom` is "out on an empty
 desktop," `overlay` is "pulled out over the windows." The way back is never
 optional — a compositor bind, Escape, and filing itself away after a stretch
