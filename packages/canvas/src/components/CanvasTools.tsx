@@ -74,7 +74,11 @@ function defaults(shape: string): { fill: string | null; strokeWidth: number } {
   // "no border" and an absent one as "whatever the stylesheet says". Plain text
   // means the first.
   if (shape === "plain") return { fill: null, strokeWidth: 0 };
-  return { fill: null, strokeWidth: 1.5 };
+  // Talaris: a shape comes in filled, so it reads as a thing on the canvas
+  // rather than a loose outline. The fill is the theme's, named rather than
+  // written as a color, so a light theme gets a light card; `readableOn` sees
+  // no hex in it and leaves the ink to the stylesheet's text.
+  return { fill: "var(--shape-fill)", strokeWidth: 1.5 };
 }
 
 const id = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -95,7 +99,7 @@ function atPoint(clientX: number, clientY: number): { x: number; y: number } {
 
 const LATER = false as boolean;
 
-export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
+export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void> }) {
   const [shape, setShape] = useState("postIt");
   const [shapesOpen, setShapesOpen] = useState(false);
   const [fileOpen, setFileOpen] = useState(false);
@@ -136,7 +140,8 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
     const doc = document_();
     doc.items = [...doc.items, item];
     await putDocument(doc);
-    onPlaced();
+    // Awaited, so whoever placed it can act on the node once it is drawn.
+    await onPlaced();
   }
 
   /*
@@ -161,13 +166,18 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
   function dropText(clientX: number, clientY: number) {
     const at = atPoint(clientX, clientY);
     const { fill, strokeWidth } = defaults(shape);
+    const made = id();
     void place({
-      id: id(),
+      id: made,
       x: at.x - 110, y: at.y - 65, w: 220, h: 130,
       // The rounded default is an *absent* key, not a value — `canvas.json` says
       // so and `document.ts` reads it that way. Writing a name for the default
       // would put a shape in the file that nothing there has ever meant.
       text: "", ...(shape ? { shape } : {}), fill, strokeWidth,
+    }).then(() => {
+      // Talaris: a new note is placed to be written in, so the canvas opens it
+      // at once — told by event, for the same sibling reason as the drop.
+      window.document.dispatchEvent(new CustomEvent("talaris-edit-node", { detail: { id: made } }));
     });
   }
 

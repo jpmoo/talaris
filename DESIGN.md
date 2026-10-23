@@ -87,7 +87,9 @@ are **drawers**:
 entirely and **opens a drawer when the pointer bumps its edge**, filing it again
 when the pointer leaves, as an autohiding bar does: a thin, invisible strip on
 the edge watches for the pointer. A pulled drawer also has its own **close**
-control, not only Escape and the keys.
+control, not only Escape and the keys: **a tab where the handle was** — the
+middle of the screen-side edge, the handle's size — so the way back is where
+the way in was. There is no X in the corner.
 
 **A drawer can expand to the whole screen** (later). The canvas or the writing
 surface fills the screen, and the project's windows **fly off** — each toward
@@ -97,9 +99,8 @@ Collapsing it brings the windows back to exactly where they were. In Hyprland
 terms the windows are moved aside, not closed (a special workspace, or slid
 off-screen), so nothing they hold is lost and nothing needs relaunching.
 
-**How a drawer closes is a setting** (later): the close button only; clicking
-anywhere outside the drawer, with no close button; or both, with the button
-shown. Escape, the keys and the idle timeout work under all three.
+**How a drawer closes is a setting** (later): the close tab only; clicking
+anywhere outside the drawer, with no tab; or both, with the tab shown. Escape, the keys and the idle timeout work under all three.
 
 That is the spike's two layers given a meaning: `bottom` is "out on an empty
 desktop," `overlay` is "pulled out over the windows." The way back is never

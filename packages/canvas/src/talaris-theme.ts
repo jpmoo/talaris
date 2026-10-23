@@ -41,6 +41,8 @@ export function wearTheme(): void {
       --font-chrome: var(--font);
       --postit: #d9c983;
       --postit-edge: #a8955a;
+      /* What a new shape is filled with: a card a step up from the surface. */
+      --shape-fill: #2e3337;
       --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .45);
       --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .55);
       --shadow-color: rgba(0, 0, 0, .45);
@@ -49,6 +51,7 @@ export function wearTheme(): void {
     :root[data-mode="light"] {
       --postit: #fdf3b6;
       --postit-edge: #d9c56a;
+      --shape-fill: #ffffff;
       --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .15);
       --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .2);
       --shadow-color: rgba(0, 0, 0, .15);

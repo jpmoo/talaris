@@ -47,6 +47,7 @@ function status(text) { $("status").textContent = text; }
 function applyTheme(theme) {
   const root = document.documentElement;
   root.dataset.mode = theme.mode === "light" ? "light" : "dark";
+  root.dataset.motion = theme.motion || "slide";
   if (theme.accent) {
     root.style.setProperty("--accent", theme.accent);
     const n = parseInt(theme.accent.slice(1), 16);
@@ -575,7 +576,7 @@ addEventListener("keydown", (e) => {
 // The Super key of a compositor bind arrives as a stray keydown; it means nothing here.
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
-$("close").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
+$("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
 /*
  * Right-click in the writing editor: the drawer's own small menu, never the
  * engine's. Everywhere else in the drawer a right-click does nothing; the

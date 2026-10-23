@@ -38,7 +38,7 @@ without editing four thousand lines of fork.
 
 /* ---- icon buttons ------------------------------------------------------- */
 
-.icon-btn, #close, .shape-pick, .tools .tool, .cv-swatch.cv-align {
+.icon-btn, .shape-pick, .tools .tool, .cv-swatch.cv-align {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -56,7 +56,7 @@ without editing four thousand lines of fork.
 /* Tools float over the drawing, so they carry the surface behind them. */
 .tools .tool { width: var(--control-float) !important; height: var(--control-float) !important; background: var(--surface) !important; }
 .cv-swatch.cv-align { width: 24px !important; height: 24px !important; }
-.icon-btn:hover, #close:hover, .shape-pick:hover, .tools .tool:hover, .cv-swatch.cv-align:hover {
+.icon-btn:hover, .shape-pick:hover, .tools .tool:hover, .cv-swatch.cv-align:hover {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
 }
@@ -65,9 +65,9 @@ without editing four thousand lines of fork.
   color: var(--accent) !important;
   background: var(--accent-wash) !important;
 }
-.icon-btn:active, #close:active, .shape-pick:active, .tools .tool:active { transform: scale(.95); }
+.icon-btn:active, .shape-pick:active, .tools .tool:active { transform: scale(.95); }
 .icon-btn:disabled { opacity: .45; cursor: default; }
-.icon-btn svg, #close svg, .shape-pick svg, .tools .tool svg { display: block; }
+.icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; }
 
 /* ---- text buttons ------------------------------------------------------- */
 

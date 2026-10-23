@@ -23,13 +23,7 @@ body[data-edge="bottom"] #handle { border-bottom: 0; border-radius: 9px 9px 0 0;
 body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 22px; height: 2px; }
 /* Close: a round control at the header's far end, set apart by a hairline. */
 .ends { display: flex; align-items: center; gap: 12px; }
-/* Close is an icon button (controls.css), shown only when pulled. */
-#close { display: none !important; }
-#close svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.divider { display: none; width: 1px; height: 16px; background: var(--line); }
-body[data-mode="pulled"] #close { display: inline-flex !important; }
-body[data-mode="pulled"] .divider { display: block; }
-
+body[data-mode="pulled"] 
 /* Which drawer is which, at a glance: its own mark, and a writing surface on
    a paper-toned panel. Which one has you: an accent frame and a lit title;
    the other dims a little. */
@@ -40,6 +34,19 @@ body[data-mode="pulled"]:not([data-focus]) header { opacity: .62; }
 body[data-mode="filed"] #handle { display: flex; }
 body[data-mode="filed"] #panel { display: none; }
 
+/* The way back is where the way in was: a tab at the middle of the screen-side
+   edge, the handle's size and place, so the hand that opened the drawer finds
+   what closes it without looking for a corner. */
+#tuck { position: absolute; z-index: 5; display: flex; align-items: center; justify-content: center; background: var(--desk); border: 1px solid var(--frame); color: var(--muted); cursor: pointer; transition: color .12s, border-color .12s; }
+#tuck:hover { color: var(--accent); border-color: var(--accent); }
+#tuck .grip { width: 2px; height: 22px; background: currentColor; border-radius: 1px; }
+body[data-edge="left"] #tuck { left: 0; top: calc(50% - 28px); width: 10px; height: 56px; border-left: 0; border-radius: 0 9px 9px 0; }
+body[data-edge="right"] #tuck { right: 0; top: calc(50% - 28px); width: 10px; height: 56px; border-right: 0; border-radius: 9px 0 0 9px; }
+body[data-edge="top"] #tuck { top: 0; left: calc(50% - 28px); width: 56px; height: 10px; border-top: 0; border-radius: 0 0 9px 9px; }
+body[data-edge="bottom"] #tuck { bottom: 0; left: calc(50% - 28px); width: 56px; height: 10px; border-bottom: 0; border-radius: 9px 9px 0 0; }
+body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width: 22px; height: 2px; }
+.xh { display: none; }
+:root[data-motion="draw"] .xh, :root[data-motion="connect"] .xh { display: block; }
 #panel { position: absolute; inset: 0; background: var(--surface); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
 /* Flush with the edge it comes from, so that side has no line. */
 body[data-edge="left"] #panel { border-left: 0; border-radius: 0 12px 12px 0; }
@@ -115,11 +122,14 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
 <body data-mode="filed" data-edge="left">
 <div id="handle" title=""><div class="grip"></div></div>
 <div id="panel">
+  <!-- The corners a drawn-in or connecting panel draws its edges between;
+       sliding has no use for them, so they show only with those motions. -->
   <span class="xh" style="left:4px;top:4px"></span><span class="xh" style="right:4px;top:4px"></span>
   <span class="xh" style="left:4px;bottom:4px"></span><span class="xh" style="right:4px;bottom:4px"></span>
+  <div id="tuck" title="Put it away (Esc)" role="button" aria-label="Close"><div class="grip"></div></div>
   <header>
     <span class="title"><svg class="mark" id="mark" viewBox="0 0 14 14"></svg><span id="where"></span></span>
-    <span class="ends"><span class="label" id="count"></span><span class="divider"></span><button id="close" title="Put it away (Esc)" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1 1 9 9M9 1 1 9"/></svg></button></span>
+    <span class="ends"><span class="label" id="count"></span></span>
   </header>
   <main id="body"></main>
   <footer>

@@ -70,7 +70,7 @@ function Canvas() {
       />
       {/* The strip sits over the canvas rather than inside it: the surface
           knows about items, links and regions, and the strip is none of those. */}
-      {!forExport && <CanvasTools onPlaced={() => void read()} />}
+      {!forExport && <CanvasTools onPlaced={() => read()} />}
     </>
   );
 }

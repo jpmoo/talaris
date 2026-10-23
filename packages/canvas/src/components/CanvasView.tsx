@@ -545,6 +545,34 @@ export function CanvasView({
    * stays clickable, which is the one interaction those are allowed.
    */
   const [editingNode, setEditingNode] = useState<string | null>(null);
+  /*
+   * Talaris: a note just placed opens for writing, caret in it.
+   *
+   * The tools make it and say so; the node may not be drawn yet when they do
+   * (the document is read again after the write), so this waits a few frames
+   * for its editor before focusing it. Bounded, like the double-click replay.
+   */
+  useEffect(() => {
+    const open = (e: Event) => {
+      const item = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (!item) return;
+      // A note is drawn under `n:` and its item's id — see `document.ts`.
+      const made = `n:${item}`;
+      setSelected([made]);
+      setEditingNode(made);
+      let tries = 60;
+      const land = () => {
+        const content = window.document.querySelector<HTMLElement>(
+          `[data-block-id="${CSS.escape(made)}"][data-editing] .cm-content`,
+        );
+        if (content) { window.focus(); content.focus(); }
+        else if (tries-- > 0) requestAnimationFrame(land);
+      };
+      requestAnimationFrame(land);
+    };
+    window.document.addEventListener("talaris-edit-node", open);
+    return () => window.document.removeEventListener("talaris-edit-node", open);
+  }, []);
   const [wrapH, setWrapH] = useState<number | null>(null);
   useEffect(() => {
     const measure = () => {
@@ -2889,7 +2917,11 @@ export function CanvasView({
       data-shape={r.shape ?? undefined}
       className={`cv-node${isNote ? " cv-note" : ""}${selected.includes(id) ? " cv-sel" : ""}${
         groupWith(id) ? " cv-group" : ""
-      }${r.color ? " cv-shaded" : ""}${r.shape && SHAPES[r.shape] ? " cv-shaped" : ""}${
+      }${
+        // Talaris: "shaded" means paper with dark ink. A fill that names one of
+        // the theme's own colors is no paper, and keeps the theme's ink.
+        r.color && !r.color.startsWith("var(") ? " cv-shaded" : ""
+      }${r.shape && SHAPES[r.shape] ? " cv-shaped" : ""}${
         // The strongest mark on the canvas, and the only filled one — the Mac's
         // reasoning: "dropping a box on a box is a gesture whose outcome is
         // invisible until it has happened … so what it is going to connect to
