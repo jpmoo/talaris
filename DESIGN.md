@@ -495,9 +495,71 @@ Decided 2026-10-23:
   renamed into place, so a crash never leaves half a canvas. Any search index is
   a rebuildable cache, never the source of truth.
 
-**Where a project's files live is being settled** — see the conversation of
-2026-10-23: project folders that are real, visible folders, where other
-applications save into them too.
+### A project is a folder
+
+**Every project is a real, visible folder**, because other applications save
+into it too — a document from LibreOffice belongs in the project as much as a
+canvas does. By default they live under **`~/Projects`**; the root is a
+setting, and changing it **migrates** the projects there (pointing it at
+`~/Nextcloud/Projects`, say, syncs every project across machines with nothing
+else to do).
+
+```
+~/Projects/Ogham/
+  Writing/              the writing drawer's pages, as Markdown
+    Camp rules.md
+    Camp rules/         a page's children live in a folder of its name
+      Hourly rolls.md
+  …                     anything you or your applications save here
+  .talaris/             hidden: canvas, project settings, card snapshots, versions
+```
+
+- **Everything visible is yours.** Talaris's machinery stays in `.talaris/`, so
+  the folder looks like any other in a file manager, and moving, backing up or
+  syncing it carries everything.
+- **Home is a project like the others**, at `~/Projects/Home`.
+- **A project can adopt an existing folder** — `~/Documents/Scripts/ogham`
+  rather than a new one. In a git repository, `.talaris/` goes into the
+  repository's own `.git/info/exclude`: local, never committed, never in anyone
+  else's checkout.
+- **Versions** live in `.talaris/versions/`, saved as you work and thinned with
+  age — close together recently, sparser further back. Plain copies, not git,
+  so they are easy to see and restore.
+
+### Writing pages nest
+
+**Pages are Markdown files in `Writing/`, and they nest** — shown in the drawer
+as a tree that expands and collapses. On disk a page's children live in a
+folder named after it, beside it (`Camp rules.md` and `Camp rules/`), so the
+structure reads the same in a file manager as in the drawer. Renaming or moving
+a page renames or moves its folder with it.
+
+The file system has no order, so **sibling order is Talaris's**, kept in
+`.talaris/`; a page that appears from outside — written by another app, synced
+in — is listed, at the end, rather than ignored. Which branches are expanded is
+a viewer's state, in `~/.local/state/talaris/`, not the project's.
+
+### Starting a file in a project
+
+**"New …" comes from `~/Templates`**, the folder file managers already use for
+the same thing: each file there is a choice, named after the file. Adding a kind
+of document is dropping a file in that folder; Talaris puts a few there on first
+run (a Markdown note, a text file, a blank LibreOffice document, spreadsheet and
+presentation). **Which application opens it is the system's default** for that
+type, not a Talaris mapping. So `new <template>` is one verb: copy it into the
+project, name it, open it. From the launcher ("new spr…") or the canvas's tool
+strip, where it lands as a card where you were.
+
+**Applications started the ordinary way are caught three ways**, because Linux
+has no single "default save folder" every application obeys:
+
+1. They are **launched in the project folder** — terminals, editors and
+   command-line tools honor that, and some others.
+2. The **current project sits at the top of the Save dialog's sidebar**, through
+   the GTK bookmarks most applications' dialogs read.
+3. **"File it here"**: a file saved outside the project while you are working in
+   it gets a quiet offer to move it in, read from the system's recently-used
+   list.
 
 ## The compositor is a backend
 
