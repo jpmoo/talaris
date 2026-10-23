@@ -132,7 +132,9 @@ class Drawer(QObject):
         self.desktop = desktop
         self.edge = config["edge"]
         self.size = float(config["size"])
-        self.out_when_empty = bool(config.get("outWhenEmpty"))
+        # "Canvas as desktop" — a drawer out on an empty workspace — was taken
+        # out of Settings (2026-10-23); an old setting does not bring it back.
+        self.out_when_empty = False
         # Touch to show: no handle; the pointer touching the edge pulls the
         # drawer, and leaving it files it again. Pulled by its keys instead,
         # it stays until put away, as before.
@@ -432,7 +434,7 @@ class Desktop(QObject):
         for name, d in self.drawers.items():
             mine = after["drawers"][name]
             if mine != before["drawers"][name]:
-                d.edge, d.size, d.out_when_empty = mine["edge"], float(mine["size"]), bool(mine.get("outWhenEmpty"))
+                d.edge, d.size = mine["edge"], float(mine["size"])
                 d.autoshow = bool(mine.get("autoshow"))
                 d.sensor.hide()
                 # Made anew where it now belongs, filed: a drawer that moves edge

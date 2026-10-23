@@ -115,7 +115,6 @@ function draw() {
     seg(`${name}-edge`, Object.entries(EDGE_NAMES), d.edge, (edge) => save({ drawers: { [name]: { edge } } }),
       (edge) => edge === other || edge === cfg.bar.edge || edge === cfg.dock.edge);
   }
-  $("canvas-out").classList.toggle("on", !!cfg.drawers.canvas.outWhenEmpty);
   // Both drawers share one size and one touch-to-show; each keeps its own edge.
   const both = (change) => save({ drawers: { canvas: change, writing: change } });
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
@@ -144,7 +143,6 @@ $("drawer-auto").addEventListener("click", () => {
   const on = !cfg.drawers.canvas.autoshow;
   save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });
 });
-$("canvas-out").addEventListener("click", () => save({ drawers: { canvas: { outWhenEmpty: !cfg.drawers.canvas.outWhenEmpty } } }));
 // ---------------------------------------------------------------- the picker
 //
 // Hue, saturation and value; the page's accent follows as you drag, and the

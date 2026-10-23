@@ -18,6 +18,9 @@ if [ "$#" -eq 0 ]; then
     exit 0
   fi
   export QT_QPA_PLATFORM=wayland
+  # Chromium animates every scroll step; a trackpad sends a stream of small
+  # ones, and animated, the page lags behind the fingers and jumps to catch up.
+  export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:-} --disable-smooth-scrolling"
   export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 fi
 exec python3 "$HERE/surfaces.py" "$@"
