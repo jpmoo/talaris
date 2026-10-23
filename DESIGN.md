@@ -480,6 +480,25 @@ SIGSTOP is not an answer — it frees the CPU and keeps every byte. **Always
 visible:** cards show live or asleep, a notification says what was closed and
 that it is on the canvas, and the dock counts live windows per project.
 
+## Data
+
+Decided 2026-10-23:
+
+- **Talaris starts clean.** Nothing is imported from Talaria — not its Home
+  canvas, not its writing.
+- **Writing is pages.** A project's writing surface is a set of pages, listed in
+  its drawer, not one running document. Each page is a Markdown file.
+- **Canvases and pages are versioned.** You can go back to an earlier state of
+  either, without a backup and without git.
+- **Plain files, no database.** JSON for projects and canvases, Markdown for
+  pages. One writer — the core — and every write goes to a temporary file
+  renamed into place, so a crash never leaves half a canvas. Any search index is
+  a rebuildable cache, never the source of truth.
+
+**Where a project's files live is being settled** — see the conversation of
+2026-10-23: project folders that are real, visible folders, where other
+applications save into them too.
+
 ## The compositor is a backend
 
 Decided 2026-10-23. Talaris needs two things from a compositor, and they are not
