@@ -24,6 +24,7 @@ whole process — that has to happen before Qt starts.
 from __future__ import annotations
 
 import json
+import time
 import mimetypes
 import os
 import sys
@@ -47,13 +48,17 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
-from sensor import EdgeSensor, Hover
+from sensor import Catcher, EdgeSensor, Hover
 import sensor as sensor_module
 from settings import Settings
 from machine import Machine
 from views import log, make_view, set_zoom, zoom
 from core import Bridge, call
 from layershell import (
+    ANCHOR_BOTTOM,
+    ANCHOR_LEFT,
+    ANCHOR_RIGHT,
+    ANCHOR_TOP,
     BOTTOM,
     EDGE_ANCHOR,
     EDGE_SPAN,
@@ -142,6 +147,12 @@ class Drawer(QObject):
         self.autoshow = bool(config.get("autoshow"))
         self.bumped = False
         self.pulled = False
+        # Expanded, the drawer is the desktop: the windows that were on it are
+        # hidden (`hid`: their addresses and workspaces, most recent first),
+        # and come back when it is a drawer again.
+        self.expanded = False
+        self.hid: list[tuple[str, int]] = []
+        self.expanded_at = 0.0
         self.mode = ""
         self.leaving = False
 
@@ -166,12 +177,18 @@ class Drawer(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "look": self.desktop.config["panels"],
+            "gap": self.desktop.config["windows"]["gap"],
         }
 
     def _placement(self, mode: str) -> Placement:
         screen = QApplication.primaryScreen().geometry()
         anchor = EDGE_ANCHOR[self.edge]
         across = self.edge in ("left", "right")
+        if mode == "expanded":
+            # The whole desktop, between the bar and the dock, below where
+            # windows would be — so one coming back shows above it.
+            return Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
+                             screen.width(), screen.height(), KEYBOARD_ON_DEMAND)
         if mode == "filed":
             w, h = (zoom(HANDLE[0]), zoom(HANDLE[1])) if across else (zoom(HANDLE[1]), zoom(HANDLE[0]))
             # Anchored to its edge alone, the compositor centers it along that edge.
@@ -190,8 +207,13 @@ class Drawer(QObject):
     #: A page that never answers must not leave a drawer stuck over the screen.
     LEAVE_LIMIT_MS = 800
 
+    def _wanted(self) -> str:
+        if self.expanded:
+            return "expanded"
+        return "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
+
     def settle(self) -> None:
-        mode = "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
+        mode = self._wanted()
         if mode == self.mode or self.leaving:
             return
         # Going back to a handle: the page plays its leaving first, then says
@@ -212,8 +234,7 @@ class Drawer(QObject):
         if late:
             log(f"{self.name}: the page did not finish leaving in time; filed anyway")
         self.leaving = False
-        mode = "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
-        self._become(mode)
+        self._become(self._wanted())
 
     def _become(self, mode: str) -> None:
         if mode == self.mode:
@@ -234,7 +255,56 @@ class Drawer(QObject):
             self.touched()
         else:
             self.idle.stop()
+        self.desktop.catcher_update()
         log(f"{self.name}: {mode}")
+
+    # ------------------------------------------------------------ expanded
+
+    def grow(self) -> None:
+        """The expand button: the desktop, or back to a drawer."""
+        if self.expanded:
+            self.collapse()
+        else:
+            self.expand()
+
+    def expand(self) -> None:
+        for other in self.desktop.drawers.values():
+            if other is not self:
+                other.collapse()
+                other.file_away()
+        now = hypr.windows()
+        self.hid = [(w["address"], w["workspace"]) for w in sorted(now["windows"], key=lambda w: w["recent"])
+                    if not w["hidden"] and w["workspace"] == now["active"]]
+        for address, _ in self.hid:
+            hypr.hide(address)
+        self.expanded = True
+        self.expanded_at = time.monotonic()
+        self.pulled = True
+        self.bumped = False
+        self.away.stop()
+        self.settle()
+
+    def collapse(self) -> None:
+        """Back to a drawer; the windows come back where they were, the last used focused."""
+        if not self.expanded:
+            return
+        self.expanded = False
+        hid, self.hid = self.hid, []
+        for address, workspace in reversed(hid):
+            hypr.restore(address, workspace)
+        if hid:
+            hypr.focus(hid[0][0])
+        self.settle()
+
+    def windows_changed(self, now: dict) -> None:
+        """Expanded: a window coming back, or another desktop, makes it a drawer again."""
+        if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
+            return
+        mine = {address for address, _ in self.hid}
+        back = any(not w["hidden"] and w["workspace"] == now["active"] and w["address"] not in mine for w in now["windows"])
+        returned = any(not w["hidden"] and w["address"] in mine for w in now["windows"])
+        if back or returned or (self.hid and now["active"] != self.hid[0][1]):
+            self.collapse()
 
     def toggle(self) -> None:
         if self.leaving:
@@ -265,12 +335,16 @@ class Drawer(QObject):
             self.file_away()
 
     def file_away(self) -> None:
+        # Expanded, Escape and the like make it a drawer again first.
+        if self.expanded:
+            self.collapse()
+            return
         if self.pulled:
             self.pulled = False
             self.settle()
 
     def touched(self) -> None:
-        if self.pulled:
+        if self.pulled and not self.expanded:
             self.idle.start(int(self.desktop.config["idleSeconds"]) * 1000)
 
     def _idle(self) -> None:
@@ -321,6 +395,14 @@ class Desktop(QObject):
             d.settle()
 
         self.events.changed.connect(self._changed)
+        # An expanded drawer hears when windows change: one coming back makes
+        # it a drawer again. Asked a moment after a burst, once.
+        self._windows_soon = QTimer(self)
+        self._windows_soon.setSingleShot(True)
+        self._windows_soon.timeout.connect(self._windows_changed)
+        self.events.windows.connect(lambda: self._windows_soon.start(120))
+        # Clicking off a pulled drawer puts it away, when Settings says so.
+        self.catcher = Catcher(profile, self._caught, self)
         self.events.reloaded.connect(self._bind)
         self._bind()
 
@@ -337,6 +419,27 @@ class Desktop(QObject):
             projects = []
         home = next((p for p in projects if p.get("home")), None)
         return home or {"id": "", "code": "", "name": "Home"}
+
+    def _windows_changed(self) -> None:
+        if any(d.expanded for d in self.drawers.values()):
+            now = hypr.windows()
+            for d in self.drawers.values():
+                d.windows_changed(now)
+
+    def catcher_update(self) -> None:
+        """The catcher is out while a drawer is pulled (not expanded), if clicking outside puts it away."""
+        if not hasattr(self, "catcher"):
+            return
+        want = bool(self.config["panels"].get("dismissOutside")) and any(d.mode == "pulled" for d in self.drawers.values())
+        if want:
+            self.catcher.show()
+        else:
+            self.catcher.hide()
+
+    def _caught(self) -> None:
+        for d in self.drawers.values():
+            if d.mode == "pulled":
+                d.file_away()
 
     def _changed(self) -> None:
         empty = hypr.workspace_is_empty()
@@ -445,6 +548,8 @@ class Desktop(QObject):
                     d.surface.placement = None
                     d.surface.apply(d._placement("filed"))
         self.style_compositor()
+        if after["panels"] != before["panels"]:
+            self.catcher_update()
         if after["touch"] != before["touch"]:
             self.touch_targets()
         if after["launcher"]["keys"] != before["launcher"]["keys"]:
@@ -526,6 +631,8 @@ class Desktop(QObject):
                 self.morgan.file_away()
                 self.voice.file_away()
                 self.settings.file_away()
+            elif verb == "grow" and arg in self.drawers:
+                self.drawers[arg].grow()
             elif verb == "settings":
                 self.settings.open(arg)
             elif verb == "osd":
@@ -562,6 +669,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--grow"] and len(args) == 2:
+        return send(f"grow {args[1]}")
     if args[:1] == ["--settings"]:
         return send("settings " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--osd"] and len(args) == 2:

@@ -1,0 +1,24 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The catcher (sensor.py): clear, over the windows and under a pulled drawer. A
+press on it is a press off the drawer, which puts the drawer away.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); }</style>
+</head>
+<body>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+"use strict";
+new QWebChannel(qt.webChannelTransport, (channel) => {
+  const bridge = channel.objects.bridge;
+  document.addEventListener("pointerdown", () => bridge.touched());
+});
+</script>
+</body>
+</html>

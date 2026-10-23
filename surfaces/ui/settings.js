@@ -120,6 +120,7 @@ function draw() {
   const both = (change) => save({ drawers: { canvas: change, writing: change } });
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
+  $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
@@ -140,6 +141,7 @@ $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.enabled === false } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
+$("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
 $("drawer-auto").addEventListener("click", () => {
   const on = !cfg.drawers.canvas.autoshow;
   save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });

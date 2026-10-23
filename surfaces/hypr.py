@@ -116,6 +116,12 @@ def show(address: str) -> None:
     focus(address)
 
 
+def restore(address: str, workspace: int) -> None:
+    """Back from hiding onto the workspace it was on."""
+    if _address(address):
+        ask(f"/dispatch movetoworkspacesilent {int(workspace)},address:{address}")
+
+
 def focus(address: str) -> None:
     """Bring a window forward, going to its workspace if it is on another."""
     if address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower()):

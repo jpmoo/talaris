@@ -98,6 +98,12 @@ class Bridge(QObject):
         self.owner.file_away()
 
     @Slot()
+    def grow(self) -> None:
+        """A drawer's expand button: the desktop, or back to a drawer."""
+        if hasattr(self.owner, "grow"):
+            self.owner.grow()
+
+    @Slot()
     def left(self) -> None:
         """The page has played its leaving; the surface can go to its handle now."""
         self.owner.left()

@@ -108,6 +108,56 @@ class EdgeSensor(QObject):
         pass
 
 
+class Catcher(QObject):
+    """
+    A clear layer over the windows, under a pulled drawer: a press on it —
+    anywhere off the drawer — puts the drawer away. On the top layer, so the
+    drawers (on the overlay) stay above it; reserving nothing, and kept clear
+    of the bar's and dock's reserved space by theirs.
+    """
+
+    def __init__(self, profile: QWebEngineProfile, on_catch: Callable[[], None], parent: QObject) -> None:
+        super().__init__(parent)
+        self.on_catch = on_catch
+        self.up = False
+        self.bridge = SensorBridge(self, self)
+        self.view = make_view(profile, "catcher", "talaris-ui://ui/catch.html", self.bridge, self)
+        self.surface = LayerSurface(self.view, "talaris-catcher")
+
+    def describe(self) -> dict:
+        return {}
+
+    def show(self) -> None:
+        if self.up:
+            return
+        screen = QApplication.primaryScreen().geometry()
+        self.surface.placement = None
+        self.surface.apply(Placement(TOP, EDGE_ANCHOR["top"] | EDGE_ANCHOR["bottom"] | EDGE_ANCHOR["left"] | EDGE_ANCHOR["right"],
+                                     screen.width(), screen.height(), KEYBOARD_NONE))
+        self.up = True
+
+    def hide(self) -> None:
+        if self.up:
+            self.up = False
+            self.view.hide()
+            self.surface.placement = None
+
+    def touched_edge(self) -> None:
+        self.on_catch()
+
+    def toggle(self) -> None:
+        pass
+
+    def file_away(self) -> None:
+        pass
+
+    def left(self) -> None:
+        pass
+
+    def touched(self) -> None:
+        pass
+
+
 class Hover(QObject):
     """Calls `on_change(inside)` as the pointer enters and leaves a view."""
 

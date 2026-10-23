@@ -23,6 +23,14 @@ body[data-edge="bottom"] #handle { border-bottom: 0; border-radius: 9px 9px 0 0;
 body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 22px; height: 2px; }
 /* Close: a round control at the header's far end, set apart by a hairline. */
 .ends { display: flex; align-items: center; gap: 12px; }
+#grow { width: 24px !important; height: 24px !important; }
+#grow svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+/* Expanded, the drawer is the desktop: inside the same gap the windows keep,
+   framed all round and rounded, with no tab to put it away — the expand
+   button, Escape, or a window coming back make it a drawer again. */
+body[data-mode="expanded"] #panel { inset: var(--gap, 10px) !important; border: 1px solid var(--frame) !important; border-radius: 12px !important; }
+body[data-mode="expanded"] #tuck { display: none !important; }
+body[data-mode="expanded"][data-outline="none"] #panel { border-color: transparent !important; }
 body[data-mode="pulled"] 
 /* Which drawer is which, at a glance: its own mark, and a writing surface on
    a paper-toned panel. Which one has you: an accent frame and a lit title;
@@ -145,7 +153,7 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
   <div id="tuck" title="Put it away (Esc)" role="button" aria-label="Close"><div class="grip"></div></div>
   <header>
     <span class="title"><svg class="mark" id="mark" viewBox="0 0 14 14"></svg><span id="where"></span></span>
-    <span class="ends"><span class="label" id="count"></span></span>
+    <span class="ends"><span class="label" id="count"></span><button class="icon-btn" id="grow" title="Make this the desktop"></button></span>
   </header>
   <main id="body"></main>
   <footer>

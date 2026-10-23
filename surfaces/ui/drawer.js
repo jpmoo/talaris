@@ -64,6 +64,9 @@ function applyTheme(theme) {
 // slide in from the edge; draw (the frame traced, then filled); chaos (marks
 // first, then lines between them in random order, direction and timing —
 // always mark to mark, never loose — then filled); and none.
+// Four corners out to expand; in to make it a drawer again.
+const GROW = '<svg viewBox="0 0 14 14"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>';
+const SHRINK = '<svg viewBox="0 0 14 14"><path d="M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3"/></svg>';
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
 const motion = () => document.documentElement.dataset.motion || "slide";
 // How quick: Settings' speed, as a factor on every duration and delay here.
@@ -269,6 +272,9 @@ function update(next) {
   document.body.dataset.mode = state.mode;
   if (leaving) { leaving.cancel(); leaving = null; }
   document.body.dataset.edge = state.edge;
+  document.body.style.setProperty("--gap", `${state.gap ?? 10}px`);
+  $("grow").innerHTML = state.mode === "expanded" ? SHRINK : GROW;
+  $("grow").title = state.mode === "expanded" ? "Back to a drawer" : "Make this the desktop";
   const look = state.look || {};
   document.body.dataset.outline = look.outline || "focus";
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
@@ -760,6 +766,7 @@ addEventListener("keydown", (e) => {
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
+$("grow").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.grow(); });
 /*
  * Right-click in the writing editor: the drawer's own small menu, never the
  * engine's. Everywhere else in the drawer a right-click does nothing; the

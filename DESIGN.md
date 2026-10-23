@@ -1032,6 +1032,13 @@ of it and comes out at the end.
    with show, hide, new window, pin, unpin and close. Hiding moves a window to
    a special workspace nobody summons, and its item dims. Icons can magnify
    as the pointer passes, up to double.
+   **A drawer expands to the desktop** (its header's button, or
+   `--grow <drawer>`): it fills the space between the bar and the dock on the
+   bottom layer, and the windows on the desktop are hidden — remembered with
+   the workspace each was on. The same button, Escape, a window coming back,
+   or another desktop make it a drawer again, and every window returns where
+   it was, the last used focused. **Click outside to close** is a setting: a
+   clear layer over the windows, under the drawer, catches the click.
    Not yet: side edges for the bar and dock,
    drawers sharing an edge as tabs, Morgan's memory, voices heard and
    connections.
