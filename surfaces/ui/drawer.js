@@ -132,9 +132,9 @@ function twisty(key, hasKids, kids, shut, store) {
 
 const CANVAS_SHUT = "talaris.canvas.shut";
 const TREE_KEY = "talaris.canvas.tree";
+const LIST_KEY = "talaris.writing.list";
 let viewing = null;  // the canvas on show; new canvases go inside it
 let canvasTreeCache = null;
-let treeShown = (() => { try { return localStorage.getItem(TREE_KEY) !== "off"; } catch { return true; } })();
 
 // What the canvas frame asks for, it asks through these: only this frame can
 // reach the process, so the canvas borrows its door.
@@ -181,11 +181,11 @@ async function loadCanvas() {
     title: "Canvas",
   });
   frame.addEventListener("load", () => shareTheme(frame));
-  const treePane = el("div", { class: "tree canvas-tree" + (treeShown ? "" : " hidden") }, walk(tree));
+  const treePane = el("div", { class: "tree canvas-tree" }, walk(tree));
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   const actions = [
-    el("button", { onclick: () => { treeShown = !treeShown; try { localStorage.setItem(TREE_KEY, treeShown ? "on" : "off"); } catch {} treePane.classList.toggle("hidden", !treeShown); } }, treeShown ? "Hide tree" : "Show tree"),
+    sideToggle(treePane, TREE_KEY, "tree"),
     " ", el("button", { onclick: newCanvas }, "New canvas inside"),
   ];
   if (viewing !== tree.id) {
@@ -194,6 +194,24 @@ async function loadCanvas() {
   }
   $("actions").replaceChildren(...actions);
   status("");
+}
+
+/*
+ * Hide or show a drawer's side column — the canvas tree, the writing list —
+ * remembered per drawer. The button says what it will do next.
+ */
+function sideToggle(pane, key, noun) {
+  const shown = () => { try { return localStorage.getItem(key) !== "off"; } catch { return true; } };
+  pane.classList.toggle("hidden", !shown());
+  const button = el("button", {}, "");
+  const label = () => { button.textContent = `${shown() ? "Hide" : "Show"} ${noun}`; };
+  button.addEventListener("click", () => {
+    try { localStorage.setItem(key, shown() ? "off" : "on"); } catch { /* fine */ }
+    pane.classList.toggle("hidden", !shown());
+    label();
+  });
+  label();
+  return button;
 }
 
 function view(id) {
@@ -426,7 +444,7 @@ async function loadWriting() {
     el("div", { class: "editor", id: "editorHost" }));
   $("body").replaceChildren(tree, pane);
   $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
-  const actions = [el("button", { onclick: () => newPage(null) }, "New page")];
+  const actions = [sideToggle(tree, LIST_KEY, "list"), " ", el("button", { onclick: () => newPage(null) }, "New page")];
   if (open && !isDaily(open)) {
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));

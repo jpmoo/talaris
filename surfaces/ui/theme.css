@@ -6,30 +6,7 @@ The default theme, from design/theme-tuner.html — the reference. When the two
 disagree, decide which is right and change the other.
 */
 
-:root {
-  --desk: #16181a;
-  --surface: #222528;
-  --paper: #272a2d;
-  --frame: #3a3f44;
-  --line: #3a3f44;
-  --text: #d5d9dc;
-  --muted: #868c92;
-  --accent: #c98a5b;
-  --accent-wash: rgba(201, 138, 91, .14);
-  /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
-  --danger: #c26b6b;
-  --font: 'Barlow Semi Condensed', system-ui, sans-serif;
-  --ease: cubic-bezier(.2, .8, .2, 1);
-}
-:root[data-mode="light"] {
-  --desk: #d9dcdf;
-  --surface: #eceef0;
-  --paper: #f3f4f5;
-  --frame: #b7bcc1;
-  --line: #c3c8cd;
-  --text: #25292d;
-  --muted: #6c7277;
-}
+@import url("tokens.css");
 
 /* Nothing a browser gives away: no selecting what you drag, no I-beam over
    labels, no page scrolling, no outlines from the engine. */

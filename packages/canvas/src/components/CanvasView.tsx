@@ -1,4 +1,4 @@
-import { Grid2x2, GripHorizontal, Image as ImageIcon, Minus, Pipette, Plus, Lock, Unlock } from "lucide-react";
+import { Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Pipette, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
@@ -429,20 +429,28 @@ export function CanvasView({
     return () => removeEventListener("message", heard);
   }, []);
 
-  const [grid, setGrid] = useState(() => {
+  /*
+   * Talaris: the paper under the canvas is dots, graph lines, or nothing —
+   * remembered per viewer. Snapping follows whatever is drawn, and nothing is
+   * drawn when it is none, so there is nothing to snap to then.
+   */
+  type Paper = "dots" | "lines" | "none";
+  const [paper, setPaper] = useState<Paper>(() => {
     try {
-      return localStorage.getItem("hn.canvas.grid") !== "0";
+      const v = localStorage.getItem("talaris.canvas.paper");
+      return v === "lines" || v === "none" ? v : "dots";
     } catch {
-      return true;
+      return "dots";
     }
   });
+  const grid = paper !== "none";
   const toggleGrid = () =>
-    setGrid((g) => {
-      const next = !g;
+    setPaper((p) => {
+      const next: Paper = p === "dots" ? "lines" : p === "lines" ? "none" : "dots";
       try {
-        localStorage.setItem("hn.canvas.grid", next ? "1" : "0");
+        localStorage.setItem("talaris.canvas.paper", next);
       } catch {
-        /* ignore */
+        /* fine */
       }
       return next;
     });
@@ -3078,7 +3086,7 @@ export function CanvasView({
   return (
     <div
       ref={wrapRef}
-      className={`cv-wrap${locked ? " locked" : ""}${grid ? "" : " no-grid"}`}
+      className={`cv-wrap${locked ? " locked" : ""} paper-${paper}`}
       // A picture arrives the way one arrives anywhere: pasted, or dropped. A
       // drop lands where it was let go, because somebody dropping a photograph
       // onto a canvas has chosen a place; a paste has no position and lands in
@@ -3445,10 +3453,10 @@ export function CanvasView({
         )}
         <button
           className={`icon-btn cv-grid-toggle${grid ? " on" : ""}`}
-          title={grid ? "Hide the dot grid" : "Show the dot grid"}
+          title={paper === "dots" ? "Dots — click for graph lines" : paper === "lines" ? "Graph lines — click for none" : "No grid — click for dots"}
           onClick={toggleGrid}
         >
-          <Grid2x2 size={14} />
+          {paper === "dots" ? <Grip size={14} /> : paper === "lines" ? <Grid3x3 size={14} /> : <Square size={14} />}
         </button>
         {/*
           * **No frosting switch here.** It is one setting across the desk's three

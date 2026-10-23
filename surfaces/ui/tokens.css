@@ -1,0 +1,34 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The theme's values and nothing else — colors, typeface, easing — for anything
+that wants Talaris's look without its element styles. The canvas loads only
+this: Talaris's button and form styles would otherwise reach into it and undo
+its own (they pushed its tool icons off center). theme.css imports it.
+*/
+
+:root {
+  --desk: #16181a;
+  --surface: #222528;
+  --paper: #272a2d;
+  --frame: #3a3f44;
+  --line: #3a3f44;
+  --text: #d5d9dc;
+  --muted: #868c92;
+  --accent: #c98a5b;
+  --accent-wash: rgba(201, 138, 91, .14);
+  /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
+  --danger: #c26b6b;
+  --font: 'Barlow Semi Condensed', system-ui, sans-serif;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+:root[data-mode="light"] {
+  --desk: #d9dcdf;
+  --surface: #eceef0;
+  --paper: #f3f4f5;
+  --frame: #b7bcc1;
+  --line: #c3c8cd;
+  --text: #25292d;
+  --muted: #6c7277;
+}

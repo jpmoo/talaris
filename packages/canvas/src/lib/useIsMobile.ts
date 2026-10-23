@@ -1,22 +1,12 @@
-import { useEffect, useState } from "react";
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 
-/** True on phone-width viewports (coarse pointer or ≤ 720px wide). */
+/*
+ * Hermes' canvas switched to a locked, phone-style mode on any viewport 720px
+ * wide or less. In Talaris the canvas sits in a drawer that is often narrower
+ * than that — and locking it there took away writing in notes and dragging
+ * them, on a desktop with a mouse. A desktop canvas is never a phone.
+ */
 export function useIsMobile(): boolean {
-  const [mobile, setMobile] = useState(() => match());
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 720px)");
-    const on = () => setMobile(match());
-    mq.addEventListener("change", on);
-    window.addEventListener("resize", on);
-    return () => {
-      mq.removeEventListener("change", on);
-      window.removeEventListener("resize", on);
-    };
-  }, []);
-  return mobile;
-}
-
-function match(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 720px)").matches;
+  return false;
 }
