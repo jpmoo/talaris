@@ -267,8 +267,11 @@ clear of it.
   it, showing listening, thinking or speaking. Search or ask, in one place.
 - **The machine**: clock, battery, volume, network, Bluetooth. Read from
   `wpctl`, `nmcli`, `bluetoothctl` and `/sys` — all already here. Clicking one
-  opens a small panel; deeper settings hand off to existing tools (`nmtui`,
-  `bluetoothctl`) rather than being rebuilt.
+  opens a small panel. **Wi-Fi and Bluetooth get real controls** (changed
+  2026-10-23; the first pass handed them to `nmtui` and `bluetoothctl` in a
+  terminal): the networks in reach, joining one, with a password asked for in
+  the panel; Bluetooth on and off, devices paired and in reach, connecting.
+  Still through `nmcli` and `bluetoothctl`, not rebuilt.
 - **The power menu**: lock, log out, suspend, restart, shut down.
 - **Plugin items**, where a plugin asks for one.
 
@@ -942,13 +945,24 @@ of it and comes out at the end.
    not by the bar growing, which would make it blink. Top or bottom only, for
    now. **The dock's first pass is done** (`surfaces/dock.py`, `apps.py`):
    along the bottom, height reserved, a panel in the middle of the edge. Open
-   windows grouped by workspace — named by the workspace until projects have
-   workspaces — one icon per application per group, a dot per window, the
+   windows grouped by workspace, the groups set apart by a rule and not
+   labeled — one icon per application per group, a dot per window, the
    focused one in the accent. A press goes to the window last used; again, to
    the next. Icons from the `.desktop` files and the GNOME icon theme, drawn by
    Qt and served to the page as `talaris-ui://icon/?n=…`. Special workspaces
    (scratchpads) are left out.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
+   **First pass done** (`surfaces/launcher.py`, `ui/launcher.js`): Super+Alt+Space
+   (Super+Space when Noctalia goes), or the bar's box; Morgan's button opens it
+   already asking. Projects, open windows, the current project's canvases,
+   pages and files, applications, and verbs (the drawers, the power menu's
+   five). The process gathers on each open and the page ranks as you type:
+   titles only, keywords weakly, letters-in-order only when nothing matches
+   better, picks remembered. Enter on a question sends it to Morgan as a
+   spoken turn (`say`) until Morgan has a face here. Choosing a project makes
+   it current — the bar and drawers follow; workspaces wait for step 9.
+   Not yet: a modifier's second action and dragging a result onto a canvas,
+   which wait for cards.
 6. Morgan's face: the button, the popup, the conversation.
 7. Settings, the theme, the OSD, the power menu.
 8. Remove Noctalia's `exec-once`.

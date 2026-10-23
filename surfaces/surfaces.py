@@ -3,7 +3,8 @@
 """
 Talaris's surfaces: everything on the screen that is not an application window.
 
-The bar (`bar.py`), the dock (`dock.py`) and the drawers. Each drawer belongs to one edge and is in one of three
+The bar (`bar.py`), the dock (`dock.py`), the launcher (`launcher.py`) and
+the drawers. Each drawer belongs to one edge and is in one of three
 modes:
 
 - **filed** — a handle on its edge, above the windows, so it can be pulled out.
@@ -41,6 +42,7 @@ import hypr
 from apps import Apps
 from bar import Bar
 from dock import Dock
+from launcher import Launcher
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -68,6 +70,8 @@ CONFIG = os.path.join(
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
     "bar": {"edge": "top"},
+    # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
+    "launcher": {"keys": "SUPER ALT, SPACE"},
     "dock": {"edge": "bottom"},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
@@ -276,6 +280,7 @@ class Desktop(QObject):
         self.events = hypr.Events(self)
         self.dock = Dock(self.config["dock"], profile, self, self.apps)
         self.dock.place()
+        self.launcher = Launcher(profile, self, self.apps)
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -313,10 +318,52 @@ class Desktop(QObject):
             if name in self.drawers:
                 hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
+        hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE"):
+        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
+
+    # ---------------------------------------------------------------- what the launcher asks
+
+    def go_to_project(self, project_id: str) -> None:
+        """The current project changes: the bar says so, and the drawers open on it."""
+        status, text = call("GET", "/projects")
+        try:
+            found = next((p for p in json.loads(text) if p.get("id") == project_id), None) if status == 200 else None
+        except ValueError:
+            found = None
+        if not found or found["id"] == self.project.get("id"):
+            return
+        self.project = found
+        for d in self.drawers.values():
+            d.bridge.state.emit(json.dumps(d.describe()))
+        self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
+        log(f"project: {found['name']}")
+
+    def show_in_drawer(self, name: str, target: dict) -> None:
+        """Open a drawer on one canvas or one page."""
+        d = self.drawers.get(name)
+        if not d:
+            return
+        d.bridge.show.emit(json.dumps(target))
+        if not d.pulled and d.mode != "out":
+            d.toggle()
+
+    #: What the launcher's verbs do. The power ones were asked twice in the page.
+    def verb(self, name: str) -> str:
+        if name in ("canvas", "writing"):
+            self.drawers[name].toggle()
+        elif name == "file-all":
+            for d in self.drawers.values():
+                d.file_away()
+        elif name in ("lock", "suspend", "logout", "restart", "shutdown"):
+            self.machine.power(name)
+        elif name in ("network", "bluetooth"):
+            self.machine.open_tool(name)
+        else:
+            return "No such thing to do"
+        return ""
 
     def _command(self) -> None:
         conn = self.control.nextPendingConnection()
@@ -330,6 +377,9 @@ class Desktop(QObject):
                 for d in self.drawers.values():
                     d.file_away()
                 self.bar.close_popup()
+                self.launcher.file_away()
+            elif verb == "launcher":
+                self.launcher.toggle(arg)
             elif verb == "popup":
                 self.bar.toggle_popup(arg)
             elif verb == "quit":
@@ -358,6 +408,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--launcher"]:
+        return send("launcher " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--popup"] and len(args) == 2:
         return send(f"popup {args[1]}")
     if args[:1] == ["--file-all"]:

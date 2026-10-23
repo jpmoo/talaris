@@ -48,7 +48,9 @@ function draw(listing) {
   const dock = document.getElementById("dock");
   dock.replaceChildren(...(listing.groups || []).map((g) => {
     const group = el("div", "group" + (g.active ? " active" : ""));
-    group.append(el("span", "name", g.name));
+    // No label: the separators say where one workspace ends. A project's name
+    // may come back here once projects have workspaces.
+    group.title = g.name;
     for (const app of g.apps) group.append(appButton(app));
     return group;
   }));

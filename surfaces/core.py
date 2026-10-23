@@ -75,6 +75,8 @@ class Bridge(QObject):
     state = Signal(str)
     #: Pushed to the page: play your leaving, then call `left`.
     leave = Signal()
+    #: Pushed to a drawer's page: open on this — `{canvas}` or `{page}`.
+    show = Signal(str)
 
     def __init__(self, owner, parent: QObject | None = None) -> None:
         super().__init__(parent)

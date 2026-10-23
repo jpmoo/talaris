@@ -82,6 +82,11 @@ class BarBridge(Bridge):
     def popup(self, kind: str) -> None:
         self.owner.desktop.bar.toggle_popup(kind)
 
+    @Slot(str)
+    def launcher(self, mode: str) -> None:
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.launcher.toggle(mode)
+
     @Slot(result=str)
     def reading(self) -> str:
         return self.owner.desktop.machine.last

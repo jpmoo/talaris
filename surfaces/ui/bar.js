@@ -27,7 +27,7 @@ function onState(s) {
     $("where").append(code);
   }
   $("morgan").classList.toggle("absent", !s.morgan);
-  $("morgan").title = s.morgan ? "Morgan is here — the conversation comes with Morgan's face" : "Morgan is not running";
+  $("morgan").title = s.morgan ? "Ask Morgan" : "Morgan is not running";
   for (const [id, kind] of [["vol", "volume"], ["power", "power"]]) $(id).classList.toggle("on", s.popup === kind);
 }
 
@@ -79,13 +79,15 @@ $("vol").addEventListener("wheel", (e) => {
   bridge.volume(e.deltaY < 0 ? "+5" : "-5");
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
+$("ask").addEventListener("click", () => bridge && bridge.launcher(""));
+$("morgan").addEventListener("click", () => bridge && bridge.launcher("ask"));
 $("net").addEventListener("click", () => bridge && bridge.openTool("network"));
 $("bt").addEventListener("click", () => bridge && bridge.openTool("bluetooth"));
 
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power")) return;
+  if (e.target.closest("#vol, #power, #ask, #morgan")) return;
   bridge.file();
 }, true);
 

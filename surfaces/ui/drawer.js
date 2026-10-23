@@ -86,6 +86,12 @@ let leaving = null;
 
 function update(next) {
   const was = state.mode;
+  // Another project: what was open belonged to the last one.
+  if (state.project && next.project && state.project.id && next.project.id !== state.project.id) {
+    viewing = null;
+    open = null;
+    canvasTreeCache = null;
+  }
   state = next;
   document.body.dataset.mode = state.mode;
   if (leaving) { leaving.cancel(); leaving = null; }
@@ -627,5 +633,17 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge.replied.connect(onReply);
   bridge.state.connect((json) => update(JSON.parse(json)));
   bridge.leave.connect(leave);
+  // The launcher found a canvas or a page: open on it. If the drawer is on its
+  // way out, arriving will load it; if it is already out, load it now.
+  bridge.show.connect((json) => {
+    const target = JSON.parse(json);
+    if (state.drawer === "canvas" && target.canvas) {
+      viewing = target.canvas;
+      if (state.mode !== "filed") loadCanvas();
+    } else if (state.drawer === "writing" && target.page) {
+      if (state.mode !== "filed") edit(target.page);
+      else open = target.page;
+    }
+  });
   bridge.current((json) => update(JSON.parse(json)));
 });

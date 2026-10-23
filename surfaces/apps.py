@@ -51,7 +51,8 @@ def _read_entry(path: str) -> dict:
                 if section != "[Desktop Entry]" or "=" not in line:
                     continue
                 key, _, value = line.partition("=")
-                if key in ("Name", "Icon", "StartupWMClass", "NoDisplay", "Exec", "Type"):
+                if key in ("Name", "Icon", "StartupWMClass", "NoDisplay", "Exec", "Type",
+                           "GenericName", "Keywords", "Hidden"):
                     entry.setdefault(key, value)
     except OSError:
         pass
@@ -64,6 +65,7 @@ class Apps:
         self._icons: dict[tuple[str, int], bytes] = {}
         self._missed: set[str] = set()
         self._handed: set[str] = set()
+        self._listed: dict[str, dict] = {}
         # Qt adds the system's icon folders only through a desktop platform
         # theme, which a layer-shell process does not load; named here instead.
         paths = [os.path.expanduser("~/.icons")] + [os.path.join(d, "icons") for d in _data_dirs()]
@@ -86,6 +88,7 @@ class Apps:
 
     def index(self) -> None:
         found: dict[str, dict] = {}
+        listed: dict[str, dict] = {}
         # Later directories are lower priority, so the first one to claim a key keeps it.
         for base in _data_dirs():
             apps = os.path.join(base, "applications")
@@ -108,7 +111,26 @@ class Apps:
                         keys.insert(0, entry["StartupWMClass"].lower())
                     for k in keys:
                         found.setdefault(k, app)
+                    # What the launcher offers: everything a menu would show.
+                    if entry.get("NoDisplay") != "true" and entry.get("Hidden") != "true":
+                        desktop_id = os.path.relpath(os.path.join(root, name), apps)[: -len(".desktop")].replace("/", "-")
+                        listed.setdefault(desktop_id, {
+                            "id": desktop_id, "name": entry["Name"], "icon": app["icon"],
+                            "also": " ".join(x for x in (entry.get("GenericName", ""),
+                                                         entry.get("Keywords", "").replace(";", " ")) if x),
+                        })
         self._by_class = found
+        self._listed = listed
+
+    def launchable(self) -> list[dict]:
+        """Every application a menu would show, by its desktop id."""
+        for app in self._listed.values():
+            if app["icon"]:
+                self._handed.add(app["icon"])
+        return sorted(self._listed.values(), key=lambda a: a["name"].lower())
+
+    def is_launchable(self, desktop_id: str) -> bool:
+        return desktop_id in self._listed
 
     def known_icons(self) -> set[str]:
         """Every icon name the index has handed out — the only ones the file handler will draw."""
