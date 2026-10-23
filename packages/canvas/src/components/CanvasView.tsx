@@ -3050,9 +3050,13 @@ export function CanvasView({
           ...(borderOf(r) ? { border: borderOf(r), boxSizing: "border-box" as const } : {}),
         }}
       >
-        <div className="cv-grab" onPointerDown={(e) => startNodeDrag(id, e)} title="Drag to move">
-          <GripHorizontal size={13} />
-        </div>
+        {/* Talaris: a note drags from anywhere on it, so it needs no handle.
+            A plugin's item keeps one — what it draws may take clicks itself. */}
+        {!isNote && (
+          <div className="cv-grab" onPointerDown={(e) => startNodeDrag(id, e)} title="Drag to move">
+            <GripHorizontal size={13} />
+          </div>
+        )}
         <div className="cv-body" style={alignment(r)}>{shown}</div>
       </div>
       {/* The outline of a clipped shape, drawn rather than bordered. A sibling
