@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+#
+# Talaris's surfaces. The layer-shell integration is chosen per process and
+# before Qt starts, so it is set here rather than in Python — and only for the
+# process that draws, not for `--toggle` and the other commands, which open no
+# window at all.
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+if [ "$#" -eq 0 ]; then
+  export QT_QPA_PLATFORM=wayland
+  export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
+fi
+exec python3 "$HERE/surfaces.py" "$@"

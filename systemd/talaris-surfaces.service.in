@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+#
+# Talaris's surfaces: the drawers, and later the bar, dock and launcher.
+#
+# Not started at login by systemd — it needs the compositor's environment,
+# which only exists once Hyprland is up. talaris.conf's exec-once imports that
+# environment into the user manager and starts this. A service rather than a
+# scope because a crashed surfaces process is a blank desktop: it restarts.
+
+[Unit]
+Description=Talaris surfaces — the drawers on the desktop
+Documentation=file://__ROOT__/DESIGN.md
+Wants=talaris-core.service
+After=talaris-core.service
+
+[Service]
+Type=simple
+ExecStart=__ROOT__/surfaces/talaris-surfaces
+Restart=on-failure
+RestartSec=2

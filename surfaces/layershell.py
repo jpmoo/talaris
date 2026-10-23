@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+"""
+A window as a wlr-layer-shell surface, through LayerShellQt.
+
+LayerShellQt has a C++ API and no Python bindings, so `Window::get(QWindow*)`
+is called through ctypes and everything else is set through the Qt property
+system on the object it returns. What the spike learned, and this follows:
+
+- The whole process runs with `QT_WAYLAND_SHELL_INTEGRATION=layer-shell`.
+  Attaching one `QWidget` window of an ordinary process falls back, silently,
+  to an ordinary window. So every window this process shows is a layer surface,
+  which is what screen furniture wants.
+- **Show, then `get()`, then set, then hide and show.** The integration makes
+  its own `Window` for a surface when it is first shown; a `get()` before that
+  builds an orphan the surface never reads.
+- **A layer, a size or an anchor change needs a new surface.** Setting them on
+  a live one did nothing, so `apply` always ends in a hide and show. The page
+  inside keeps its state across it.
+"""
+
+from __future__ import annotations
+
+import ctypes
+from dataclasses import dataclass
+
+import shiboken6
+from PySide6.QtCore import QObject
+from PySide6.QtWidgets import QWidget
+
+_LIB = ctypes.CDLL("libLayerShellQtInterface.so.6")
+_get = _LIB._ZN12LayerShellQt6Window3getEP7QWindow
+_get.restype = ctypes.c_void_p
+_get.argtypes = [ctypes.c_void_p]
+
+# Enum values from LayerShellQt's window.h.
+BACKGROUND, BOTTOM, TOP, OVERLAY = 0, 1, 2, 3
+ANCHOR_TOP, ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT = 1, 2, 4, 8
+KEYBOARD_NONE, KEYBOARD_EXCLUSIVE, KEYBOARD_ON_DEMAND = 0, 1, 2
+
+EDGE_ANCHOR = {"top": ANCHOR_TOP, "bottom": ANCHOR_BOTTOM, "left": ANCHOR_LEFT, "right": ANCHOR_RIGHT}
+# The two edges a surface stretches between when it runs along an edge.
+EDGE_SPAN = {
+    "left": ANCHOR_TOP | ANCHOR_BOTTOM,
+    "right": ANCHOR_TOP | ANCHOR_BOTTOM,
+    "top": ANCHOR_LEFT | ANCHOR_RIGHT,
+    "bottom": ANCHOR_LEFT | ANCHOR_RIGHT,
+}
+
+
+@dataclass(frozen=True)
+class Placement:
+    """Where a surface is: everything about it that takes a new surface to change."""
+
+    layer: int
+    anchors: int
+    width: int
+    height: int
+    keyboard: int = KEYBOARD_NONE
+    # -1 asks other surfaces' exclusive zones to be ignored; 0 respects them
+    # (a drawer stays clear of the bar); a positive number reserves space.
+    exclusive: int = 0
+
+
+class LayerSurface:
+    """One widget, drawn as a layer surface, re-placed on demand."""
+
+    def __init__(self, widget: QWidget, scope: str) -> None:
+        self.widget = widget
+        self.scope = scope
+        self._window: QObject | None = None
+        self.placement: Placement | None = None
+
+    def _attach(self) -> QObject:
+        if self._window is None:
+            ptr = _get(shiboken6.getCppPointer(self.widget.windowHandle())[0])
+            self._window = shiboken6.wrapInstance(ptr, QObject)
+        return self._window
+
+    def apply(self, placement: Placement) -> None:
+        """Put the surface where `placement` says, by making it anew there."""
+        if placement == self.placement and self.widget.isVisible():
+            return
+        # Sized before it is shown, so the compositor is never handed Qt's
+        # 640×480 default for a frame before the real size arrives.
+        if placement.width and placement.height:
+            self.widget.resize(placement.width, placement.height)
+        if not self.widget.isVisible():
+            self.widget.show()
+        window = self._attach()
+        window.setProperty("scope", self.scope)
+        window.setProperty("layer", placement.layer)
+        window.setProperty("anchors", placement.anchors)
+        window.setProperty("keyboardInteractivity", placement.keyboard)
+        window.setProperty("exclusionZone", placement.exclusive)
+        self.widget.hide()
+        self.widget.show()
+        self.placement = placement

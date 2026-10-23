@@ -20,7 +20,13 @@ first, all of it. Its *Order* section says what is done and what is next.
 - `packages/core` — the core: projects, canvases, writing and versions, on a
   Unix socket. TypeScript compiled by `tsc` (Ubuntu's Node cannot run
   TypeScript directly). Tests run against a throwaway folder, never `~/Projects`.
-- `install.sh` — builds, installs `talaris-core.service`, and asks the socket.
+- `surfaces/` — the screen furniture: one PySide6 process under layer-shell
+  (`talaris-surfaces` sets that before Qt starts). Pages in `surfaces/ui/`
+  reach the core through a `QWebChannel` bridge, never through a URL scheme
+  carrying a body. Page errors go to `journalctl --user -u talaris-surfaces`.
+- `install.sh` — builds, installs `talaris-core.service` and
+  `talaris-surfaces.service`, writes `~/.config/hypr/talaris.conf`, and asks
+  the socket. It never edits `hyprland.conf`.
 
 ```bash
 pnpm -r build

@@ -817,8 +817,13 @@ of it and comes out at the end.
    `packages/core`, served on `$XDG_RUNTIME_DIR/talaris.sock` by
    `talaris-core.service`; projects, nested canvases with links and
    backlinks, nested pages, versions. `packages/model` holds the shared types.
-3. The surfaces process as a service: the drawers on an empty desktop and pulled
-   out over windows, with every way back.
+3. ~~The surfaces process as a service: the drawers on an empty desktop and pulled
+   out over windows, with every way back.~~ **First pass done** — `surfaces/`,
+   `talaris-surfaces.service`, started by `~/.config/hypr/talaris.conf`. The
+   canvas and writing drawers, filed as handles, out on an empty workspace,
+   pulled over windows (Super+Alt+C, Super+Alt+W), back on the same keys,
+   Super+Alt+Escape, Escape, or 45 idle seconds. Writing pages are real; the
+   canvas drawer lists the tree, and the canvas itself is still to come across.
 4. The bar and the dock.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
 6. Morgan's face: the button, the popup, the conversation.

@@ -1,0 +1,55 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The default theme, from design/theme-tuner.html — the reference. When the two
+disagree, decide which is right and change the other.
+*/
+
+:root {
+  --desk: #16181a;
+  --surface: #222528;
+  --frame: #3a3f44;
+  --line: #3a3f44;
+  --text: #d5d9dc;
+  --muted: #868c92;
+  --accent: #c98a5b;
+  --accent-wash: rgba(201, 138, 91, .14);
+  --font: 'Barlow Semi Condensed', system-ui, sans-serif;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+:root[data-mode="light"] {
+  --desk: #d9dcdf;
+  --surface: #eceef0;
+  --frame: #b7bcc1;
+  --line: #c3c8cd;
+  --text: #25292d;
+  --muted: #6c7277;
+}
+
+/* Nothing a browser gives away: no selecting what you drag, no I-beam over
+   labels, no page scrolling, no outlines from the engine. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: clip;
+  background: transparent; color: var(--text);
+  font: 14px/1.45 var(--font);
+  user-select: none; -webkit-user-select: none; cursor: default;
+}
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+textarea, input { user-select: text; -webkit-user-select: text; cursor: text; font: inherit; color: inherit; }
+button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 14px; padding: 2px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+.title { letter-spacing: 3px; font-size: 14px; text-transform: uppercase; }
+.slash { color: var(--accent); }
+
+.xh { position: absolute; width: 11px; height: 11px; pointer-events: none; }
+.xh::before, .xh::after { content: ""; position: absolute; background: var(--muted); }
+.xh::before { left: 5px; top: 0; width: 1px; height: 11px; }
+.xh::after { top: 5px; left: 0; height: 1px; width: 11px; }
