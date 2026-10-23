@@ -19,5 +19,7 @@ paid for once.
 | `shell/scheme.py`, `webprofile.py` | `talaria/linux/shell/` | A web view that talks to a daemon over a Unix socket with no port open, and the one named profile every view must share. The approach carries; the paths will not. |
 | `spikes/` | `talaria/linux/spikes/` | The layer-shell spike. Its findings are in `../DESIGN.md`. |
 
-Talaria's code was MIT-licensed there and stays so there. What Talaris is
-licensed under is decided separately.
+Talaria's code is MIT-licensed there and stays so there. The owner wrote it,
+so these copies are relicensed here under Talaris's GPL-3.0-only — but anyone
+can still take the originals from `jpmoo/hermesnotes` under MIT. Add the SPDX
+header from `CONTRIBUTING.md` to a piece when it moves out of this folder.

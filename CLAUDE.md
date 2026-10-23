@@ -40,6 +40,13 @@ first, all of it. Its *Order* section is where work starts.
 - **Do not capture the owner's screen** to check a surface without asking first.
   Read state from `hyprctl` instead (`hyprctl layers`, `hyprctl clients`).
 
+## License
+
+GPL-3.0-only, and the owner also licenses Talaris commercially — so **every new
+source file carries the SPDX header in `CONTRIBUTING.md`**, and nothing licensed
+in a way that would block that (another GPL project's code, say) is copied in.
+Code from `jpmoo/hermesnotes` is the owner's own and may come across.
+
 ## House style
 
 Comments explain *why*; decisions carry their reasoning; American spellings,

@@ -8,3 +8,9 @@ Anything outside the desktop, starting with Hermes Notes, connects through
 plugins.
 
 **Not built yet.** See [DESIGN.md](DESIGN.md).
+
+## License
+
+GPL-3.0-only — see [LICENSE](LICENSE). Also available on other terms from the
+owner. Contributions need the [Contributor License Agreement](CLA.md); see
+[CONTRIBUTING.md](CONTRIBUTING.md).
