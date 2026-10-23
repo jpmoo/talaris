@@ -558,6 +558,9 @@ can link to a canvas in another project.
   canvas only by a small link mark. Opening a link to another
   project's canvas is `go` to that project, then open that canvas. One parent
   keeps "where does this live" answerable; links keep it from being limiting.
+- **A canvas shows where it is linked from** — a quiet line in its header
+  (`↖ 2 LINKS`) that lists them and goes to any. The core knows every link
+  already; this only says so.
 - **The drawer can show the tree**, expanding and collapsing, as the writing
   drawer does.
 - **Removing a child's card from its parent does not delete the child** — it
