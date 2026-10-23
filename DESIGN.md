@@ -1014,10 +1014,12 @@ of it and comes out at the end.
    And how things look: each drawer's outline (accent in use, line, none),
    shadow and opacity; the bar's shape (a strip, or floating off the edges by
    a set distance with rounded corners) and opacity; the dock's opacity.
-   While a drawer, Morgan's panel or Settings is out, focus no longer follows
-   the pointer (Hyprland's follow_mouse 2, the user's value restored after):
-   leaving it for a window gave that window the keyboard and flickered the
-   drawer's in-use outline.
+   A pulled drawer holds the keyboard exclusively, so leaving it for a window
+   cannot hand that window the keyboard (waking it, and flickering the
+   drawer's in-use outline); scrolling still reaches what is under the
+   pointer. (Hyprland's follow_mouse 2 was tried first, and kept the pointer
+   from reaching Settings until it was clicked.) After a drawer is put away
+   with the pointer at its edge, the edge ignores it until it has left.
    Settings is now one page per thing: Look, Bar, Dock, Drawers, Windows,
    Keys, Morgan. The bar and dock each have hiding, a motion out of hiding
    (slide or none), an outline, a shadow and opacity; a floating bar sets the

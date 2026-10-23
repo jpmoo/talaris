@@ -160,7 +160,6 @@ class Settings(QObject):
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, *SIZE, KEYBOARD_ON_DEMAND))
             self.up = True
-            self.desktop.keep_focus()
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -179,7 +178,6 @@ class Settings(QObject):
         self.idle.stop()
         self.view.hide()
         self.surface.placement = None
-        self.desktop.keep_focus()
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def left(self) -> None:

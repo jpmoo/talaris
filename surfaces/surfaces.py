@@ -57,6 +57,7 @@ from layershell import (
     BOTTOM,
     EDGE_ANCHOR,
     EDGE_SPAN,
+    KEYBOARD_EXCLUSIVE,
     KEYBOARD_NONE,
     KEYBOARD_ON_DEMAND,
     OVERLAY,
@@ -177,7 +178,13 @@ class Drawer(QObject):
             return Placement(TOP, anchor, w, h, KEYBOARD_NONE)
         w = int(screen.width() * self.size) if across else screen.width()
         h = screen.height() if across else int(screen.height() * self.size)
-        return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, KEYBOARD_ON_DEMAND)
+        # Pulled out, the drawer keeps the keyboard to itself: moving the
+        # pointer onto a window cannot hand that window the keyboard — waking
+        # it from its dimmed look and flickering the drawer's in-use outline —
+        # while scrolling still reaches whatever is under the pointer. To type
+        # in a window, put the drawer away.
+        keyboard = KEYBOARD_EXCLUSIVE if mode == "pulled" else KEYBOARD_ON_DEMAND
+        return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, keyboard)
 
     #: How long a page has to finish leaving before the surface goes anyway.
     #: A page that never answers must not leave a drawer stuck over the screen.
@@ -212,12 +219,12 @@ class Drawer(QObject):
         if mode == self.mode:
             return
         self.mode = mode
-        self.desktop.keep_focus()
         if mode == "filed" and self.autoshow:
             # No handle: the surface goes, and the edge waits to be touched.
             self.view.hide()
             self.surface.placement = None
             self.sensor.show(self.edge)
+            self.sensor.disarm_if_under_pointer()
         else:
             self.surface.apply(self._placement(mode))
             if not self.autoshow:
@@ -276,11 +283,11 @@ class Desktop(QObject):
         super().__init__(app)
         self.config = load_config()
         self.empty = hypr.workspace_is_empty()
-        # The user's own follow_mouse, which keep_focus sets aside while a
-        # panel is out and puts back after. Read before anything is out.
-        found = hypr.option("input:follow_mouse")
-        self.follow_mouse = found if isinstance(found, int) and found != 2 else 1
-        self._follow_now = None
+        # An earlier Talaris set follow_mouse to 2 while a panel was out, which
+        # kept the pointer from reaching Settings until it was clicked; if one
+        # left it so, it goes back to following the pointer.
+        if hypr.option("input:follow_mouse") == 2:
+            hypr.keyword("input:follow_mouse", "1")
         self.project = self._home()
         profile = QWebEngineProfile("talaris", self)
         profile.setPersistentStoragePath(
@@ -372,28 +379,9 @@ class Desktop(QObject):
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
 
-    def keep_focus(self) -> None:
-        """
-        While a drawer, Morgan's panel or Settings is out, focus does not
-        follow the pointer: the pointer leaving it for the window below would
-        hand that window the keyboard — waking it from its dimmed, unfocused
-        look, and flickering the drawer's in-use outline at every crossing.
-        Hyprland's follow_mouse 2 keeps the keyboard where it was clicked;
-        the user's own value comes back when the last of them is put away.
-        """
-        out = any(d.mode == "pulled" for d in self.drawers.values()) or self.morgan.up or self.settings.up
-        want = 2 if out else self.follow_mouse
-        if want != self._follow_now:
-            self._follow_now = want
-            hypr.keyword("input:follow_mouse", str(want))
-
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
         self.style_compositor()
-        # A reload put the user's value back; say again what it should be now.
-        self._follow_now = None
-        if hasattr(self, "settings"):
-            self.keep_focus()
         for name, keys in (("canvas", "SUPER ALT, C"), ("writing", "SUPER ALT, W")):
             if name in self.drawers:
                 hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
@@ -406,7 +394,6 @@ class Desktop(QObject):
         for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER ALT, M", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
-        hypr.keyword("input:follow_mouse", str(self.follow_mouse))
 
     # ---------------------------------------------------------------- settings
 

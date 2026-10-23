@@ -25,8 +25,9 @@ from PySide6.QtCore import QEvent, QObject, QTimer, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication, QWidget
 
+import hypr
 from core import Bridge
-from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement
+from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement, to_compositor
 from views import make_view
 
 #: The touch target, as Settings sets it (Desktop keeps this current): how
@@ -49,9 +50,14 @@ class EdgeSensor(QObject):
         self.edge = edge
         self.on_touch = on_touch
         self.up = False
+        # Disarmed, a touch does nothing until the pointer has left the strip:
+        # put away with the pointer still at the edge, a drawer would otherwise
+        # come straight back out under it.
+        self.armed = True
         self.bridge = SensorBridge(self, self)
         self.view = make_view(profile, f"edge-{name}", "talaris-ui://ui/edge.html", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-edge-{name}")
+        Hover(self.view, lambda inside: None if inside else setattr(self, "armed", True))
 
     def describe(self) -> dict:
         return {}
@@ -80,7 +86,13 @@ class EdgeSensor(QObject):
             self.surface.placement = None
 
     def touched_edge(self) -> None:
-        self.on_touch()
+        if self.armed:
+            self.on_touch()
+
+    def disarm_if_under_pointer(self) -> None:
+        """Disarmed if the pointer is at this edge now, until it leaves."""
+        if hypr.near_edge(self.edge, to_compositor(TARGET["thick"]) + 2):
+            self.armed = False
 
     # What the page's bridge may call on its owner; a sensor has nothing to do.
     def toggle(self) -> None:

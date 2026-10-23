@@ -139,6 +139,20 @@ def option(name: str):
     return None
 
 
+def near_edge(edge: str, within: float) -> bool:
+    """Whether the pointer is within `within` (compositor pixels) of an edge of the monitor it is on."""
+    try:
+        cursor = json.loads(ask("j/cursorpos"))
+        x, y = cursor["x"], cursor["y"]
+        for m in json.loads(ask("j/monitors")):
+            mw, mh = m["width"] / m["scale"], m["height"] / m["scale"]
+            if m["x"] <= x < m["x"] + mw and m["y"] <= y < m["y"] + mh:
+                return {"left": x - m["x"], "right": m["x"] + mw - x, "top": y - m["y"], "bottom": m["y"] + mh - y}[edge] <= within
+    except (OSError, ValueError, KeyError):
+        pass
+    return False
+
+
 def keyword(name: str, value: str) -> None:
     """One of Hyprland's settings, changed while it runs. A config reload puts it back; `Events` says when."""
     ask(f"/keyword {name} {value}")
