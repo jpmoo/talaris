@@ -22,6 +22,8 @@ system on the object it returns. What the spike learned, and this follows:
 from __future__ import annotations
 
 import ctypes
+import math
+import os
 from dataclasses import dataclass
 
 import shiboken6
@@ -37,6 +39,17 @@ _get.argtypes = [ctypes.c_void_p]
 BACKGROUND, BOTTOM, TOP, OVERLAY = 0, 1, 2, 3
 ANCHOR_TOP, ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT = 1, 2, 4, 8
 KEYBOARD_NONE, KEYBOARD_EXCLUSIVE, KEYBOARD_ON_DEMAND = 0, 1, 2
+
+# Qt draws every surface QT_SCALE_FACTOR times larger than its size in Qt's
+# units, but hands the exclusive zone to the compositor as given. At 1.25 the
+# 34px bar was drawn 43px tall and reserved 34, so windows ran under it.
+QT_SCALE = float(os.environ.get("QT_SCALE_FACTOR") or 1)
+
+
+def to_compositor(px: float) -> int:
+    """A length in Qt's units, as the compositor measures it — rounded up, as Qt draws a part pixel whole."""
+    return math.ceil(px * QT_SCALE - 1e-9)
+
 
 EDGE_ANCHOR = {"top": ANCHOR_TOP, "bottom": ANCHOR_BOTTOM, "left": ANCHOR_LEFT, "right": ANCHOR_RIGHT}
 # The two edges a surface stretches between when it runs along an edge.
@@ -92,7 +105,7 @@ class LayerSurface:
         window.setProperty("layer", placement.layer)
         window.setProperty("anchors", placement.anchors)
         window.setProperty("keyboardInteractivity", placement.keyboard)
-        window.setProperty("exclusionZone", placement.exclusive)
+        window.setProperty("exclusionZone", to_compositor(placement.exclusive) if placement.exclusive > 0 else placement.exclusive)
         self.widget.hide()
         self.widget.show()
         self.placement = placement

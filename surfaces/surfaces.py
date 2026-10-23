@@ -60,6 +60,7 @@ from layershell import (
     TOP,
     LayerSurface,
     Placement,
+    to_compositor,
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -302,7 +303,7 @@ class Desktop(QObject):
         hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
-        sides[self.dock.edge] = max(0, gap - self.DOCK_SHORT)
+        sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")

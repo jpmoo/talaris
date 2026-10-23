@@ -17,8 +17,7 @@ function el(tag, cls, text) {
 
 function appButton(app) {
   const b = el("button", "bar-item app");
-  const focused = app.windows.some((w) => w.focused);
-  b.classList.toggle("on", focused);
+  // The focused window is shown by its dot alone, not a box round the icon.
   const titles = app.windows.map((w) => w.title).filter(Boolean);
   b.title = titles.length ? `${app.name} — ${titles.join(" · ")}` : app.name;
 
