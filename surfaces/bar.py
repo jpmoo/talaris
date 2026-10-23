@@ -62,6 +62,13 @@ POPUP_IDLE_LONG_MS = 45000
 POPUP_SETTLE_S = 0.5
 
 
+def margins(look: dict) -> dict:
+    """A floating bar's margins, side by side of the screen: the four set, or `inset` on all of them."""
+    inset = int(look.get("inset", 8))
+    given = look.get("margins") or {}
+    return {side: int(given.get(side, inset)) for side in ("top", "right", "bottom", "left")}
+
+
 class BarBridge(Bridge):
     """The drawer's bridge, plus what the bar and its popup may ask."""
 
@@ -213,7 +220,8 @@ class Bar(QObject):
         look = self.desktop.config["bar"]
         # Floating, the bar stands off the screen's edges: its surface is the
         # bar and the space between it and the edge, and reserves both.
-        tall = BAR + (int(look.get("inset", 0)) if look.get("shape") == "floating" else 0)
+        near = margins(look)[self.edge] if look.get("shape") == "floating" else 0
+        tall = BAR + near
         # A shadow needs room to fall into: the surface is that much taller
         # than the space it reserves, and the extra is clear.
         room = SHADOW_ROOM if look.get("shadow") else 0
@@ -232,7 +240,7 @@ class Bar(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "clock": self.desktop.config["clock"],
-            "look": self.desktop.config["bar"],
+            "look": {**self.desktop.config["bar"], "margins": margins(self.desktop.config["bar"])},
             "popup": self.popup.kind,
             # `absent`, `idle`, `listening`, `thinking`… and whether its
             # conversation is out.

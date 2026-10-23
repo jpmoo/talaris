@@ -22,7 +22,8 @@ CONFIG = os.path.join(
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
     # shape: "strip" runs edge to edge; "floating" stands off the screen's
-    # edges by `inset`, its corners rounded. opacity is the panel's, in percent.
+    # edges by `margins` (top, right, bottom, left; with none, `inset` on every
+    # side), its corners rounded. opacity is the panel's, in percent.
     # outline: "line" or "none"; shadow under it; motion as it comes out from
     # hiding: "slide" or "none".
     "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100,

@@ -19,7 +19,8 @@ function onState(s) {
   state = s;
   const look = s.look || {};
   document.body.dataset.shape = look.shape || "strip";
-  document.body.style.setProperty("--inset", `${look.inset ?? 0}px`);
+  const m = look.margins || {};
+  for (const side of ["top", "right", "bottom", "left"]) document.body.style.setProperty(`--m-${side}`, `${m[side] ?? 0}px`);
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   document.body.dataset.outline = look.outline || "line";
   if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;

@@ -91,8 +91,8 @@ def _checked(c: dict) -> str:
     for x in (b, d):
         if x.get("outline") not in ("accent", "line", "none") or not isinstance(x.get("shadow"), bool) or x.get("motion") not in ("slide", "none"):
             return "Not a bar or dock outline, shadow or motion"
-    if b.get("shape") not in ("strip", "floating") or not 0 <= int(b.get("inset", 0)) <= 32:
-        return "The bar is a strip or floating, up to 32 pixels from the edges"
+    if b.get("shape") not in ("strip", "floating") or not all(0 <= int(v) <= 40 for v in (b.get("margins") or {}).values()):
+        return "The bar is a strip or floating, its margins up to 40 pixels"
     if not 0 <= int(c["windows"]["gap"]) <= 40:
         return "The space round windows is 0 to 40 pixels"
     if not 0 <= int(c["windows"].get("between", 10)) <= 40:

@@ -81,8 +81,13 @@ function draw() {
   }
   slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
   seg("dock-scope", [["desktop", "This desktop"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
-  slider("bar-inset", cfg.bar.inset, (v) => `${v}px`, (v) => save({ bar: { inset: v } }));
-  $("bar-inset").disabled = cfg.bar.shape !== "floating";
+  // Four margins, each its own slider; saved as the whole set, as the bar reads them.
+  const inset = cfg.bar.inset ?? 8;
+  const m = { top: inset, right: inset, bottom: inset, left: inset, ...(cfg.bar.margins || {}) };
+  for (const side of ["top", "right", "bottom", "left"]) {
+    slider(`bar-m-${side}`, m[side], (v) => `${v}px`, (v) => save({ bar: { margins: { ...m, [side]: v } } }));
+    $(`bar-m-${side}`).disabled = cfg.bar.shape !== "floating";
+  }
   slider("bar-op", cfg.bar.opacity, pct, (v) => save({ bar: { opacity: v } }));
   slider("dock-op", cfg.dock.opacity, pct, (v) => save({ dock: { opacity: v } }));
   const k = cfg.clock;

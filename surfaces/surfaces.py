@@ -41,6 +41,7 @@ from PySide6.QtWidgets import QApplication
 import hypr
 from apps import Apps
 from bar import Bar
+from bar import margins as bar_margins
 from config import load_config
 from dock import Dock
 from launcher import Launcher
@@ -351,11 +352,11 @@ class Desktop(QObject):
         hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
-        # A floating bar stands off the screen's edges by its inset; the windows
-        # below it stand off it by the same, so the bar and the windows line up.
+        # A floating bar's margin on the side away from its edge is the space
+        # between it and the windows: the window gap on that side.
         bar = self.config["bar"]
         if bar.get("shape") == "floating" and not bar.get("autohide"):
-            sides[self.bar.edge] = int(bar.get("inset", gap))
+            sides[self.bar.edge] = bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"]
         # Only a dock that reserves its edge stops short of it.
         dock = self.config["dock"]
         if dock.get("enabled", True) and not dock.get("autohide"):

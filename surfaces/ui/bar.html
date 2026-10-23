@@ -23,12 +23,14 @@ body[data-outline="none"] #bar { border-color: transparent !important; }
 body[data-outline="accent"] #bar { border-color: var(--accent) !important; }
 body[data-shadow] #bar { box-shadow: 0 3px 10px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .3); }
 body[data-shadow][data-edge="bottom"] #bar { box-shadow: 0 -3px 10px rgba(0, 0, 0, .45), 0 -1px 2px rgba(0, 0, 0, .3); }
-/* Floating: off the edges by the inset, framed all round, its corners rounded. */
+/* Floating: off the screen's edges by its margins, framed all round, rounded.
+   The margin on the far side is the space to the windows, which Hyprland's
+   gap keeps; here only the near side and the two ends are the bar's to leave. */
 body[data-shape="floating"] #bar {
-  margin: var(--inset) var(--inset) 0; height: calc(100% - var(--inset) - var(--room, 0px));
+  margin: var(--m-top) var(--m-right) 0 var(--m-left); height: calc(100% - var(--m-top) - var(--room, 0px));
   border: 1px solid var(--frame); border-radius: 12px;
 }
-body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--inset) var(--inset); }
+body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--m-right) var(--m-bottom) var(--m-left); height: calc(100% - var(--m-bottom) - var(--room, 0px)); }
 .side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .side.end { justify-content: flex-end; }
 
