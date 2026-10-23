@@ -99,10 +99,14 @@ def close(address: str) -> None:
         ask(f"/dispatch closewindow address:{address}")
 
 
-def bind(keys: str, command: str) -> None:
-    """A runtime bind, replacing whatever the key did. A config reload drops it; `Events` says when."""
+def bind(keys: str, command: str, flags: str = "") -> None:
+    """
+    A runtime bind, replacing whatever the key did. A config reload drops it;
+    `Events` says when. `flags` are Hyprland's: `e` repeats while held, `l`
+    works on the lock screen — what volume keys want.
+    """
     ask(f"/keyword unbind {keys}")
-    ask(f"/keyword bind {keys}, exec, {command}")
+    ask(f"/keyword bind{flags} {keys}, exec, {command}")
 
 
 def unbind(keys: str) -> None:

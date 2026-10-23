@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The on-screen display: what a key just changed, and to what.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris OSD</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { height: 100%; }
+#osd {
+  position: absolute; inset: 6px 8px 10px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow);
+  color: var(--accent);
+}
+#osd .ic { width: 20px; height: 20px; flex: none; }
+#osd.muted { color: var(--muted); }
+/* The level as a hairline track filled with the accent, the slider's look. */
+#track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+#fill { height: 100%; background: currentColor; transition: width .12s; }
+#n { width: 34px; text-align: right; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+#osd.muted #n { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; }
+</style>
+</head>
+<body>
+<div id="osd"><span id="ic"></span><div id="track"><div id="fill"></div></div><span id="n"></span></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script>
+"use strict";
+Surface.connect({
+  onState: (s) => {
+    if (!s.up) return;
+    const osd = document.getElementById("osd");
+    const icon = s.kind === "brightness" ? Icons.sun() : s.kind === "mic" ? Icons.mic(s.muted) : Icons.volume(s.level, s.muted);
+    document.getElementById("ic").innerHTML = icon;
+    osd.classList.toggle("muted", !!s.muted);
+    document.getElementById("fill").style.width = `${s.muted ? 0 : s.level}%`;
+    document.getElementById("n").textContent = s.muted ? "MUTED" : s.level;
+  },
+});
+</script>
+</body>
+</html>

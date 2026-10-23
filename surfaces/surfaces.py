@@ -44,6 +44,7 @@ from bar import Bar
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
+from osd import Osd
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -286,6 +287,7 @@ class Desktop(QObject):
         self.launcher = Launcher(profile, self, self.apps)
         self.morgan = Panel(profile, self, self.morgan_link)
         self.voice = Voice(profile, self, self.morgan_link)
+        self.osd = Osd(profile, self)
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -325,10 +327,12 @@ class Desktop(QObject):
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER ALT, M", f"{LAUNCHER} --morgan")
+        self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
         for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER ALT, M", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
+        self.osd.unbind()
 
     # ---------------------------------------------------------------- what the launcher asks
 
@@ -386,6 +390,8 @@ class Desktop(QObject):
                 self.launcher.file_away()
                 self.morgan.file_away()
                 self.voice.file_away()
+            elif verb == "osd":
+                self.osd.show(arg)
             elif verb == "morgan":
                 self.morgan.toggle()
             elif verb == "launcher":
@@ -418,6 +424,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--osd"] and len(args) == 2:
+        return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:
         return send("morgan")
     if args[:1] == ["--launcher"]:

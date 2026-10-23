@@ -49,7 +49,14 @@ const Icons = (() => {
       (charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>' : ""));
   }
 
+  function mic(muted) {
+    return svg('<rect x="6" y="1.8" width="4" height="7.6" rx="2"/><path d="M3.5 7.8a4.5 4.5 0 0 0 9 0M8 12.3V14.5"/>' +
+      (muted ? '<path d="M2.5 2.5 13.5 13.5"/>' : ""));
+  }
+
+  const sun = () => svg('<circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>');
+
   const power = () => svg('<path d="M8 2v5.5"/><path d="M4.6 4.3a5 5 0 1 0 6.8 0"/>');
 
-  return { search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, power };
+  return { search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, power };
 })();
