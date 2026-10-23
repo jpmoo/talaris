@@ -21,16 +21,6 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
 .side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .side.end { justify-content: flex-end; }
 
-/* The launcher's box: a field to look at, a button to press — it opens the
-   launcher, where the typing happens. Morgan's button beside it opens the
-   same launcher already asking. */
-#ask {
-  display: inline-flex; align-items: center; gap: 8px; height: 24px; width: 230px;
-  padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-control);
-  background: var(--desk); color: var(--muted); font-size: 13px; cursor: pointer;
-  transition: border-color .12s, color .12s;
-}
-#ask:hover { border-color: var(--accent); color: var(--text); }
 
 /* Where you are: the project, letter-spaced like every label, with its code. */
 #where { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
@@ -63,9 +53,7 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
 <body data-edge="top">
 <div id="bar">
   <div class="side">
-    <button id="ask" class="bar-item" title="Find anything, or ask (Super+Alt+Space)">
-      <span id="ask-ic"></span><span>Search or ask</span>
-    </button>
+    <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
     <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span><span class="dot"></span></button>
   </div>
   <div id="where"></div>
@@ -76,6 +64,7 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
     <span id="bat" class="bar-item static" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></span>
     <span class="sep"></span>
     <span id="clock"><span class="day" id="day"></span><span id="time"></span></span>
+    <button id="settings" class="bar-item" title="Settings"></button>
     <button id="power" class="bar-item" title="Power"></button>
   </div>
 </div>

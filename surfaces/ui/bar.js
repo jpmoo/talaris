@@ -10,7 +10,8 @@ const $ = (id) => document.getElementById(id);
 let bridge = null;
 let state = { popup: "" };
 
-$("ask-ic").innerHTML = Icons.search();
+$("ask").innerHTML = Icons.launcher();
+$("settings").innerHTML = Icons.settings();
 $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
 
@@ -55,7 +56,7 @@ function onMachine(m) {
   $("vol").hidden = !vol.present;
   if (vol.present) {
     $("vol-ic").innerHTML = Icons.volume(vol.level, vol.muted);
-    $("vol-n").textContent = vol.muted ? "" : vol.level;
+    $("vol-n").textContent = vol.muted ? "" : `${vol.level}%`;
     $("vol").title = vol.muted ? "Muted" : `Volume ${vol.level}% — scroll to change`;
   }
 
@@ -64,7 +65,7 @@ function onMachine(m) {
   if (bat.present) {
     const charging = bat.state === "charging" || bat.state === "full";
     $("bat-ic").innerHTML = Icons.battery(bat.level, charging);
-    $("bat-n").textContent = bat.level;
+    $("bat-n").textContent = `${bat.level}%`;
     $("bat").classList.toggle("low", bat.level <= 15 && !charging);
     $("bat").title = `Battery ${bat.level}% · ${bat.state || "unknown"}`;
   }
@@ -87,6 +88,7 @@ $("vol").addEventListener("wheel", (e) => {
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
+$("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 $("net").addEventListener("click", () => bridge && bridge.popup("network"));
 $("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
@@ -94,7 +96,7 @@ $("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan")) return;
+  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #settings")) return;
   bridge.file();
 }, true);
 

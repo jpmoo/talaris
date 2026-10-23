@@ -76,6 +76,7 @@ function draw() {
     slider(`${name}-size`, Math.round(d.size * 100), (v) => `${v}%`, (v) => save({ drawers: { [name]: { size: v / 100 } } }));
   }
   $("canvas-out").classList.toggle("on", !!cfg.drawers.canvas.outWhenEmpty);
+  slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
 
   // Keys.

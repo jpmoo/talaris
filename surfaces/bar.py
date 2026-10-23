@@ -104,6 +104,11 @@ class BarBridge(Bridge):
         self.owner.desktop.launcher.toggle(mode)
 
     @Slot()
+    def settings(self) -> None:
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.settings.toggle()
+
+    @Slot()
     def morgan(self) -> None:
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.morgan.toggle()

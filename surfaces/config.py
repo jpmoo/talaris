@@ -25,6 +25,9 @@ DEFAULTS = {
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
     "dock": {"edge": "bottom"},
+    # The space between the windows and whatever is round them — the bar, the
+    # dock, the screen's edge — the same on every side.
+    "windows": {"gap": 10},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
         "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": False},

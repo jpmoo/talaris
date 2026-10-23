@@ -99,6 +99,11 @@ def close(address: str) -> None:
         ask(f"/dispatch closewindow address:{address}")
 
 
+def keyword(name: str, value: str) -> None:
+    """One of Hyprland's settings, changed while it runs. A config reload puts it back; `Events` says when."""
+    ask(f"/keyword {name} {value}")
+
+
 def bind(keys: str, command: str, flags: str = "") -> None:
     """
     A runtime bind, replacing whatever the key did. A config reload drops it;

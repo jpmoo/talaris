@@ -283,8 +283,33 @@ class Desktop(QObject):
             for d in self.drawers.values():
                 d.settle()
 
+    #: How far the dock's panel stops short of the space it reserves (dock.html:
+    #: a 44px panel and a 3px margin in a 50px surface). The gap on the dock's
+    #: edge is that much less, so the space you see is the same on every side.
+    DOCK_SHORT = 3
+
+    def style_compositor(self) -> None:
+        """
+        What Hyprland draws round the windows, made to match Talaris: the
+        borders in the theme's accent, and the same space on every side.
+        Runtime keywords, so hyprland.conf is untouched; a reload puts its own
+        values back, and `_bind` runs this again when it does.
+        """
+        theme = self.config["theme"]
+        accent = theme["accent"].lstrip("#")
+        line = "c3c8cd" if theme.get("mode") == "light" else "3a3f44"
+        hypr.keyword("general:col.active_border", f"rgba({accent}ee)")
+        hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
+        gap = int(self.config["windows"]["gap"])
+        sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
+        sides[self.dock.edge] = max(0, gap - self.DOCK_SHORT)
+        # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
+        # rest is lost; written with commas it takes all four sides.
+        hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
+
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
+        self.style_compositor()
         for name, keys in (("canvas", "SUPER ALT, C"), ("writing", "SUPER ALT, W")):
             if name in self.drawers:
                 hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
@@ -323,6 +348,7 @@ class Desktop(QObject):
                 d.pulled = False
                 d.mode = ""
                 d.settle()
+        self.style_compositor()
         if after["launcher"]["keys"] != before["launcher"]["keys"]:
             hypr.unbind(before["launcher"]["keys"])
             hypr.bind(after["launcher"]["keys"], f"{LAUNCHER} --launcher")

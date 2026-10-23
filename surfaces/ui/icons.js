@@ -56,7 +56,13 @@ const Icons = (() => {
 
   const sun = () => svg('<circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>');
 
+  // The launcher: four tiles, the way to anything.
+  const launcher = () => svg('<rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/>');
+
+  // Settings: a gear of six teeth round a ring.
+  const settings = () => svg('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v2M8 12.4v2M14.4 8h-2M3.6 8h-2M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4M12.5 12.5l-1.4-1.4M4.9 4.9 3.5 3.5"/><circle cx="8" cy="8" r="4.4"/>');
+
   const power = () => svg('<path d="M8 2v5.5"/><path d="M4.6 4.3a5 5 0 1 0 6.8 0"/>');
 
-  return { search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, power };
+  return { search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();

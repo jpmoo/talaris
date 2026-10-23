@@ -68,6 +68,8 @@ def _checked(c: dict) -> str:
         return "A drawer cannot share the bar's or the dock's edge"
     if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
         return "A drawer is a quarter to nine tenths of the screen"
+    if not 0 <= int(c["windows"]["gap"]) <= 40:
+        return "The space round windows is 0 to 40 pixels"
     if not 15 <= int(c["idleSeconds"]) <= 600:
         return "Idle is between 15 seconds and 10 minutes"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
@@ -159,7 +161,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher"):
+        for key in ("theme", "bar", "dock", "launcher", "windows"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:
