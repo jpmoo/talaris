@@ -28,7 +28,7 @@ body[data-mode="pulled"]
    a paper-toned panel. Which one has you: an accent frame and a lit title;
    the other dims a little. */
 .mark { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 1.4; fill: none; margin-right: 8px; vertical-align: -2px; }
-body[data-drawer="writing"] #panel { background: var(--paper); }
+body[data-drawer="writing"] #panel { background: color-mix(in srgb, var(--paper) var(--alpha, 100%), transparent); }
 body[data-mode="pulled"][data-focus] #panel { border-color: var(--accent); }
 body[data-mode="pulled"]:not([data-focus]) header { opacity: .62; }
 body[data-mode="filed"] #handle { display: flex; }
@@ -45,6 +45,16 @@ body[data-edge="right"] #tuck { right: 0; top: calc(50% - 28px); width: 10px; he
 body[data-edge="top"] #tuck { top: 0; left: calc(50% - 28px); width: 56px; height: 10px; border-top: 0; border-radius: 0 0 9px 9px; }
 body[data-edge="bottom"] #tuck { bottom: 0; left: calc(50% - 28px); width: 56px; height: 10px; border-bottom: 0; border-radius: 9px 9px 0 0; }
 body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width: 22px; height: 2px; }
+/* How a drawer looks (Settings, Appearance): its outline in the accent while in
+   use, a plain line, or none; a shadow, which needs room on the side away from
+   the screen edge to fall into; and its opacity (--alpha, above). */
+body[data-outline="line"] #panel { border-color: var(--frame) !important; }
+body[data-outline="none"] #panel { border-color: transparent !important; }
+body[data-shadow] #panel { box-shadow: 0 6px 22px rgba(0, 0, 0, .42); }
+body[data-shadow][data-edge="left"] #panel { right: 18px; }
+body[data-shadow][data-edge="right"] #panel { left: 18px; }
+body[data-shadow][data-edge="top"] #panel { bottom: 18px; }
+body[data-shadow][data-edge="bottom"] #panel { top: 18px; }
 .xh { display: none; }
 :root[data-motion="draw"] .xh, :root[data-motion="chaos"] .xh { display: block; }
 /* Draw and chaos (drawer.js): lines in the accent, on a layer over the panel. */
@@ -54,7 +64,7 @@ body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width:
 .fx-mark::before, .fx-mark::after { content: ""; position: absolute; background: var(--accent); }
 .fx-mark::before { left: 5px; top: 0; width: 1px; height: 11px; }
 .fx-mark::after { top: 5px; left: 0; height: 1px; width: 11px; }
-#panel { position: absolute; inset: 0; background: var(--surface); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
+#panel { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
 /* Flush with the edge it comes from, so that side has no line. */
 body[data-edge="left"] #panel { border-left: 0; border-radius: 0 12px 12px 0; }
 body[data-edge="right"] #panel { border-right: 0; border-radius: 12px 0 0 12px; }

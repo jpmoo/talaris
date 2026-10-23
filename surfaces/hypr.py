@@ -99,6 +99,18 @@ def close(address: str) -> None:
         ask(f"/dispatch closewindow address:{address}")
 
 
+def option(name: str):
+    """One of Hyprland's settings as it is now: its number, or its text."""
+    try:
+        found = json.loads(ask(f"j/getoption {name}"))
+    except (OSError, ValueError):
+        return None
+    for key in ("int", "float", "str", "custom"):
+        if key in found:
+            return found[key]
+    return None
+
+
 def keyword(name: str, value: str) -> None:
     """One of Hyprland's settings, changed while it runs. A config reload puts it back; `Events` says when."""
     ask(f"/keyword {name} {value}")

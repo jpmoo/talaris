@@ -15,9 +15,16 @@ Middle: where you are. Right: the machine, and the way out.
 html, body { height: 100%; }
 #bar {
   height: 100%; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-  padding: 0 8px; background: var(--surface); border-bottom: 1px solid var(--frame);
+  padding: 0 8px; border-bottom: 1px solid var(--frame);
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
 }
 body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--frame); }
+/* Floating: off the edges by the inset, framed all round, its corners rounded. */
+body[data-shape="floating"] #bar {
+  margin: var(--inset) var(--inset) 0; height: calc(100% - var(--inset));
+  border: 1px solid var(--frame); border-radius: 12px;
+}
+body[data-shape="floating"][data-edge="bottom"] #bar { margin: 0 var(--inset) var(--inset); }
 .side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .side.end { justify-content: flex-end; }
 

@@ -18,7 +18,8 @@ body[data-edge="top"] { align-items: flex-start; }
    place you look at, the bar is a frame. */
 #dock {
   display: flex; align-items: center; gap: 2px; height: 44px; margin: 0 0 3px; padding: 0 8px;
-  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
+  border: 1px solid var(--frame); border-radius: 12px;
 }
 body[data-edge="top"] #dock { margin: 3px 0 0; }
 #dock:empty::after { content: "NOTHING OPEN"; font-size: 10px; letter-spacing: 3px; color: var(--muted); padding: 0 10px; }

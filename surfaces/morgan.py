@@ -193,6 +193,7 @@ class Panel(QObject):
             self.up = True
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
             self.desktop.voice.file_away()
+            self.desktop.keep_focus()
             log("morgan: open")
         self.view.setFocus()
         self.view.page().runJavaScript("document.getElementById('draft') && document.getElementById('draft').focus()")
@@ -211,6 +212,7 @@ class Panel(QObject):
         self.idle.stop()
         self.view.hide()
         self.surface.placement = None
+        self.desktop.keep_focus()
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
 
     def left(self) -> None:

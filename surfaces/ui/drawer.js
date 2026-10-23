@@ -86,7 +86,7 @@ function fxLayer() {
   const W = across ? Wp : Hp, H = across ? Hp : Wp;
   const turn = { left: "none", right: `matrix(-1,0,0,1,${Wp},0)`, top: "matrix(0,1,1,0,0,0)", bottom: `matrix(0,-1,1,0,0,${Hp})` }[state.edge];
   document.querySelectorAll(".fx").forEach((n) => n.remove());
-  const fx = el("div", { class: "fx", style: `width:${W}px;height:${H}px;transform:${turn}` });
+  const fx = el("div", { class: "fx", style: `left:${panel.offsetLeft}px;top:${panel.offsetTop}px;width:${W}px;height:${H}px;transform:${turn}` });
   document.body.append(fx);
   return { fx, W, H, across };
 }
@@ -183,6 +183,10 @@ function update(next) {
   document.body.dataset.mode = state.mode;
   if (leaving) { leaving.cancel(); leaving = null; }
   document.body.dataset.edge = state.edge;
+  const look = state.look || {};
+  document.body.dataset.outline = look.outline || "focus";
+  if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
+  document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   applyTheme(state.theme || {});
   $("handle").title = NAMES[state.drawer] || state.drawer;
   document.body.dataset.drawer = state.drawer;

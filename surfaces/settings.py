@@ -74,6 +74,13 @@ def _checked(c: dict) -> str:
         return "A drawer cannot share the bar's or the dock's edge"
     if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
         return "A drawer is a quarter to nine tenths of the screen"
+    p, b, d = c["panels"], c["bar"], c["dock"]
+    if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool):
+        return "Not a drawer outline or shadow"
+    if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
+        return "Opacity is 30 to 100 percent"
+    if b.get("shape") not in ("strip", "floating") or not 0 <= int(b.get("inset", 0)) <= 32:
+        return "The bar is a strip or floating, up to 32 pixels from the edges"
     if not 0 <= int(c["windows"]["gap"]) <= 40:
         return "The space round windows is 0 to 40 pixels"
     if not 0 <= int(c["windows"].get("between", 10)) <= 40:
@@ -138,6 +145,7 @@ class Settings(QObject):
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, *SIZE, KEYBOARD_ON_DEMAND))
             self.up = True
+            self.desktop.keep_focus()
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -156,6 +164,7 @@ class Settings(QObject):
         self.idle.stop()
         self.view.hide()
         self.surface.placement = None
+        self.desktop.keep_focus()
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def left(self) -> None:
@@ -169,7 +178,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows", "clock"):
+        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

@@ -21,12 +21,17 @@ CONFIG = os.path.join(
 
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
-    "bar": {"edge": "top", "autohide": False},
+    # shape: "strip" runs edge to edge; "floating" stands off the screen's
+    # edges by `inset`, its corners rounded. opacity is the panel's, in percent.
+    "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
-    "dock": {"edge": "bottom", "autohide": False},
+    "dock": {"edge": "bottom", "autohide": False, "opacity": 100},
+    # How the drawers look: their outline (in the accent while in use, a plain
+    # line, or none), a shadow, and their opacity in percent.
+    "panels": {"outline": "focus", "shadow": True, "opacity": 100},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},

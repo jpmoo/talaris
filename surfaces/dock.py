@@ -88,7 +88,7 @@ class Dock(QObject):
         self.surface.placement = None
 
     def describe(self) -> dict:
-        return {"edge": self.edge, "theme": self.desktop.config["theme"]}
+        return {"edge": self.edge, "theme": self.desktop.config["theme"], "look": self.desktop.config["dock"]}
 
     def refresh(self) -> None:
         now = hypr.windows()

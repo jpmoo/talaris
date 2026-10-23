@@ -17,6 +17,10 @@ $("power").innerHTML = Icons.power();
 
 function onState(s) {
   state = s;
+  const look = s.look || {};
+  document.body.dataset.shape = look.shape || "strip";
+  document.body.style.setProperty("--inset", `${look.inset ?? 0}px`);
+  document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";
   const p = s.project || {};

@@ -207,9 +207,13 @@ class Bar(QObject):
         hide = bool(self.desktop.config["bar"].get("autohide"))
         # A hiding bar reserves nothing: the windows keep the space, and it
         # comes out over them.
+        look = self.desktop.config["bar"]
+        # Floating, the bar stands off the screen's edges: its surface is the
+        # bar and the space between it and the edge, and reserves both.
+        tall = BAR + (int(look.get("inset", 0)) if look.get("shape") == "floating" else 0)
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), BAR,
-                                     KEYBOARD_NONE, exclusive=0 if hide else BAR))
+        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall,
+                                     KEYBOARD_NONE, exclusive=0 if hide else tall))
 
     def _hide(self) -> None:
         self.view.hide()
@@ -221,6 +225,7 @@ class Bar(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "clock": self.desktop.config["clock"],
+            "look": self.desktop.config["bar"],
             "popup": self.popup.kind,
             # `absent`, `idle`, `listening`, `thinking`… and whether its
             # conversation is out.

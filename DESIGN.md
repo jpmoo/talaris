@@ -1011,6 +1011,13 @@ of it and comes out at the end.
    the pointer touches their edge, giving their space back to the windows, and
    a drawer set to touch-to-show has no handle and goes again when the pointer
    leaves (`sensor.py`: a strip two units thick, invisible, along the edge).
+   And how things look: each drawer's outline (accent in use, line, none),
+   shadow and opacity; the bar's shape (a strip, or floating off the edges by
+   a set distance with rounded corners) and opacity; the dock's opacity.
+   While a drawer, Morgan's panel or Settings is out, focus no longer follows
+   the pointer (Hyprland's follow_mouse 2, the user's value restored after):
+   leaving it for a window gave that window the keyboard and flickered the
+   drawer's in-use outline.
    Not yet: side edges for the bar and dock,
    drawers sharing an edge as tabs, Morgan's memory, voices heard and
    connections.

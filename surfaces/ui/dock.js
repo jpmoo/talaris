@@ -56,7 +56,10 @@ function draw(listing) {
 }
 
 Surface.connect({
-  onState: (s) => { document.body.dataset.edge = s.edge || "bottom"; },
+  onState: (s) => {
+    document.body.dataset.edge = s.edge || "bottom";
+    document.body.style.setProperty("--alpha", `${(s.look || {}).opacity ?? 100}%`);
+  },
 }).then((b) => {
   bridge = b;
   b.windows.connect((text) => draw(JSON.parse(text)));

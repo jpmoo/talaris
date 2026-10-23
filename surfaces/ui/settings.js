@@ -63,6 +63,16 @@ function draw() {
     onclick: () => save({ theme: { accent: c } }) })));
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
   seg("motion", [["slide", "Slide"], ["draw", "Draw"], ["chaos", "Chaos"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
+  const p = cfg.panels;
+  seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
+  $("shadow").classList.toggle("on", !!p.shadow);
+  const pct = (v) => `${v}%`;
+  slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
+  seg("bar-shape", [["strip", "Strip"], ["floating", "Floating"]], cfg.bar.shape, (shape) => save({ bar: { shape } }));
+  slider("bar-inset", cfg.bar.inset, (v) => `${v}px`, (v) => save({ bar: { inset: v } }));
+  $("bar-inset").disabled = cfg.bar.shape !== "floating";
+  slider("bar-op", cfg.bar.opacity, pct, (v) => save({ bar: { opacity: v } }));
+  slider("dock-op", cfg.dock.opacity, pct, (v) => save({ dock: { opacity: v } }));
   const k = cfg.clock;
   seg("hours", [["12", "12 hour"], ["24", "24 hour"]], k.hours, (hours) => save({ clock: { hours } }));
   $("seconds").classList.toggle("on", !!k.seconds);
@@ -98,6 +108,7 @@ function draw() {
     cfg.launcher.keys, (keys) => save({ launcher: { keys } }));
 }
 
+$("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
