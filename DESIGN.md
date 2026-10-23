@@ -132,6 +132,11 @@ terminal, and not a starship console. Settled 2026-10-23:
     mark — never loose across the panel.
 
   All three honor a reduced-motion setting that makes them near-instant.
+
+**The reference is `design/theme-tuner.html`** — the approved grays, accents,
+typefaces, motions and touches in one page that opens in any browser, with the
+values tabulated beneath it. The real theme is built from it; if the two ever
+disagree, decide which is right and change the other.
 - **Small instrument touches, where they mean something**: a blinking block
   cursor in a field that is waiting for you; crosshair marks at a surface's
   corners; a crosshair and live coordinates over a canvas, where position is
