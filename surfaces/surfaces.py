@@ -43,7 +43,7 @@ from apps import Apps
 from bar import Bar
 from dock import Dock
 from launcher import Launcher
-from morgan import Link, Panel
+from morgan import Link, Panel, Voice
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -285,6 +285,7 @@ class Desktop(QObject):
         self.dock.place()
         self.launcher = Launcher(profile, self, self.apps)
         self.morgan = Panel(profile, self, self.morgan_link)
+        self.voice = Voice(profile, self, self.morgan_link)
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -384,6 +385,7 @@ class Desktop(QObject):
                 self.bar.close_popup()
                 self.launcher.file_away()
                 self.morgan.file_away()
+                self.voice.file_away()
             elif verb == "morgan":
                 self.morgan.toggle()
             elif verb == "launcher":

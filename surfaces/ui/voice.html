@@ -1,0 +1,50 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+Morgan's voice popup: who has the floor, a waveform of their voice, and the
+words — what was asked, then the answer as it is spoken.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris voice</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { height: 100%; }
+#pop {
+  position: absolute; inset: 4px 6px 8px; display: flex; flex-direction: column; gap: 8px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow);
+}
+.ti { font-family: "morgan-icons"; font-style: normal; font-size: 17px; line-height: 1; }
+#head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 2px 6px; color: var(--accent); }
+#title { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+#head .spacer { flex: 1; }
+#open { width: 26px; height: 26px; }
+#wave { width: 100%; height: 48px; display: block; border-radius: 8px; background: var(--desk); }
+/* The turn so far, to read along with; the wheel scrolls it although the
+   popup never takes the keyboard. */
+#words { flex: 1; min-height: 0; overflow: auto; background: var(--desk); border-radius: 8px; padding: 8px 10px;
+         display: flex; flex-direction: column; gap: 6px; }
+#words .when { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+#asked { color: var(--muted); font-size: 13px; }
+#answer { color: var(--text); font-size: 14px; line-height: 1.45; }
+#caption { color: var(--accent); font-size: 12px; }
+#words :empty { display: none; }
+</style>
+</head>
+<body>
+<div id="pop">
+  <div id="head">
+    <i class="ti" id="glyph"></i><span id="title"></span><span class="spacer"></span>
+    <button class="icon-btn" id="open" title="Open the conversation, to type or read back"><i class="ti" id="kbd"></i></button>
+  </div>
+  <canvas id="wave"></canvas>
+  <div id="words"><span class="when" id="when"></span><div id="asked"></div><div id="answer"></div><div id="caption"></div></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script src="voice.js"></script>
+</body>
+</html>

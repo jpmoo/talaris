@@ -17,6 +17,13 @@ answer, over the daemon's socket.
 **Its ways back**: Morgan's button again, Super+Alt+M, Escape while Morgan is
 idle, `--file-all`, and a long idle — long, because a conversation is read,
 and only counted while Morgan is idle.
+
+**The voice popup** is for a turn said aloud while the conversation is shut:
+who has the floor, a waveform of their voice, what was asked and the answer as
+it is spoken — as Morgan's Noctalia plugin showed it. It comes up when Morgan
+leaves idle on a spoken turn (a typed one is watched where it was typed),
+lingers a moment after Morgan goes idle, since a follow-up often comes
+straight after, and goes at once on `stop`. It never takes the keyboard.
 """
 
 from __future__ import annotations
@@ -33,7 +40,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
 from core import Bridge
-from layershell import ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
+from layershell import ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_NONE, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from views import log, make_view
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
@@ -44,6 +51,10 @@ WIDTH = 540
 HEIGHT_SHARE = 0.78
 #: Put away after this long with no input while Morgan is idle.
 IDLE_MS = 5 * 60 * 1000
+
+#: The voice popup's size, and how long it stays after Morgan goes idle.
+VOICE = (420, 300)
+LINGER_MS = 1200
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GLYPHS = os.path.join(HERE, "ui", "morgan", "tabler.json")
@@ -133,7 +144,7 @@ class MorganBridge(Bridge):
                 glyphs = json.load(f)
         except (OSError, ValueError):
             glyphs = {}
-        return json.dumps({"accent": "", "font": "../fonts/tabler-icons-outline.woff2", "glyphs": glyphs,
+        return json.dumps({"accent": "", "font": "talaris-ui://ui/fonts/tabler-icons-outline.woff2", "glyphs": glyphs,
                            "theme": self.owner.desktop.config["theme"]})
 
     @Slot(result=str)
@@ -154,6 +165,11 @@ class MorganBridge(Bridge):
     @Slot(str)
     def title(self, _text: str) -> None:
         pass
+
+    @Slot()
+    def conversation(self) -> None:
+        """From the voice popup: open the conversation, to type or read back."""
+        self.owner.desktop.morgan.open()
 
 
 class Panel(QObject):
@@ -181,6 +197,7 @@ class Panel(QObject):
                                          int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
             self.up = True
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
+            self.desktop.voice.file_away()
             log("morgan: open")
         self.view.setFocus()
         self.view.page().runJavaScript("document.getElementById('draft') && document.getElementById('draft').focus()")
@@ -242,3 +259,71 @@ class Panel(QObject):
         chooser.finished.connect(done)
         self._chooser = chooser
         chooser.start()
+
+
+class Voice(QObject):
+    def __init__(self, profile: QWebEngineProfile, desktop, link: Link) -> None:
+        super().__init__(desktop)
+        self.desktop = desktop
+        self.link = link
+        self.up = False
+        self.bridge = MorganBridge(self, self)
+        self.view = make_view(profile, "voice", "talaris-ui://ui/voice.html", self.bridge, self)
+        self.surface = LayerSurface(self.view, "talaris-voice")
+        link.event.connect(self._heard)
+        self._linger = QTimer(self)
+        self._linger.setSingleShot(True)
+        self._linger.timeout.connect(self._gone_quiet)
+
+    def describe(self) -> dict:
+        return {"up": self.up, "theme": self.desktop.config["theme"]}
+
+    def _heard(self, text: str) -> None:
+        try:
+            e = json.loads(text)
+        except ValueError:
+            return
+        kind = e.get("type")
+        if kind == "dismiss":
+            self.file_away()
+        elif kind == "state":
+            if e.get("state") == "idle":
+                if self.up:
+                    self._linger.start(LINGER_MS)
+            elif not e.get("typed") and e.get("state") in ("listening", "transcribing", "thinking", "consulting", "speaking"):
+                self._linger.stop()
+                self.show()
+        # The page hears every event itself, through the bridge, and draws them.
+        self.bridge.event.emit(text)
+
+    def _gone_quiet(self) -> None:
+        if self.link.now in ("idle", "absent"):
+            self.file_away()
+
+    def show(self) -> None:
+        # The conversation has its own meter; two at once is one too many.
+        if self.up or self.desktop.morgan.up:
+            return
+        # Anchored to the top alone, the compositor centers it under the bar.
+        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, *VOICE, KEYBOARD_NONE))
+        self.up = True
+        self.bridge.state.emit(json.dumps(self.describe()))
+
+    def file_away(self) -> None:
+        if not self.up:
+            return
+        self.up = False
+        self._linger.stop()
+        self.view.hide()
+        self.surface.placement = None
+        self.bridge.state.emit(json.dumps(self.describe()))
+
+    # What the page's bridge calls on its owner.
+    def toggle(self) -> None:
+        self.file_away()
+
+    def left(self) -> None:
+        pass
+
+    def touched(self) -> None:
+        pass

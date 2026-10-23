@@ -981,9 +981,12 @@ of it and comes out at the end.
    `ui/fonts` instead of Noctalia's, with no title bar: its state and controls
    sit in a row under the composer. A question typed into the launcher goes to
    Morgan as a typed turn and opens the conversation. Attachments come through
-   `zenity`'s chooser, beside the surface rather than inside it. Still to do:
-   the voice popup (what is heard and said while the conversation is shut),
-   files dropped on the panel, and Morgan's settings page (step 7) — its
+   `zenity`'s chooser, beside the surface rather than inside it. **The voice popup is done**: for a turn said aloud while the conversation is
+   shut, a panel centered under the bar shows who has the floor, a waveform of
+   their voice (a light sweeping along it while Morgan thinks), what was asked
+   and the answer as it is spoken; it lingers 1.2 s after Morgan goes idle and
+   goes at once on `stop`, and never takes the keyboard. Still to do: files
+   dropped on the panel, and Morgan's settings page (step 7) — its
    settings button opens the Noctalia plugin's panel until then.
 7. Settings, the theme, the OSD, the power menu.
 8. Remove Noctalia's `exec-once`.
