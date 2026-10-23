@@ -116,7 +116,10 @@ export function wearTheme(): void {
     .cv-swatch.cv-align:hover { color: var(--accent); border-color: var(--accent); }
     .cv-swatch.cv-align.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
     /* Only as wide as its six icons. */
-    .tool-menu.shape-row { display: flex; flex-direction: row !important; gap: 4px; padding: 5px; min-width: 0 !important; width: max-content; }
+    /* Opens straight out to the right of the shape button, level with it,
+       rather than pushing the rest of the strip down. */
+    .tool-menu.shape-row { display: flex; flex-direction: row !important; gap: 4px; padding: 5px; min-width: 0 !important; width: max-content;
+      position: absolute; left: 38px; top: -5px; z-index: 2; }
     .shape-pick { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
       border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
     .shape-pick:hover { color: var(--accent); border-color: var(--accent); }
