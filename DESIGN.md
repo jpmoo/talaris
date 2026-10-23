@@ -101,10 +101,27 @@ translucent surfaces rather than a page drawing them.
 **Themes are swappable.** The look is a theme, and more can be added later; the
 first one ships as the default.
 
-**The default: late-'90s to early-2000s computing.** Clean lines and easy on the
-eyes — not a terminal, and not a starship console. Light, dark, and following the
-time of day. **Being zeroed in on**: which machines of that era it draws from is
-the open part of this conversation.
+**The default: the future as the late '90s and early 2000s imagined it.** Film
+and game interfaces of that era, not its operating systems — closest to
+*Minority Report* (2002) — with clean lines and easy on the eyes. Not a
+terminal, and not a starship console. Settled 2026-10-23:
+
+- **Dark at heart.** The light version is designed to match, and leans heavily
+  on grays rather than going white. Both, plus following the time of day.
+- **Mostly gray, one accent.** Neutral grays carry everything; a single color
+  marks what is selected, live or actionable. **The accent is the user's
+  choice**, and the offered ones are soft and muted — an orange, a green —
+  never neon.
+- **Softly rounded corners.**
+- **Technical type**, in the *Minority Report* family but a little less narrow
+  — a semi-condensed sans. Which face is still being chosen.
+- **The detail is part of the look**: thin rules, small letter-spaced labels,
+  quiet codes and counts in the margins (`PRJ-03 · 14 ITEMS`, `LIVE`,
+  `ASLEEP`). Information first — every small label says something true — never
+  decoration for its own sake.
+- **Motion is a setting.** Drawers slide in smoothly by default; the other choice
+  draws the frame in lines first and then fills it. Both honor a reduced-motion
+  setting that makes them near-instant.
 
 ## The model
 
