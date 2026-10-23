@@ -209,6 +209,7 @@ addEventListener("keydown", (e) => {
 // The Super key of a compositor bind arrives as a stray keydown; it means nothing here.
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
+$("close").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge = channel.objects.bridge;

@@ -48,7 +48,7 @@ curl -s --unix-socket $XDG_RUNTIME_DIR/talaris.sock http://talaris/projects
   of hard-won detail about PySide6, WebEngine, Wayland and Hyprland — read the
   relevant part before rediscovering it.
 - `jpmoo/heymorgan` — Morgan. Its own process and repository; Talaris is its
-  face and talks to it over `$XDG_RUNTIME_DIR/heyclaude.sock`.
+  face and talks to it over `$XDG_RUNTIME_DIR/heymorgan.sock`.
 
 ## Things to know before running anything
 

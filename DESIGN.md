@@ -82,6 +82,13 @@ are **drawers**:
 - They belong to **the current project**: switch project and the drawers are
   that project's.
 
+**Handles are small, and optional.** A filed drawer is a slim tab on its edge
+— enough to say something is there. A setting, later, removes the handle
+entirely and **opens a drawer when the pointer bumps its edge**, filing it again
+when the pointer leaves, as an autohiding bar does: a thin, invisible strip on
+the edge watches for the pointer. A pulled drawer also has its own **close**
+control, not only Escape and the keys.
+
 That is the spike's two layers given a meaning: `bottom` is "out on an empty
 desktop," `overlay` is "pulled out over the windows." The way back is never
 optional — a compositor bind, Escape, and filing itself away after a stretch
@@ -311,8 +318,8 @@ plugin provides.
 
 A voice-and-chat assistant: wake word, speech in and out, a local model for the
 talking, Claude ("the Oracle") when that is not enough, memory, reminders, MCP
-tools. Its daemon is `heyclaude.service`, it answers on
-`$XDG_RUNTIME_DIR/heyclaude.sock` with commands (`toggle`, `ask`, `say`,
+tools. Its daemon is `heymorgan.service`, it answers on
+`$XDG_RUNTIME_DIR/heymorgan.sock` with commands (`toggle`, `ask`, `say`,
 `stop`…) and an event stream (`watch`), and its face today is a Noctalia plugin
 plus `window/window.py`, a PySide6 web view around `index.html`.
 
@@ -332,7 +339,7 @@ face.
 Out of the box that Morgan is in its **local** role — brain, ears and voice all
 here. Moving the brain to the home server later is one setting, *Morgan's home*
 in Connections: Morgan becomes a **client**, which already means a
-`~/.config/heyclaude/client.json` naming the server and Morgan forwarding to it
+`~/.config/heymorgan/client.json` naming the server and Morgan forwarding to it
 from the same local socket. So Talaris never needs to know where the brain is,
 and is built and tested against a local Morgan from the first day. The DIY Echo
 Dot is another client of the same home, with no Talaris on it at all.
@@ -371,8 +378,7 @@ current* — and Morgan connects to it:
 **Glance is not coming.** Talaria's Glance read the focused window's pixels and
 found related notes. Structured context answers the question it was for.
 
-**Still open in Morgan's own repository:** it is called `heyclaude` — the
-repository, the command, the unit. Renaming is its own change, there.
+**Renamed, 2026-10-23:** Morgan's repository, command, unit, socket and folders are all `heymorgan` now; the old `heyclaude` names still answer.
 
 ## Plugins
 
@@ -505,7 +511,7 @@ to its settings.
 **Morgan owns these; Talaris is their page.** Morgan's daemon holds its
 connections, and when its brain moves to the home server they move with it.
 Talaris's Connections page reads and writes them through Morgan's own socket
-(`heyclaude admin`), so there is never a second copy. **Keys and tokens go in
+(`heymorgan admin`), so there is never a second copy. **Keys and tokens go in
 the login keyring**, not in a file — Morgan's `config.json` holds MCP keys in
 plain text today, which is the thing to fix on the way.
 
@@ -738,7 +744,7 @@ workspace" means.
 | **Core** | Projects, canvases, writing, cards, the verbs, the launcher query, the plugin host, and the MCP Morgan connects to. A user service; the one thing that must be running for anything else to mean something. TypeScript on Node. |
 | **Surfaces** | One PySide6 process under `layer-shell`: bar, dock, drawers, launcher, notification popups, OSD, Morgan's popup. Web views through a socket-backed scheme, as Talaria's `scheme.py` worked out. A user service that restarts — a crashed surfaces process is a blank screen. |
 | **Windows** | What are ordinary windows — Settings, Morgan's conversation kept open beside work — in a second process, because layer-shell is chosen per process. |
-| **Morgan** | `heyclaude.service`, its own repository. |
+| **Morgan** | `heymorgan.service`, its own repository. |
 | **Borrowed** | `hypridle` → `hyprlock`, `hyprpolkitagent`, `mako` for now. |
 | **Hyprland config** | `talaris.conf`, written by the installer and `source`d from `hyprland.conf`, which stays the user's: the binds, workspace rules and `exec-once` lines. Taking Noctalia out is deleting its one `exec-once`. |
 
@@ -764,7 +770,7 @@ Plugins, being separate processes, may be written in anything.
 - **A drawer**: filed to an edge as a handle, pulled out over tiled windows, and
   back — the spike's layer swap with a slide instead of a jump.
 - **Morgan's page as a surface**: `index.html` on a layer surface, talking to
-  `heyclaude.sock` through the host, and a voice turn start to finish.
+  `heymorgan.sock` through the host, and a voice turn start to finish.
 - **Next-new-window binding** against real Firefox and VS Code.
 - **Resume for the web** — the session file first.
 

@@ -20,8 +20,11 @@ body[data-edge="right"] #handle { border-right: 0; border-radius: 9px 0 0 9px; }
 body[data-edge="top"] #handle { border-top: 0; border-radius: 0 0 9px 9px; }
 body[data-edge="bottom"] #handle { border-bottom: 0; border-radius: 9px 9px 0 0; }
 #handle:hover { color: var(--accent); border-color: var(--accent); cursor: pointer; }
-#handle .grip { width: 2px; height: 34px; background: currentColor; border-radius: 1px; }
-body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 34px; height: 2px; }
+#handle .grip { width: 2px; height: 22px; background: currentColor; border-radius: 1px; }
+body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { width: 22px; height: 2px; }
+#close { display: none; margin-left: 14px; border: 0; padding: 0 2px; border-radius: 0; color: var(--muted); font-size: 11px; letter-spacing: 2px; }
+#close:hover { color: var(--accent); }
+body[data-mode="pulled"] #close { display: inline; }
 body[data-mode="filed"] #handle { display: flex; }
 body[data-mode="filed"] #panel { display: none; }
 
@@ -53,7 +56,7 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
   <span class="xh" style="left:-6px;bottom:-6px"></span><span class="xh" style="right:-6px;bottom:-6px"></span>
   <header>
     <span class="title" id="where"></span>
-    <span class="label" id="count"></span>
+    <span><span class="label" id="count"></span><button id="close" title="Put it away (Esc)">CLOSE ✕</button></span>
   </header>
   <main id="body"></main>
   <footer>

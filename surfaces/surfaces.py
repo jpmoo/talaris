@@ -75,7 +75,8 @@ DEFAULTS = {
     "idleSeconds": 45,
 }
 
-HANDLE = (18, 96)
+# Small on purpose: the handle says "something is here", not "look at me".
+HANDLE = (10, 56)
 
 
 def log(*parts: object) -> None:
