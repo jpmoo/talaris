@@ -308,12 +308,39 @@ meet on the block id.
 reader), what Talaria called *Noticed* (background proposals), a hotkey for the
 Hermes window — each a plugin later, or a bind in `hyprland.conf`, not core.
 
-**Open, and the next big conversation:** what a plugin *is* — a page and a
-manifest, a process with a socket, both — what language, how it is installed,
-what it is allowed to touch, and how a plugin's item on a canvas survives the
-plugin being removed. One rule is fixed already: **what Talaris does not
-understand on a canvas, it must not destroy** — an item from a missing plugin
-is kept and shown as a placeholder, never dropped.
+**A plugin is its own process** (decided 2026-10-23). It talks to the core over
+a socket, never by being loaded into it. Three reasons, any one enough:
+
+- **A crashing plugin does not take the desktop with it** — the same reason
+  Morgan is its own process.
+- **Any language.** A plugin is whatever speaks the protocol, so the core's
+  language does not become every plugin author's.
+- **Any license.** Talaris is GPL. Code loaded into a GPL program's process is
+  arguably part of it, and would have to be GPL too; a separate program talking
+  over a socket is not. So a plugin can be open, closed or sold — by the owner
+  or anyone else. That is what keeps *One product, two licenses* (below)
+  workable, and leaves room for plugins as a business.
+
+What the plugin draws inside a surface — its item on a canvas, its Settings
+page — is still to be designed: a page the surface hosts but the plugin's
+process feeds is the likely shape. **Still open:** the protocol itself (MCP, or
+something MCP-shaped), how a plugin is installed and started, and what it is
+allowed to touch.
+
+One rule is fixed: **what Talaris does not understand on a canvas, it must not
+destroy** — an item from a missing plugin is kept and shown as a placeholder,
+never dropped.
+
+## One product, two licenses
+
+Decided 2026-10-23. Talaris is **GPL-3.0-only**, and the same code is also
+available from its owner under a commercial license — for anyone who wants to
+do what the GPL does not allow, such as shipping it inside a closed product.
+There is **no separate paid edition**: everyone gets the same Talaris, and the
+license is what is sold. Plugins are where anything else is sold, and because
+they are separate processes they carry their own licenses. Outside
+contributions come under `CLA.md`, which is what lets the owner keep offering
+both licenses; it is a draft until a lawyer has read it.
 
 ## Apps
 
