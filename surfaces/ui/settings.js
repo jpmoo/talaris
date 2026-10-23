@@ -63,7 +63,8 @@ function draw() {
     onclick: () => save({ theme: { accent: c } }) })));
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
   seg("motion", [["slide", "Slide"], ["draw", "Draw"], ["chaos", "Chaos"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
-  seg("speed", [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"]], t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
+  const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
+  seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const p = cfg.panels;
   seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
   $("shadow").classList.toggle("on", !!p.shadow);
@@ -74,6 +75,7 @@ function draw() {
   const outlines = [["line", "Line"], ["none", "None"]];
   for (const [part, c] of [["bar", cfg.bar], ["dock", cfg.dock]]) {
     seg(`${part}-motion`, edgeMotion, c.motion || "slide", (motion) => save({ [part]: { motion } }));
+    seg(`${part}-speed`, SPEEDS, c.speed || "normal", (speed) => save({ [part]: { speed } }));
     seg(`${part}-outline`, outlines, c.outline || "line", (outline) => save({ [part]: { outline } }));
     $(`${part}-shadow`).classList.toggle("on", !!c.shadow);
   }

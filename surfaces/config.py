@@ -26,7 +26,7 @@ DEFAULTS = {
     # outline: "line" or "none"; shadow under it; motion as it comes out from
     # hiding: "slide" or "none".
     "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100,
-            "outline": "line", "shadow": False, "motion": "slide"},
+            "outline": "line", "shadow": False, "motion": "slide", "speed": "normal"},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
@@ -34,7 +34,7 @@ DEFAULTS = {
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
     "dock": {"edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
-             "outline": "line", "shadow": False, "motion": "slide",
+             "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off.
              "magnify": 100},

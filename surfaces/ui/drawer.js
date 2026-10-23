@@ -67,7 +67,7 @@ function applyTheme(theme) {
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
 const motion = () => document.documentElement.dataset.motion || "slide";
 // How quick: Settings' speed, as a factor on every duration and delay here.
-const pace = () => ({ slow: 1.6, normal: 1, fast: .6 })[(state.theme || {}).motionSpeed] || 1;
+const pace = () => ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 })[(state.theme || {}).motionSpeed] || 1;
 const P = (ms) => Math.round(ms * pace());
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || motion() === "none";
 

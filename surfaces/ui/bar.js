@@ -27,7 +27,7 @@ function onState(s) {
   // Out from hiding, in the bar's own motion: slide, or none.
   if (s.arrived && (look.motion || "slide") === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     $("bar").animate([{ transform: s.edge === "bottom" ? "translateY(110%)" : "translateY(-110%)" }, { transform: "none" }],
-      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+      { duration: Math.round(260 * ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1)), easing: "cubic-bezier(.2,.8,.2,1)" });
   }
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";

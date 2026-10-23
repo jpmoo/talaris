@@ -133,7 +133,8 @@ Surface.connect({
     const motion = look.motion || "slide";
     if (s.arrived && motion === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const from = (s.edge || "bottom") === "bottom" ? "translateY(110%)" : "translateY(-110%)";
-      document.getElementById("dock").animate([{ transform: from }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+      const pace = { slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1;
+      document.getElementById("dock").animate([{ transform: from }, { transform: "none" }], { duration: Math.round(260 * pace), easing: "cubic-bezier(.2,.8,.2,1)" });
     }
   },
 }).then((b) => {
