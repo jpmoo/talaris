@@ -33,7 +33,7 @@ from config import DEFAULTS, save_config
 from core import Bridge
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
-from views import log, make_view
+from views import log, make_view, zoom
 
 SIZE = (860, 620)
 IDLE_MS = 3 * 60 * 1000
@@ -76,6 +76,8 @@ def _checked(c: dict) -> str:
         return "A drawer is a quarter to nine tenths of the screen"
     p, b, d = c["panels"], c["bar"], c["dock"]
     speeds = ("slow", "normal", "fast", "fastest")
+    if t.get("fontSize", "medium") not in ("small", "medium", "large"):
+        return "Text is small, medium or large"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool):
@@ -158,7 +160,7 @@ class Settings(QObject):
         self.page = page
         if not self.up:
             # No anchors: the compositor puts it in the middle of the screen.
-            self.surface.apply(Placement(OVERLAY, 0, *SIZE, KEYBOARD_ON_DEMAND))
+            self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
             self.up = True
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))

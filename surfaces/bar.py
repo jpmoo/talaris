@@ -39,7 +39,7 @@ from layershell import (
 )
 from machine import Machine
 from sensor import Autohide
-from views import log, make_view
+from views import log, make_view, zoom
 
 #: Room below the bar (or above the dock) for a shadow to fall into.
 SHADOW_ROOM = 14
@@ -152,7 +152,7 @@ class Popup(QObject):
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
-        self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, w, h, KEYBOARD_ON_DEMAND))
+        self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND))
         self.bridge.state.emit(json.dumps(self.describe()))
         if kind in ("network", "bluetooth"):
             self.desktop.machine.panel_read(kind)
@@ -221,10 +221,10 @@ class Bar(QObject):
         # Floating, the bar stands off the screen's edges: its surface is the
         # bar and the space between it and the edge, and reserves both.
         near = margins(look)[self.edge] if look.get("shape") == "floating" else 0
-        tall = BAR + near
+        tall = zoom(BAR + near)
         # A shadow needs room to fall into: the surface is that much taller
         # than the space it reserves, and the extra is clear.
-        room = SHADOW_ROOM if look.get("shadow") else 0
+        room = zoom(SHADOW_ROOM) if look.get("shadow") else 0
         self.surface.placement = None
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_NONE, exclusive=0 if hide else tall))

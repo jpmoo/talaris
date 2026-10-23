@@ -42,8 +42,33 @@ class Page(QWebEnginePage):
             log(f"{self.name} page: {message} ({source.rsplit('/', 1)[-1]}:{line})")
 
 
+#: Settings' text size, as a zoom on every page; fixed surface sizes are
+#: scaled by the same (`zoom`), so a larger page is not cut off.
+ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12}
+_zoom = {"z": 1.0}
+_views: list[QWebEngineView] = []
+
+
+def zoom(px: float) -> int:
+    """A fixed size in Qt's units, at the text size Settings gives."""
+    return round(px * _zoom["z"])
+
+
+def set_zoom(size: str) -> bool:
+    """Every page at this text size. True if it changed."""
+    z = ZOOMS.get(size, 1.0)
+    if z == _zoom["z"]:
+        return False
+    _zoom["z"] = z
+    for view in _views:
+        view.setZoomFactor(z)
+    return True
+
+
 def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, owner: QObject) -> QWebEngineView:
     view = QWebEngineView()
+    _views.append(view)
+    view.setZoomFactor(_zoom["z"])
     view.setWindowTitle(f"talaris-{name}")
     view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     # The engine's own right-click menu — Back, Reload, View source — is a

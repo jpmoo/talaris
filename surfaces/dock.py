@@ -51,7 +51,7 @@ from layershell import (
     Placement,
 )
 from sensor import Autohide
-from views import make_view
+from views import make_view, zoom
 
 #: The dock's thickness: a 32px icon, its dots, and room around them.
 DOCK = 50
@@ -121,12 +121,15 @@ class DockMenu(QObject):
             return
         self.key = key
         screen = QApplication.primaryScreen().geometry()
-        w, h = MENU
+        w, h = zoom(MENU[0]), zoom(MENU[1])
+        # The page says where the item is in its own pixels; at a text size
+        # other than medium, those are zoomed.
+        x = zoom(int(x))
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
         # Clear of the dock: its reserved space does that, unless it is hiding
         # and so reserves none, when the menu stands off by the dock's height.
-        off = DOCK if self.desktop.config["dock"].get("autohide") else 0
+        off = zoom(DOCK) if self.desktop.config["dock"].get("autohide") else 0
         anchor = (ANCHOR_BOTTOM if bottom else ANCHOR_TOP) | ANCHOR_LEFT
         margins = (left, 0 if bottom else off, 0, off if bottom else 0)
         self.surface.placement = None
@@ -206,10 +209,10 @@ class Dock(QObject):
         # for icons to swell into when magnified (a 36px item at its largest).
         look = self.desktop.config["dock"]
         swell = round(36 * (int(look.get("magnify", 100)) - 100) / 100)
-        room = max(14 if look.get("shadow") else 0, swell + 6 if swell else 0)
+        room = zoom(max(14 if look.get("shadow") else 0, swell + 6 if swell else 0))
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), DOCK + room,
-                                     KEYBOARD_NONE, exclusive=0 if hide else DOCK))
+        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), zoom(DOCK) + room,
+                                     KEYBOARD_NONE, exclusive=0 if hide else zoom(DOCK)))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:

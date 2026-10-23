@@ -40,7 +40,7 @@ from PySide6.QtWidgets import QApplication
 
 from core import Bridge
 from layershell import ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_NONE, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
-from views import log, make_view
+from views import log, make_view, zoom
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(RUNTIME, "heymorgan.sock")
@@ -188,7 +188,7 @@ class Panel(QObject):
     def open(self) -> None:
         if not self.up:
             screen = QApplication.primaryScreen().geometry()
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, WIDTH,
+            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH),
                                          int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
             self.up = True
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
@@ -307,7 +307,7 @@ class Voice(QObject):
         if self.up or self.desktop.morgan.up:
             return
         # Anchored to the top alone, the compositor centers it under the bar.
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, *VOICE, KEYBOARD_NONE))
+        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, zoom(VOICE[0]), zoom(VOICE[1]), KEYBOARD_NONE))
         self.up = True
         log("voice: up")
         self.bridge.state.emit(json.dumps(self.describe()))

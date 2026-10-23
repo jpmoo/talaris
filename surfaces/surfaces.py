@@ -51,7 +51,7 @@ from sensor import EdgeSensor, Hover
 import sensor as sensor_module
 from settings import Settings
 from machine import Machine
-from views import log, make_view
+from views import log, make_view, set_zoom, zoom
 from core import Bridge, call
 from layershell import (
     BOTTOM,
@@ -173,7 +173,7 @@ class Drawer(QObject):
         anchor = EDGE_ANCHOR[self.edge]
         across = self.edge in ("left", "right")
         if mode == "filed":
-            w, h = HANDLE if across else HANDLE[::-1]
+            w, h = (zoom(HANDLE[0]), zoom(HANDLE[1])) if across else (zoom(HANDLE[1]), zoom(HANDLE[0]))
             # Anchored to its edge alone, the compositor centers it along that edge.
             return Placement(TOP, anchor, w, h, KEYBOARD_NONE)
         w = int(screen.width() * self.size) if across else screen.width()
@@ -299,6 +299,7 @@ class Desktop(QObject):
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
         sensor_module.TARGET.update(self.config["touch"])
+        set_zoom(self.config["theme"].get("fontSize", "medium"))
         self.machine = Machine(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
@@ -367,11 +368,11 @@ class Desktop(QObject):
         # between it and the windows: the window gap on that side.
         bar = self.config["bar"]
         if bar.get("shape") == "floating" and not bar.get("autohide"):
-            sides[self.bar.edge] = bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"]
+            sides[self.bar.edge] = zoom(bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"])
         # Only a dock that reserves its edge stops short of it.
         dock = self.config["dock"]
         if dock.get("enabled", True) and not dock.get("autohide"):
-            sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
+            sides[self.dock.edge] = max(0, gap - to_compositor(zoom(self.DOCK_SHORT)))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
         # Between two windows Hyprland leaves its inner gap on each side, so the
@@ -429,6 +430,20 @@ class Desktop(QObject):
                 d.pulled = False
                 d.mode = ""
                 d.settle()
+        if set_zoom(after["theme"].get("fontSize", "medium")):
+            # Larger or smaller text: everything with a fixed size is made again.
+            self.bar.place()
+            self.dock.place()
+            self.bar.close_popup()
+            self.dock.menu.file_away()
+            if self.settings.up:
+                self.settings.surface.placement = None
+                self.settings.up = False
+                self.settings.open()
+            for d in self.drawers.values():
+                if d.mode == "filed" and not d.autoshow:
+                    d.surface.placement = None
+                    d.surface.apply(d._placement("filed"))
         self.style_compositor()
         if after["touch"] != before["touch"]:
             self.touch_targets()

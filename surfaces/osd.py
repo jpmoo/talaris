@@ -25,7 +25,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 import hypr
 from core import Bridge
 from layershell import ANCHOR_BOTTOM, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
-from views import make_view
+from views import make_view, zoom
 
 SIZE = (300, 64)
 SHOW_MS = 1400
@@ -86,7 +86,7 @@ class Osd(QObject):
         self.shown = level(kind)
         if not self.up:
             # On the bottom edge, clear of what reserves it — just above the dock.
-            self.surface.apply(Placement(OVERLAY, ANCHOR_BOTTOM, *SIZE, KEYBOARD_NONE))
+            self.surface.apply(Placement(OVERLAY, ANCHOR_BOTTOM, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_NONE))
             self.up = True
         self.bridge.state.emit(json.dumps(self.describe()))
         self._hide.start(SHOW_MS)

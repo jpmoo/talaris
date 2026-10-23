@@ -59,6 +59,7 @@ function draw() {
   const t = cfg.theme;
   // Appearance.
   seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => save({ theme: { mode } }));
+  seg("fontsize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]], t.fontSize || "medium", (fontSize) => save({ theme: { fontSize } }));
   // The tuner's five, then the picker for any other — wearing the custom
   // accent once one is chosen.
   const custom = !ACCENTS.includes(t.accent);
