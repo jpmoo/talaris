@@ -390,15 +390,90 @@ a socket, never by being loaded into it. Three reasons, any one enough:
   or anyone else. That is what keeps *One product, two licenses* (below)
   workable, and leaves room for plugins as a business.
 
-What the plugin draws inside a surface — its item on a canvas, its Settings
-page — is still to be designed: a page the surface hosts but the plugin's
-process feeds is the likely shape. **Still open:** the protocol itself (MCP, or
-something MCP-shaped), how a plugin is installed and started, and what it is
-allowed to touch.
+### The protocol
+
+Decided 2026-10-23.
+
+- **A plugin speaks MCP, and Talaris is its client**, over the plugin's standard
+  input and output. MCP already says most of what is needed — a plugin's
+  **tools** are its verbs, its **resources** are the things it can show, and
+  **notifications** say when they change — and has toolkits in every common
+  language. **Talaris adds an extension** for what MCP has no words for:
+  launcher results, canvas item kinds, bar items, a Settings page, and desktop
+  events (the current project changed, a card opened). It is negotiated at
+  start-up, in MCP's own capabilities.
+- **A plugin acts on the desktop through the verbs** — the same ones a click
+  uses — over the same connection. No private door.
+- **Morgan gets plugin verbs without wiring.** Talaris already serves Morgan an
+  MCP; a plugin's tools pass through it, so installing the Hermes plugin is
+  enough for Morgan to make a block.
+- **Talaris starts and supervises plugins.** A crash restarts it with a
+  growing delay; disabling stops it; one rarely needed can start on first use.
+- **Each plugin has a manifest**, `plugin.toml`: its id, name, version, the
+  command that starts it, **what it contributes**, and **what it may ask of
+  Talaris**. Talaris reads it without running the plugin, so what a plugin does
+  is shown before it is enabled.
+- **Installing is a folder** in `~/.local/share/talaris/plugins/`, copied in or
+  cloned from a git address. A catalog can come when there are plugins to list.
+  A paid plugin handles its own license key.
+
+### How a plugin's things look
+
+**Both ways, from the start.** A plugin can **describe** an item — title, icon,
+fields, status, actions — and Talaris draws it in the theme, which is the right
+choice for most things and costs the plugin nothing in looks. Or it can supply
+**its own page**, for anything a description cannot say: Talaris hosts it in a
+sandboxed frame, hands it the theme (the grays, the accent, the typeface, the
+motion setting, light or dark) and a narrow message bridge to the plugin's
+process, and nothing else. The same two ways serve a Settings page.
+
+**Every placed item keeps a last-known picture** — title, icon, fields — so an
+item whose plugin is missing or stopped is an honest placeholder, never a blank
+box.
+
+### Trust
+
+**A plugin is a program running as you**, like any application you install.
+Talaris controls what a plugin may *ask of Talaris* — read what is current, act
+through verbs, put something on the bar — and shows that before it is enabled.
+It cannot stop a plugin reading your files or using the network, and does not
+pretend to. Real confinement (the kind Flatpak gives) is a later option.
+
+### Plugins are not connections
+
+**An existing MCP server is not a plugin.** Plugins extend the *desktop* — they
+put things on the screen. MCP servers are among the **connections** — things
+Morgan reaches out to (see *Connections*). Two separate lists in Settings, two
+separate ideas.
 
 One rule is fixed: **what Talaris does not understand on a canvas, it must not
 destroy** — an item from a missing plugin is kept and shown as a placeholder,
 never dropped.
+
+## Connections
+
+**Where Morgan (and the desktop) reach out to.** A page of its own in Settings,
+separate from plugins. Decided 2026-10-23:
+
+| | |
+|---|---|
+| **Local model** — required | Morgan's own voice: Ollama by default, or any endpoint that speaks the common OpenAI-style API (llama.cpp's server, LM Studio, vLLM and the like). Talaris asks the endpoint what models it has and offers them, rather than making you type a name. The embedding model Morgan's memory uses is chosen here too. |
+| **Oracle** — optional | Claude, for what the local model cannot do. **By sign-in** — your Claude subscription, through the `claude` command's own login, so there are no per-token charges — **or by API key**. |
+| **MCP servers** | The tools Morgan can use: Hermes Notes' MCP and anything like it, local or remote, each with what Morgan may do there (read, or read and write). |
+
+**Proposed, not yet agreed:**
+
+| | |
+|---|---|
+| **Speech** | Speech-to-text and text-to-speech run on this machine today; Morgan's server-and-satellites plan moves them to the AI server over HTTP. That makes them endpoints like the model: local by default, a server by choice. |
+| **Morgan's home** | Where Morgan's brain runs — this machine, or the home server once that plan is built. The one connection that decides where all the others are kept. |
+
+**Morgan owns these; Talaris is their page.** Morgan's daemon holds its
+connections, and when its brain moves to the home server they move with it.
+Talaris's Connections page reads and writes them through Morgan's own socket
+(`heyclaude admin`), so there is never a second copy. **Keys and tokens go in
+the login keyring**, not in a file — Morgan's `config.json` holds MCP keys in
+plain text today, which is the thing to fix on the way.
 
 ## One product, two licenses
 
