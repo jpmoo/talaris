@@ -21,6 +21,8 @@ not a second opinion somewhere else.
                letter-spaced labels for its sections.
   bar item     an icon button that keeps its hairline hidden until hovered:
                a row of readings each in a box is a spreadsheet, not a bar.
+  segmented    one of a few: pills in a hairline frame, the chosen one in
+               the accent's wash.
   switch       on or off: a small track, the accent's when on, its knob at
                that end.
   field        the desk's ground, a hairline, --radius-row corners, accent
@@ -157,6 +159,17 @@ button.bar-item:hover { border-color: var(--line); color: var(--accent); }
 .cv-swatch { border-radius: 6px !important; border: 1px solid var(--line) !important; }
 .cv-swatch:hover { border-color: var(--accent) !important; }
 .cv-swatch.is-on { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent) !important; }
+
+/* ---- segmented choices ------------------------------------------------ */
+
+.seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.seg button {
+  border: 0 !important; border-radius: 12px !important; padding: 2px 12px !important; background: transparent !important;
+  font: inherit; font-size: 12px; letter-spacing: 1px; color: var(--muted) !important; cursor: pointer;
+}
+.seg button:hover { color: var(--text) !important; }
+.seg button.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.seg button:disabled { opacity: .35; cursor: default; }
 
 /* ---- switches ---------------------------------------------------------- */
 

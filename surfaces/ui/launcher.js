@@ -27,6 +27,7 @@ const VERBS = [
   { name: "canvas", title: "Canvas", sub: "Pull out the canvas drawer" },
   { name: "writing", title: "Writing", sub: "Pull out the writing drawer" },
   { name: "file-all", title: "Put the drawers away" },
+  { name: "settings", title: "Settings", sub: "Appearance, layout, keys, Morgan" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },
   { name: "bluetooth", title: "Bluetooth", sub: "Devices" },
   { name: "lock", title: "Lock" },

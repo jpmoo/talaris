@@ -41,10 +41,12 @@ from PySide6.QtWidgets import QApplication
 import hypr
 from apps import Apps
 from bar import Bar
+from config import load_config
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from settings import Settings
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -65,47 +67,8 @@ UI = os.path.join(HERE, "ui")
 LAUNCHER = os.path.join(HERE, "talaris-surfaces")
 SCHEME = b"talaris-ui"
 CONTROL = f"talaris-surfaces-{os.getuid()}"
-CONFIG = os.path.join(
-    (os.environ.get("XDG_CONFIG_HOME") or "").strip() or os.path.expanduser("~/.config"), "talaris", "config.json"
-)
-
-DEFAULTS = {
-    "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
-    "bar": {"edge": "top"},
-    # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
-    "launcher": {"keys": "SUPER ALT, SPACE"},
-    "dock": {"edge": "bottom"},
-    "drawers": {
-        # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
-        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": True},
-        "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False},
-    },
-    # A pulled drawer files itself after this long with no input. Idle, not a
-    # deadline: a fixed timeout fired mid-scroll in the spike.
-    "idleSeconds": 45,
-}
-
 # Small on purpose: the handle says "something is here", not "look at me".
 HANDLE = (10, 56)
-
-
-def load_config() -> dict:
-    config = json.loads(json.dumps(DEFAULTS))
-    try:
-        with open(CONFIG, encoding="utf-8") as f:
-            mine = json.load(f)
-    except (OSError, ValueError):
-        return config
-    for key, value in mine.items():
-        if isinstance(value, dict) and isinstance(config.get(key), dict):
-            for k, v in value.items():
-                if isinstance(v, dict) and isinstance(config[key].get(k), dict):
-                    config[key][k].update(v)
-                else:
-                    config[key][k] = v
-        else:
-            config[key] = value
-    return config
 
 
 def register_scheme() -> None:
@@ -288,6 +251,7 @@ class Desktop(QObject):
         self.morgan = Panel(profile, self, self.morgan_link)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
+        self.settings = Settings(profile, self)
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -334,6 +298,51 @@ class Desktop(QObject):
             hypr.unbind(keys)
         self.osd.unbind()
 
+    # ---------------------------------------------------------------- settings
+
+    def every_surface(self) -> list:
+        """Everything that draws a page and wears the theme."""
+        return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
+                self.osd, self.settings, *self.drawers.values()]
+
+    def reconfigure(self, before: dict, after: dict) -> None:
+        """Make the screen match a new configuration, moving only what changed."""
+        self.config = after
+        if after["bar"]["edge"] != before["bar"]["edge"]:
+            self.bar.edge = after["bar"]["edge"]
+            self.bar.place()
+        if after["dock"]["edge"] != before["dock"]["edge"]:
+            self.dock.edge = after["dock"]["edge"]
+            self.dock.place()
+        for name, d in self.drawers.items():
+            mine = after["drawers"][name]
+            if mine != before["drawers"][name]:
+                d.edge, d.size, d.out_when_empty = mine["edge"], float(mine["size"]), bool(mine.get("outWhenEmpty"))
+                # Made anew where it now belongs, filed: a drawer that moves edge
+                # mid-pull would arrive somewhere it was not asked to be.
+                d.pulled = False
+                d.mode = ""
+                d.settle()
+        if after["launcher"]["keys"] != before["launcher"]["keys"]:
+            hypr.unbind(before["launcher"]["keys"])
+            hypr.bind(after["launcher"]["keys"], f"{LAUNCHER} --launcher")
+        # Every surface hears its state again, which carries the theme.
+        for surface in self.every_surface():
+            surface.bridge.state.emit(json.dumps(surface.describe()))
+        log("settings: applied")
+
+    def key_list(self) -> list[dict]:
+        """Talaris's keys, as the Keys page lists them."""
+        nice = lambda k: k.replace(",", " +").replace("SUPER", "Super").replace("ALT", "Alt").replace("ESCAPE", "Escape").replace("  ", " ").strip(" +")
+        return [
+            {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
+            {"keys": "Super + Alt + M", "does": "Morgan's conversation"},
+            {"keys": "Super + Alt + C", "does": "The canvas drawer"},
+            {"keys": "Super + Alt + W", "does": "The writing drawer"},
+            {"keys": "Super + Alt + Escape", "does": "Put everything away"},
+            {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
+        ]
+
     # ---------------------------------------------------------------- what the launcher asks
 
     def go_to_project(self, project_id: str) -> None:
@@ -371,6 +380,8 @@ class Desktop(QObject):
             self.machine.power(name)
         elif name in ("network", "bluetooth"):
             self.bar.toggle_popup(name)
+        elif name == "settings":
+            self.settings.open()
         else:
             return "No such thing to do"
         return ""
@@ -390,6 +401,9 @@ class Desktop(QObject):
                 self.launcher.file_away()
                 self.morgan.file_away()
                 self.voice.file_away()
+                self.settings.file_away()
+            elif verb == "settings":
+                self.settings.open(arg)
             elif verb == "osd":
                 self.osd.show(arg)
             elif verb == "morgan":
@@ -424,6 +438,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--settings"]:
+        return send("settings " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--osd"] and len(args) == 2:
         return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:

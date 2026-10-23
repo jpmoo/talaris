@@ -32,7 +32,6 @@ import json
 import os
 import shutil
 import socket
-import subprocess
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
@@ -155,12 +154,8 @@ class MorganBridge(Bridge):
 
     @Slot()
     def settings(self) -> None:
-        # Morgan's page in Talaris's Settings is step seven. Until then, its
-        # settings are where they have been: the Noctalia plugin's panel.
-        noctalia = shutil.which("noctalia") or os.path.expanduser("~/.local/bin/noctalia")
-        if os.path.exists(noctalia):
-            subprocess.Popen([noctalia, "msg", "panel-open", "jpmoo/morgan:settings"],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        """Morgan's page in Talaris's Settings."""
+        self.owner.desktop.settings.open("morgan")
 
     @Slot(str)
     def title(self, _text: str) -> None:

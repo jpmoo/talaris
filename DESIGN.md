@@ -988,7 +988,23 @@ of it and comes out at the end.
    goes at once on `stop`, and never takes the keyboard. Still to do: files
    dropped on the panel, and Morgan's settings page (step 7) — its
    settings button opens the Noctalia plugin's panel until then.
-7. Settings, the theme, the OSD, the power menu.
+7. Settings, the theme, the OSD, the power menu. **First pass done.**
+   *Settings* (`surfaces/settings.py`, `config.py`): one panel in the middle of
+   the screen — from the launcher, the power menu, or Morgan's own settings
+   button — with Appearance (mode, accent from the tuner's five or any hex,
+   typeface), Layout (the bar's edge, the dock taking the other; each drawer's
+   edge and size; the canvas as desktop; how long before a pulled drawer goes),
+   Keys (the launcher's, and the list of Talaris's), and Morgan (name, wake and
+   interrupt words, follow-up, known voices only, Kokoro voice with a sample,
+   the chat model, the Oracle — through Morgan's own admin calls, saved
+   together because some restart it). Talaris's own settings apply the moment
+   they change: the process checks the whole configuration, writes only what
+   differs from the defaults to `~/.config/talaris/config.json`, and moves only
+   what changed. *The OSD* (`osd.py`): the media keys are bound again at
+   runtime with the commands `hyprland.conf` gave them plus `--osd <kind>`, and
+   bound back on quit. Not yet: motion as a setting (only slide is built), the
+   bar and dock hiding themselves, side edges for the bar and dock, drawers
+   sharing an edge as tabs, Morgan's memory, voices heard and connections.
 8. Remove Noctalia's `exec-once`.
 
 **Milestone two — projects and plugins.**

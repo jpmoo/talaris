@@ -45,7 +45,7 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 232), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
+POPUPS = {"power": (210, 266), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -85,7 +85,10 @@ class BarBridge(Bridge):
     @Slot(str)
     def power(self, verb: str) -> None:
         self.owner.desktop.bar.close_popup()
-        self.owner.desktop.machine.power(verb)
+        if verb == "settings":
+            self.owner.desktop.settings.open()
+        else:
+            self.owner.desktop.machine.power(verb)
 
     @Slot(str)
     def openTool(self, name: str) -> None:  # noqa: N802 — called from the page by this name

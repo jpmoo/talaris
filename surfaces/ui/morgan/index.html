@@ -644,6 +644,8 @@ function start() {
     bridge.call("status", (status) => { try { const now = JSON.parse(status); hear(JSON.stringify({ type: "state", state: now.state, name: now.name })); } catch { /* not up */ } });
   });
   bridge.dropped.connect((dropped) => { files.push(...JSON.parse(dropped)); chips(); $("draft").focus(); });
+  // Talaris: a theme changed in Settings reaches this page as its state.
+  bridge.state.connect((text) => { try { const s = JSON.parse(text); if (s.theme) Surface.applyTheme(s.theme); } catch { /* fine */ } });
 }
 </script>
 </body>
