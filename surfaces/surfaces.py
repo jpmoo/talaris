@@ -306,6 +306,9 @@ class Desktop(QObject):
         sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
+        # Between two windows Hyprland leaves its inner gap on each side, so the
+        # space seen is twice the number: the setting is the space seen.
+        hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
 
     def _bind(self) -> None:

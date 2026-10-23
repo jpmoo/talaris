@@ -77,6 +77,7 @@ function draw() {
   }
   $("canvas-out").classList.toggle("on", !!cfg.drawers.canvas.outWhenEmpty);
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
+  slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
 
   // Keys.
