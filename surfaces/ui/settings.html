@@ -37,8 +37,10 @@ input[type="range"] { -webkit-appearance: none; appearance: none; width: 200px; 
 input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--accent); }
 .margins { display: grid; grid-template-columns: auto; gap: 2px; }
-.margins label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+/* Label, slider, value in three columns, so the four sliders start and end together. */
+.margins label { display: grid; grid-template-columns: 56px 150px 44px; align-items: center; column-gap: 10px; font-size: 12px; color: var(--muted); }
 .margins label input { width: 150px; }
+.margins label .n { width: auto; text-align: right; }
 .n { width: 52px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .swatches { display: flex; gap: 6px; }
 .swatch { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; padding: 0; }
