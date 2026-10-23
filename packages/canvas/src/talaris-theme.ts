@@ -91,10 +91,28 @@ export function wearTheme(): void {
       pointer-events: none;
     }
 
+    /* Rounded is the shape with no name, and every note's sheet otherwise
+       gets a 2px corner — so Rounded drew square. It gets its corner here. */
+    .cv-note:not([data-shape]) .cv-paper { border-radius: 12px; }
+
+    /* The canvas's own confirmation, dressed like the drawer's. */
+    .modal-backdrop { background: rgba(0, 0, 0, .45) !important; backdrop-filter: none !important; }
+    .modal-card { background: var(--surface) !important; color: var(--text); border: 1px solid var(--frame) !important;
+      border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, .45) !important; font-family: var(--font); }
+    .modal-title { font-weight: 500 !important; font-size: 15px !important; letter-spacing: 1px; color: var(--text) !important; }
+    .modal-message { color: var(--muted) !important; }
+    .modal-actions button { font: inherit; border: 1px solid var(--line); border-radius: 14px; padding: 3px 14px;
+      background: transparent !important; color: var(--text); cursor: pointer; }
+    .modal-actions button:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-actions button.danger { border-color: var(--danger); color: var(--danger); }
+    .modal-actions button.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent) !important; }
+    .modal-actions button:disabled { opacity: .45; cursor: default; }
+
     .cv-swatch.cv-align { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: transparent; border: 1px solid var(--line); }
     .cv-swatch.cv-align:hover { color: var(--accent); border-color: var(--accent); }
     .cv-swatch.cv-align.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
-    .tool-menu.shape-row { display: flex; gap: 4px; padding: 6px; }
+    /* Only as wide as its six icons. */
+    .tool-menu.shape-row { display: flex; flex-direction: row !important; gap: 4px; padding: 5px; min-width: 0 !important; width: max-content; }
     .shape-pick { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
       border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
     .shape-pick:hover { color: var(--accent); border-color: var(--accent); }
