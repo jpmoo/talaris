@@ -26,6 +26,7 @@ import hypr
 from apps import Apps
 from core import Bridge
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, TOP, LayerSurface, Placement
+from sensor import Autohide
 from views import make_view
 
 #: The dock's thickness: a 32px icon, its dots, and room around them.
@@ -60,17 +61,31 @@ class Dock(QObject):
         self.bridge = DockBridge(self, self)
         self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-dock")
+        self.hider = Autohide(profile, "dock", self.view, self._show, self._hide, parent=self)
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)
         self._soon.timeout.connect(self.refresh)
         desktop.events.windows.connect(lambda: self._soon.start(80))
 
     def place(self) -> None:
+        """Along its edge — or, set to hide, away until the edge is touched."""
+        hide = bool(self.desktop.config["dock"].get("autohide"))
+        self.hider.set(hide, self.edge)
+        if not hide:
+            self._show()
+        self.refresh()
+
+    def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_TOP if self.edge == "top" else ANCHOR_BOTTOM
+        hide = bool(self.desktop.config["dock"].get("autohide"))
+        self.surface.placement = None
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), DOCK,
-                                     KEYBOARD_NONE, exclusive=DOCK))
-        self.refresh()
+                                     KEYBOARD_NONE, exclusive=0 if hide else DOCK))
+
+    def _hide(self) -> None:
+        self.view.hide()
+        self.surface.placement = None
 
     def describe(self) -> dict:
         return {"edge": self.edge, "theme": self.desktop.config["theme"]}

@@ -46,6 +46,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from sensor import EdgeSensor, Hover
 from settings import Settings
 from machine import Machine
 from views import log, make_view
@@ -130,6 +131,11 @@ class Drawer(QObject):
         self.edge = config["edge"]
         self.size = float(config["size"])
         self.out_when_empty = bool(config.get("outWhenEmpty"))
+        # Touch to show: no handle; the pointer touching the edge pulls the
+        # drawer, and leaving it files it again. Pulled by its keys instead,
+        # it stays until put away, as before.
+        self.autoshow = bool(config.get("autoshow"))
+        self.bumped = False
         self.pulled = False
         self.mode = ""
         self.leaving = False
@@ -137,6 +143,11 @@ class Drawer(QObject):
         self.bridge = Bridge(self, self)
         self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
+        self.sensor = EdgeSensor(profile, name, self.edge, self._bump, self)
+        self.away = QTimer(self)
+        self.away.setSingleShot(True)
+        self.away.timeout.connect(self._away)
+        Hover(self.view, self._hover)
 
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
@@ -196,7 +207,15 @@ class Drawer(QObject):
         if mode == self.mode:
             return
         self.mode = mode
-        self.surface.apply(self._placement(mode))
+        if mode == "filed" and self.autoshow:
+            # No handle: the surface goes, and the edge waits to be touched.
+            self.view.hide()
+            self.surface.placement = None
+            self.sensor.show(self.edge)
+        else:
+            self.surface.apply(self._placement(mode))
+            if not self.autoshow:
+                self.sensor.hide()
         self.bridge.state.emit(json.dumps(self.describe()))
         if mode == "pulled":
             self.touched()
@@ -208,7 +227,29 @@ class Drawer(QObject):
         if self.leaving:
             return
         self.pulled = not self.pulled
+        self.bumped = False
         self.settle()
+
+    def _bump(self) -> None:
+        """The edge was touched: out, until the pointer leaves."""
+        if self.autoshow and not self.pulled and not self.leaving:
+            self.pulled = True
+            self.bumped = True
+            self.settle()
+            self.away.start(1400)
+
+    def _hover(self, inside: bool) -> None:
+        if not (self.bumped and self.pulled):
+            return
+        if inside:
+            self.away.stop()
+        else:
+            self.away.start(700)
+
+    def _away(self) -> None:
+        if self.bumped and self.pulled:
+            self.bumped = False
+            self.file_away()
 
     def file_away(self) -> None:
         if self.pulled:
@@ -303,7 +344,9 @@ class Desktop(QObject):
         hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
-        sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
+        # Only a dock that reserves its edge stops short of it.
+        if not self.config["dock"].get("autohide"):
+            sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
         # Between two windows Hyprland leaves its inner gap on each side, so the
@@ -337,16 +380,18 @@ class Desktop(QObject):
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
-        if after["bar"]["edge"] != before["bar"]["edge"]:
+        if after["bar"] != before["bar"]:
             self.bar.edge = after["bar"]["edge"]
             self.bar.place()
-        if after["dock"]["edge"] != before["dock"]["edge"]:
+        if after["dock"] != before["dock"]:
             self.dock.edge = after["dock"]["edge"]
             self.dock.place()
         for name, d in self.drawers.items():
             mine = after["drawers"][name]
             if mine != before["drawers"][name]:
                 d.edge, d.size, d.out_when_empty = mine["edge"], float(mine["size"]), bool(mine.get("outWhenEmpty"))
+                d.autoshow = bool(mine.get("autoshow"))
+                d.sensor.hide()
                 # Made anew where it now belongs, filed: a drawer that moves edge
                 # mid-pull would arrive somewhere it was not asked to be.
                 d.pulled = False

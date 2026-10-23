@@ -17,6 +17,7 @@ $("power").innerHTML = Icons.power();
 
 function onState(s) {
   state = s;
+  if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";
   const p = s.project || {};
   $("where").innerHTML = "";
@@ -72,11 +73,32 @@ function onMachine(m) {
 }
 
 // The clock keeps its own time; the process has nothing to add to it.
+// The clock keeps its own time, in the shape Settings gives it: 12 or 24
+// hours, seconds or not, and the date in one of a few orders, or none.
+let clock = { hours: "12", seconds: false, date: "weekday-month-day" };
+let ticking = null;
+function dateText(now, style) {
+  const part = (o) => now.toLocaleDateString("en-US", o);
+  const wd = part({ weekday: "short" }), mo = part({ month: "short" }), d = now.getDate();
+  switch (style) {
+    case "weekday-day-month": return `${wd} ${d} ${mo}`;
+    case "month-day": return `${mo} ${d}`;
+    case "day-month": return `${d} ${mo}`;
+    case "iso": return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    case "off": return "";
+    default: return `${wd}, ${mo} ${d}`;
+  }
+}
 function tick() {
+  clearTimeout(ticking);
   const now = new Date();
-  $("day").textContent = now.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  $("time").textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  setTimeout(tick, 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50);
+  $("day").textContent = dateText(now, clock.date);
+  $("time").textContent = now.toLocaleTimeString("en-US", {
+    hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
+    ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
+  });
+  const wait = clock.seconds ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+  ticking = setTimeout(tick, wait + 20);
 }
 tick();
 

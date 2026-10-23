@@ -21,17 +21,19 @@ CONFIG = os.path.join(
 
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
-    "bar": {"edge": "top"},
+    "bar": {"edge": "top", "autohide": False},
+    # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
+    "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
-    "dock": {"edge": "bottom"},
+    "dock": {"edge": "bottom", "autohide": False},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
-        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": False},
-        "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False},
+        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": False, "autoshow": False},
+        "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False, "autoshow": False},
     },
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.

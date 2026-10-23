@@ -62,6 +62,15 @@ function draw() {
   $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === t.accent ? " on" : ""), style: `background:${c}`, title: c,
     onclick: () => save({ theme: { accent: c } }) })));
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
+  seg("motion", [["slide", "Slide"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
+  const k = cfg.clock;
+  seg("hours", [["12", "12 hour"], ["24", "24 hour"]], k.hours, (hours) => save({ clock: { hours } }));
+  $("seconds").classList.toggle("on", !!k.seconds);
+  const day = new Date();
+  const wd = day.toLocaleDateString("en-US", { weekday: "short" }), mo = day.toLocaleDateString("en-US", { month: "short" }), d = day.getDate();
+  seg("datestyle", [["weekday-month-day", `${wd}, ${mo} ${d}`], ["weekday-day-month", `${wd} ${d} ${mo}`], ["month-day", `${mo} ${d}`],
+    ["day-month", `${d} ${mo}`], ["iso", `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`], ["off", "None"]],
+    k.date, (date) => save({ clock: { date } }));
   $("faces").replaceChildren(...fonts.map((f) => el("button", { class: "face" + (f === t.font ? " on" : ""), style: `font-family:'${f}'`,
     onclick: () => save({ theme: { font: f } }) }, el("b", {}, f), el("small", {}, "CANVAS · WRITING · 0123"))));
 
@@ -76,6 +85,10 @@ function draw() {
     slider(`${name}-size`, Math.round(d.size * 100), (v) => `${v}%`, (v) => save({ drawers: { [name]: { size: v / 100 } } }));
   }
   $("canvas-out").classList.toggle("on", !!cfg.drawers.canvas.outWhenEmpty);
+  $("canvas-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
+  $("writing-auto").classList.toggle("on", !!cfg.drawers.writing.autoshow);
+  $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
+  $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
@@ -85,6 +98,12 @@ function draw() {
     cfg.launcher.keys, (keys) => save({ launcher: { keys } }));
 }
 
+$("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
+$("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
+$("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
+for (const name of ["canvas", "writing"]) {
+  $(`${name}-auto`).addEventListener("click", () => save({ drawers: { [name]: { autoshow: !cfg.drawers[name].autoshow } } }));
+}
 $("canvas-out").addEventListener("click", () => save({ drawers: { canvas: { outWhenEmpty: !cfg.drawers.canvas.outWhenEmpty } } }));
 $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;

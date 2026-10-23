@@ -1003,9 +1003,16 @@ of it and comes out at the end.
    differs from the defaults to `~/.config/talaris/config.json`, and moves only
    what changed. *The OSD* (`osd.py`): the media keys are bound again at
    runtime with the commands `hyprland.conf` gave them plus `--osd <kind>`, and
-   bound back on quit. Not yet: motion as a setting (only slide is built), the
-   bar and dock hiding themselves, side edges for the bar and dock, drawers
-   sharing an edge as tabs, Morgan's memory, voices heard and connections.
+   bound back on quit. Since: the clock (12 or 24 hours, seconds,
+   the date's order or none), motion (slide or none), the space round windows
+   and between them (Talaris sets Hyprland's gaps and border colors at
+   runtime), and showing by touch — the bar and the dock hide and come out when
+   the pointer touches their edge, giving their space back to the windows, and
+   a drawer set to touch-to-show has no handle and goes again when the pointer
+   leaves (`sensor.py`: a strip two units thick, invisible, along the edge).
+   Not yet: the draw-in and connect motions, side edges for the bar and dock,
+   drawers sharing an edge as tabs, Morgan's memory, voices heard and
+   connections.
 8. Remove Noctalia's `exec-once`.
 
 **Milestone two — projects and plugins.**

@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+An edge sensor (sensor.py): a strip too thin to see, which says when the
+pointer touches it. A trace of color, not none, so the compositor delivers
+the pointer to it.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); }</style>
+</head>
+<body>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+"use strict";
+new QWebChannel(qt.webChannelTransport, (channel) => {
+  const bridge = channel.objects.bridge;
+  document.addEventListener("mouseenter", () => bridge.touched());
+  document.addEventListener("mousemove", () => bridge.touched());
+});
+</script>
+</body>
+</html>

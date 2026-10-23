@@ -61,7 +61,7 @@ function applyTheme(theme) {
 // Slide in from the edge the drawer belongs to. The other motions in the theme
 // (draw in, connect) come with the canvas; this is the default.
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
-const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "none";
 
 function arrive() {
   if (still()) return;

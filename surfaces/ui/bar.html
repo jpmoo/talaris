@@ -27,12 +27,10 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 
 /* Morgan's button says what Morgan is doing. Listening breathes; thinking
-   turns a quarter-arc round the ring; speaking breathes faster. Idle is still,
-   and a small dot says Morgan is there at all. */
+   turns a quarter-arc round the ring; speaking breathes faster. Idle is still;
+   dimmed, Morgan is not running. */
 #morgan { position: relative; }
 #morgan.absent { opacity: .45; }
-#morgan .dot { position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-#morgan.absent .dot { display: none; }
 #morgan .arc { position: absolute; inset: 4px; border-radius: 50%; border: 1.5px solid transparent; display: none; }
 #morgan[data-state="thinking"] .arc, #morgan[data-state="consulting"] .arc {
   display: block; border-top-color: var(--accent); animation: turn 1s linear infinite;
@@ -54,7 +52,7 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
 <div id="bar">
   <div class="side">
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
-    <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span><span class="dot"></span></button>
+    <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span></button>
   </div>
   <div id="where"></div>
   <div class="side end">

@@ -41,6 +41,7 @@ IDLE_MS = 3 * 60 * 1000
 FONTS = ["Barlow Semi Condensed", "Rajdhani", "Saira Semi Condensed", "Exo 2"]
 EDGES = ("top", "bottom", "left", "right")
 LAUNCHER_KEYS = ("SUPER ALT, SPACE", "SUPER, SPACE")
+DATE_STYLES = ("weekday-month-day", "weekday-day-month", "month-day", "day-month", "iso", "off")
 
 #: The Morgan calls this page may make, and nothing else.
 MORGAN_OPS = {"config.get", "config.set", "voice.list", "voice.preview"}
@@ -55,6 +56,11 @@ def _checked(c: dict) -> str:
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
+    if t.get("motion") not in ("slide", "none"):
+        return "Motion is slide or none"
+    k = c["clock"]
+    if k.get("hours") not in ("12", "24") or k.get("date") not in DATE_STYLES or not isinstance(k.get("seconds"), bool):
+        return "Not a clock setting"
     if c["bar"]["edge"] not in ("top", "bottom") or c["dock"]["edge"] not in ("top", "bottom"):
         return "The bar and the dock go on the top or the bottom"
     if c["bar"]["edge"] == c["dock"]["edge"]:
@@ -163,7 +169,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows"):
+        for key in ("theme", "bar", "dock", "launcher", "windows", "clock"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

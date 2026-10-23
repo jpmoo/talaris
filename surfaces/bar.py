@@ -38,6 +38,7 @@ from layershell import (
     Placement,
 )
 from machine import Machine
+from sensor import Autohide
 from views import log, make_view
 
 #: The bar's thickness. Enough for 14px type and a 24px control with air round it.
@@ -186,22 +187,40 @@ class Bar(QObject):
         self.view = make_view(profile, "bar", "talaris-ui://ui/bar.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-bar")
         self.popup = Popup(profile, self)
+        self.hider = Autohide(profile, "bar", self.view, self._show, self._hide,
+                              busy=lambda: bool(self.popup.kind), parent=self)
         desktop.machine.read.connect(self._reading)
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
 
     def place(self) -> None:
+        """Along its edge — or, set to hide, away until the edge is touched."""
+        hide = bool(self.desktop.config["bar"].get("autohide"))
+        self.hider.set(hide, self.edge)
+        if not hide:
+            self._show()
+
+    def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_BOTTOM if self.edge == "bottom" else ANCHOR_TOP
+        hide = bool(self.desktop.config["bar"].get("autohide"))
+        # A hiding bar reserves nothing: the windows keep the space, and it
+        # comes out over them.
+        self.surface.placement = None
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), BAR,
-                                     KEYBOARD_NONE, exclusive=BAR))
+                                     KEYBOARD_NONE, exclusive=0 if hide else BAR))
+
+    def _hide(self) -> None:
+        self.view.hide()
+        self.surface.placement = None
 
     def describe(self) -> dict:
         return {
             "edge": self.edge,
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
+            "clock": self.desktop.config["clock"],
             "popup": self.popup.kind,
             # `absent`, `idle`, `listening`, `thinking`… and whether its
             # conversation is out.
