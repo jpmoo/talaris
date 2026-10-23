@@ -33,7 +33,7 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER ALT, SPACE"},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
-    "dock": {"edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
+    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off.

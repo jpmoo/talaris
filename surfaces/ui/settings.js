@@ -112,6 +112,7 @@ function draw() {
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
+  $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
@@ -125,6 +126,7 @@ $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels
 for (const part of ["bar", "dock"]) $(`${part}-shadow`).addEventListener("click", () => save({ [part]: { shadow: !cfg[part].shadow } }));
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
+$("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.enabled === false } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
 $("drawer-auto").addEventListener("click", () => {
   const on = !cfg.drawers.canvas.autoshow;

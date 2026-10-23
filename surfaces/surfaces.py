@@ -357,7 +357,8 @@ class Desktop(QObject):
         if bar.get("shape") == "floating" and not bar.get("autohide"):
             sides[self.bar.edge] = int(bar.get("inset", gap))
         # Only a dock that reserves its edge stops short of it.
-        if not self.config["dock"].get("autohide"):
+        dock = self.config["dock"]
+        if dock.get("enabled", True) and not dock.get("autohide"):
             sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.

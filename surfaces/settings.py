@@ -82,6 +82,8 @@ def _checked(c: dict) -> str:
         return "Not a drawer outline or shadow"
     if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
         return "Opacity is 30 to 100 percent"
+    if not isinstance(d.get("enabled", True), bool):
+        return "The dock is on or off"
     if not 100 <= int(d.get("magnify", 100)) <= 200:
         return "Magnifying is 100 to 200 percent"
     if d.get("scope") not in ("desktop", "all"):

@@ -186,7 +186,12 @@ class Dock(QObject):
         desktop.events.windows.connect(lambda: self._soon.start(80))
 
     def place(self) -> None:
-        """Along its edge — or, set to hide, away until the edge is touched."""
+        """Along its edge — or, set to hide, away until the edge is touched — or, turned off, nowhere."""
+        if not self.desktop.config["dock"].get("enabled", True):
+            self.hider.set(False, self.edge)
+            self.menu.file_away()
+            self._hide()
+            return
         hide = bool(self.desktop.config["dock"].get("autohide"))
         self.hider.set(hide, self.edge)
         if not hide:
