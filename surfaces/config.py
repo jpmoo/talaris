@@ -45,9 +45,10 @@ DEFAULTS = {
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},
     "drawers": {
-        # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
-        "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": False, "autoshow": False},
-        "writing": {"edge": "right", "size": 0.4, "outWhenEmpty": False, "autoshow": False},
+        # One size for both (Settings shows them as one): under half each, so
+        # both pulled at once leave a gap rather than overlapping.
+        "canvas": {"edge": "left", "size": 0.48, "outWhenEmpty": False, "autoshow": False},
+        "writing": {"edge": "right", "size": 0.48, "outWhenEmpty": False, "autoshow": False},
     },
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.

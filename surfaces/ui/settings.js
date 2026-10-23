@@ -104,11 +104,12 @@ function draw() {
     const other = cfg.drawers[name === "canvas" ? "writing" : "canvas"].edge;
     seg(`${name}-edge`, Object.entries(EDGE_NAMES), d.edge, (edge) => save({ drawers: { [name]: { edge } } }),
       (edge) => edge === other || edge === cfg.bar.edge || edge === cfg.dock.edge);
-    slider(`${name}-size`, Math.round(d.size * 100), (v) => `${v}%`, (v) => save({ drawers: { [name]: { size: v / 100 } } }));
   }
   $("canvas-out").classList.toggle("on", !!cfg.drawers.canvas.outWhenEmpty);
-  $("canvas-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
-  $("writing-auto").classList.toggle("on", !!cfg.drawers.writing.autoshow);
+  // Both drawers share one size and one touch-to-show; each keeps its own edge.
+  const both = (change) => save({ drawers: { canvas: change, writing: change } });
+  slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
+  $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
@@ -125,9 +126,10 @@ for (const part of ["bar", "dock"]) $(`${part}-shadow`).addEventListener("click"
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
-for (const name of ["canvas", "writing"]) {
-  $(`${name}-auto`).addEventListener("click", () => save({ drawers: { [name]: { autoshow: !cfg.drawers[name].autoshow } } }));
-}
+$("drawer-auto").addEventListener("click", () => {
+  const on = !cfg.drawers.canvas.autoshow;
+  save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });
+});
 $("canvas-out").addEventListener("click", () => save({ drawers: { canvas: { outWhenEmpty: !cfg.drawers.canvas.outWhenEmpty } } }));
 $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
