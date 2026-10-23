@@ -23,8 +23,10 @@ import {
   drawSelection,
   keymap,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { syntaxTree } from "@codemirror/language";
+import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
+import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@codemirror/language";
+import type { StateCommand } from "@codemirror/state";
+import { listItemAt, moveListItem } from "./lists.ts";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { liveSpecs, type Spec } from "./live.ts";
 
@@ -41,24 +43,148 @@ class Bullet extends WidgetType {
 class Check extends WidgetType {
   constructor(readonly checked: boolean, readonly at: number) { super(); }
   eq(other: Check): boolean { return other.checked === this.checked && other.at === this.at; }
+  /*
+   * Drawn, not the engine's own checkbox: the same rounded square in every
+   * theme, the accent when ticked. A click writes `[ ]` ↔ `[x]` and nothing
+   * else, and does not move the cursor, so the box stays a box.
+   */
   toDOM(view: EditorView): HTMLElement {
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.className = "cm-check";
-    box.checked = this.checked;
+    const box = document.createElement("span");
+    box.className = "cm-check" + (this.checked ? " is-checked" : "");
+    box.setAttribute("role", "checkbox");
+    box.setAttribute("aria-checked", String(this.checked));
+    box.innerHTML = '<svg viewBox="0 0 12 12"><path d="M2.5 6.2 5 8.5 9.5 3.5"/></svg>';
     box.addEventListener("mousedown", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       view.dispatch({ changes: { from: this.at + 1, to: this.at + 2, insert: this.checked ? " " : "x" } });
     });
     return box;
   }
-  ignoreEvent(): boolean { return false; }
+  ignoreEvent(): boolean { return true; }
+}
+
+/** How much of a branch is done: `2/5`, in the accent once it is all done. */
+class Count extends WidgetType {
+  constructor(readonly done: number, readonly total: number) { super(); }
+  eq(o: Count): boolean { return o.done === this.done && o.total === this.total; }
+  toDOM(): HTMLElement {
+    const s = document.createElement("span");
+    s.className = "cm-count" + (this.done === this.total ? " is-done" : "");
+    s.textContent = `${this.done}/${this.total}`;
+    s.title = `${this.done} of ${this.total} done`;
+    return s;
+  }
+}
+
+/*
+ * Tab and Shift+Tab. On a list item they nest and un-nest it by the width of
+ * its own marker — two spaces under `-`, three under `1.` — because that is
+ * what Markdown needs for the nesting to count. Elsewhere they indent the line.
+ */
+function listShift(dir: 1 | -1): StateCommand {
+  return ({ state, dispatch }) => {
+    const changes: Array<{ from: number; to?: number; insert?: string }> = [];
+    let listy = false;
+    const seen = new Set<number>();
+    for (const r of state.selection.ranges) {
+      for (let n = state.doc.lineAt(r.from).number; n <= state.doc.lineAt(r.to).number; n++) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        const line = state.doc.line(n);
+        const m = /^(\s*)([-*+]|\d+[.)])(\s)/.exec(line.text);
+        if (!m) continue;
+        listy = true;
+        const width = m[2]!.length + 1;
+        if (dir > 0) changes.push({ from: line.from, insert: " ".repeat(width) });
+        else {
+          const take = Math.min(m[1]!.length, width);
+          if (take) changes.push({ from: line.from, to: line.from + take });
+        }
+      }
+    }
+    if (!listy) return false;
+    if (changes.length) dispatch(state.update({ changes, scrollIntoView: true, userEvent: dir > 0 ? "indent" : "dedent" }));
+    return true;
+  };
+}
+
+/** A list item with items nested under it folds from the end of its first line to the end of its last child. */
+const listFolding = foldService.of((state, lineStart, lineEnd) => {
+  const ref = listItemAt(state, lineStart);
+  if (!ref) return null;
+  const item = ref.items[ref.index]!;
+  return item.to > lineEnd ? { from: lineEnd, to: item.to } : null;
+});
+
+/*
+ * Dragging a list item by its grip, the margin just left of its marker. The
+ * item moves with everything nested under it, among its own siblings, and a
+ * numbered list renumbers — see lists.ts, which does the moving.
+ */
+const listDrag = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (event.button !== 0) return false;
+    const lineEl = (document.elementsFromPoint(event.clientX + 24, event.clientY)
+      .find((e) => e.classList?.contains("cm-line"))) as HTMLElement | undefined;
+    if (!lineEl?.classList.contains("cm-listline")) return false;
+    if (event.clientX >= lineEl.getBoundingClientRect().left) return false;
+    const ref = listItemAt(view.state, view.posAtDOM(lineEl, 0));
+    if (!ref) return false;
+    event.preventDefault();
+    const marker = document.createElement("div");
+    marker.className = "cm-drop";
+    view.scrollDOM.appendChild(marker);
+    lineEl.classList.add("cm-dragging");
+    let target = ref.index;
+    const place = (y: number) => {
+      const tops = ref.items.map((it) => view.coordsAtPos(it.from)?.top ?? 0);
+      const last = view.coordsAtPos(ref.items[ref.items.length - 1]!.to)?.bottom ?? 0;
+      // The boundary nearest the pointer, among the gaps before each item and after the last.
+      const bounds = [...tops, last];
+      let best = 0;
+      for (let i = 1; i < bounds.length; i++) if (Math.abs(bounds[i]! - y) < Math.abs(bounds[best]! - y)) best = i;
+      target = best;
+      const box = view.scrollDOM.getBoundingClientRect();
+      marker.style.top = `${bounds[best]! - box.top + view.scrollDOM.scrollTop - 1}px`;
+      marker.style.left = `${lineEl.getBoundingClientRect().left - box.left - 4}px`;
+    };
+    place(event.clientY);
+    const move = (e: MouseEvent) => place(e.clientY);
+    const up = () => {
+      removeEventListener("mousemove", move);
+      removeEventListener("mouseup", up);
+      marker.remove();
+      lineEl.classList.remove("cm-dragging");
+      // A boundary after the item's own position is one place less once it is lifted out.
+      const to = target > ref.index ? target - 1 : target;
+      const change = moveListItem(view.state, ref, to);
+      if (change) view.dispatch({ changes: change, userEvent: "move.list" });
+    };
+    addEventListener("mousemove", move);
+    addEventListener("mouseup", up);
+    return true;
+  },
+});
+
+function chevron(open: boolean): HTMLElement {
+  const s = document.createElement("span");
+  s.className = "cm-fold" + (open ? "" : " is-shut");
+  s.innerHTML = '<svg viewBox="0 0 10 10"><path d="M3 2 7 5 3 8"/></svg>';
+  s.title = open ? "Collapse" : "Expand";
+  return s;
 }
 
 function decorations(view: EditorView): DecorationSet {
   const ranges = [];
+  // A fold splits the visible text in two, and a node spanning both halves —
+  // a list item with its children folded — is met once in each. Once is enough.
+  const seen = new Set<string>();
   for (const { from, to } of view.visibleRanges) {
     for (const s of liveSpecs(view.state, from, to) as Spec[]) {
+      const key = JSON.stringify(s);
+      if (seen.has(key)) continue;
+      seen.add(key);
       switch (s.kind) {
         case "hide":
           if (s.to > s.from) ranges.push(Decoration.replace({}).range(s.from, s.to));
@@ -80,6 +206,9 @@ function decorations(view: EditorView): DecorationSet {
           // spans the width; the `---` is hidden on it.
           ranges.push(Decoration.line({ class: "cm-hr" }).range(view.state.doc.lineAt(s.from).from));
           ranges.push(Decoration.replace({}).range(s.from, s.to));
+          break;
+        case "count":
+          ranges.push(Decoration.widget({ widget: new Count(s.done, s.total), side: 1 }).range(s.at));
           break;
         case "check":
           ranges.push(Decoration.replace({ widget: new Check(s.checked, s.from) }).range(s.from, s.to));
@@ -112,7 +241,6 @@ const look = EditorView.theme({
   "&": { height: "100%", color: "var(--text)", backgroundColor: "transparent", fontSize: "14px" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font)", lineHeight: "1.6" },
-  ".cm-content": { padding: "10px 12px", caretColor: "var(--accent)" },
   ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--accent)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "var(--accent-wash) !important" },
   ".cm-line": { padding: "0 2px" },
@@ -128,7 +256,27 @@ const look = EditorView.theme({
   ".cm-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" },
   ".cm-quote": { borderLeft: "2px solid var(--line)", paddingLeft: "10px", color: "var(--muted)" },
   ".cm-bullet": { color: "var(--accent)", padding: "0 2px" },
-  ".cm-check": { accentColor: "var(--accent)", margin: "0 4px 0 0", verticalAlign: "-1px", cursor: "pointer" },
+  ".cm-check": { display: "inline-flex", width: "14px", height: "14px", margin: "0 6px 0 0", verticalAlign: "-2px", border: "1.5px solid var(--muted)", borderRadius: "4px", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "background .12s, border-color .12s" },
+  ".cm-check svg": { width: "10px", height: "10px", fill: "none", stroke: "var(--surface)", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", opacity: "0" },
+  ".cm-check:hover": { borderColor: "var(--accent)" },
+  ".cm-count": { marginLeft: "8px", fontSize: "11px", letterSpacing: "1px", color: "var(--muted)", border: "1px solid var(--line)", borderRadius: "8px", padding: "0 6px", verticalAlign: "1px" },
+  ".cm-count.is-done": { color: "var(--accent)", borderColor: "var(--accent)" },
+  ".cm-check.is-checked": { background: "var(--accent)", borderColor: "var(--accent)" },
+  ".cm-check.is-checked svg": { opacity: "1" },
+  // The grip: dots in the margin left of a list item, shown on hover.
+  ".cm-content": { padding: "10px 12px 10px 26px", caretColor: "var(--accent)" },
+  ".cm-listline": { position: "relative" },
+  ".cm-listline::before": { content: "'⋮⋮'", position: "absolute", left: "-18px", top: "0", width: "14px", letterSpacing: "-3px", color: "var(--muted)", opacity: "0", cursor: "grab", transition: "opacity .12s" },
+  ".cm-listline:hover::before": { opacity: "0.8" },
+  ".cm-dragging": { opacity: "0.45" },
+  ".cm-drop": { position: "absolute", right: "8px", height: "2px", background: "var(--accent)", borderRadius: "1px", pointerEvents: "none", zIndex: "5" },
+  ".cm-gutters": { background: "transparent", border: "none", color: "var(--muted)" },
+  ".cm-foldGutter .cm-gutterElement": { cursor: "pointer", padding: "0 0 0 4px" },
+  ".cm-fold": { display: "inline-flex", opacity: "0", transition: "opacity .12s, transform .12s", transform: "rotate(90deg)" },
+  ".cm-fold.is-shut": { opacity: "0.9", transform: "none", color: "var(--accent)" },
+  ".cm-fold svg": { width: "9px", height: "9px", fill: "none", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round", strokeLinejoin: "round" },
+  ".cm-gutterElement:hover .cm-fold, .cm-editor:hover .cm-fold": { opacity: "0.7" },
+  ".cm-foldPlaceholder": { background: "var(--accent-wash)", border: "none", color: "var(--accent)", borderRadius: "4px", padding: "0 5px", margin: "0 4px" },
   ".cm-task-done": { color: "var(--muted)", textDecoration: "line-through" },
   ".cm-hr": { background: "linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat" },
   "&.raw .cm-scroller": { fontFamily: "ui-monospace, monospace", fontSize: "13px" },
@@ -163,7 +311,17 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         drawSelection(),
         EditorView.lineWrapping,
         markdown({ base: markdownLanguage }),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          { key: "Tab", run: listShift(1), shift: listShift(-1) },
+          { key: "Tab", run: indentMore, shift: indentLess },
+          ...foldKeymap,
+          ...defaultKeymap,
+          ...historyKeymap,
+        ]),
+        listFolding,
+        codeFolding({ placeholderText: "…" }),
+        foldGutter({ markerDOM: chevron }),
+        listDrag,
         preview.of(liveOn(live)),
         look,
         EditorView.contentAttributes.of({ spellcheck: "true" }),

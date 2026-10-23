@@ -27,7 +27,8 @@ export type Spec =
   | { kind: "line"; at: number; cls: string }
   | { kind: "bullet"; from: number; to: number }
   | { kind: "check"; from: number; to: number; checked: boolean }
-  | { kind: "rule"; from: number; to: number };
+  | { kind: "rule"; from: number; to: number }
+  | { kind: "count"; at: number; done: number; total: number };
 
 const HEADINGS: Record<string, number> = {
   ATXHeading1: 1, ATXHeading2: 2, ATXHeading3: 3, ATXHeading4: 4, ATXHeading5: 5, ATXHeading6: 6,
@@ -136,21 +137,57 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
         return;
       }
 
+      /*
+       * Bullets and task boxes stay drawn while you type on their line — a box
+       * that turned back into `[ ]` whenever the cursor came near was a box you
+       * could not click. Only a cursor in the marker itself shows its source.
+       */
       if (name === "ListMark") {
-        if (lineActive(node.from)) return;
+        lineStarts(node.from, node.from, "cm-listline");
         const mark = state.doc.sliceString(node.from, node.to);
         if (!/^[-*+]$/.test(mark)) return; // a number stays a number
-        // A task's bullet gives way to its box entirely, as in Obsidian.
-        const task = node.node.parent?.getChild("Task");
         const after = state.doc.sliceString(node.to, node.to + 1) === " " ? 1 : 0;
+        // A task's bullet gives way to its box entirely, as in Obsidian.
+        const task = node.node.parent?.getChild("Task")?.getChild("TaskMarker");
+        const end = task ? task.to : node.to;
+        if (sel.some((r) => r.from >= node.from && r.to <= end && r.from < end)) return;
         if (task) specs.push({ kind: "hide", from: node.from, to: node.to + after });
         else specs.push({ kind: "bullet", from: node.from, to: node.to });
         return;
       }
+      /*
+       * A task with tasks under it says how many of them are done, at the end
+       * of its own line — counting every depth, so "2/5" is the whole branch.
+       * It stays visible when the branch is collapsed, which is when it is
+       * most useful.
+       */
+      if (name === "ListItem" && node.node.getChild("Task")) {
+        let done = 0;
+        let total = 0;
+        for (const list of [node.node.getChild("BulletList"), node.node.getChild("OrderedList")]) {
+          if (!list) continue;
+          const c = list.cursor();
+          do {
+            if (c.name === "TaskMarker") {
+              total++;
+              if (/x/i.test(state.doc.sliceString(c.from, c.to))) done++;
+            }
+          } while (c.next() && c.from < list.to);
+        }
+        if (total) specs.push({ kind: "count", at: state.doc.lineAt(node.from).to, done, total });
+      }
       if (name === "TaskMarker") {
         const checked = /x/i.test(state.doc.sliceString(node.from, node.to));
-        if (checked) lineStarts(node.from, node.from, "cm-task-done");
-        if (!lineActive(node.from)) specs.push({ kind: "check", from: node.from, to: node.to, checked });
+        // Struck through: the task's own words, not its indentation or its box.
+        if (checked) {
+          const line = state.doc.lineAt(node.from);
+          const start = Math.min(line.to, node.to + 1);
+          if (line.to > start) specs.push({ kind: "mark", from: start, to: line.to, cls: "cm-task-done" });
+        }
+        const mark = node.node.parent?.parent?.getChild("ListMark");
+        const start = mark ? mark.from : node.from;
+        if (sel.some((r) => r.from >= start && r.to <= node.to && r.from < node.to)) return;
+        specs.push({ kind: "check", from: node.from, to: node.to, checked });
         return;
       }
       return;

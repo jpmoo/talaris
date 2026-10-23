@@ -56,7 +56,25 @@ test("a task's bullet goes and its box is drawn, off its line", () => {
   const specs = liveSpecs(away);
   assert.deepEqual(specs.filter((s) => s.kind === "check").map((s) => (s as any).checked), [false, true]);
   assert.deepEqual(hidden(away, specs), ["- ", "- "]);
-  assert.ok(specs.some((s) => s.kind === "line" && s.cls === "cm-task-done"));
+  const done = specs.find((s) => s.kind === "mark" && s.cls === "cm-task-done");
+  assert.equal(done && away.doc.sliceString((done as any).from, (done as any).to), "pack", "only the words are struck");
+});
+
+test("bullets and boxes stay drawn while you type on their line", () => {
+  const typing = at("- [ ] buy ro|pe\n- milk");
+  const specs = liveSpecs(typing);
+  assert.equal(specs.filter((s) => s.kind === "check").length, 1, "the box survives the cursor on its line");
+  assert.equal(specs.filter((s) => s.kind === "bullet").length, 1);
+  const inMarker = at("- [|x] done");
+  assert.equal(liveSpecs(inMarker).filter((s) => s.kind === "check").length, 0, "inside the brackets, the source shows");
+});
+
+test("a task with tasks under it counts the whole branch", () => {
+  const state = at("- [ ] trip\n  - [x] tent\n  - [ ] food\n    - [x] stove\n- [ ] alone\n|");
+  const counts = liveSpecs(state).filter((s) => s.kind === "count") as Array<{ done: number; total: number; at: number }>;
+  assert.equal(counts.length, 2, "trip, and food under it; a task with nothing under it has no count");
+  assert.deepEqual(counts.map((c) => [c.done, c.total]), [[2, 3], [1, 1]]);
+  assert.equal(counts[0]!.at, state.doc.line(1).to, "at the end of the parent's own line");
 });
 
 test("a plain bullet becomes a dot; a number stays a number", () => {

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p . --noEmit && esbuild src/index.ts --bundle --format=esm --target=es2022 --minify --sourcemap --outfile=../../surfaces/ui/editor.js",
     "typecheck": "tsc -p . --noEmit",
-    "test": "esbuild test/live.test.ts --bundle --platform=node --format=esm --outfile=dist/live.test.js && node --test dist/live.test.js"
+    "test": "esbuild test/*.test.ts --bundle --platform=node --format=esm --outdir=dist && node --test dist/*.test.js"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

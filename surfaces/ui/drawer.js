@@ -219,6 +219,17 @@ async function drawEditor() {
     if (editor) { editor.destroy(); editor = null; }
     const view = el("div", { class: "preview" });
     view.append(text.trim() ? render(text) : el("p", { class: "empty" }, "Nothing written yet"));
+    // Ticking a box in Preview writes `[ ]` ↔ `[x]` on its line and nothing else.
+    for (const box of view.querySelectorAll('input[type="checkbox"]')) {
+      box.disabled = false;
+      box.addEventListener("change", () => {
+        const lines = text.split("\n");
+        const at = Number(box.dataset.line);
+        lines[at] = lines[at].replace(/\[([ xX])\]/, box.checked ? "[x]" : "[ ]");
+        changed(lines.join("\n"));
+        drawEditor();
+      });
+    }
     host.replaceChildren(view);
     return;
   }

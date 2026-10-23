@@ -701,6 +701,22 @@ text looks, never the text, so nothing is converted and nothing can be lost.
 Raw is the same editor with the preview off; Preview is read-only rendering.
 A rendered link opens on a click, in the browser.
 
+**Lists are things to handle, not just text** (2026-10-23):
+
+- **Task boxes are drawn**, in the theme — never the engine's white square —
+  and stay drawn while you type on their line; a click ticks `[ ]` ↔ `[x]`
+  without moving the cursor. Only a cursor inside the brackets shows them raw.
+- **A task with tasks under it counts the branch** — `2/5` at the end of its
+  line, every depth, in the accent once all are done. Still there when folded.
+- **Tab and Shift+Tab nest and un-nest** a list item by its marker's width (two
+  spaces under `-`, three under `1.`), which is what Markdown needs for the
+  nesting to count; elsewhere they indent the line.
+- **Any item with items under it collapses**, from a chevron in the margin, as
+  do headings with their sections. Folding changes the view, never the file.
+- **Every list item can be dragged** by the grip in its margin. It moves with
+  everything nested under it, among its own siblings; the spacing between items
+  stays where it is, and a numbered list renumbers from where it started.
+
 ### Daily notes
 
 Decided 2026-10-23. **A daily note is a page at `Writing/Daily/<YYYY-MM-DD>.md`**
