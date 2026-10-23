@@ -510,7 +510,7 @@ workspace" means.
 
 | | |
 |---|---|
-| **Core** | Projects, canvases, writing, cards, the verbs, the launcher query, the plugin host, and the MCP Morgan connects to. A user service; the one thing that must be running for anything else to mean something. **Its language is open** — see below. |
+| **Core** | Projects, canvases, writing, cards, the verbs, the launcher query, the plugin host, and the MCP Morgan connects to. A user service; the one thing that must be running for anything else to mean something. TypeScript on Node. |
 | **Surfaces** | One PySide6 process under `layer-shell`: bar, dock, drawers, launcher, notification popups, OSD, Morgan's popup. Web views through a socket-backed scheme, as Talaria's `scheme.py` worked out. A user service that restarts — a crashed surfaces process is a blank screen. |
 | **Windows** | What are ordinary windows — Settings, Morgan's conversation kept open beside work — in a second process, because layer-shell is chosen per process. |
 | **Morgan** | `heyclaude.service`, its own repository. |
@@ -521,9 +521,15 @@ workspace" means.
 crash, Morgan and the CLI need it with no screen at all, and plugins' own
 processes need something to talk to.
 
-**The core's language is the first technical decision.** TypeScript on Node is
-what Talaria's daemon and Morgan's are, has the MCP SDK, and is what a plugin
-author most likely writes; Python is what the surfaces are. Not decided.
+**The core is TypeScript, on Node** (decided 2026-10-23). The reason that
+decided it: the canvas is already TypeScript, so the canvas document's types are
+written once and used by both the page that draws it and the core that keeps it
+— the drift between those two is the likeliest bug a project like this grows.
+It also has the official MCP SDK, and Talaria's and Morgan's daemons are both
+TypeScript, so their solved problems (socket servers, event streams, a dying
+daemon unlinking its successor's socket) come across as patterns. The surfaces
+stay Python — a thin PySide6 host around pages that are themselves TypeScript.
+Plugins, being separate processes, may be written in anything.
 
 ## Spikes before committing
 
