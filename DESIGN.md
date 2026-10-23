@@ -539,6 +539,32 @@ The file system has no order, so **sibling order is Talaris's**, kept in
 in — is listed, at the end, rather than ignored. Which branches are expanded is
 a viewer's state, in `~/.local/state/talaris/`, not the project's.
 
+### Canvases nest too
+
+Decided 2026-10-23. **A project's canvas is a tree, like its pages.** The
+project has one top canvas; any canvas can have child canvases, and any of them
+can link to a canvas in another project.
+
+- **A child canvas sits on its parent as a card**, made with it, and opening the
+  card opens the child *out of it* — the same rule as every other card. The
+  drawer's header says where you are (`OGHAM / CANVAS / CAMP`), each part of it
+  a step back up; Escape is one step.
+- **Each canvas has exactly one parent.** Anywhere else it is wanted, it is a
+  **link card** — in this project or another. Opening a link to another
+  project's canvas is `go` to that project, then open that canvas. One parent
+  keeps "where does this live" answerable; links keep it from being limiting.
+- **The drawer can show the tree**, expanding and collapsing, as the writing
+  drawer does.
+- **Removing a child's card from its parent does not delete the child** — it
+  asks. Deleting a canvas is its own act, with its own confirmation, and it is
+  in the versions afterwards.
+- **A link whose canvas has gone** — deleted, or its project removed — stays on
+  the canvas as a placeholder saying what it pointed to, never silently
+  dropped. The same rule as a missing plugin's item.
+
+On disk each canvas is its own file in `.talaris/canvases/`, its parent named
+inside it, and each is versioned on its own.
+
 ### Starting a file in a project
 
 **"New …" comes from `~/Templates`**, the folder file managers already use for
