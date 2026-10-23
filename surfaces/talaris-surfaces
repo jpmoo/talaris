@@ -9,6 +9,14 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 if [ "$#" -eq 0 ]; then
+  # No compositor to draw on — the session ended, and the service's restart
+  # came after it. Step aside cleanly (exit 0, so systemd stops trying) and
+  # let the next session's exec-once start the surfaces with its own display.
+  # Crashing here instead loops until systemd gives up on the unit.
+  if [ ! -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-0}" ]; then
+    echo "talaris-surfaces: no Wayland display (${WAYLAND_DISPLAY:-unset}); waiting for the next session to start me" >&2
+    exit 0
+  fi
   export QT_QPA_PLATFORM=wayland
   export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 fi
