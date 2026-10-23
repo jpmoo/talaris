@@ -44,3 +44,11 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --text: #25292d;
   --muted: #6c7277;
 }
+
+/* Scrollbars: a thin rule in the line color, lit on hover, no track — here
+   rather than in theme.css because every page loads this file, including the
+   ones (Morgan's, the canvas's) that keep their own controls. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }

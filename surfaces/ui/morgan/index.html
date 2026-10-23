@@ -8,7 +8,8 @@
   nothing, shows what the daemon has said, heard through the bridge, and
   everything typed here is a command to the daemon. What changed coming across:
   Talaris's theme and typeface, the icon font shipped here instead of read from
-  Noctalia's, and Escape putting the panel away when Morgan is idle.
+  Noctalia's, Escape putting the panel away when Morgan is idle, and no title
+  bar — its state and controls sit in a row under the composer.
 -->
 <html lang="en">
 <head>
@@ -32,17 +33,21 @@
   button:hover { background: var(--raised); }
   /* The shell's icon font, so that this window and the panel in the bar use the same icons. */
   .ti { font-family: "morgan-icons"; font-size: 17px; line-height: 1; font-style: normal; font-weight: normal; display: inline-block; }
-  header .ti { font-size: 19px; } #stateicon { color: var(--accent); }
+  #stateicon { color: var(--accent); }
 
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line);
-           background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
-  header .name { font-weight: 650; }
-  header .state { color: var(--dim); font-size: 12.5px; min-width: 11em; }
-  header .spacer { flex: 1; }
-  header button.on { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  /* Talaris: no title bar — the bar's button already says who this is and
+     what it is doing. What the header held sits in a row under the composer:
+     the state and its meter on the left, the controls on the right. */
+  .controls { display: flex; align-items: center; gap: 8px; padding: 6px 2px 0; }
+  .controls .name { display: none; }
+  .controls .state { color: var(--dim); font-size: 12px; }
+  .controls .spacer { flex: 1; }
+  .controls button { padding: 4px 7px; color: var(--dim); }
+  .controls button:hover { color: var(--accent); }
+  .controls button.on { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
 
   /* Earlier conversations, a month at a time: a dot for each conversation on a day. */
-  #calendar { position: fixed; top: 54px; right: 14px; width: 300px; z-index: 5; padding: 10px 12px 12px; border-radius: 12px;
+  #calendar { position: fixed; bottom: 104px; right: 14px; width: 300px; z-index: 5; padding: 10px 12px 12px; border-radius: 12px;
               background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); box-shadow: 0 10px 30px #0008; }
   #calendar[hidden], #daylist[hidden] { display: none; }
   #calendar .month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -84,7 +89,7 @@
   #similar button small { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
   /* Sound is a waveform; thinking is a light going back and forth. */
-  #meter { display: flex; align-items: center; gap: 2px; height: 24px; width: 150px; }
+  #meter { display: flex; align-items: center; gap: 2px; height: 20px; width: 110px; }
   #meter i { display: block; width: 3px; min-height: 3px; border-radius: 2px; background: var(--accent); }
   #meter.scan i { width: 8px; height: 5px; border-radius: 3px; opacity: .1; }
 
@@ -142,16 +147,6 @@
 </style>
 </head>
 <body>
-<header>
-  <i class="ti" id="stateicon"></i>
-  <span class="name" id="name">Morgan</span>
-  <div id="meter"></div>
-  <span class="state" id="state"></span>
-  <span class="spacer"></span>
-  <button id="history" title="Earlier conversations, by day"><i class="ti" data-icon="calendar"></i></button>
-  <button id="settings" title="Settings: memory, voice, listening, files, connections"><i class="ti" data-icon="settings"></i></button>
-  <button id="new" title="Start a new conversation"><i class="ti" data-icon="plus"></i></button>
-</header>
 <main id="scroll"><div class="column" id="log"></div></main>
 <div id="calendar" hidden>
   <div class="month"><button id="prev" title="The month before"><i class="ti" data-icon="chevron-left"></i></button>
@@ -172,6 +167,16 @@
     <button id="attach" title="Attach files (or drop them on the window)"><i class="ti" data-icon="paperclip"></i></button>
     <textarea id="draft" rows="1" placeholder="Type here. Enter sends; Shift+Enter starts a new line." autofocus></textarea>
     <button id="mic" title="Speak"><i class="ti" id="micicon"></i></button>
+  </div>
+  <div class="controls">
+    <i class="ti" id="stateicon"></i>
+    <span class="name" id="name">Morgan</span>
+    <span class="state" id="state"></span>
+    <div id="meter"></div>
+    <span class="spacer"></span>
+    <button id="history" title="Earlier conversations, by day"><i class="ti" data-icon="calendar"></i></button>
+    <button id="settings" title="Settings: memory, voice, listening, files, connections"><i class="ti" data-icon="settings"></i></button>
+    <button id="new" title="Start a new conversation"><i class="ti" data-icon="plus"></i></button>
   </div>
 </div></footer>
 

@@ -23,9 +23,6 @@ html, body {
 textarea, input { user-select: text; -webkit-user-select: text; cursor: text; font: inherit; color: inherit; }
 button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 2px 12px; cursor: pointer; transition: border-color .12s, color .12s; }
 button:hover { border-color: var(--accent); color: var(--accent); }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
 
 .label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .title { letter-spacing: 3px; font-size: 14px; text-transform: uppercase; }
