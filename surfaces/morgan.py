@@ -307,6 +307,7 @@ class Voice(QObject):
         # Anchored to the top alone, the compositor centers it under the bar.
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, *VOICE, KEYBOARD_NONE))
         self.up = True
+        log("voice: up")
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def file_away(self) -> None:
