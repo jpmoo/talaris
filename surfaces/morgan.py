@@ -262,6 +262,7 @@ class Voice(QObject):
         self.desktop = desktop
         self.link = link
         self.up = False
+        self._refused = False
         self.bridge = MorganBridge(self, self)
         self.view = make_view(profile, "voice", "talaris-ui://ui/voice.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-voice")
@@ -281,11 +282,17 @@ class Voice(QObject):
         kind = e.get("type")
         if kind == "dismiss":
             self.file_away()
+        elif kind == "voice":
+            # A voice Morgan was not taught: the popup says so, and stays long
+            # enough to be read rather than the usual moment.
+            self._refused = not e.get("name")
         elif kind == "state":
             if e.get("state") == "idle":
                 if self.up:
-                    self._linger.start(LINGER_MS)
+                    self._linger.start(LINGER_MS * 4 if self._refused else LINGER_MS)
             elif not e.get("typed") and e.get("state") in ("listening", "transcribing", "thinking", "consulting", "speaking"):
+                if e.get("state") == "listening":
+                    self._refused = False
                 self._linger.stop()
                 self.show()
         # The page hears every event itself, through the bridge, and draws them.

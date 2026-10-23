@@ -126,6 +126,7 @@ function drawMorgan() {
     field("Wake word", "wakeWord", m.wakeWord, "Empty turns it off"),
     field("Interrupt word", "interruptWord", m.interruptWord, "Said while it speaks, stops it"),
     field("Follow-up", "followUpSeconds", m.followUpSeconds, "Seconds it listens after answering", "number"),
+    field("Time zone", "timeZone", m.timeZone, `Where you are, like ${Intl.DateTimeFormat().resolvedOptions().timeZone}`),
   ];
   const known = el("button", { class: "switch" + (m.knownVoicesOnly ? " on" : ""), "data-key": "knownVoicesOnly" });
   known.addEventListener("click", () => known.classList.toggle("on"));

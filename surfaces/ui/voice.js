@@ -80,6 +80,11 @@ function hear(text) {
     case "error":
       $("caption").textContent = e.message || "";
       break;
+    case "voice":
+      // Morgan heard someone but not a voice it was taught, and will not act
+      // on it. Said here, or the turn just seems to have been ignored.
+      if (!e.name) $("caption").textContent = "Not a voice I know — say it again, or turn off Known voices only";
+      break;
     case "dismiss":
       levels = new Array(BARS).fill(0);
       break;
