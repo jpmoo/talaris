@@ -12,6 +12,12 @@
  * and typeface on this frame as it does on itself.
  */
 export function wearTheme(): void {
+  // The same typefaces the drawer loads — this frame is its own page, so it
+  // would otherwise fall back to the system font while the theme named Barlow.
+  const fonts = document.createElement("link");
+  fonts.rel = "stylesheet";
+  fonts.href = "https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500&family=Rajdhani:wght@400;500&family=Saira+Semi+Condensed:wght@400;500&family=Exo+2:wght@400;500&display=swap";
+  document.head.append(fonts);
   const link = document.createElement("link");
   link.rel = "stylesheet";
   // Only the values: theme.css's element styles would restyle the canvas's own buttons.
@@ -47,12 +53,24 @@ export function wearTheme(): void {
       --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .2);
       --shadow-color: rgba(0, 0, 0, .15);
     }
-    html, body { background: transparent; }
+    html, body { background: transparent; overflow: hidden; }
     body { color: var(--text); font-family: var(--font); }
+    /* Everything the fork named a face for takes the theme's instead. */
+    .cv-wrap, .cv-node, .cv-region, .tools, .tool-menu, .menu-item, .hint, .modal-card, .cv-zoom { font-family: var(--font) !important; }
     /* Form fields take the theme's ink; left alone they draw black, which is
        how the zoom box's percentage disappeared into its dark field. */
     input, select, textarea, button { color: inherit; }
     .cv-zoom { color: var(--text); background: var(--desk); border-color: var(--line); }
+    /* Text fields — a region's title being renamed, an edge's label — on the
+       theme's ground, not the engine's white. */
+    input:not([type]), input[type="text"], input[type="search"], textarea {
+      background: var(--desk); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; }
+    input:not([type]):focus, input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    .cv-region-title { font-family: var(--font); letter-spacing: 1px; color: var(--muted); }
+    .cv-region-add { background: var(--muted) !important; color: var(--surface) !important; }
+    .cv-region-add:hover { background: var(--text) !important; }
+    .cv-region-add.on { background: var(--accent) !important; }
+    .cv-marquee { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
 
     /* The paper: dots, graph lines, or nothing. Drawn here so it wins over the
        forked sheet's one fixed dot grid, and moves and scales with the view. */

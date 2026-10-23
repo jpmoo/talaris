@@ -280,7 +280,8 @@ const MIN_H = 80;
 const NODE_COLORS = ["#ffffff", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#eef4f6"];
 const NODE_COLORS_MUTED = ["#e4d9b8", "#c9d8c4", "#bfd0dd", "#ddc3c9", "#cfc6e0", "#c8d6da", "#d6d3ce"];
 const REGION_COLORS = [
-  "rgba(95, 164, 181, 0.12)",
+  // Talaris: the default tint is the accent's own wash, not Hermes' teal.
+  "var(--accent-wash)",
   "rgba(222, 184, 72, 0.14)",
   "rgba(47, 109, 79, 0.10)",
   "rgba(181, 82, 95, 0.10)",
