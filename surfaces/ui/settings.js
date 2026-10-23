@@ -59,7 +59,11 @@ function draw() {
   const t = cfg.theme;
   // Appearance.
   seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => save({ theme: { mode } }));
-  seg("fontsize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]], t.fontSize || "medium", (fontSize) => save({ theme: { fontSize } }));
+  // A text size for each area; one never set follows the single size there was before.
+  const sizes = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+  for (const area of ["interface", "dock", "launcher", "morgan", "writing", "canvas"]) {
+    seg(`text-${area}`, sizes, (cfg.text || {})[area] || t.fontSize || "medium", (size) => save({ text: { ...(cfg.text || {}), [area]: size } }));
+  }
   // The tuner's five, then the picker for any other — wearing the custom
   // accent once one is chosen.
   const custom = !ACCENTS.includes(t.accent);

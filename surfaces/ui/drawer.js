@@ -272,7 +272,7 @@ function update(next) {
   document.body.dataset.mode = state.mode;
   if (leaving) { leaving.cancel(); leaving = null; }
   document.body.dataset.edge = state.edge;
-  document.body.style.setProperty("--gap", `${state.gap ?? 10}px`);
+  for (const [side, px] of Object.entries(state.insets || {})) document.body.style.setProperty(`--in-${side}`, `${px}px`);
   $("grow").innerHTML = state.mode === "expanded" ? SHRINK : GROW;
   $("grow").title = state.mode === "expanded" ? "Back to a drawer" : "Make this the desktop";
   const look = state.look || {};

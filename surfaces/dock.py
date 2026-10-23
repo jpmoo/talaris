@@ -102,7 +102,7 @@ class DockMenu(QObject):
         self.desktop = dock.desktop
         self.key = ""
         self.bridge = DockBridge(self, self)
-        self.view = make_view(profile, "dock-menu", "talaris-ui://ui/dockmenu.html", self.bridge, self)
+        self.view = make_view(profile, "dock-menu", "talaris-ui://ui/dockmenu.html", self.bridge, self, area="dock")
         self.surface = LayerSurface(self.view, "talaris-dock-menu")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
@@ -121,15 +121,15 @@ class DockMenu(QObject):
             return
         self.key = key
         screen = QApplication.primaryScreen().geometry()
-        w, h = zoom(MENU[0]), zoom(MENU[1])
+        w, h = zoom(MENU[0], "dock"), zoom(MENU[1], "dock")
         # The page says where the item is in its own pixels; at a text size
         # other than medium, those are zoomed.
-        x = zoom(int(x))
+        x = zoom(int(x), "dock")
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
         # Clear of the dock: its reserved space does that, unless it is hiding
         # and so reserves none, when the menu stands off by the dock's height.
-        off = zoom(DOCK) if self.desktop.config["dock"].get("autohide") else 0
+        off = zoom(DOCK, "dock") if self.desktop.config["dock"].get("autohide") else 0
         anchor = (ANCHOR_BOTTOM if bottom else ANCHOR_TOP) | ANCHOR_LEFT
         margins = (left, 0 if bottom else off, 0, off if bottom else 0)
         self.surface.placement = None
@@ -178,7 +178,7 @@ class Dock(QObject):
         self.last = "{}"
         self.items: dict[str, dict] = {}
         self.bridge = DockBridge(self, self)
-        self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self)
+        self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self, area="dock")
         self.surface = LayerSurface(self.view, "talaris-dock")
         self.hider = Autohide(profile, "dock", self.view, self._show, self._hide,
                               busy=lambda: bool(self.menu.key), parent=self)
@@ -209,10 +209,10 @@ class Dock(QObject):
         # for icons to swell into when magnified (a 36px item at its largest).
         look = self.desktop.config["dock"]
         swell = round(36 * (int(look.get("magnify", 100)) - 100) / 100)
-        room = zoom(max(14 if look.get("shadow") else 0, swell + 6 if swell else 0))
+        room = zoom(max(14 if look.get("shadow") else 0, swell + 6 if swell else 0), "dock")
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), zoom(DOCK) + room,
-                                     KEYBOARD_NONE, exclusive=0 if hide else zoom(DOCK)))
+        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), zoom(DOCK, "dock") + room,
+                                     KEYBOARD_NONE, exclusive=0 if hide else zoom(DOCK, "dock")))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:

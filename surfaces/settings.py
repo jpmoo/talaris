@@ -76,7 +76,7 @@ def _checked(c: dict) -> str:
         return "A drawer is a quarter to nine tenths of the screen"
     p, b, d = c["panels"], c["bar"], c["dock"]
     speeds = ("slow", "normal", "fast", "fastest")
-    if t.get("fontSize", "medium") not in ("small", "medium", "large"):
+    if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
@@ -193,7 +193,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch"):
+        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch", "text"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

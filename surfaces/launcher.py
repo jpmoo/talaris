@@ -116,7 +116,7 @@ class Launcher(QObject):
         self.mode = ""  # "" to find anything, "ask" when Morgan's button opened it
         self._windows: set[str] = set()
         self.bridge = LauncherBridge(self, self)
-        self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self)
+        self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self, area="launcher")
         self.surface = LayerSurface(self.view, "talaris-launcher")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)

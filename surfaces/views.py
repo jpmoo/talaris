@@ -42,33 +42,46 @@ class Page(QWebEnginePage):
             log(f"{self.name} page: {message} ({source.rsplit('/', 1)[-1]}:{line})")
 
 
-#: Settings' text size, as a zoom on every page; fixed surface sizes are
-#: scaled by the same (`zoom`), so a larger page is not cut off.
+#: Settings' text sizes, one per area, each a zoom on that area's pages; the
+#: fixed surface sizes of an area are scaled by the same (`zoom`), so a larger
+#: page is not cut off. The areas: the interface (bar, its popups, Settings,
+#: the indicator, the edges), the dock, the launcher, Morgan (conversation and
+#: voice popup), and the two drawers, writing and canvas.
+AREAS = ("interface", "dock", "launcher", "morgan", "writing", "canvas")
 ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12}
-_zoom = {"z": 1.0}
-_views: list[QWebEngineView] = []
+_zoom = {area: 1.0 for area in AREAS}
+_views: list[tuple[QWebEngineView, str]] = []
 
 
-def zoom(px: float) -> int:
-    """A fixed size in Qt's units, at the text size Settings gives."""
-    return round(px * _zoom["z"])
+def zoom(px: float, area: str = "interface") -> int:
+    """A fixed size in Qt's units, at the text size Settings gives the area."""
+    return round(px * _zoom.get(area, 1.0))
 
 
-def set_zoom(size: str) -> bool:
-    """Every page at this text size. True if it changed."""
-    z = ZOOMS.get(size, 1.0)
-    if z == _zoom["z"]:
-        return False
-    _zoom["z"] = z
-    for view in _views:
-        view.setZoomFactor(z)
-    return True
+def zoom_of(area: str) -> float:
+    """An area's zoom: how many Qt units one of its page's pixels is."""
+    return _zoom.get(area, 1.0)
 
 
-def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, owner: QObject) -> QWebEngineView:
+def set_zoom(sizes: dict) -> set[str]:
+    """Each area's pages at its text size. Answers the areas that changed."""
+    changed = set()
+    for area in AREAS:
+        z = ZOOMS.get(sizes.get(area, "medium"), 1.0)
+        if z != _zoom[area]:
+            _zoom[area] = z
+            changed.add(area)
+    for view, area in _views:
+        if area in changed:
+            view.setZoomFactor(_zoom[area])
+    return changed
+
+
+def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, owner: QObject,
+              area: str = "interface") -> QWebEngineView:
     view = QWebEngineView()
-    _views.append(view)
-    view.setZoomFactor(_zoom["z"])
+    _views.append((view, area))
+    view.setZoomFactor(_zoom.get(area, 1.0))
     view.setWindowTitle(f"talaris-{name}")
     view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     # The engine's own right-click menu — Back, Reload, View source — is a

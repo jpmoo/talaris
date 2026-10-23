@@ -174,7 +174,7 @@ class Panel(QObject):
         self.link = link
         self.up = False
         self.bridge = MorganBridge(self, self)
-        self.view = make_view(profile, "morgan", "talaris-ui://ui/morgan/index.html", self.bridge, self)
+        self.view = make_view(profile, "morgan", "talaris-ui://ui/morgan/index.html", self.bridge, self, area="morgan")
         self.surface = LayerSurface(self.view, "talaris-morgan")
         link.event.connect(self.bridge.event.emit)
         self.idle = QTimer(self)
@@ -188,7 +188,7 @@ class Panel(QObject):
     def open(self) -> None:
         if not self.up:
             screen = QApplication.primaryScreen().geometry()
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH),
+            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH, "morgan"),
                                          int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
             self.up = True
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
@@ -264,7 +264,7 @@ class Voice(QObject):
         self.up = False
         self._refused = False
         self.bridge = MorganBridge(self, self)
-        self.view = make_view(profile, "voice", "talaris-ui://ui/voice.html", self.bridge, self)
+        self.view = make_view(profile, "voice", "talaris-ui://ui/voice.html", self.bridge, self, area="morgan")
         self.surface = LayerSurface(self.view, "talaris-voice")
         link.event.connect(self._heard)
         self._linger = QTimer(self)
@@ -307,7 +307,7 @@ class Voice(QObject):
         if self.up or self.desktop.morgan.up:
             return
         # Anchored to the top alone, the compositor centers it under the bar.
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, zoom(VOICE[0]), zoom(VOICE[1]), KEYBOARD_NONE))
+        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, zoom(VOICE[0], "morgan"), zoom(VOICE[1], "morgan"), KEYBOARD_NONE))
         self.up = True
         log("voice: up")
         self.bridge.state.emit(json.dumps(self.describe()))

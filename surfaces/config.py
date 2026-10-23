@@ -45,6 +45,9 @@ DEFAULTS = {
     # The edge you touch to bring out a hidden bar or dock, or a drawer set to
     # touch-to-show: how thick (Qt units) and how much of the edge (percent).
     "touch": {"thick": 6, "length": 100},
+    # Text size per area (small, medium or large): interface, dock, launcher,
+    # morgan, writing, canvas. One not set takes theme.fontSize.
+    "text": {},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},

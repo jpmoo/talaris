@@ -52,7 +52,7 @@ from sensor import Catcher, EdgeSensor, Hover
 import sensor as sensor_module
 from settings import Settings
 from machine import Machine
-from views import log, make_view, set_zoom, zoom
+from views import AREAS, log, make_view, set_zoom, zoom, zoom_of
 from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
@@ -68,6 +68,7 @@ from layershell import (
     OVERLAY,
     TOP,
     LayerSurface,
+    QT_SCALE,
     Placement,
     to_compositor,
 )
@@ -157,7 +158,7 @@ class Drawer(QObject):
         self.leaving = False
 
         self.bridge = Bridge(self, self)
-        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self)
+        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self, area=name)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
         self.sensor = EdgeSensor(profile, name, self.edge, self._bump, self)
         self.away = QTimer(self)
@@ -177,7 +178,11 @@ class Drawer(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "look": self.desktop.config["panels"],
-            "gap": self.desktop.config["windows"]["gap"],
+            # Where a window's frame would be, side by side, in this page's own
+            # pixels: Hyprland's gaps are the compositor's, which a page sees
+            # through Qt's scale and its own zoom.
+            "insets": {side: round(px / (QT_SCALE * zoom_of(self.name)), 2)
+                       for side, px in getattr(self.desktop, "gaps", {}).items()},
         }
 
     def _placement(self, mode: str) -> Placement:
@@ -373,7 +378,7 @@ class Desktop(QObject):
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
         sensor_module.TARGET.update(self.config["touch"])
-        set_zoom(self.config["theme"].get("fontSize", "medium"))
+        set_zoom(self.text_sizes())
         self.machine = Machine(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
@@ -475,13 +480,19 @@ class Desktop(QObject):
         # Only a dock that reserves its edge stops short of it.
         dock = self.config["dock"]
         if dock.get("enabled", True) and not dock.get("autohide"):
-            sides[self.dock.edge] = max(0, gap - to_compositor(zoom(self.DOCK_SHORT)))
+            sides[self.dock.edge] = max(0, gap - to_compositor(zoom(self.DOCK_SHORT, "dock")))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
         # Between two windows Hyprland leaves its inner gap on each side, so the
         # space seen is twice the number: the setting is the space seen.
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
+        # Kept for an expanded drawer, which sits where a window's frame would.
+        if sides != getattr(self, "gaps", None):
+            self.gaps = sides
+            for d in self.drawers.values():
+                if d.mode == "expanded":
+                    d.bridge.state.emit(json.dumps(d.describe()))
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
@@ -508,6 +519,11 @@ class Desktop(QObject):
             if s.up:
                 s.show()
 
+    def text_sizes(self) -> dict:
+        """Each area's text size: its own if set, else the one size there was before areas."""
+        every = self.config["theme"].get("fontSize", "medium")
+        return {area: self.config.get("text", {}).get(area, every) for area in AREAS}
+
     def every_surface(self) -> list:
         """Everything that draws a page and wears the theme."""
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
@@ -533,12 +549,17 @@ class Desktop(QObject):
                 d.pulled = False
                 d.mode = ""
                 d.settle()
-        if set_zoom(after["theme"].get("fontSize", "medium")):
+        changed = set_zoom(self.text_sizes())
+        if "dock" in changed:
+            self.dock.menu.file_away()
+            self.dock.place()
+        if "morgan" in changed and self.morgan.up:
+            self.morgan.file_away()
+            self.morgan.open()
+        if "interface" in changed:
             # Larger or smaller text: everything with a fixed size is made again.
             self.bar.place()
-            self.dock.place()
             self.bar.close_popup()
-            self.dock.menu.file_away()
             if self.settings.up:
                 self.settings.surface.placement = None
                 self.settings.up = False
