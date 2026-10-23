@@ -132,7 +132,10 @@ function notesOf(doc: CanvasDocument) {
       // A child canvas or a link to one is drawn as a note carrying the
       // canvas's title; `main.tsx` opens it on a double-click.
       text: item.text ?? (item as { seen?: { title?: string } }).seen?.title ?? "",
-      shape: item.shape ?? ((item as { kind?: string }).kind?.startsWith("canvas") ? "rectangle" : "plain"),
+      // An absent shape is the rounded default — a name nobody wrote, not
+      // "plain". Reading it as plain saved every rounded box as bare text on
+      // its first save, which is how new shapes seemed not to work.
+      shape: item.shape ?? ((item as { kind?: string }).kind?.startsWith("canvas") ? "rectangle" : undefined),
       color: item.fill ?? null,
       stroke: item.stroke ?? null,
       strokeWidth: item.strokeWidth,
