@@ -406,6 +406,14 @@ so is one more independent implementation of the format, which is what makes
 the format prove anything. Morgan's route to Hermes stays Hermes' MCP; the two
 meet on the block id.
 
+**Hermes plugin ideas**, kept as they come:
+
+- **Sync daily notes.** A project's `Writing/Daily/<date>.md` and Hermes' daily
+  note for that date kept as one. The format already says how — a note
+  identified by a date is a closed entry in `pkm-interchange/LIMITS.md` — so
+  this is a plugin speaking the spec, not a format change. Which side wins when
+  both changed is the question to answer first.
+
 **Others already named:** text-message sign-in codes (Talaria's BlueBubbles
 reader), what Talaria called *Noticed* (background proposals), a hotkey for the
 Hermes window — each a plugin later, or a bind in `hyprland.conf`, not core.
