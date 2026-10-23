@@ -27,7 +27,7 @@ import os
 from dataclasses import dataclass
 
 import shiboken6
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QMargins, QObject
 from PySide6.QtWidgets import QWidget
 
 _LIB = ctypes.CDLL("libLayerShellQtInterface.so.6")
@@ -73,6 +73,9 @@ class Placement:
     # -1 asks other surfaces' exclusive zones to be ignored; 0 respects them
     # (a drawer stays clear of the bar); a positive number reserves space.
     exclusive: int = 0
+    # Distance from the anchored edges (left, top, right, bottom), in Qt's
+    # units: how a menu is put just above the dock item it belongs to.
+    margins: tuple[int, int, int, int] = (0, 0, 0, 0)
 
 
 class LayerSurface:
@@ -105,6 +108,7 @@ class LayerSurface:
         window.setProperty("layer", placement.layer)
         window.setProperty("anchors", placement.anchors)
         window.setProperty("keyboardInteractivity", placement.keyboard)
+        window.setProperty("margins", QMargins(*(to_compositor(m) for m in placement.margins)))
         window.setProperty("exclusionZone", to_compositor(placement.exclusive) if placement.exclusive > 0 else placement.exclusive)
         self.widget.hide()
         self.widget.show()

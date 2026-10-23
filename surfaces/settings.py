@@ -79,6 +79,13 @@ def _checked(c: dict) -> str:
         return "Not a drawer outline or shadow"
     if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
         return "Opacity is 30 to 100 percent"
+    if not 100 <= int(d.get("magnify", 100)) <= 200:
+        return "Magnifying is 100 to 200 percent"
+    if d.get("scope") not in ("desktop", "all"):
+        return "The dock shows this desktop's windows or all of them"
+    for x in (b, d):
+        if x.get("outline") not in ("line", "none") or not isinstance(x.get("shadow"), bool) or x.get("motion") not in ("slide", "none"):
+            return "Not a bar or dock outline, shadow or motion"
     if b.get("shape") not in ("strip", "floating") or not 0 <= int(b.get("inset", 0)) <= 32:
         return "The bar is a strip or floating, up to 32 pixels from the edges"
     if not 0 <= int(c["windows"]["gap"]) <= 40:

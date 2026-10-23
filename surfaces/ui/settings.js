@@ -69,6 +69,15 @@ function draw() {
   const pct = (v) => `${v}%`;
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
   seg("bar-shape", [["strip", "Strip"], ["floating", "Floating"]], cfg.bar.shape, (shape) => save({ bar: { shape } }));
+  const edgeMotion = [["slide", "Slide"], ["none", "None"]];
+  const outlines = [["line", "Line"], ["none", "None"]];
+  for (const [part, c] of [["bar", cfg.bar], ["dock", cfg.dock]]) {
+    seg(`${part}-motion`, edgeMotion, c.motion || "slide", (motion) => save({ [part]: { motion } }));
+    seg(`${part}-outline`, outlines, c.outline || "line", (outline) => save({ [part]: { outline } }));
+    $(`${part}-shadow`).classList.toggle("on", !!c.shadow);
+  }
+  slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
+  seg("dock-scope", [["desktop", "This desktop"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
   slider("bar-inset", cfg.bar.inset, (v) => `${v}px`, (v) => save({ bar: { inset: v } }));
   $("bar-inset").disabled = cfg.bar.shape !== "floating";
   slider("bar-op", cfg.bar.opacity, pct, (v) => save({ bar: { opacity: v } }));
@@ -109,6 +118,7 @@ function draw() {
 }
 
 $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));
+for (const part of ["bar", "dock"]) $(`${part}-shadow`).addEventListener("click", () => save({ [part]: { shadow: !cfg[part].shadow } }));
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
@@ -224,10 +234,10 @@ function reload(page) {
 let wasUp = false;
 Surface.connect({
   onState: (s) => {
-    if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "appearance");
+    if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
     wasUp = !!s.up;
   },
 }).then((b) => {
   bridge = b;
-  reload("appearance");
+  reload("look");
 });

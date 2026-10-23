@@ -101,8 +101,10 @@ class Apps:
                     entry = _read_entry(os.path.join(root, name))
                     if entry.get("Type", "Application") != "Application" or "Name" not in entry:
                         continue
-                    app = {"name": entry["Name"], "icon": entry.get("Icon", "")}
                     stem = name[: -len(".desktop")]
+                    desktop_id = os.path.relpath(os.path.join(root, name), apps)[: -len(".desktop")].replace("/", "-")
+                    # `id` is what gtk-launch starts it by: a dock pin keeps it.
+                    app = {"name": entry["Name"], "icon": entry.get("Icon", ""), "id": desktop_id}
                     keys = [stem.lower()]
                     # A snap's file is `<snap>_<app>.desktop`; its windows say `<app>`.
                     if "_" in stem:
@@ -113,7 +115,6 @@ class Apps:
                         found.setdefault(k, app)
                     # What the launcher offers: everything a menu would show.
                     if entry.get("NoDisplay") != "true" and entry.get("Hidden") != "true":
-                        desktop_id = os.path.relpath(os.path.join(root, name), apps)[: -len(".desktop")].replace("/", "-")
                         listed.setdefault(desktop_id, {
                             "id": desktop_id, "name": entry["Name"], "icon": app["icon"],
                             "also": " ".join(x for x in (entry.get("GenericName", ""),
@@ -128,6 +129,13 @@ class Apps:
             if app["icon"]:
                 self._handed.add(app["icon"])
         return sorted(self._listed.values(), key=lambda a: a["name"].lower())
+
+    def by_id(self, desktop_id: str) -> dict | None:
+        """A launchable application by its desktop id — a dock pin with nothing open."""
+        app = self._listed.get(desktop_id)
+        if app and app["icon"]:
+            self._handed.add(app["icon"])
+        return app
 
     def is_launchable(self, desktop_id: str) -> bool:
         return desktop_id in self._listed
@@ -146,7 +154,7 @@ class Apps:
         if not app:
             # `com.example.Thing` is called Thing, and may have an icon by its class.
             short = (wm_class or "Window").rsplit(".", 1)[-1]
-            app = {"name": short[:1].upper() + short[1:], "icon": wm_class or ""}
+            app = {"name": short[:1].upper() + short[1:], "icon": wm_class or "", "id": ""}
         if app["icon"]:
             self._handed.add(app["icon"])
         return app

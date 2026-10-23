@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+A dock item's menu: show or hide, pin or unpin, a new window, close.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris dock menu</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { height: 100%; }
+.menu { position: absolute; left: 4px; right: 4px; bottom: 6px; }
+body[data-edge="top"] .menu { bottom: auto; top: 6px; }
+.menu-item[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="menu" id="menu">
+  <div class="hint" id="name"></div>
+  <button class="menu-item" data-verb="show">Show</button>
+  <button class="menu-item" data-verb="hide">Hide</button>
+  <button class="menu-item" data-verb="new">New window</button>
+  <button class="menu-item" data-verb="pin">Pin to the dock</button>
+  <button class="menu-item" data-verb="unpin">Unpin</button>
+  <div class="menu-sep" id="sep"></div>
+  <button class="menu-item" data-verb="close">Close window</button>
+  <button class="menu-item" data-verb="close-all">Close all windows</button>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script>
+"use strict";
+let bridge = null;
+let key = "";
+const show = (verb, yes) => { document.querySelector(`[data-verb="${verb}"]`).hidden = !yes; };
+// Only what can be done to this item: Show only if something is hidden, Pin
+// only with a launcher to start it again by, Close all only with two or more.
+function onState(s) {
+  if (!s.up) return;
+  const it = s.item || {};
+  key = it.key || "";
+  document.getElementById("name").textContent = it.name || "";
+  const wins = it.windows || [];
+  show("show", wins.some((w) => w.hidden));
+  show("hide", wins.some((w) => !w.hidden));
+  show("new", !!it.id);
+  show("pin", !!it.id && !it.pinned);
+  show("unpin", !!it.pinned);
+  show("close", wins.length === 1);
+  show("close-all", wins.length > 1);
+  document.getElementById("sep").hidden = !wins.length;
+}
+for (const b of document.querySelectorAll(".menu-item")) b.addEventListener("click", () => bridge && bridge.act(b.dataset.verb, key));
+addEventListener("keydown", (e) => { if (e.key === "Escape" && bridge) bridge.file(); });
+addEventListener("blur", () => { if (bridge) bridge.file(); });
+Surface.connect({ onState }).then((b) => { bridge = b; });
+</script>
+</body>
+</html>

@@ -41,6 +41,9 @@ from machine import Machine
 from sensor import Autohide
 from views import log, make_view
 
+#: Room below the bar (or above the dock) for a shadow to fall into.
+SHADOW_ROOM = 14
+
 #: The bar's thickness. Enough for 14px type and a 24px control with air round it.
 BAR = 34
 
@@ -211,9 +214,13 @@ class Bar(QObject):
         # Floating, the bar stands off the screen's edges: its surface is the
         # bar and the space between it and the edge, and reserves both.
         tall = BAR + (int(look.get("inset", 0)) if look.get("shape") == "floating" else 0)
+        # A shadow needs room to fall into: the surface is that much taller
+        # than the space it reserves, and the extra is clear.
+        room = SHADOW_ROOM if look.get("shadow") else 0
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall,
+        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_NONE, exclusive=0 if hide else tall))
+        self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:
         self.view.hide()

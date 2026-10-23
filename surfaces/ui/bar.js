@@ -21,6 +21,14 @@ function onState(s) {
   document.body.dataset.shape = look.shape || "strip";
   document.body.style.setProperty("--inset", `${look.inset ?? 0}px`);
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
+  document.body.dataset.outline = look.outline || "line";
+  if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;
+  document.body.style.setProperty("--room", look.shadow ? "14px" : "0px");
+  // Out from hiding, in the bar's own motion: slide, or none.
+  if (s.arrived && (look.motion || "slide") === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    $("bar").animate([{ transform: s.edge === "bottom" ? "translateY(110%)" : "translateY(-110%)" }, { transform: "none" }],
+      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+  }
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";
   const p = s.project || {};

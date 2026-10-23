@@ -1018,6 +1018,18 @@ of it and comes out at the end.
    the pointer (Hyprland's follow_mouse 2, the user's value restored after):
    leaving it for a window gave that window the keyboard and flickered the
    drawer's in-use outline.
+   Settings is now one page per thing: Look, Bar, Dock, Drawers, Windows,
+   Keys, Morgan. The bar and dock each have hiding, a motion out of hiding
+   (slide or none), an outline, a shadow and opacity; a floating bar sets the
+   gap below it to its own inset, so it and the windows line up. Draw and
+   chaos play on a drawer's way out as on its way in.
+   **The dock** (`dock.py`) is one row: pinned applications in your order, a
+   rule, then what else is open — on this desktop, or all (the setting
+   becomes "this project" with projects). Items drag to reorder; right-click
+   opens a menu just above the item (a surface placed by layer-shell margins)
+   with show, hide, new window, pin, unpin and close. Hiding moves a window to
+   a special workspace nobody summons, and its item dims. Icons can magnify
+   as the pointer passes, up to double.
    Not yet: side edges for the bar and dock,
    drawers sharing an edge as tabs, Morgan's memory, voices heard and
    connections.

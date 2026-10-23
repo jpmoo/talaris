@@ -17,17 +17,23 @@ body[data-edge="top"] { align-items: flex-start; }
 /* A panel in the middle of the edge, not a strip across it: the dock is a
    place you look at, the bar is a frame. */
 #dock {
-  display: flex; align-items: center; gap: 2px; height: 44px; margin: 0 0 3px; padding: 0 8px;
+  display: flex; align-items: flex-end; overflow: visible; gap: 2px; height: 44px; margin: 0 0 3px; padding: 0 8px;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
   border: 1px solid var(--frame); border-radius: 12px;
 }
 body[data-edge="top"] #dock { margin: 3px 0 0; }
+body[data-outline="none"] #dock { border-color: transparent; }
+body[data-shadow] #dock { box-shadow: 0 -3px 14px rgba(0, 0, 0, .65), 0 0 3px rgba(0, 0, 0, .5); }
 #dock:empty::after { content: "NOTHING OPEN"; font-size: 10px; letter-spacing: 3px; color: var(--muted); padding: 0 10px; }
-.group { display: flex; align-items: center; gap: 2px; }
-.group + .group { border-left: 1px solid var(--line); margin-left: 6px; padding-left: 8px; }
+/* Between the pinned and the rest. */
+.rule { width: 1px; height: 26px; background: var(--line); margin: 0 6px; align-self: center; }
+.app.hidden img, .app.hidden .letter { opacity: .4; }
+.app.dragging { opacity: .7; cursor: grabbing; }
 
-.app { position: relative; width: 36px; height: 36px; padding: 0; }
-.app img, .app .letter { width: 24px; height: 24px; display: block; }
+.app { position: relative; width: calc(36px * var(--s, 1)); height: calc(36px * var(--s, 1)); padding: 0; align-self: flex-end; margin-bottom: 4px;
+       transition: width .08s, height .08s; }
+.app img, .app .letter { width: calc(24px * var(--s, 1)); height: calc(24px * var(--s, 1)); display: block; transition: width .08s, height .08s; }
+body[data-edge="top"] .app { align-self: flex-start; margin-bottom: 0; margin-top: 4px; }
 .app .letter { display: grid; place-content: center; border-radius: 6px; background: var(--accent-wash); color: var(--accent); font-size: 13px; }
 /* One dot per window, three at most; the focused one's a longer bar in the accent. */
 .dots { position: absolute; left: 0; right: 0; bottom: 1px; display: flex; justify-content: center; gap: 3px; }

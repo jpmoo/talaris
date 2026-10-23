@@ -73,12 +73,15 @@ def windows() -> dict:
         focused = json.loads(ask("j/activewindow") or "{}")
     except (OSError, ValueError):
         return {"windows": [], "workspaces": [], "active": None, "focused": None}
-    # Special workspaces are scratchpads summoned by a key, not places you go.
-    regular = [c for c in clients if c.get("workspace", {}).get("id", -1) > 0 and c.get("mapped", True)]
+    # Special workspaces are scratchpads summoned by a key, not places you go —
+    # except Talaris's own, where the dock puts a window it hides.
+    regular = [c for c in clients if c.get("mapped", True) and (c.get("workspace", {}).get("id", -1) > 0
+                                                                 or c.get("workspace", {}).get("name") == HIDDEN)]
     return {
         "windows": [
             {"address": c["address"], "class": c.get("class") or c.get("initialClass") or "",
              "title": c.get("title", ""), "workspace": c["workspace"]["id"],
+             "hidden": c["workspace"].get("name") == HIDDEN,
              "recent": c.get("focusHistoryID", 999)}
             for c in regular
         ],
@@ -86,6 +89,31 @@ def windows() -> dict:
         "active": active.get("id"),
         "focused": (focused or {}).get("address"),
     }
+
+
+#: Where the dock puts a window it hides: a special workspace nobody summons.
+HIDDEN = "special:talaris-hidden"
+
+
+def _address(address: str) -> bool:
+    return address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower())
+
+
+def hide(address: str) -> None:
+    if _address(address):
+        ask(f"/dispatch movetoworkspacesilent {HIDDEN},address:{address}")
+
+
+def show(address: str) -> None:
+    """Back from hiding, onto the workspace in front of you, and focused."""
+    if not _address(address):
+        return
+    try:
+        here = json.loads(ask("j/activeworkspace")).get("id", 1)
+    except (OSError, ValueError):
+        here = 1
+    ask(f"/dispatch movetoworkspacesilent {here},address:{address}")
+    focus(address)
 
 
 def focus(address: str) -> None:

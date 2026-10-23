@@ -351,6 +351,11 @@ class Desktop(QObject):
         hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
+        # A floating bar stands off the screen's edges by its inset; the windows
+        # below it stand off it by the same, so the bar and the windows line up.
+        bar = self.config["bar"]
+        if bar.get("shape") == "floating" and not bar.get("autohide"):
+            sides[self.bar.edge] = int(bar.get("inset", gap))
         # Only a dock that reserves its edge stops short of it.
         if not self.config["dock"].get("autohide"):
             sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))

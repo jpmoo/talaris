@@ -23,12 +23,21 @@ DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
     # shape: "strip" runs edge to edge; "floating" stands off the screen's
     # edges by `inset`, its corners rounded. opacity is the panel's, in percent.
-    "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100},
+    # outline: "line" or "none"; shadow under it; motion as it comes out from
+    # hiding: "slide" or "none".
+    "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100,
+            "outline": "line", "shadow": False, "motion": "slide"},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
-    "dock": {"edge": "bottom", "autohide": False, "opacity": 100},
+    # pinned: launcher ids, in order; order: every item's place, as dragged;
+    # scope: the windows of "desktop" (this one) or "all".
+    "dock": {"edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
+             "outline": "line", "shadow": False, "motion": "slide",
+             # Icons swell as the pointer passes: their largest size, in
+             # percent of their own; 100 is off.
+             "magnify": 100},
     # How the drawers look: their outline (in the accent while in use, a plain
     # line, or none), a shadow, and their opacity in percent.
     "panels": {"outline": "focus", "shadow": True, "opacity": 100},
