@@ -121,11 +121,17 @@ terminal, and not a starship console. Settled 2026-10-23:
   quiet codes and counts in the margins (`PRJ-03 · 14 ITEMS`, `LIVE`,
   `ASLEEP`). Information first — every small label says something true — never
   decoration for its own sake.
-- **Motion is a setting.** Drawers slide in smoothly by default. The other
-  choice is **chaos**: short lines burst across the drawer's area at once, in
-  different directions and at random, and the panel resolves out of them — a
-  *Chaos Computer* feeling rather than a frame being traced. Both honor a
-  reduced-motion setting that makes them near-instant.
+- **Motion is a setting**, three ways (2026-10-23):
+  - **Slide** — the drawer slides in smoothly. The default.
+  - **Draw in** — the frame is traced, top and bottom edges then the far side,
+    and the panel fills.
+  - **Connect** — crosshairs appear first at the frame's corners and along its
+    edges and dividers, then lines run between them in random order, random
+    direction and random timing, and the panel fills once they meet. The
+    *Chaos Computer* feeling, but the lines always go somewhere — from mark to
+    mark — never loose across the panel.
+
+  All three honor a reduced-motion setting that makes them near-instant.
 - **Small instrument touches, where they mean something**: a blinking block
   cursor in a field that is waiting for you; crosshair marks at a surface's
   corners; a crosshair and live coordinates over a canvas, where position is
