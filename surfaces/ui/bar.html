@@ -36,10 +36,23 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
 #where { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 
+/* Morgan's button says what Morgan is doing. Listening breathes; thinking
+   turns a quarter-arc round the ring; speaking breathes faster. Idle is still,
+   and a small dot says Morgan is there at all. */
 #morgan { position: relative; }
 #morgan.absent { opacity: .45; }
 #morgan .dot { position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 #morgan.absent .dot { display: none; }
+#morgan .arc { position: absolute; inset: 4px; border-radius: 50%; border: 1.5px solid transparent; display: none; }
+#morgan[data-state="thinking"] .arc, #morgan[data-state="consulting"] .arc {
+  display: block; border-top-color: var(--accent); animation: turn 1s linear infinite;
+}
+#morgan[data-state="listening"], #morgan[data-state="transcribing"], #morgan[data-state="speaking"] { color: var(--accent); }
+#morgan[data-state="listening"] .ic, #morgan[data-state="transcribing"] .ic { animation: breathe 1.6s ease-in-out infinite; }
+#morgan[data-state="speaking"] .ic { animation: breathe .7s ease-in-out infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+@keyframes breathe { 50% { transform: scale(.8); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { #morgan * { animation: none !important; } }
 
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
@@ -53,7 +66,7 @@ body[data-edge="bottom"] #bar { border-bottom: 0; border-top: 1px solid var(--fr
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Alt+Space)">
       <span id="ask-ic"></span><span>Search or ask</span>
     </button>
-    <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="dot"></span></button>
+    <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span><span class="dot"></span></button>
   </div>
   <div id="where"></div>
   <div class="side end">

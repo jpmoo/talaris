@@ -3,8 +3,8 @@
 """
 Talaris's surfaces: everything on the screen that is not an application window.
 
-The bar (`bar.py`), the dock (`dock.py`), the launcher (`launcher.py`) and
-the drawers. Each drawer belongs to one edge and is in one of three
+The bar (`bar.py`), the dock (`dock.py`), the launcher (`launcher.py`),
+Morgan's face (`morgan.py`) and the drawers. Each drawer belongs to one edge and is in one of three
 modes:
 
 - **filed** — a handle on its edge, above the windows, so it can be pulled out.
@@ -43,6 +43,7 @@ from apps import Apps
 from bar import Bar
 from dock import Dock
 from launcher import Launcher
+from morgan import Link, Panel
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -274,6 +275,8 @@ class Desktop(QObject):
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
         self.machine = Machine(self)
+        # Morgan's stream, before the bar: the bar's button wears its state.
+        self.morgan_link = Link(self)
         # The bar first: its reserved space is what the drawers keep clear of.
         self.bar = Bar(self.config["bar"], profile, self)
         self.bar.place()
@@ -281,6 +284,7 @@ class Desktop(QObject):
         self.dock = Dock(self.config["dock"], profile, self, self.apps)
         self.dock.place()
         self.launcher = Launcher(profile, self, self.apps)
+        self.morgan = Panel(profile, self, self.morgan_link)
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -319,9 +323,10 @@ class Desktop(QObject):
                 hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
+        hypr.bind("SUPER ALT, M", f"{LAUNCHER} --morgan")
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", self.config["launcher"]["keys"]):
+        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER ALT, M", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
 
     # ---------------------------------------------------------------- what the launcher asks
@@ -378,6 +383,9 @@ class Desktop(QObject):
                     d.file_away()
                 self.bar.close_popup()
                 self.launcher.file_away()
+                self.morgan.file_away()
+            elif verb == "morgan":
+                self.morgan.toggle()
             elif verb == "launcher":
                 self.launcher.toggle(arg)
             elif verb == "popup":
@@ -408,6 +416,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--morgan"]:
+        return send("morgan")
     if args[:1] == ["--launcher"]:
         return send("launcher " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--popup"] and len(args) == 2:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QObject, QUrl, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -29,6 +29,13 @@ class Page(QWebEnginePage):
     def __init__(self, profile: QWebEngineProfile, parent: QObject, name: str) -> None:
         super().__init__(profile, parent)
         self.name = name
+
+    def acceptNavigationRequest(self, url, kind, is_main_frame: bool) -> bool:  # noqa: N802 — Qt's name
+        """A link out — in an answer, a page — opens in the browser, never in place of a surface."""
+        if url.scheme() in ("http", "https", "mailto"):
+            QDesktopServices.openUrl(url)
+            return False
+        return True
 
     def javaScriptConsoleMessage(self, level, message, line, source):  # noqa: N802 — Qt's name
         if level != QWebEnginePage.JavaScriptConsoleMessageLevel.InfoMessageLevel:

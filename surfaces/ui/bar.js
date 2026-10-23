@@ -26,8 +26,14 @@ function onState(s) {
     code.textContent = p.code;
     $("where").append(code);
   }
-  $("morgan").classList.toggle("absent", !s.morgan);
-  $("morgan").title = s.morgan ? "Ask Morgan" : "Morgan is not running";
+  // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
+  const now = s.morgan || "absent";
+  $("morgan").dataset.state = now;
+  $("morgan").classList.toggle("absent", now === "absent");
+  $("morgan").classList.toggle("on", !!s.morganOpen);
+  $("morgan").title = now === "absent" ? "Morgan is not running"
+    : ({ listening: "Morgan is listening", transcribing: "Morgan is listening", thinking: "Morgan is thinking",
+         consulting: "Morgan is consulting the Oracle", speaking: "Morgan is speaking" })[now] || "Morgan (Super+Alt+M)";
   for (const [id, kind] of [["vol", "volume"], ["power", "power"], ["net", "network"], ["bt", "bluetooth"]]) {
     $(id).classList.toggle("on", s.popup === kind);
   }
@@ -81,7 +87,7 @@ $("vol").addEventListener("wheel", (e) => {
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
-$("morgan").addEventListener("click", () => bridge && bridge.launcher("ask"));
+$("morgan").addEventListener("click", () => bridge && bridge.morgan());
 $("net").addEventListener("click", () => bridge && bridge.popup("network"));
 $("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
 

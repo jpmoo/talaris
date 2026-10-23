@@ -18,7 +18,6 @@ bar's button again, the pointer going elsewhere, and a short idle.
 from __future__ import annotations
 
 import json
-import os
 import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
@@ -57,8 +56,6 @@ POPUP_IDLE_LONG_MS = 45000
 #: page hears as the pointer going elsewhere. For this long after a popup
 #: appears, its page cannot send it away.
 POPUP_SETTLE_S = 0.5
-
-MORGAN_SOCKET = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "heymorgan.sock")
 
 
 class BarBridge(Bridge):
@@ -102,6 +99,11 @@ class BarBridge(Bridge):
     def launcher(self, mode: str) -> None:
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.launcher.toggle(mode)
+
+    @Slot()
+    def morgan(self) -> None:
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.morgan.toggle()
 
     @Slot(result=str)
     def reading(self) -> str:
@@ -178,11 +180,8 @@ class Bar(QObject):
         self.popup = Popup(profile, self)
         desktop.machine.read.connect(self._reading)
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
-        self.morgan = None
-        self._watch = QTimer(self)
-        self._watch.timeout.connect(self._morgan)
-        self._watch.start(5000)
-        self._morgan()
+        # Morgan's state, from the stream the process follows: the button wears it.
+        desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
 
     def place(self) -> None:
         screen = QApplication.primaryScreen().geometry()
@@ -196,20 +195,15 @@ class Bar(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "popup": self.popup.kind,
-            # Whether Morgan is here at all; listening, thinking and speaking
-            # come with Morgan's face.
-            "morgan": self.morgan,
+            # `absent`, `idle`, `listening`, `thinking`… and whether its
+            # conversation is out.
+            "morgan": self.desktop.morgan_link.now,
+            "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
         }
 
     def _reading(self, text: str) -> None:
         self.bridge.machine.emit(text)
         self.popup.bridge.machine.emit(text)
-
-    def _morgan(self) -> None:
-        here = os.path.exists(MORGAN_SOCKET)
-        if here != self.morgan:
-            self.morgan = here
-            self.bridge.state.emit(json.dumps(self.describe()))
 
     def toggle_popup(self, kind: str) -> None:
         if kind not in POPUPS:

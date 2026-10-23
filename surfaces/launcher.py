@@ -13,9 +13,8 @@ on every open keeps it current without watching anything.
 file only inside the current project, to launch only an application the
 index listed, to focus only a window Hyprland reported.
 
-**Morgan is the fallthrough.** Text that is not a thing is a question. Until
-Morgan has a face here, it goes to Morgan as a spoken turn (`say`), so the
-answer is heard.
+**Morgan is the fallthrough.** Text that is not a thing is a question: it is
+typed to Morgan, and Morgan's conversation opens to show the answer.
 
 On the `overlay` layer with the keyboard to itself, covering the space between
 the bar and the dock, and with every way back: Escape, a press outside the
@@ -26,7 +25,6 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
 from PySide6.QtGui import QDesktopServices
@@ -55,9 +53,6 @@ IDLE_MS = 60000
 #: a launcher, not a file search.
 FILE_DEPTH = 4
 FILE_LIMIT = 3000
-
-MORGAN_SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(
-    os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "heymorgan.sock")
 
 
 def _json(path: str, fallback):
@@ -96,24 +91,6 @@ def _files(folder: str) -> list[dict]:
             if len(found) >= FILE_LIMIT:
                 return found
     return found
-
-
-def ask_morgan(text: str) -> str:
-    """One line to Morgan's socket; its reply's error, or empty when it took it."""
-    line = " ".join(text.split())
-    if not line:
-        return "Nothing to ask"
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(3)
-    try:
-        s.connect(MORGAN_SOCKET)
-        s.sendall(f"say {line}\n".encode("utf-8"))
-        reply = json.loads(s.makefile("r", encoding="utf-8").readline() or "{}")
-        return "" if reply.get("ok") else reply.get("error", "Morgan did not take it")
-    except (OSError, ValueError):
-        return "Morgan is not running"
-    finally:
-        s.close()
 
 
 class LauncherBridge(Bridge):
@@ -209,7 +186,7 @@ class Launcher(QObject):
             "files": _files(here["folder"]) if here else [],
             "windows": windows,
             "apps": self.apps.launchable(),
-            "morgan": os.path.exists(MORGAN_SOCKET),
+            "morgan": self.desktop.morgan_link.now != "absent",
         }
 
     # ------------------------------------------------------------------ doing it
@@ -217,10 +194,8 @@ class Launcher(QObject):
     def act(self, r: dict) -> str:
         kind = r["kind"]
         if kind == "morgan":
-            error = ask_morgan(str(r["text"]))
-            if not error:
-                self.file_away()
-            return error
+            self.file_away()
+            return self.desktop.morgan.ask(str(r["text"]))
         self.file_away()
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
