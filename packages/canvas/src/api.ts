@@ -134,197 +134,45 @@ export interface Attachment {
  * body segfaults the process.
  */
 
-const ORIGIN = "talaria-app://daemon";
-
-/**
- * Where the daemon is, for the one module that builds a URL itself.
+/*
+ * **The canvas lives in a frame inside its drawer, and asks through it.**
  *
- * `block-events.ts` opens an `EventSource` at `${apiBase}/events` — Hermes'
- * live channel, so a block edited in another tab redraws here. Talaria has no
- * such channel and this is a local file besides: the only other writer is
- * Canvas Chat, through the same daemon. The constant is exported so the fork
- * compiles unchanged; `useLiveSync` is simply never called, and the hooks that
- * listen for its events go quiet rather than wrong.
+ * Only a drawer's main frame can reach the QWebChannel bridge to the process,
+ * so the drawer hands its frame one function, `talarisCore`, and every request
+ * the canvas makes goes through that. No URL carries a body, so nothing has
+ * to be squeezed into a header — the problem Talaria's canvas worked around.
  */
-export const apiBase = ORIGIN;
-
-/**
- * The body, as a header value a browser will accept.
- *
- * `setRequestHeader` refuses anything outside Latin-1, and the body travels in a
- * header here because reading a real request body segfaults this PySide build.
- * A canvas is full of somebody's prose — an em dash was enough — so every write
- * containing one threw before it left the page: the note showed the text it had
- * just failed to save, and nothing said so.
- *
- * Escaped rather than encoded, because JSON already has a way to say this. Above
- * 127 becomes `\uXXXX`, which is still valid JSON, so the daemon parses what it
- * always parsed. The shell's `ui/api.js` carries the same function for the same
- * reason; the two are separate on purpose.
- */
-function asHeader(body: unknown): string {
-  return JSON.stringify(body).replace(
-    /[\u007f-\uffff]/g,
-    (ch) => "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0"),
-  );
+type CoreCall = (method: string, path: string, body?: unknown) => Promise<unknown>;
+function talarisCore(): CoreCall {
+  const host = window.parent as unknown as { talarisCore?: CoreCall };
+  if (window.parent === window || !host.talarisCore) {
+    throw new Error("the canvas is open outside its drawer, so it has no core to ask");
+  }
+  return host.talarisCore;
 }
+
+/** Which canvas this frame shows: `?project=…&canvas=…`, set by the drawer. */
+const here = new URLSearchParams(location.search);
+export const where = { project: here.get("project") ?? "", canvas: here.get("canvas") ?? "" };
+
+export const apiBase = "";
 
 export function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open(method, ORIGIN + path, true);
-    if (body !== undefined) {
-      x.setRequestHeader("content-type", "application/json");
-      x.setRequestHeader("x-talaria-body", asHeader(body));
-    }
-    x.onload = () => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(x.responseText);
-      } catch {
-        reject(new Error(`${path} did not answer with JSON`));
-        return;
-      }
-      const envelope = parsed as { ok?: boolean; error?: string; message?: string; data?: T };
-      if (envelope && (envelope.ok === false || envelope.error)) {
-        reject(new Error(envelope.message || envelope.error || "the daemon refused that"));
-        return;
-      }
-      resolve((envelope && "data" in envelope ? envelope.data : parsed) as T);
-    };
-    x.onerror = () => reject(new Error("can't reach the daemon — is it running?"));
-    x.send(null);
-  });
+  return talarisCore()(method, path, body) as Promise<T>;
 }
 
-/**
- * Bytes, rather than a sentence.
- *
- * The daemon keeps a canvas picture beside the document and answers with the
- * name to ask for it by — a raw body with an image content type, which is the
- * one request here that is not JSON. The shell decodes the base64 and passes the
- * type along; see `_body_from_headers` in `scheme.py` for why a header is the
- * only road and why base64 is the only way down it.
+/*
+ * Pictures on a canvas need a place in the project to keep them, which the
+ * core does not have yet. Until it does, a picture is refused by name rather
+ * than kept somewhere it would be lost.
  */
-export async function keep(bytes: Blob): Promise<string> {
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-    reader.onerror = () => reject(new Error("could not read the picture"));
-    reader.readAsDataURL(bytes);
-  });
-  return new Promise((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open("POST", `${ORIGIN}/canvas/image`, true);
-    x.setRequestHeader("x-talaria-body", base64);
-    x.setRequestHeader("x-talaria-encoding", "base64");
-    x.setRequestHeader("x-talaria-content-type", bytes.type || "image/png");
-    x.onload = () => {
-      try {
-        const said = JSON.parse(x.responseText) as { name?: string; error?: string };
-        if (said.name) return resolve(said.name);
-        reject(new Error(said.error || "the daemon would not keep that picture"));
-      } catch {
-        reject(new Error("the daemon answered something unreadable"));
-      }
-    };
-    x.onerror = () => reject(new Error("can't reach the daemon — is it running?"));
-    x.send(null);
-  });
+export async function keep(_bytes: Blob): Promise<string> {
+  throw new Error("Pictures on a canvas aren't kept yet — they come with a later step.");
 }
-
-/**
- * A picture, made small enough to be one node among many, and kept.
- *
- * Both ways a picture arrives use this — the tool in the strip, and a paste or a
- * drop onto the canvas — because both have to end in the same place: bytes
- * beside the document and a name on the item. Hermes' own path ends in a data
- * URI on the collection, which is right there and wrong here; a note carrying
- * one would show its picture until the page was reloaded and then point at a
- * file that had never existed.
- *
- * 380 on the long edge is the Mac's, "big enough to see, small enough that a
- * screenshot of a whole display does not become the canvas". The quality steps
- * down until the base64 fits the 96 KB a header can carry, so what lands is the
- * best that fits rather than the first that does.
- */
-export async function keepResized(file: Blob): Promise<{ name: string; w: number; h: number }> {
-  const LONG_EDGE = 380;
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, LONG_EDGE / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const sheet = document.createElement("canvas");
-  sheet.width = w;
-  sheet.height = h;
-  sheet.getContext("2d")?.drawImage(bitmap, 0, 0, w, h);
-
-  const tries: [string, number | undefined][] = [
-    ["image/png", undefined],
-    ["image/jpeg", 0.85],
-    ["image/jpeg", 0.7],
-    ["image/jpeg", 0.5],
-  ];
-  const blobs: Blob[] = [];
-  for (const [type, quality] of tries) {
-    const blob = await new Promise<Blob | null>((r) => sheet.toBlob(r, type, quality));
-    if (blob) blobs.push(blob);
-  }
-  const fits = blobs.find((b) => b.size * 1.37 < 96 * 1024) ?? blobs[blobs.length - 1];
-  if (!fits) throw new Error("that picture could not be made small enough");
-  return { name: await keep(fits), w, h };
+export async function keepResized(_file: Blob): Promise<{ name: string; w: number; h: number }> {
+  throw new Error("Pictures on a canvas aren't kept yet — they come with a later step.");
 }
-
-/**
- * A request whose answer arrives in pieces, with a way to give up on it.
- *
- * The canvas chat is a loop on a local model: it reads the canvas, adds
- * something, looks again. Waiting for the whole turn means a panel that says
- * "drawing…" for half a minute while nodes appear behind it, which reads as two
- * unrelated things happening. Each step arrives as it finishes instead.
- *
- * `abort` is the stop button. Dropping the stream is what tells the daemon to
- * stop the turn — there is nothing else it could mean.
- */
-export function stream(
-  path: string,
-  body: unknown,
-  onEvent: (event: Record<string, unknown>) => void,
-): { done: Promise<void>; abort: () => void } {
-  const x = new XMLHttpRequest();
-  const done = new Promise<void>((resolve, reject) => {
-    x.open("POST", ORIGIN + path, true);
-    x.setRequestHeader("content-type", "application/json");
-    x.setRequestHeader("x-talaria-body", asHeader(body ?? {}));
-    x.setRequestHeader("x-talaria-stream", "1");
-    let read = 0;
-    const drain = () => {
-      const text = x.responseText;
-      const edge = text.lastIndexOf("\n\n");
-      if (edge < read) return;
-      for (const frame of text.slice(read, edge).split("\n\n")) {
-        const line = frame.split("\n").find((l) => l.startsWith("data:"));
-        if (!line) continue;
-        try {
-          onEvent(JSON.parse(line.slice(5).trim()));
-        } catch {
-          // A frame that is not JSON is not a frame; the rest is still worth
-          // reading.
-        }
-      }
-      read = edge + 2;
-    };
-    x.onprogress = drain;
-    x.onload = () => { drain(); resolve(); };
-    x.onabort = () => resolve();
-    x.onerror = () => reject(new Error("can't reach the daemon — is it running?"));
-    x.send(null);
-  });
-  return { done, abort: () => x.abort() };
-}
-
-/** Where a kept picture can be seen. */
-export const pictureAt = (name: string) => `${ORIGIN}/canvas/image/${encodeURIComponent(name)}`;
+export const pictureAt = (_name: string) => "";
 
 /* ------------------------------------------------------------- the routing */
 
@@ -375,7 +223,18 @@ function save() {
     // the problem the single-document design exists to avoid.
     writing = writing.then(() => putDocument(held)).then(
       () => onWritten?.(),
-      (err) => console.error("canvas: could not save —", err),
+      (err) => {
+        /*
+         * The core refuses a save that would take a child canvas off its
+         * parent — that is a delete, and deletes are asked for in the drawer.
+         * So the drawer says why, and the canvas reads itself back, which puts
+         * the card where it was.
+         */
+        const host = window.parent as unknown as { talarisStatus?: (s: string) => void };
+        host.talarisStatus?.(String((err as Error).message || err));
+        console.error("canvas: could not save —", err);
+        onWritten?.();
+      },
     );
   }, 250);
 }
@@ -622,51 +481,8 @@ async function route<T>(method: string, path: string, body?: unknown): Promise<T
    * `content`, anything else gets `properties`.
    */
   if (method === "POST" && at === "/blocks") {
-    const payload = (body ?? {}) as {
-      blockTypeId?: string;
-      content?: string;
-      properties?: Record<string, unknown>;
-      /**
-       * A canvas picture to travel with the block, by file name.
-       *
-       * Not one of Hermes' create keys — the component adds it, and this is the
-       * one place that knows what to do with it. Hermes uploads the bytes to
-       * `/blocks/:id/attachments` after the fact; Talaria cannot and must not,
-       * so the name goes to `/capture` and the daemon, which already holds the
-       * file, sends it as an interchange attachment value on the create itself.
-       */
-      image?: string;
-    };
-    const props = payload.properties ?? {};
-    const title = typeof props.title === "string" ? props.title : "";
-    const prose = [payload.content, ...Object.entries(props).filter(([k]) => k !== "title").map(([, v]) => v)]
-      .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-      .join("\n");
-    const text = payload.properties ? [title, prose].filter(Boolean).join("\n") : (payload.content ?? title);
-    if (!text.trim()) throw new Error("there is nothing written on that note to make a block out of");
-    const made = await ask<{ id?: string; queued?: string; note?: string }>("POST", "/capture", {
-      text,
-      // A text type keeps the whole note as its body; anything else has a title
-      // to split off. `/capture` says this in the same two words.
-      as: payload.properties ? "task" : "note",
-      ...(payload.blockTypeId ? { blockTypeId: payload.blockTypeId } : {}),
-      ...(payload.image ? { image: payload.image } : {}),
-    });
-    if (!made?.id) throw new Error("the daemon made no block");
-    // Enough of a `Block` for the caller, which wants an id and puts the rest
-    // on the canvas itself.
-    return {
-      id: made.id,
-      blockTypeId: payload.blockTypeId ?? "",
-      collectionKind: null,
-      content: payload.content ?? null,
-      properties: props,
-      embeddedAt: null,
-      embedPending: true,
-      version: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as T;
+    // Turning a note into a library block is the Hermes plugin's to offer.
+    throw new Unsupported("Making a block from a note comes with the Hermes plugin.");
   }
 
   /*
@@ -677,39 +493,9 @@ async function route<T>(method: string, path: string, body?: unknown): Promise<T
    * for types once, on load, and swallows a failure, so "Convert to…" simply had
    * nothing under it and looked like a menu that ended there.
    */
-  if (method === "GET" && at === "/types") {
-    const types = await ask<
-      { id: string; name: string; icon?: string | null; bodySlot?: string | null }[]
-    >("GET", "/types");
-    /*
-     * The daemon has already read the profiles and hands back what they said —
-     * `bodySlot`, `titleKey`, `statusKey` — rather than the profile objects. So
-     * the two vocabularies are matched here, and `isText` is `bodySlot ===
-     * "content"`: a type whose body *is* its content has no title to split off,
-     * which is the same question `/capture` asks on the other side.
-     */
-    return (types ?? []).map((t) => ({
-      ...t,
-      iconKey: t.icon ?? null,
-      iconColor: null,
-      iconSource: "lucide",
-      showIcon: true,
-      propertySchema: null,
-      schemaVersion: 1,
-      builtin: false,
-      isText: t.bodySlot === "content",
-    })) as T;
-  }
-
-  if (method === "GET" && at === "/tags") {
-    // The tags are what the blocks are wearing, which is also the only list
-    // worth offering: a tag nothing carries is not one to pick.
-    const spotlight = await ask<{ items: { tags?: string[] }[] }>("GET", "/spotlight");
-    const seen = new Set<string>();
-    for (const item of spotlight.items ?? []) for (const tag of item.tags ?? []) seen.add(tag);
-    return [...seen].sort().map((name) => ({ name })) as T;
-  }
-  throw new Unsupported(`the canvas asked for ${method} ${at}, which Talaria has no answer for`);
+  // No block types and no tags without a plugin that brings them.
+  if (method === "GET" && (at === "/types" || at === "/tags")) return [] as T;
+  throw new Unsupported(`the canvas asked for ${method} ${at}, which Talaris has no answer for`);
 }
 
 export const api = {

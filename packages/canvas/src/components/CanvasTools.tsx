@@ -92,6 +92,8 @@ function atPoint(clientX: number, clientY: number): { x: number; y: number } {
   return { x: Math.round(left), y: Math.round(top) };
 }
 
+const LATER = false as boolean;
+
 export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
   const [shape, setShape] = useState("postIt");
   const [shapesOpen, setShapesOpen] = useState(false);
@@ -416,11 +418,15 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
         </div>
       )}
 
-      {tool("find", "Put something from Hermes Notes here", <Search size={15} />, () => {
+      {/* Not yet in Talaris, each for its own reason: placing a library block
+          is the Hermes plugin's; pictures need a place in the project to keep
+          them; saving, loading and exporting come with the `export` verb. Kept
+          here, switched off, so each returns where it was. */}
+      {LATER && tool("find", "Put something from Hermes Notes here", <Search size={15} />, () => {
         setFinding((f) => !f);
         setFileOpen(false);
       })}
-      {finding && (
+      {LATER && finding && (
         <div className="tool-menu wide">
           <input
             autoFocus
@@ -456,13 +462,13 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void }) {
         <SquareDashed size={15} />
       </button>
 
-      {tool("image", "A picture on the canvas", <ImageIcon size={15} />, () => picture.current?.click())}
+      {LATER && tool("image", "A picture on the canvas", <ImageIcon size={15} />, () => picture.current?.click())}
 
-      {tool("file", "Save or load this canvas", <FileText size={15} />, () => {
+      {LATER && tool("file", "Save or load this canvas", <FileText size={15} />, () => {
         setFileOpen((o) => !o);
         setFinding(false);
       })}
-      {fileOpen && (
+      {LATER && fileOpen && (
         <div className="tool-menu">
           <button className="menu-item" onClick={save}>Save…</button>
           <button className="menu-item" onClick={() => loader.current?.click()}>Load…</button>

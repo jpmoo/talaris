@@ -39,7 +39,11 @@ curl -s --unix-socket $XDG_RUNTIME_DIR/talaris.sock http://talaris/projects
 ```
 
 - `DESIGN.md` — the design, the decisions, and what the one spike found.
-- `from-talaria/` — only the canvas, still to be adopted; everything retired is deleted, not kept (see its README).
+- `packages/canvas` — the canvas: Talaria's fork of Hermes' `CanvasView`, now
+  Talaris's. It runs in a frame inside the canvas drawer and reaches the core
+  through the drawer (`window.parent.talarisCore`), since only the drawer's main
+  frame has the bridge. vite builds it to `surfaces/ui/canvas/`, not committed.
+  Its notes use the same editor as pages, loaded from `../editor.js`.
 - `jpmoo/hermesnotes` — Hermes Notes, the `pkm-interchange` format, and Talaria.
   Talaris does **not** depend on Talaria's daemon. The Hermes plugin speaks the
   format and only the format. `talaria/linux/CLAUDE.md` there holds a great deal

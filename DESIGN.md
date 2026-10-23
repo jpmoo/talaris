@@ -761,6 +761,32 @@ has no single "default save folder" every application obeys:
    it gets a quiet offer to move it in, read from the system's recently-used
    list.
 
+## Tasks
+
+Decided 2026-10-23. **Talaris gets its own task system, copying Hermes Notes'
+feature for feature** — not a lighter cousin of it, and not Hermes reached
+through a plugin. Tasks belong to projects, live in the project's own files
+like everything else, and work with no library connected at all.
+
+**What "feature for feature" means is read from Hermes, not remembered.** Before
+any of it is built, Hermes' task model is walked through in its own code and
+docs (`jpmoo/hermesnotes`: the block data model in
+`docs/hermes-notes-v2-design-doc.md`, the task profile, recurrence, completion
+and its side effects, and the views that show tasks) and written down here as
+the list to match. Two of Hermes' rules come across as they are: completion is
+read from a status and the values that count as complete, never from a name;
+and completing a recurring task stamps the time and spawns the next occurrence.
+
+**A plugin syncs projects and tasks through the spec.** The same
+`pkm-interchange` the Hermes plugin speaks, so a Talaris project can be a Hermes
+project and its tasks the same tasks on both sides. The task system is built so
+that sync has a clean seam: Talaris's own task shapes map onto the format's
+task profile, and nothing Talaris stores is lost on the way out or back.
+
+**Open, to settle when it is built:** where tasks are shown — their own drawer,
+a section of the writing drawer, cards on a canvas, all three — and how daily
+notes and tasks meet.
+
 ## The compositor is a backend
 
 Decided 2026-10-23. Talaris needs two things from a compositor, and they are not
@@ -879,8 +905,11 @@ of it and comes out at the end.
    `talaris-surfaces.service`, started by `~/.config/hypr/talaris.conf`. The
    canvas and writing drawers, filed as handles, out on an empty workspace,
    pulled over windows (Super+Alt+C, Super+Alt+W), back on the same keys,
-   Super+Alt+Escape, Escape, or 45 idle seconds. Writing pages are real; the
-   canvas drawer lists the tree, and the canvas itself is still to come across.
+   Super+Alt+Escape, Escape, or 45 idle seconds. Writing pages are real, and
+   the canvas has come across (`packages/canvas`): notes, shapes, connections,
+   regions, panning and zooming, child canvases as cards that open on a
+   double-click, a trail in the header. Pictures, library blocks and export
+   wait for their own steps.
 4. The bar and the dock.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
 6. Morgan's face: the button, the popup, the conversation.
@@ -897,8 +926,10 @@ of it and comes out at the end.
 12. Floating, *place*, Recent.
 13. The plugin surface, and the Hermes plugin on it.
 14. Pruning.
-15. Talaris's own notifications, replacing `mako`.
-16. Resume, once the spike says how.
+15. Tasks — Hermes' system, feature for feature — and the plugin that syncs
+    projects and tasks through the spec.
+16. Talaris's own notifications, replacing `mako`.
+17. Resume, once the spike says how.
 
 ## What did not come from Talaria
 

@@ -2,17 +2,10 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 /**
- * Built to static files, and served by the shell — there is no web server here.
- *
- * The brief asks whether the canvas has to be one. It does not: `scheme.py`
- * already serves `/ui/` from disk over `talaria-app://`, which is how every
- * other panel is delivered, and a bundle is just more files in that directory.
- * No port is opened, nothing listens, and the page reaches the daemon through
- * the same Unix socket the rest of the shell uses.
- *
- * `base: "./"` because of that: the bundle is loaded from
- * `talaria-app://daemon/ui/canvas/index.html` and an absolute `/assets/…` would
- * be asked of the daemon rather than of the file server beside it.
+ * Built to static files beside the drawer's own pages, and served by the same
+ * scheme — there is no web server. `base: "./"` because the bundle is loaded
+ * from `talaris-ui://ui/canvas/index.html` and an absolute `/assets/…` would
+ * be asked of the wrong directory.
  */
 export default defineConfig({
   base: "./",
@@ -33,7 +26,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "../shell/ui/canvas",
+    outDir: "../../surfaces/ui/canvas",
     emptyOutDir: true,
     // One file each, named plainly. The shell serves these by path and a
     // content hash in the name buys nothing when there is no cache to bust.

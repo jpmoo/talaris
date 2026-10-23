@@ -9,12 +9,12 @@
 import { Component, StrictMode, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { CanvasView } from "./components/CanvasView.tsx";
-import { CanvasChat } from "./components/CanvasChat.tsx";
 import { CanvasTools } from "./components/CanvasTools.tsx";
-import { api, flush, hold, type BlockType, type Collection, type Member } from "./api.ts";
+import { api, document_, flush, hold, where, type BlockType, type Collection, type Member } from "./api.ts";
 import { getDocument, getLinked, toCollection, toMembers } from "./document.ts";
 import "./canvas-forked.css";
 import "./canvas.css";
+import { wearTheme } from "./talaris-theme.ts";
 
 function Canvas() {
   const [state, setState] = useState<{
@@ -68,12 +68,9 @@ function Canvas() {
         types={state.types}
         onChanged={() => void read()}
       />
-      {/* The strip, and the chat, both over the canvas rather than inside it —
-          which is where the Mac puts them and for the reason it gives: the
-          surface knows about items, links and regions, and neither of these is
-          one of those. */}
+      {/* The strip sits over the canvas rather than inside it: the surface
+          knows about items, links and regions, and the strip is none of those. */}
       {!forExport && <CanvasTools onPlaced={() => void read()} />}
-      {!forExport && <CanvasChat onDrawn={() => void read()} />}
     </>
   );
 }
@@ -118,6 +115,7 @@ class Boundary extends Component<{ children: ReactNode }, { failure: Error | nul
  * canvas painted itself solid inside a desk built to show through it.
  */
 if (window.parent !== window) document.documentElement.classList.add("framed");
+wearTheme();
 
 /*
  * Export mode: the same canvas, with nothing on it that is not the drawing.
@@ -157,6 +155,33 @@ if (forExport) {
     return { w: Math.ceil(maxX - minX), h: Math.ceil(maxY - minY) };
   };
 }
+
+/*
+ * Canvas cards — a child canvas, or a link to any canvas — open on a
+ * double-click instead of being edited. The drawer does the opening: it knows
+ * the tree and which project a link points into.
+ */
+function itemOf(node: Element | null) {
+  const id = node?.getAttribute("data-block-id") ?? "";
+  if (!id.startsWith("n:")) return null;
+  return document_().items.find((i) => i.id === id.slice(2)) as
+    | { kind?: string; canvas?: string; project?: string }
+    | undefined;
+}
+addEventListener("dblclick", (e) => {
+  const item = itemOf((e.target as Element).closest?.(".cv-node") ?? null);
+  if (!item || !item.kind?.startsWith("canvas") || !item.canvas) return;
+  e.preventDefault();
+  e.stopPropagation();
+  window.parent.postMessage({ talaris: "open-canvas", canvas: item.canvas, project: item.project ?? where.project }, "*");
+}, true);
+// Which nodes are canvas cards, for the stylesheet — re-marked as the canvas redraws.
+new MutationObserver(() => {
+  for (const node of document.querySelectorAll(".cv-node")) {
+    const item = itemOf(node);
+    node.classList.toggle("cv-canvascard", Boolean(item?.kind?.startsWith("canvas")));
+  }
+}).observe(document.body, { subtree: true, childList: true });
 
 createRoot(document.getElementById("canvas-root")!).render(
   <StrictMode>

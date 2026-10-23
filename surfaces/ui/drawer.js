@@ -53,6 +53,8 @@ function applyTheme(theme) {
     root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
   }
   if (theme.font) root.style.setProperty("--font", `'${theme.font}', system-ui, sans-serif`);
+  const frame = document.querySelector(".canvas-frame");
+  if (frame) shareTheme(frame);
 }
 
 // Slide in from the edge the drawer belongs to. The other motions in the theme
@@ -94,8 +96,10 @@ function update(next) {
   $("mark").innerHTML = state.drawer === "writing"
     ? '<path d="M2 3h10M2 6h10M2 9h10M2 12h6"/>'
     : '<rect x="1.5" y="1.5" width="11" height="11" rx="2"/><rect x="4" y="4.5" width="4" height="3" rx=".6"/>';
-  $("where").innerHTML = "";
-  $("where").append(state.project.name || "Home", el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  if (state.drawer !== "canvas") {
+    $("where").innerHTML = "";
+    $("where").append(state.project.name || "Home", el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  }
   if (state.mode !== "filed" && was === "filed") arrive();
   if (state.mode !== "filed") load();
 }
@@ -127,12 +131,30 @@ function twisty(key, hasKids, kids, shut, store) {
 // ---------------------------------------------------------------- canvas
 
 const CANVAS_SHUT = "talaris.canvas.shut";
-let chosen = null;   // the canvas picked in the tree; new canvases go inside it
+const TREE_KEY = "talaris.canvas.tree";
+let viewing = null;  // the canvas on show; new canvases go inside it
+let canvasTreeCache = null;
+let treeShown = (() => { try { return localStorage.getItem(TREE_KEY) !== "off"; } catch { return true; } })();
+
+// What the canvas frame asks for, it asks through these: only this frame can
+// reach the process, so the canvas borrows its door.
+window.talarisCore = (method, path, body) => core(method, path, body);
+window.talarisStatus = (text) => status(text.toUpperCase().slice(0, 80));
+
+function pathTo(tree, id, trail = []) {
+  if (tree.id === id) return [...trail, tree];
+  for (const c of tree.children) {
+    const found = pathTo(c, id, [...trail, tree]);
+    if (found) return found;
+  }
+  return null;
+}
 
 async function loadCanvas() {
-  const body = $("body");
   const tree = await core("GET", `/projects/${state.project.id}/canvases`);
-  const top = await core("GET", `/projects/${state.project.id}/canvases/${tree.id}`);
+  canvasTreeCache = tree;
+  if (!viewing || !pathTo(tree, viewing)) viewing = tree.id;
+  const trail = pathTo(tree, viewing);
   const shut = shutSet(CANVAS_SHUT);
   let count = 0;
   const walk = (node) => {
@@ -140,39 +162,86 @@ async function loadCanvas() {
     const kids = el("div", { class: "kids" });
     for (const c of node.children) kids.append(walk(c));
     return el("div", {},
-      el("div", { class: "row" + (node.id === (chosen ?? tree.id) ? " on" : ""), onclick: () => { chosen = node.id; loadCanvas(); } },
-        el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title),
-        el("span", { class: "label" }, node.id === tree.id ? "TOP" : "")),
+      el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id) },
+        el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title)),
       kids);
   };
-  body.replaceChildren(el("div", { class: "tree", style: "flex:1" }, walk(tree)));
-  $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"} · ${top.items.length} ITEMS`;
-  const actions = [el("button", { onclick: newCanvas }, "New canvas inside")];
-  if (chosen && chosen !== tree.id) {
-    const find = (n) => n.id === chosen ? n : n.children.map(find).find(Boolean);
-    const node = find(tree);
-    if (node) actions.push(" ", el("button", { class: "danger", onclick: () => deleteCanvas(node) }, "Delete"));
+
+  // The trail is the header: each step goes back up to that canvas.
+  const where = $("where");
+  where.replaceChildren(state.project.name || "Home");
+  for (const step of trail) {
+    where.append(el("span", { class: "slash" }, " / "),
+      el("span", { class: "crumb", onclick: () => view(step.id) }, step.id === tree.id ? "Canvas" : step.title));
+  }
+
+  const frame = el("iframe", {
+    class: "canvas-frame",
+    src: `canvas/index.html?project=${encodeURIComponent(state.project.id)}&canvas=${encodeURIComponent(viewing)}`,
+    title: "Canvas",
+  });
+  frame.addEventListener("load", () => shareTheme(frame));
+  const treePane = el("div", { class: "tree canvas-tree" + (treeShown ? "" : " hidden") }, walk(tree));
+  $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
+  $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
+  const actions = [
+    el("button", { onclick: () => { treeShown = !treeShown; try { localStorage.setItem(TREE_KEY, treeShown ? "on" : "off"); } catch {} treePane.classList.toggle("hidden", !treeShown); } }, treeShown ? "Hide tree" : "Show tree"),
+    " ", el("button", { onclick: newCanvas }, "New canvas inside"),
+  ];
+  if (viewing !== tree.id) {
+    const node = trail[trail.length - 1];
+    actions.push(" ", el("button", { class: "danger", onclick: () => deleteCanvas(node, trail[trail.length - 2]) }, "Delete"));
   }
   $("actions").replaceChildren(...actions);
   status("");
 }
 
-function deleteCanvas(node) {
+function view(id) {
+  viewing = id;
+  loadCanvas();
+}
+
+// The canvas's own theme follows the drawer's: mode, accent and typeface.
+function shareTheme(frame) {
+  try {
+    const mine = document.documentElement;
+    const theirs = frame.contentDocument.documentElement;
+    theirs.dataset.mode = mine.dataset.mode || "dark";
+    for (const v of ["--accent", "--accent-wash", "--font"]) {
+      const value = mine.style.getPropertyValue(v);
+      if (value) theirs.style.setProperty(v, value);
+    }
+  } catch { /* not loaded yet */ }
+}
+
+// A canvas card double-clicked inside the frame.
+addEventListener("message", (e) => {
+  const m = e.data;
+  if (m && m.talaris === "open-url" && /^https?:/.test(m.url || "")) { bridge && bridge.openUrl(m.url); return; }
+  if (!m || m.talaris !== "open-canvas") return;
+  if (m.project && m.project !== state.project.id) {
+    status("OTHER PROJECTS ARRIVE WITH PROJECTS");
+    return;
+  }
+  view(m.canvas);
+});
+
+function deleteCanvas(node, parent) {
   confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. It can be brought back from its versions.", async () => {
     await core("DELETE", `/projects/${state.project.id}/canvases/${node.id}`);
-    chosen = null;
+    viewing = parent ? parent.id : null;
     loadCanvas();
   });
 }
 
 async function newCanvas() {
-  const tree = await core("GET", `/projects/${state.project.id}/canvases`);
-  const parent = chosen ?? tree.id;
+  const tree = canvasTreeCache ?? await core("GET", `/projects/${state.project.id}/canvases`);
+  const parent = viewing ?? tree.id;
   await core("POST", `/projects/${state.project.id}/canvases/${parent}/children`, { title: "Untitled" });
-  // Open the branch it went into, so the new one is in view.
   const shut = shutSet(CANVAS_SHUT);
   shut.delete(parent);
   try { localStorage.setItem(CANVAS_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
+  // The new card lands on the canvas on show, so reload it.
   loadCanvas();
 }
 

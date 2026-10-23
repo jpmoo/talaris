@@ -6,7 +6,7 @@
  * met came from a canvas that was two documents; this one is one." The same
  * holds here — this module never patches fields into a document it has not got.
  */
-import { ask, pictureAt, type Collection, type Member } from "./api.ts";
+import { ask, pictureAt, where, type Collection, type Member } from "./api.ts";
 
 /** A file name to a content type, for the shape the component expects. */
 function mimeOf(name: string): string {
@@ -86,10 +86,15 @@ export interface Linked {
   archived?: boolean;
 }
 
-export const getDocument = () => ask<CanvasDocument>("GET", "/canvas/document");
-export const putDocument = (doc: CanvasDocument) => ask<unknown>("PUT", "/canvas/document", doc);
-export const getLinked = (ids: string[]) =>
-  ids.length ? ask<Linked[]>("POST", "/linked", { ids }) : Promise.resolve([]);
+const canvasPath = () => `/projects/${where.project}/canvases/${where.canvas}`;
+export const getDocument = () => ask<CanvasDocument>("GET", canvasPath());
+export const putDocument = (doc: CanvasDocument) => ask<unknown>("PUT", canvasPath(), doc);
+/*
+ * Library blocks placed on a canvas are a plugin's to describe. Until one is
+ * installed every such item is honestly missing, and is drawn from what it
+ * last looked like rather than dropped.
+ */
+export const getLinked = (_ids: string[]) => Promise.resolve([] as Linked[]);
 
 /*
  * The two vocabularies.
@@ -124,8 +129,10 @@ function notesOf(doc: CanvasDocument) {
       y: item.y,
       w: item.w,
       h: item.h,
-      text: item.text ?? "",
-      shape: item.shape ?? "plain",
+      // A child canvas or a link to one is drawn as a note carrying the
+      // canvas's title; `main.tsx` opens it on a double-click.
+      text: item.text ?? (item as { seen?: { title?: string } }).seen?.title ?? "",
+      shape: item.shape ?? ((item as { kind?: string }).kind?.startsWith("canvas") ? "rectangle" : "plain"),
       color: item.fill ?? null,
       stroke: item.stroke ?? null,
       strokeWidth: item.strokeWidth,

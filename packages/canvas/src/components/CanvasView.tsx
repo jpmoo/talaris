@@ -2969,18 +2969,19 @@ export function CanvasView({
          * because a node that never grows a block is a picture, and a picture
          * has no words to put a caret in.
          */
+        // Talaris: the field is a CodeMirror editor, which places the caret
+        // from a click's coordinates — so the second click is replayed onto
+        // its content once the field has stopped being inert.
         let tries = 12;
         const land = () => {
-          const blocks = [...node.querySelectorAll<HTMLElement>(".note-block")];
-          if (!blocks.length) {
+          const content = node.querySelector<HTMLElement>(".cm-content");
+          if (!content) {
             if (tries-- > 0) requestAnimationFrame(land);
             return;
           }
-          const hit = blocks.find((el) => {
-            const r = el.getBoundingClientRect();
-            return clientY >= r.top && clientY <= r.bottom;
-          });
-          (hit ?? blocks[blocks.length - 1]).click();
+          const at = { clientX, clientY, bubbles: true, cancelable: true, button: 0 };
+          content.dispatchEvent(new MouseEvent("mousedown", at));
+          content.dispatchEvent(new MouseEvent("mouseup", at));
         };
         requestAnimationFrame(land);
       }}

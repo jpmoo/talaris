@@ -6,3 +6,4 @@ __pycache__/
 surfaces/ui/editor.js
 surfaces/ui/editor.js.map
 packages/*/dist/
+surfaces/ui/canvas/

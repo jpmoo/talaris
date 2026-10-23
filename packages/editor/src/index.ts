@@ -282,8 +282,21 @@ const look = EditorView.theme({
   "&.raw .cm-scroller": { fontFamily: "ui-monospace, monospace", fontSize: "13px" },
 });
 
+const compactLook = EditorView.theme({
+  // Inside a note the ink is the note's — dark on a sticky, whatever it was set to.
+  "&": { color: "inherit", fontSize: "inherit" },
+  ".cm-scroller": { lineHeight: "1.45" },
+  ".cm-content": { padding: "2px 4px" },
+  ".cm-listline::before": { display: "none" },
+});
+
 export interface EditorOptions {
   live?: boolean;
+  /**
+   * A small editor inside something else — a note on a canvas. No fold
+   * margin and no drag grips, which need room a note does not have.
+   */
+  compact?: boolean;
   onChange?: (text: string) => void;
   /** A rendered link was clicked: open it somewhere else. */
   onOpenUrl?: (url: string) => void;
@@ -320,8 +333,8 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         ]),
         listFolding,
         codeFolding({ placeholderText: "…" }),
-        foldGutter({ markerDOM: chevron }),
-        listDrag,
+        options.compact ? [] : [foldGutter({ markerDOM: chevron }), listDrag],
+        options.compact ? compactLook : [],
         preview.of(liveOn(live)),
         look,
         EditorView.contentAttributes.of({ spellcheck: "true" }),

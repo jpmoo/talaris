@@ -82,12 +82,10 @@ export interface CanvasLink {
   [key: string]: unknown;
 }
 
+/** A region groups items by id; it is drawn around them, so it has no box of its own. */
 export interface CanvasRegion {
   id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+  members?: string[];
   title?: string;
   [key: string]: unknown;
 }
