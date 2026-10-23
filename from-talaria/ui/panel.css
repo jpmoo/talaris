@@ -1,0 +1,1111 @@
+/*
+ * One sheet for all three panels.
+ *
+ * Colors follow the desktop rather than a palette of their own: these are
+ * summoned windows that sit over whatever you were reading, and a panel that
+ * ignores the system theme announces itself as a foreign object every time it
+ * appears. `color-scheme` gets the scrollbars and form controls for free.
+ */
+:root {
+  color-scheme: light dark;
+  /* The four colors everything below is mixed from. The system's own by
+     default; on a Noctalia desktop the shell lays Noctalia's palette over
+     them — `talaria/linux/noctalia/talaria.css` — so a panel wears the bar's
+     colors. Written once here and referred to everywhere, because a system
+     keyword used directly cannot be redefined and would stay the system's. */
+  --canvas: Canvas;
+  --canvas-text: CanvasText;
+  --accent-color: AccentColor;
+  --accent-color-text: AccentColorText;
+  --bg: var(--canvas);
+  --fg: var(--canvas-text);
+  --muted: color-mix(in srgb, var(--canvas-text) 55%, var(--canvas));
+  --line: color-mix(in srgb, var(--canvas-text) 15%, var(--canvas));
+  --raised: color-mix(in srgb, var(--canvas-text) 4%, var(--canvas));
+  /* The panel's own background. Overridden by the shell when translucency is
+     configured — see `--talaria-opacity` below. */
+  /* How solid a panel is. Set by the shell from `frostingAmount`; the default
+     matters because a page opened outside the shell still has to look like
+     something. */
+  --surface-alpha: 1;
+  --surface: color-mix(in srgb, var(--canvas) calc(var(--surface-alpha) * 100%), transparent);
+  --accent: color-mix(in srgb, var(--accent-color) 90%, var(--canvas));
+  --accent-fg: var(--accent-color-text);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 system-ui, "Noto Sans", sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.frame { display: flex; height: 100vh; }
+.pane { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+
+.side {
+  width: 240px;
+  flex: none;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 10px 0;
+  background: var(--raised);
+}
+.side button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side button:hover { background: color-mix(in srgb, var(--canvas-text) 8%, var(--canvas)); }
+.side button[aria-current="true"] { background: var(--accent); color: var(--accent-fg); }
+
+h1 { font-size: 17px; margin: 0 0 14px; font-weight: 600; }
+.kind { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+
+/* Cards, used by the board and by anything listing blocks. */
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.card .title { flex: 1; }
+.card.done .title { text-decoration: line-through; color: var(--muted); }
+.card .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.card .overdue { color: #d9534f; }
+.tick { cursor: pointer; background: none; border: 0; color: inherit; font-size: 15px; padding: 0; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--bg); }
+
+/* Forms, used by compose.
+ *
+ * **Not a checkbox or a radio**, which are the two inputs that are a mark
+ * rather than a field. `width: 100%` on a box that draws itself 13px wide does
+ * not make a wider box: it makes a 13px mark centered in a line-wide element,
+ * and everything beside it in the flex row gets what is left. In today's note
+ * that was a task's text wrapping at two characters per line down the right of
+ * the pane, with a horizontal scrollbar under it — which reads as a broken
+ * renderer rather than as a form rule reaching somewhere it was never meant
+ * to. Same for the padding and the border below.
+ */
+label { display: block; margin: 12px 0 4px; color: var(--muted); font-size: 12px; }
+input:not([type="checkbox"]):not([type="radio"]), textarea, select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+textarea { min-height: 120px; resize: vertical; }
+button.go {
+  margin-top: 16px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.go:disabled { opacity: .5; cursor: default; }
+
+/* --- Ask ------------------------------------------------------------------
+ * Bubbles rather than a transcript, following the Mac: yours lean on the accent
+ * and the assistant's are plain, so which side said what is legible without
+ * reading a label on every line.
+ */
+.chat { display: flex; flex-direction: column; height: 100vh; }
+.chat-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line);
+  font-size: 12px; font-weight: 600;
+}
+.chat-head .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--accent); flex: none; }
+.chat-head .who-title { flex: 1; }
+.log { padding: 16px 18px; }
+
+.turn { display: flex; margin-bottom: 12px; }
+.turn.mine { justify-content: flex-end; }
+.bubble {
+  max-width: 82%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 16%, var(--canvas));
+  background: var(--raised);
+  overflow-wrap: anywhere;
+}
+.turn.mine .bubble {
+  background: color-mix(in srgb, var(--accent-color) 16%, var(--canvas));
+  border-color: color-mix(in srgb, var(--accent-color) 34%, var(--canvas));
+}
+
+/* Markdown inside a bubble. Tight margins: these are remarks, not documents,
+ * and browser defaults put a blank line between every one of them. */
+.bubble > :first-child { margin-top: 0; }
+.bubble > :last-child { margin-bottom: 0; }
+.bubble p { margin: 0 0 7px; }
+.bubble h2 { font-size: 15px; margin: 10px 0 5px; }
+.bubble h3 { font-size: 13px; margin: 9px 0 4px; }
+.bubble ul, .bubble ol { margin: 0 0 7px; padding-left: 20px; }
+.bubble li { margin: 2px 0; }
+.bubble li::marker { color: var(--accent); }
+.bubble code {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: .92em;
+  background: color-mix(in srgb, var(--canvas-text) 10%, var(--canvas));
+  padding: 1px 4px; border-radius: 4px;
+}
+.bubble pre {
+  margin: 0 0 7px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--canvas-text) 9%, var(--canvas));
+  overflow-x: auto;
+}
+.bubble pre code { background: none; padding: 0; font-size: 11.5px; }
+.bubble blockquote {
+  margin: 0 0 7px; padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--accent-color) 45%, var(--canvas));
+  color: var(--muted);
+}
+.bubble a { color: var(--accent); }
+
+/* The empty state: what this can be asked, rather than a blank box. */
+.placeholder { color: var(--muted); }
+.placeholder p { margin: 0 0 8px; }
+.placeholder .fine { font-size: 11.5px; opacity: .8; margin-top: 12px; }
+.example {
+  display: flex; gap: 7px; align-items: baseline;
+  background: none; border: 0; padding: 3px 0;
+  color: inherit; font: inherit; font-size: 12.5px;
+  cursor: pointer; text-align: left;
+}
+.example:hover { color: var(--fg); }
+.example .arrow { color: var(--accent); opacity: .75; }
+
+/* Tool chips: what it ran, and whether that worked. */
+.steps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; padding: 2px 7px; border-radius: 7px;
+  background: color-mix(in srgb, var(--canvas-text) 9%, var(--canvas));
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 16%, var(--canvas));
+  color: var(--muted);
+}
+.chip .tick { color: var(--accent); }
+.chip.bad { background: color-mix(in srgb, #d9534f 12%, var(--canvas)); border-color: color-mix(in srgb, #d9534f 34%, var(--canvas)); }
+.chip.bad .tick { color: #d9534f; }
+
+.bad-box {
+  display: flex; gap: 7px; align-items: baseline;
+  color: #d9534f; font-size: 12.5px;
+}
+
+.confirm { display: flex; gap: 8px; align-items: center; margin-top: 9px; font-size: 12px; }
+.fine { color: var(--muted); font-size: 11.5px; }
+
+.thinking { display: inline-flex; gap: 3px; align-items: center; }
+.thinking span { width: 5px; height: 5px; border-radius: 99px; background: var(--muted); animation: pulse 1.2s infinite; }
+.thinking .dot1 { animation-delay: .15s; }
+.thinking .dot2 { animation-delay: .3s; }
+@keyframes pulse { 0%, 60%, 100% { opacity: .25; } 30% { opacity: .9; } }
+
+/* The composer. One field and a round send, rather than a button with a word
+ * on it competing with the placeholder for the same idea. */
+.composer {
+  display: flex; gap: 8px; align-items: center;
+  padding: 11px 16px; border-top: 1px solid var(--line);
+}
+.composer input { flex: 1; border-radius: 99px; padding: 8px 14px; }
+.send {
+  flex: none; width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 99px;
+  background: var(--accent); color: var(--accent-fg);
+  cursor: pointer;
+}
+.send:disabled { opacity: .45; cursor: default; }
+button.quiet {
+  background: none; border: 0; color: var(--muted);
+  font: inherit; font-size: 11.5px; cursor: pointer; padding: 2px 6px;
+}
+button.quiet:hover { color: var(--fg); }
+button.go.small { margin-top: 0; padding: 4px 12px; font-size: 12px; }
+
+.note { color: var(--muted); padding: 8px 0; }
+.error { color: #d9534f; padding: 8px 0; white-space: pre-wrap; }
+
+/* --- Board kinds ------------------------------------------------------------
+ * The daemon decides which of these applies; these are just the shapes. The
+ * dispatch mirrors the Mac's, because a collection someone arranged as a matrix
+ * is not the same thing as a list of the same cards — the arrangement is the
+ * information, which is the whole reason for choosing that shape.
+ */
+
+/* Matrix / gridded. Every region the same size, as on the web and on the Mac:
+ * letting a cell grow with its contents makes the quadrant with the most work
+ * in it the biggest, which is backwards. The grid says *where* things are, and
+ * it can only do that if the cells stay put. */
+.grid { display: grid; gap: 8px; height: calc(100vh - 150px); }
+.region {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.region > header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 9px 4px;
+  font-size: 11px; font-weight: 600;
+}
+/* The region's color as a bar rather than a wash — a card has to stay readable
+ * on top of it, and a full-strength tint behind small text looks like a toy. */
+.region .bar { width: 3px; height: 11px; border-radius: 2px; flex: none; }
+.region .count {
+  margin-left: auto; font-weight: 400; font-size: 10px; color: var(--muted);
+  background: color-mix(in srgb, var(--canvas-text) 13%, var(--canvas));
+  border-radius: 99px; padding: 1px 6px;
+}
+.region .body { overflow-y: auto; padding: 0 6px 6px; flex: 1; min-height: 0; }
+.region .card { padding: 5px 8px; margin-bottom: 3px; font-size: 12.5px; }
+.empty { color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+
+/* Unplaced. Always drawn, even with nothing in it: hiding it when empty took
+ * the target away at exactly the moment it was wanted. */
+.drawer { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.drawer h2 { font-size: 11px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+.drawer .row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.drawer .card { width: 190px; flex: none; margin: 0; font-size: 12.5px; }
+
+/* Rollup: a tree, indented by depth. */
+.node { border-left: 1px solid var(--line); margin-left: 5px; padding-left: 10px; }
+.node > .self { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+.node > .self .title { flex: 1; }
+.node > .self.done .title { text-decoration: line-through; color: var(--muted); }
+.heading {
+  display: flex; align-items: center; gap: 8px; margin: 14px 0 4px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+}
+.heading .pill {
+  background: color-mix(in srgb, var(--accent-color) 18%, var(--canvas));
+  color: var(--fg); border-radius: 99px; padding: 2px 8px;
+}
+.heading .rule { flex: 1; height: 1px; background: var(--line); }
+
+/* Canvas: read-only, at the geometry the canvas was arranged with. Scaled to
+ * fit rather than scrollable at full size, because this panel is a look at the
+ * arrangement — editing it is the canvas fork's job, not this one's. */
+.canvas { position: relative; transform-origin: top left; }
+.canvas .node-card {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 8px 10px;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+.canvas .node-card .meta { display: block; margin-top: 4px; }
+
+.canvas .links { position: absolute; inset: 0; overflow: visible; color: var(--muted); pointer-events: none; }
+.canvas .link-label { font-size: 11px; fill: var(--muted); }
+.canvas .note-card {
+  position: absolute;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.canvas .node-card { z-index: 1; }
+.canvas .note-card { z-index: 1; }
+
+/* Drag. The target says so plainly — a drop that lands somewhere you did not
+ * mean is much harder to notice than one that never happened. */
+.card[draggable="true"] { cursor: grab; }
+.card.dragging { opacity: .4; }
+.region.over, .drawer.over {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Something you can click through to. The pointer is the whole affordance —
+ * underlining every card would turn a board into a page of links. */
+.opens { cursor: pointer; }
+.opens:hover { border-color: color-mix(in srgb, var(--accent-color) 55%, var(--canvas)); }
+.node > .self.opens:hover { background: color-mix(in srgb, var(--accent-color) 10%, var(--canvas)); border-radius: 5px; }
+
+/* Glance. What was read, then what it matched. */
+.asked { margin-bottom: 14px; }
+.asked q { display: block; margin-top: 4px; font-style: italic; color: var(--muted); }
+.score {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px; color: var(--muted);
+  background: color-mix(in srgb, var(--canvas-text) 9%, var(--canvas));
+  border-radius: 5px; padding: 1px 5px; flex: none;
+}
+
+/* Relationship fields. A search, what you picked, and what you could pick. */
+.picker { position: relative; }
+.picker .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.picker .chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 3px 6px 3px 8px; border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-color) 16%, var(--canvas));
+  border: 1px solid color-mix(in srgb, var(--accent-color) 34%, var(--canvas));
+}
+.picker .chip .x {
+  background: none; border: 0; color: var(--muted);
+  font-size: 14px; line-height: 1; cursor: pointer; padding: 0 2px;
+}
+.picker .chip .x:hover { color: var(--fg); }
+.picker .options {
+  position: absolute; left: 0; right: 0; z-index: 5;
+  max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.picker .option,
+.typepick .option {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.picker .option:hover,
+.typepick .option:hover { background: color-mix(in srgb, var(--accent-color) 14%, var(--canvas)); }
+.picker .option .title,
+.typepick .option .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon { flex: none; opacity: .75; }
+
+/* Folded sections in Glance. Closed by default: these are the things you did
+ * not ask about, kept rather than hidden. */
+.fold { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.fold > summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); padding: 2px 0;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▸"; font-size: 10px; }
+.fold[open] > summary::before { content: "▾"; }
+.fold > summary:hover { color: var(--fg); }
+.fold > summary .count {
+  margin-left: auto; font-weight: 400;
+  background: color-mix(in srgb, var(--canvas-text) 12%, var(--canvas));
+  border-radius: 99px; padding: 1px 7px;
+}
+.fold .card { margin-top: 8px; }
+
+/* The panel is a floating card: the window has no frame, so the page draws the
+ * edge. The *page* is transparent — the shell tells the engine to paint nothing
+ * — and this element is the only thing with a background, which is what makes
+ * the rounded corners actually round rather than white. */
+html, body { background: transparent; }
+
+/* **The rounding has to be on the thing that clips, not on the outermost box.**
+ *
+ * A radius on `body` rounds `body`, and then `.side` and `.chat-head` paint
+ * their own backgrounds right into the corners it just cut — so the corner is
+ * round and the content inside it is square, which reads as a sloppy edge
+ * rather than as a mistake anybody can name. The clip belongs on whichever
+ * element actually contains the panel's content.
+ */
+.chat, .frame, body > .pane {
+  /* Equal to PANEL_RADIUS in wm/hypr.py: the compositor rounds the window,
+     its shadow and its blur to that, and a different number here shows. */
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 22%, var(--canvas));
+  background: var(--surface);
+  overflow: hidden;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+/* **And the one panel where the clip and the scroll are the same box.**
+ *
+ * The rule above is right for `.chat` and `.frame`, which are containers whose
+ * *children* scroll. New Block is a `.pane` sitting straight on `body`, so it is
+ * both — and `overflow: hidden` here, written for the corners, quietly overruled
+ * the `overflow-y: auto` it was given further up. On a type with several fields
+ * the last one and the Create button sat below the edge with no way down.
+ *
+ * Hidden on one axis and auto on the other still establishes a clipping context,
+ * so the corners stay round; only the vertical axis gets its scrollbar back.
+ */
+body > .pane { overflow-x: hidden; overflow-y: auto; }
+
+/* Nothing inside may paint over the rounded edge. `overflow: hidden` on the
+ * container does the clipping, but a child with its own background and a
+ * square corner still shows through on the sub-pixel boundary — so the first
+ * and last children round with it. */
+.chat > :first-child, .frame > :first-child { border-radius: 11px 11px 0 0; }
+.chat > :last-child, .frame > :last-child { border-radius: 0 0 11px 11px; }
+
+/* Glance cards, shaded.
+ *
+ * A muted olive, mixed from the panel's own text and background rather than
+ * written as a hex pair — so it stays legible in a light theme and a dark one
+ * without a second palette to keep in step, and sits behind text that is still
+ * `var(--canvas-text)`. The hue is fixed because it is a choice about this panel; the
+ * lightness is not, because that belongs to whoever's theme it is.
+ */
+.pane .card {
+  --olive: color-mix(in srgb, #6b7a4a 30%, var(--canvas));
+  background: color-mix(in srgb, var(--olive) 62%, transparent);
+  border-color: color-mix(in srgb, #6b7a4a 34%, var(--line));
+}
+.pane .card.opens:hover {
+  background: color-mix(in srgb, var(--olive) 85%, transparent);
+  border-color: color-mix(in srgb, #6b7a4a 55%, var(--line));
+}
+/* Finished things step back rather than joining in. */
+.pane .card.done { background: color-mix(in srgb, var(--olive) 26%, transparent); }
+
+/* One line per card in a region.
+ *
+ * A matrix cell is a fixed box — that is the point of the shape, and letting a
+ * long title wrap to a second row pushes the card below it out of view without
+ * saying so. Cut it instead, and keep the whole thing in the tooltip: a
+ * quadrant is for seeing *where* things are, and the full sentence is one hover
+ * away. Only in regions and the drawer; a list has the width to wrap.
+ */
+.region .card, .drawer .card { align-items: center; }
+.region .card .title, .drawer .card .title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Waiting, with nothing to read. The dots carry it alone, so they are given a
+ * little more room than they had when a word sat beside them. */
+.bubble > .thinking { padding: 2px 4px; gap: 4px; }
+.bubble > .thinking span { width: 6px; height: 6px; }
+
+/* A table inside a reply. It may be wider than the panel; it scrolls itself
+ * rather than making the whole panel scroll sideways. */
+.bubble .table-scroll { overflow-x: auto; margin: 0 0 8px; }
+.bubble table { font-size: 12.5px; width: auto; min-width: 100%; }
+.bubble th, .bubble td { padding: 4px 9px; white-space: nowrap; }
+.bubble th { background: color-mix(in srgb, var(--canvas-text) 7%, var(--canvas)); }
+
+/* --- The desk -------------------------------------------------------------
+ * Full screen, and the one surface the other panels sit on top of.
+ */
+/*
+ * The whole screen is the frosted sheet.
+ *
+ * The first version painted nothing here and gave the panes a near-solid fill,
+ * so the only frosting anybody could see was the gutter between them — a border
+ * around each quadrant rather than a surface. The tint belongs here, across the
+ * whole window, and the panes sit *in* it rather than on top of it.
+ */
+.desk {
+  position: fixed; inset: 0;
+  /*
+   * `clip`, not `hidden`, and the difference is the whole bug.
+   *
+   * `overflow: hidden` still makes a scroll container — it just has no bars.
+   * Anything the browser decides to scroll into view scrolls it, and a field
+   * inside a quadrant taking focus on load did exactly that: the desk sat at
+   * `scrollLeft: 1599` with the rail still saying `translateX(0)`, so the
+   * surface on screen was not the one the rail thought it was showing and the
+   * canvas was 1577 pixels off to the left. Every swipe over "the canvas" was a
+   * swipe over the rail.
+   *
+   * `overflow: clip` creates no scroll container, so there is nothing to
+   * scroll. The `scroll` guard in `desk.html` is the second lock on the same
+   * door.
+   */
+  overflow: clip;
+  /* Exactly the window's own frosting, across the whole screen. Not a fraction
+   * of it: `--surface-alpha` is 1 when frosting is off, and any fraction would
+   * leave the desk milky over an unblurred desktop — see-through with nothing
+   * behind it to see. */
+  background: var(--surface);
+}
+.rail { display: flex; height: 100vh; width: 300vw; will-change: transform; }
+.surface { width: 100vw; height: 100vh; flex: none; padding: 22px; box-sizing: border-box; }
+
+.quadrants {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 18px;
+  height: 100%;
+}
+/*
+ * A quadrant: a veil over the sheet, not a lid on it.
+ *
+ * Only a little more solid than the desk it sits in — enough that the pane
+ * reads as a pane and its text stays legible over a blurred desktop, and not so
+ * much that the frosting stops at its edge. Both values are tracked from
+ * `--surface-alpha`, so turning frosting up in settings moves the whole screen
+ * together rather than leaving four opaque cards on a clear field.
+ */
+.quadrants .pane {
+  display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 18%, transparent);
+  border-radius: 12px;
+  /* Almost nothing. The frosting is the sheet underneath and it must not stop
+   * at a pane's edge; what makes a pane a pane is its border and its header,
+   * not a lid. A hair of ink rather than a mix with `var(--canvas)`, so this reads the
+   * same whether the sheet under it is opaque or barely there. */
+  background: color-mix(in srgb, var(--canvas-text) 4%, transparent);
+  overflow: hidden;
+}
+.quadrants .pane > header {
+  padding: 7px 13px;
+  background: color-mix(in srgb, var(--canvas-text) 5%, transparent);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.quadrants iframe { flex: 1; border: 0; width: 100%; background: transparent; }
+
+.waiting {
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--canvas-text) 22%, var(--canvas));
+  border-radius: 12px;
+  padding: 40px;
+}
+.waiting h2 { margin: 0; font-size: 19px; }
+.waiting p { margin: 0; max-width: 46ch; color: var(--muted); }
+.waiting .fine { font-size: 12px; opacity: .85; }
+
+/* Where you are, and the two ways to move. Faint until the pointer comes near:
+ * a full-screen surface with permanent chrome is just a window. */
+.chrome {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; border-radius: 99px;
+  background: color-mix(in srgb, var(--canvas-text) 10%, var(--canvas));
+  border: 1px solid var(--line);
+  /* Out of the way until the pointer comes down to it — see `desk.html`. The
+   * transform keeps it from catching the eye on the way in. */
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  pointer-events: none;
+  transition: opacity .18s, transform .18s;
+}
+.chrome.near, .chrome:hover {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+.chrome .step {
+  background: none; border: 0; color: inherit; cursor: pointer;
+  /* A box the icon sits in the middle of, rather than a line of text that
+   * happens to be a glyph. */
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border-radius: 6px;
+}
+.chrome .step:hover { background: color-mix(in srgb, var(--canvas-text) 12%, transparent); }
+.chrome .step svg { display: block; }
+.dots { display: flex; gap: 7px; }
+.dots .dot {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 99px;
+  background: color-mix(in srgb, var(--canvas-text) 35%, var(--canvas)); cursor: pointer;
+}
+/* The grey is declared first so that a browser without `AccentColor` keeps a
+ * visible dot rather than an invisible one: an invalid `var()` makes the whole
+ * declaration unset, and this is the only thing on screen saying where you are. */
+.dots .dot.here { background: var(--canvas-text); background: var(--accent); }
+
+/* --- Today's page, and the long-text field it is made of -------------------
+ * Hermes' own editor cannot be framed here (`frame-ancestors`), so this is the
+ * editor. Same model: the block you are in shows its markdown, the rest render.
+ */
+.today { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.today-holder { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.today-state {
+  padding: 4px 14px; font-size: 11px; color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.note-field { display: flex; flex-direction: column; gap: 2px; }
+.note-block {
+  padding: 2px 4px; border-radius: 6px; cursor: text;
+  /* The hover is what says a block is editable at all. Without it the page
+   * looks like a document rather than one you can click into. */
+  transition: background .12s;
+}
+.note-block:hover { background: color-mix(in srgb, var(--canvas-text) 5%, transparent); }
+.note-block > :first-child { margin-top: 0; }
+.note-block > :last-child { margin-bottom: 0; }
+.note-block p, .note-block ul, .note-block ol { margin: 3px 0; }
+.note-empty { color: var(--muted); font-style: italic; }
+
+/* The block being edited: its own markdown, in the same place the rendering
+ * was, so the line does not jump when you click it. */
+.note-source { position: relative; }
+.note-source textarea {
+  width: 100%; box-sizing: border-box; resize: none; overflow: hidden;
+  border: 1px solid var(--accent); border-radius: 6px;
+  padding: 2px 4px; min-height: 1.6em;
+  font: 13px/1.55 ui-monospace, "Noto Sans Mono", monospace;
+  background: color-mix(in srgb, var(--canvas) 88%, var(--canvas-text)); color: var(--fg);
+}
+.note-source textarea:focus { outline: none; }
+
+/* A task line. The box is real and it writes back to the markdown. */
+li.task { list-style: none; margin-left: -1.2em; display: flex; gap: 7px; align-items: baseline; }
+li.task input { margin: 0; flex: none; }
+li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
+
+/* A mention, rendered. Not a link with a URL in it — the href is `block:<id>`,
+ * which is not something to show anybody. */
+.chip-link {
+  text-decoration: none; border-radius: 5px; padding: 0 5px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: inherit; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.chip-link.tag {
+  background: color-mix(in srgb, var(--olive, var(--canvas-text)) 20%, transparent);
+  border-color: color-mix(in srgb, var(--canvas-text) 18%, transparent);
+  cursor: default;
+}
+.chip-link.block:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* The picker. Floats over the field, under the caret's line. */
+.mention-menu {
+  position: absolute; z-index: 20; min-width: 220px; max-width: 340px;
+  padding: 4px; border-radius: 8px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--canvas) 96%, var(--canvas-text));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+}
+.mention-row {
+  display: flex; width: 100%; gap: 10px; align-items: baseline;
+  padding: 4px 8px; border: 0; border-radius: 6px; cursor: pointer;
+  background: none; color: inherit; font: inherit; text-align: left;
+}
+.mention-row.here { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.mention-row > span:first-child {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mention-note { font-size: 11px; color: var(--muted); flex: none; }
+
+
+/* --- Framed: the same page, as a quadrant of the desk ----------------------
+ * Its own chrome comes off. The pane around it has a border and a name; a
+ * second border two pixels inside the first is the sort of detail that makes a
+ * screen look assembled rather than designed. See `api.js`.
+ */
+.framed body { background: transparent; }
+.framed .chat, .framed .frame, .framed body > .pane {
+  border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  height: 100%;
+}
+/* The pane's own header already says which one this is — whether the page says
+ * it in a bar or in a heading. */
+.framed .chat-head, .framed body > .pane > h1 { display: none; }
+
+/*
+ * The canvas is a pane, like the four on the desk.
+ *
+ * The Mac says why in one sentence: the canvas "needs an edge for the same
+ * reason the panes do: without one it is the whole screen and there is nothing
+ * to say where the surface stops and the desktop showing through it begins."
+ * So it gets the quadrants' border and radius, and the frosting layers the same
+ * way — the desk's sheet outside it, the pane's own thin veil within.
+ */
+.surface[data-name="var(--canvas)"] {
+  display: flex;
+}
+.canvas-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 18%, transparent);
+  border-radius: 12px;
+  background: transparent;
+  /* The frame's own corners must clip what the page inside paints, or the
+   * canvas's grid runs out past the rounded edge. */
+  overflow: hidden;
+}
+
+/*
+ * The writing surface fills its screen and draws no edge of its own.
+ *
+ * Unlike the canvas, whose page paints to the very edge and therefore needs the
+ * frame to give it a border, this one draws a toolbar and a sheet inside itself
+ * — two rounded boxes already. A third around them would be a box in a box in a
+ * box.
+ */
+.surface[data-name="Writing"] { display: flex; }
+.writing-frame {
+  flex: 1; width: 100%; height: 100%;
+  border: 0; background: transparent;
+}
+
+/* Frosting off: the desk is a surface rather than a window onto the desktop.
+ * One class on the root, because the sheet, the panes and the chrome all have
+ * to agree — a solid desk with a translucent pane on it reads as a bug. */
+.solid .desk { background: var(--canvas); }
+.solid .quadrants .pane { background: color-mix(in srgb, var(--canvas-text) 3%, var(--canvas)); }
+.chrome .frost { opacity: .55; }
+.chrome .frost.on { opacity: 1; color: var(--accent); }
+.chrome-sep {
+  width: 1px; height: 14px; margin: 0 2px;
+  background: color-mix(in srgb, var(--canvas-text) 25%, transparent);
+}
+
+/* The row the keyboard is on, in the reference picker. */
+.pane .card.here {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* --- The noticed queue -----------------------------------------------------
+ * A proposal is three lines and two verbs, not a row of chips: what kind of
+ * observation it is, what it is about, and why it was raised. Borrowing the
+ * board's row shape put a title in a column two words wide.
+ */
+#body .card.noticed {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "kind actions" "title actions" "why actions" "when actions";
+  gap: 2px 14px;
+  align-items: start;
+  padding: 10px 12px;
+}
+.card.noticed .kind {
+  grid-area: kind;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted);
+}
+.card.noticed .title { grid-area: title; font-weight: 600; }
+.card.noticed .why { grid-area: why; font-size: 12px; color: var(--muted); }
+.card.noticed .doing { grid-area: actions; display: flex; gap: 6px; align-items: center; }
+.card.noticed .when {
+  grid-area: when;
+  font-size: 11px; color: var(--muted); margin-top: 3px;
+}
+/* Dismissed, not deleted — and it should read that way at a glance: present,
+ * legible, plainly not part of the queue. Faded rather than struck through,
+ * because a strike says "finished" and these were never done. */
+.card.noticed.dropped { opacity: .62; }
+.card.noticed.dropped:hover { opacity: 1; }
+
+/* The two halves of the queue. A segmented pair rather than a dropdown: there
+ * are exactly two, and which one you are on should be readable without
+ * opening anything. */
+.tabs { margin-left: auto; display: inline-flex; gap: 2px; }
+.tabs .tab {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--muted); font: inherit; font-size: 11.5px;
+  padding: 2px 9px; cursor: pointer;
+}
+.tabs .tab:hover { color: var(--canvas-text); background: color-mix(in srgb, var(--canvas-text) 7%, transparent); }
+.tabs .tab.on {
+  color: var(--canvas-text);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--canvas-text) 6%, transparent);
+}
+
+/* --- The writing surface ---------------------------------------------------
+ *
+ * A sheet with a strip of tools over it, and nothing else. The desk's other two
+ * surfaces are full of Hermes; this one has no library in it at all, and the
+ * look follows: one column, generous measure, and chrome that stays out of the
+ * way of the words.
+ */
+.writer { display: flex; flex-direction: column; height: 100%; position: relative; }
+
+.tools {
+  display: flex; align-items: center; gap: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+  margin-bottom: 14px;
+  flex: none;
+}
+.solid .tools { background: var(--raised); }
+/* A toolbar is a row of things at their own size. Without this the document
+ * name is squeezed to three letters and the style menu inherits the form
+ * stylesheet's `width: 100%`. */
+.tools > * { flex: none; }
+.tools button {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--fg); font: inherit; font-size: 13px;
+  min-width: 26px; height: 26px; padding: 0 6px; cursor: pointer;
+}
+.tools button svg { display: block; margin: 0 auto; }
+.tools button:hover:not(:disabled) { background: color-mix(in srgb, var(--canvas-text) 8%, transparent); }
+.tools button:disabled { opacity: .3; cursor: default; }
+/* On, meaning the caret is inside one — the toolbar answering rather than
+ * offering. */
+.tools button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.tools select {
+  width: auto; min-width: 108px;
+  background: none; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--fg); font: inherit; font-size: 12.5px; height: 26px; padding: 0 4px;
+}
+/* Each menu at its own width: a size list of two-digit numbers does not need
+ * the room "Heading 1" does. */
+.tools #font { min-width: 92px; }
+.tools #size { min-width: 52px; }
+.tools .tsep { width: 1px; height: 18px; background: var(--line); margin: 0 5px; flex: none; }
+.tools .grow { flex: 1 1 auto; }
+.tools .state { flex: none; font-size: 11.5px; color: var(--muted); min-width: 54px; text-align: right; }
+.tools .state.bad { color: #d9534f; }
+.tools .doc { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools .doc .caret { color: var(--muted); margin-left: 5px; font-size: 11px; }
+
+/* The sheet is the thing that scrolls; the page inside it is the paper. */
+.sheet {
+  flex: 1; min-height: 0; overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+}
+.solid .sheet { background: var(--raised); }
+
+.page {
+  /*
+   * The whole width, which is a decision rather than a default.
+   *
+   * This started with a 46rem measure, on the usual argument that long lines
+   * are the one typographic mistake that makes reading physically harder. That
+   * argument is about *reading* prose you did not write. A full-screen surface
+   * somebody chose to open is a desk, and a column down the middle of it with
+   * two empty thirds either side reads as a page that failed to load. The
+   * measure is the writer's to set now, with the size control below.
+   */
+  padding: 34px 46px 55vh;
+  outline: none;
+  /* Both set from the toolbar and remembered per surface — they are how the
+   * page looks, not what the document says, and Markdown has no way to record
+   * either. */
+  font-family: var(--writing-font, system-ui, "Noto Sans", sans-serif);
+  font-size: var(--writing-size, 15px);
+  line-height: 1.7;
+}
+/* Room to write past the last line, so the caret is never pinned to the bottom
+ * edge of the screen. That is what the tall bottom padding above is for. */
+.page > * { margin: 0 0 0.75em; }
+.page h1 { font-size: 1.7em; margin: 1.1em 0 .4em; font-weight: 650; }
+.page h2 { font-size: 1.35em; margin: 1em 0 .35em; font-weight: 650; }
+.page h3 { font-size: 1.12em; margin: .9em 0 .3em; font-weight: 650; }
+.page > :first-child { margin-top: 0; }
+/*
+ * A quote and an indented block are the same thing here, because in Markdown
+ * they are the same thing: `>` is the one construct the format has for shifting
+ * a block right, and it nests. So this is styled as indentation with a rule
+ * rather than as a pull quote — light enough to read as a margin, present enough
+ * to show the level. The text keeps its own color: greying it would be right for
+ * a quotation and wrong for the paragraph somebody simply moved over.
+ */
+.page blockquote {
+  border-left: 2px solid color-mix(in srgb, var(--canvas-text) 16%, transparent);
+  margin: 0 0 .75em; padding: 0 0 0 18px;
+}
+/* Nested levels indent by nesting, so the padding compounds on its own. */
+.page blockquote > * { margin: 0 0 .55em; }
+.page blockquote > :last-child { margin-bottom: 0; }
+.page pre {
+  background: color-mix(in srgb, var(--canvas-text) 7%, transparent);
+  border-radius: 8px; padding: 10px 12px; overflow-x: auto;
+  font: 12.5px/1.55 ui-monospace, "JetBrains Mono", monospace;
+}
+.page code { font: .9em ui-monospace, "JetBrains Mono", monospace; }
+.page hr { border: 0; border-top: 1px solid var(--line); margin: 1.4em 0; }
+.page ul, .page ol { padding-left: 1.6em; }
+.page li { margin: .2em 0; }
+.page a { color: var(--accent); }
+
+/*
+ * A checklist is a `ul` wearing `data-check`, and this is the whole of what
+ * makes it look like one.
+ *
+ * The box is drawn in the item's own left padding rather than being an element,
+ * because a real `<input>` inside a contenteditable can be caret-selected,
+ * dragged and backspaced away. `writing.html` hit-tests the same 22 pixels this
+ * rule reserves.
+ */
+.page ul[data-check] { list-style: none; padding-left: 1.55em; }
+.page ul[data-check] > li { position: relative; }
+.page ul[data-check] > li::before {
+  content: "";
+  position: absolute; left: -1.35em; top: .32em;
+  width: 13px; height: 13px;
+  border: 1.5px solid color-mix(in srgb, var(--canvas-text) 40%, transparent);
+  border-radius: 3.5px;
+  cursor: pointer;
+}
+.page ul[data-check] > li[data-done="1"]::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.page ul[data-check] > li[data-done="1"]::after {
+  content: "✓";
+  position: absolute; left: -1.28em; top: .2em;
+  font-size: 11px; color: var(--accent-fg); pointer-events: none;
+}
+.page ul[data-check] > li[data-done="1"] { color: var(--muted); }
+
+/* The documents, as a sheet that drops from the name. */
+.doclist {
+  position: absolute; top: 42px; left: 0; z-index: 5;
+  width: 340px; max-height: 60vh; overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .25);
+  padding: 6px;
+}
+.doc-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 8px; }
+.doc-head .fine { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-row { display: flex; align-items: center; gap: 4px; border-radius: 7px; }
+.doc-row:hover { background: color-mix(in srgb, var(--canvas-text) 7%, transparent); }
+.doc-row.here { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.doc-open {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: none; border: 0; color: inherit; font: inherit;
+  padding: 6px 8px; cursor: pointer; text-align: left; min-width: 0;
+}
+.doc-open .title { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- Tables on the writing surface -----------------------------------------
+ * A Markdown table is a rectangle of text, so this draws a rectangle: rules
+ * rather than fills, a heading row that is only heavier by its weight, and
+ * enough padding that a cell can be clicked into without aiming.
+ */
+.page table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 .9em;
+  font-size: .96em;
+}
+.page th, .page td {
+  border: 1px solid color-mix(in srgb, var(--canvas-text) 20%, transparent);
+  padding: 6px 10px;
+  vertical-align: top;
+  /* A cell has to be clickable when it is empty, which it is not if it has no
+   * height of its own. */
+  min-width: 3em;
+}
+.page th { font-weight: 650; background: color-mix(in srgb, var(--canvas-text) 5%, transparent); }
+/* Alignment is the column's, and is carried on every cell in it because that is
+ * the only way Markdown can say it — one rule under the heading. */
+.page [data-align="left"] { text-align: left; }
+.page [data-align="center"] { text-align: center; }
+.page [data-align="right"] { text-align: right; }
+
+/* The strip that appears with the caret in a table. It sits under the toolbar
+ * rather than inside it: seven controls that mean nothing the rest of the time
+ * would be seven dead buttons on every other line of the document. */
+/* `display: flex` outranks the `hidden` attribute's rule in the browser's own
+ * stylesheet, so without this the strip was on screen at all times — hidden in
+ * the markup, visible on the page, and no amount of toggling the attribute made
+ * any difference. */
+.tabletools[hidden] { display: none; }
+.tabletools {
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 8px;
+  margin: -8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+  flex: none;
+}
+.solid .tabletools { background: var(--raised); }
+.tabletools button {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--fg); font: inherit; font-size: 12px;
+  height: 24px; padding: 0 8px; cursor: pointer; white-space: nowrap;
+}
+.tabletools button:hover { background: color-mix(in srgb, var(--canvas-text) 8%, transparent); }
+
+/* A line that is arithmetic reads as arithmetic: figures line up, and the
+ * answer after the arrow is the machine's rather than the writer's. */
+.page p.calc {
+  font-family: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  font-size: .92em;
+}
+.page pre code[data-language="calc"] { display: block; }
+
+/* A block whose whole content was a stray `/` — see `notefield.js`. It draws
+   nothing and still has to be a target, or the line cannot be got back into. */
+.note-block .note-blank { min-height: 1.5em; margin: 0; }
+
+/* --- The type picker on New Block ------------------------------------------
+ * A `<select>` cannot draw an icon, and the type is the one choice on that form
+ * where a picture helps: six words that all look alike against six shapes you
+ * recognize without reading. Built from the reference picker's own parts, so
+ * there is one row style on the page rather than two.
+ */
+.typepick { position: relative; }
+.typepick-current {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; text-align: left;
+  padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font: inherit;
+  cursor: pointer;
+}
+.typepick-current:hover { border-color: color-mix(in srgb, var(--canvas-text) 35%, var(--line)); }
+.typepick-current .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+/* The list sits over what follows it rather than pushing the form down. */
+.typepick .options {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 6;
+  background: var(--raised);
+  border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 10px 26px rgb(0 0 0 / .22);
+  padding: 4px;
+  max-height: 260px; overflow-y: auto;
+}
+
+/* Glance: a card found by the window's name, in place of a score. */
+.card .named { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+
+/* Glance: "Show text" beside the window a screen reading came from, and the
+   sheet it opens over the panel. */
+.reveal { margin-left: 8px; padding: 1px 8px; font-size: 11.5px; border-radius: 6px;
+  border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.reveal:hover { color: var(--fg); border-color: var(--muted); }
+.textsheet { position: fixed; inset: 0; z-index: 50; display: flex; padding: 10px;
+  background: color-mix(in srgb, var(--canvas) 55%, transparent); }
+.textsheet-box { flex: 1; min-height: 0; display: flex; flex-direction: column;
+  background: var(--canvas); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; }
+.textsheet-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.textsheet-text { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, monospace; }
+
+/* New Block: a datespan's two ends, side by side, each under its own label. */
+.span-legs { display: flex; gap: 12px; }
+.span-leg { flex: 1; margin: 0; }
+.span-leg > span { display: block; margin-bottom: 4px; }
+.span-leg > input { width: 100%; }
