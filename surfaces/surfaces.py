@@ -360,7 +360,7 @@ class Desktop(QObject):
         elif name in ("lock", "suspend", "logout", "restart", "shutdown"):
             self.machine.power(name)
         elif name in ("network", "bluetooth"):
-            self.machine.open_tool(name)
+            self.bar.toggle_popup(name)
         else:
             return "No such thing to do"
         return ""

@@ -8,9 +8,11 @@ Read from the tools already here — `wpctl`, `nmcli`, `bluetoothctl` and
 a binding to keep working. A poll every few seconds, off the GUI thread, is
 what that costs; each read is a few milliseconds of a small process.
 
-And what the bar can do to it: the volume, and the power menu. The deeper
-settings are handed to the tools that already do them well (`nmtui`,
-`bluetoothctl`) in a terminal, not rebuilt.
+And what the bar can do to it: the volume, the power menu, and Wi-Fi and
+Bluetooth — joining a network, connecting a device — still through `nmcli`
+and `bluetoothctl` rather than rebuilt. Anything those panels cannot say (an
+enterprise network's certificates, a device that wants a PIN confirmed) goes
+to the full tool in a terminal, as everything did in the first pass.
 """
 
 from __future__ import annotations
@@ -132,11 +134,143 @@ POWER = {
 TOOLS = {"network": ("nmtui",), "bluetooth": ("bluetoothctl",)}
 
 
+# ---------------------------------------------------------------- Wi-Fi and Bluetooth
+
+def _fields(line: str) -> list[str]:
+    """One line of `nmcli -t`: colon-separated, with colons inside a value escaped."""
+    out, cur, esc = [], "", False
+    for ch in line:
+        if esc:
+            cur += ch
+            esc = False
+        elif ch == "\\":
+            esc = True
+        elif ch == ":":
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur)
+    return out
+
+
+def wifi_state(rescan: bool = False) -> dict:
+    on = _run("nmcli", "radio", "wifi").strip() == "enabled"
+    if not on:
+        return {"on": False, "networks": []}
+    known = {}
+    active = None
+    for line in _run("nmcli", "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show").splitlines():
+        f = _fields(line)
+        if len(f) >= 3 and f[1] == "802-11-wireless":
+            known[f[0]] = True
+            if f[2]:
+                active = f[0]
+    seen: dict[str, dict] = {}
+    rows = _run("nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
+                # NetworkManager scans by itself every so often; only Rescan asks it to now.
+                "--rescan", "yes" if rescan else "no", timeout=20 if rescan else 4).splitlines()
+    for line in rows:
+        f = _fields(line)
+        if len(f) < 4 or not f[1]:
+            continue
+        ssid, security = f[1], f[3].strip()
+        try:
+            signal = int(f[2])
+        except ValueError:
+            signal = 0
+        n = seen.get(ssid)
+        # One row per name: the strongest of its access points.
+        if n and n["signal"] >= signal and not f[0] == "*":
+            continue
+        seen[ssid] = {
+            "ssid": ssid, "signal": signal, "secure": bool(security and security != "--"),
+            # A network this panel cannot join with a password alone.
+            "enterprise": "802.1X" in security, "known": ssid in known,
+            "connected": f[0] == "*" or (n or {}).get("connected", False),
+        }
+    networks = sorted(seen.values(), key=lambda n: (not n["connected"], not n["known"], -n["signal"]))
+    return {"on": True, "active": active, "networks": networks}
+
+
+def _bt_info(mac: str) -> dict:
+    info = _run("bluetoothctl", "info", mac)
+    get = lambda key: (re.search(rf"^\s*{key}:\s*(.+)$", info, re.M) or [None, ""])[1].strip()
+    battery = re.search(r"Battery Percentage:.*\((\d+)\)", info)
+    return {"connected": get("Connected") == "yes", "icon": get("Icon"),
+            "battery": int(battery.group(1)) if battery else None}
+
+
+def _bt_devices(which: str = "") -> list[tuple[str, str]]:
+    found = []
+    for line in _run("bluetoothctl", "devices", *([which] if which else [])).splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) == 3 and parts[0] == "Device":
+            found.append((parts[1], parts[2]))
+    return found
+
+
+_MAC = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$", re.I)
+
+
+def bluetooth_state(scan_seconds: int = 0) -> dict:
+    show = _run("bluetoothctl", "show")
+    if not show:
+        return {"present": False}
+    on = bool(re.search(r"Powered:\s*yes", show))
+    if not on:
+        return {"present": True, "on": False, "paired": [], "nearby": []}
+    if scan_seconds:
+        _run("bluetoothctl", "--timeout", str(scan_seconds), "scan", "on", timeout=scan_seconds + 5)
+    paired = [{"mac": mac, "name": name, **_bt_info(mac)} for mac, name in _bt_devices("Paired")]
+    taken = {d["mac"] for d in paired}
+    # Nearby: what a scan turned up and is not already yours. A device with
+    # no name shows its address as its name, and is not worth a row.
+    nearby = [{"mac": mac, "name": name} for mac, name in _bt_devices()
+              if mac not in taken and name.replace("-", ":").upper() != mac.upper()]
+    return {"present": True, "on": True, "paired": paired, "nearby": nearby}
+
+
+class _Panel(QRunnable):
+    """A panel's slow work — a scan, a connection — off the screen's thread."""
+
+    def __init__(self, machine: "Machine", kind: str, work) -> None:
+        super().__init__()
+        self.machine, self.kind, self.work = machine, kind, work
+
+    def run(self) -> None:
+        error = ""
+        try:
+            error = self.work() or ""
+        except Exception as e:  # noqa: BLE001 — whatever went wrong is shown, not raised
+            error = str(e)
+        state = wifi_state() if self.kind == "network" else bluetooth_state()
+        self.machine.panel.emit(json.dumps({"kind": self.kind, "state": state, "error": error}))
+        self.machine.refresh()
+
+
+def _ran(*cmd: str, timeout: float = 30) -> str:
+    """Run it; answer the tool's own complaint if it failed, empty if it did not."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return "That took too long"
+    except OSError as e:
+        return str(e)
+    if r.returncode == 0 and "failed" not in r.stdout.lower():
+        return ""
+    text = (r.stderr or r.stdout).strip().splitlines()
+    # nmcli says "Error: …"; the last line is the reason.
+    return (text[-1] if text else "It did not work").removeprefix("Error: ")
+
+
 class Machine(QObject):
     """One reading of the machine, shared by every surface that shows it."""
 
     #: The latest reading, as JSON — emitted from a worker, delivered on the GUI thread.
     read = Signal(str)
+    #: A panel's state after it was read or acted on: `{kind, state, error}`.
+    panel = Signal(str)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -144,6 +278,8 @@ class Machine(QObject):
         self.read.connect(self._keep)
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
+        self._panels = QThreadPool(self)
+        self._panels.setMaxThreadCount(2)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
         self._timer.start(POLL_MS)
@@ -180,3 +316,59 @@ class Machine(QObject):
             (t for t in ("ghostty", "kitty", "foot", "alacritty") if shutil.which(t)), None)
         if terminal:
             _detach(terminal, "-e", *TOOLS[name])
+
+    # ------------------------------------------------------------ the panels
+
+    def panel_read(self, kind: str, deep: bool = False) -> None:
+        """Read a panel's state — `deep` rescans Wi-Fi, or scans for Bluetooth devices."""
+        def work() -> str:
+            # The scan's own result is read again by `_Panel`; this only makes it happen.
+            if deep and kind == "network":
+                wifi_state(rescan=True)
+            elif deep and kind == "bluetooth":
+                bluetooth_state(scan_seconds=8)
+            return ""
+
+        if kind in ("network", "bluetooth"):
+            self._panels.start(_Panel(self, kind, work))
+
+    def network(self, r: dict) -> None:
+        verb, ssid = r.get("verb"), str(r.get("ssid", ""))
+        if verb == "power":
+            work = lambda: _ran("nmcli", "radio", "wifi", "on" if r.get("on") else "off")
+        elif verb == "join" and ssid:
+            password = str(r.get("password", ""))
+            if r.get("known"):
+                work = lambda: _ran("nmcli", "connection", "up", "id", ssid, timeout=45)
+            elif password:
+                # nmcli takes the password as an argument; it is on this machine's
+                # process list for the moment the join takes, and nowhere else.
+                work = lambda: _ran("nmcli", "device", "wifi", "connect", ssid, "password", password, timeout=45)
+            else:
+                work = lambda: _ran("nmcli", "device", "wifi", "connect", ssid, timeout=45)
+        elif verb == "leave" and ssid:
+            work = lambda: _ran("nmcli", "connection", "down", "id", ssid)
+        elif verb == "forget" and ssid:
+            work = lambda: _ran("nmcli", "connection", "delete", "id", ssid)
+        else:
+            return
+        self._panels.start(_Panel(self, "network", work))
+
+    def bluetooth(self, r: dict) -> None:
+        verb, mac = r.get("verb"), str(r.get("mac", ""))
+        if verb == "power":
+            work = lambda: _ran("bluetoothctl", "power", "on" if r.get("on") else "off")
+        elif mac and _MAC.match(mac) and verb in ("connect", "disconnect", "forget", "pair"):
+            if verb == "pair":
+                # Pair, trust so it may come back by itself, then connect. A
+                # device that wants a PIN confirmed needs the full tool.
+                work = lambda: (_ran("bluetoothctl", "--timeout", "20", "pair", mac, timeout=25)
+                                or _ran("bluetoothctl", "trust", mac)
+                                or _ran("bluetoothctl", "--timeout", "15", "connect", mac, timeout=20))
+            elif verb == "forget":
+                work = lambda: _ran("bluetoothctl", "remove", mac)
+            else:
+                work = lambda: _ran("bluetoothctl", "--timeout", "15", verb, mac, timeout=20)
+        else:
+            return
+        self._panels.start(_Panel(self, "bluetooth", work))

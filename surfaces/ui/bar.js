@@ -28,14 +28,15 @@ function onState(s) {
   }
   $("morgan").classList.toggle("absent", !s.morgan);
   $("morgan").title = s.morgan ? "Ask Morgan" : "Morgan is not running";
-  for (const [id, kind] of [["vol", "volume"], ["power", "power"]]) $(id).classList.toggle("on", s.popup === kind);
+  for (const [id, kind] of [["vol", "volume"], ["power", "power"], ["net", "network"], ["bt", "bluetooth"]]) {
+    $(id).classList.toggle("on", s.popup === kind);
+  }
 }
 
 function onMachine(m) {
   const net = m.network || {};
   $("net").innerHTML = net.kind === "wifi" ? Icons.wifi(net.signal) : net.kind === "ethernet" ? Icons.ethernet() : Icons.offline();
-  $("net").title = net.kind === "none" ? "Offline — open network settings"
-    : `${net.name}${net.signal != null ? ` · ${net.signal}%` : ""} — open network settings`;
+  $("net").title = net.kind === "none" ? "Offline" : `${net.name}${net.signal != null ? ` · ${net.signal}%` : ""}`;
 
   const bt = m.bluetooth || {};
   $("bt").hidden = !bt.present;
@@ -81,13 +82,13 @@ $("vol").addEventListener("wheel", (e) => {
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("morgan").addEventListener("click", () => bridge && bridge.launcher("ask"));
-$("net").addEventListener("click", () => bridge && bridge.openTool("network"));
-$("bt").addEventListener("click", () => bridge && bridge.openTool("bluetooth"));
+$("net").addEventListener("click", () => bridge && bridge.popup("network"));
+$("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
 
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #ask, #morgan")) return;
+  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan")) return;
   bridge.file();
 }, true);
 

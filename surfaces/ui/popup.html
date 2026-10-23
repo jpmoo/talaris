@@ -16,7 +16,29 @@ html, body { height: 100%; }
 /* A menu panel (controls.css), filling the surface but for a margin its
    shadow can fall into. */
 .panel { position: absolute; inset: 4px 6px 8px; display: none; flex-direction: column; }
-body[data-popup="power"] #power, body[data-popup="volume"] #volume { display: flex; }
+body[data-popup="power"] #power, body[data-popup="volume"] #volume,
+body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth { display: flex; }
+.menu .hint { align-items: center; }
+
+/* Wi-Fi and Bluetooth: a list that scrolls, things you can do under it. */
+.list { flex: 1; min-height: 0; overflow: auto; }
+.list .menu-item { justify-content: flex-start; }
+.list .menu-item .ic { width: 16px; height: 16px; flex: none; }
+.list .menu-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .menu-item .meta { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; flex: none; }
+.list .menu-item.current .nm { color: var(--accent); }
+.list .menu-item.busy { opacity: .6; cursor: progress; }
+.list .label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 8px 10px 2px; }
+.list .none { font-size: 12px; color: var(--muted); padding: 4px 10px 8px; }
+/* What a chosen row opens: a password, or what can be done to it. */
+.detail { display: flex; gap: 6px; align-items: center; padding: 2px 10px 8px 34px; flex-wrap: wrap; }
+.detail input { flex: 1; min-width: 0; padding: 3px 8px; font-size: 13px; }
+.detail .t-btn { font-size: 12px !important; padding: 1px 10px !important; }
+.detail .t-btn.armed { color: var(--danger) !important; border-color: var(--danger) !important; }
+.foot { display: flex; gap: 6px; padding: 6px 6px 2px; }
+.foot .t-btn { font-size: 12px !important; }
+.err { color: var(--danger); font-size: 12px; padding: 2px 10px; min-height: 0; }
+.err:empty { display: none; }
 .menu .hint { display: flex; justify-content: space-between; }
 
 /* Asking twice: the row says what it is about to do, in the danger color. */
@@ -52,7 +74,22 @@ input[type="range"]::-webkit-slider-thumb {
   <div class="row"><input type="range" id="level" min="0" max="100" step="1"><span id="vol-n"></span></div>
   <div class="row"><button class="t-btn" id="mute">Mute</button></div>
 </div>
+<div class="panel menu" id="network">
+  <div class="hint"><span>Wi-Fi</span><button class="switch" id="wifi-on" title="Wi-Fi on or off"></button></div>
+  <div class="list" id="nets"></div>
+  <div class="err" id="net-err"></div>
+  <div class="menu-sep"></div>
+  <div class="foot"><button class="t-btn" id="rescan">Rescan</button><button class="t-btn" id="net-more">More settings</button></div>
+</div>
+<div class="panel menu" id="bluetooth">
+  <div class="hint"><span>Bluetooth</span><button class="switch" id="bt-on" title="Bluetooth on or off"></button></div>
+  <div class="list" id="devs"></div>
+  <div class="err" id="bt-err"></div>
+  <div class="menu-sep"></div>
+  <div class="foot"><button class="t-btn" id="scan">Find devices</button><button class="t-btn" id="bt-more">More settings</button></div>
+</div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="icons.js"></script>
 <script src="surface.js"></script>
 <script src="popup.js"></script>
 </body>

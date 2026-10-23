@@ -271,7 +271,15 @@ clear of it.
   2026-10-23; the first pass handed them to `nmtui` and `bluetoothctl` in a
   terminal): the networks in reach, joining one, with a password asked for in
   the panel; Bluetooth on and off, devices paired and in reach, connecting.
-  Still through `nmcli` and `bluetoothctl`, not rebuilt.
+  Still through `nmcli` and `bluetoothctl`, not rebuilt. **Built**: each is a
+  popup from its bar item — Wi-Fi on and off, networks by strength with saved
+  ones first, a press joins an open or saved network and opens a password row
+  for the rest, Disconnect and Forget (asked twice); Bluetooth on and off, your
+  devices with connect, disconnect and forget, Find devices (an eight-second
+  scan), and Pair (pair, trust, connect). What the panels cannot do —
+  enterprise sign-in, a PIN to confirm — is *More settings*, the full tool in
+  a terminal. The password reaches `nmcli` as an argument, so it is on this
+  machine's process list for the moment of joining.
 - **The power menu**: lock, log out, suspend, restart, shut down.
 - **Plugin items**, where a plugin asks for one.
 

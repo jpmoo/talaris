@@ -46,10 +46,12 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 232), "volume": (240, 104)}
+POPUPS = {"power": (210, 232), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
 
-#: A popup nobody touches puts itself away.
+#: A popup nobody touches puts itself away — later for the ones where a
+#: password is typed or a scan is waited on.
 POPUP_IDLE_MS = 12000
+POPUP_IDLE_LONG_MS = 45000
 
 #: Making the surface anew takes its focus away and gives it back, which the
 #: page hears as the pointer going elsewhere. For this long after a popup
@@ -64,6 +66,20 @@ class BarBridge(Bridge):
 
     #: Pushed to the page: a new reading of the machine.
     machine = Signal(str)
+    #: Pushed to the popup: a Wi-Fi or Bluetooth panel's state, `{kind, state, error}`.
+    panel = Signal(str)
+
+    @Slot(str, bool)
+    def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.machine.panel_read(kind, deep)
+
+    @Slot(str)
+    def network(self, request: str) -> None:
+        self.owner.desktop.machine.network(json.loads(request))
+
+    @Slot(str)
+    def bluetooth(self, request: str) -> None:
+        self.owner.desktop.machine.bluetooth(json.loads(request))
 
     @Slot(str)
     def volume(self, change: str) -> None:
@@ -117,6 +133,8 @@ class Popup(QObject):
         # Respecting other surfaces' reserved space puts it just clear of the bar.
         self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, w, h, KEYBOARD_ON_DEMAND))
         self.bridge.state.emit(json.dumps(self.describe()))
+        if kind in ("network", "bluetooth"):
+            self.desktop.machine.panel_read(kind)
         self.touched()
 
     def file_away(self) -> None:
@@ -144,7 +162,7 @@ class Popup(QObject):
 
     def touched(self) -> None:
         if self.kind:
-            self.idle.start(POPUP_IDLE_MS)
+            self.idle.start(POPUP_IDLE_LONG_MS if self.kind in ("network", "bluetooth") else POPUP_IDLE_MS)
 
 
 class Bar(QObject):
@@ -159,6 +177,7 @@ class Bar(QObject):
         self.surface = LayerSurface(self.view, "talaris-bar")
         self.popup = Popup(profile, self)
         desktop.machine.read.connect(self._reading)
+        desktop.machine.panel.connect(self.popup.bridge.panel.emit)
         self.morgan = None
         self._watch = QTimer(self)
         self._watch.timeout.connect(self._morgan)

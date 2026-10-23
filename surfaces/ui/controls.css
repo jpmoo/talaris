@@ -21,6 +21,8 @@ not a second opinion somewhere else.
                letter-spaced labels for its sections.
   bar item     an icon button that keeps its hairline hidden until hovered:
                a row of readings each in a box is a spreadsheet, not a bar.
+  switch       on or off: a small track, the accent's when on, its knob at
+               that end.
   field        the desk's ground, a hairline, --radius-row corners, accent
                when focused.
 
@@ -156,16 +158,31 @@ button.bar-item:hover { border-color: var(--line); color: var(--accent); }
 .cv-swatch:hover { border-color: var(--accent) !important; }
 .cv-swatch.is-on { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent) !important; }
 
+/* ---- switches ---------------------------------------------------------- */
+
+.switch {
+  position: relative; width: 30px; height: 16px; padding: 0 !important; flex: none;
+  border: 1px solid var(--line) !important; border-radius: 8px !important;
+  background: var(--desk) !important; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s, background .15s;
+}
+.switch.on { background: var(--accent-wash) !important; border-color: var(--accent) !important; }
+.switch.on::after { transform: translateX(14px); background: var(--accent); }
+.switch:disabled { opacity: .45; cursor: default; }
+
 /* ---- fields ------------------------------------------------------------- */
 
-input:not([type]), input[type="text"], input[type="search"], textarea, input.cv-zoom {
+input:not([type]), input[type="text"], input[type="search"], input[type="password"], textarea, input.cv-zoom {
   background: var(--desk) !important;
   border: 1px solid var(--line) !important;
   border-radius: var(--radius-row) !important;
   color: var(--text) !important;
   font: inherit;
 }
-input:not([type]):focus, input[type="text"]:focus, input[type="search"]:focus, textarea:focus, input.cv-zoom:focus {
+input:not([type]):focus, input[type="text"]:focus, input[type="search"]:focus, input[type="password"]:focus, textarea:focus, input.cv-zoom:focus {
   outline: none;
   border-color: var(--accent) !important;
 }
