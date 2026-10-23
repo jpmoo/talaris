@@ -978,7 +978,8 @@ of it and comes out at the end.
    Morgan's own page (`ui/morgan/`, from its application window, nearly as it
    was), hung under the button as an overlay panel, on Super+Alt+M or the
    button; it wears Talaris's theme and the Tabler icon font shipped in
-   `ui/fonts` instead of Noctalia's. A question typed into the launcher goes to
+   `ui/fonts` instead of Noctalia's, with no title bar: its state and controls
+   sit in a row under the composer. A question typed into the launcher goes to
    Morgan as a typed turn and opens the conversation. Attachments come through
    `zenity`'s chooser, beside the surface rather than inside it. Still to do:
    the voice popup (what is heard and said while the conversation is shut),
