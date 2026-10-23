@@ -89,6 +89,14 @@ when the pointer leaves, as an autohiding bar does: a thin, invisible strip on
 the edge watches for the pointer. A pulled drawer also has its own **close**
 control, not only Escape and the keys.
 
+**A drawer can expand to the whole screen** (later). The canvas or the writing
+surface fills the screen, and the project's windows **fly off** — each toward
+its nearest edge — the way *show desktop* clears the screen on a Mac or
+Windows, except that what is left is a surface to work on, not wallpaper.
+Collapsing it brings the windows back to exactly where they were. In Hyprland
+terms the windows are moved aside, not closed (a special workspace, or slid
+off-screen), so nothing they hold is lost and nothing needs relaunching.
+
 **How a drawer closes is a setting** (later): the close button only; clicking
 anywhere outside the drawer, with no close button; or both, with the button
 shown. Escape, the keys and the idle timeout work under all three.
