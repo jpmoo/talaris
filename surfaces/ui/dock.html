@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The dock: the open windows, grouped by where they are.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris dock</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { height: 100%; }
+body { display: flex; align-items: flex-end; justify-content: center; }
+body[data-edge="top"] { align-items: flex-start; }
+/* A panel in the middle of the edge, not a strip across it: the dock is a
+   place you look at, the bar is a frame. */
+#dock {
+  display: flex; align-items: center; gap: 2px; height: 44px; margin: 0 0 3px; padding: 0 8px;
+  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px;
+}
+body[data-edge="top"] #dock { margin: 3px 0 0; }
+#dock:empty::after { content: "NOTHING OPEN"; font-size: 10px; letter-spacing: 3px; color: var(--muted); padding: 0 10px; }
+.group { display: flex; align-items: center; gap: 2px; }
+.group + .group { border-left: 1px solid var(--line); margin-left: 6px; padding-left: 8px; }
+.group .name { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-right: 6px; white-space: nowrap; }
+.group.active .name { color: var(--accent); }
+
+.app { position: relative; width: 36px; height: 36px; padding: 0; }
+.app img, .app .letter { width: 24px; height: 24px; display: block; }
+.app .letter { display: grid; place-content: center; border-radius: 6px; background: var(--accent-wash); color: var(--accent); font-size: 13px; }
+/* One dot per window, three at most; the focused one's in the accent. */
+.dots { position: absolute; left: 0; right: 0; bottom: 1px; display: flex; justify-content: center; gap: 3px; }
+.dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+.dots i.on { background: var(--accent); width: 8px; border-radius: 2px; }
+</style>
+</head>
+<body data-edge="bottom">
+<div id="dock"></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script src="dock.js"></script>
+</body>
+</html>

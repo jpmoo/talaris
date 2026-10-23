@@ -940,7 +940,14 @@ of it and comes out at the end.
    slider; battery; clock; the power menu, which asks twice before logging out,
    restarting or shutting down. Menus drop from the bar as a second surface,
    not by the bar growing, which would make it blink. Top or bottom only, for
-   now. The dock is next.
+   now. **The dock's first pass is done** (`surfaces/dock.py`, `apps.py`):
+   along the bottom, height reserved, a panel in the middle of the edge. Open
+   windows grouped by workspace — named by the workspace until projects have
+   workspaces — one icon per application per group, a dot per window, the
+   focused one in the accent. A press goes to the window last used; again, to
+   the next. Icons from the `.desktop` files and the GNOME icon theme, drawn by
+   Qt and served to the page as `talaris-ui://icon/?n=…`. Special workspaces
+   (scratchpads) are left out.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
 6. Morgan's face: the button, the popup, the conversation.
 7. Settings, the theme, the OSD, the power menu.

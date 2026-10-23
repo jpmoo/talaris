@@ -4,8 +4,9 @@
 Hyprland, as the first compositor backend.
 
 DESIGN.md: nothing outside a backend talks to the compositor. This is the
-Hyprland one, and so far it answers three questions — is the current workspace
-empty, tell me when that might have changed, and bind these keys.
+Hyprland one, and so far it answers four questions — is the current workspace
+empty, what windows are open and where, tell me when either might have
+changed, and bind these keys. And it does one thing: focus a window.
 
 **Pulled, not pushed.** The event socket says *that* something happened;
 what is true now is asked for. Anything that arrives only by event also has to
@@ -63,6 +64,41 @@ def workspace_is_empty() -> bool:
         return False
 
 
+def windows() -> dict:
+    """Every window on a regular workspace, with the workspaces and what has focus."""
+    try:
+        clients = json.loads(ask("j/clients"))
+        spaces = json.loads(ask("j/workspaces"))
+        active = json.loads(ask("j/activeworkspace"))
+        focused = json.loads(ask("j/activewindow") or "{}")
+    except (OSError, ValueError):
+        return {"windows": [], "workspaces": [], "active": None, "focused": None}
+    # Special workspaces are scratchpads summoned by a key, not places you go.
+    regular = [c for c in clients if c.get("workspace", {}).get("id", -1) > 0 and c.get("mapped", True)]
+    return {
+        "windows": [
+            {"address": c["address"], "class": c.get("class") or c.get("initialClass") or "",
+             "title": c.get("title", ""), "workspace": c["workspace"]["id"],
+             "recent": c.get("focusHistoryID", 999)}
+            for c in regular
+        ],
+        "workspaces": [{"id": w["id"], "name": w.get("name", str(w["id"]))} for w in spaces if w.get("id", -1) > 0],
+        "active": active.get("id"),
+        "focused": (focused or {}).get("address"),
+    }
+
+
+def focus(address: str) -> None:
+    """Bring a window forward, going to its workspace if it is on another."""
+    if address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower()):
+        ask(f"/dispatch focuswindow address:{address}")
+
+
+def close(address: str) -> None:
+    if address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower()):
+        ask(f"/dispatch closewindow address:{address}")
+
+
 def bind(keys: str, command: str) -> None:
     """A runtime bind, replacing whatever the key did. A config reload drops it; `Events` says when."""
     ask(f"/keyword unbind {keys}")
@@ -80,8 +116,11 @@ class Events(QObject):
     changed = Signal()
     #: The config was reloaded, which drops runtime binds.
     reloaded = Signal()
+    #: Something the dock shows changed: a window, its title, focus, a workspace.
+    windows = Signal()
 
     WATCH = ("workspace", "openwindow", "closewindow", "movewindow", "focusedmon", "activespecial")
+    WINDOWS = WATCH + ("activewindow", "windowtitle", "renameworkspace", "createworkspace", "destroyworkspace")
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -93,12 +132,17 @@ class Events(QObject):
     def _read(self) -> None:
         self._buffer += bytes(self._sock.readAll())
         *lines, self._buffer = self._buffer.split(b"\n")
-        fire = False
+        fire = windows = False
         for line in lines:
             name = line.split(b">>", 1)[0].decode("ascii", "replace")
             if name == "configreloaded":
                 self.reloaded.emit()
-            if name.rstrip("v2") in self.WATCH or name in self.WATCH:
+            bare = name[:-2] if name.endswith("v2") else name
+            if bare in self.WATCH:
                 fire = True
+            if bare in self.WINDOWS:
+                windows = True
         if fire:
             self.changed.emit()
+        if windows:
+            self.windows.emit()

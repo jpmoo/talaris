@@ -3,7 +3,7 @@
 """
 Talaris's surfaces: everything on the screen that is not an application window.
 
-The bar (`bar.py`) and the drawers. Each drawer belongs to one edge and is in one of three
+The bar (`bar.py`), the dock (`dock.py`) and the drawers. Each drawer belongs to one edge and is in one of three
 modes:
 
 - **filed** — a handle on its edge, above the windows, so it can be pulled out.
@@ -27,7 +27,7 @@ import mimetypes
 import os
 import sys
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebEngineCore import (
     QWebEngineProfile,
@@ -38,7 +38,9 @@ from PySide6.QtWebEngineCore import (
 from PySide6.QtWidgets import QApplication
 
 import hypr
+from apps import Apps
 from bar import Bar
+from dock import Dock
 from machine import Machine
 from views import log, make_view
 from core import Bridge, call
@@ -66,6 +68,7 @@ CONFIG = os.path.join(
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
     "bar": {"edge": "top"},
+    "dock": {"edge": "bottom"},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
         "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": True},
@@ -113,17 +116,36 @@ def register_scheme() -> None:
 
 
 class Files(QWebEngineUrlSchemeHandler):
-    """The pages' own files, and nothing else — every one a GET, so no request body is ever touched."""
+    """The pages' own files and applications' icons, and nothing else — every one a GET, so no request body is ever touched."""
+
+    def __init__(self, parent: QObject, apps: Apps) -> None:
+        super().__init__(parent)
+        self.apps = apps
 
     def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:  # noqa: N802 — Qt's name
-        rel = job.requestUrl().path().lstrip("/") or "drawer.html"
+        url = job.requestUrl()
+        # `talaris-ui://icon/?n=<name>`: an application's icon, which a page has no
+        # way to read for itself. Names only — the theme lookup, or the path a
+        # `.desktop` file gave — never a path a page made up.
+        if url.host() == "icon":
+            name = QUrlQuery(url).queryItemValue("n", QUrl.ComponentFormattingOption.FullyDecoded)
+            data = self.apps.icon_png(name) if name in self.apps.known_icons() else None
+            if not data:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+            self._reply(job, data, "image/png")
+            return
+        rel = url.path().lstrip("/") or "drawer.html"
         full = os.path.realpath(os.path.join(UI, rel))
         if not full.startswith(os.path.realpath(UI) + os.sep) or not os.path.isfile(full):
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
             return
         with open(full, "rb") as f:
             data = f.read()
-        mime = mimetypes.guess_type(full)[0] or "application/octet-stream"
+        self._reply(job, data, mimetypes.guess_type(full)[0] or "application/octet-stream")
+
+    @staticmethod
+    def _reply(job: QWebEngineUrlRequestJob, data: bytes, mime: str) -> None:
         buf = QBuffer(job)
         buf.setData(QByteArray(data))
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
@@ -243,20 +265,23 @@ class Desktop(QObject):
             os.path.join((os.environ.get("XDG_DATA_HOME") or "").strip() or os.path.expanduser("~/.local/share"),
                          "talaris", "web")
         )
-        self.files = Files(self)
+        self.apps = Apps()
+        self.files = Files(self, self.apps)
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
         self.machine = Machine(self)
         # The bar first: its reserved space is what the drawers keep clear of.
         self.bar = Bar(self.config["bar"], profile, self)
         self.bar.place()
+        self.events = hypr.Events(self)
+        self.dock = Dock(self.config["dock"], profile, self, self.apps)
+        self.dock.place()
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
         for d in self.drawers.values():
             d.settle()
 
-        self.events = hypr.Events(self)
         self.events.changed.connect(self._changed)
         self.events.reloaded.connect(self._bind)
         self._bind()
