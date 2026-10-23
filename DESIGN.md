@@ -52,7 +52,7 @@ This is the default arrangement:
 | **Top — the bar** | The launcher, the machine's status (clock, battery, volume, network, Bluetooth), the power menu. |
 | **Bottom — the dock** | What is running: open applications, and the projects that have a workspace. Where you see what is alive and switch to it. |
 | **Left and right — the drawers** | The current project's **canvas** and **writing surface**, and the **file tree** of its folder. |
-| **Morgan** | A button on the bar or the dock (which, is a design question), a hotkey, and the wake word. Never only one of the three. |
+| **Morgan** | A button on the bar, beside the launcher's search — asking starts in one place, typed or spoken. Also a hotkey and the wake word; never only one of the three. |
 
 **Any of it can move** (decided 2026-10-23):
 
@@ -236,7 +236,8 @@ when Hyprland reloads its config.
 Along the top with an exclusive zone, so tiled windows and the drawers keep
 clear of it.
 
-- **The launcher's entrance**, and its hotkey.
+- **The launcher's entrance**, and its hotkey — and **Morgan's button** beside
+  it, showing listening, thinking or speaking. Search or ask, in one place.
 - **The machine**: clock, battery, volume, network, Bluetooth. Read from
   `wpctl`, `nmcli`, `bluetoothctl` and `/sys` — all already here. Clicking one
   opens a small panel; deeper settings hand off to existing tools (`nmtui`,
