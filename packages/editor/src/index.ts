@@ -284,7 +284,9 @@ const look = EditorView.theme({
 
 const compactLook = EditorView.theme({
   // Inside a note the ink is the note's — dark on a sticky, whatever it was set to.
-  "&": { color: "inherit", fontSize: "inherit" },
+  // Only as tall as its words, so the note can set them top, middle or
+  // bottom; a full-height editor left nothing for vertical alignment to move.
+  "&": { color: "inherit", fontSize: "inherit", height: "auto" },
   ".cm-scroller": { lineHeight: "1.45" },
   ".cm-content": { padding: "2px 4px" },
   ".cm-listline::before": { display: "none" },

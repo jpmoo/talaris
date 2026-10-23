@@ -791,6 +791,11 @@ project and its tasks the same tasks on both sides. The task system is built so
 that sync has a clean seam: Talaris's own task shapes map onto the format's
 task profile, and nothing Talaris stores is lost on the way out or back.
 
+**Things become tasks** (noted 2026-10-23, for when tasks are built): a note
+or card on a canvas, and a checkbox item in a page, can each be turned into a
+task — kept where it was, now linked to the task it became, so ticking one
+ticks the other.
+
 **Open, to settle when it is built:** where tasks are shown — their own drawer,
 a section of the writing drawer, cards on a canvas, all three — and how daily
 notes and tasks meet.

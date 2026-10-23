@@ -94,6 +94,10 @@ export function wearTheme(): void {
     /* Rounded is the shape with no name, and every note's sheet otherwise
        gets a 2px corner — so Rounded drew square. It gets its corner here. */
     .cv-note:not([data-shape]) .cv-paper { border-radius: 12px; }
+    /* A note's text field is as tall as its text, and the note places it —
+       top, middle or bottom. Stretched to the note's height, the field had
+       nowhere to be moved to. Taller text than note still scrolls. */
+    .cv-note .cv-body > .longtext { flex: 0 1 auto !important; height: auto !important; min-height: 0; max-height: 100%; overflow: auto; }
 
     /* The canvas's own confirmation, dressed like the drawer's. */
     .modal-backdrop { background: rgba(0, 0, 0, .45) !important; backdrop-filter: none !important; }
