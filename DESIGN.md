@@ -457,8 +457,19 @@ separate from plugins. Decided 2026-10-23:
 
 | | |
 |---|---|
-| **Local model** — required | Morgan's own voice: Ollama by default, or any endpoint that speaks the common OpenAI-style API (llama.cpp's server, LM Studio, vLLM and the like). Talaris asks the endpoint what models it has and offers them, rather than making you type a name. The embedding model Morgan's memory uses is chosen here too. |
-| **Oracle** — optional | Claude, for what the local model cannot do. **By sign-in** — your Claude subscription, through the `claude` command's own login, so there are no per-token charges — **or by API key**. |
+| **Model server** | Morgan's own voice: an address and port — this machine or another on the network (today's is `192.168.0.244:11434`). Ollama, or anything that speaks the common OpenAI-style API (llama.cpp's server, LM Studio, vLLM and the like). Talaris asks the server what models it has and offers them, rather than making you type a name. The embedding model Morgan's memory uses is chosen here too. |
+| **Oracle** | Claude, for what the model server cannot do. **By sign-in** — your Claude subscription, through the `claude` command's own login, so there are no per-token charges — **or by API key**. |
+
+**At least one of the two is required, and either can be the only one.** With
+both, the model server talks and the Oracle is consulted, as now. **With only
+the Oracle, the Oracle is Morgan's voice** — every turn goes to Claude. That
+works, with three costs worth saying in Settings: every word leaves the machine;
+a voice assistant makes many small turns, which a subscription's usage limits
+feel sooner than a typed chat does, and an API key pays for each; and Claude
+offers no embedding model, so Morgan's memory search needs one from somewhere
+else (a small model server, or another provider) or does without. Morgan is
+built around a local voice today, so this mode is a change to Morgan, not only
+to its settings.
 | **MCP servers** | The tools Morgan can use: Hermes Notes' MCP and anything like it, local or remote, each with what Morgan may do there (read, or read and write). |
 
 **Proposed, not yet agreed:**
