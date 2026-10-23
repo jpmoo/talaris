@@ -56,6 +56,8 @@ def _checked(c: dict) -> str:
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
+    if t.get("motionSpeed", "normal") not in ("slow", "normal", "fast"):
+        return "Speed is slow, normal or fast"
     if t.get("motion") not in ("slide", "draw", "chaos", "none"):
         return "Motion is slide, draw, chaos or none"
     k = c["clock"]

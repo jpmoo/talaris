@@ -66,6 +66,9 @@ function applyTheme(theme) {
 // always mark to mark, never loose — then filled); and none.
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
 const motion = () => document.documentElement.dataset.motion || "slide";
+// How quick: Settings' speed, as a factor on every duration and delay here.
+const pace = () => ({ slow: 1.6, normal: 1, fast: .6 })[(state.theme || {}).motionSpeed] || 1;
+const P = (ms) => Math.round(ms * pace());
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || motion() === "none";
 
 // Whatever a last leaving left held (it fills forwards, so the panel stays
@@ -79,7 +82,7 @@ function arrive() {
   unhold();
   if (still()) return;
   if (motion() === "draw" || motion() === "chaos") { trace(motion()); return; }
-  $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
+  $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
 }
 
 /*
@@ -113,14 +116,14 @@ function grow([s, axis], delay, duration) {
     { transform: `${axis}(1)`, opacity: 1, offset: .45 },
     { transform: `${axis}(1)`, opacity: 1, offset: .8 },
     { transform: `${axis}(1)`, opacity: 0 },
-  ], { duration, delay, easing: "ease-out", fill: "both" }).onfinish = () => s.remove();
+  ], { duration: P(duration), delay: P(delay), easing: "ease-out", fill: "both" }).onfinish = () => s.remove();
 }
 // The panel stays empty — no fill, no frame, no contents — until the lines have done.
 function fillAfter(at) {
   const panel = $("panel");
-  panel.animate([{ background: "transparent", borderColor: "transparent" }, { background: "transparent", borderColor: "transparent", offset: at }, {}], { duration: 1100, easing: "ease-out" });
+  panel.animate([{ background: "transparent", borderColor: "transparent" }, { background: "transparent", borderColor: "transparent", offset: at }, {}], { duration: P(1100), easing: "ease-out" });
   for (const child of panel.children) {
-    if (!child.classList.contains("xh")) child.animate([{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1 }], { duration: 1100, easing: "ease-out" });
+    if (!child.classList.contains("xh")) child.animate([{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1 }], { duration: P(1100), easing: "ease-out" });
   }
 }
 /** Screen points, relative to the panel, as the left-edge frame the lines are drawn in. */
@@ -167,7 +170,7 @@ function untrace(kind) {
   const panel = $("panel");
   const { fx, W, H } = fxLayer();
   const paths = lines(W, H);
-  const length = kind === "draw" ? 760 : 820;
+  const length = P(kind === "draw" ? 760 : 820);
   // Emptied first: contents, fill and frame, leaving only the lines.
   for (const child of panel.children) {
     if (!child.classList.contains("xh")) child.animate([{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: length, fill: "forwards" });
@@ -176,7 +179,7 @@ function untrace(kind) {
     { background: "transparent", borderColor: "transparent", boxShadow: "none" }], { duration: length, fill: "forwards" });
   const shrink = ([s, axis], delay, duration) => s.animate([
     { transform: `${axis}(1)`, opacity: 0 }, { transform: `${axis}(1)`, opacity: 1, offset: .2 }, { transform: `${axis}(0)`, opacity: 1 },
-  ], { duration, delay, easing: "ease-in", fill: "both" });
+  ], { duration: P(duration), delay: P(delay), easing: "ease-in", fill: "both" });
   if (kind === "draw") {
     // The rules inside go first, then the frame, back to the screen edge.
     paths.slice().reverse().forEach((pts, i) => shrink(segment(fx, pts[0], pts.at(-1), true), Math.min(i, paths.length - 3) * 70, 420));
@@ -207,7 +210,7 @@ function trace(kind) {
     // then the rules inside, one after another.
     fillAfter(.66);
     paths.forEach((pts, i) => grow(segment(fx, pts[0], pts.at(-1), false), i < 2 ? 0 : 220 + (i - 2) * 120, 560));
-    setTimeout(() => fx.remove(), 1400);
+    setTimeout(() => fx.remove(), P(1400));
     return;
   }
   // Chaos: every mark first, then a line between each pair of neighbors, in
@@ -223,15 +226,15 @@ function trace(kind) {
     const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
     fx.append(m);
     m.animate([{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.5)", opacity: 1, offset: .6 }, { transform: "scale(1)", opacity: 1 }],
-      { duration: 240, delay: Math.random() * 260, fill: "both" });
+      { duration: P(240), delay: P(Math.random() * 260), fill: "both" });
     return m;
   });
   pieces.sort(() => Math.random() - .5).forEach(([p, q]) => grow(segment(fx, p, q, Math.random() < .5), 220 + Math.random() * 520, 380 + Math.random() * 300));
   // The marks go once the lines are down, and leave nothing behind.
   setTimeout(() => {
-    shown.forEach((m) => m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: "forwards" }));
-    setTimeout(() => fx.remove(), 320);
-  }, 1150);
+    shown.forEach((m) => m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: P(260), fill: "forwards" }));
+    setTimeout(() => fx.remove(), P(320));
+  }, P(1150));
 }
 
 /*
@@ -248,7 +251,7 @@ function leave() {
   // Drawn in, it goes the same way backwards: emptied, its lines shown, the
   // lines drawn back to their marks.
   leaving = motion() === "slide"
-    ? $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }], { duration: 300, easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" })
+    ? $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" })
     : untrace(motion());
   leaving.onfinish = () => bridge.left();
 }

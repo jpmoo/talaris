@@ -29,8 +29,9 @@ from core import Bridge
 from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement
 from views import make_view
 
-#: How thick the sensor is, in Qt's units.
-THICK = 2
+#: How thick the sensor is, in Qt's units: easy to reach, and still inside
+#: the space kept round the windows, so it never lies over one.
+THICK = 6
 #: How long the pointer must be away before a revealed thing goes again.
 AWAY_MS = 700
 
