@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+#
+# A template: install.sh fills in __NODE__ and __ROOT__, because ExecStart needs
+# absolute paths and there is no machine-independent one for node.
+
+[Unit]
+Description=Talaris core — projects, canvases and writing
+Documentation=file://__ROOT__/DESIGN.md
+
+[Service]
+Type=simple
+ExecStart=__NODE__ __ROOT__/packages/core/dist/src/index.js
+Restart=on-failure
+RestartSec=2
+# 78 means another core already holds the socket, or the setup is wrong:
+# restarting would only spin.
+RestartPreventExitStatus=78
+
+[Install]
+WantedBy=default.target

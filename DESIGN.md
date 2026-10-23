@@ -813,7 +813,10 @@ nothing has to be ported to WebKit.**
 of it and comes out at the end.
 
 1. The borrowed pieces installed: `layer-shell-qt`, `hyprpolkitagent`, `mako`.
-2. The core, with Home: a canvas and a writing surface.
+2. ~~The core, with Home: a canvas and a writing surface.~~ **Done** —
+   `packages/core`, served on `$XDG_RUNTIME_DIR/talaris.sock` by
+   `talaris-core.service`; projects, nested canvases with links and
+   backlinks, nested pages, versions. `packages/model` holds the shared types.
 3. The surfaces process as a service: the drawers on an empty desktop and pulled
    out over windows, with every way back.
 4. The bar and the dock.

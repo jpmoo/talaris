@@ -10,10 +10,24 @@ anything outside — Hermes Notes first — through plugins. **Hyprland is the
 first compositor backend, not the only one**: nothing outside the backend talks
 to Hyprland directly.
 
-**Nothing is built yet.** `DESIGN.md` is the plan and the reasoning; read it
-first, all of it. Its *Order* section is where work starts.
+**Building has begun.** `DESIGN.md` is the plan and the reasoning; read it
+first, all of it. Its *Order* section says what is done and what is next.
 
 ## What is here
+
+- `packages/model` — the shared types: projects, canvases, pages, versions.
+  One definition of a canvas, for the core and the pages that draw it.
+- `packages/core` — the core: projects, canvases, writing and versions, on a
+  Unix socket. TypeScript compiled by `tsc` (Ubuntu's Node cannot run
+  TypeScript directly). Tests run against a throwaway folder, never `~/Projects`.
+- `install.sh` — builds, installs `talaris-core.service`, and asks the socket.
+
+```bash
+pnpm -r build
+pnpm -r test
+./install.sh
+curl -s --unix-socket $XDG_RUNTIME_DIR/talaris.sock http://talaris/projects
+```
 
 - `DESIGN.md` — the design, the decisions, and what the one spike found.
 - `from-talaria/` — pieces copied from Talaria, unedited, to be taken from. Its
