@@ -27,7 +27,7 @@ first, all of it. Its *Order* section is where work starts.
   format and only the format. `talaria/linux/CLAUDE.md` there holds a great deal
   of hard-won detail about PySide6, WebEngine, Wayland and Hyprland — read the
   relevant part before rediscovering it.
-- `jpmoo/heyclaude` — Morgan. Its own process and repository; Talaris is its
+- `jpmoo/heymorgan` — Morgan. Its own process and repository; Talaris is its
   face and talks to it over `$XDG_RUNTIME_DIR/heyclaude.sock`.
 
 ## Things to know before running anything

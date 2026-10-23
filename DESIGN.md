@@ -22,7 +22,7 @@ that reopen what you had open. Everything opens *from where it lives* on a
 canvas, or flies in from nowhere if it lives on none. You can ask for any of it
 by name — in the launcher, or out loud.
 
-**Morgan is built in.** The assistant (`jpmoo/heyclaude`, called Morgan) is how
+**Morgan is built in.** The assistant (`jpmoo/heymorgan`, called Morgan) is how
 the desktop is talked to, and the desktop is what Morgan knows about. It is
 the one chat. See *Morgan*.
 
