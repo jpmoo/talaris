@@ -931,7 +931,16 @@ of it and comes out at the end.
    regions, panning and zooming, child canvases as cards that open on a
    double-click, a trail in the header. Pictures, library blocks and export
    wait for their own steps.
-4. The bar and the dock.
+4. The bar and the dock. **The bar's first pass is done** (`surfaces/bar.py`,
+   `machine.py`): along the top with its height reserved — under Noctalia's
+   while Noctalia runs, since Hyprland stacks reserved space. The launcher's box
+   and Morgan's button (lit when `heymorgan.sock` is there) wait for steps 5
+   and 6; the project's name in the middle; network and Bluetooth hand off to
+   `nmtui` and `bluetoothctl` in the terminal; volume scrolls, and opens a
+   slider; battery; clock; the power menu, which asks twice before logging out,
+   restarting or shutting down. Menus drop from the bar as a second surface,
+   not by the bar growing, which would make it blink. Top or bottom only, for
+   now. The dock is next.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
 6. Morgan's face: the button, the popup, the conversation.
 7. Settings, the theme, the OSD, the power menu.

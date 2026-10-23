@@ -1,0 +1,59 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+What drops from the bar: the power menu, the volume. One page, shown as one or
+the other; the surface around it is sized to whichever is up.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris popup</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { height: 100%; }
+/* A menu panel (controls.css), filling the surface but for a margin its
+   shadow can fall into. */
+.panel { position: absolute; inset: 4px 6px 8px; display: none; flex-direction: column; }
+body[data-popup="power"] #power, body[data-popup="volume"] #volume { display: flex; }
+.menu .hint { display: flex; justify-content: space-between; }
+
+/* Asking twice: the row says what it is about to do, in the danger color. */
+.menu-item.armed, .menu-item.armed:hover { color: var(--danger) !important; background: color-mix(in srgb, var(--danger) 12%, transparent) !important; }
+
+#volume .row { display: flex; align-items: center; gap: 10px; padding: 6px 10px 4px; }
+#level { flex: 1; }
+/* A slider drawn to match: a hairline track, the accent up to the level. */
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%;
+  background: var(--surface); border: 1.5px solid var(--accent);
+}
+#vol-n { width: 30px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-popup="">
+<div class="panel menu" id="power">
+  <div class="hint"><span>Power</span></div>
+  <button class="menu-item" data-verb="lock">Lock</button>
+  <button class="menu-item" data-verb="suspend">Suspend</button>
+  <div class="menu-sep"></div>
+  <button class="menu-item" data-verb="logout" data-ask="Log out — again to confirm">Log out</button>
+  <button class="menu-item" data-verb="restart" data-ask="Restart — again to confirm">Restart</button>
+  <button class="menu-item" data-verb="shutdown" data-ask="Shut down — again to confirm">Shut down</button>
+</div>
+<div class="panel menu" id="volume">
+  <div class="hint"><span>Volume</span><span id="vol-state"></span></div>
+  <div class="row"><input type="range" id="level" min="0" max="100" step="1"><span id="vol-n"></span></div>
+  <div class="row"><button class="t-btn" id="mute">Mute</button></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

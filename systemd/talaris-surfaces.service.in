@@ -9,7 +9,7 @@
 # scope because a crashed surfaces process is a blank desktop: it restarts.
 
 [Unit]
-Description=Talaris surfaces — the drawers on the desktop
+Description=Talaris surfaces — the bar and the drawers
 Documentation=file://__ROOT__/DESIGN.md
 Wants=talaris-core.service
 After=talaris-core.service

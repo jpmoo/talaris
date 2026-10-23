@@ -19,6 +19,8 @@ not a second opinion somewhere else.
   menu         one panel: surface, frame border, --radius-control, a shadow;
                rows with --radius-row corners and an accent hover; small
                letter-spaced labels for its sections.
+  bar item     an icon button that keeps its hairline hidden until hovered:
+               a row of readings each in a box is a spreadsheet, not a bar.
   field        the desk's ground, a hairline, --radius-row corners, accent
                when focused.
 
@@ -68,6 +70,22 @@ without editing four thousand lines of fork.
 .icon-btn:active, .shape-pick:active, .tools .tool:active { transform: scale(.95); }
 .icon-btn:disabled { opacity: .45; cursor: default; }
 .icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; }
+
+/* ---- bar items --------------------------------------------------------- */
+
+.bar-item {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: var(--control); min-width: var(--control); padding: 0 6px;
+  border: 1px solid transparent; border-radius: var(--radius-control);
+  background: transparent; color: var(--muted); font: inherit; font-size: 12px;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+button.bar-item:hover { border-color: var(--line); color: var(--accent); }
+.bar-item.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.bar-item.static { cursor: default; }
+.bar-item.low { color: var(--danger); }
+.bar-item[hidden] { display: none; }
 
 /* ---- text buttons ------------------------------------------------------- */
 

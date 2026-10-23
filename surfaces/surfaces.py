@@ -3,7 +3,7 @@
 """
 Talaris's surfaces: everything on the screen that is not an application window.
 
-So far, the drawers. Each drawer belongs to one edge and is in one of three
+The bar (`bar.py`) and the drawers. Each drawer belongs to one edge and is in one of three
 modes:
 
 - **filed** — a handle on its edge, above the windows, so it can be pulled out.
@@ -27,22 +27,20 @@ import mimetypes
 import os
 import sys
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import (
-    QWebEnginePage,
     QWebEngineProfile,
-    QWebEngineSettings,
     QWebEngineUrlRequestJob,
     QWebEngineUrlScheme,
     QWebEngineUrlSchemeHandler,
 )
-from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication
 
 import hypr
+from bar import Bar
+from machine import Machine
+from views import log, make_view
 from core import Bridge, call
 from layershell import (
     BOTTOM,
@@ -67,6 +65,7 @@ CONFIG = os.path.join(
 
 DEFAULTS = {
     "theme": {"mode": "dark", "accent": "#c98a5b", "font": "Barlow Semi Condensed", "motion": "slide"},
+    "bar": {"edge": "top"},
     "drawers": {
         # 0.58 + 0.40 leaves a gap: both pulled at once never overlap.
         "canvas": {"edge": "left", "size": 0.58, "outWhenEmpty": True},
@@ -79,10 +78,6 @@ DEFAULTS = {
 
 # Small on purpose: the handle says "something is here", not "look at me".
 HANDLE = (10, 56)
-
-
-def log(*parts: object) -> None:
-    print("talaris-surfaces:", *parts, file=sys.stderr, flush=True)
 
 
 def load_config() -> dict:
@@ -135,18 +130,6 @@ class Files(QWebEngineUrlSchemeHandler):
         job.reply(mime.encode("ascii"), buf)
 
 
-class Page(QWebEnginePage):
-    """A page whose warnings and errors reach the journal — no other way to see them on a layer surface."""
-
-    def __init__(self, profile: QWebEngineProfile, parent: QObject, name: str) -> None:
-        super().__init__(profile, parent)
-        self.name = name
-
-    def javaScriptConsoleMessage(self, level, message, line, source):  # noqa: N802 — Qt's name
-        if level != QWebEnginePage.JavaScriptConsoleMessageLevel.InfoMessageLevel:
-            log(f"{self.name} page: {message} ({source.rsplit('/', 1)[-1]}:{line})")
-
-
 class Drawer(QObject):
     def __init__(self, name: str, config: dict, profile: QWebEngineProfile, desktop: "Desktop") -> None:
         super().__init__(desktop)
@@ -159,26 +142,8 @@ class Drawer(QObject):
         self.mode = ""
         self.leaving = False
 
-        self.view = QWebEngineView()
-        self.view.setWindowTitle(f"talaris-{name}")
-        self.view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        # The engine's own right-click menu — Back, Reload, View source — is a
-        # browser showing through. Pages draw their own menus instead.
-        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
-        page = Page(profile, self.view, name)
-        page.setBackgroundColor(QColor(0, 0, 0, 0))
-        # So a page's own Cut / Copy / Paste can reach the clipboard.
-        for attr in ("JavascriptCanAccessClipboard", "JavascriptCanPaste"):
-            flag = getattr(QWebEngineSettings.WebAttribute, attr, None)
-            if flag is not None:
-                page.settings().setAttribute(flag, True)
-        self.view.setPage(page)
         self.bridge = Bridge(self, self)
-        self.channel = QWebChannel(self)
-        self.channel.registerObject("bridge", self.bridge)
-        page.setWebChannel(self.channel)
-        page.loadFinished.connect(lambda ok: log(f"{name} page: {'loaded' if ok else 'FAILED to load'}"))
-        self.view.setUrl(QUrl(f"talaris-ui://ui/drawer.html?drawer={name}"))
+        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
 
         self.idle = QTimer(self)
@@ -281,6 +246,10 @@ class Desktop(QObject):
         self.files = Files(self)
         profile.installUrlSchemeHandler(SCHEME, self.files)
         self.profile = profile
+        self.machine = Machine(self)
+        # The bar first: its reserved space is what the drawers keep clear of.
+        self.bar = Bar(self.config["bar"], profile, self)
+        self.bar.place()
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -335,6 +304,9 @@ class Desktop(QObject):
             elif verb == "file-all":
                 for d in self.drawers.values():
                     d.file_away()
+                self.bar.close_popup()
+            elif verb == "popup":
+                self.bar.toggle_popup(arg)
             elif verb == "quit":
                 QApplication.quit()
             conn.write(b"ok\n")
@@ -361,6 +333,8 @@ def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ["--toggle"] and len(args) == 2:
         return send(f"toggle {args[1]}")
+    if args[:1] == ["--popup"] and len(args) == 2:
+        return send(f"popup {args[1]}")
     if args[:1] == ["--file-all"]:
         return send("file-all")
     if args[:1] == ["--quit"]:
