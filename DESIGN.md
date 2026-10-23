@@ -45,6 +45,7 @@ sandals, *talaria*, are the plural.
 ## The screen
 
 **Four edges, each with one job.** Nothing is in the middle but your work.
+This is the default arrangement:
 
 | edge | what lives there |
 |---|---|
@@ -52,6 +53,21 @@ sandals, *talaria*, are the plural.
 | **Bottom — the dock** | What is running: open applications, and the projects that have a workspace. Where you see what is alive and switch to it. |
 | **Left and right — the drawers** | The current project's **canvas** and **writing surface**, and the **file tree** of its folder. |
 | **Morgan** | A button on the bar or the dock (which, is a design question), a hotkey, and the wake word. Never only one of the three. |
+
+**Any of it can move** (decided 2026-10-23):
+
+- **Any piece goes on any edge that is free** — the bar on the left, the drawers
+  along the top, whatever suits the screen. The bar, the dock and the drawers
+  each take one edge; nothing is hardcoded to its default.
+- **Drawers can share an edge, and then they are tabs.** Canvas, writing and
+  files can be three drawers on three edges or three tabs on one.
+- **The bar and the dock can hide themselves**, each on its own switch, and come
+  back when the pointer reaches their edge. Off by default.
+
+So every surface is laid out from its edge, never from "top" or "left" — the
+drawer that slides in from the right is the same code as the one that drops from
+the top. An exclusive zone is reserved only for what is pinned; a hidden bar
+gives its space back to the windows.
 
 ### The drawers
 
@@ -78,8 +94,17 @@ and the writing surface already work, and the spike showed it holds on a layer
 surface — but nothing about them should read as a browser: no page chrome, no
 default form controls, no scrollbars that look like a document's, no text that
 selects when you drag a panel, consistent motion, one type scale, one set of
-icons, the system's own font rendering. **To be talked through** — this line
-is a placeholder for that conversation, not its outcome.
+icons, the system's own font rendering, keyboard everywhere, no first frame at
+the wrong size, and the compositor's own blur, rounding and shadow behind
+translucent surfaces rather than a page drawing them.
+
+**Themes are swappable.** The look is a theme, and more can be added later; the
+first one ships as the default.
+
+**The default: late-'90s to early-2000s computing.** Clean lines and easy on the
+eyes — not a terminal, and not a starship console. Light, dark, and following the
+time of day. **Being zeroed in on**: which machines of that era it draws from is
+the open part of this conversation.
 
 ## The model
 
