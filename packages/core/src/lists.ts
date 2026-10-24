@@ -423,10 +423,25 @@ export interface Row {
   projects?: { id: string; title: string }[];
   tags?: string[];
   recurring?: boolean;
+  /** Files kept with it: their names, for a paperclip and a count. */
+  files?: { filename: string; sha256: string; mediaType?: string }[];
   body?: string;
   region?: string;
   position: string;
   fields: Record<string, unknown>;
+}
+
+function filesOf(o: Entity): { filename: string; sha256: string; mediaType?: string }[] {
+  const out: { filename: string; sha256: string; mediaType?: string }[] = [];
+  for (const v of Object.values(o.properties)) {
+    for (const a of Array.isArray(v) ? v : [v]) {
+      if (a && typeof a === "object" && (a as { kind?: string }).kind === "attachment") {
+        const x = a as { filename: string; sha256: string; mediaType?: string };
+        out.push({ filename: x.filename, sha256: x.sha256, ...(x.mediaType ? { mediaType: x.mediaType } : {}) });
+      }
+    }
+  }
+  return out;
 }
 
 function rowOf(o: Entity, position: string, region: string | undefined, today: string, now: string): Row {
@@ -448,6 +463,7 @@ function rowOf(o: Entity, position: string, region: string | undefined, today: s
     ...(projects.length ? { projects } : {}),
     ...(o.tags?.length ? { tags: o.tags } : {}),
     ...(o["talaris:series"] ? { recurring: true } : {}),
+    ...(filesOf(o).length ? { files: filesOf(o) } : {}),
     ...(typeof o.properties.description === "string" && o.properties.description ? { body: o.properties.description as string } : {}),
     ...(region !== undefined ? { region } : {}),
     fields: o.properties,

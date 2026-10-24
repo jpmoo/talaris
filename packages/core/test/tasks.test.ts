@@ -232,3 +232,20 @@ test("a finished status taken away sends its tasks to a finished one, not back t
   tasks.setStatuses([{ value: "not_started", label: "To do" }, { value: "done", label: "Done", complete: true }], "not_started");
   assert.equal(status(t.id), "done");
 });
+
+test("files kept with a task: once each, sealed, off again, and carried in a backup's export", async () => {
+  const t = tasks.createTask({ title: "with a file" });
+  const a = tasks.attachFile(t.id, Buffer.from("quarterly numbers"), "q3.txt", "text/plain");
+  tasks.attachFile(t.id, Buffer.from("quarterly numbers"), "copy-of-q3.txt");
+  const files = entities.getEntity(t.id).properties.attachments as { sha256: string; filename: string }[];
+  assert.equal(files.length, 1, "the same file twice is kept once");
+  assert.equal(entities.getFile(a.sha256)!.toString(), "quarterly numbers");
+  const row = lists.findTasks({ text: "with a file" })[0]!;
+  assert.equal(row.files?.[0]?.filename, "q3.txt");
+  const ix = await import("../src/interchange.js");
+  const env = ix.exportEnvelope({ bytes: true });
+  const carried = env.objects!.find((o) => o.id === t.id)!.properties.attachments as { bytes?: string }[];
+  assert.ok(carried[0]!.bytes, "a backup carries the file itself");
+  tasks.detachFile(t.id, a.sha256);
+  assert.equal(entities.getEntity(t.id).properties.attachments, undefined);
+});

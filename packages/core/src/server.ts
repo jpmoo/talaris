@@ -56,7 +56,7 @@ import { encryptedProjects, setProjectEncrypted } from "./sealed-projects.js";
 export const VERSION = "0.0.0";
 
 /** A request body larger than this is refused rather than read. */
-const MAX_BODY = 16 * 1024 * 1024;
+const MAX_BODY = 64 * 1024 * 1024;
 
 class BadRequest extends Error {}
 
@@ -252,6 +252,20 @@ route("PUT", "/tasks/statuses", async (req) => {
   const b = await json<{ statuses?: tasks.StatusDef[]; default?: string; moveTo?: Record<string, string> }>(req);
   if (!b.statuses || !b.default) throw new BadRequest("the statuses, and which a new task starts in");
   return tasks.setStatuses(b.statuses, b.default, b.moveTo ?? {});
+});
+route("POST", "/tasks/:id/attachments", async (req, [id]) => {
+  const b = await json<{ filename?: string; mediaType?: string; data?: string }>(req);
+  if (!b.filename || !b.data) throw new BadRequest("a file has a name and data (base64)");
+  return tasks.attachFile(id!, Buffer.from(b.data, "base64"), b.filename, b.mediaType);
+});
+route("DELETE", "/tasks/:id/attachments/:sha", (_r, [id, sha]) => {
+  tasks.detachFile(id!, sha!);
+  return { ok: true };
+});
+route("GET", "/files/:sha", (_r, [sha]) => {
+  const bytes = entities.getFile(sha!);
+  if (!bytes) throw new NotFound(`no file ${sha}`);
+  return { sha256: sha, data: bytes.toString("base64") };
 });
 route("GET", "/tasks/types", () => {
   const t = entities.typeFor("task");

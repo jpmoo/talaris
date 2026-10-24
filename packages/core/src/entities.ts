@@ -121,7 +121,7 @@ export const BUILT_IN: EntityType[] = [
   },
   {
     // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
-    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 2,
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 3,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
@@ -134,6 +134,9 @@ export const BUILT_IN: EntityType[] = [
       },
       { key: "project", kind: "reference", targetType: "t_project", many: true },
       { key: "done_at", kind: "datetime" },
+      // Files kept with the task: the format's attachment values, the bytes
+      // sealed beside the entities, once each by their hash.
+      { key: "attachments", kind: "attachment", many: true },
     ],
     "talaris:defaultStatus": "not_started",
     profiles: {

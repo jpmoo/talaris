@@ -472,6 +472,7 @@
     // Available shown only while it is still to come.
     if (r.start && r.start.slice(0, 10) > isoDay(new Date())) bits.push(el("span", {}, `from ${shortDate(r.start)}`));
     if (r.recurring) bits.push(el("span", { title: "Repeats" }, "↻"));
+    if (r.files && r.files.length) bits.push(el("span", { title: r.files.map((f) => f.filename).join(", ") }, `📎${r.files.length > 1 ? r.files.length : ""}`));
     for (const p of r.projects || []) bits.push(el("span", {}, p.title));
     for (const t of r.tags || []) bits.push(el("span", {}, `#${t}`));
     return bits.length ? el("div", { class: "meta" }, bits) : null;
@@ -570,6 +571,11 @@
 
   // ---------------------------------------------------------------- the task's sheet
 
+  function filesNote(text, error = false) {
+    const n = $("s-files-note");
+    if (n) { n.textContent = text; n.className = error ? "err" : ""; }
+  }
+
   function openTask(id) {
     editing = id;
     entity = null;
@@ -640,6 +646,21 @@
     $("s-tags").replaceChildren(...tags.map((t) => el("span", { class: "chip-p" }, `#${t}`,
       el("button", { title: "Remove", onclick: () => update(editing, { tags: tags.filter((x) => x !== t) }).catch(failed) }, "×"))));
 
+    // Files kept with it: a press opens one in its application; × takes it off the task.
+    const fk = (type.fields.find((f) => f.kind === "attachment" && f.many) || {}).key;
+    $("s-files-row").hidden = !fk;
+    if (fk) {
+      const files = Array.isArray(p[fk]) ? p[fk] : [];
+      $("s-files").replaceChildren(
+        ...files.map((a) => el("span", { class: "chip-p", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile(a.sha256, a.filename) },
+          el("span", { class: "fname" }, a.filename),
+          el("button", { title: "Take off the task", onclick: (e) => {
+            e.stopPropagation();
+            api("DELETE", `/tasks/${enc(editing)}/attachments/${enc(a.sha256)}`).then(() => { loadEditing(); refresh(); }).catch(failed);
+          } }, "×"))),
+        el("button", { class: "add", title: "Attach files", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
+        el("span", { id: "s-files-note" }));
+    }
     if (!focused("s-notes")) $("s-notes").value = p[notesKey()] || "";
     const stamp = split(p[shape.doneKey]);
     $("s-done").textContent = stamp.day ? `Done ${stamp.day.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${stamp.time != null ? `, ${timeLabel(stamp.time)}` : ""}` : "";
@@ -890,6 +911,12 @@
   Surface.connect({ onState }).then((b) => {
     bridge = b;
     b.coreReply.connect((text) => { const r = JSON.parse(text); const done = waiting.get(r.id); waiting.delete(r.id); if (done) done(r); });
+    // Files chosen and kept (or why not): the open task drawn again with them.
+    b.attached.connect((text) => {
+      const r = JSON.parse(text);
+      if (r.task === editing) loadEditing().then(() => filesNote(r.error || "", Boolean(r.error))).catch(failed);
+      refresh();
+    });
     b.leave.connect(() => {
       // The panel's leaving; a window is not going anywhere.
       if (WINDOW) return;

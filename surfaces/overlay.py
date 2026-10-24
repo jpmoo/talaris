@@ -218,6 +218,29 @@ class Overlay(QObject):
     def windows_changed(self, _now: dict) -> None:
         """Nothing to follow: a window is Hyprland's to place."""
 
+    # ------------------------------------------------------------ out of the way
+
+    def step_aside(self) -> None:
+        """
+        Another program's window is coming (a file chooser): ordinary windows
+        open under a panel's layer and could not be reached. The panel goes,
+        its page as it was, until `come_back`.
+        """
+        self.idle.stop()
+        if self.up and not getattr(self, "_aside", False):
+            self._aside = True
+            self.view.hide()
+            self.surface.placement = None
+
+    def come_back(self) -> None:
+        if not getattr(self, "_aside", False):
+            return
+        self._aside = False
+        if self.up:
+            self._place()
+            self.view.setFocus()
+            self.touched()
+
     # ------------------------------------------------------------ going
 
     def file_away(self) -> None:

@@ -121,6 +121,11 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-tag-in { flex: 1; min-width: 80px; padding: 2px 6px; font-size: 12px; }
 .sum { flex: 1; color: var(--text); }
 .sum.none { color: var(--muted); }
+#s-files .chip-p { cursor: pointer; max-width: 220px; }
+#s-files .chip-p .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#s-files .chip-p:hover .fname { color: var(--accent); }
+#s-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
+#s-files-note.err { color: var(--danger); }
 #s-notes { width: 100%; min-height: 110px; resize: vertical; padding: 6px 8px; font-size: 12.5px; }
 .s-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .s-foot .spacer { flex: 1; }
@@ -202,6 +207,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
     </div>
     <div class="s-row top" id="s-proj-row"><span class="lab">Projects</span><div class="chips" id="s-proj"></div></div>
     <div class="s-row top"><span class="lab">Tags</span><div class="chips"><span id="s-tags" style="display:contents"></span><input type="text" id="s-tag-in" placeholder="Add" spellcheck="false"></div></div>
+    <div class="s-row top" id="s-files-row"><span class="lab">Files</span><div class="chips" id="s-files"></div></div>
     <textarea id="s-notes" placeholder="Notes" spellcheck="false"></textarea>
     <div class="s-foot"><span id="s-done"></span><span class="spacer"></span><button class="t-btn" id="s-archive">Archive</button></div>
   </aside>

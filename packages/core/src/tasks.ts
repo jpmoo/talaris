@@ -16,6 +16,8 @@ import {
   typeFor,
   types,
   updateEntity,
+  putFile,
+  type Attachment,
   type Entity,
   type EntityType,
 } from "./entities.js";
@@ -373,4 +375,33 @@ export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Rec
     }
   }
   return next;
+}
+
+// ------------------------------------------------------------ files kept with a task
+
+/** The task type's attachment field, found by its kind. */
+function filesKey(o: Entity): string {
+  const t = types().find((x) => x.id === o.type);
+  const f = t?.fields.find((x) => x.kind === "attachment" && x.many);
+  if (!f) throw new Conflict("this kind of thing keeps no files");
+  return f.key;
+}
+
+/** A file kept with a task: stored once by its hash, named on the task. Kept twice, it is there once. */
+export function attachFile(taskId: string, bytes: Buffer, filename: string, mediaType?: string): Attachment {
+  const o = getEntity(taskId);
+  const key = filesKey(o);
+  const value = putFile(bytes, filename, mediaType);
+  const now = Array.isArray(o.properties[key]) ? (o.properties[key] as Attachment[]) : [];
+  if (!now.some((a) => a.sha256 === value.sha256)) updateEntity(taskId, { properties: { [key]: [...now, value] } });
+  return value;
+}
+
+/** Taken off the task. The bytes stay in the store, as another task may keep the same file. */
+export function detachFile(taskId: string, sha256: string): void {
+  const o = getEntity(taskId);
+  const key = filesKey(o);
+  const now = Array.isArray(o.properties[key]) ? (o.properties[key] as Attachment[]) : [];
+  const rest = now.filter((a) => a.sha256 !== sha256);
+  if (rest.length !== now.length) updateEntity(taskId, { properties: { [key]: rest.length ? rest : null } });
 }
