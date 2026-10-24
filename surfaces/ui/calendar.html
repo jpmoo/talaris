@@ -17,6 +17,9 @@ date and time; full screen by its expand button.
 <style>
 /* As Morgan's: a panel over the dimmed screen; full screen, the whole surface. */
 html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; }
+/* The dim is a button: a press there closes it — the bar's button under it included. */
+html:not([data-window]) { cursor: pointer; }
+body { cursor: default; }
 body {
   /* Centered both ways on the screen. */
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;

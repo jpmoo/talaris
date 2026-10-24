@@ -35,6 +35,9 @@ body[data-mode="expanded"] #tuck { display: none !important; }
    behind it; as a window, the whole window, Hyprland's frame round it. */
 #handle { display: none !important; }
 body[data-mode="expanded"] { background: rgba(0, 0, 0, .32); }
+/* The dim is a button (a press there closes it); the panel is not. */
+html:not([data-window]) body[data-mode="expanded"] { cursor: pointer; }
+#panel { cursor: default; }
 html[data-window] body { background: transparent; }
 html[data-window] body[data-mode="expanded"] #panel { inset: 0 !important; border: 0 !important; border-radius: 0 !important; }
 /* With click-outside on, a click off the drawer puts it away: no tab for it. */

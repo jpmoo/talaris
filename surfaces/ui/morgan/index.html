@@ -29,6 +29,9 @@
   /* Clipped here too: otherwise Chromium hands the body's overflow to the
      window, and the body's rounded corners stop clipping its header. */
   html { background: rgba(0, 0, 0, .32); overflow: hidden; }
+  /* The dim is a button: a press there closes it — the bar's button under it included. */
+  html:not([data-window]) { cursor: pointer; }
+  body { cursor: default; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
