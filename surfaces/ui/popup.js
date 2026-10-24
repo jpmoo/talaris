@@ -17,9 +17,24 @@ function disarm() {
   }
 }
 
+// The menus that are sized by their content say how tall it is: the panel
+// let go of the surface's bottom for a moment and measured, with the room
+// round it (4 above, 8 below for its shadow).
+function fit() {
+  // Each panel's id is the popup's name.
+  const panel = document.getElementById(document.body.dataset.popup);
+  if (!panel || !bridge) return;
+  const was = panel.style.bottom;
+  panel.style.bottom = "auto";
+  const height = Math.ceil(panel.getBoundingClientRect().height + 12);
+  panel.style.bottom = was;
+  bridge.fit(height);
+}
+
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   document.body.dataset.popup = s.popup || "";
+  if (s.popup) requestAnimationFrame(() => requestAnimationFrame(fit));
   disarm();
   if (opening && (s.popup === "network" || s.popup === "bluetooth")) {
     open = { key: "", busy: "", armed: "", scanning: false };

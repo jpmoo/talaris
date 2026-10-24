@@ -17,7 +17,9 @@ bar's button again, the pointer going elsewhere, and a short idle.
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import math
 import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
@@ -39,7 +41,7 @@ from layershell import (
 )
 from machine import Machine
 from sensor import Autohide
-from views import log, make_view, zoom
+from views import log, make_view, zoom, zoom_of
 
 #: Room below the bar (or above the dock) for a shadow to fall into.
 SHADOW_ROOM = 14
@@ -76,6 +78,12 @@ class BarBridge(Bridge):
     machine = Signal(str)
     #: Pushed to the popup: a Wi-Fi or Bluetooth panel's state, `{kind, state, error}`.
     panel = Signal(str)
+
+    @Slot(int)
+    def fit(self, height: int) -> None:
+        """The popup's page says how tall its content is, in its own pixels."""
+        if hasattr(self.owner, "fit"):
+            self.owner.fit(height)
 
     @Slot(str, bool)
     def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
@@ -157,6 +165,19 @@ class Popup(QObject):
         if kind in ("network", "bluetooth"):
             self.desktop.machine.panel_read(kind)
         self.touched()
+
+    #: Popups sized by what is in them, so no text size or typeface cuts them
+    #: off or leaves them half empty; the lists scroll, and keep their size.
+    FITTED = ("power", "volume")
+
+    def fit(self, height: int) -> None:
+        if self.kind not in self.FITTED or height <= 0:
+            return
+        want = math.ceil(height * zoom_of("interface"))
+        placed = self.surface.placement
+        if placed and abs(placed.height - want) > 1:
+            self.surface.placement = None
+            self.surface.apply(dataclasses.replace(placed, height=want))
 
     def file_away(self) -> None:
         """From the page — Escape, or the pointer gone elsewhere."""
