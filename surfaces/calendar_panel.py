@@ -256,7 +256,31 @@ class CalendarService(QObject):
                 done += len(events[i:i + 100])
             log(f"calendar: {done} events mirrored as entities")
             self._name_people()
+            self.tie_people()
         threading.Thread(target=send, daemon=True).start()
+
+    def tie_people(self) -> None:
+        """
+        Every person with an address and no contact card yet, tied to the
+        card in an address book that has that very address (DESIGN, People:
+        tied by address first). Only an exact address ties without asking;
+        a name alike stays a suggestion, in People. One marked not to be
+        offered a contact is left alone. From a worker thread.
+        """
+        status, text = core_call("GET", "/people", timeout=30)
+        if status != 200:
+            return
+        tied = 0
+        for p in json.loads(text):
+            email = str(p.get("email", "")).strip().lower()
+            if not email or p.get("ties") or p.get("noContact"):
+                continue
+            for card in self.find_cards(email):
+                if email in [e.lower() for e in card.get("emails", [])] and card.get("book") and card.get("uid"):
+                    status, _ = core_call("POST", f"/people/{p['id']}/ties", json.dumps({"key": f"{card['book']}/{card['uid']}"}), timeout=10)
+                    tied += status == 200
+        if tied:
+            log(f"calendar: {tied} people tied to their contact cards")
 
     def _name_people(self) -> None:
         """
