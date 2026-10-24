@@ -90,6 +90,8 @@ class Calendars:
     def __init__(self) -> None:
         self.registry = EDataServer.SourceRegistry.new_sync(None)
         self.clients: dict[str, ECal.Client] = {}
+        self.connecting: set[str] = set()
+        self.wanted: dict = {}
         self.views: list = []
         self._soon = 0
         self.registry.connect("source-added", lambda *_: self._sources())
@@ -108,28 +110,44 @@ class Calendars:
         return found.get_display_name() if found else "On this computer"
 
     def _sources(self) -> None:
-        listed = []
-        wanted = set()
-        for source in self.registry.list_enabled(EDataServer.SOURCE_EXTENSION_CALENDAR):
-            uid = source.get_uid()
-            ext = source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR)
-            wanted.add(uid)
-            if uid not in self.clients:
-                try:
-                    client = ECal.Client.connect_sync(source, ECal.ClientSourceType.EVENTS, 30, None)
-                except GLib.Error as e:
-                    sys.stderr.write(f"calendar {source.get_display_name()}: {e.message}\n")
-                    continue
-                self.clients[uid] = client
-                self._watch(client)
-            client = self.clients[uid]
-            listed.append({"id": uid, "name": source.get_display_name(), "color": ext.get_color() or "",
-                           "account": self._account(source), "writable": not client.is_readonly()})
-        for uid in [u for u in self.clients if u not in wanted]:
+        """
+        The enabled calendars, said at once with what is known of each; each
+        is connected in the background (a Google calendar can take seconds to
+        answer, and one must never hold up the rest), and said again as it is.
+        """
+        self.wanted = {s.get_uid(): s for s in self.registry.list_enabled(EDataServer.SOURCE_EXTENSION_CALENDAR)}
+        for uid in [u for u in self.clients if u not in self.wanted]:
             del self.clients[uid]
+        for uid, source in self.wanted.items():
+            if uid not in self.clients and uid not in self.connecting:
+                self.connecting.add(uid)
+                ECal.Client.connect(source, ECal.ClientSourceType.EVENTS, 30, None, self._connected, uid)
+        self._tell_calendars()
+
+    def _connected(self, _source, result, uid) -> None:
+        self.connecting.discard(uid)
+        try:
+            client = ECal.Client.connect_finish(result)
+        except GLib.Error as e:
+            sys.stderr.write(f"calendar {uid}: {e.message}\n")
+            return
+        if uid not in self.wanted:
+            return
+        self.clients[uid] = client
+        self._watch(client)
+        self._tell_calendars()
+        self._changed()
+
+    def _tell_calendars(self) -> None:
+        listed = []
+        for uid, source in self.wanted.items():
+            ext = source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR)
+            client = self.clients.get(uid)
+            listed.append({"id": uid, "name": source.get_display_name(), "color": ext.get_color() or "",
+                           "account": self._account(source), "writable": bool(client and not client.is_readonly()),
+                           "connected": bool(client)})
         listed.sort(key=lambda c: (c["account"], c["name"].lower()))
         say({"calendars": listed})
-        self._changed()
 
     def _watch(self, client) -> None:
         """Tell the screen whenever this calendar's events change — here, or on the service."""

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QObject, QUrl, Qt
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
@@ -112,5 +112,11 @@ def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, 
     # again once it has loaded, or the page draws at full size inside a
     # surface sized for the area's text size, and is cut off.
     page.loadFinished.connect(lambda _ok: view.setZoomFactor(_zoom.get(area, 1.0) if area in PAGE_AREAS else 1.0))
+    # A page whose renderer died draws nothing, though its surface comes and
+    # goes: said in the log, and the page loaded again.
+    def _died(status, code, name=name) -> None:
+        log(f"{name} page: its renderer ended ({status}, {code}); loading it again")
+        QTimer.singleShot(200, view.reload)
+    page.renderProcessTerminated.connect(_died)
     view.setUrl(QUrl(url))
     return view

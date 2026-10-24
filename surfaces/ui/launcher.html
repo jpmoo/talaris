@@ -16,7 +16,9 @@ not a thing is a question for Morgan.
 html, body { height: 100%; }
 body { background: rgba(0, 0, 0, .32); }
 #box {
-  position: absolute; left: 50%; top: 14%; transform: translateX(-50%);
+  /* Centered for its full size (the field, ten results, the foot), so that
+     results arriving as you type grow it downward without moving it. */
+  position: absolute; left: 50%; top: max(16px, calc(50% - 260px)); transform: translateX(-50%);
   width: min(640px, calc(100% - 32px));
   background: var(--surface); border: 1px solid var(--frame); border-radius: 12px;
   box-shadow: var(--menu-shadow); overflow: hidden;
