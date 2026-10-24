@@ -189,6 +189,10 @@ function draw() {
   slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
+  seg("win-outline", [["focus", "Accent in use"], ["accent", "Accent"], ["line", "Line"], ["none", "None"]], cfg.windows.outline || "focus",
+    (outline) => save({ windows: { outline } }));
+  slider("win-border", cfg.windows.border ?? 2, (v) => `${v}px`, (v) => save({ windows: { border: v } }));
+  needs(["win-border"], (cfg.windows.outline || "focus") !== "none");
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
 
   // Keys.

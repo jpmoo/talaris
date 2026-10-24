@@ -539,8 +539,13 @@ class Desktop(QObject):
         theme = self.config["theme"]
         accent = theme["accent"].lstrip("#")
         line = "c3c8cd" if theme.get("mode") == "light" else "3a3f44"
-        hypr.keyword("general:col.active_border", f"rgba({accent}ee)")
-        hypr.keyword("general:col.inactive_border", f"rgba({line}aa)")
+        win = self.config["windows"]
+        outline = win.get("outline", "focus")
+        # The outline, as Settings says: the focused window's in the accent and
+        # the rest a line, all one or the other, or none (no border at all).
+        hypr.keyword("general:border_size", "0" if outline == "none" else str(int(win.get("border", 2))))
+        hypr.keyword("general:col.active_border", f"rgba({line}aa)" if outline == "line" else f"rgba({accent}ee)")
+        hypr.keyword("general:col.inactive_border", f"rgba({accent}ee)" if outline == "accent" else f"rgba({line}aa)")
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
         # A floating bar's margin on the side away from its edge is the space

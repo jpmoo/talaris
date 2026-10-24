@@ -68,7 +68,9 @@ DEFAULTS = {
               "lid": {"ac": "suspend", "battery": "suspend", "docked": "nothing"}},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
-    "windows": {"gap": 10, "between": 10},
+    # outline: the focused window's border in the accent and the rest a line
+    # ("focus"), all "accent", all "line", or "none"; border is its width in px.
+    "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2},
     "drawers": {
         # One size for both (Settings shows them as one): under half each, so
         # both pulled at once leave a gap rather than overlapping. Height is a
