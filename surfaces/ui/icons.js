@@ -47,8 +47,8 @@ const Icons = (() => {
     const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
       : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
     return svg(
-      '<rect x="1.5" y="4.5" width="12" height="7" rx="1.5"/><path d="M14.5 7v2"/>' +
-      `<rect x="3" y="6" width="${w.toFixed(1)}" height="4" rx=".5" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` +
+      '<rect x="1.5" y="3.75" width="12" height="8.5" rx="1.75"/><path d="M14.5 6.5v3"/>' +
+      `<rect x="3" y="5.25" width="${w.toFixed(1)}" height="5.5" rx=".6" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` +
       mark);
   }
 

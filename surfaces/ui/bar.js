@@ -229,6 +229,10 @@ Surface.connect({ onState, onMachine }).then((b) => {
 const SNAP = "#where, #clock span, .bar-item .n, .bar-item .ic, .tray-item img";
 function snap() {
   const dpr = window.devicePixelRatio || 1;
+  // An icon a whole number of device pixels tall and wide, or its far edge sits
+  // on a half pixel whatever its near one does (16px at 1.40625 is 22.5).
+  const icon = `${Math.round(16 * dpr) / dpr}px`;
+  for (const e of document.querySelectorAll(".bar-item .ic, .tray-item img")) e.style.width = e.style.height = icon;
   for (const e of document.querySelectorAll(SNAP)) {
     e.style.transform = "";
     const top = e.getBoundingClientRect().top * dpr;
