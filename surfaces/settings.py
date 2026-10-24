@@ -66,8 +66,8 @@ def _checked(c: dict) -> str:
     if c["bar"]["edge"] == c["dock"]["edge"]:
         return "The bar and the dock need an edge each"
     edges = [d["edge"] for d in c["drawers"].values()]
-    if any(e not in EDGES for e in edges):
-        return "Not an edge"
+    if any(e not in ("left", "right") for e in edges):
+        return "A drawer is on the left or the right"
     if len(set(edges)) != len(edges):
         return "Each drawer needs an edge of its own, for now"
     if any(e == c["bar"]["edge"] or (c["dock"].get("enabled", True) and e == c["dock"]["edge"]) for e in edges):

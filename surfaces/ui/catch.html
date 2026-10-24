@@ -17,7 +17,7 @@ press on it is a press off the drawer, which puts the drawer away.
 "use strict";
 new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
-  document.addEventListener("pointerdown", () => bridge.touched());
+  for (const type of ["pointerdown", "mousedown", "touchstart"]) document.addEventListener(type, () => bridge.touched(), true);
 });
 </script>
 </body>

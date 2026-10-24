@@ -121,7 +121,8 @@ function draw() {
     // The other drawer's edge swaps the two; the bar's, or a dock's in use,
     // is not a drawer's to take.
     const dockEdge = cfg.dock.enabled === false ? null : cfg.dock.edge;
-    seg(`${name}-edge`, Object.entries(EDGE_NAMES), d.edge,
+    // Drawers come from the sides; the top and bottom are the bar's and the dock's.
+    seg(`${name}-edge`, [["left", "Left"], ["right", "Right"]], d.edge,
       (edge) => save({ drawers: edge === other ? { [name]: { edge }, [otherName]: { edge: d.edge } } : { [name]: { edge } } }),
       (edge) => edge === cfg.bar.edge || edge === dockEdge);
   }

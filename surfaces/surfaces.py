@@ -459,6 +459,7 @@ class Desktop(QObject):
             self.catcher.hide()
 
     def _caught(self) -> None:
+        log("catcher: a click outside the drawer")
         for d in self.drawers.values():
             if d.mode == "pulled":
                 d.file_away()

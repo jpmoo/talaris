@@ -123,6 +123,11 @@ class Catcher(QObject):
         self.bridge = SensorBridge(self, self)
         self.view = make_view(profile, "catcher", "talaris-ui://ui/catch.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-catcher")
+        # The press is watched in Qt as well as in the page: the page's own
+        # listener did not hear it, and a catcher that misses a click is a
+        # drawer that will not go away.
+        self._watched = None
+        self.view.loadFinished.connect(lambda _ok: self._watch())
 
     def describe(self) -> dict:
         return {}
@@ -135,6 +140,7 @@ class Catcher(QObject):
         self.surface.apply(Placement(TOP, EDGE_ANCHOR["top"] | EDGE_ANCHOR["bottom"] | EDGE_ANCHOR["left"] | EDGE_ANCHOR["right"],
                                      screen.width(), screen.height(), KEYBOARD_NONE))
         self.up = True
+        self._watch()
 
     def hide(self) -> None:
         if self.up:
@@ -142,8 +148,20 @@ class Catcher(QObject):
             self.view.hide()
             self.surface.placement = None
 
+    def _watch(self) -> None:
+        target = self.view.focusProxy() or self.view
+        if target is not self._watched:
+            target.installEventFilter(self)
+            self._watched = target
+
+    def eventFilter(self, _watched, event) -> bool:  # noqa: N802 — Qt's name
+        if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.TouchBegin) and self.up:
+            self.touched_edge()
+        return False
+
     def touched_edge(self) -> None:
-        self.on_catch()
+        if self.up:
+            self.on_catch()
 
     def toggle(self) -> None:
         pass
