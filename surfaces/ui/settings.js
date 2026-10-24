@@ -35,7 +35,7 @@ function save(change) {
   bridge.save(JSON.stringify(change), (error) => {
     if (error) { say(error, true); draw(); return; }
     say("Saved");
-    bridge.config((text) => { cfg = JSON.parse(text).config; draw(); });
+    bridge.config((text) => { cfg = JSON.parse(text).config; draw(); if ($("data").classList.contains("on")) drawData(); });
   });
 }
 
@@ -567,6 +567,165 @@ $("bt-on").addEventListener("click", () => btSend({ verb: "power", on: !(btNow &
 $("bt-visible").addEventListener("click", () => btSend({ verb: "visible", on: !(btNow && btNow.visible) }, ""));
 $("bt-scan").addEventListener("click", () => { working("bt-msg", "Looking for devices…"); bridge.panelRead("bluetooth", true); });
 
+// ---------------------------------------------------------------- data
+
+/*
+ * The entity store: its recovery key, its backups, and which projects are
+ * sealed. Everything here is asked of the core (through the bridge, answered
+ * later, so a backup does not freeze the page).
+ */
+const coreWaiting = new Map();
+let coreNext = 0;
+function core(method, path, body) {
+  return new Promise((ok, fail) => {
+    const id = String(++coreNext);
+    coreWaiting.set(id, (r) => (r.status === 200 ? ok(r.data) : fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`))));
+    bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
+  });
+}
+
+let vaultNow = null;
+let reviving = null; // the backup chosen to revive
+
+const when = (iso) => {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+};
+const size = (n) => (n > 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+async function loadData() {
+  working("data-where", "Reading…");
+  try {
+    vaultNow = await core("GET", "/vault");
+    drawData();
+  } catch (e) {
+    $("data-where").textContent = e.message;
+    $("data-where").className = "note err";
+  }
+}
+
+function drawData() {
+  const v = vaultNow;
+  if (!v) return;
+  $("data-where").className = "note";
+  $("data-where").textContent = "People, events, notes, tasks and projects, kept encrypted in ~/.local/share/talaris.";
+  $("data-locked").hidden = !v.locked;
+  $("data-open").hidden = !!v.locked;
+  if (v.locked) { $("data-locked-why").textContent = v.locked; return; }
+
+  // The recovery key: shown until it is said to be kept, then never again.
+  if (v.pending) {
+    $("recovery").replaceChildren(
+      el("p", { class: "note" }, "Write this down or put it in your password manager. It is the only way to open a backup, or this store if the keyring loses its key. It is shown until you say it is kept, and never again."),
+      el("div", { class: "recovery-key" }, v.pending),
+      el("div", { class: "data-buttons" },
+        el("button", { class: "t-btn", onclick: () => { bridge.copyText(v.pending); say("Copied"); } }, "Copy"),
+        el("button", { class: "t-btn", onclick: () => core("POST", "/vault/recovery-kept").then(() => { say("Kept"); loadData(); }, (e) => say(e.message, true)) }, "I have kept it")));
+  } else {
+    $("recovery").replaceChildren(el("div", { class: "row" },
+      el("span", { class: "name" }, "Kept", el("small", {}, "Shown once; Talaris does not have it")),
+      el("span", { class: "what" }, el("button", { class: "t-btn", onclick: replaceRecovery }, "Replace…"))));
+  }
+
+  const b = v.backups;
+  const d = (cfg && cfg.data) || {};
+  $("backup-folder").textContent = d.backupFolder || "~/.local/share/talaris/backups";
+  seg("backup-schedule", [["off", "Never"], ["daily", "Daily"], ["weekly", "Weekly"]], d.schedule || "off", (schedule) => save({ data: { schedule } }));
+  slider("backup-keep", d.keep || 7, (n) => `${n}`, (keep) => save({ data: { keep } }));
+  const last = b.last;
+  $("backup-last").textContent = b.error ? `Failed: ${b.error}`
+    : last ? `${when(last.at)} · ${last.objects} things · ${size(last.bytes)} · format check ${last.check}` : "None yet";
+  $("backup-last").className = b.error || (last && last.check === "failed") ? "err" : "";
+  drawRevive();
+  drawSealed();
+}
+
+function replaceRecovery() {
+  $("recovery").replaceChildren(
+    el("p", { class: "note" }, "A new recovery key. Backups made from now on need it; backups already made still need the old one."),
+    el("div", { class: "data-buttons" },
+      el("button", { class: "t-btn", onclick: drawData }, "Cancel"),
+      el("button", { class: "t-btn", onclick: () => core("POST", "/vault/recovery/replace").then(loadData, (e) => say(e.message, true)) }, "Make a new one")));
+}
+
+async function drawSealed() {
+  let projects = [];
+  try { projects = await core("GET", "/projects"); } catch { /* said elsewhere */ }
+  const sealed = new Set(vaultNow.encryptedProjects || []);
+  $("sealed-projects").replaceChildren(...projects.map((p) => {
+    const sw = el("button", { class: "switch" + (sealed.has(p.id) ? " on" : ""), title: "Encrypted" });
+    sw.addEventListener("click", async () => {
+      const on = !sealed.has(p.id);
+      sw.disabled = true;
+      say(on ? `Encrypting ${p.name}…` : `Decrypting ${p.name}…`);
+      try {
+        const r = await core("PUT", `/projects/${encodeURIComponent(p.id)}/encrypted`, { on });
+        say(`${p.name}: ${r.files} files ${on ? "sealed" : "opened"}`);
+        loadData();
+      } catch (e) { say(e.message, true); sw.disabled = false; }
+    });
+    return el("div", { class: "row" }, el("span", { class: "name" }, p.name, el("small", {}, p.code || "")), el("span", { class: "what" }, sw));
+  }));
+}
+
+function drawRevive() {
+  if (!reviving) { $("revive").replaceChildren(); return; }
+  const key = el("input", { spellcheck: "false", autocomplete: "off", placeholder: "Its recovery key" });
+  const out = el("div", { class: "preview note" });
+  const look = el("button", { class: "t-btn" }, "Look inside");
+  const go = el("button", { class: "t-btn", hidden: "" }, "Revive it");
+  look.addEventListener("click", async () => {
+    out.textContent = "Opening…";
+    try {
+      const p = await core("POST", "/backups/preview", { file: reviving, recoveryKey: key.value });
+      const kinds = Object.entries(p.kinds).map(([k, n]) => `${n} ${k}`).join(", ");
+      out.textContent = `Made ${when(p.made)}: ${p.objects} things (${kinds || "nothing"}), ${p.relations} links. Reviving replaces what is here now, which is backed up first.`;
+      go.hidden = false;
+    } catch (e) { out.textContent = e.message; out.className = "preview note err"; }
+  });
+  go.addEventListener("click", async () => {
+    go.disabled = true;
+    out.className = "preview note";
+    out.textContent = "Reviving…";
+    try {
+      const r = await core("POST", "/backups/revive", { file: reviving, recoveryKey: key.value });
+      const lost = r.findings.filter((f) => f.severity !== "info");
+      out.textContent = `Revived: ${r.counts.objects} things, ${r.counts.files} files.` + (lost.length ? ` ${lost.length} things could not come back whole: ${lost.map((f) => f.message).join("; ")}` : "");
+      reviving = null;
+      setTimeout(loadData, 2500);
+    } catch (e) { out.textContent = e.message; out.className = "preview note err"; go.disabled = false; }
+  });
+  $("revive").replaceChildren(el("div", { class: "row" },
+    el("span", { class: "name" }, reviving.split("/").pop()),
+    el("span", { class: "what" }, key, look, go)), out);
+}
+
+function onPicked(p) {
+  if (p.kind === "folder") save({ data: { backupFolder: p.path } });
+  else { reviving = p.path; drawRevive(); }
+}
+
+$("backup-choose").addEventListener("click", () => bridge.choose("folder"));
+$("revive-choose").addEventListener("click", () => bridge.choose("backup"));
+$("backup-now").addEventListener("click", async () => {
+  $("backup-now").disabled = true;
+  say("Backing up…");
+  try {
+    const r = await core("POST", "/backups/now");
+    say(`Backed up · format check ${r.check}`);
+  } catch (e) { say(e.message, true); }
+  $("backup-now").disabled = false;
+  loadData();
+});
+$("unlock-go").addEventListener("click", async () => {
+  try {
+    await core("POST", "/vault/unlock", { recoveryKey: $("unlock-key").value });
+    $("unlock-key").value = "";
+    say("Opened");
+    loadData();
+  } catch (e) { say(e.message, true); }
+});
+
 function show(page) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.page === page);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
@@ -579,6 +738,7 @@ function show(page) {
     bridge.power((text) => { powerProfile = JSON.parse(text).plugged ? "ac" : "battery"; draw(); });
     powerNote();
   }
+  if (page === "data") loadData();
   if (page === "look") bridge.wallpaper((text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
@@ -624,5 +784,7 @@ Surface.connect({
   b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
   b.panel.connect((text) => onRadio(JSON.parse(text)));
   b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
+  b.coreReply.connect((text) => { const r = JSON.parse(text); const done = coreWaiting.get(r.id); coreWaiting.delete(r.id); if (done) done(r); });
+  b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
 });

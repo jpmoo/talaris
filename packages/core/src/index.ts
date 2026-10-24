@@ -27,7 +27,11 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
 }
 
-main().catch((e) => {
+// `talaris-core mcp`: the MCP server, over standard input, beside a running core.
+if (process.argv[2] === "mcp") {
+  const { serveMcp } = await import("./mcp.js");
+  serveMcp();
+} else main().catch((e) => {
   console.error("talaris-core:", e instanceof Error ? e.message : e);
   // 78 is "configuration error": the unit does not restart on it, so a second
   // copy refusing to steal the socket does not spin.

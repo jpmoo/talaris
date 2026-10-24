@@ -97,6 +97,13 @@ test("an event's invitees are people it references, made or found by email", () 
   assert.equal(after.properties.organizer, undefined);
 });
 
+test("one meeting seen through two accounts is one entity, known by both", () => {
+  const a = entities.mirrorEvent({ source: { kind: "eds-event", key: "google/u-77" }, also: [{ kind: "ical-uid", key: "u-77" }], title: "Shared" });
+  const b = entities.mirrorEvent({ source: { kind: "eds-event", key: "m365/u-77" }, also: [{ kind: "ical-uid", key: "u-77" }], title: "Shared" });
+  assert.equal(a.id, b.id);
+  assert.equal(entities.bySource({ kind: "eds-event", key: "m365/u-77" })?.id, a.id);
+});
+
 test("connecting a note to a person uses the note's declared field; with none, an edge", () => {
   const note = entities.createEntity({ role: "note", properties: { body: "Asked about the engine" } });
   const grace = entities.byEmail("grace@example.com")!;

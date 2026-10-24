@@ -20,15 +20,66 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
+import time
+from datetime import datetime
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge
+from core import Bridge, call as core_call
 from overlay import Overlay
 from views import log
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+#: How far round today the calendars are mirrored into entities (DESIGN, Entities).
+MIRROR_BACK_DAYS, MIRROR_AHEAD_DAYS = 90, 180
+#: The mirror's own requests, numbered where the page's never reach, so the page ignores their answers.
+MIRROR_REQ = 1_000_000_000
+
+
+def _local(ms: int) -> str:
+    """A time as the format writes a datetime: local, to the minute."""
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%dT%H:%M")
+
+
+def mirrored(items: list, hidden: set) -> list:
+    """
+    The events the calendar answered, as entities want them: one per event —
+    a recurring one once, at the occurrence nearest from now on — and none
+    from a calendar turned off.
+    """
+    now = time.time() * 1000
+    best: dict = {}
+    for e in items:
+        if e["calendar"] in hidden or not e.get("uid"):
+            continue
+        key = (e["calendar"], e["uid"])
+        held = best.get(key)
+        upcoming = e["end"] >= now
+        if held is None:
+            best[key] = e
+            continue
+        held_up = held["end"] >= now
+        # The next one still to come; failing that, the latest that has been.
+        if (upcoming and (not held_up or e["start"] < held["start"])) or (not upcoming and not held_up and e["start"] > held["start"]):
+            best[key] = e
+    out = []
+    for (calendar, uid), e in best.items():
+        out.append({
+            "source": {"kind": "eds-event", "key": f"{calendar}/{uid}"},
+            # The same meeting in another account has the same UID.
+            "also": [{"kind": "ical-uid", "key": uid}],
+            "title": e.get("title") or "",
+            "start": _local(e["start"]), "end": _local(e["end"]),
+            "allDay": bool(e.get("allDay")),
+            "location": e.get("location") or "",
+            "organizer": {"email": e["organizer"]} if e.get("organizer") else None,
+            "attendees": [{"email": a["email"], "name": a.get("name") or "", "status": a.get("answer") or ""}
+                          for a in e.get("attendees", []) if a.get("email")],
+        })
+    return out
 #: What to install when the calendar's bindings are missing.
 NEEDS = ("gir1.2-ecal-2.0 gir1.2-edataserver-1.2 gir1.2-ebook-1.2 gir1.2-ebookcontacts-1.2 "
          "gir1.2-goa-1.0 gnome-online-accounts-gtk evolution-ews")
@@ -53,6 +104,16 @@ class CalendarService(QObject):
         self._buffer = b""
         self._errors = ""
         self._restarts = 0
+        # Events into entities: a wide range, on start and when anything changes.
+        self._mirror_req = MIRROR_REQ
+        self._mirror_waiting: set = set()
+        self._mirror_soon = QTimer(self)
+        self._mirror_soon.setSingleShot(True)
+        self._mirror_soon.timeout.connect(self.mirror)
+        self.changed.connect(lambda: self._mirror_soon.start(30_000))
+        self._mirror_every = QTimer(self)
+        self._mirror_every.timeout.connect(self.mirror)
+        self._mirror_every.start(6 * 60 * 60 * 1000)
         self._start()
 
     def _start(self) -> None:
@@ -97,17 +158,50 @@ class CalendarService(QObject):
                 continue
             if "ready" in msg:
                 self._tell({"ready": bool(msg["ready"]), "error": msg.get("error", ""), "needs": ""})
+                # Accounts connect one by one after ready: give them a moment.
+                if msg["ready"]:
+                    self._mirror_soon.start(20_000)
             elif "calendars" in msg:
                 self.last_calendars = json.dumps(msg["calendars"])
                 self.calendars.emit(self.last_calendars)
             elif "events" in msg:
-                self.events.emit(json.dumps(msg["events"]))
+                if msg["events"].get("req") in self._mirror_waiting:
+                    self._mirror_waiting.discard(msg["events"]["req"])
+                    self._mirror_out(msg["events"].get("items", []))
+                else:
+                    self.events.emit(json.dumps(msg["events"]))
             elif "done" in msg:
                 self.done.emit(json.dumps(msg["done"]))
             elif "people" in msg:
                 self.people.emit(json.dumps(msg["people"]))
             elif msg.get("changed"):
                 self.changed.emit()
+
+    def mirror(self) -> None:
+        """Ask for the wide range; its answer goes to the core, not the page."""
+        if not self.state.get("ready"):
+            return
+        self._mirror_req += 1
+        self._mirror_waiting.add(self._mirror_req)
+        now = int(time.time() * 1000)
+        day = 24 * 60 * 60 * 1000
+        self.send({"do": "range", "req": self._mirror_req, "from": now - MIRROR_BACK_DAYS * day, "to": now + MIRROR_AHEAD_DAYS * day})
+
+    def _mirror_out(self, items: list) -> None:
+        desktop = self.parent()
+        hidden = set(getattr(desktop, "config", {}).get("calendar", {}).get("hidden", []))
+        events = mirrored(items, hidden)
+
+        def send() -> None:
+            done = 0
+            for i in range(0, len(events), 100):
+                status, text = core_call("POST", "/entities/mirror/events", json.dumps({"events": events[i:i + 100]}), timeout=60)
+                if status != 200:
+                    log(f"calendar: mirroring stopped ({status}): {text[:200]}")
+                    return
+                done += len(events[i:i + 100])
+            log(f"calendar: {done} events mirrored as entities")
+        threading.Thread(target=send, daemon=True).start()
 
     def send(self, msg: dict) -> None:
         if self.process and self.process.state() == QProcess.ProcessState.Running:

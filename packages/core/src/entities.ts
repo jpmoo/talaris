@@ -616,6 +616,11 @@ export function personFor(email: string, name?: string, extra: { sources?: Sourc
 export interface MirroredEvent {
   /** Where it lives: the calendar's own id for it. */
   source: Source;
+  /**
+   * What else it is known by — its iCalendar UID, the same in every account
+   * that sees it — so one meeting seen through two accounts is one entity.
+   */
+  also?: Source[];
   title: string;
   start?: string;
   end?: string;
@@ -654,15 +659,17 @@ export function mirrorEvent(e: MirroredEvent): Entity {
     organizer: organizer ?? null,
     attendees: attendees.length ? attendees : null,
   };
-  const known = bySource(e.source);
+  const sources = [e.source, ...(e.also ?? [])];
+  const known = sources.map(bySource).find((x) => x) ?? null;
   if (!known) {
     const clean = Object.fromEntries(Object.entries(properties).filter(([, v]) => v !== null));
-    return createEntity({ type: type.id, properties: clean, sources: [e.source], ...(attendees.length ? { "talaris:attendance": attendance } : {}) });
+    return createEntity({ type: type.id, properties: clean, sources, ...(attendees.length ? { "talaris:attendance": attendance } : {}) });
   }
-  const changed = Object.entries(properties).some(([k, v]) => JSON.stringify(known.properties[k] ?? null) !== JSON.stringify(v))
+  const newSource = sources.some((s) => !sourcesOf(known).some((x) => sourceKey(x) === sourceKey(s)));
+  const changed = newSource || Object.entries(properties).some(([k, v]) => JSON.stringify(known.properties[k] ?? null) !== JSON.stringify(v))
     || JSON.stringify(known["talaris:attendance"] ?? {}) !== JSON.stringify(attendees.length ? attendance : {});
   if (!changed) return known;
-  return updateEntity(known.id, { properties, "talaris:attendance": attendees.length ? attendance : undefined });
+  return updateEntity(known.id, { properties, sources, "talaris:attendance": attendees.length ? attendance : undefined });
 }
 
 // ------------------------------------------------------------ attachments

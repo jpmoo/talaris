@@ -31,17 +31,17 @@ SOCKET = os.environ.get(
 
 
 class _UnixConnection(http.client.HTTPConnection):
-    def __init__(self) -> None:
-        super().__init__("talaris", timeout=10)
+    def __init__(self, timeout: float = 10) -> None:
+        super().__init__("talaris", timeout=timeout)
 
     def connect(self) -> None:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(10)
+        self.sock.settimeout(self.timeout)
         self.sock.connect(SOCKET)
 
 
-def call(method: str, path: str, body: str | None = None) -> tuple[int, str]:
-    conn = _UnixConnection()
+def call(method: str, path: str, body: str | None = None, timeout: float = 10) -> tuple[int, str]:
+    conn = _UnixConnection(timeout)
     try:
         data = body.encode("utf-8") if body is not None else None
         conn.request(method, path, body=data, headers={"content-type": "application/json"} if data else {})

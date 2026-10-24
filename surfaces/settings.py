@@ -26,6 +26,7 @@ import json
 import os
 import shutil
 import re
+import threading
 
 import shiboken6
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
@@ -37,7 +38,7 @@ import power
 import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config
-from core import Bridge
+from core import Bridge, call as core_call
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
 from sensor import Catcher
@@ -87,6 +88,10 @@ def _checked(c: dict) -> str:
         return "Not a calendar"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"
+    backups = c.get("data", {})
+    if backups.get("schedule", "off") not in ("off", "daily", "weekly") or not 1 <= int(backups.get("keep", 7)) <= 60 \
+            or not isinstance(backups.get("backupFolder", ""), str):
+        return "Backups are off, daily or weekly, keeping one to sixty"
     if not 16 <= int(c["dock"].get("iconSize", 24)) <= 48:
         return "The dock's icons are 16 to 48 pixels"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
@@ -239,6 +244,49 @@ class SettingsBridge(Bridge):
     def power(self) -> str:
         return json.dumps(self.owner.desktop.power.status())
 
+    # ------------------------------------------------------------ data
+
+    #: The core's answer to `core`: {id, status, data}.
+    coreReply = Signal(str)
+    #: A folder or a backup file chosen: {kind, path}.
+    picked = Signal(str)
+
+    @Slot(str, str, str, str)
+    def core(self, ident: str, method: str, path: str, body: str) -> None:
+        """
+        The entity store's routes, for the Data page. Answered later
+        (`coreReply`): a backup or a revival takes seconds, and the page must
+        not freeze meanwhile. Only the store's own routes: this is not a door
+        to the rest of the core.
+        """
+        if not re.match(r"^/(vault|backups|entities|projects)(/|$|\?)", path):
+            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
+            return
+
+        def run() -> None:
+            # A revival or a backup of a large store takes a while.
+            status, text = core_call(method, path, body or None, timeout=600 if path.startswith("/backups") else 30)
+            try:
+                data = json.loads(text) if text else None
+            except ValueError:
+                data = {"error": text}
+            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
+        threading.Thread(target=run, daemon=True).start()
+
+    @Slot(str)
+    def choose(self, kind: str) -> None:
+        """A folder for backups, or a backup to revive, in the desktop's own chooser."""
+        self.owner.choose_path(kind)
+
+    @Slot(str)
+    def copyText(self, text: str) -> None:  # noqa: N802 — called from the page by this name
+        """Onto the clipboard (the recovery key, to put in a password manager)."""
+        try:
+            import subprocess
+            subprocess.run(["wl-copy"], input=text.encode(), timeout=3, check=False)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
     @Slot(result=str)
     def keys(self) -> str:
         return json.dumps(self.owner.desktop.key_list())
@@ -363,11 +411,38 @@ class Settings(QObject):
         self.catcher.hide()
         chooser.start()
 
+    def choose_path(self, kind: str) -> None:
+        if getattr(self, "_chooser", None):
+            return
+        chooser = QProcess(self)
+        chooser.setProgram("zenity")
+        if kind == "folder":
+            chooser.setArguments(["--file-selection", "--directory", "--title=A folder for backups"])
+        else:
+            start = self.desktop.config.get("data", {}).get("backupFolder") or os.path.expanduser("~/.local/share/talaris/backups")
+            chooser.setArguments(["--file-selection", "--title=A backup to revive", f"--filename={os.path.expanduser(start)}/",
+                                  "--file-filter=Talaris backups | *.talaris-backup"])
+
+        def done(code: int, _status) -> None:
+            self._chooser = None
+            if self.up:
+                self.catcher.show()
+            path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
+            chooser.deleteLater()
+            if path:
+                self.bridge.picked.emit(json.dumps({"kind": kind, "path": path}))
+
+        chooser.finished.connect(done)
+        self._chooser = chooser
+        self.catcher.hide()
+        chooser.start()
+
     def apply(self, wanted: dict) -> str:
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data"):
+            after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:
             after["idleSeconds"] = int(wanted["idleSeconds"])

@@ -205,8 +205,29 @@ class Power(QObject):
         self.process.setArguments(["-c", IDLE_FILE])
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self._heard)
+        self.process.finished.connect(self._ended)
         self.process.start()
         log(f"power: hypridle running with Talaris's settings ({'plugged in' if self.plugged else 'on battery'})")
+
+    def _ended(self, code: int, _status) -> None:
+        """
+        Talaris's hypridle stopped without being asked (killed, crashed): start
+        it again — but never beside another hypridle, so two never fire the same
+        timeouts. One someone started by hand is theirs; this waits for it to go.
+        """
+        if self.process is None or not self.desktop.config["power"].get("managed"):
+            return
+        self.process = None
+        log(f"power: hypridle stopped ({code}); starting it again when no other is running")
+        QTimer.singleShot(5000, self._again)
+
+    def _again(self) -> None:
+        if self.process is not None or not self.desktop.config["power"].get("managed"):
+            return
+        if subprocess.run(["pgrep", "-x", "hypridle"], capture_output=True).returncode == 0:
+            QTimer.singleShot(60_000, self._again)
+            return
+        self._idle(self.desktop.config["power"])
 
     def _heard(self) -> None:
         """hypridle's own lines worth keeping: a step run, a return, a refusal."""
@@ -263,10 +284,12 @@ class Power(QObject):
     # ------------------------------------------------------------ stopping
 
     def _stop_idle(self) -> None:
-        if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
-            self.process.terminate()
-            self.process.waitForFinished(2000)
-        self.process = None
+        # Asked to stop: not an ending to recover from.
+        process, self.process = self.process, None
+        if process and process.state() != QProcess.ProcessState.NotRunning:
+            process.finished.disconnect(self._ended)
+            process.terminate()
+            process.waitForFinished(2000)
 
     def stop(self) -> None:
         self.watch.stop()

@@ -70,6 +70,10 @@ DEFAULTS = {
     # Plugged in (`ac`) and on battery each have their times. `lid` is what
     # closing it does — suspend, lock, screen-off or nothing — plugged in, on
     # battery, and with another screen attached (`docked`), which comes first.
+    # The entity store's backups (DESIGN, Entities): sealed to the recovery key,
+    # written to `backupFolder` ("" is ~/.local/share/talaris/backups) daily,
+    # weekly or never, keeping the newest `keep`. Read by talaris-core.
+    "data": {"backupFolder": "", "schedule": "off", "keep": 7},
     "power": {"managed": False, "dimTo": 20,
               "ac": {"dim": 0, "lock": 600, "screenOff": 900, "suspend": 0},
               "battery": {"dim": 120, "lock": 300, "screenOff": 420, "suspend": 1200},
