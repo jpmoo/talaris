@@ -85,6 +85,11 @@ class DockBridge(Bridge):
     def menu(self, key: str, x: int) -> None:
         self.owner.menu.open(key, x)
 
+    @Slot(str, float)
+    def tip(self, text: str, x: float) -> None:
+        """A tooltip over the item at `x`; empty text puts it away."""
+        self.owner.tip(text, x)
+
     @Slot(str, str)
     def act(self, verb: str, key: str) -> None:
         self.owner.act(verb, key)
@@ -199,6 +204,14 @@ class Dock(QObject):
         if not hide:
             self._show()
         self.refresh()
+
+    def tip(self, text: str, x: float) -> None:
+        # Clear of the dock (its reserved space, or its height while it hides)
+        # and of an icon magnified under the pointer.
+        look = self.desktop.config["dock"]
+        swell = round((int(look.get("iconSize", 24)) + 12) * (int(look.get("magnify", 100)) - 100) / 100)
+        off = (self.thickness() if look.get("autohide") else 0) + max(0, swell)
+        self.desktop.tip.show(text, x * self.view.zoomFactor(), self.edge, off)
 
     def thickness(self) -> int:
         """How tall the dock is: its icons at the size Settings gives, and the room round them."""

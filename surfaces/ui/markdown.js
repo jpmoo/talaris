@@ -42,6 +42,12 @@ function inline(escaped) {
     return "\u0000" + (spans.length - 1) + "\u0000";
   });
 
+  // Colored words — `<span style="color:#rrggbb">…</span>`, as the editor
+  // writes them — are the one tag let back, and only in exactly that shape,
+  // found in the escaped text: the color must be a hex, nothing else passes.
+  s = s.replace(/&lt;span style=&quot;color:\s*(#[0-9a-fA-F]{6})&quot;&gt;([^&<]*?(?:&(?!lt;\/span)[^&<]*?)*)&lt;\/span&gt;/g,
+    (_, color, words) => `<span style="color:${color}">${words}</span>`);
+
   // Links before emphasis: a URL may contain underscores, and reading those as
   // italics turns a working link into a broken one with an <em> in the middle.
   // Only http(s) — a `javascript:` href is the one thing markdown could

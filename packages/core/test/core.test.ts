@@ -119,6 +119,21 @@ test("a canvas can have many links, from any project, and lists them", () => {
   assert.equal(links[0]?.project, home.id);
 });
 
+test("renaming a canvas renames its cards, and a stale save cannot undo it", () => {
+  const p = projects.createProject("Renames");
+  const top = projects.readProject(p.folder).topCanvas;
+  const { canvas: a } = canvases.createChild(p.id, top, "A");
+  const stale = canvases.readCanvas(p.id, a.id);
+  canvases.renameCanvas(p.id, a.id, "  Act one ");
+  canvases.renameCanvas(p.id, top, "Story");
+  assert.equal(canvases.canvasTree(p.id).title, "Story", "the top canvas too");
+  const card = canvases.readCanvas(p.id, top).items.find((i) => i.canvas === a.id);
+  assert.equal(card?.seen?.title, "Act one");
+  canvases.writeCanvas(p.id, stale);
+  assert.equal(canvases.readCanvas(p.id, a.id).title, "Act one");
+  assert.throws(() => canvases.renameCanvas(p.id, a.id, " "), /needs a name/);
+});
+
 test("the top canvas cannot be deleted, nor one with children", () => {
   const p = projects.createProject("Deletes");
   const top = projects.readProject(p.folder).topCanvas;
@@ -208,15 +223,14 @@ test("a burst of saves is one version; a pause starts the next; age thins them",
 test("restoring a canvas version is itself a save", () => {
   const p = projects.createProject("Restore");
   const top = projects.readProject(p.folder).topCanvas;
-  const doc = canvases.readCanvas(p.id, top);
-  canvases.writeCanvas(p.id, { ...doc, title: "First" });
+  canvases.renameCanvas(p.id, top, "First");
   const first = canvases.canvasVersions(p.id, top)[0]!.name;
   // Force a new version rather than a burst replacement by moving its stamp back.
   const dir = versions.versionDir(join(p.folder, ".talaris"), "canvas", top);
   const old = join(dir, first);
   const renamed = join(dir, "2020-01-01T00-00-00-000Z.json");
   writeFileSync(renamed, readFileSync(old)); rmSync(old);
-  canvases.writeCanvas(p.id, { ...doc, title: "Second" });
+  canvases.renameCanvas(p.id, top, "Second");
   canvases.restoreCanvas(p.id, top, "2020-01-01T00-00-00-000Z.json");
   assert.equal(canvases.readCanvas(p.id, top).title, "First");
 });

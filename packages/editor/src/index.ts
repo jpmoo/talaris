@@ -28,7 +28,7 @@ import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@c
 import type { StateCommand } from "@codemirror/state";
 import { listItemAt, moveListItem } from "./lists.ts";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { liveSpecs, type Spec } from "./live.ts";
+import { COLOR_SPAN, colored, liveSpecs, type Spec } from "./live.ts";
 
 class Bullet extends WidgetType {
   toDOM(): HTMLElement {
@@ -192,7 +192,8 @@ function decorations(view: EditorView): DecorationSet {
         case "mark":
           ranges.push(Decoration.mark({
             class: s.cls,
-            attributes: s.url ? { "data-url": s.url, "data-from": String(s.from), "data-to": String(s.to) } : undefined,
+            attributes: s.url ? { "data-url": s.url, "data-from": String(s.from), "data-to": String(s.to) }
+              : s.color ? { style: `color: ${s.color}` } : undefined,
           }).range(s.from, s.to));
           break;
         case "line":
@@ -310,6 +311,14 @@ export interface Editor {
   readonly text: string;
   set(text: string): void;
   setLive(live: boolean): void;
+  /**
+   * The selected words in a color, or plain with `null`. With nothing
+   * selected, the colored span the cursor is in takes the color (or loses it).
+   * Answers whether anything changed.
+   */
+  setColor(color: string | null): boolean;
+  /** Whether any text is selected: what a color would apply to. */
+  readonly selecting: boolean;
   focus(): void;
   destroy(): void;
 }
@@ -368,6 +377,29 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
     get text() { return view.state.doc.toString(); },
     set(next: string) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next }, selection: EditorSelection.cursor(0) });
+    },
+    get selecting() { return view.state.selection.ranges.some((r) => !r.empty); },
+    setColor(color: string | null) {
+      if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return false;
+      const state = view.state;
+      const changes: Array<{ from: number; to: number; insert: string }> = [];
+      for (const r of state.selection.ranges) {
+        if (!r.empty) {
+          changes.push({ from: r.from, to: r.to, insert: colored(state.doc.sliceString(r.from, r.to), color) });
+          continue;
+        }
+        // No selection: the colored span around the cursor, if there is one.
+        const line = state.doc.lineAt(r.head);
+        for (const m of line.text.matchAll(COLOR_SPAN)) {
+          const start = line.from + (m.index ?? 0);
+          const end = start + m[0].length;
+          if (r.head >= start && r.head <= end) changes.push({ from: start, to: end, insert: colored(m[2] ?? "", color) });
+        }
+      }
+      if (!changes.length) return false;
+      view.dispatch({ changes, userEvent: "input.color" });
+      view.focus();
+      return true;
     },
     setLive(on: boolean) {
       live = on;

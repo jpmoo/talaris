@@ -22,6 +22,39 @@ import { listVersions, readVersion, saveVersion, versionDir } from "./versions.j
  */
 
 const ORDER = "writing-order.json";
+/**
+ * How a page looks — its paper's color — kept by path in
+ * `.talaris/writing-look.json`, not in the page: the Markdown file stays
+ * exactly what was written, and other applications open it unchanged.
+ */
+const LOOK = "writing-look.json";
+type Look = Record<string, { paper?: string | null }>;
+
+function readLook(folder: string): Look {
+  try {
+    return readJson<Look>(join(folder, MACHINERY, LOOK));
+  } catch {
+    return {};
+  }
+}
+
+/** A page's look: `{ paper }`, a `#rrggbb` or null for the theme's paper. */
+export function pageLook(projectId: string, path: string): { paper: string | null } {
+  const { folder } = findProject(projectId);
+  return { paper: readLook(folder)[safe(path)]?.paper ?? null };
+}
+
+export function setPageLook(projectId: string, path: string, look: { paper?: string | null }): { paper: string | null } {
+  const { folder } = findProject(projectId);
+  const p = safe(path);
+  const paper = look.paper ?? null;
+  if (paper !== null && !/^#[0-9a-fA-F]{6}$/.test(paper)) throw new Conflict("a paper color is #rrggbb");
+  const all = readLook(folder);
+  if (paper) all[p] = { ...all[p], paper };
+  else delete all[p];
+  writeJson(join(folder, MACHINERY, LOOK), all);
+  return { paper };
+}
 
 function writingDir(folder: string): string {
   return join(folder, WRITING);
@@ -176,6 +209,13 @@ export function movePage(projectId: string, path: string, newParent: string | nu
   next[fromParent] = (next[fromParent] ?? []).filter((n) => n !== oldTitle);
   next[toParent] = [...(next[toParent] ?? []).filter((n) => n !== title), title];
   writeOrder(folder, next);
+  // And its look, with it and its children.
+  const look = readLook(folder);
+  if (Object.keys(look).some((k) => k === from || k.startsWith(`${from}/`))) {
+    const moved: Look = {};
+    for (const [k, v] of Object.entries(look)) moved[k === from || k.startsWith(`${from}/`) ? to + k.slice(from.length) : k] = v;
+    writeJson(join(machinery, LOOK), moved);
+  }
   return { path: to, title, children: [] };
 }
 

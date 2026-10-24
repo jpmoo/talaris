@@ -11,6 +11,7 @@ import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjec
 import {
   backlinks,
   canvasTree,
+  renameCanvas,
   canvasVersion,
   canvasVersions,
   createChild,
@@ -32,6 +33,8 @@ import {
   reorderPage,
   restorePage,
   writePage,
+  pageLook,
+  setPageLook,
 } from "./pages.js";
 
 /**
@@ -115,6 +118,10 @@ route("PUT", "/projects/:id/canvases/:cid", async (req, [id, cid], q) => {
   if (doc.id !== cid) throw new BadRequest("the body is a different canvas");
   return writeCanvas(id!, doc, { detach: q.get("detach") === "1" });
 });
+route("PUT", "/projects/:id/canvases/:cid/title", async (req, [id, cid]) => {
+  const b = await json<{ title?: string }>(req);
+  return renameCanvas(id!, cid!, b.title ?? "");
+});
 route("DELETE", "/projects/:id/canvases/:cid", (_r, [id, cid]) => {
   deleteCanvas(id!, cid!);
   return { ok: true };
@@ -157,6 +164,9 @@ route("POST", "/projects/:id/page/move", async (req, [id]) => {
   if (typeof b.index === "number") reorderPage(id!, moved.path, b.index);
   return moved;
 });
+route("GET", "/projects/:id/page/look", (_r, [id], q) => pageLook(id!, need(q, "path")));
+route("PUT", "/projects/:id/page/look", async (req, [id], q) =>
+  setPageLook(id!, need(q, "path"), await json<{ paper?: string | null }>(req)));
 route("GET", "/projects/:id/page/versions", (_r, [id], q) => pageVersions(id!, need(q, "path")));
 route("GET", "/projects/:id/page/versions/:name", (_r, [id, name], q) => pageVersion(id!, need(q, "path"), name!));
 route("POST", "/projects/:id/page/versions/:name/restore", (_r, [id, name], q) =>

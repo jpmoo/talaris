@@ -47,7 +47,9 @@ body[data-mode="expanded"][data-outline="none"] #panel { border-color: transpare
    a paper-toned panel. Which one has you: an accent frame and a lit title;
    the other dims a little. */
 .mark { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 1.4; fill: none; margin-right: 8px; vertical-align: -2px; }
-body[data-drawer="writing"] #panel { background: color-mix(in srgb, var(--paper) var(--alpha, 100%), transparent); }
+body[data-drawer="writing"] #panel { background: color-mix(in srgb, var(--page-paper, var(--paper)) var(--alpha, 100%), transparent); }
+/* A page with a paper of its own wears an ink to match (drawer.js wearPaper). */
+body[data-drawer="writing"] .editor .cm-content { color: var(--page-ink, inherit); }
 body[data-mode="pulled"][data-focus] #panel { border-color: var(--accent); }
 body[data-mode="pulled"]:not([data-focus]) header { opacity: .62; }
 body[data-mode="filed"] #handle { display: flex; }
@@ -70,7 +72,7 @@ body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width:
 body[data-outline="line"] #panel { border-color: var(--frame) !important; }
 body[data-outline="none"] #panel, body[data-outline="none"] #tuck { border-color: transparent !important; }
 /* Solid paper in a see-through frame: the writing page keeps its own fill. */
-body[data-solid-paper][data-drawer="writing"] .editor { background: var(--paper); }
+body[data-solid-paper][data-drawer="writing"] .editor { background: var(--page-paper, var(--paper)); }
 body[data-shadow] #panel { box-shadow: 0 6px 22px rgba(0, 0, 0, .6), 0 0 4px rgba(0, 0, 0, .45); }
 body[data-shadow][data-edge="left"] #panel { right: 18px; }
 body[data-shadow][data-edge="right"] #panel { left: 18px; }
@@ -121,7 +123,10 @@ li.task input:checked::after { content: ""; width: 6px; height: 3px; border: sol
 li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 
 .canvas-tree { min-width: 150px; max-width: 200px; }
-.tree.hidden { display: none; }
+.tree.hidden, #actions .hidden { display: none; }
+.text-colors { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 10px 6px; max-width: 200px; }
+.text-colors .cv-swatch { width: 16px; height: 16px; padding: 0 !important; border-radius: 4px !important; border: 1px solid var(--line) !important; }
+.text-colors .plain { background: linear-gradient(135deg, transparent 45%, var(--danger) 45%, var(--danger) 55%, transparent 55%) !important; }
 .side-toggle { color: var(--muted); } .side-toggle.on { color: var(--accent); }
 .canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: transparent; }
 /* No fill of its own: the canvas's paper covers it, and a second see-through
@@ -150,6 +155,8 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm .title { letter-spacing: 1px; margin-bottom: 4px; }
 .confirm p { margin: 4px 0; color: var(--muted); }
 .confirm .said { color: var(--danger); }
+.confirm input.name { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--paper); border: 1px solid var(--frame); border-radius: var(--radius-control); outline: none; }
+.confirm input.name:focus { border-color: var(--accent); }
 .confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
 .context { position: fixed; z-index: 50; min-width: 150px; }

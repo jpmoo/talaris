@@ -188,6 +188,14 @@ class BarBridge(Bridge):
         """A popup centered under the button at `x` along the bar (its page's pixels)."""
         self.owner.desktop.bar.toggle_popup(kind, x)
 
+    @Slot(str, float)
+    def tip(self, text: str, x: float) -> None:
+        """A tooltip under the button at `x` (its page's pixels); empty text puts it away."""
+        bar = self.owner.desktop.bar
+        # A bar that hides reserves no space; the tip stands off by its height instead.
+        off = bar.view.height() if bar.desktop.config["bar"].get("autohide") else 0
+        self.owner.desktop.tip.show(text, x * zoom_of("bar"), bar.edge, off)
+
     @Slot(str)
     def launcher(self, mode: str) -> None:
         self.owner.desktop.bar.close_popup()

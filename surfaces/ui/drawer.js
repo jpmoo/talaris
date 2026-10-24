@@ -217,7 +217,7 @@ async function loadCanvas() {
     const kids = el("div", { class: "kids" });
     for (const c of node.children) kids.append(walk(c));
     return el("div", {},
-      el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id) },
+      el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id), ondblclick: () => renameCanvas(node) },
         el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title)),
       kids);
   };
@@ -227,7 +227,7 @@ async function loadCanvas() {
   where.replaceChildren(state.project.name || "Home");
   for (const step of trail) {
     where.append(el("span", { class: "slash" }, " / "),
-      el("span", { class: "crumb", onclick: () => view(step.id) }, step.id === tree.id ? "Canvas" : step.title));
+      el("span", { class: "crumb", title: "Double-click to rename", onclick: () => view(step.id), ondblclick: () => renameCanvas(step) }, step.title));
   }
 
   const frame = el("iframe", {
@@ -239,12 +239,15 @@ async function loadCanvas() {
   const treePane = el("div", { class: "tree canvas-tree" }, walk(tree));
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
+  // Making a canvas inside belongs with the tree it lands in: shown with it.
+  const inside = el("button", { onclick: newCanvas }, "New canvas inside");
+  const node = trail[trail.length - 1];
   const actions = [
-    sideToggle(treePane, TREE_KEY, "tree"),
-    " ", el("button", { onclick: newCanvas }, "New canvas inside"),
+    sideToggle(treePane, TREE_KEY, "tree", [inside]),
+    " ", inside,
+    " ", el("button", { onclick: () => renameCanvas(node) }, "Rename"),
   ];
   if (viewing !== tree.id) {
-    const node = trail[trail.length - 1];
     actions.push(" ", el("button", { class: "danger", onclick: () => deleteCanvas(node, trail[trail.length - 2]) }, "Delete"));
   }
   $("actions").replaceChildren(...actions);
@@ -255,15 +258,17 @@ async function loadCanvas() {
  * Hide or show the side column — the canvas tree, the writing list —
  * remembered for each. The calendar's button (icons.js), lit while it shows.
  */
-function sideToggle(pane, key, noun) {
+function sideToggle(pane, key, noun, along = []) {
   const shown = () => { try { return localStorage.getItem(key) !== "off"; } catch { return true; } };
-  pane.classList.toggle("hidden", !shown());
+  // What goes with the side column (its own buttons) comes and goes with it.
+  const follow = () => { for (const e of [pane, ...along]) e.classList.toggle("hidden", !shown()); };
+  follow();
   const button = el("button", { class: "icon-btn side-toggle" });
   button.innerHTML = Icons.sideList();
   const label = () => { button.title = `${shown() ? "Hide" : "Show"} the ${noun}`; button.classList.toggle("on", shown()); };
   button.addEventListener("click", () => {
     try { localStorage.setItem(key, shown() ? "off" : "on"); } catch { /* fine */ }
-    pane.classList.toggle("hidden", !shown());
+    follow();
     label();
   });
   label();
@@ -312,6 +317,14 @@ addEventListener("message", (e) => {
   }
   view(m.canvas);
 });
+
+// A new name for a canvas, the top one too; its cards everywhere follow (the core).
+function renameCanvas(node) {
+  askName(`Rename “${node.title}”`, node.title, async (title) => {
+    await core("PUT", `/projects/${state.project.id}/canvases/${node.id}/title`, { title });
+    loadCanvas();
+  });
+}
 
 function deleteCanvas(node, parent) {
   confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. It can be brought back from its versions.", async () => {
@@ -402,6 +415,7 @@ async function drawEditor() {
       onOpenUrl: (url) => bridge && bridge.openUrl(url),
     });
   }
+  if (paperOf !== open) paperFor(open);
   editor.focus();
 }
 
@@ -532,6 +546,36 @@ async function edit(path) {
   loadWriting();
 }
 
+/*
+ * A page's paper: its own color, kept by the core beside the page (never in
+ * its Markdown), or the theme's. The words take a dark or a light ink as the
+ * paper is light or dark.
+ */
+const PAPERS = ["#fdfaf3", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#2b2a28", "#1f2a33"];
+let paperOf = null; // the page whose paper is on show
+function wearPaper(color) {
+  const s = document.body.style;
+  if (!color) { s.removeProperty("--page-paper"); s.removeProperty("--page-ink"); return; }
+  const n = parseInt(color.slice(1), 16);
+  const light = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 140;
+  s.setProperty("--page-paper", color);
+  s.setProperty("--page-ink", light ? "#26241f" : "#e8e6e1");
+}
+async function paperFor(path) {
+  if (!path || state.drawer !== "writing") return;
+  paperOf = path;
+  try {
+    const look = await core("GET", `/projects/${state.project.id}/page/look?path=${encodeURIComponent(path)}`);
+    if (paperOf === path) wearPaper(look.paper);
+  } catch { wearPaper(null); }
+}
+async function setPaper(color) {
+  if (!open) return;
+  wearPaper(color);
+  try { await core("PUT", `/projects/${state.project.id}/page/look?path=${encodeURIComponent(open)}`, { paper: color }); }
+  catch (e) { status(String(e.message || e).toUpperCase().slice(0, 60)); }
+}
+
 async function save() {
   saveTimer = null;
   if (!open) return;
@@ -600,6 +644,30 @@ function confirmDelete(title, detail, act) {
   sheet.querySelector("button").focus();
 }
 
+// A name asked for in the same sheet: Enter keeps it, Escape leaves it.
+function askName(title, value, act) {
+  const said = el("p", { class: "said" });
+  const close = () => sheet.remove();
+  const input = el("input", { class: "name", type: "text", value, spellcheck: "false" });
+  const yes = el("button", { class: "primary" }, "Rename");
+  const sheet = el("div", { class: "confirm", role: "dialog" },
+    el("div", { class: "box" },
+      el("div", { class: "title" }, title),
+      input, said,
+      el("div", { class: "buttons" }, el("button", { onclick: close }, "Cancel"), " ", yes)));
+  const go = async () => {
+    const name = input.value.trim();
+    if (!name || name === value) { close(); return; }
+    try { await act(name); close(); } catch (e) { said.textContent = e.message; }
+  };
+  yes.addEventListener("click", go);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  sheet.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } });
+  $("panel").append(sheet);
+  input.focus();
+  input.select();
+}
+
 // ---------------------------------------------------------------- the rest
 
 async function load() {
@@ -638,7 +706,8 @@ $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
 $("grow").addEventListener("click", () => { if (saveTimer) save(); if (bridge) (WINDOW ? bridge.closeWindow() : bridge.grow()); });
 // A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
-const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel");
+// Its menus and dialogs, drawn outside the panel's box, are the panel's too.
+const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel, .context, .confirm, .menu");
 document.addEventListener("pointerdown", (e) => { if (bridge && offPanel(e.target)) { if (saveTimer) save(); bridge.file(); } });
 window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(x, y))) { if (saveTimer) save(); bridge.file(); } };
 /*
@@ -669,10 +738,15 @@ addEventListener("contextmenu", (e) => {
     ...TEXT_COLORS.map((c) => el("button", { class: "cv-swatch", style: `background:${c}`, title: c,
       onclick: () => { closeMenu(); editor && editor.setColor(c); } })),
     el("button", { class: "cv-swatch plain", title: "No color", onclick: () => { closeMenu(); editor && editor.setColor(null); } }));
+  // The page's paper; the crossed swatch is the theme's own.
+  const papers = el("div", { class: "cv-menu-row text-colors" },
+    ...PAPERS.map((c) => el("button", { class: "cv-swatch", style: `background:${c}`, title: c, onclick: () => { closeMenu(); setPaper(c); } })),
+    el("button", { class: "cv-swatch plain", title: "The theme's paper", onclick: () => { closeMenu(); setPaper(null); } }));
   menu = el("div", { class: "context" },
     item("Cut", "cut", picked), item("Copy", "copy", picked), item("Paste", "paste"),
     el("div", { class: "menu-sep" }), item("Select all", "selectAll"),
-    el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Text color"), colors);
+    el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Text color"), colors,
+    el("div", { class: "hint" }, "Paper"), papers);
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
   document.body.append(menu);

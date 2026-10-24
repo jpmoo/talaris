@@ -100,8 +100,41 @@ export function writeCanvas(projectId: string, doc: CanvasDocument, options: { d
       throw new Conflict(`this would take ${dropped.map((c) => `"${c.title}"`).join(", ")} off the canvas`);
     }
   }
-  persist(folder, { ...doc, format: doc.format ?? FORMAT_VERSION });
-  return doc;
+  // A canvas's title is changed by renaming it: a page that held the canvas
+  // from before a rename must not put the old one back by saving.
+  const kept = { ...doc, title: current.title, format: doc.format ?? FORMAT_VERSION };
+  persist(folder, kept);
+  return kept;
+}
+
+/**
+ * Rename a canvas — the top one too. Every card showing it, here or in another
+ * project, shows the new name: its `seen` title, and its text where that was
+ * still the old name (a card whose words someone wrote keeps them).
+ */
+export function renameCanvas(projectId: string, id: string, title: string): CanvasDocument {
+  const name = title.trim();
+  if (!name) throw new Conflict("a canvas needs a name");
+  const { folder } = findProject(projectId);
+  const doc = readCanvas(projectId, id);
+  const old = doc.title;
+  const renamed = { ...doc, title: name };
+  persist(folder, renamed);
+  for (const p of listProjects()) {
+    for (const other of allCanvases(p.folder)) {
+      let changed = false;
+      const items = other.items.map((item) => {
+        if (!(item.kind === "canvas" || item.kind === "canvas-link") || item.canvas !== id) return item;
+        if ((item.project ?? p.id) !== projectId) return item;
+        changed = true;
+        const next = { ...item, seen: { ...(item.seen ?? {}), title: name } } as CanvasItem & { text?: string };
+        if (next.text === old) next.text = name;
+        return next;
+      });
+      if (changed) persist(p.folder, { ...(other.id === id ? renamed : other), items });
+    }
+  }
+  return renamed;
 }
 
 export function createChild(

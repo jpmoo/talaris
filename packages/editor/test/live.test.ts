@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { liveSpecs, type Spec } from "../src/live.ts";
+import { colored, liveSpecs, type Spec } from "../src/live.ts";
 
 /** The document, with the cursor where `|` is. */
 function at(text: string): EditorState {
@@ -96,4 +96,21 @@ test("nothing is ever written: specs describe, the document is untouched", () =>
   const before = state.doc.toString();
   liveSpecs(state);
   assert.equal(state.doc.toString(), before);
+});
+
+test("colored words show in their color, the tags hidden unless the cursor touches them", () => {
+  const away = at('some <span style="color:#d50000">red</span> words\n|');
+  const specs = liveSpecs(away);
+  assert.deepEqual(hidden(away, specs), ['<span style="color:#d50000">', "</span>"]);
+  const mark = specs.find((s) => s.kind === "mark" && s.cls === "cm-color");
+  assert.ok(mark && mark.kind === "mark" && mark.color === "#d50000");
+  assert.equal(away.doc.sliceString(mark.from, mark.to), "red");
+  const inside = at('some <span style="color:#d50000">r|ed</span> words');
+  assert.deepEqual(hidden(inside, liveSpecs(inside)), [], "touched, its source shows");
+});
+
+test("coloring undoes colors inside first, so colors never nest, and keeps to a line", () => {
+  assert.equal(colored('a <span style="color:#d50000">b</span> c', "#039be5"), '<span style="color:#039be5">a b c</span>');
+  assert.equal(colored('a <span style="color:#d50000">b</span> c', null), "a b c");
+  assert.equal(colored("one\ntwo", "#33b679"), '<span style="color:#33b679">one</span>\n<span style="color:#33b679">two</span>');
 });

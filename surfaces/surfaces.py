@@ -46,6 +46,7 @@ from launcher import Launcher
 from morgan import Link, Panel, Voice
 from calendar_panel import Calendar, CalendarService
 from osd import Osd
+from tip import Tip
 from tray import Tray
 from winfx import WindowDraw
 from wallpaper import current as wallpaper_current
@@ -166,6 +167,7 @@ class Desktop(QObject):
         self.calendar = Calendar(profile, self, self.calendar_service)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
+        self.tip = Tip(self)
         self.settings = Settings(profile, self)
         self.power = Power(self)
         self.power.apply()

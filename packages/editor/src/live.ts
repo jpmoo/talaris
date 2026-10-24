@@ -16,14 +16,23 @@
  * Obsidian does it. Inline marks — `**`, `_`, backticks, a link's address —
  * show only while the cursor is inside or touching that one span, so typing in
  * one bold word does not unwrap every other on the line.
+ *
+ * **Colored words** are `<span style="color:#rrggbb">words</span>` — plain HTML,
+ * which Markdown carries and other editors (Obsidian among them) show in
+ * color. Markdown has no color of its own, and a syntax of Talaris's own would
+ * be lost anywhere else. The tags are inline marks like the rest: hidden but
+ * while the cursor touches them.
  */
+
+/** A colored span, as `setColor` writes it: the color is a hex `#rrggbb`. */
+export const COLOR_SPAN = /<span style="color:\s*(#[0-9a-fA-F]{6})">([^<\n]*)<\/span>/g;
 
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 
 export type Spec =
   | { kind: "hide"; from: number; to: number }
-  | { kind: "mark"; from: number; to: number; cls: string; url?: string }
+  | { kind: "mark"; from: number; to: number; cls: string; url?: string; color?: string }
   | { kind: "line"; at: number; cls: string }
   | { kind: "bullet"; from: number; to: number }
   | { kind: "check"; from: number; to: number; checked: boolean }
@@ -193,5 +202,32 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
       return;
     },
   });
+
+  // Colored words: found in the text itself, a line at a time.
+  for (let n = state.doc.lineAt(from).number; n <= state.doc.lineAt(Math.min(to, state.doc.length)).number; n++) {
+    const line = state.doc.line(n);
+    if (!line.text.includes("<span")) continue;
+    for (const m of line.text.matchAll(COLOR_SPAN)) {
+      const start = line.from + (m.index ?? 0);
+      const end = start + m[0].length;
+      const open = m[0].indexOf(">") + 1;
+      const inner = { from: start + open, to: start + open + (m[2] ?? "").length };
+      specs.push({ kind: "mark", from: inner.from, to: inner.to, cls: "cm-color", color: m[1] ?? "" });
+      if (touched(start, end)) continue;
+      specs.push({ kind: "hide", from: start, to: inner.from });
+      specs.push({ kind: "hide", from: inner.to, to: end });
+    }
+  }
   return specs;
+}
+
+/**
+ * The text between `from` and `to`, colored (or, with no color, plain): any
+ * colored spans inside it are undone first, so colors never nest.
+ */
+export function colored(text: string, color: string | null): string {
+  const plain = text.replace(COLOR_SPAN, "$2");
+  if (!color || !plain) return plain;
+  // A span keeps to one line: each line of a selection is colored by itself.
+  return plain.split("\n").map((l) => (l ? `<span style="color:${color}">${l}</span>` : l)).join("\n");
 }
