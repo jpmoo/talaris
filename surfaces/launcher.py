@@ -45,7 +45,7 @@ from layershell import (
     Placement,
 )
 from morgan import command as morgan_command
-from overlay import point_at, viewport
+from overlay import point_at, pointer_back, viewport
 from sensor import Presses
 from views import log, make_view
 
@@ -175,6 +175,9 @@ class Launcher(QObject):
         self.touched()
         self.desktop.bar.changed()
         log("launcher: open" + (f" ({mode})" if mode else ""))
+
+    def pointer_back(self) -> None:
+        pointer_back(self.view)
 
     def toggle(self, mode: str = "") -> None:
         if self.up and self.mode == mode:

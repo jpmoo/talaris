@@ -46,6 +46,29 @@ def point_at(view) -> None:
     target.setCursor(Qt.CursorShape.PointingHandCursor)
 
 
+def pointer_back(view) -> None:
+    """
+    The page has drawn: the pointer given back to it (hypr.refocus_pointer).
+    The first time a page shows, it answers that with an arrow — it cannot yet
+    say what is under the pointer — so while the pointer has not moved (still
+    on the dim, where the bar's button was) the hand is set again, twice.
+    """
+    try:
+        at = json.loads(hypr.ask("j/cursorpos"))
+    except ValueError:
+        at = None
+    hypr.refocus_pointer()
+
+    def again() -> None:
+        try:
+            if at and json.loads(hypr.ask("j/cursorpos")) == at:
+                point_at(view)
+        except ValueError:
+            pass
+    for ms in (120, 400):
+        QTimer.singleShot(ms, again)
+
+
 def viewport(view) -> list:
     """The size a page will be once its surface covers the screen, in its own pixels: arriving waits for it."""
     screen = QApplication.primaryScreen().geometry()
@@ -83,6 +106,9 @@ class Overlay(QObject):
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._idle)
+
+    def pointer_back(self) -> None:
+        pointer_back(self.view)
 
     def describe(self) -> dict:
         return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,

@@ -108,7 +108,10 @@ class Bridge(QObject):
     @Slot()
     def drawn(self) -> None:
         """A panel's page has drawn itself, arrived: the pointer given back now, to a page that can answer it."""
-        hypr.refocus_pointer()
+        if hasattr(self.owner, "pointer_back"):
+            self.owner.pointer_back()
+        else:
+            hypr.refocus_pointer()
 
     @Slot()
     def closeWindow(self) -> None:  # noqa: N802 — called from the page by this name
