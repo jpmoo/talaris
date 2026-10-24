@@ -163,6 +163,19 @@ def option(name: str):
     return None
 
 
+def refocus_pointer() -> None:
+    """
+    The cursor put where it already is. A surface appearing makes Hyprland let
+    go of what the pointer was over — the cursor falls back to an arrow, and a
+    press goes nowhere — until the pointer moves; this is that move, of nothing.
+    """
+    try:
+        at = json.loads(ask("j/cursorpos"))
+        ask(f"/dispatch movecursor {int(at['x'])} {int(at['y'])}")
+    except (OSError, ValueError, KeyError):
+        pass
+
+
 def near_edge(edge: str, within: float) -> bool:
     """Whether the pointer is within `within` (compositor pixels) of an edge of the monitor it is on."""
     try:

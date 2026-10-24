@@ -28,8 +28,10 @@ import os
 from dataclasses import dataclass
 
 import shiboken6
-from PySide6.QtCore import QMargins, QObject
+from PySide6.QtCore import QMargins, QObject, QTimer
 from PySide6.QtWidgets import QWidget
+
+import hypr
 
 _LIB = ctypes.CDLL("libLayerShellQtInterface.so.6")
 _get = _LIB._ZN12LayerShellQt6Window3getEP7QWindow
@@ -114,3 +116,5 @@ class LayerSurface:
         self.widget.hide()
         self.widget.show()
         self.placement = placement
+        # Hyprland let go of the pointer when this appeared; it is given back (hypr.py).
+        QTimer.singleShot(60, hypr.refocus_pointer)
