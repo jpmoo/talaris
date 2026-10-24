@@ -1088,6 +1088,17 @@ of it and comes out at the end.
     projects and tasks through the spec.
 16. Talaris's own notifications, replacing `mako`.
 17. Resume, once the spike says how.
+18. **Calendar and contacts** (asked for 2026-10-23, not designed yet): a
+    full calendar — day, week and month; events made, edited and moved;
+    invitations answered — and contacts, both kept in step with Google and
+    Outlook accounts, any number of each. The likely road, to be decided: the
+    accounts signed in through GNOME Online Accounts and read and written
+    through Evolution Data Server, which this machine already runs (no app of
+    ours registered with Google or Microsoft; laptop only). The other road is
+    Talaris or Hermes signing in itself (an app registered with each), which
+    reaches every device. Faces to decide: the clock's dropdown for today and
+    the month; a full view as a drawer or full screen; contacts in the
+    launcher and to Morgan; the to-do list's dated tasks on the calendar.
 
 ## What did not come from Talaria
 
