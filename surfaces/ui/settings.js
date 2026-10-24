@@ -74,7 +74,12 @@ function draw() {
   }
   // Which mode's accent is being set: the one in use, unless the other is asked for.
   if (!accentFor) accentFor = t.mode === "light" ? "light" : "dark";
-  seg("accent-for", [["dark", "Dark"], ["light", "Light"]], accentFor, (m) => { accentFor = m; $("picker").classList.remove("open"); draw(); });
+  // Switching which mode's accent: an open picker shows that mode's color.
+  seg("accent-for", [["dark", "Dark"], ["light", "Light"]], accentFor, (m) => {
+    accentFor = m;
+    draw();
+    if ($("picker").classList.contains("open")) picker.set(editedAccent());
+  });
   const now = editedAccent();
   // The tuner's five, then the picker for any other — wearing the custom
   // accent once one is chosen.
