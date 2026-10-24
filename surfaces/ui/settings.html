@@ -99,6 +99,9 @@ footer #msg.err { color: var(--danger); }
       <div class="row"><span class="name">Mode</span><span class="what"><span class="seg" id="mode"></span></span></div>
       <div class="row"><span class="name">Accent</span><span class="what"><span class="swatches" id="swatches"></span><input id="hex" spellcheck="false" maxlength="7"></span></div>
       <div id="picker"><div id="sv"><span class="knob" id="sv-knob"></span></div><div id="hue"><span class="knob" id="hue-knob"></span></div><div id="picked"></div></div>
+      <h3>Launcher and Morgan</h3>
+      <div class="row"><span class="name">Motion<small>How they come and go, from the top</small></span><span class="what"><span class="seg" id="ov-motion"></span></span></div>
+      <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="ov-speed"></span></span></div>
       <h3>Wallpaper</h3>
       <div class="row"><span class="name">Picture<small id="wall-name"></small></span><span class="what"><img id="wall-preview" alt=""><button class="t-btn" id="wall-choose">Choose…</button></span></div>
       <div class="row"><span class="name">Fit</span><span class="what"><span class="seg" id="wall-fit"></span></span></div>
@@ -153,6 +156,7 @@ footer #msg.err { color: var(--danger); }
       <h2>Drawers</h2>
       <div class="row"><span class="name">Motion<small>How they come and go</small></span><span class="what"><span class="seg" id="motion"></span></span></div>
       <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="speed"></span></span></div>
+      <div class="row"><span class="name">Dim behind<small>The rest of the screen dims; a click there puts the drawer away</small></span><span class="what"><button class="switch" id="panels-dim"></button></span></div>
       <div class="row"><span class="name">Click outside to close<small>A click off a pulled drawer puts it away. While it is out, the windows under it cannot be clicked or scrolled</small></span><span class="what"><button class="switch" id="dismiss-outside"></button></span></div>
       <div class="row"><span class="name">After full screen<small>Back from full screen, the drawer stays out or closes</small></span><span class="what"><span class="seg" id="after-expand"></span></span></div>
       <div class="row"><span class="name">Put away<small>Pulled out, after this long untouched</small></span><span class="what"><input type="range" id="idle" min="15" max="300" step="15"><span class="n" id="idle-n"></span></span></div>

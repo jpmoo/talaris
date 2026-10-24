@@ -989,7 +989,13 @@ of it and comes out at the end.
    was), hung under the button as an overlay panel, on Super+Shift+M or the
    button; it wears Talaris's theme and the Tabler icon font shipped in
    `ui/fonts` instead of Noctalia's, with no title bar: its state and controls
-   sit in a row under the composer, ending in Full screen and Close. Full
+   sit in a row under the composer, ending in Full screen and Close. It
+   comes up as the launcher does: centered over the rest of the screen,
+   dimmed, a press on the dim putting it away. The two share a motion and a
+   speed in Settings, Look (slide from the top, draw, or none), played by
+   `ui/motion.js`, the drawers' own motions made shareable. A pulled drawer
+   dims the rest of the screen too ("Dim behind", on by default), through the
+   catcher, so a click there puts it away. Full
    screen works as a drawer's expand: the conversation becomes the desktop on
    its own workspace, between the bar and the dock, and a window opened there,
    another workspace gone to, or the button again brings it back (or closes

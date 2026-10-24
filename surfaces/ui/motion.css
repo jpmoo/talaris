@@ -1,0 +1,12 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+Draw (motion.js): lines in the accent, on a layer over the panel.
+*/
+.fx { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 20; }
+.fx-seg { position: absolute; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.fx-mark { position: absolute; width: 13px; height: 13px; margin: -6px 0 0 -6px; filter: drop-shadow(0 0 4px var(--accent)); }
+.fx-mark::before, .fx-mark::after { content: ""; position: absolute; background: var(--accent); }
+.fx-mark::before { left: 5.5px; top: 0; width: 2px; height: 13px; }
+.fx-mark::after { top: 5.5px; left: 0; height: 2px; width: 13px; }

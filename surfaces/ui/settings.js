@@ -83,6 +83,9 @@ function draw() {
   seg("motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], t.motion === "draw" ? "chaos" : t.motion || "slide", (motion) => save({ theme: { motion } }));
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
+  const ov = cfg.overlays || {};
+  seg("ov-motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], ov.motion || "slide", (motion) => save({ overlays: { motion } }));
+  seg("ov-speed", SPEEDS, ov.speed || "normal", (speed) => save({ overlays: { speed } }));
   const p = cfg.panels;
   seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
   $("shadow").classList.toggle("on", !!p.shadow);
@@ -139,6 +142,7 @@ function draw() {
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
+  $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
   $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
   seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
@@ -164,6 +168,8 @@ function draw() {
   needs(["dock-hide", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
+  // Dimmed, a click outside already puts a drawer away.
+  needs(["dismiss-outside"], cfg.panels.dim === false);
   needs(["touch-thick", "touch-length"], hidesSomething);
   needs(["power-dim", "power-lock", "power-off", "power-suspend"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && pw.dim > 0);
@@ -187,6 +193,7 @@ $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.doc
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
 $("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 $("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
+$("panels-dim").addEventListener("click", () => save({ panels: { dim: cfg.panels.dim === false } }));
 $("drawer-auto").addEventListener("click", () => {
   const on = !cfg.drawers.canvas.autoshow;
   save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });

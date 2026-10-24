@@ -67,13 +67,6 @@ body[data-shadow][data-edge="right"] #panel { left: 18px; }
 body[data-shadow][data-edge="top"] #panel { bottom: 18px; }
 body[data-shadow][data-edge="bottom"] #panel { top: 18px; }
 .xh { display: none; }
-/* Draw (drawer.js): lines in the accent, on a layer over the panel. */
-.fx { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 20; }
-.fx-seg { position: absolute; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
-.fx-mark { position: absolute; width: 13px; height: 13px; margin: -6px 0 0 -6px; filter: drop-shadow(0 0 4px var(--accent)); }
-.fx-mark::before, .fx-mark::after { content: ""; position: absolute; background: var(--accent); }
-.fx-mark::before { left: 5.5px; top: 0; width: 2px; height: 13px; }
-.fx-mark::after { top: 5.5px; left: 0; height: 2px; width: 13px; }
 #panel { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
 /* Flush with the edge it comes from, so that side has no line. */
 body[data-edge="left"] #panel { border-left: 0; border-radius: 0 12px 12px 0; }
@@ -169,6 +162,7 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
   </footer>
 </div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="motion.js"></script>
 <script src="drawer.js"></script>
 </body>
 </html>

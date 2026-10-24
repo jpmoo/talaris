@@ -16,18 +16,24 @@
 <meta charset="utf-8">
 <title>Morgan</title>
 <link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../motion.css">
 <style>
   /* Morgan's names for Talaris's colors; the accent, the line and the text are Talaris's own. */
   :root {
     --bg: var(--desk); --panel: var(--surface); --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
     --dim: var(--muted); --oracle: #b79a6a;
   }
-  /* A panel hanging from the bar: framed, its corners rounded, nothing behind it. */
-  html { background: transparent; }
+  /* As the launcher: a panel centered over the rest of the screen, which is
+     dimmed; a press on the dim puts it away. Full screen, it is the desktop:
+     the whole surface, nothing dimmed. */
+  html { background: rgba(0, 0, 0, .32); }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
-         font: 14px/1.5 var(--font); border: 1px solid var(--frame); border-radius: 12px; overflow: hidden; }
+         font: 14px/1.5 var(--font); border: 1px solid var(--frame); border-radius: 12px; overflow: hidden;
+         width: min(560px, calc(100% - 32px)); height: 80%; margin: 5vh auto 0; box-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
+  html[data-expanded] { background: transparent; }
+  html[data-expanded] body { width: 100%; height: 100%; margin: 0; box-shadow: none; }
   textarea, input { font-family: var(--font); }
   button { font: inherit; color: var(--text); background: none; border: 0; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
   button:hover { background: var(--raised); }
@@ -185,6 +191,7 @@
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="markdown-it.min.js"></script>
 <script src="../surface.js"></script>
+<script src="../motion.js"></script>
 <script>
 "use strict";
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
@@ -477,6 +484,19 @@ function paintGrow() {
 }
 $("grow").onclick = () => bridge.grow();
 $("close").onclick = () => bridge.file();
+// A press on the dim, off the panel, puts it away.
+document.addEventListener("pointerdown", (event) => { if (event.target === document.documentElement && bridge) bridge.file(); });
+
+// How it comes and goes (motion.js): from the top, as the launcher, over the
+// dimmed screen, with the line over the composer drawn too.
+let surfaceState = { up: false };
+function how() {
+  const m = surfaceState.motion || {};
+  return {
+    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement,
+    rules: (rule, rel, P) => { const f = document.querySelector("footer").getBoundingClientRect(); rule(rel(P.left, f.top), rel(P.right, f.top)); },
+  };
+}
 
 // ---------------------------------------------------------------- starting up
 
@@ -664,9 +684,20 @@ function start() {
       const s = JSON.parse(text);
       if (s.theme) Surface.applyTheme(s.theme);
       if ("expanded" in s) { expandedState = s; paintGrow(); }
+      if (s.expanded) document.documentElement.dataset.expanded = "1"; else delete document.documentElement.dataset.expanded;
+      // Out, from away: it arrives. Full screen and back are not arrivals.
+      if (s.up && !surfaceState.up && !s.expanded) Motion.arrive(document.body, { ...how(), kind: (s.motion || {}).motion, speed: (s.motion || {}).speed });
+      else if (s.up && !!s.expanded !== !!surfaceState.expanded) Motion.reset(document.body, how());
+      surfaceState = s;
     } catch { /* fine */ }
   });
   paintGrow();
+  // Going: played, then the process is told, and takes the surface away.
+  bridge.leave.connect(() => {
+    surfaceState = { ...surfaceState, up: false };
+    const going = Motion.leave(document.body, how());
+    if (going) going.onfinish = () => bridge.left(); else bridge.left();
+  });
 }
 </script>
 </body>

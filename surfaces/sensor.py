@@ -132,7 +132,9 @@ class Catcher(QObject):
     def describe(self) -> dict:
         return {}
 
-    def show(self) -> None:
+    def show(self, dim: bool = False) -> None:
+        # Dimmed, the rest of the screen sits back behind the drawer; the page fades it.
+        self.view.page().runJavaScript(f"window.dim && dim({'true' if dim else 'false'})")
         if self.up:
             return
         screen = QApplication.primaryScreen().geometry()

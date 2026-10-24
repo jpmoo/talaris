@@ -3,18 +3,29 @@
 SPDX-License-Identifier: GPL-3.0-only
 Copyright (c) 2026 Jeff Moore
 
-The catcher (sensor.py): clear, over the windows and under a pulled drawer. A
-press on it is a press off the drawer, which puts the drawer away.
+The catcher (sensor.py): over the windows and under a pulled drawer — clear,
+or dimming them, as Settings says. A press on it is a press off the drawer,
+which puts the drawer away.
 -->
 <html>
 <head>
 <meta charset="utf-8">
-<style>html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); }</style>
+<style>
+html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); }
+body.dim { background: rgba(0, 0, 0, .32); animation: dim .25s ease-out; }
+@keyframes dim { from { background: rgba(0, 0, 0, .01); } }
+@media (prefers-reduced-motion: reduce) { body.dim { animation: none; } }
+</style>
 </head>
 <body>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>
 "use strict";
+// Dimmed or clear; dimming again restarts the fade, as the catcher has just come out.
+window.dim = (on) => {
+  document.body.classList.remove("dim");
+  if (on) { void document.body.offsetWidth; document.body.classList.add("dim"); }
+};
 new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
   for (const type of ["pointerdown", "mousedown", "touchstart"]) document.addEventListener(type, () => bridge.touched(), true);

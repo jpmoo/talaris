@@ -59,11 +59,10 @@ from views import log, make_view, zoom
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(RUNTIME, "heymorgan.sock")
 
-#: The panel: wide enough for an answer with code in it, most of the height.
-WIDTH = 540
-HEIGHT_SHARE = 0.78
 #: Put away after this long with no input while Morgan is idle.
 IDLE_MS = 5 * 60 * 1000
+#: How long the page has to finish leaving before the surface goes anyway.
+LEAVE_LIMIT_MS = 1600
 
 #: The voice popup's size, and how long it stays after Morgan goes idle.
 VOICE = (420, 300)
@@ -200,10 +199,12 @@ class Panel(QObject):
         self.expanded = False
         self.came_from = None
         self.expanded_at = 0.0
+        self.leaving = False
 
     def describe(self) -> dict:
         return {"up": self.up, "theme": self.desktop.config["theme"], "expanded": self.expanded,
-                "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed"}
+                "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed",
+                "motion": self.desktop.config["overlays"]}
 
     def _place(self) -> None:
         screen = QApplication.primaryScreen().geometry()
@@ -216,14 +217,17 @@ class Panel(QObject):
             self.surface.apply(Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
                                          screen.width(), screen.height(), KEYBOARD_ON_DEMAND, margins=margins))
         else:
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH, "morgan"),
-                                         int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
+            # As the launcher: centered over the rest of the screen, dimmed
+            # (the page draws both), and a press on the dim puts it away.
+            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
+                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND))
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def open(self) -> None:
+        self.leaving = False
         if not self.up:
-            self._place()
             self.up = True
+            self._place()
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
             self.desktop.voice.file_away()
             log("morgan: open")
@@ -255,6 +259,7 @@ class Panel(QObject):
         self.expanded = True
         self.expanded_at = time.monotonic()
         self.idle.stop()
+        self.leaving = False
         self.up = True
         self._place()
         self.view.setFocus()
@@ -301,12 +306,18 @@ class Panel(QObject):
             return
         self.up = False
         self.idle.stop()
-        self.view.hide()
-        self.surface.placement = None
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
+        # The page plays its leaving, then says so (`left`); then the surface goes.
+        self.leaving = True
+        self.bridge.leave.emit()
+        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
     def left(self) -> None:
-        pass
+        if not self.leaving:
+            return
+        self.leaving = False
+        self.view.hide()
+        self.surface.placement = None
 
     def touched(self) -> None:
         if self.up:

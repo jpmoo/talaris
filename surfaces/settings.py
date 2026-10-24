@@ -80,6 +80,11 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
+    o = c.get("overlays", {})
+    if o.get("motion") not in ("slide", "chaos", "none") or o.get("speed") not in speeds:
+        return "The launcher and Morgan slide, draw or do neither"
+    if not isinstance(p.get("dim", True), bool):
+        return "Dim behind is on or off"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
@@ -242,7 +247,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch", "text", "power"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "windows", "clock", "panels", "touch", "text", "power"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

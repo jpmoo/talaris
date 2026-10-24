@@ -48,6 +48,8 @@ from views import log, make_view
 
 #: An open launcher nobody types into puts itself away.
 IDLE_MS = 60000
+#: How long the page has to finish leaving before the surface goes anyway.
+LEAVE_LIMIT_MS = 1600
 
 #: How far into a project folder files are looked for, and how many at most —
 #: a launcher, not a file search.
@@ -121,14 +123,16 @@ class Launcher(QObject):
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.file_away)
+        self.leaving = False
 
     def describe(self) -> dict:
         return {"up": self.up, "mode": self.mode, "project": self.desktop.project,
-                "theme": self.desktop.config["theme"]}
+                "theme": self.desktop.config["theme"], "motion": self.desktop.config["overlays"]}
 
     def open(self, mode: str = "") -> None:
         self.mode = mode
         self.up = True
+        self.leaving = False
         screen = QApplication.primaryScreen().geometry()
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
                                      screen.width(), screen.height(), KEYBOARD_EXCLUSIVE))
@@ -144,16 +148,22 @@ class Launcher(QObject):
             self.open(mode)
 
     def file_away(self) -> None:
+        """The page plays its leaving, then says so (`left`), and only then does the surface go."""
         if not self.up:
             return
         self.up = False
         self.idle.stop()
+        self.leaving = True
+        self.bridge.leave.emit()
+        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
+
+    def left(self) -> None:
+        if not self.leaving:
+            return
+        self.leaving = False
         self.bridge.state.emit(json.dumps(self.describe()))
         self.view.hide()
         self.surface.placement = None
-
-    def left(self) -> None:
-        pass
 
     def touched(self) -> None:
         if self.up:

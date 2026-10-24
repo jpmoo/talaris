@@ -32,6 +32,9 @@ DEFAULTS = {
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
+    # How the launcher and Morgan's conversation come and go, from the top:
+    # slide, draw ("chaos") or none, and how quickly.
+    "overlays": {"motion": "slide", "speed": "normal"},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
@@ -42,7 +45,8 @@ DEFAULTS = {
     # How the drawers look: their outline (in the accent while in use, a plain
     # line, or none), a shadow, and their opacity in percent.
     # afterExpand: back from being the desktop, a drawer stays "open" or is "closed".
-    "panels": {"outline": "focus", "shadow": True, "opacity": 100, "dismissOutside": False, "afterExpand": "open",
+    # dim: the rest of the screen dims behind a pulled drawer, and a click there puts it away.
+    "panels": {"outline": "focus", "shadow": True, "opacity": 100, "dismissOutside": False, "afterExpand": "open", "dim": True,
                # Whether the writing page and the canvas follow the opacity too,
                # or stay solid inside a see-through frame.
                "paperFollows": True},

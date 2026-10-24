@@ -60,174 +60,34 @@ function applyTheme(theme) {
 
 // ---------------------------------------------------------------- motion
 //
-// The theme's four motions, as design/theme-tuner.html first showed them:
-// slide in from the edge; draw (marks first, then lines between them in
-// random order, direction and timing — always mark to mark, never loose —
-// then filled); and none. Draw is stored as "chaos", its first name.
+// Slide, draw or none, as Settings says (motion.js has them).
 // Four corners out to expand; in to make it a drawer again.
 const GROW = '<svg viewBox="0 0 14 14"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>';
 const SHRINK = '<svg viewBox="0 0 14 14"><path d="M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3"/></svg>';
 // Set to close after full screen, the button that ends it closes the drawer: it says so.
 const CLOSE = '<svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
-const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
-// The old traced frame ("draw") is gone; a setting still naming it gets Draw.
-const motion = () => { const m = document.documentElement.dataset.motion || "slide"; return m === "draw" ? "chaos" : m; };
-// How quick: Settings' speed, as a factor on every duration and delay here.
-const pace = () => ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 })[(state.theme || {}).motionSpeed] || 1;
-const P = (ms) => Math.round(ms * pace());
-const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || motion() === "none";
+const motion = () => document.documentElement.dataset.motion || "slide";
 
-// Whatever a last leaving left held (it fills forwards, so the panel stays
-// gone until the surface moves) is let go before anything arrives.
-function unhold() {
-  for (const a of $("panel").getAnimations({ subtree: true })) a.cancel();
-  document.querySelectorAll(".fx").forEach((n) => n.remove());
+// How it comes and goes (motion.js), as a drawer: from its edge, flush with
+// it, with the rules inside it drawn too — under the header, over the footer,
+// beside the side column.
+function how() {
+  return {
+    kind: motion(), speed: (state.theme || {}).motionSpeed, edge: state.edge, flush: true,
+    rules: (rule, rel, P) => {
+      const header = document.querySelector("header"), footer = document.querySelector("footer"), side = document.querySelector(".tree");
+      if (header) { const r = header.getBoundingClientRect(); rule(rel(P.left, r.bottom + 4), rel(P.right, r.bottom + 4)); }
+      if (footer) { const r = footer.getBoundingClientRect(); rule(rel(P.left, r.top - 4), rel(P.right, r.top - 4)); }
+      if (side && side.offsetParent) {
+        const r = side.getBoundingClientRect(), b = $("body").getBoundingClientRect();
+        rule(rel(r.right + 6, b.top), rel(r.right + 6, b.bottom));
+      }
+    },
+  };
 }
 
 function arrive() {
-  unhold();
-  if (still()) return;
-  if (motion() === "chaos") { trace(); return; }
-  $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
-}
-
-/*
- * Draw is drawn once, as for a drawer on the left edge — depth
- * across, breadth down, the flush side at x = 0 — on a layer that one
- * transform turns to the edge the drawer is really on.
- */
-function fxLayer() {
-  const panel = $("panel");
-  const Wp = panel.offsetWidth, Hp = panel.offsetHeight;
-  const across = state.edge === "left" || state.edge === "right";
-  const W = across ? Wp : Hp, H = across ? Hp : Wp;
-  const turn = { left: "none", right: `matrix(-1,0,0,1,${Wp},0)`, top: "matrix(0,1,1,0,0,0)", bottom: `matrix(0,-1,1,0,0,${Hp})` }[state.edge];
-  document.querySelectorAll(".fx").forEach((n) => n.remove());
-  const fx = el("div", { class: "fx", style: `left:${panel.offsetLeft}px;top:${panel.offsetTop}px;width:${W}px;height:${H}px;transform:${turn}` });
-  document.body.append(fx);
-  return { fx, W, H, across };
-}
-function segment(fx, p, q, far) {
-  const flat = p[1] === q[1];
-  const s = el("div", { class: "fx-seg" });
-  Object.assign(s.style, flat
-    ? { left: `${Math.min(p[0], q[0])}px`, top: `${p[1] - 1}px`, width: `${Math.abs(q[0] - p[0])}px`, height: "2px", transformOrigin: far ? "right" : "left" }
-    : { left: `${p[0] - 1}px`, top: `${Math.min(p[1], q[1])}px`, width: "2px", height: `${Math.abs(q[1] - p[1])}px`, transformOrigin: far ? "bottom" : "top" });
-  fx.append(s);
-  return [s, flat ? "scaleX" : "scaleY"];
-}
-function grow([s, axis], delay, duration) {
-  s.animate([
-    { transform: `${axis}(0)`, opacity: 1 },
-    { transform: `${axis}(1)`, opacity: 1, offset: .45 },
-    { transform: `${axis}(1)`, opacity: 1, offset: .8 },
-    { transform: `${axis}(1)`, opacity: 0 },
-  ], { duration: P(duration), delay: P(delay), easing: "ease-out", fill: "both" }).onfinish = () => s.remove();
-}
-// The panel stays empty — no fill, no frame, no contents — until the lines have done.
-function fillAfter(at) {
-  const panel = $("panel");
-  panel.animate([{ background: "transparent", borderColor: "transparent" }, { background: "transparent", borderColor: "transparent", offset: at }, {}], { duration: P(1100), easing: "ease-out" });
-  for (const child of panel.children) {
-    if (!child.classList.contains("xh")) child.animate([{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1 }], { duration: P(1100), easing: "ease-out" });
-  }
-}
-/** Screen points, relative to the panel, as the left-edge frame the lines are drawn in. */
-function toLocal(edge, Wp, Hp) {
-  return {
-    left: ([x, y]) => [x, y], right: ([x, y]) => [Wp - x, y],
-    top: ([x, y]) => [y, x], bottom: ([x, y]) => [Hp - y, x],
-  }[edge];
-}
-
-/*
- * The lines of this drawer, as the left-edge frame sees them: the frame (but
- * not its flush side, which has no border), split every so often so a tall
- * drawer has as many marks as the tuner's small one, and the rules inside it
- * — under the header, over the footer, beside the side column.
- */
-function lines(W, H) {
-  const panel = $("panel");
-  const P = panel.getBoundingClientRect();
-  const local = toLocal(state.edge, panel.offsetWidth, panel.offsetHeight);
-  const rel = (x, y) => local([x - P.left, y - P.top]);
-  const split = (p, q) => {
-    const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
-    const n = Math.max(1, Math.round(length / 180));
-    const pts = [];
-    for (let i = 0; i <= n; i++) pts.push([Math.round(p[0] + (q[0] - p[0]) * i / n), Math.round(p[1] + (q[1] - p[1]) * i / n)]);
-    return pts;
-  };
-  const paths = [split([0, 0], [W, 0]), split([0, H], [W, H]), split([W, 0], [W, H])];
-  const rule = (a, b) => { if (a && b) paths.push(split(a, b)); };
-  const header = document.querySelector("header"), footer = document.querySelector("footer"), side = document.querySelector(".tree");
-  if (header) { const r = header.getBoundingClientRect(); rule(rel(P.left, r.bottom + 4), rel(P.right, r.bottom + 4)); }
-  if (footer) { const r = footer.getBoundingClientRect(); rule(rel(P.left, r.top - 4), rel(P.right, r.top - 4)); }
-  if (side && side.offsetParent) {
-    const r = side.getBoundingClientRect(), b = $("body").getBoundingClientRect();
-    rule(rel(r.right + 6, b.top), rel(r.right + 6, b.bottom));
-  }
-  // Only lines that run along one axis, as everything here is square.
-  return paths.filter((pts) => pts.length > 1 && (pts[0][0] === pts.at(-1)[0] || pts[0][1] === pts.at(-1)[1]));
-}
-
-/** Draw, leaving: the reverse of arriving. Returns the animation that says when it is done. */
-function untrace() {
-  const panel = $("panel");
-  const { fx, W, H } = fxLayer();
-  const paths = lines(W, H);
-  const length = P(820);
-  // Emptied first: contents, fill and frame, leaving only the lines.
-  for (const child of panel.children) {
-    if (!child.classList.contains("xh")) child.animate([{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: length, fill: "forwards" });
-  }
-  const done = panel.animate([{}, { background: "transparent", borderColor: "transparent", boxShadow: "none", offset: .25 },
-    { background: "transparent", borderColor: "transparent", boxShadow: "none" }], { duration: length, fill: "forwards" });
-  const shrink = ([s, axis], delay, duration) => s.animate([
-    { transform: `${axis}(1)`, opacity: 0 }, { transform: `${axis}(1)`, opacity: 1, offset: .2 }, { transform: `${axis}(0)`, opacity: 1 },
-  ], { duration: P(duration), delay: P(delay), easing: "ease-in", fill: "both" });
-  const marks = new Map();
-  const pieces = [];
-  for (const pts of paths) {
-    pts.forEach((p) => marks.set(p.join(","), p));
-    for (let i = 1; i < pts.length; i++) pieces.push([pts[i - 1], pts[i]]);
-  }
-  pieces.forEach(([p, q]) => shrink(segment(fx, p, q, Math.random() < .5), Math.random() * 260, 300 + Math.random() * 220));
-  for (const [x, y] of marks.values()) {
-    const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
-    fx.append(m);
-    m.animate([{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1, offset: .75 }, { opacity: 0, transform: "scale(0)" }],
-      { duration: length, fill: "both" });
-  }
-  done.addEventListener("finish", () => fx.remove());
-  return done;
-}
-
-function trace() {
-  const { fx, W, H } = fxLayer();
-  const paths = lines(W, H);
-  // Every mark first, then a line between each pair of neighbors, in
-  // random order, direction and timing — always mark to mark, never loose.
-  fillAfter(.72);
-  const marks = new Map();
-  const pieces = [];
-  for (const pts of paths) {
-    pts.forEach((p) => marks.set(p.join(","), p));
-    for (let i = 1; i < pts.length; i++) pieces.push([pts[i - 1], pts[i]]);
-  }
-  const shown = [...marks.values()].map(([x, y]) => {
-    const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
-    fx.append(m);
-    m.animate([{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.5)", opacity: 1, offset: .6 }, { transform: "scale(1)", opacity: 1 }],
-      { duration: P(240), delay: P(Math.random() * 260), fill: "both" });
-    return m;
-  });
-  pieces.sort(() => Math.random() - .5).forEach(([p, q]) => grow(segment(fx, p, q, Math.random() < .5), 220 + Math.random() * 520, 380 + Math.random() * 300));
-  // The marks go once the lines are down, and leave nothing behind.
-  setTimeout(() => {
-    shown.forEach((m) => m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: P(260), fill: "forwards" }));
-    setTimeout(() => fx.remove(), P(320));
-  }, P(1150));
+  Motion.arrive($("panel"), how());
 }
 
 /*
@@ -237,15 +97,14 @@ function trace() {
  */
 function leave() {
   if (saveTimer) save();
-  if (still() || state.mode === "filed") { bridge.left(); return; }
+  if (state.mode === "filed") { bridge.left(); return; }
   // Held at the edge until the new mode arrives, so the panel never springs
   // back into view between the slide ending and the surface moving. Drawn
   // in, it goes the quiet way: it fades.
   // Drawn in, it goes the same way backwards: emptied, its lines shown, the
   // lines drawn back to their marks.
-  leaving = motion() === "slide"
-    ? $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" })
-    : untrace();
+  leaving = Motion.leave($("panel"), how());
+  if (!leaving) { bridge.left(); return; }
   leaving.onfinish = () => bridge.left();
 }
 let leaving = null;

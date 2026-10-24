@@ -194,9 +194,25 @@ addEventListener("keydown", (e) => {
 // A press outside the box puts it away.
 addEventListener("pointerdown", (e) => { if (bridge && !e.target.closest("#box")) bridge.file(); });
 
+// How it comes and goes (motion.js): from the top, over the dimmed screen,
+// with the lines under the field and over the foot drawn too.
+function how() {
+  const m = state.motion || {};
+  return {
+    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body,
+    rules: (rule, rel, P) => {
+      const top = $("top").getBoundingClientRect(), foot = $("foot").getBoundingClientRect();
+      rule(rel(P.left, top.bottom), rel(P.right, top.bottom));
+      rule(rel(P.left, foot.top), rel(P.right, foot.top));
+    },
+  };
+}
+
 function onState(s) {
+  const was = state.up;
   state = s;
   if (!s.up) return;
+  if (!was) Motion.arrive($("box"), how());
   // Each opening starts clean, with a fresh look at what there is.
   $("q").value = "";
   at = 0;
@@ -213,5 +229,12 @@ function onState(s) {
 
 Surface.connect({ onState: (s) => onState(s) }).then((b) => {
   bridge = b;
+  // Going: played, then the process is told, and takes the surface away.
+  b.leave.connect(() => {
+    // Gone as far as an opening is concerned: one during the leaving arrives afresh.
+    state = { ...state, up: false };
+    const going = Motion.leave($("box"), how());
+    if (going) going.onfinish = () => bridge.left(); else bridge.left();
+  });
   if (state.up) b.catalog((text) => { build(JSON.parse(text)); draw(); });
 });

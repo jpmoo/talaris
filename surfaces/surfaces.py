@@ -221,7 +221,7 @@ class Drawer(QObject):
         # With click-outside on, the catcher already keeps the pointer off the
         # windows — and an exclusive drawer kept clicks from reaching the
         # catcher — so it takes the keyboard the ordinary way.
-        exclusive = mode == "pulled" and not self.desktop.config["panels"].get("dismissOutside")
+        exclusive = mode == "pulled" and not self.desktop.catches()
         keyboard = KEYBOARD_EXCLUSIVE if exclusive else KEYBOARD_ON_DEMAND
         return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, keyboard)
 
@@ -244,6 +244,7 @@ class Drawer(QObject):
         if mode == "filed" and self.mode in ("pulled", "out"):
             self.leaving = True
             self.idle.stop()
+            self.desktop.catcher_update()
             self.bridge.leave.emit()
             QTimer.singleShot(self.LEAVE_LIMIT_MS, lambda: self.left(late=True))
             return
@@ -469,13 +470,23 @@ class Desktop(QObject):
             for d in (*self.drawers.values(), self.morgan):
                 d.windows_changed(now)
 
+    def catches(self) -> bool:
+        """Whether a click off a pulled drawer puts it away: set so, or the rest of the screen dimmed behind it."""
+        panels = self.config["panels"]
+        return bool(panels.get("dismissOutside") or panels.get("dim", True))
+
     def catcher_update(self) -> None:
-        """The catcher is out while a drawer is pulled (not expanded), if clicking outside puts it away."""
+        """
+        The catcher is out while a drawer is pulled (not expanded), if clicking
+        outside puts it away — dimmed, if the rest of the screen dims. Not for
+        a drawer out only because the pointer touched its edge: that one goes
+        when the pointer leaves, and dimming the screen for it is a flicker.
+        """
         if not hasattr(self, "catcher"):
             return
-        want = bool(self.config["panels"].get("dismissOutside")) and any(d.mode == "pulled" for d in self.drawers.values())
+        want = self.catches() and any(d.mode == "pulled" and not d.bumped and not d.leaving for d in self.drawers.values())
         if want:
-            self.catcher.show()
+            self.catcher.show(dim=bool(self.config["panels"].get("dim", True)))
         else:
             self.catcher.hide()
 
