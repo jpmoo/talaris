@@ -190,54 +190,161 @@ function drawDays(view, cols) {
 }
 
 // ---------------------------------------------------------------- making and changing
+//
+// No browser pickers here — a <select>, a date or a time field opens a window
+// of the engine's own, which a layer surface cannot hold — so the calendar,
+// the dates and the times are chosen from small lists drawn in the page.
 
 let editing = null;
-const pad = (n) => String(n).padStart(2, "0");
-const dateIn = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const timeIn = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-function fromInputs(date, time) { const [y, m, d] = date.split("-").map(Number); const [h, mi] = (time || "00:00").split(":").map(Number); return new Date(y, m - 1, d, h, mi); }
+const MIN = 60000;
+const dayLabel = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const timeLabel = (m) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+/** "9", "9:30", "930", "9:30 pm", "21:30" — minutes after midnight, or null. */
+function parseTime(text) {
+  const t = text.trim().toLowerCase().replace(/\s+/g, "");
+  const m = t.match(/^(\d{1,2})(?::?(\d{2}))?(a|am|p|pm)?$/);
+  if (!m) return null;
+  let h = Number(m[1]); const mi = Number(m[2] || 0);
+  if (mi > 59) return null;
+  if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3][0] === "p" ? 12 : 0); }
+  if (h > 23) return null;
+  return h * 60 + mi;
+}
+
+// One small list at a time, under what opened it.
+function popUnder(anchor, content) {
+  const pop = $("pop");
+  pop.replaceChildren(content);
+  const box = document.querySelector("#editor .box").getBoundingClientRect(), r = anchor.getBoundingClientRect();
+  pop.style.left = `${r.left - box.left}px`;
+  pop.style.top = `${r.bottom - box.top + 4}px`;
+  pop.hidden = false;
+  pop.dataset.for = anchor.id;
+}
+function popAway() { $("pop").hidden = true; delete $("pop").dataset.for; }
+
+function monthPicker(chosen, pick) {
+  let shown = new Date(chosen.getFullYear(), chosen.getMonth(), 1);
+  const wrap = el("div", { class: "mini" });
+  const drawMini = () => {
+    const first = startOfWeek(shown);
+    wrap.replaceChildren(
+      el("div", { class: "mini-head" },
+        el("button", { class: "frame", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); drawMini(); } }, "‹"),
+        el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+        el("button", { class: "frame", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); drawMini(); } }, "›")),
+      el("div", { class: "mini-grid" },
+        ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
+        ...Array.from({ length: 42 }, (_, i) => {
+          const d = addDays(first, i);
+          return el("button", { class: "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
+            onclick: (e) => { e.stopPropagation(); pick(d); popAway(); } }, String(d.getDate()));
+        })));
+  };
+  drawMini();
+  return wrap;
+}
+function timeList(current, pick) {
+  const list = el("div", { class: "times" });
+  for (let m = 0; m < 24 * 60; m += 15) {
+    list.append(el("button", { class: "time" + (m === current ? " on" : ""), onclick: (e) => { e.stopPropagation(); pick(m); popAway(); } }, timeLabel(m)));
+  }
+  setTimeout(() => { const on = list.querySelector(".on") || list.children[Math.floor((current ?? 540) / 15)]; if (on) list.scrollTop = on.offsetTop - 60; }, 0);
+  return list;
+}
+
+// What the editor holds: the calendar, the days, the minutes after midnight.
+function paintEditor() {
+  const v = editing.v;
+  const cal = calendars.find((c) => c.id === v.calendar);
+  $("e-cal").replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), cal ? `${cal.name} · ${cal.account}` : "Choose a calendar");
+  $("e-allday").classList.toggle("on", v.allDay);
+  $("e-sd").textContent = dayLabel(v.sd);
+  $("e-ed").textContent = dayLabel(v.ed);
+  if (document.activeElement !== $("e-st")) $("e-st").value = timeLabel(v.st);
+  if (document.activeElement !== $("e-et")) $("e-et").value = timeLabel(v.et);
+  $("e-st").hidden = $("e-et").hidden = v.allDay;
+}
 
 function open(e, isNew) {
-  editing = { ...e, isNew };
   const writable = calendars.filter((c) => c.writable);
-  $("e-cal").replaceChildren(...writable.map((c) => el("option", { value: c.id }, `${c.name} · ${c.account}`)));
-  $("e-cal").value = e.calendar || (writable[0] || {}).id || "";
-  $("e-cal").disabled = !isNew;
-  $("e-title").value = e.title || "";
-  $("e-allday").checked = !!e.allDay;
   const s = new Date(e.start);
   const end = new Date(e.allDay ? e.end - DAY_MS : e.end);
-  $("e-sd").value = dateIn(s); $("e-st").value = timeIn(s);
-  $("e-ed").value = dateIn(end); $("e-et").value = timeIn(end);
+  editing = { ...e, isNew, v: {
+    calendar: e.calendar || (writable[0] || {}).id || "", allDay: !!e.allDay,
+    sd: startOfDay(s), st: s.getHours() * 60 + s.getMinutes(), ed: startOfDay(end), et: end.getHours() * 60 + end.getMinutes(),
+  } };
+  $("e-title").value = e.title || "";
   $("e-where").value = e.location || "";
   $("e-notes").value = e.notes || "";
-  allDayInputs();
   $("e-which-row").hidden = isNew || !e.recurring;
   // A repeating event: this one alone, or every one of them.
   const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); };
   which("this");
   $("e-delete").hidden = isNew;
-  const ro = !isNew && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
-  for (const id of ["e-title", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-notes", "e-save", "e-delete"]) $(id).disabled = ro;
+  editing.readOnly = !isNew && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
+  for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-notes", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
+  $("e-cal").disabled = editing.readOnly || !isNew;
+  popAway();
+  paintEditor();
   $("editor").classList.add("open");
   setTimeout(() => $("e-title").focus(), 30);
 }
-function allDayInputs() { $("e-st").hidden = $("e-et").hidden = $("e-allday").checked; }
 function edit(e) { open(e, false); }
 function create(at, allDay) {
   if (!calendars.some((c) => c.writable)) { say("No calendar here can be written to", true); return; }
   const start = allDay ? startOfDay(at) : at;
   open({ start: start.getTime(), end: allDay ? start.getTime() + DAY_MS : start.getTime() + 3600000, allDay }, true);
 }
-function closeEditor() { $("editor").classList.remove("open"); editing = null; }
+function closeEditor() { popAway(); $("editor").classList.remove("open"); editing = null; }
+
+$("e-cal").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  if (!editing || $("pop").dataset.for === "e-cal") { popAway(); return; }
+  popUnder($("e-cal"), el("div", { class: "menu-list" }, ...calendars.filter((c) => c.writable).map((c) =>
+    el("button", { class: "time" + (c.id === editing.v.calendar ? " on" : ""), onclick: (e) => { e.stopPropagation(); editing.v.calendar = c.id; popAway(); paintEditor(); } },
+      el("span", { class: "sw", style: `background:${c.color || "var(--accent)"}` }), `${c.name} · ${c.account}`))));
+});
+$("e-allday").addEventListener("click", () => { if (!editing) return; editing.v.allDay = !editing.v.allDay; paintEditor(); });
+for (const [id, key] of [["e-sd", "sd"], ["e-ed", "ed"]]) {
+  $(id).addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (!editing || $("pop").dataset.for === id) { popAway(); return; }
+    popUnder($(id), monthPicker(editing.v[key], (d) => {
+      // Moving the start moves the end with it, keeping the length.
+      if (key === "sd") { const len = editing.v.ed - editing.v.sd; editing.v.sd = d; editing.v.ed = new Date(d.getTime() + Math.max(0, len)); }
+      else editing.v.ed = d < editing.v.sd ? editing.v.sd : d;
+      paintEditor();
+    }));
+  });
+}
+for (const [id, key] of [["e-st", "st"], ["e-et", "et"]]) {
+  $(id).addEventListener("focus", () => {
+    if (!editing) return;
+    popUnder($(id), timeList(editing.v[key], (m) => {
+      if (key === "st") { const len = editing.v.et - editing.v.st; editing.v.st = m; if (sameDay(editing.v.sd, editing.v.ed)) editing.v.et = Math.min(24 * 60 - 1, m + Math.max(15, len)); }
+      else editing.v.et = m;
+      $(id).blur(); paintEditor();
+    }));
+  });
+  $(id).addEventListener("change", () => {
+    const m = parseTime($(id).value);
+    if (m != null && editing) {
+      if (key === "st") { const len = editing.v.et - editing.v.st; editing.v.st = m; if (sameDay(editing.v.sd, editing.v.ed)) editing.v.et = Math.min(24 * 60 - 1, m + Math.max(15, len)); }
+      else editing.v.et = m;
+    }
+    paintEditor();
+  });
+}
+// A press elsewhere in the editor puts a list away.
+$("editor").addEventListener("click", (e) => { if (!e.target.closest("#pop") && !["e-st", "e-et"].includes(e.target.id)) popAway(); });
 
 function collected() {
-  const allDay = $("e-allday").checked;
-  let start = fromInputs($("e-sd").value, allDay ? "00:00" : $("e-st").value);
-  let end = fromInputs($("e-ed").value, allDay ? "00:00" : $("e-et").value);
-  if (allDay) end = addDays(end, 1);
-  if (end <= start) end = new Date(start.getTime() + (allDay ? DAY_MS : 3600000));
-  return { title: $("e-title").value.trim(), allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: $("e-notes").value };
+  const v = editing.v;
+  let start = new Date(v.sd.getTime() + (v.allDay ? 0 : v.st * MIN));
+  let end = v.allDay ? addDays(v.ed, 1) : new Date(v.ed.getTime() + v.et * MIN);
+  if (end <= start) end = new Date(start.getTime() + (v.allDay ? DAY_MS : 3600000));
+  return { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: $("e-notes").value };
 }
 const pending = new Map();
 function send(msg, after) {
@@ -249,7 +356,7 @@ function send(msg, after) {
 $("e-save").addEventListener("click", () => {
   if (!editing) return;
   const event = collected();
-  if (editing.isNew) send({ do: "create", calendar: $("e-cal").value, event }, closeEditor);
+  if (editing.isNew) send({ do: "create", calendar: editing.v.calendar, event }, closeEditor);
   else send({ do: "update", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, event }, closeEditor);
 });
 $("e-delete").addEventListener("click", () => {
@@ -259,10 +366,9 @@ $("e-delete").addEventListener("click", () => {
   send({ do: "delete", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which }, closeEditor);
 });
 $("e-cancel").addEventListener("click", closeEditor);
-$("e-allday").addEventListener("change", allDayInputs);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { if (editing) closeEditor(); else if (bridge) bridge.file(); }
+  if (e.key === "Escape") { if (!$("pop").hidden) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
   if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA") $("e-save").click();
 });
 

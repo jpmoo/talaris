@@ -459,6 +459,15 @@ function drawAccounts() {
 }
 $("acct-add").addEventListener("click", () => bridge && bridge.accountAdd());
 
+// The colors a calendar may wear, as Google's and Outlook's own run, and the accents.
+const CAL_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
+  "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
+function setColor(id, color) {
+  bridge.calendarColor(id, color);
+  // Evolution writes it and says so; read the list again a moment after.
+  setTimeout(drawCalendars, 500);
+}
+
 // Every calendar Evolution has — the accounts', this computer's, the
 // birthdays from contacts — by account, each shown in the calendar or not.
 function drawCalendars() {
@@ -476,8 +485,19 @@ function drawCalendars() {
           if (now.has(c.id)) now.delete(c.id); else now.add(c.id);
           save({ calendar: { hidden: [...now] } });
         });
-        const swatch = el("span", { style: `display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;background:${c.color || "var(--accent)"}` });
-        return el("div", { class: "row" }, el("span", { class: "name" }, swatch, c.name), el("span", { class: "what" }, sw));
+        // Its color, chosen from a palette or typed: kept in Evolution, so
+        // the calendar and anything else reading these calendars agree.
+        const swatch = el("button", { class: "cal-swatch", title: "Its color", style: `background:${c.color || "var(--accent)"}` });
+        const palette = el("div", { class: "cal-palette", hidden: "" },
+          ...CAL_COLORS.map((col) => el("button", { class: "cal-swatch" + (col === c.color ? " on" : ""), style: `background:${col}`, title: col,
+            onclick: () => setColor(c.id, col) })),
+          (() => {
+            const hex = el("input", { type: "text", class: "hex", value: c.color || "", placeholder: "#rrggbb", spellcheck: "false" });
+            hex.addEventListener("keydown", (e) => { if (e.key === "Enter" && /^#[0-9a-f]{6}$/i.test(hex.value.trim())) setColor(c.id, hex.value.trim().toLowerCase()); });
+            return hex;
+          })());
+        swatch.addEventListener("click", () => { palette.hidden = !palette.hidden; });
+        return el("div", {}, el("div", { class: "row" }, el("span", { class: "name" }, el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, swatch, c.name)), el("span", { class: "what" }, sw)), palette);
       }),
     ]);
     $("acct-cals").replaceChildren(...(rows.length ? rows : [el("p", { class: "note" }, "No calendars yet.")]));

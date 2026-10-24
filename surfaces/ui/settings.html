@@ -74,6 +74,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .row.needs-off .switch, .row.needs-off .seg button { cursor: default; }
 #wall-preview { width: 128px; height: 80px; object-fit: cover; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--desk); }
 #wall-name { word-break: break-all; }
+.cal-swatch { width: 14px; height: 14px; padding: 0 !important; border-radius: 4px !important; border: 1px solid var(--line) !important; cursor: pointer; flex: none; }
+.cal-swatch.on, .cal-swatch:hover { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
+.cal-palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 10px 22px; }
+.cal-palette[hidden] { display: none; }
+.cal-palette .hex { width: 90px; padding: 2px 6px; font-size: 12px; }
 h3.with-btn { display: flex; align-items: center; justify-content: space-between; }
 h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12px; padding: 3px 10px !important; }
 .net .what { gap: 6px; }
@@ -208,7 +213,8 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h2>Accounts</h2>
       <p class="note" style="margin:0 0 10px">Google, Microsoft 365, Apple and others, for the calendar and contacts. Each signs in on its own page; Talaris never sees a password.</p>
       <div id="acct-list"></div>
-      <div class="row"><span class="name">Add an account<small id="acct-add-note">Google or Microsoft 365: choose it and sign in. Apple: choose WebDAV, server https://caldav.icloud.com, your Apple ID and an app-specific password from appleid.apple.com</small></span><span class="what"><button class="t-btn" id="acct-add">Add…</button></span></div>
+      <div class="row"><span class="name">Add an account</span><span class="what"><button class="t-btn" id="acct-add">Add…</button></span></div>
+      <p class="note" id="acct-add-note" style="margin:0 0 10px">Google or Microsoft 365: choose it and sign in. Apple: choose WebDAV, with the server https://caldav.icloud.com, your Apple ID, and an app-specific password made at appleid.apple.com.</p>
       <p class="note" id="acct-msg"></p>
       <h3>Calendars</h3>
       <p class="note" style="margin:0 0 6px">Which show in the calendar, by account. The calendar's own list sets the same.</p>

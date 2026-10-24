@@ -207,6 +207,10 @@ class SettingsBridge(Bridge):
     def accounts(self) -> str:
         return json.dumps(accounts.listing())
 
+    @Slot(str, str)
+    def calendarColor(self, calendar: str, color: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.calendar_service.send({"do": "color", "req": 0, "calendar": calendar, "color": color})
+
     @Slot(result=str)
     def calendars(self) -> str:
         """The calendars Evolution has, each with its account's name: for showing or hiding, by account."""

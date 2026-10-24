@@ -26,6 +26,8 @@ screen up.
   {"do": "create", "req": n, "calendar": id, "event": {title, location, notes, start, end, allDay}}
   {"do": "update", "req": n, "calendar": id, "uid": …, "rid": …, "event": {…}, "which": "this"|"all"}
   {"do": "delete", "req": n, "calendar": id, "uid": …, "rid": …, "which": "this"|"all"}
+  {"do": "color", "req": n, "calendar": id, "color": "#rrggbb"}   — kept in EDS, so every
+                                                                    app using it sees it too
 
 Times are milliseconds since the epoch; an all-day event's start and end are
 local midnights, the end the day after its last.
@@ -241,6 +243,21 @@ class Calendars:
             return
         say({"done": {"req": req, "error": ""}})
 
+    def color(self, req: int, calendar: str, color: str) -> None:
+        source = self.wanted.get(calendar)
+        if not source or not (len(color) == 7 and color.startswith("#")):
+            say({"done": {"req": req, "error": "Not a calendar or a color"}})
+            return
+        source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR).set_color(color)
+        try:
+            source.write_sync(None)
+        except GLib.Error as e:
+            say({"done": {"req": req, "error": e.message}})
+            return
+        self._tell_calendars()
+        self._changed()
+        say({"done": {"req": req, "error": ""}})
+
     def do(self, msg: dict) -> None:
         verb, req = msg.get("do"), int(msg.get("req", 0))
         if verb == "range":
@@ -249,6 +266,8 @@ class Calendars:
             self.create(req, str(msg["calendar"]), msg["event"])
         elif verb == "update":
             self.update(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg["event"], msg.get("which", "all"))
+        elif verb == "color":
+            self.color(req, str(msg["calendar"]), str(msg["color"]))
         elif verb == "delete":
             self.delete(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg.get("which", "all"))
 
