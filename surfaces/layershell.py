@@ -86,7 +86,11 @@ class _Exposed(QObject):
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
         if event.type() == QEvent.Type.Expose and watched.isExposed():
-            QTimer.singleShot(20, hypr.refocus_pointer)
+            # Again later too: the first time, the page inside may not have
+            # drawn yet, and a page that has not drawn does not set its cursor.
+            # Each looks where the pointer is then, so a moving one is not pulled back.
+            for ms in (20, 300, 700):
+                QTimer.singleShot(ms, hypr.refocus_pointer)
         return False
 
 
