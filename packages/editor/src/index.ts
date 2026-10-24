@@ -267,9 +267,10 @@ const look = EditorView.theme({
   ".cm-check.is-checked": { background: "var(--accent)", borderColor: "var(--accent)" },
   ".cm-check.is-checked svg": { opacity: "1" },
   // The grip: dots in the margin left of a list item, shown on hover.
-  ".cm-content": { padding: "10px 12px 10px 26px", caretColor: "var(--accent)" },
+  // Room on the left for the grip and no more: 26 read as a wide margin.
+  ".cm-content": { padding: "10px 12px 10px 14px", caretColor: "var(--accent)" },
   ".cm-listline": { position: "relative" },
-  ".cm-listline::before": { content: "'⋮⋮'", position: "absolute", left: "-18px", top: "0", width: "14px", letterSpacing: "-3px", color: "var(--muted)", opacity: "0", cursor: "grab", transition: "opacity .12s" },
+  ".cm-listline::before": { content: "'⋮⋮'", position: "absolute", left: "-12px", top: "0", width: "11px", letterSpacing: "-3px", color: "var(--muted)", opacity: "0", cursor: "grab", transition: "opacity .12s" },
   ".cm-listline:hover::before": { opacity: "0.8" },
   ".cm-dragging": { opacity: "0.45" },
   ".cm-drop": { position: "absolute", right: "8px", height: "2px", background: "var(--accent)", borderRadius: "1px", pointerEvents: "none", zIndex: "5" },

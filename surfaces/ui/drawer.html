@@ -47,7 +47,9 @@ body[data-mode="expanded"][data-outline="none"] #panel { border-color: transpare
    a paper-toned panel. Which one has you: an accent frame and a lit title;
    the other dims a little. */
 .mark { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 1.4; fill: none; margin-right: 8px; vertical-align: -2px; }
-body[data-drawer="writing"] #panel { background: color-mix(in srgb, var(--page-paper, var(--paper)) var(--alpha, 100%), transparent); }
+body[data-drawer="writing"] #panel { background: color-mix(in srgb, var(--paper) var(--alpha, 100%), transparent); }
+/* A page's own paper is the writing area's, not the whole panel's. */
+body[data-drawer="writing"] .editor { background: var(--page-paper, transparent); }
 /* A page with a paper of its own wears an ink to match (drawer.js wearPaper). */
 body[data-drawer="writing"] .editor .cm-content { color: var(--page-ink, inherit); }
 body[data-mode="pulled"][data-focus] #panel { border-color: var(--accent); }

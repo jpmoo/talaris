@@ -68,10 +68,11 @@ export function wearTheme(): void {
 
     /* The paper: dots, graph lines, or nothing. Drawn here so it wins over the
        forked sheet's one fixed dot grid, and moves and scales with the view. */
-    /* The drawer's opacity reaches the paper too (shared in as --alpha). */
+    /* The drawer's opacity reaches the paper too (shared in as --alpha); a canvas
+       with a background of its own (--cv-paper, its document's) wears that. */
     .cv-wrap.paper-dots, .framed .cv-wrap.paper-dots {
       background: radial-gradient(circle, var(--line) 1px, transparent 1px)
-        var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)), color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent);
+        var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)), color-mix(in srgb, var(--cv-paper, var(--desk)) var(--alpha, 100%), transparent);
     }
     .cv-wrap.paper-lines, .framed .cv-wrap.paper-lines {
       background:
@@ -79,9 +80,9 @@ export function wearTheme(): void {
           var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
         linear-gradient(to bottom, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px)
           var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
-        color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent);
+        color-mix(in srgb, var(--cv-paper, var(--desk)) var(--alpha, 100%), transparent);
     }
-    .cv-wrap.paper-none, .framed .cv-wrap.paper-none { background: color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent); }
+    .cv-wrap.paper-none, .framed .cv-wrap.paper-none { background: color-mix(in srgb, var(--cv-paper, var(--desk)) var(--alpha, 100%), transparent); }
     /* What is typed in notes and shapes, at Settings' canvas size (--type-scale,
        shared in by the drawer). The note's editor takes its size from here. */
     .cv-note .cv-paper, .cv-note .md-editor { font-size: calc(13px * var(--type-scale, 1)) !important; }
