@@ -45,6 +45,14 @@ function seg(host, choices, current, pick, disabled = () => false) {
       ...(disabled(value) ? { disabled: "" } : {}) }, label)));
 }
 
+/** The rows holding these controls are dimmed and set aside unless `on`. */
+function needs(ids, on) {
+  for (const id of ids) {
+    const row = $(id) && $(id).closest(".row");
+    if (row) row.classList.toggle("needs-off", !on);
+  }
+}
+
 function slider(id, value, toText, onDone) {
   const input = $(id);
   input.value = value;
@@ -147,6 +155,18 @@ function draw() {
   slider("power-suspend", Math.round(pw.suspend / 60), mins, (v) => save({ power: { suspend: v * 60 } }));
   for (const id of ["power-dim", "power-dimto", "power-lock", "power-off", "power-suspend"]) $(id).disabled = !pw.managed;
   if (bridge && $("power").classList.contains("on")) powerNote();
+
+  // Settings that only matter when another is on, dimmed while it is off.
+  const hidesSomething = cfg.bar.autohide || (cfg.dock.enabled !== false && cfg.dock.autohide)
+    || cfg.drawers.canvas.autoshow || cfg.drawers.writing.autoshow;
+  needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
+  needs(["bar-m-top"], cfg.bar.shape === "floating");
+  needs(["dock-hide", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
+  needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
+  needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
+  needs(["touch-thick", "touch-length"], hidesSomething);
+  needs(["power-dim", "power-lock", "power-off", "power-suspend"], !!pw.managed);
+  needs(["power-dimto"], !!pw.managed && pw.dim > 0);
   slider("touch-thick", cfg.touch.thick, (v) => `${v}px`, (v) => save({ touch: { thick: v } }));
   slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
