@@ -2,21 +2,23 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 #
-# Move the focused window one way (l, r, u, d); if nothing is that way to move
-# beside, turn its split so it lands on that side instead — two windows side
+# Swap the focused window with the one that way (l, r, u, d) — places traded,
+# the layout as it was; if nothing is that way, turn its split so it lands on
+# that side instead — two windows side
 # by side become one above the other (up: this one on top; down: below), and
 # left or right puts them back side by side. For hyprland.conf, on Super+Shift
 # and the arrows:
 #
 #   bind = $mainMod SHIFT, up, exec, ~/Documents/Scripts/talaris/bin/move-or-split u
 #
-# Hyprland's own `movewindow` does nothing when no window is that way, and
-# `togglesplit` (dwindle) is the only way to stack two; this is both, by key.
+# Hyprland's `movewindow` re-splits rather than trading places (stacked
+# windows rotate), and does nothing when no window is that way; `togglesplit`
+# (dwindle) is the only way to stack two. This is `swapwindow`, then that.
 set -euo pipefail
 dir="${1:?a direction: l, r, u or d}"
 me() { hyprctl activewindow -j; }
 before="$(me | jq -c '[.at, .size]')"
-hyprctl dispatch movewindow "$dir" >/dev/null
+hyprctl dispatch swapwindow "$dir" >/dev/null
 sleep 0.05
 [ "$(me | jq -c '[.at, .size]')" != "$before" ] && exit 0
 
