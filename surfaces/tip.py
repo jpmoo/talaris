@@ -16,12 +16,29 @@ what; this only puts it there.
 
 from __future__ import annotations
 
+import glob
+import os
+
 from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 from PySide6.QtWidgets import QApplication, QLabel
 
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 from views import zoom
+
+#: The typefaces the pages use, shipped as web fonts and not installed: Qt is
+#: given them too, or a tip would fall back to the system's sans.
+FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "fonts")
+_loaded = False
+
+
+def _load_fonts() -> None:
+    global _loaded
+    if _loaded:
+        return
+    for path in glob.glob(os.path.join(FONTS, "*.woff2")):
+        QFontDatabase.addApplicationFont(path)
+    _loaded = True
 
 #: The theme's colors for a tip (ui/tokens.css): surface, frame, text.
 COLORS = {"dark": ("#222528", "#3a3f44", "#d5d9dc"), "light": ("#eceef0", "#b7bcc1", "#25292d")}
@@ -42,24 +59,26 @@ class Tip(QObject):
         self.surface = LayerSurface(self.label, "talaris-tip")
         self.text = ""
 
-    def _style(self) -> QFont:
+    def _style(self, area: str) -> QFont:
+        _load_fonts()
         theme = self.desktop.config["theme"]
         surface, frame, text = COLORS.get(theme.get("mode"), COLORS["dark"])
         font = QFont(theme.get("font") or "Barlow Semi Condensed")
-        font.setPixelSize(zoom(13))
+        # The size the bar or the dock gives its own text (Settings → Look).
+        font.setPixelSize(zoom(13, area))
         self.label.setFont(font)
         self.label.setStyleSheet(
             f"QLabel {{ background: {surface}; color: {text}; border: 1px solid {frame};"
             f" border-radius: {zoom(5)}px; padding: {zoom(PAD_Y)}px {zoom(PAD_X)}px; }}")
         return font
 
-    def show(self, text: str, x: float, edge: str, off: int = 0) -> None:
+    def show(self, text: str, x: float, edge: str, off: int = 0, area: str = "bar") -> None:
         """`text` centered on `x` (screen pixels), just clear of the bar or dock on `edge`; `off` more besides."""
         text = text.strip()
         if not text:
             self.hide()
             return
-        font = self._style()
+        font = self._style(area)
         self.label.setText(text)
         metrics = QFontMetrics(font)
         w = metrics.horizontalAdvance(text) + 2 * zoom(PAD_X) + 4

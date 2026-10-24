@@ -194,7 +194,7 @@ class BarBridge(Bridge):
         bar = self.owner.desktop.bar
         # A bar that hides reserves no space; the tip stands off by its height instead.
         off = bar.view.height() if bar.desktop.config["bar"].get("autohide") else 0
-        self.owner.desktop.tip.show(text, x * zoom_of("bar"), bar.edge, off)
+        self.owner.desktop.tip.show(text, x * zoom_of("bar"), bar.edge, off, area="bar")
 
     @Slot(str)
     def launcher(self, mode: str) -> None:

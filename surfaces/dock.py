@@ -211,7 +211,7 @@ class Dock(QObject):
         look = self.desktop.config["dock"]
         swell = round((int(look.get("iconSize", 24)) + 12) * (int(look.get("magnify", 100)) - 100) / 100)
         off = (self.thickness() if look.get("autohide") else 0) + max(0, swell)
-        self.desktop.tip.show(text, x * self.view.zoomFactor(), self.edge, off)
+        self.desktop.tip.show(text, x * self.view.zoomFactor(), self.edge, off, area="dock")
 
     def thickness(self) -> int:
         """How tall the dock is: its icons at the size Settings gives, and the room round them."""
