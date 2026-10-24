@@ -185,9 +185,42 @@ const Motion = (() => {
     if (panel._fx) panel._fx.remove();
   }
 
+  /*
+   * The page's own size, settled. A panel is told it is out as its surface is
+   * made, before the compositor has given the surface its size; measured then,
+   * the panel is somewhere it will not be, and the arrival plays there. So
+   * arriving waits for two frames running at the same size (a third of a
+   * second at most), the panel held unseen meanwhile.
+   */
+  function settled() {
+    return new Promise((done) => {
+      const began = performance.now();
+      let last = "", same = 0;
+      const look = () => {
+        const now = `${innerWidth}x${innerHeight}`;
+        same = innerWidth > 0 && now === last ? same + 1 : 0;
+        last = now;
+        if (same >= 2 || performance.now() - began > 330) done();
+        else requestAnimationFrame(look);
+      };
+      requestAnimationFrame(look);
+    });
+  }
+  let arrival = 0;
+
   function arrive(panel, o) {
     reset(panel, o);
     if (still(o)) return;
+    const mine = ++arrival;
+    panel.style.visibility = "hidden";
+    settled().then(() => {
+      panel.style.visibility = "";
+      // Gone again, or arriving afresh, before it settled: this arrival is not wanted.
+      if (mine === arrival) play(panel, o);
+    });
+  }
+
+  function play(panel, o) {
     use(o);
     if (o.backdrop) {
       const dim = getComputedStyle(o.backdrop).backgroundColor;
@@ -206,6 +239,8 @@ const Motion = (() => {
    * animation to wait for, or null when there is nothing to wait for.
    */
   function leave(panel, o) {
+    arrival++;
+    panel.style.visibility = "";
     if (still(o)) return null;
     use(o);
     if (o.backdrop) o.backdrop.animate([{}, { backgroundColor: "rgba(0, 0, 0, 0)" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" });
