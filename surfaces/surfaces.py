@@ -82,6 +82,8 @@ SCHEME = b"talaris-ui"
 CONTROL = f"talaris-surfaces-{os.getuid()}"
 # Small on purpose: the handle says "something is here", not "look at me".
 HANDLE = (10, 56)
+#: Room beside a pulled drawer for its shadow, in the page's pixels (drawer.html's 18px).
+SHADOW_ROOM = 18
 
 
 def register_scheme() -> None:
@@ -151,6 +153,8 @@ class Drawer(QObject):
         self.desktop = desktop
         self.edge = config["edge"]
         self.size = float(config["size"])
+        self.height = float(config.get("height", 1))
+        self.align = config.get("align", "center")
         # "Canvas as desktop" — a drawer out on an empty workspace — was taken
         # out of Settings (2026-10-23); an old setting does not bring it back.
         self.out_when_empty = False
@@ -191,6 +195,8 @@ class Drawer(QObject):
             "look": self.desktop.config["panels"],
             # The type on this drawer's page — writing's, or the canvas's notes.
             "typeScale": type_scale(self.name),
+            # Short of the screen's top or bottom: room there for the shadow.
+            "room": self._room(),
             # Where a window's frame would be, side by side, in this page's own
             # pixels: Hyprland's gaps are the compositor's, which a page sees
             # through Qt's scale and its own zoom.
@@ -213,6 +219,16 @@ class Drawer(QObject):
             return Placement(TOP, anchor, w, h, KEYBOARD_NONE)
         w = int(screen.width() * self.size) if across else screen.width()
         h = screen.height() if across else int(screen.height() * self.size)
+        span = EDGE_SPAN[self.edge]
+        if across:
+            # A share of the whole screen, over the bar and the dock rather than
+            # between them (exclusive -1): full height spans it; shorter, it is
+            # anchored to the top or the bottom, or to neither, and centered.
+            # A side that stops short of the screen's edge has room for the shadow.
+            room = self._room()
+            if self.height < 1:
+                h = int(screen.height() * self.height) + zoom(SHADOW_ROOM) * (room["top"] + room["bottom"])
+                span = {"top": ANCHOR_TOP, "bottom": ANCHOR_BOTTOM}.get(self.align, 0)
         # Pulled out, the drawer keeps the keyboard to itself: moving the
         # pointer onto a window cannot hand that window the keyboard — waking
         # it from its dimmed look and flickering the drawer's in-use outline —
@@ -223,7 +239,12 @@ class Drawer(QObject):
         # catcher — so it takes the keyboard the ordinary way.
         exclusive = mode == "pulled" and not self.desktop.catches()
         keyboard = KEYBOARD_EXCLUSIVE if exclusive else KEYBOARD_ON_DEMAND
-        return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, keyboard)
+        return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | span, w, h, keyboard, exclusive=-1 if across else 0)
+
+    def _room(self) -> dict:
+        """Which ends, top and bottom, stop short of the screen's — and so have room for a shadow."""
+        short = self.height < 1 and bool(self.desktop.config["panels"].get("shadow", True))
+        return {"top": short and self.align != "top", "bottom": short and self.align != "bottom"}
 
     #: How long a page has to finish leaving before the surface goes anyway.
     #: A page that never answers must not leave a drawer stuck over the screen.
@@ -593,6 +614,7 @@ class Desktop(QObject):
             mine = after["drawers"][name]
             if mine != before["drawers"][name]:
                 d.edge, d.size = mine["edge"], float(mine["size"])
+                d.height, d.align = float(mine.get("height", 1)), mine.get("align", "center")
                 d.autoshow = bool(mine.get("autoshow"))
                 d.sensor.hide()
                 # Made anew where it now belongs, filed: a drawer that moves edge

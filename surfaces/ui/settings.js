@@ -140,6 +140,8 @@ function draw() {
   // Both drawers share one size and one touch-to-show; each keeps its own edge.
   const both = (change) => save({ drawers: { canvas: change, writing: change } });
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
+  slider("drawer-height", Math.round((cfg.drawers.canvas.height ?? 1) * 100), (v) => `${v}%`, (v) => both({ height: v / 100 }));
+  seg("drawer-align", [["top", "Top"], ["center", "Center"], ["bottom", "Bottom"]], cfg.drawers.canvas.align || "center", (align) => both({ align }));
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
   $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
@@ -168,6 +170,7 @@ function draw() {
   needs(["dock-hide", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
+  needs(["drawer-align"], (cfg.drawers.canvas.height ?? 1) < 1);
   // Dimmed, a click outside already puts a drawer away.
   needs(["dismiss-outside"], cfg.panels.dim === false);
   needs(["touch-thick", "touch-length"], hidesSomething);

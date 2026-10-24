@@ -995,7 +995,9 @@ of it and comes out at the end.
    speed in Settings, Look (slide from the top, draw, or none), played by
    `ui/motion.js`, the drawers' own motions made shareable. A pulled drawer
    dims the rest of the screen too ("Dim behind", on by default), through the
-   catcher, so a click there puts it away. Full
+   catcher, so a click there puts it away. Both drawers share a height (a
+   share of the whole screen) and an alignment, top, center or bottom: full
+   height or at the top a drawer lies over the bar, at the bottom over the dock. Full
    screen works as a drawer's expand: the conversation becomes the desktop on
    its own workspace, between the bar and the dock, and a window opened there,
    another workspace gone to, or the button again brings it back (or closes

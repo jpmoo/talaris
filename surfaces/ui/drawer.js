@@ -129,6 +129,10 @@ function update(next) {
   document.body.dataset.outline = look.outline || "focus";
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
+  for (const end of ["top", "bottom"]) {
+    if ((state.room || {})[end] && state.mode === "pulled") document.body.dataset[`room${end[0].toUpperCase()}${end.slice(1)}`] = "1";
+    else delete document.body.dataset[`room${end[0].toUpperCase()}${end.slice(1)}`];
+  }
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   document.body.style.setProperty("--type-scale", String(state.typeScale ?? 1));
   // The paper — the writing page, the canvas — follows the opacity, or stays solid.

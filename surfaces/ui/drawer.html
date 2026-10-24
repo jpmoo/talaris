@@ -66,6 +66,9 @@ body[data-shadow][data-edge="left"] #panel { right: 18px; }
 body[data-shadow][data-edge="right"] #panel { left: 18px; }
 body[data-shadow][data-edge="top"] #panel { bottom: 18px; }
 body[data-shadow][data-edge="bottom"] #panel { top: 18px; }
+/* Shorter than the screen: room at an end that stops short, for the shadow. */
+body[data-room-top] #panel { top: 18px; }
+body[data-room-bottom] #panel { bottom: 18px; }
 .xh { display: none; }
 #panel { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); padding: 14px 16px; display: flex; flex-direction: column; }
 /* Flush with the edge it comes from, so that side has no line. */

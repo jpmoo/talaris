@@ -76,6 +76,8 @@ def _checked(c: dict) -> str:
         return "A drawer cannot share the bar's or the dock's edge"
     if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
         return "A drawer is a quarter to nine tenths of the screen"
+    if any(not 0.3 <= float(d.get("height", 1)) <= 1 or d.get("align", "center") not in ("top", "center", "bottom") for d in c["drawers"].values()):
+        return "A drawer is 30 to 100 percent tall, at the top, center or bottom"
     p, b, d = c["panels"], c["bar"], c["dock"]
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):

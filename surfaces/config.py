@@ -65,9 +65,11 @@ DEFAULTS = {
     "windows": {"gap": 10, "between": 10},
     "drawers": {
         # One size for both (Settings shows them as one): under half each, so
-        # both pulled at once leave a gap rather than overlapping.
-        "canvas": {"edge": "left", "size": 0.48, "outWhenEmpty": False, "autoshow": False},
-        "writing": {"edge": "right", "size": 0.48, "outWhenEmpty": False, "autoshow": False},
+        # both pulled at once leave a gap rather than overlapping. Height is a
+        # share of the whole screen, aligned top, center or bottom; full
+        # height or at the top, a drawer lies over the bar (at the bottom, the dock).
+        "canvas": {"edge": "left", "size": 0.48, "height": 1.0, "align": "center", "outWhenEmpty": False, "autoshow": False},
+        "writing": {"edge": "right", "size": 0.48, "height": 1.0, "align": "center", "outWhenEmpty": False, "autoshow": False},
     },
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.
