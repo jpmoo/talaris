@@ -38,6 +38,9 @@ DEFAULTS = {
     # Whose motion the launcher and Morgan's conversation come and go with:
     # the windows' or the drawers'. Settings too.
     "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows"},
+    # The calendar: the calendars not shown (Evolution's ids), whichever
+    # account they belong to — set in Settings, Accounts, or the calendar's own list.
+    "calendar": {"hidden": []},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",

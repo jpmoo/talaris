@@ -94,6 +94,8 @@ def _checked(c: dict) -> str:
         return "Dim behind is on or off"
     if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
+    if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
+        return "Not a calendar"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar")):
         return "The launcher, Morgan and Settings move as windows or as drawers"
     if not 16 <= int(c["dock"].get("iconSize", 24)) <= 48:
@@ -204,6 +206,11 @@ class SettingsBridge(Bridge):
     @Slot(result=str)
     def accounts(self) -> str:
         return json.dumps(accounts.listing())
+
+    @Slot(result=str)
+    def calendars(self) -> str:
+        """The calendars Evolution has, each with its account's name: for showing or hiding, by account."""
+        return self.owner.desktop.calendar_service.last_calendars
 
     @Slot(str, str, bool, result=str)
     def accountSwitch(self, path: str, what: str, on: bool) -> str:  # noqa: N802 — called from the page by this name
@@ -363,7 +370,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "windows", "clock", "panels", "touch", "text", "power"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

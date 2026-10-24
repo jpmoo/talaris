@@ -34,8 +34,8 @@ let mode = "month";
 let focus = startOfDay(new Date());
 let req = 0;
 let wanted = 0;
+// The calendars not shown: Talaris's setting (Settings, Accounts, or the list here).
 let hidden = new Set();
-try { hidden = new Set(JSON.parse(localStorage.getItem("talaris.calendar.hidden") || "[]")); } catch { /* fine */ }
 try { mode = localStorage.getItem("talaris.calendar.mode") || "month"; } catch { /* fine */ }
 
 const DAY_MS = 86400000;
@@ -109,8 +109,8 @@ function drawSide() {
     ...list.map((c) => el("div", { class: "cal" + (hidden.has(c.id) ? "" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only",
       onclick: () => {
         if (hidden.has(c.id)) hidden.delete(c.id); else hidden.add(c.id);
-        try { localStorage.setItem("talaris.calendar.hidden", JSON.stringify([...hidden])); } catch { /* fine */ }
         draw();
+        bridge.setHidden(JSON.stringify([...hidden]));
       } }, el("span", { class: "sw" }), el("span", {}, c.name))),
   ]), el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
 }
@@ -296,6 +296,7 @@ function how() {
 function onState(s) {
   const was = surface;
   surface = s;
+  if (s.hidden) { hidden = new Set(s.hidden); if (s.up) draw(); }
   if (s.expanded) document.documentElement.dataset.expanded = "1"; else delete document.documentElement.dataset.expanded;
   $("grow").innerHTML = s.expanded ? (s.closes ? Icons.close() : Icons.shrink()) : Icons.grow();
   $("grow").title = s.expanded ? (s.closes ? "Close" : "Back to a panel") : "Full screen";

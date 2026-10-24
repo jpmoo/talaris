@@ -137,6 +137,12 @@ class CalendarBridge(Bridge):
         if msg.get("do") in ("range", "create", "update", "delete"):
             self.owner.service.send(msg)
 
+    @Slot(str)
+    def setHidden(self, ids: str) -> None:  # noqa: N802 — called from the page by this name
+        """The calendars not shown, kept in Talaris's settings — the same list Settings, Accounts sets."""
+        hidden = [x for x in json.loads(ids) if isinstance(x, str)]
+        self.owner.desktop.settings.apply({"calendar": {"hidden": hidden}})
+
     @Slot()
     def accounts(self) -> None:
         """Settings, Accounts."""
@@ -147,6 +153,9 @@ class CalendarBridge(Bridge):
 class Calendar(Overlay):
     NAME = "calendar"
     IDLE_MS = 5 * 60 * 1000
+
+    def describe(self) -> dict:
+        return {**super().describe(), "hidden": self.desktop.config.get("calendar", {}).get("hidden", [])}
 
     def __init__(self, profile: QWebEngineProfile, desktop, service: CalendarService) -> None:
         super().__init__(profile, desktop, "talaris-ui://ui/calendar.html", CalendarBridge(None, None))

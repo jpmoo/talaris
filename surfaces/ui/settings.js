@@ -148,6 +148,7 @@ function draw() {
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
   $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
+  if (bridge && $("accounts").classList.contains("on")) drawCalendars();
   $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
   needs(["tray-fold"], cfg.bar.tray !== false);
   if (bridge) trayRows();
@@ -458,6 +459,31 @@ function drawAccounts() {
 }
 $("acct-add").addEventListener("click", () => bridge && bridge.accountAdd());
 
+// Every calendar Evolution has — the accounts', this computer's, the
+// birthdays from contacts — by account, each shown in the calendar or not.
+function drawCalendars() {
+  bridge.calendars((text) => {
+    const cals = JSON.parse(text);
+    const hidden = new Set((cfg.calendar || {}).hidden || []);
+    const byAccount = {};
+    for (const c of cals) (byAccount[c.account] ||= []).push(c);
+    const rows = Object.entries(byAccount).flatMap(([account, list]) => [
+      el("div", { class: "note", style: "margin:10px 0 2px;text-transform:uppercase;letter-spacing:2px;font-size:10px" }, account),
+      ...list.map((c) => {
+        const sw = el("button", { class: "switch" + (hidden.has(c.id) ? "" : " on"), title: "Shown in the calendar" });
+        sw.addEventListener("click", () => {
+          const now = new Set((cfg.calendar || {}).hidden || []);
+          if (now.has(c.id)) now.delete(c.id); else now.add(c.id);
+          save({ calendar: { hidden: [...now] } });
+        });
+        const swatch = el("span", { style: `display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;background:${c.color || "var(--accent)"}` });
+        return el("div", { class: "row" }, el("span", { class: "name" }, swatch, c.name), el("span", { class: "what" }, sw));
+      }),
+    ]);
+    $("acct-cals").replaceChildren(...(rows.length ? rows : [el("p", { class: "note" }, "No calendars yet.")]));
+  });
+}
+
 // ---------------------------------------------------------------- Wi-Fi and Bluetooth
 //
 // The same readings and changes as the bar's panels (machine.py), at more
@@ -556,7 +582,7 @@ function show(page) {
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
   say("");
   if (page === "morgan") loadMorgan();
-  if (page === "accounts") drawAccounts();
+  if (page === "accounts") { drawAccounts(); drawCalendars(); }
   if (page === "wifi") { working("wifi-msg", "Reading…"); bridge.panelRead("network", false); }
   if (page === "bluetooth") { working("bt-msg", "Reading…"); bridge.panelRead("bluetooth", false); }
   if (page === "power") {

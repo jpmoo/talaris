@@ -720,6 +720,9 @@ class Desktop(QObject):
                     d.surface.placement = None
                     d.surface.apply(d._placement("pulled"))
             self.catcher_update()
+        if after.get("calendar") != before.get("calendar"):
+            # Which calendars show: the calendar's page draws again with them.
+            self.calendar.bridge.state.emit(json.dumps(self.calendar.describe()))
         if after["power"] != before["power"]:
             self.power.apply()
         if after["touch"] != before["touch"]:
