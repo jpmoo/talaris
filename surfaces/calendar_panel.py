@@ -85,6 +85,33 @@ NEEDS = ("gir1.2-ecal-2.0 gir1.2-edataserver-1.2 gir1.2-ebook-1.2 gir1.2-ebookco
          "gir1.2-goa-1.0 gnome-online-accounts-gtk evolution-ews")
 
 
+def with_talaris_people(query: str, items: list) -> list:
+    """
+    Who an invitation can go to: what the address books and the calendars
+    found (`items`, {name, email}), and Talaris's own people with an address
+    — someone made in New, People or an @, who may be in neither — found by
+    name or by the address before its @. Each address once.
+    """
+    q = query.strip().lower()
+    if len(q) < 2:
+        return items
+    status, text = core_call("GET", "/people", timeout=10)
+    try:
+        people = json.loads(text) if status == 200 else []
+    except ValueError:
+        people = []
+    have = {str(i.get("email", "")).lower() for i in items}
+    extra = []
+    for p in people:
+        email = str(p.get("email", "")).lower()
+        name = p.get("title", "") if "@" not in p.get("title", "") else ""
+        if not email or email in have or not (q in name.lower() or q in email.split("@")[0]):
+            continue
+        have.add(email)
+        extra.append({"name": name, "email": email})
+    return items + extra[:8]
+
+
 class CalendarService(QObject):
     """calendard.py, started and spoken to; started again if it falls over, a few times."""
 
@@ -122,6 +149,8 @@ class CalendarService(QObject):
         self._finding: dict = {}
         self._find_req = 2 * MIRROR_REQ
         self._make_req = 3 * MIRROR_REQ
+        #: The calendar page's invitee searches, by request: what was typed, to find Talaris's people by too.
+        self._queries: dict = {}
         self._lock = threading.Lock()
         self._ask.connect(lambda text: self.send(json.loads(text)))
         self._start()
@@ -194,7 +223,11 @@ class CalendarService(QObject):
                     waiting[1] = msg["people"].get("items", [])
                     waiting[0].set()
                 else:
-                    self.people.emit(json.dumps(msg["people"]))
+                    # The calendar page's invitee search: Talaris's people added, off this thread.
+                    found = msg["people"]
+                    query = self._queries.pop(found.get("req"), "")
+                    threading.Thread(target=lambda: self.people.emit(json.dumps(
+                        {**found, "items": with_talaris_people(query, found.get("items", []))})), daemon=True).start()
             elif msg.get("changed"):
                 self.changed.emit()
 
@@ -278,7 +311,7 @@ class CalendarService(QObject):
         self._ask.emit(json.dumps({"do": "people", "req": req, "q": query}))
         waiting[0].wait(wait)
         self._finding.pop(req, None)
-        return waiting[1]
+        return with_talaris_people(query, waiting[1])
 
     def make_event(self, calendar: str, event: dict) -> int:
         """An event written to a calendar, for New: the answer comes as `made`, under the number given back."""
@@ -316,6 +349,8 @@ class CalendarBridge(Bridge):
         """`{do: range|create|update|delete, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
         if msg.get("do") in ("range", "create", "update", "delete", "respond", "people"):
+            if msg.get("do") == "people":
+                self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)
 
     @Slot()

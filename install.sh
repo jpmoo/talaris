@@ -75,6 +75,21 @@ CONF
   fi
 fi
 
+# Talaris's own desktop file: its windows (a panel made a window) are known by
+# it in the dock, and the desktop portal knows the app id "talaris" by it.
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+mkdir -p "$APPS"
+cat > "$APPS/talaris.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Talaris
+Comment=The desktop: bar, dock, projects, canvas and writing
+Exec=$ROOT/surfaces/talaris-surfaces
+Icon=$ROOT/surfaces/ui/talaris.svg
+StartupWMClass=talaris
+NoDisplay=true
+DESKTOP
+
 echo "==> Asking the socket"
 SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/talaris.sock"
 for _ in $(seq 1 20); do

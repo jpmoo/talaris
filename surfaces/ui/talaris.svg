@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Talaris: a T, winged — the talaria were Hermes' winged sandals. -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1d2126"/>
+  <g fill="none" stroke="#e8e6df" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 21h24M32 21v26"/>
+  </g>
+  <g fill="none" stroke="#b4dca8" stroke-width="3" stroke-linecap="round">
+    <path d="M18 30c-4-1-7-3-9-6M18 35c-5 0-8-1-11-4M18 40c-4 1-7 0-9-2"/>
+    <path d="M46 30c4-1 7-3 9-6M46 35c5 0 8-1 11-4M46 40c4 1 7 0 9-2"/>
+  </g>
+</svg>
