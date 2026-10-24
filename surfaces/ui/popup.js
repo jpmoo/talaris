@@ -30,7 +30,14 @@ function fit() {
   const height = Math.ceil(panel.getBoundingClientRect().height + 30 + 4);
   panel.style.bottom = was;
   bridge.fit(height);
+  // The folded tray's pane is as wide as its icons, a row of up to eight, and
+  // no narrower than its heading (with the 18 either side for its shadow).
+  if (panel.id === "trayicons" && bridge.fitWidth) {
+    const n = Math.max(1, $("tray-icons").children.length), row = Math.min(n, TRAY_ROW);
+    bridge.fitWidth(Math.max(120, row * 34 + (row - 1) * 4 + 12 + 2) + 36);
+  }
 }
+const TRAY_ROW = 8;
 // Measured once the typeface is in — the fallback is shorter, and a menu sized
 // to it was cut off — and again whenever what is in a panel changes size.
 const refit = () => document.fonts.ready.then(() => requestAnimationFrame(fit));

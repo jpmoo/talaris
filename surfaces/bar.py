@@ -114,6 +114,12 @@ class BarBridge(Bridge):
         if hasattr(self.owner, "fit"):
             self.owner.fit(height)
 
+    @Slot(int)
+    def fitWidth(self, width: int) -> None:  # noqa: N802 — called from the page by this name
+        """The popup's page says how wide its content is (the folded tray's pane), in its own pixels."""
+        if hasattr(self.owner, "fit_width"):
+            self.owner.fit_width(width)
+
     @Slot(str, bool)
     def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.machine.panel_read(kind, deep)
@@ -282,6 +288,19 @@ class Popup(QObject):
         if placed and abs(placed.height - want) > 1:
             self.surface.placement = None
             self.surface.apply(dataclasses.replace(placed, height=want))
+
+    def fit_width(self, width: int) -> None:
+        """As wide as asked, and centered again under the button it belongs to."""
+        placed = self.surface.placement
+        if self.kind != "trayicons" or width <= 0 or not placed:
+            return
+        want = math.ceil(width * zoom_of("interface"))
+        if abs(placed.width - want) <= 1:
+            return
+        screen = QApplication.primaryScreen().geometry()
+        left = max(4, min(int(self.at - want / 2), screen.width() - want - 4))
+        self.surface.placement = None
+        self.surface.apply(dataclasses.replace(placed, width=want, margins=(left, 0, 0, 0)))
 
     def file_away(self) -> None:
         """From the page — Escape, or the pointer gone elsewhere."""
