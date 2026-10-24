@@ -133,15 +133,17 @@ class Catcher(QObject):
     def describe(self) -> dict:
         return {}
 
-    def show(self, dim: bool = False) -> None:
+    def show(self, dim: bool = False, clear_of_bar: bool = False) -> None:
         # Dimmed, the rest of the screen sits back behind the drawer; the page fades it.
         self.view.page().runJavaScript(f"window.dim && dim({'true' if dim else 'false'})")
         if self.up:
             return
         screen = QApplication.primaryScreen().geometry()
         self.surface.placement = None
+        # Clear of the bar (a dropdown's): it keeps out of the space the bar
+        # reserves, so a press on another of the bar's buttons reaches it.
         self.surface.apply(Placement(TOP, EDGE_ANCHOR["top"] | EDGE_ANCHOR["bottom"] | EDGE_ANCHOR["left"] | EDGE_ANCHOR["right"],
-                                     screen.width(), screen.height(), KEYBOARD_NONE, exclusive=-1))
+                                     screen.width(), screen.height(), KEYBOARD_NONE, exclusive=0 if clear_of_bar else -1))
         self.up = True
         self._watch()
 

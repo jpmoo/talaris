@@ -41,7 +41,7 @@ from layershell import (
     whole,
 )
 from machine import Machine
-from sensor import Autohide
+from sensor import Autohide, Catcher
 from views import log, make_view, zoom, zoom_of
 
 #: Room below the bar (or above the dock) for a shadow to fall into.
@@ -232,6 +232,9 @@ class Popup(QObject):
         self.bridge = BarBridge(self, self)
         self.view = make_view(profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-popup")
+        # A press anywhere off the dropdown puts it away: heard by a clear layer
+        # under it, which keeps off the bar so its other buttons still answer.
+        self.catcher = Catcher(profile, self.close, self, name="popup-catcher")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.close)
@@ -242,6 +245,7 @@ class Popup(QObject):
     def show(self, kind: str) -> None:
         self.kind = kind
         self.shown_at = time.monotonic()
+        self.catcher.show(clear_of_bar=True)
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
@@ -284,6 +288,7 @@ class Popup(QObject):
         # popup loses the keyboard) just before the press arrives, which must
         # not open it again.
         self.closed, self.closed_at, self.closed_item = self.kind, time.monotonic(), self.tray_item
+        self.catcher.hide()
         self.kind = ""
         self.tray_item = ""
         self.idle.stop()

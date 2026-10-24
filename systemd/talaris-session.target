@@ -1,0 +1,10 @@
+# Talaris's session: what a desktop session starts that Hyprland alone does
+# not — the applications set to start at login (~/.config/autostart: Nextcloud,
+# 1Password). xdg-desktop-autostart.target refuses to be started by hand; it
+# comes in as something a session wants. Stopped and started at every login (talaris.conf):
+# the user manager outlives a session, and a target still active from the last
+# one would start nothing — a restart is not enough, as the autostart target
+# stays up through it and its applications are not started again.
+[Unit]
+Description=Talaris session — applications set to start at login
+Wants=xdg-desktop-autostart.target

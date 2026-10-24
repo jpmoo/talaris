@@ -717,3 +717,10 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
   background: linear-gradient(135deg, transparent 45%, var(--text-muted) 45%, var(--text-muted) 55%, transparent 55%), var(--surface);
 }
 .cv-text-colors { max-width: 210px; }
+/* The typed custom color (CustomColor.tsx): a short field beside the swatches. */
+.cv-hex {
+  width: 78px; height: 20px; padding: 0 6px; box-sizing: border-box;
+  font: inherit; font-size: 11px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 4px; outline: none;
+}
+.cv-hex.bad { border-color: var(--danger, #c26b6b); }

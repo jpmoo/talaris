@@ -1,9 +1,10 @@
-import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Pipette, Plus, Lock, Unlock } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
 import { document_, keepResized, pictureAt, setBackground } from "../api.ts";
 import { fieldEditor } from "./LongTextField.tsx";
+import { CustomColor } from "./CustomColor.tsx";
 import {
   connectEntities,
   firstLine,
@@ -3802,14 +3803,7 @@ export function CanvasView({
                   one with the eyedropper and the palettes people already keep.
                   The menu stays open while it's up — closing it would take the
                   input away and the picker with it. */}
-              <label className="cv-swatch cv-swatch-custom" title="Custom color…">
-                <Pipette size={12} />
-                <input
-                  type="color"
-                  value={colorOf(nodeMenu.id) ?? "#ffffff"}
-                  onChange={(e) => setNodeColor(nodeMenu.id, e.target.value)}
-                />
-              </label>
+              <CustomColor title="Custom color…" value={colorOf(nodeMenu.id) ?? "#ffffff"} onPick={(c) => setNodeColor(nodeMenu.id, c)} />
             </div>
             {/* The words' color: what is selected, or the whole note. */}
             <div className="cv-menu-hint">{fieldEditor(nodeMenu.field?.el)?.selecting ? "Selected text" : "Text"}</div>
@@ -3932,18 +3926,11 @@ export function CanvasView({
                         onClick={() => setBorder(nodeMenu.id, { strokeWidth: bw })}
                       />
                     ))}
-                    <label className="cv-swatch cv-swatch-custom" title="Border color…">
-                      <Pipette size={12} />
-                      <input
-                        type="color"
-                        value={nr?.stroke ?? "#5f6b74"}
-                        onChange={(e) =>
+                    <CustomColor title="Border color…" value={nr?.stroke ?? "#5f6b74"} onPick={(c) =>
                           // Colouring a border there is none of has to make one,
                           // or the click changes nothing and reads as broken.
-                          setBorder(nodeMenu.id, { stroke: e.target.value, strokeWidth: w || 1 })
-                        }
-                      />
-                    </label>
+                          setBorder(nodeMenu.id, { stroke: c, strokeWidth: w || 1 })
+                        } />
                   </div>
                   <div className="hint" style={{ padding: "4px 10px" }}>Border style</div>
                   <div className="cv-menu-row">
@@ -4251,10 +4238,7 @@ export function CanvasView({
               ))}
               <button className="cv-swatch cv-swatch-plain" title="The theme's"
                 onClick={() => { setPaneMenu(null); pickBackground(null); }} />
-              <label className="cv-swatch cv-swatch-custom" title="Custom color…">
-                <Pipette size={12} />
-                <input type="color" value={background ?? "#fdfaf3"} onChange={(e) => pickBackground(e.target.value)} />
-              </label>
+              <CustomColor title="Custom color…" value={background ?? "#fdfaf3"} onPick={(c) => pickBackground(c)} />
             </div>
           </PointerMenu>,
           document.body,
@@ -4292,14 +4276,7 @@ export function CanvasView({
                     onClick={() => patchRegion(rg.id, { color: c })}
                   />
                 ))}
-                <label className="cv-swatch cv-swatch-custom" title="Custom color…">
-                  <Pipette size={12} />
-                  <input
-                    type="color"
-                    value={hexOf(rg.color) ?? "#5fa4b5"}
-                    onChange={(e) => patchRegion(rg.id, { color: e.target.value })}
-                  />
-                </label>
+                <CustomColor title="Custom color…" value={hexOf(rg.color) ?? "#5fa4b5"} onPick={(c) => patchRegion(rg.id, { color: c })} />
               </div>
               <div className="menu-sep" />
               <button
