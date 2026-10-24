@@ -115,6 +115,9 @@ def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, 
     # A page whose renderer died draws nothing, though its surface comes and
     # goes: said in the log, and the page loaded again.
     def _died(status, code, name=name) -> None:
+        # Ended in the ordinary way (Talaris closing), nothing is wrong.
+        if status == QWebEnginePage.RenderProcessTerminationStatus.NormalTerminationStatus:
+            return
         log(f"{name} page: its renderer ended ({status}, {code}); loading it again")
         QTimer.singleShot(200, view.reload)
     page.renderProcessTerminated.connect(_died)

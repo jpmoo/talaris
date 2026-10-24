@@ -2,10 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 #
-# Talaris's surfaces. The layer-shell integration is chosen per process and
-# before Qt starts, so it is set here rather than in Python — and only for the
-# process that draws, not for `--toggle` and the other commands, which open no
-# window at all.
+# Talaris's surfaces. Each of their windows is made a layer surface by itself
+# (layershell.py), so the one process holds ordinary windows too.
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 if [ "$#" -eq 0 ]; then
@@ -21,6 +19,5 @@ if [ "$#" -eq 0 ]; then
   # Chromium animates every scroll step; a trackpad sends a stream of small
   # ones, and animated, the page lags behind the fingers and jumps to catch up.
   export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:-} --disable-smooth-scrolling"
-  export QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 fi
 exec python3 "$HERE/surfaces.py" "$@"

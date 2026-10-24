@@ -7,13 +7,14 @@ LayerShellQt has a C++ API and no Python bindings, so `Window::get(QWindow*)`
 is called through ctypes and everything else is set through the Qt property
 system on the object it returns. What the spike learned, and this follows:
 
-- The whole process runs with `QT_WAYLAND_SHELL_INTEGRATION=layer-shell`.
-  Attaching one `QWidget` window of an ordinary process falls back, silently,
-  to an ordinary window. So every window this process shows is a layer surface,
-  which is what screen furniture wants.
-- **Show, then `get()`, then set, then hide and show.** The integration makes
-  its own `Window` for a surface when it is first shown; a `get()` before that
-  builds an orphan the surface never reads.
+- **Per window, before it is first shown** (layer-shell-qt 6): the widget's
+  native window made (`winId()`), then `get()`, then the properties set, then
+  shown. That window is a layer surface; every other window of the process is
+  an ordinary one, which Hyprland tiles — how a panel becomes a window
+  (overlay.py). The spike's first finding, that one window of an ordinary
+  process fell back to an ordinary window, was `get()` called before the
+  native window existed: an orphan the surface never read. Until 2026-10-24
+  the whole process ran with `QT_WAYLAND_SHELL_INTEGRATION=layer-shell` instead.
 - **A layer, a size or an anchor change needs a new surface.** Setting them on
   a live one did nothing, so `apply` always ends in a hide and show. The page
   inside keeps its state across it.
@@ -101,8 +102,8 @@ class LayerSurface:
         # 640×480 default for a frame before the real size arrives.
         if placement.width and placement.height:
             self.widget.resize(placement.width, placement.height)
-        if not self.widget.isVisible():
-            self.widget.show()
+        # The native window first, and layer-shell attached to it, before it is ever shown.
+        self.widget.winId()
         window = self._attach()
         window.setProperty("scope", self.scope)
         window.setProperty("layer", placement.layer)
