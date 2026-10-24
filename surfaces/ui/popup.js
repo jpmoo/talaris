@@ -33,8 +33,15 @@ function fit() {
   // The folded tray's pane is as wide as its icons, a row of up to eight, and
   // no narrower than its heading (with the 18 either side for its shadow).
   if (panel.id === "trayicons" && bridge.fitWidth) {
-    const n = Math.max(1, $("tray-icons").children.length), row = Math.min(n, TRAY_ROW);
-    bridge.fitWidth(Math.max(120, row * 34 + (row - 1) * 4 + 12 + 2) + 36);
+    // Measured, not assumed: the buttons, the gaps, and everything round them
+    // (an assumed padding left the fourth icon wrapping out of the pane).
+    const icons = $("tray-icons"), first = icons.firstElementChild;
+    const n = Math.max(1, icons.children.length), row = Math.min(n, TRAY_ROW);
+    const px = (el, ...keys) => keys.reduce((sum, k) => sum + (parseFloat(getComputedStyle(el)[k]) || 0), 0);
+    const button = first ? first.getBoundingClientRect().width : 34;
+    const gap = parseFloat(getComputedStyle(icons).columnGap) || 4;
+    const around = px(icons, "paddingLeft", "paddingRight") + px(panel, "paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth");
+    bridge.fitWidth(Math.ceil(Math.max(120, row * button + (row - 1) * gap + around) + 36 + 2));
   }
 }
 const TRAY_ROW = 8;
