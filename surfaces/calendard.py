@@ -44,7 +44,14 @@ import gi
 gi.require_version("EDataServer", "1.2")
 gi.require_version("ECal", "2.0")
 gi.require_version("ICalGLib", "3.0")
-from gi.repository import ECal, EDataServer, GLib, ICalGLib  # noqa: E402
+gi.require_version("EBook", "1.2")
+gi.require_version("EBookContacts", "1.2")
+from gi.repository import EBook, EBookContacts, ECal, EDataServer, GLib, ICalGLib  # noqa: E402
+
+import re  # noqa: E402
+
+#: An attendee's answer, as iCalendar has it and as the page shows it.
+ANSWERS = {"ACCEPTED": "accepted", "DECLINED": "declined", "TENTATIVE": "maybe", "NEEDS-ACTION": "waiting", "DELEGATED": "delegated"}
 
 UTC = ICalGLib.Timezone.get_utc_timezone()
 
@@ -82,9 +89,12 @@ def ms_of(t, zone=None) -> int:
 
 
 def time_of(ms: int, all_day: bool):
-    t = ICalGLib.Time.new_from_timet_with_zone(int(ms // 1000), 1 if all_day else 0, LOCAL if all_day else UTC)
+    """A time as this machine's zone has it (TZID), so a repeating 10:00 stays 10:00 across a clock change."""
+    t = ICalGLib.Time.new_from_timet_with_zone(int(ms // 1000), 1 if all_day else 0, LOCAL)
     if all_day:
         t.set_is_date(True)
+    elif LOCAL is not UTC:
+        t.set_timezone(LOCAL)
     return t
 
 
@@ -93,6 +103,8 @@ class Calendars:
         self.registry = EDataServer.SourceRegistry.new_sync(None)
         self.clients: dict[str, ECal.Client] = {}
         self.connecting: set[str] = set()
+        self.emails: dict[str, str] = {}
+        self.books: dict[str, object] = {}
         self.wanted: dict = {}
         self.views: list = []
         self._soon = 0
@@ -102,6 +114,7 @@ class Calendars:
         self.registry.connect("source-enabled", lambda *_: self._sources())
         self.registry.connect("source-disabled", lambda *_: self._sources())
         self._sources()
+        self._books()
 
     # -------------------------------------------------- the calendars
 
@@ -136,6 +149,11 @@ class Calendars:
         if uid not in self.wanted:
             return
         self.clients[uid] = client
+        try:
+            _ok, email = client.get_backend_property_sync("cal-email-address", None)
+            self.emails[uid] = (email or "").lower()
+        except GLib.Error:
+            self.emails[uid] = ""
         self._watch(client)
         self._tell_calendars()
         self._changed()
@@ -147,7 +165,10 @@ class Calendars:
             client = self.clients.get(uid)
             listed.append({"id": uid, "name": source.get_display_name(), "color": ext.get_color() or "",
                            "account": self._account(source), "writable": bool(client and not client.is_readonly()),
-                           "connected": bool(client)})
+                           "connected": bool(client),
+                           # Invitations: sent by the service itself (Google, Microsoft), as this address.
+                           "invites": bool(client and client.check_capability(ECal.STATIC_CAPABILITY_CREATE_MESSAGES)),
+                           "email": self.emails.get(uid, "")})
         listed.sort(key=lambda c: (c["account"], c["name"].lower()))
         say({"calendars": listed})
 
@@ -187,6 +208,7 @@ class Calendars:
                     "notes": icomp.get_description() or "",
                     "start": ms_of(istart), "end": ms_of(iend), "allDay": bool(all_day),
                     "recurring": bool(icomp.get_first_property(ICalGLib.PropertyKind.RRULE_PROPERTY)),
+                    **self._people(icomp, self.emails.get(calendar, "")),
                 })
                 return True
             try:
@@ -195,6 +217,32 @@ class Calendars:
                 sys.stderr.write(f"calendar {uid}: {e}\n")
         items.sort(key=lambda e: (e["start"], not e["allDay"]))
         say({"events": {"req": req, "items": items}})
+
+    @staticmethod
+    def _rrule(icomp) -> str:
+        prop = icomp.get_first_property(ICalGLib.PropertyKind.RRULE_PROPERTY)
+        # The rule's value alone: the property also carries Evolution's own
+        # parameters (X-EVOLUTION-ENDDATE) and the line's folding.
+        return (prop.get_value_as_string() or "").replace("\r\n ", "").strip() if prop else ""
+
+    def _people(self, icomp, me: str) -> dict:
+        """Who it is with: the organizer, each attendee and their answer, and mine."""
+        attendees, mine = [], ""
+        prop = icomp.get_first_property(ICalGLib.PropertyKind.ATTENDEE_PROPERTY)
+        while prop:
+            text = prop.as_ical_string().replace("\r\n ", "")
+            email = (prop.get_attendee() or "").removeprefix("mailto:").removeprefix("MAILTO:").lower()
+            name = (re.search(r'CN="?([^";:]+)', text) or [None, ""])[1]
+            answer = ANSWERS.get((re.search(r"PARTSTAT=([A-Z-]+)", text) or [None, "NEEDS-ACTION"])[1], "waiting")
+            if email:
+                attendees.append({"email": email, "name": name, "answer": answer})
+                if email == me:
+                    mine = answer
+            prop = icomp.get_next_property(ICalGLib.PropertyKind.ATTENDEE_PROPERTY)
+        org = icomp.get_first_property(ICalGLib.PropertyKind.ORGANIZER_PROPERTY)
+        organizer = (org.get_organizer() or "").removeprefix("mailto:").removeprefix("MAILTO:").lower() if org else ""
+        return {"rrule": self._rrule(icomp), "organizer": organizer, "attendees": attendees,
+                "mine": mine, "organizing": bool(organizer) and organizer == me}
 
     # -------------------------------------------------- writing
 
@@ -205,15 +253,60 @@ class Calendars:
         icomp.set_description(str(event.get("notes", "")))
         icomp.set_dtstart(time_of(int(event["start"]), all_day))
         icomp.set_dtend(time_of(int(event["end"]), all_day))
+        # How it repeats: the page's own RRULE (FREQ, INTERVAL, BYDAY, COUNT, UNTIL), or none.
+        if "rrule" in event:
+            self._drop(icomp, ICalGLib.PropertyKind.RRULE_PROPERTY)
+            rule = re.sub(r"[^A-Z0-9=;,+-]", "", str(event.get("rrule") or "").upper())
+            if rule.startswith("FREQ="):
+                icomp.add_property(ICalGLib.Property.new_from_string(f"RRULE:{rule}"))
+
+    @staticmethod
+    def _zone(client) -> None:
+        """This machine's zone given to the calendar, so the times written in it can be read back."""
+        if LOCAL is not UTC:
+            try:
+                client.add_timezone_sync(LOCAL, None)
+            except GLib.Error:
+                pass
+
+    @staticmethod
+    def _drop(icomp, kind) -> None:
+        prop = icomp.get_first_property(kind)
+        while prop:
+            icomp.remove_property(prop)
+            prop = icomp.get_first_property(kind)
+
+    def _invite(self, icomp, calendar: str, attendees: list) -> None:
+        """The people invited: me as organizer, each of them asked to answer — their answers kept where they had one."""
+        me = self.emails.get(calendar, "")
+        before = {a["email"]: a["answer"] for a in self._people(icomp, me)["attendees"]}
+        self._drop(icomp, ICalGLib.PropertyKind.ATTENDEE_PROPERTY)
+        self._drop(icomp, ICalGLib.PropertyKind.ORGANIZER_PROPERTY)
+        people = [a for a in attendees if re.fullmatch(r"[^@\s<>\"]+@[^@\s<>\"]+", str(a.get("email", "")))]
+        if not people or not me:
+            return
+        back = {v: k for k, v in ANSWERS.items()}
+        icomp.add_property(ICalGLib.Property.new_from_string(f"ORGANIZER:mailto:{me}"))
+        for a in [{"email": me, "name": ""}] + [p for p in people if p["email"].lower() != me]:
+            email = a["email"].lower()
+            name = re.sub(r'[";:,\n]', " ", str(a.get("name", ""))).strip()
+            state = "ACCEPTED" if email == me else back.get(before.get(email, "waiting"), "NEEDS-ACTION")
+            cn = f';CN="{name}"' if name else ""
+            rsvp = "" if email == me else ";RSVP=TRUE"
+            icomp.add_property(ICalGLib.Property.new_from_string(
+                f"ATTENDEE{cn};ROLE=REQ-PARTICIPANT;PARTSTAT={state}{rsvp}:mailto:{email}"))
 
     def create(self, req: int, calendar: str, event: dict) -> None:
         client = self.clients.get(calendar)
         if not client:
             say({"done": {"req": req, "error": "No such calendar"}})
             return
+        self._zone(client)
         icomp = ICalGLib.Component.new_vevent()
         icomp.set_dtstamp(ICalGLib.Time.new_current_with_zone(UTC))
         self._fill(icomp, event)
+        if event.get("attendees"):
+            self._invite(icomp, calendar, event["attendees"])
         try:
             _ok, uid = client.create_object_sync(icomp, ECal.OperationFlags.NONE, None)
         except GLib.Error as e:
@@ -224,14 +317,95 @@ class Calendars:
     def update(self, req: int, calendar: str, uid: str, rid: str, event: dict, which: str) -> None:
         client = self.clients.get(calendar)
         try:
+            self._zone(client)
             _ok, icomp = client.get_object_sync(uid, rid if which == "this" else None, None)
+            if which != "this" and rid and "origStart" in event:
+                # Every one: the series moved by as much as this one was, from its own first date.
+                shift = int(event["start"]) - int(event["origStart"])
+                length = int(event["end"]) - int(event["start"])
+                first = ms_of(icomp.get_dtstart())
+                event = {**event, "start": first + shift, "end": first + shift + length}
+            if which == "this":
+                event = {k: v for k, v in event.items() if k != "rrule"}
             self._fill(icomp, event)
+            if "attendees" in event:
+                self._invite(icomp, calendar, event["attendees"])
             mod = ECal.ObjModType.THIS if which == "this" and rid else ECal.ObjModType.ALL
             client.modify_object_sync(icomp, mod, ECal.OperationFlags.NONE, None)
         except (GLib.Error, AttributeError) as e:
             say({"done": {"req": req, "error": getattr(e, "message", str(e))}})
             return
         say({"done": {"req": req, "error": ""}})
+
+    def respond(self, req: int, calendar: str, uid: str, rid: str, answer: str, which: str) -> None:
+        """My answer to an invitation: my own line among the attendees changed; the service tells the organizer."""
+        client = self.clients.get(calendar)
+        me = self.emails.get(calendar, "")
+        state = {v: k for k, v in ANSWERS.items()}.get(answer)
+        try:
+            _ok, icomp = client.get_object_sync(uid, rid if which == "this" else None, None)
+            prop = icomp.get_first_property(ICalGLib.PropertyKind.ATTENDEE_PROPERTY)
+            found = False
+            while prop:
+                if (prop.get_attendee() or "").lower().removeprefix("mailto:") == me and state:
+                    param = prop.get_first_parameter(ICalGLib.ParameterKind.PARTSTAT_PARAMETER)
+                    if param:
+                        prop.remove_parameter_by_kind(ICalGLib.ParameterKind.PARTSTAT_PARAMETER)
+                    prop.add_parameter(ICalGLib.Parameter.new_from_string(f"PARTSTAT={state}"))
+                    found = True
+                prop = icomp.get_next_property(ICalGLib.PropertyKind.ATTENDEE_PROPERTY)
+            if not found:
+                say({"done": {"req": req, "error": "You are not among its attendees"}})
+                return
+            mod = ECal.ObjModType.THIS if which == "this" and rid else ECal.ObjModType.ALL
+            client.modify_object_sync(icomp, mod, ECal.OperationFlags.NONE, None)
+        except (GLib.Error, AttributeError) as e:
+            say({"done": {"req": req, "error": getattr(e, "message", str(e))}})
+            return
+        say({"done": {"req": req, "error": ""}})
+
+    # -------------------------------------------------- people
+
+    def _books(self) -> None:
+        """Every address book, connected in the background, for finding people to invite."""
+        for source in self.registry.list_enabled(EDataServer.SOURCE_EXTENSION_ADDRESS_BOOK):
+            uid = source.get_uid()
+            if uid in self.books or uid in self.connecting:
+                continue
+            self.connecting.add(uid)
+
+            def done(_src, result, uid=uid) -> None:
+                self.connecting.discard(uid)
+                try:
+                    self.books[uid] = EBook.BookClient.connect_finish(result)
+                except GLib.Error as e:
+                    sys.stderr.write(f"address book {uid}: {e.message}\n")
+            EBook.BookClient.connect(source, 30, None, done)
+
+    def people(self, req: int, query: str) -> None:
+        """Contacts whose name or address has this in it, from every address book: for inviting."""
+        query = query.strip()
+        found = []
+        if len(query) >= 2:
+            for book in list(self.books.values()):
+                q = query.replace("\\", "").replace('"', "")
+                sexp = f'(or (contains "full_name" "{q}") (contains "email" "{q}"))'
+                try:
+                    _ok, contacts = book.get_contacts_sync(sexp, None)
+                except GLib.Error:
+                    continue
+                for c in contacts:
+                    name = c.get_property("full-name") or ""
+                    for attr in c.get_attributes(EBookContacts.ContactField.EMAIL) or []:
+                        email = attr.get_value() or ""
+                        if email and query.lower() in (name + " " + email).lower():
+                            found.append({"name": name, "email": email.lower()})
+        seen, items = set(), []
+        for f in found:
+            if f["email"] not in seen:
+                seen.add(f["email"])
+                items.append(f)
+        say({"people": {"req": req, "items": items[:8]}})
 
     def delete(self, req: int, calendar: str, uid: str, rid: str, which: str) -> None:
         client = self.clients.get(calendar)
@@ -266,6 +440,10 @@ class Calendars:
             self.create(req, str(msg["calendar"]), msg["event"])
         elif verb == "update":
             self.update(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg["event"], msg.get("which", "all"))
+        elif verb == "respond":
+            self.respond(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), str(msg["answer"]), msg.get("which", "all"))
+        elif verb == "people":
+            self.people(req, str(msg.get("q", "")))
         elif verb == "color":
             self.color(req, str(msg["calendar"]), str(msg["color"]))
         elif verb == "delete":

@@ -40,6 +40,7 @@ class CalendarService(QObject):
     calendars = Signal(str)
     events = Signal(str)
     done = Signal(str)
+    people = Signal(str)
     changed = Signal()
     #: `{ready, error, needs}`: whether there is a calendar to show at all.
     status = Signal(str)
@@ -103,6 +104,8 @@ class CalendarService(QObject):
                 self.events.emit(json.dumps(msg["events"]))
             elif "done" in msg:
                 self.done.emit(json.dumps(msg["done"]))
+            elif "people" in msg:
+                self.people.emit(json.dumps(msg["people"]))
             elif msg.get("changed"):
                 self.changed.emit()
 
@@ -121,6 +124,7 @@ class CalendarBridge(Bridge):
     calendars = Signal(str)
     events = Signal(str)
     done = Signal(str)
+    people = Signal(str)
     changed = Signal()
     status = Signal(str)
 
@@ -134,7 +138,7 @@ class CalendarBridge(Bridge):
     def ask(self, request: str) -> None:
         """`{do: range|create|update|delete, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
-        if msg.get("do") in ("range", "create", "update", "delete"):
+        if msg.get("do") in ("range", "create", "update", "delete", "respond", "people"):
             self.owner.service.send(msg)
 
     @Slot()
@@ -159,6 +163,7 @@ class Calendar(Overlay):
         service.calendars.connect(self.bridge.calendars.emit)
         service.events.connect(self.bridge.events.emit)
         service.done.connect(self.bridge.done.emit)
+        service.people.connect(self.bridge.people.emit)
         service.changed.connect(self.bridge.changed.emit)
         service.status.connect(self.bridge.status.emit)
 

@@ -115,7 +115,7 @@ function drawSide() {
 }
 
 function chip(e, timedLook) {
-  return el("div", { class: "chip" + (timedLook && !e.allDay ? " timed" : ""), style: `--c:${colorOf(e.calendar)}`, title: e.title,
+  return el("div", { class: "chip" + (timedLook && !e.allDay ? " timed" : "") + (e.mine === "waiting" || e.mine === "declined" ? ` ${e.mine}` : ""), style: `--c:${colorOf(e.calendar)}`, title: e.title,
     onclick: (ev) => { ev.stopPropagation(); edit(e); } }, (!e.allDay ? `${clock(e.start)} ` : "") + (e.title || "(no title)"));
 }
 
@@ -172,7 +172,7 @@ function drawDays(view, cols) {
       const top = Math.max(0, (e.start - dayStart) / 3600000) * 48;
       const bottom = Math.min(24, (e.end - dayStart) / 3600000) * 48;
       const width = 100 / Math.max(1, lanes.length);
-      col.append(el("div", { class: "ev", style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width}% - 4px)`,
+      col.append(el("div", { class: "ev" + (e.mine === "waiting" || e.mine === "declined" ? ` ${e.mine}` : ""), style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width}% - 4px)`,
         onclick: () => edit(e) }, e.title || "(no title)", el("small", {}, `${clock(e.start)} – ${clock(e.end)}${e.location ? ` · ${e.location}` : ""}`)));
     }
     if (sameDay(d, today)) {
@@ -252,8 +252,110 @@ function timeList(current, pick) {
   return list;
 }
 
+// ---- repeating: the few rules people make, read from and written to RRULE.
+// One this editor cannot say (an interval of 3, the second Tuesday) is kept as
+// it is unless changed here.
+const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+function parseRule(text) {
+  const r = { freq: "", days: [], ends: "never", until: null, count: 10, other: "", raw: text };
+  if (!text) return r;
+  const parts = Object.fromEntries(text.split(";").map((p) => p.split("=")));
+  r.freq = (parts.FREQ || "").toLowerCase();
+  r.days = (parts.BYDAY || "").split(",").filter((d) => DAYS.includes(d));
+  if (parts.COUNT) { r.ends = "after"; r.count = Number(parts.COUNT); }
+  if (parts.UNTIL) { r.ends = "on"; const u = parts.UNTIL; r.until = new Date(Number(u.slice(0, 4)), Number(u.slice(4, 6)) - 1, Number(u.slice(6, 8))); }
+  r.other = Object.keys(parts).filter((k) => !["FREQ", "BYDAY", "COUNT", "UNTIL", "WKST"].includes(k)).join(",");
+  return r;
+}
+function ruleText(r, start) {
+  if (!r.freq) return "";
+  if (r.other && r.raw && !r.changed) return r.raw;
+  let t = `FREQ=${r.freq.toUpperCase()}`;
+  if (r.freq === "weekly") t += `;BYDAY=${(r.days.length ? r.days : [DAYS[start.getDay()]]).join(",")}`;
+  if (r.ends === "after") t += `;COUNT=${Math.max(1, Math.min(999, r.count || 1))}`;
+  if (r.ends === "on" && r.until) { const u = r.until; t += `;UNTIL=${u.getFullYear()}${pad(u.getMonth() + 1)}${pad(u.getDate())}T235959Z`; }
+  return t;
+}
+const pad = (n) => String(n).padStart(2, "0");
+const calOf = (id) => calendars.find((c) => c.id === id) || {};
+const ANSWER_WORD = { accepted: "going", declined: "not going", maybe: "maybe", waiting: "no answer yet", delegated: "delegated" };
+
+function paintRepeats() {
+  const v = editing.v, r = v.rule;
+  const changed = (f) => (x) => { f(x); r.changed = true; paintRepeats(); };
+  seg("e-freq", [["", "Never"], ["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["yearly", "Yearly"]], r.freq, changed((f) => { r.freq = f; }));
+  $("e-days-row").hidden = r.freq !== "weekly";
+  const on = r.days.length ? r.days : [DAYS[v.sd.getDay()]];
+  $("e-days").replaceChildren(...DAYS.map((d, i) => el("button", { class: on.includes(d) ? "on" : "", onclick: () => {
+    const now = new Set(on); if (now.has(d) && now.size > 1) now.delete(d); else now.add(d);
+    r.days = DAYS.filter((x) => now.has(x)); r.changed = true; paintRepeats();
+  } }, "SMTWTFS"[i])));
+  $("e-ends-row").hidden = !r.freq;
+  seg("e-ends", [["never", "Never"], ["on", "On"], ["after", "After"]], r.ends, changed((x) => { r.ends = x; if (x === "on" && !r.until) r.until = addDays(v.sd, 30); }));
+  $("e-until").hidden = r.ends !== "on";
+  $("e-until").textContent = r.until ? dayLabel(r.until) : "";
+  $("e-count").hidden = r.ends !== "after";
+  if (document.activeElement !== $("e-count")) $("e-count").value = `${r.count} times`;
+  // One occurrence of a series is changed on its own: how it repeats is the series'.
+  const one = !editing.isNew && editing.recurring && editing.which === "this";
+  for (const id of ["e-freq", "e-days", "e-ends", "e-until", "e-count"]) $(id).classList.toggle("off", one);
+  $("e-freq").title = one ? "Choose Every one below to change how it repeats" : "";
+}
+
+function paintPeople() {
+  const v = editing.v, cal = calOf(v.calendar);
+  const mineOnly = !editing.isNew && editing.attendees && editing.attendees.length && !editing.organizing;
+  // Invited to it by someone else: the list is theirs; my part is my answer.
+  $("e-who-row").hidden = !cal.invites || mineOnly;
+  $("e-who-note").hidden = cal.invites || mineOnly || editing.readOnly;
+  $("e-who-why").textContent = cal.invites ? "" : "This calendar cannot send invitations; choose an account's calendar to invite people.";
+  $("e-chips").replaceChildren(...v.people.map((p, i) => el("span", { class: "chip-p", title: p.email }, p.name || p.email,
+    p.answer ? el("span", { class: "st" }, `· ${ANSWER_WORD[p.answer] || p.answer}`) : "",
+    el("button", { title: "Remove", onclick: (ev) => { ev.stopPropagation(); v.people.splice(i, 1); paintPeople(); } }, "×"))));
+  $("e-answer-row").hidden = !mineOnly || !editing.mine;
+  if (mineOnly) {
+    seg("e-answer", [["accepted", "Yes"], ["maybe", "Maybe"], ["declined", "No"]], editing.mine, (a) => {
+      send({ do: "respond", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, answer: a }, () => { editing && (editing.mine = a); closeEditor(); });
+    });
+    $("e-org").textContent = editing.organizer ? `from ${editing.organizer}` : "";
+  }
+}
+
+// Adding someone: typed, with suggestions from the address books as you type.
+let peopleReq = 0;
+function addPerson(p) {
+  const v = editing.v;
+  if (!v.people.some((x) => x.email === p.email)) v.people.push({ email: p.email, name: p.name || "" });
+  $("e-who").value = ""; popAway(); paintPeople(); $("e-who").focus();
+}
+$("e-who").addEventListener("input", () => {
+  const q = $("e-who").value.trim();
+  if (q.length < 2) { popAway(); return; }
+  peopleReq = ++req;
+  bridge.ask(JSON.stringify({ do: "people", req: peopleReq, q }));
+});
+$("e-who").addEventListener("keydown", (e) => {
+  const q = $("e-who").value.trim().replace(/[,;]$/, "");
+  if ((e.key === "Enter" || e.key === "," || e.key === ";") && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) { e.preventDefault(); e.stopPropagation(); addPerson({ email: q.toLowerCase() }); }
+  if (e.key === "Backspace" && !$("e-who").value && editing.v.people.length) { editing.v.people.pop(); paintPeople(); }
+});
+function showPeople(found) {
+  if (found.req !== peopleReq || !editing) return;
+  if (!found.items.length) { popAway(); return; }
+  popUnder($("e-who"), el("div", { class: "menu-list" }, ...found.items.map((p) =>
+    el("button", { class: "time", onclick: (ev) => { ev.stopPropagation(); addPerson(p); } }, p.name ? `${p.name} · ${p.email}` : p.email))));
+}
+$("e-until").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  if (!editing || $("pop").dataset.for === "e-until") { popAway(); return; }
+  popUnder($("e-until"), monthPicker(editing.v.rule.until || editing.v.sd, (d) => { editing.v.rule.until = d; editing.v.rule.changed = true; paintRepeats(); }));
+});
+$("e-count").addEventListener("change", () => { const n = parseInt($("e-count").value, 10); if (n > 0) { editing.v.rule.count = n; editing.v.rule.changed = true; } paintRepeats(); });
+
 // What the editor holds: the calendar, the days, the minutes after midnight.
 function paintEditor() {
+  paintRepeats();
+  paintPeople();
   const v = editing.v;
   const cal = calendars.find((c) => c.id === v.calendar);
   $("e-cal").replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), cal ? `${cal.name} · ${cal.account}` : "Choose a calendar");
@@ -272,13 +374,14 @@ function open(e, isNew) {
   editing = { ...e, isNew, v: {
     calendar: e.calendar || (writable[0] || {}).id || "", allDay: !!e.allDay,
     sd: startOfDay(s), st: s.getHours() * 60 + s.getMinutes(), ed: startOfDay(end), et: end.getHours() * 60 + end.getMinutes(),
+    rule: parseRule(e.rrule || ""), people: (e.attendees || []).filter((a) => a.email !== (calOf(e.calendar).email || "")).map((a) => ({ ...a })),
   } };
   $("e-title").value = e.title || "";
   $("e-where").value = e.location || "";
   $("e-notes").value = e.notes || "";
   $("e-which-row").hidden = isNew || !e.recurring;
   // A repeating event: this one alone, or every one of them.
-  const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); };
+  const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); if (editing.v) paintRepeats(); };
   which("this");
   $("e-delete").hidden = isNew;
   editing.readOnly = !isNew && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
@@ -343,7 +446,11 @@ function collected() {
   let start = new Date(v.sd.getTime() + (v.allDay ? 0 : v.st * MIN));
   let end = v.allDay ? addDays(v.ed, 1) : new Date(v.ed.getTime() + v.et * MIN);
   if (end <= start) end = new Date(start.getTime() + (v.allDay ? DAY_MS : 3600000));
-  return { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: $("e-notes").value };
+  const event = { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: $("e-notes").value,
+    rrule: ruleText(v.rule, v.sd), origStart: editing.start };
+  // The invitees, if this calendar can invite and the event is mine to invite to.
+  if (calOf(v.calendar).invites && (editing.isNew || editing.organizing || !(editing.attendees || []).length)) event.attendees = v.people;
+  return event;
 }
 const pending = new Map();
 function send(msg, after) {
@@ -408,6 +515,7 @@ function onState(s) {
   $("close").innerHTML = Icons.close();
   // Floating, a press off it closes it; full screen, a button does.
   $("close").hidden = !s.expanded || s.closes;
+  console.warn(`DEBUG calendar state up=${s.up} was=${was.up} expanded=${s.expanded}`);
   if (s.up && !was.up && !s.expanded) {
     Motion.arrive(document.body, how());
     focus = startOfDay(new Date());
@@ -423,6 +531,7 @@ Surface.connect({ onState }).then((b) => {
   b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
   b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); });
   b.changed.connect(() => { if (surface.up) fetchRange(); });
+  b.people.connect((text) => showPeople(JSON.parse(text)));
   b.done.connect((text) => {
     const d = JSON.parse(text);
     const after = pending.get(d.req);
@@ -433,6 +542,7 @@ Surface.connect({ onState }).then((b) => {
     fetchRange();
   });
   b.leave.connect(() => {
+    console.warn("DEBUG calendar leave");
     surface = { ...surface, up: false };
     const going = Motion.leave(document.body, how());
     if (going) going.onfinish = () => bridge.left(); else bridge.left();

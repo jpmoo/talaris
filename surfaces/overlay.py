@@ -86,6 +86,7 @@ class Overlay(QObject):
             self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
                                          screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
         self.bridge.state.emit(json.dumps(self.describe()))
+        log(f"DEBUG {self.NAME} placed expanded={self.expanded} visible={self.view.isVisible()} placement={self.surface.placement is not None}")
 
     # What a subclass adds to coming and going.
     def opened(self) -> None:
@@ -174,6 +175,8 @@ class Overlay(QObject):
     # ------------------------------------------------------------ going
 
     def file_away(self) -> None:
+        import traceback
+        log(f"DEBUG {self.NAME} file_away up={self.up} from " + " <- ".join(f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-6:-1]))
         if self.expanded:
             self.collapse(close=True)
             return
@@ -188,6 +191,7 @@ class Overlay(QObject):
         QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
     def left(self) -> None:
+        log(f"DEBUG {self.NAME} left leaving={self.leaving} up={self.up} visible={self.view.isVisible()}")
         if not self.leaving:
             return
         self.leaving = False
