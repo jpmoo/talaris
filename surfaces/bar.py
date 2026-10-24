@@ -49,7 +49,7 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 232), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
+POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
