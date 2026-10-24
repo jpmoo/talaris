@@ -396,8 +396,9 @@ const enc = encodeURIComponent;
 
 const MENTION = /\[@([^\]\n]*)\]\(talaris:([A-Za-z0-9_]+)\)/g;
 const named = (text) => text.replace(MENTION, "$1");
-// Where the user's words end and what Talaris adds begins: the record keeps
-// both, so a bubble drawn from it cuts here.
+// Where the user's words ended and what Talaris added began, in messages from
+// before linked things went as attachments: the record keeps both, so a
+// bubble drawn from one of those cuts here.
 const CONTEXT = "\n\n---\nContext from Talaris (linked in this message):\n";
 
 // A message of yours as shown: your words, a thing linked a chip that opens its card.
@@ -488,12 +489,16 @@ async function described(id, name) {
   return lines.join("\n");
 }
 
-// The context for a message: each distinct thing linked in it, or "" for none.
+// What a message links, as attachments beside it — each distinct thing one,
+// named as its heading says ("Ezra Schutt (person)") — so the words stay the
+// user's own for Morgan's sorting, recall and record.
 async function linked(text) {
   const ids = new Map([...text.matchAll(MENTION)].map((m) => [m[2], m[1]]));
-  if (!ids.size) return "";
   const blocks = await Promise.all([...ids].map(([id, name]) => described(id, name).catch(() => `## ${name}\n(could not be read from Talaris)`)));
-  return CONTEXT + blocks.join("\n\n");
+  return blocks.map((b) => {
+    const [head, ...rest] = b.split("\n");
+    return { name: `${head.replace(/^#+\s*/, "").replace(/[\/]/g, "-").trim() || "Linked"} — from Talaris`, content: rest.join("\n").trim() };
+  });
 }
 
 // ---------------------------------------------------------------- the daemon's news
@@ -623,9 +628,9 @@ async function send() {
     const sending = files;
     files = []; chips(); draft.set("");
     // Read before it goes, so the box is cleared at once and not after the core answers.
-    const context = await linked(raw);
-    // `ask`, not `type`, once there is context: a line cannot carry its line breaks.
-    bridge.call(sending.length || context ? `ask ${JSON.stringify({ text: text + context, files: sending })}` : `type ${text.replace(/\n+/g, " ")}`);
+    const attached = await linked(raw);
+    // `ask`, not `type`, once anything goes with the words: a line cannot carry them.
+    bridge.call(sending.length || attached.length ? `ask ${JSON.stringify({ text, files: sending, attached })}` : `type ${text.replace(/\n+/g, " ")}`);
     return;
   }
   files = []; chips(); draft.set("");
