@@ -479,7 +479,10 @@ export function showProject(projectId: string, asOf = new Date()): Shown {
   return show(virtual, asOf);
 }
 
-export function show(l: List, asOf = new Date()): Shown {
+export function show(list: List, asOf = new Date()): Shown {
+  // A board's columns are its field's options as they are now: statuses
+  // added, renamed or recolored since it was made are its columns at once.
+  const l: List = list["talaris:bind"] ? { ...list, placement: { semantic: true, regions: statusRegions(list["talaris:bind"]) } } : list;
   const today = resolveDate("today", asOf);
   const now = resolveDate("now", asOf);
   const live = l.membership.mode === "query" && !l.membership.materialized;

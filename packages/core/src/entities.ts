@@ -265,7 +265,10 @@ function load(): Index {
       // A built-in type grown since: the new shape, keeping the name it was
       // given and any fields somebody added to it.
       const mine = new Set(t.fields.map((f) => f.key));
-      const merged = had ? { ...t, name: had.name, fields: [...t.fields, ...had.fields.filter((f) => !mine.has(f.key))] } : t;
+      // A field a person set (its statuses, say: talaris:edited) stays theirs.
+      const theirs = new Map((had?.fields ?? []).filter((f) => f["talaris:edited"]).map((f) => [f.key, f]));
+      const fields = t.fields.map((f) => theirs.get(f.key) ?? f);
+      const merged = had ? { ...t, name: had.name, fields: [...fields, ...had.fields.filter((f) => !mine.has(f.key))] } : t;
       writeSealed(join(dir("types"), safe(t.id)), merged);
       ix.types.set(t.id, merged);
     }

@@ -275,6 +275,16 @@
   async function refresh() {
     try { await loadSide(); await loadShown(); } catch (e) { failed(e); }
   }
+  async function editStatuses() {
+    const saved = await StatusEditor.open(ctx());
+    if (!saved) return;
+    try {
+      const t = await api("GET", "/tasks/types");
+      type = t.type; shape = t.shape;
+    } catch (e) { failed(e); }
+    await refresh();
+  }
+
   async function start() {
     try {
       const t = await api("GET", "/tasks/types");
@@ -314,7 +324,10 @@
       el("h3", {}, el("span", {}, "Projects"), el("button", { class: "add", title: "New project", onclick: () => { addingProject = true; drawSide(); } }, "+")),
       addingProject ? newProjectRow() : null,
       projects.filter((p) => !p.archived).map((p) => el("div", { class: "item" + (isOn("project", p.id) ? " on" : ""), title: p.title,
-        onclick: () => showThing("project", p.id) }, el("span", {}, p.title)))].flat().filter((x) => x != null));
+        onclick: () => showThing("project", p.id) }, el("span", {}, p.title))),
+      // The statuses themselves, the person's to define (statuses.js).
+      window.StatusEditor ? el("div", { class: "item statuses-link", title: "Statuses", onclick: editStatuses }, el("span", {}, "Statuses")) : null,
+    ].flat().filter((x) => x != null));
   }
 
   function renameRow(l) {

@@ -248,6 +248,11 @@ route("GET", "/tasks/find", (_r, _p, q) => lists.findTasks({
   tag: q.get("tag") ?? undefined, text: q.get("text") ?? undefined, list: q.get("list") ?? undefined,
   limit: q.get("limit") ? Number(q.get("limit")) : undefined,
 }));
+route("PUT", "/tasks/statuses", async (req) => {
+  const b = await json<{ statuses?: tasks.StatusDef[]; default?: string; moveTo?: Record<string, string> }>(req);
+  if (!b.statuses || !b.default) throw new BadRequest("the statuses, and which a new task starts in");
+  return tasks.setStatuses(b.statuses, b.default, b.moveTo ?? {});
+});
 route("GET", "/tasks/types", () => {
   const t = entities.typeFor("task");
   return { type: t, shape: tasks.taskShape(t) };

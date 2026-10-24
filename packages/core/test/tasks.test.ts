@@ -180,3 +180,33 @@ test("an export with tasks, series and lists passes the format's checker, declar
   const failed = out.checks.filter((c: { ok: boolean }) => !c.ok);
   assert.deepEqual(failed, [], JSON.stringify(failed));
 });
+
+test("statuses are the person's: renamed, recolored, added, taken away with their tasks moved", () => {
+  const board = lists.createList({ name: "Status board", kind: "board", query: { kind: "group", match: "all", items: [{ kind: "text", value: "statuscard" }] } });
+  const t = tasks.createTask({ title: "statuscard" });
+  entities.updateEntity(t.id, { properties: { status: "blocked" } });
+  tasks.setStatuses([
+    { value: "not_started", label: "To do", color: "#868c92" },
+    { value: "in_progress", label: "Doing" },
+    { label: "Waiting on someone", color: "#c7a55a" },
+    { value: "done", label: "Done", complete: true },
+    { value: "wont_do", label: "Dropped", complete: true },
+  ], "not_started", { blocked: "waiting_on_someone" });
+  assert.equal(status(t.id), "waiting_on_someone", "blocked's task moved where it was told");
+  const shape = tasks.taskShape(entities.typeFor("task"))!;
+  assert.deepEqual(shape.complete, ["done", "wont_do"]);
+  const cols = lists.showList(board.id).list.placement!.regions.map((r) => (typeof r === "string" ? r : r.label));
+  assert.deepEqual(cols, ["To do", "Doing", "Waiting on someone", "Done", "Dropped"], "the board follows at once");
+  assert.throws(() => tasks.setStatuses([{ label: "Only", complete: true }], "only"), /not done/);
+  // A newer built-in task type keeps statuses a person set.
+  entities.reloadEntities();
+  assert.equal(tasks.taskShape(entities.typeFor("task"))!.complete.length, 2);
+});
+
+test("a project made from Tasks is a Talaris project: a folder, a workspace, and one entity", async () => {
+  const projects = await import("../src/projects.js");
+  const e = tasks.createTaskProject("Garden");
+  assert.ok(projects.listProjects().some((p) => p.name === "Garden"), "a real project, in the bar's list");
+  assert.equal(tasks.taskProjects().filter((p) => p.title === "Garden").length, 1);
+  assert.equal(tasks.taskProjects().find((p) => p.title === "Garden")!.id, e.id);
+});

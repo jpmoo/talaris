@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Jeff Moore
 
 import {
+  allRecords,
   bySource,
+  putType,
   createEntity,
   findEntities,
   getEntity,
@@ -16,7 +18,7 @@ import {
   type Entity,
   type EntityType,
 } from "./entities.js";
-import { Conflict, NotFound, listProjects } from "./projects.js";
+import { Conflict, NotFound, createProject, listProjects } from "./projects.js";
 import { nextSpan, ruleErrors, summary, type Rule, type Span } from "./recurrence.js";
 import { newId } from "./store.js";
 
@@ -253,8 +255,96 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
   });
 }
 
+/**
+ * A new project, made from Tasks (or by Morgan): a Talaris project — its
+ * folder under the projects root, its canvas and its writing, its place in
+ * the bar's list — and the same project for tasks to be filed under. One
+ * thing, not a task project beside a workspace of the same name.
+ */
 export function createTaskProject(title: string): Entity {
   const name = title.trim();
   if (!name) throw new Conflict("a project has a name");
-  return createEntity({ type: typeFor("project").id, properties: { title: name } });
+  const made = createProject(name);
+  taskProjects();
+  const e = bySource({ kind: "talaris-project", key: made.id });
+  if (!e) throw new Conflict("the project was made but is not listed for tasks");
+  return e;
+}
+
+// ------------------------------------------------------------ the statuses, the person's to define
+
+export interface StatusDef {
+  /** The name tasks hold; made once from the label, never changed after. */
+  value?: string;
+  label: string;
+  color?: string;
+  /** Counts as complete: done, and won't do, as Hermes has them. */
+  complete?: boolean;
+}
+
+/**
+ * The task type's statuses, as a person sets them: their order, words,
+ * colors, which count as complete, and which a new task starts with. A
+ * status keeps its name when its label changes — tasks, board columns and a
+ * sync all point at the name. One taken away moves its tasks to another
+ * (`moveTo`, by value), so nothing is left holding a status that is gone.
+ */
+export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Record<string, string> = {}): EntityType {
+  const type = typeFor("task");
+  const shape = taskShape(type);
+  if (!shape) throw new Conflict("the task type has no status");
+  const field = type.fields.find((f) => f.key === shape.statusKey)!;
+  if (!defs.length) throw new Conflict("a task has at least one status");
+  const taken = new Set<string>();
+  const slug = (label: string) => {
+    const base = label.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "status";
+    let v = base;
+    for (let n = 2; taken.has(v); n++) v = `${base}_${n}`;
+    return v;
+  };
+  for (const d of defs) if (d.value) taken.add(d.value);
+  const statuses = defs.map((d) => {
+    const label = d.label.trim();
+    if (!label) throw new Conflict("a status has words");
+    const value = d.value || slug(label);
+    taken.add(value);
+    if (d.color && !/^#[0-9a-fA-F]{6}$/.test(d.color)) throw new Conflict(`${label}: a color like #8aa878`);
+    return { value, label, color: d.color, complete: Boolean(d.complete) };
+  });
+  if (new Set(statuses.map((s) => s.value)).size !== statuses.length) throw new Conflict("two statuses with one name");
+  if (!statuses.some((s) => s.complete)) throw new Conflict("at least one status counts as done");
+  if (!statuses.some((s) => !s.complete)) throw new Conflict("at least one status is not done");
+  const values = new Set(statuses.map((s) => s.value));
+  if (!values.has(defaultValue) || statuses.find((s) => s.value === defaultValue)!.complete) {
+    throw new Conflict("a new task starts in a status that is not done");
+  }
+  // Whatever held a status now gone goes where it was told to, or to the start.
+  const gone = (field.options ?? []).filter((v) => !values.has(v));
+  for (const g of gone) {
+    const to = moveTo[g] ?? defaultValue;
+    if (!values.has(to)) throw new Conflict(`tasks in ${g} need a status that is still there`);
+  }
+  const next: EntityType = {
+    ...type,
+    "talaris:defaultStatus": defaultValue,
+    fields: type.fields.map((f) => f.key !== field.key ? f : {
+      ...f,
+      options: statuses.map((s) => s.value),
+      "talaris:labels": Object.fromEntries(statuses.map((s) => [s.value, s.label])),
+      "talaris:colors": Object.fromEntries(statuses.filter((s) => s.color).map((s) => [s.value, s.color!])),
+      // Set by a person: a newer built-in task type keeps these as they are.
+      "talaris:edited": true,
+    }),
+    profiles: { ...type.profiles, task: { ...type.profiles!.task, completeValues: statuses.filter((s) => s.complete).map((s) => s.value) } },
+  };
+  putType(next);
+  if (gone.length) {
+    for (const r of allRecords()) {
+      const o = r.object;
+      if (o.type !== type.id) continue;
+      const v = String(o.properties[field.key] ?? "");
+      if (gone.includes(v)) updateEntity(o.id, { properties: { [field.key]: moveTo[v] ?? defaultValue } });
+    }
+  }
+  return next;
 }
