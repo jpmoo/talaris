@@ -989,7 +989,11 @@ of it and comes out at the end.
    was), hung under the button as an overlay panel, on Super+Alt+M or the
    button; it wears Talaris's theme and the Tabler icon font shipped in
    `ui/fonts` instead of Noctalia's, with no title bar: its state and controls
-   sit in a row under the composer. A question typed into the launcher goes to
+   sit in a row under the composer, ending in Full screen and Close. Full
+   screen works as a drawer's expand: the conversation becomes the desktop on
+   its own workspace, between the bar and the dock, and a window opened there,
+   another workspace gone to, or the button again brings it back (or closes
+   it, as "After full screen" says). A question typed into the launcher goes to
    Morgan as a typed turn and opens the conversation. Attachments come through
    `zenity`'s chooser, beside the surface rather than inside it. **The voice popup is done**: for a turn said aloud while the conversation is
    shut, a panel centered under the bar shows who has the floor, a waveform of

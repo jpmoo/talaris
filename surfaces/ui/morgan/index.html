@@ -177,6 +177,8 @@
     <button id="history" title="Earlier conversations, by day"><i class="ti" data-icon="calendar"></i></button>
     <button id="settings" title="Settings: memory, voice, listening, files, connections"><i class="ti" data-icon="settings"></i></button>
     <button id="new" title="Start a new conversation"><i class="ti" data-icon="plus"></i></button>
+    <button id="grow" title="Full screen"><i class="ti" id="growicon"></i></button>
+    <button id="close" title="Close"><i class="ti" data-icon="x"></i></button>
   </div>
 </div></footer>
 
@@ -464,6 +466,17 @@ $("attach").onclick = () => bridge.pick((picked) => { files.push(...JSON.parse(p
 $("mic").onclick = () => bridge.call(state === "idle" || state === "listening" ? "toggle" : "stop");
 $("new").onclick = () => bridge.call("new");
 $("settings").onclick = () => bridge.settings();
+// Talaris: expanded, as a drawer is, and back — or closed, if Settings says
+// expanding ends that way; then the two buttons would be one, so one shows.
+let expandedState = { expanded: false, closes: false };
+function paintGrow() {
+  const { expanded, closes } = expandedState;
+  $("growicon").textContent = glyph(expanded ? (closes ? "x" : "arrows-minimize") : "arrows-maximize");
+  $("grow").title = expanded ? (closes ? "Close" : "Back to a panel") : "Full screen";
+  $("close").hidden = expanded && closes;
+}
+$("grow").onclick = () => bridge.grow();
+$("close").onclick = () => bridge.file();
 
 // ---------------------------------------------------------------- starting up
 
@@ -476,6 +489,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
     GLYPHS = glyphs ?? {};
     new FontFace("morgan-icons", `url("${font}")`).load().then((face) => { document.fonts.add(face); }, () => {});
     paint();
+    paintGrow();
     start();
   });
 });
@@ -645,7 +659,14 @@ function start() {
   });
   bridge.dropped.connect((dropped) => { files.push(...JSON.parse(dropped)); chips(); $("draft").focus(); });
   // Talaris: a theme changed in Settings reaches this page as its state.
-  bridge.state.connect((text) => { try { const s = JSON.parse(text); if (s.theme) Surface.applyTheme(s.theme); } catch { /* fine */ } });
+  bridge.state.connect((text) => {
+    try {
+      const s = JSON.parse(text);
+      if (s.theme) Surface.applyTheme(s.theme);
+      if ("expanded" in s) { expandedState = s; paintGrow(); }
+    } catch { /* fine */ }
+  });
+  paintGrow();
 }
 </script>
 </body>

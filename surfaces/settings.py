@@ -91,7 +91,7 @@ def _checked(c: dict) -> str:
     if not 100 <= int(d.get("magnify", 100)) <= 200:
         return "Magnifying is 100 to 200 percent"
     if d.get("scope") not in ("desktop", "all"):
-        return "The dock shows this desktop's windows or all of them"
+        return "The dock shows this project's windows or all of them"
     for x in (b, d):
         if x.get("outline") not in ("accent", "line", "none") or not isinstance(x.get("shadow"), bool) or x.get("motion") not in ("slide", "none"):
             return "Not a bar or dock outline, shadow or motion"

@@ -300,6 +300,7 @@ class Drawer(QObject):
             if other is not self:
                 other.collapse()
                 other.file_away()
+        self.desktop.morgan.file_away()
         now = hypr.windows()
         self.came_from = now["active"]
         self.expanded = True
@@ -463,9 +464,9 @@ class Desktop(QObject):
         return home or {"id": "", "code": "", "name": "Home"}
 
     def _windows_changed(self) -> None:
-        if any(d.expanded for d in self.drawers.values()):
+        if any(d.expanded for d in (*self.drawers.values(), self.morgan)):
             now = hypr.windows()
-            for d in self.drawers.values():
+            for d in (*self.drawers.values(), self.morgan):
                 d.windows_changed(now)
 
     def catcher_update(self) -> None:

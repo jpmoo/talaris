@@ -32,14 +32,28 @@ import json
 import os
 import shutil
 import socket
+import time
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
+import hypr
 from core import Bridge
-from layershell import ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_NONE, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
+from layershell import (
+    ANCHOR_BOTTOM,
+    ANCHOR_LEFT,
+    ANCHOR_RIGHT,
+    ANCHOR_TOP,
+    BOTTOM,
+    KEYBOARD_NONE,
+    KEYBOARD_ON_DEMAND,
+    OVERLAY,
+    QT_SCALE,
+    LayerSurface,
+    Placement,
+)
 from views import log, make_view, zoom
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
@@ -181,15 +195,34 @@ class Panel(QObject):
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._idle)
         self._chooser: QProcess | None = None
+        # Expanded, as a drawer is: the conversation is the desktop, on a
+        # workspace of its own (`hypr.DESK`), and `came_from` the one to go back to.
+        self.expanded = False
+        self.came_from = None
+        self.expanded_at = 0.0
 
     def describe(self) -> dict:
-        return {"up": self.up, "theme": self.desktop.config["theme"]}
+        return {"up": self.up, "theme": self.desktop.config["theme"], "expanded": self.expanded,
+                "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed"}
+
+    def _place(self) -> None:
+        screen = QApplication.primaryScreen().geometry()
+        self.surface.placement = None
+        if self.expanded:
+            # Between the bar and the dock, where a window's frame would be,
+            # and below the windows, so one coming back shows above it.
+            gaps = getattr(self.desktop, "gaps", {})
+            margins = tuple(round(gaps.get(side, 0) / QT_SCALE) for side in ("left", "top", "right", "bottom"))
+            self.surface.apply(Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
+                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, margins=margins))
+        else:
+            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH, "morgan"),
+                                         int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
+        self.bridge.state.emit(json.dumps(self.describe()))
 
     def open(self) -> None:
         if not self.up:
-            screen = QApplication.primaryScreen().geometry()
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_LEFT, zoom(WIDTH, "morgan"),
-                                         int(screen.height() * HEIGHT_SHARE), KEYBOARD_ON_DEMAND))
+            self._place()
             self.up = True
             self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
             self.desktop.voice.file_away()
@@ -204,7 +237,66 @@ class Panel(QObject):
         else:
             self.open()
 
+    # ------------------------------------------------------------ expanded
+
+    def grow(self) -> None:
+        """The expand button: the desktop, or back to a panel (or closed, as Settings says)."""
+        if self.expanded:
+            self.collapse()
+        else:
+            self.expand()
+
+    def expand(self) -> None:
+        """The desktop, as an expanded drawer is — the windows left where they were."""
+        for d in self.desktop.drawers.values():
+            d.collapse()
+            d.file_away()
+        self.came_from = hypr.windows()["active"]
+        self.expanded = True
+        self.expanded_at = time.monotonic()
+        self.idle.stop()
+        self.up = True
+        self._place()
+        self.view.setFocus()
+        # The surface first, the workspace after, as for a drawer: making it
+        # anew hands the keyboard back to the last window, which Hyprland follows.
+        QTimer.singleShot(150, lambda: self.expanded and hypr.go(hypr.DESK))
+
+    def collapse(self, follow: bool = True, close: bool | None = None) -> None:
+        """Back to the workspace it was expanded from, with any window opened meanwhile."""
+        if not self.expanded:
+            return
+        self.expanded = False
+        now = hypr.windows()
+        names = {w["id"]: w["name"] for w in now["workspaces"]}
+        if self.came_from is not None:
+            for w in now["windows"]:
+                if names.get(w["workspace"]) == hypr.DESK:
+                    hypr.bring(w["address"], self.came_from)
+            if follow and now["activeName"] == hypr.DESK:
+                hypr.go(self.came_from)
+        if close is None:
+            close = self.desktop.config["panels"].get("afterExpand", "open") == "closed"
+        if close:
+            self.file_away()
+        else:
+            self._place()
+            self.touched()
+
+    def windows_changed(self, now: dict) -> None:
+        """Expanded: a window opened on its desktop, or another desktop gone to, makes it a panel again."""
+        if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
+            return
+        names = {w["id"]: w["name"] for w in now["workspaces"]}
+        if now["activeName"] != hypr.DESK:
+            self.collapse(follow=False)
+        elif any(names.get(w["workspace"]) == hypr.DESK and not w["hidden"] for w in now["windows"]):
+            self.collapse()
+
     def file_away(self) -> None:
+        if self.expanded:
+            self.collapse(close=True)
+            return
         if not self.up:
             return
         self.up = False
@@ -221,6 +313,8 @@ class Panel(QObject):
             self.idle.start(IDLE_MS)
 
     def _idle(self) -> None:
+        if self.expanded:
+            return
         # Not in the middle of an answer: wait for Morgan to finish first.
         if self.link.now not in ("idle", "absent"):
             self.touched()

@@ -265,7 +265,7 @@ function update(next) {
   for (const [side, px] of Object.entries(state.insets || {})) document.body.style.setProperty(`--in-${side}`, `${px}px`);
   const closes = (state.look || {}).afterExpand === "closed";
   $("grow").innerHTML = state.mode !== "expanded" ? GROW : closes ? CLOSE : SHRINK;
-  $("grow").title = state.mode !== "expanded" ? "Make this the desktop" : closes ? "Close" : "Back to a drawer";
+  $("grow").title = state.mode !== "expanded" ? "Full screen" : closes ? "Close" : "Back to a drawer";
   const look = state.look || {};
   document.body.dataset.outline = look.outline || "focus";
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;

@@ -98,7 +98,7 @@ function draw() {
     $(`${part}-shadow`).classList.toggle("on", !!c.shadow);
   }
   slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
-  seg("dock-scope", [["desktop", "This desktop"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
+  seg("dock-scope", [["desktop", "This project"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
   // Four margins, each its own slider; saved as the whole set, as the bar reads them.
   const inset = cfg.bar.inset ?? 8;
   const m = { top: inset, right: inset, bottom: inset, left: inset, ...(cfg.bar.margins || {}) };
