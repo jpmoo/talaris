@@ -53,6 +53,8 @@ function onState(s) {
     code.textContent = p.code;
     $("where").append(code);
   }
+  // Its tip says it in full, whichever the bar shows.
+  $("where").title = `${p.name || "Home"}${p.code ? ` · ${p.code}` : ""} — projects`;
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
   const now = s.morgan || "absent";
   $("morgan").dataset.state = now;
@@ -123,6 +125,7 @@ function tick() {
     hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
     ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
   });
+  $("clock").title = now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + " — calendar";
   const wait = clock.seconds ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
   ticking = setTimeout(tick, wait + 20);
 }
