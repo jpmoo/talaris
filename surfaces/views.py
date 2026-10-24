@@ -108,5 +108,9 @@ def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, 
     channel.registerObject("bridge", bridge)
     page.setWebChannel(channel)
     page.loadFinished.connect(lambda ok: log(f"{name} page: {'loaded' if ok else 'FAILED to load'}"))
+    # Loading a page puts its zoom back to 1, whatever was set before: set
+    # again once it has loaded, or the page draws at full size inside a
+    # surface sized for the area's text size, and is cut off.
+    page.loadFinished.connect(lambda _ok: view.setZoomFactor(_zoom.get(area, 1.0) if area in PAGE_AREAS else 1.0))
     view.setUrl(QUrl(url))
     return view
