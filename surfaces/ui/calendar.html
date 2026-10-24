@@ -23,7 +23,7 @@ body { cursor: default; }
 body {
   /* Centered both ways on the screen. */
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: var(--surface); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */

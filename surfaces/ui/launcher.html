@@ -22,7 +22,7 @@ body { background: rgba(0, 0, 0, .32); cursor: pointer; }
      results arriving as you type grow it downward without moving it. */
   position: absolute; left: 50%; top: max(16px, calc(50% - 260px)); transform: translateX(-50%);
   width: min(640px, calc(100% - 32px));
-  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: 12px;
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 #top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }

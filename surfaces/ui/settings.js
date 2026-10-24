@@ -144,7 +144,6 @@ function draw() {
   $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
   needs(["tray-fold"], cfg.bar.tray !== false);
   if (bridge) trayRows();
-  $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
@@ -175,7 +174,6 @@ function draw() {
   needs(["bar-m-top"], cfg.bar.shape === "floating");
   needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
-  needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
   needs(["touch-thick", "touch-length"], hidesSomething);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
@@ -228,7 +226,6 @@ function trayRows() {
 }
 
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
-$("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 // ---------------------------------------------------------------- the picker
 //
 // The accent of the mode being set (Look, Accent): the one in use is `accent`,

@@ -16,6 +16,8 @@ html, body { height: 100%; }
 /* A menu panel (controls.css), filling the surface but for a margin its
    shadow can fall into. */
 .panel { position: absolute; inset: 4px 18px 26px; display: none; flex-direction: column; }
+/* A dropdown is a panel from the bar too: as see-through as Settings, Panels says. */
+.panel.menu { background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent) !important; }
 body[data-popup="power"] #power, body[data-popup="volume"] #volume,
 body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth,
 body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[data-popup="battery"] #battery, body[data-popup="projects"] #projects { display: flex; }

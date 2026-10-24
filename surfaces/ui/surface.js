@@ -17,6 +17,8 @@ const Surface = (() => {
       const n = parseInt(theme.accent.slice(1), 16);
       root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
     }
+    // How see-through the panel is (Settings, Panels); paper and bubbles stay solid.
+    root.style.setProperty("--alpha", `${theme.panelOpacity ?? 100}%`);
     if (theme.font) root.style.setProperty("--font", `'${theme.font}', system-ui, sans-serif`);
   }
 

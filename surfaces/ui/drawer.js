@@ -138,10 +138,10 @@ function update(next) {
   }
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   document.body.style.setProperty("--type-scale", String(state.typeScale ?? 1));
-  // The paper — the writing page, the canvas — follows the opacity, or stays solid.
-  const paperFollows = look.paperFollows !== false;
-  document.body.style.setProperty("--paper-alpha", paperFollows ? `${look.opacity ?? 100}%` : "100%");
-  if (paperFollows) delete document.body.dataset.solidPaper; else document.body.dataset.solidPaper = "1";
+  // The paper — the writing page, the canvas — is always solid inside a frame
+  // that may be see-through: what is written on it is read.
+  document.body.style.setProperty("--paper-alpha", "100%");
+  document.body.dataset.solidPaper = "1";
   const frame = document.querySelector(".canvas-frame");
   if (frame) shareTheme(frame);
   applyTheme(state.theme || {});

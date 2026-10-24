@@ -34,7 +34,8 @@
   body { cursor: default; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
-  body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+  /* The frame takes the panels' opacity; the messages keep their own solid fill. */
+  body { display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) var(--alpha, 100%), transparent); color: var(--text);
          font: 14px/1.5 var(--font); border: 1px solid var(--frame); border-radius: 12px; overflow: hidden;
          width: min(560px, calc(100% - 32px)); height: 80vh; margin: 10vh auto 0; box-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
   /* Not quite transparent: a page with no background at all has its body's
@@ -57,7 +58,7 @@
                  color: var(--dim); border: 1px solid var(--line); border-radius: 8px; background: transparent; }
   button.frame:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
   button.frame[hidden] { display: none; }
-  header { border-bottom: 1px solid var(--line); background: var(--panel); padding: 6px 0; flex: none; }
+  header { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) var(--alpha, 100%), transparent); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
   .controls .name { display: none; }
   .controls .state { color: var(--dim); font-size: 12px; }

@@ -112,7 +112,17 @@ def load_config() -> dict:
         else:
             config[key] = value
     settle_accent(config["theme"])
+    settle_opacity(config)
     return config
+
+
+def settle_opacity(config: dict) -> None:
+    """
+    How see-through what opens from the bar is (Settings, Panels), carried with
+    the theme as `panelOpacity` so every page has it where it reads its colors.
+    Not kept in the file under the theme: Panels' `opacity` is the one setting.
+    """
+    config["theme"]["panelOpacity"] = int(config.get("panels", {}).get("opacity", 100))
 
 
 def settle_accent(theme: dict, chosen: str | None = None) -> None:
@@ -147,7 +157,9 @@ def _differences(mine: dict, base: dict) -> dict:
 def save_config(config: dict) -> None:
     """Write what differs from the defaults, atomically: a crash leaves the old file or the new one."""
     os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
-    text = json.dumps(_differences(config, DEFAULTS), indent=2) + "\n"
+    kept = json.loads(json.dumps(config))
+    kept.get("theme", {}).pop("panelOpacity", None)
+    text = json.dumps(_differences(kept, DEFAULTS), indent=2) + "\n"
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CONFIG), prefix=".config.")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(text)

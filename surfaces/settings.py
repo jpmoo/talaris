@@ -37,7 +37,7 @@ import accounts
 import power
 import wallpaper
 from power import LID_ACTIONS
-from config import DEFAULTS, save_config, settle_accent
+from config import DEFAULTS, save_config, settle_accent, settle_opacity
 from core import Bridge, call as core_call
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
@@ -453,6 +453,7 @@ class Settings(QObject):
             after["idleSeconds"] = int(wanted["idleSeconds"])
         # An accent picked is the mode in force's; a mode changed brings its own.
         settle_accent(after["theme"], wanted.get("theme", {}).get("accent"))
+        settle_opacity(after)
         error = _checked(after)
         if error:
             return error
