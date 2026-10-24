@@ -131,6 +131,7 @@ function draw() {
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
+  $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
   seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
@@ -152,6 +153,7 @@ $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.enabled === false } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
+$("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 $("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
 $("drawer-auto").addEventListener("click", () => {
   const on = !cfg.drawers.canvas.autoshow;

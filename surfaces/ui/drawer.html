@@ -59,6 +59,8 @@ body[data-edge="top"] #tuck .grip, body[data-edge="bottom"] #tuck .grip { width:
    the screen edge to fall into; and its opacity (--alpha, above). */
 body[data-outline="line"] #panel { border-color: var(--frame) !important; }
 body[data-outline="none"] #panel, body[data-outline="none"] #tuck { border-color: transparent !important; }
+/* Solid paper in a see-through frame: the writing page keeps its own fill. */
+body[data-solid-paper][data-drawer="writing"] .editor { background: var(--paper); }
 body[data-shadow] #panel { box-shadow: 0 6px 22px rgba(0, 0, 0, .6), 0 0 4px rgba(0, 0, 0, .45); }
 body[data-shadow][data-edge="left"] #panel { right: 18px; }
 body[data-shadow][data-edge="right"] #panel { left: 18px; }

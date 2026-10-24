@@ -80,7 +80,7 @@ def _checked(c: dict) -> str:
         return "Text is small, medium or large"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
-    if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed"):
+    if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
         return "Not a drawer outline or shadow"
     if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
         return "Opacity is 30 to 100 percent"

@@ -283,6 +283,10 @@ function update(next) {
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
+  // The paper — the writing page, the canvas — follows the opacity, or stays solid.
+  const paperFollows = look.paperFollows !== false;
+  document.body.style.setProperty("--paper-alpha", paperFollows ? `${look.opacity ?? 100}%` : "100%");
+  if (paperFollows) delete document.body.dataset.solidPaper; else document.body.dataset.solidPaper = "1";
   const frame = document.querySelector(".canvas-frame");
   if (frame) shareTheme(frame);
   applyTheme(state.theme || {});
@@ -426,7 +430,7 @@ function shareTheme(frame) {
       if (value) theirs.style.setProperty(v, value);
     }
     // The drawer's opacity, so the canvas's paper is as see-through as its frame.
-    theirs.style.setProperty("--alpha", document.body.style.getPropertyValue("--alpha") || "100%");
+    theirs.style.setProperty("--alpha", document.body.style.getPropertyValue("--paper-alpha") || "100%");
   } catch { /* not loaded yet */ }
 }
 
