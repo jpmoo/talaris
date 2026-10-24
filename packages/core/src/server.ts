@@ -230,6 +230,21 @@ route("POST", "/entities/place", async (req) => {
 route("GET", "/entities/:id/place", (_r, [id]) => placeOf(entities.getEntity(id!)));
 // People (DESIGN, People): each as a row, and their ties to contact cards.
 route("GET", "/people", () => entities.listPeople());
+// Address-book cards as people (People: everyone in your address books).
+route("POST", "/people/from-cards", async (req) => {
+  const b = await json<{ cards?: entities.Card[] }>(req);
+  let made = 0, tied = 0;
+  for (const card of b.cards ?? []) {
+    const before = entities.bySource({ kind: "eds-contact", key: card.key });
+    const p = entities.personFromCard(card);
+    // Made from the card just now, or someone already here tied to it.
+    if (p && !before) {
+      if (p.version === 1) made++;
+      else tied++;
+    }
+  }
+  return { made, tied };
+});
 route("POST", "/people/:id/ties", async (req, [id]) => {
   const b = await json<{ key?: string }>(req);
   return entities.tieContact(id!, b.key ?? "", true);
@@ -248,6 +263,8 @@ route("GET", "/entities/:id", (_r, [id]) => {
 });
 route("PATCH", "/entities/:id", async (req, [id]) => entities.updateEntity(id!, await json<entities.Patch>(req)));
 route("DELETE", "/entities/:id", (_r, [id]) => {
+  // A person who came from a contact card is not made again from it.
+  entities.forgetCardsOf(id!);
   entities.deleteEntity(id!);
   return { ok: true };
 });

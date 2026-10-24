@@ -905,3 +905,64 @@ export function tieContact(id: string, key: string, on: boolean): Entity {
   return updateEntity(id, { "talaris:sources": on ? [...sources, { kind: "eds-contact", key }] : sources });
 }
 
+/** Cards a person was deleted from: not brought back as people on the next reading. */
+const FORGOTTEN = "forgotten-cards";
+
+export interface Card {
+  key: string;
+  name?: string;
+  emails?: string[];
+  phones?: string[];
+  org?: string;
+  role?: string;
+}
+
+/**
+ * An address-book card as a person: the one already tied to it; else the
+ * one with its address, tied to it now; else one made from it, tied. What
+ * the card says fills only what the person has empty. A card forgotten (its
+ * person deleted) and a person marked never to be offered a contact are left
+ * alone. Answers the person, or null.
+ */
+export function personFromCard(card: Card): Entity | null {
+  if (!/^[^/]+\/.+/.test(card.key)) throw new Conflict("a card is known by its book and its id");
+  const source: Source = { kind: "eds-contact", key: card.key };
+  if (sealedList<{ key: string }>(FORGOTTEN).some((f) => f.key === card.key)) return null;
+  const tied = bySource(source);
+  if (tied) return tied;
+  const type = typeFor("person");
+  const c = type.profiles?.contact ?? {};
+  const titleKey = String(c.title ?? "title"), emailKey = String(c.email ?? "emails"), phoneKey = String(c.phone ?? "phones");
+  const emails = (card.emails ?? []).map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@") && isPersonAddress(e));
+  const found = emails.map((e) => byEmail(e)).find((x) => x && x.type === type.id) ?? null;
+  if (found?.["talaris:noContact"]) return null;
+  const name = (card.name ?? "").trim();
+  if (!found && !name && !emails.length) return null;
+  const fill = (o: Entity | null): Record<string, unknown> => {
+    const p = o?.properties ?? {};
+    const out: Record<string, unknown> = {};
+    const empty = (k: string) => p[k] === undefined || p[k] === null || p[k] === "" || (Array.isArray(p[k]) && !(p[k] as unknown[]).length);
+    if (name && (empty(titleKey) || /^[^\s@]+@[^\s@]+$/.test(String(p[titleKey] ?? "")))) out[titleKey] = name;
+    const had = new Set(((p[emailKey] as string[] | undefined) ?? []).map((e) => e.toLowerCase()));
+    const moreEmails = emails.filter((e) => !had.has(e));
+    if (moreEmails.length) out[emailKey] = [...(p[emailKey] as string[] | undefined ?? []), ...moreEmails];
+    if (card.phones?.length && empty(phoneKey)) out[phoneKey] = card.phones;
+    if (card.org && empty("organization")) out.organization = card.org;
+    if (card.role && empty("role")) out.role = card.role;
+    return out;
+  };
+  if (found) {
+    const sources = ((found["talaris:sources"] as Source[] | undefined) ?? []);
+    return updateEntity(found.id, { properties: fill(found), "talaris:sources": [...sources, source] });
+  }
+  return createEntity({ type: type.id, properties: fill(null), sources: [source] });
+}
+
+/** A person deleted: the cards they were tied to are not to make them again. */
+export function forgetCardsOf(id: string): void {
+  const o = getEntity(id);
+  for (const s of ((o["talaris:sources"] as Source[] | undefined) ?? []).filter((x) => x.kind === "eds-contact")) {
+    sealedPut(FORGOTTEN, s.key.replace(/[^A-Za-z0-9_-]/g, "_"), { key: s.key });
+  }
+}
+

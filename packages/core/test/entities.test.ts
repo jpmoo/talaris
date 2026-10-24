@@ -283,6 +283,26 @@ test("people listed with their organization; tied to a card and untied, nothing 
   assert.throws(() => entities.tieContact(p.id, "nobook", true), /book and its id/);
 });
 
+test("a contact card becomes a person, or ties the one with its address; filled only where empty; a deleted one stays gone", () => {
+  const made = entities.personFromCard({ key: "book/u1", name: "Gina Linetti", emails: ["gina@nine-nine.example"], phones: ["555-0199"], org: "Nine-Nine", role: "Administrator" })!;
+  assert.equal(entities.titleOf(made), "Gina Linetti");
+  assert.deepEqual([made.properties.phones, made.properties.organization, made.properties.role], [["555-0199"], "Nine-Nine", "Administrator"]);
+  assert.equal(entities.personFromCard({ key: "book/u1", name: "Gina L." })!.id, made.id, "the same card, the same person, unchanged");
+  assert.equal(entities.titleOf(entities.getEntity(made.id)), "Gina Linetti");
+  // Someone already here by address: tied, their own words kept, the card's only where empty.
+  const terry = entities.createEntity({ role: "person", properties: { title: "terry@nine-nine.example", emails: ["terry@nine-nine.example"], role: "Sergeant" } });
+  const tied = entities.personFromCard({ key: "book/u2", name: "Terry Jeffords", emails: ["Terry@nine-nine.example"], role: "Lieutenant", org: "Nine-Nine" })!;
+  assert.equal(tied.id, terry.id);
+  assert.deepEqual([entities.titleOf(tied), tied.properties.role, tied.properties.organization], ["Terry Jeffords", "Sergeant", "Nine-Nine"]);
+  // One who wants no contact is left alone; one deleted is not made again.
+  const hitch = entities.createEntity({ role: "person", properties: { title: "Hitchcock", emails: ["hitch@nine-nine.example"] }, "talaris:noContact": true });
+  assert.equal(entities.personFromCard({ key: "book/u3", emails: ["hitch@nine-nine.example"] }), null);
+  assert.equal(entities.getEntity(hitch.id)["talaris:sources"], undefined);
+  entities.forgetCardsOf(made.id);
+  entities.deleteEntity(made.id);
+  assert.equal(entities.personFromCard({ key: "book/u1", name: "Gina Linetti", emails: ["gina@nine-nine.example"] }), null);
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

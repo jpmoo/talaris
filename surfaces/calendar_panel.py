@@ -261,26 +261,24 @@ class CalendarService(QObject):
 
     def tie_people(self) -> None:
         """
-        Every person with an address and no contact card yet, tied to the
-        card in an address book that has that very address (DESIGN, People:
-        tied by address first). Only an exact address ties without asking;
-        a name alike stays a suggestion, in People. One marked not to be
-        offered a contact is left alone. From a worker thread.
+        Everyone in the address books, as people (DESIGN, People): each card
+        tied to the person with its address, or made one — what it says
+        filling only what is empty — save cards whose person was deleted, and
+        anyone marked never to be offered a contact. Only an exact address
+        ties without asking; a name alike stays a suggestion, in People. From
+        a worker thread, after each reading of the calendars.
         """
-        status, text = core_call("GET", "/people", timeout=30)
-        if status != 200:
-            return
-        tied = 0
-        for p in json.loads(text):
-            email = str(p.get("email", "")).strip().lower()
-            if not email or p.get("ties") or p.get("noContact"):
-                continue
-            for card in self.find_cards(email):
-                if email in [e.lower() for e in card.get("emails", [])] and card.get("book") and card.get("uid"):
-                    status, _ = core_call("POST", f"/people/{p['id']}/ties", json.dumps({"key": f"{card['book']}/{card['uid']}"}), timeout=10)
-                    tied += status == 200
-        if tied:
-            log(f"calendar: {tied} people tied to their contact cards")
+        cards = [c for c in self.find_cards(everything=True, wait=20) if c.get("book") and c.get("uid") and not c.get("gone")]
+        made = tied = 0
+        for i in range(0, len(cards), 200):
+            batch = [{"key": f"{c['book']}/{c['uid']}", "name": c.get("name", ""), "emails": c.get("emails", []),
+                      "phones": c.get("phones", []), "org": c.get("org", ""), "role": c.get("role", "")} for c in cards[i:i + 200]]
+            status, text = core_call("POST", "/people/from-cards", json.dumps({"cards": batch}), timeout=60)
+            if status == 200:
+                r = json.loads(text)
+                made, tied = made + r.get("made", 0), tied + r.get("tied", 0)
+        if made or tied:
+            log(f"calendar: from {len(cards)} contact cards, {made} people made and {tied} tied")
 
     def _name_people(self) -> None:
         """
@@ -304,7 +302,7 @@ class CalendarService(QObject):
         if named:
             log(f"calendar: {named} people named from the address books")
 
-    def find_cards(self, query: str = "", keys: list | None = None, wait: float = 3.0) -> list:
+    def find_cards(self, query: str = "", keys: list | None = None, wait: float = 3.0, everything: bool = False) -> list:
         """Address-book cards (calendard `cards`), from a worker thread, waited for here: by search, or by "book/uid"."""
         if not self.state.get("ready"):
             return []
@@ -313,7 +311,7 @@ class CalendarService(QObject):
             req = self._find_req
         waiting = [threading.Event(), []]
         self._finding[req] = waiting
-        self._ask.emit(json.dumps({"do": "cards", "req": req, "q": query, "keys": keys or []}))
+        self._ask.emit(json.dumps({"do": "cards", "req": req, "q": query, "keys": keys or [], "all": everything}))
         waiting[0].wait(wait)
         self._finding.pop(req, None)
         return waiting[1]

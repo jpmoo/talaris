@@ -434,7 +434,7 @@ class Calendars:
                 "phones": values(EBookContacts.ContactField.TEL), "org": c.get_property("org") or "",
                 "role": c.get_property("title") or c.get_property("role") or ""}
 
-    def cards(self, req: int, query: str, keys: list) -> None:
+    def cards(self, req: int, query: str, keys: list, everything: bool = False) -> None:
         """
         Address-book cards: those a person is tied to (`keys`, "book/uid"), or
         those whose name or address holds `query` — what People suggests a
@@ -451,6 +451,16 @@ class Calendars:
                 items.append(self._card(book, self.book_names.get(book, ""), c))
             except GLib.Error:
                 items.append({"book": book, "uid": uid, "gone": True})
+        if everything:
+            # Every card in every address book: People holds everyone in them.
+            for book, client in list(self.books.items()):
+                try:
+                    _ok, contacts = client.get_contacts_sync('(contains "x-evolution-any-field" "")', None)
+                except GLib.Error:
+                    continue
+                items.extend(self._card(book, self.book_names.get(book, ""), c) for c in contacts)
+            say({"cards": {"req": req, "items": items}})
+            return
         q = query.strip().replace("\\", "").replace('"', "")
         if len(q) >= 2:
             for book, client in list(self.books.items()):
@@ -534,7 +544,7 @@ class Calendars:
         elif verb == "people":
             self.people(req, str(msg.get("q", "")))
         elif verb == "cards":
-            self.cards(req, str(msg.get("q", "")), [str(k) for k in msg.get("keys", [])][:200])
+            self.cards(req, str(msg.get("q", "")), [str(k) for k in msg.get("keys", [])][:200], bool(msg.get("all")))
         elif verb == "color":
             self.color(req, str(msg["calendar"]), str(msg["color"]))
         elif verb == "delete":
