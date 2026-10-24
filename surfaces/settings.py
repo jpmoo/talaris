@@ -79,6 +79,8 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
+    if c["bar"].get("project", "both") not in ("name", "code", "both"):
+        return "The bar shows the project's name, its code, or both"
     if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):

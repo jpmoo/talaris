@@ -30,7 +30,9 @@ DEFAULTS = {
             "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
             # The tray: running applications' icons; trayHidden lists the ones put away, by id.
             # trayFold: gathered behind one icon on the bar, which opens a pane of them.
-            "tray": True, "trayHidden": [], "trayFold": False},
+            "tray": True, "trayHidden": [], "trayFold": False,
+            # The project on the bar: its "name", its "code", or "both".
+            "project": "both"},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.

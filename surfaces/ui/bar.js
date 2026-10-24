@@ -42,12 +42,14 @@ function onState(s) {
   }
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";
+  // The project: its name, its code, or both, as Settings, Bar says.
   const p = s.project || {};
+  const shows = ((s.look || {}).project) || "both";
   $("where").innerHTML = "";
-  $("where").append(p.name || "Home");
-  if (p.code) {
+  if (shows !== "code" || !p.code) $("where").append(p.name || "Home");
+  if (p.code && shows !== "name") {
     const code = document.createElement("span");
-    code.className = "code";
+    code.className = "code" + (shows === "code" ? " alone" : "");
     code.textContent = p.code;
     $("where").append(code);
   }

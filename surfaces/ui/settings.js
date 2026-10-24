@@ -128,6 +128,7 @@ function draw() {
   seg("bar", [["top", "Top"], ["bottom", "Bottom"]], cfg.bar.edge,
     (edge) => save({ bar: { edge }, dock: { edge: edge === "top" ? "bottom" : "top" } }));
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
+  seg("bar-project", [["name", "Name"], ["code", "Code"], ["both", "Both"]], cfg.bar.project || "both", (project) => save({ bar: { project } }));
   if (bridge && $("accounts").classList.contains("on")) drawCalendars();
   $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
   needs(["tray-fold"], cfg.bar.tray !== false);
