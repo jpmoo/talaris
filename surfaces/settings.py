@@ -70,7 +70,7 @@ def _checked(c: dict) -> str:
         return "Not an edge"
     if len(set(edges)) != len(edges):
         return "Each drawer needs an edge of its own, for now"
-    if any(e == c["bar"]["edge"] or e == c["dock"]["edge"] for e in edges):
+    if any(e == c["bar"]["edge"] or (c["dock"].get("enabled", True) and e == c["dock"]["edge"]) for e in edges):
         return "A drawer cannot share the bar's or the dock's edge"
     if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
         return "A drawer is a quarter to nine tenths of the screen"

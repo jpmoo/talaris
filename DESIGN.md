@@ -1034,10 +1034,14 @@ of it and comes out at the end.
    as the pointer passes, up to double.
    **A drawer expands to the desktop** (its header's button, or
    `--grow <drawer>`): it fills the space between the bar and the dock on the
-   bottom layer, and the windows on the desktop are hidden — remembered with
-   the workspace each was on. The same button, Escape, a window coming back,
-   or another desktop make it a drawer again, and every window returns where
-   it was, the last used focused. **Click outside to close** is a setting: a
+   bottom layer, on a workspace of its own (`talaris-desk`), empty but for it.
+   The windows are not touched — moving them out and back made Hyprland tile
+   them again in arrival order, losing the layout — so going back to the
+   workspace left finds them exactly as they were. The same button, Escape,
+   a window opened (it comes back too), or another desktop make it a drawer
+   again; Settings says whether it then stays out or closes. The switch waits
+   a moment after the surface is made anew, or the keyboard's return to the
+   last window takes Hyprland straight back to that window's workspace. **Click outside to close** is a setting: a
    clear layer over the windows, under the drawer, catches the click.
    Not yet: side edges for the bar and dock,
    drawers sharing an edge as tabs, Morgan's memory, voices heard and

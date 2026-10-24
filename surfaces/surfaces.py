@@ -148,11 +148,10 @@ class Drawer(QObject):
         self.autoshow = bool(config.get("autoshow"))
         self.bumped = False
         self.pulled = False
-        # Expanded, the drawer is the desktop: the windows that were on it are
-        # hidden (`hid`: their addresses and workspaces, most recent first),
-        # and come back when it is a drawer again.
+        # Expanded, the drawer is the desktop: a workspace of its own
+        # (`hypr.DESK`), and `came_from` the one to go back to.
         self.expanded = False
-        self.hid: list[tuple[str, int]] = []
+        self.came_from = None
         self.expanded_at = 0.0
         self.mode = ""
         self.leaving = False
@@ -273,45 +272,60 @@ class Drawer(QObject):
             self.expand()
 
     def expand(self) -> None:
+        """
+        The desktop: a workspace of its own, empty but for this drawer. The
+        windows are not moved — moving them out and back made Hyprland tile
+        them again in the order they came, losing their layout — they stay on
+        the workspace left, as they were, and that is where collapsing goes.
+        """
         for other in self.desktop.drawers.values():
             if other is not self:
                 other.collapse()
                 other.file_away()
         now = hypr.windows()
-        self.hid = [(w["address"], w["workspace"]) for w in sorted(now["windows"], key=lambda w: w["recent"])
-                    if not w["hidden"] and w["workspace"] == now["active"]]
-        for address, _ in self.hid:
-            hypr.hide(address)
+        self.came_from = now["active"]
         self.expanded = True
         self.expanded_at = time.monotonic()
         self.pulled = True
         self.bumped = False
         self.away.stop()
         self.settle()
+        # The surface first, the workspace after: making the surface anew
+        # hands the keyboard back to the last window, and Hyprland, following
+        # focus, would take the screen back to that window's workspace.
+        QTimer.singleShot(150, lambda: self.expanded and hypr.go(hypr.DESK))
 
-    def collapse(self) -> None:
-        """Back to a drawer; the windows come back where they were, the last used focused."""
+    def collapse(self, follow: bool = True) -> None:
+        """
+        Back to a drawer, and to the workspace it was expanded from — with any
+        window opened meanwhile, which comes along. `follow` is false when the
+        user went to another workspace themself, and is left there.
+        """
         if not self.expanded:
             return
         self.expanded = False
-        hid, self.hid = self.hid, []
-        for address, workspace in reversed(hid):
-            hypr.restore(address, workspace)
-        if hid:
-            hypr.focus(hid[0][0])
+        back = getattr(self, "came_from", None)
+        if back is not None:
+            now = hypr.windows()
+            names = {w["id"]: w["name"] for w in now["workspaces"]}
+            for w in now["windows"]:
+                if names.get(w["workspace"]) == hypr.DESK:
+                    hypr.bring(w["address"], back)
+            if follow and now["activeName"] == hypr.DESK:
+                hypr.go(back)
         # Settings says whether it stays out as a drawer, or goes away too.
         if self.desktop.config["panels"].get("afterExpand", "open") == "closed":
             self.pulled = False
         self.settle()
 
     def windows_changed(self, now: dict) -> None:
-        """Expanded: a window coming back, or another desktop, makes it a drawer again."""
+        """Expanded: a window opened on its desktop, or another desktop gone to, makes it a drawer again."""
         if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
             return
-        mine = {address for address, _ in self.hid}
-        back = any(not w["hidden"] and w["workspace"] == now["active"] and w["address"] not in mine for w in now["windows"])
-        returned = any(not w["hidden"] and w["address"] in mine for w in now["windows"])
-        if back or returned or (self.hid and now["active"] != self.hid[0][1]):
+        names = {w["id"]: w["name"] for w in now["workspaces"]}
+        if now["activeName"] != hypr.DESK:
+            self.collapse(follow=False)
+        elif any(names.get(w["workspace"]) == hypr.DESK and not w["hidden"] for w in now["windows"]):
             self.collapse()
 
     def toggle(self) -> None:

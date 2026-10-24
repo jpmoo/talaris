@@ -116,9 +116,14 @@ function draw() {
     (edge) => save({ bar: { edge }, dock: { edge: edge === "top" ? "bottom" : "top" } }));
   for (const name of ["canvas", "writing"]) {
     const d = cfg.drawers[name];
-    const other = cfg.drawers[name === "canvas" ? "writing" : "canvas"].edge;
-    seg(`${name}-edge`, Object.entries(EDGE_NAMES), d.edge, (edge) => save({ drawers: { [name]: { edge } } }),
-      (edge) => edge === other || edge === cfg.bar.edge || edge === cfg.dock.edge);
+    const otherName = name === "canvas" ? "writing" : "canvas";
+    const other = cfg.drawers[otherName].edge;
+    // The other drawer's edge swaps the two; the bar's, or a dock's in use,
+    // is not a drawer's to take.
+    const dockEdge = cfg.dock.enabled === false ? null : cfg.dock.edge;
+    seg(`${name}-edge`, Object.entries(EDGE_NAMES), d.edge,
+      (edge) => save({ drawers: edge === other ? { [name]: { edge }, [otherName]: { edge: d.edge } } : { [name]: { edge } } }),
+      (edge) => edge === cfg.bar.edge || edge === dockEdge);
   }
   // Both drawers share one size and one touch-to-show; each keeps its own edge.
   const both = (change) => save({ drawers: { canvas: change, writing: change } });

@@ -87,6 +87,7 @@ def windows() -> dict:
         ],
         "workspaces": [{"id": w["id"], "name": w.get("name", str(w["id"]))} for w in spaces if w.get("id", -1) > 0],
         "active": active.get("id"),
+        "activeName": active.get("name", ""),
         "focused": (focused or {}).get("address"),
     }
 
@@ -114,6 +115,23 @@ def show(address: str) -> None:
         here = 1
     ask(f"/dispatch movetoworkspacesilent {here},address:{address}")
     focus(address)
+
+
+#: Where an expanded drawer is the desktop: a workspace of its own, empty but
+#: for it, so the windows left behind keep their layout untouched.
+DESK = "talaris-desk"
+
+
+def go(workspace) -> None:
+    """To a workspace: a number, or a name."""
+    target = f"name:{workspace}" if isinstance(workspace, str) else str(int(workspace))
+    ask(f"/dispatch workspace {target}")
+
+
+def bring(address: str, workspace: int) -> None:
+    """A window to a workspace, without following it."""
+    if _address(address):
+        ask(f"/dispatch movetoworkspacesilent {int(workspace)},address:{address}")
 
 
 def restore(address: str, workspace: int) -> None:
