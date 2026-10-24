@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import os
 
-from PySide6.QtCore import QEvent, QObject, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
@@ -34,6 +34,17 @@ from core import Bridge
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from sensor import Presses
 from views import log, make_view
+
+def point_at(view) -> None:
+    """
+    The pointing hand, from Qt, until the page says otherwise. A page sets its
+    cursor only after a move it has seen, and one shown for the first time has
+    seen none: the pointer, over the dim where the bar's button was, showed an
+    arrow until it moved. The dim is a button (a press there closes the panel).
+    """
+    target = view.focusProxy() or view
+    target.setCursor(Qt.CursorShape.PointingHandCursor)
+
 
 def viewport(view) -> list:
     """The size a page will be once its surface covers the screen, in its own pixels: arriving waits for it."""
@@ -98,6 +109,7 @@ class Overlay(QObject):
         self.leaving = False
         if not self.up:
             self.up = True
+            point_at(self.view)
             self._place()
             log(f"{self.NAME}: open")
             self.opened()

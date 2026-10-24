@@ -45,7 +45,7 @@ from layershell import (
     Placement,
 )
 from morgan import command as morgan_command
-from overlay import viewport
+from overlay import point_at, viewport
 from sensor import Presses
 from views import log, make_view
 
@@ -166,6 +166,7 @@ class Launcher(QObject):
         self.mode = mode
         self.up = True
         self.leaving = False
+        point_at(self.view)
         screen = QApplication.primaryScreen().geometry()
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
                                      screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
