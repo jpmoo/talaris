@@ -38,6 +38,8 @@ import {
 } from "./pages.js";
 
 import * as entities from "./entities.js";
+import * as tasks from "./tasks.js";
+import * as lists from "./lists.js";
 import { exportEnvelope } from "./interchange.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
@@ -221,6 +223,61 @@ route("POST", "/entities/:id/files", async (req, [id]) => {
 });
 route("GET", "/entity-types", () => entities.types());
 route("GET", "/interchange/export", () => exportEnvelope());
+
+// ------------------------------------------------------------ tasks and lists (DESIGN, Tasks)
+
+route("GET", "/tasks/projects", () => tasks.taskProjects());
+route("POST", "/tasks/projects", async (req) => {
+  const b = await json<{ title?: string }>(req);
+  return tasks.createTaskProject(b.title ?? "");
+});
+route("GET", "/tasks/projects/:id", (_r, [id]) => lists.showProject(id!));
+route("POST", "/tasks", async (req) => {
+  const b = await json<tasks.NewTask & { list?: string; region?: string }>(req);
+  if (!b.title) throw new BadRequest("a task has a title");
+  const t = tasks.createTask(b);
+  // Made from inside a list by hand (or a board's column): it lands there.
+  if (b.list) {
+    const l = lists.getList(b.list);
+    if (l.membership.mode === "explicit" || l.kind === "matrix" || l["talaris:bind"]) lists.addMember(b.list, t.id, b.region ? { region: b.region } : {});
+  }
+  return entities.getEntity(t.id);
+});
+route("GET", "/tasks/find", (_r, _p, q) => lists.findTasks({
+  status: q.get("status") ?? undefined, when: q.get("when") ?? undefined, project: q.get("project") ?? undefined,
+  tag: q.get("tag") ?? undefined, text: q.get("text") ?? undefined, list: q.get("list") ?? undefined,
+  limit: q.get("limit") ? Number(q.get("limit")) : undefined,
+}));
+route("GET", "/tasks/types", () => {
+  const t = entities.typeFor("task");
+  return { type: t, shape: tasks.taskShape(t) };
+});
+route("GET", "/tasks/:id/recurrence", (_r, [id]) => tasks.recurrenceOf(id!));
+route("PUT", "/tasks/:id/recurrence", async (req, [id]) => {
+  const b = await json<{ rule?: unknown }>(req);
+  return tasks.setRecurrence(id!, (b.rule ?? null) as never);
+});
+route("GET", "/lists", (_r, _p, q) => lists.allLists({ archived: q.get("archived") === "1" }));
+route("POST", "/lists", async (req) => lists.createList(await json<lists.NewList>(req)));
+route("POST", "/lists/preview", async (req) => {
+  const b = await json<{ query?: lists.Condition }>(req);
+  if (!b.query) throw new BadRequest("a query to preview");
+  const found = lists.runQuery(b.query);
+  return { count: found.length, rows: found.slice(0, 50).map((o) => ({ id: o.id, title: entities.titleOf(o), kinds: entities.profilesOf(o) })) };
+});
+route("GET", "/lists/:id", (_r, [id]) => lists.showList(id!));
+route("PATCH", "/lists/:id", async (req, [id]) => lists.updateList(id!, await json<lists.ListPatch>(req)));
+route("DELETE", "/lists/:id", (_r, [id]) => {
+  lists.deleteList(id!);
+  return { ok: true };
+});
+route("POST", "/lists/:id/refresh", (_r, [id]) => lists.refresh(id!));
+route("POST", "/lists/:id/members", async (req, [id]) => {
+  const b = await json<{ object?: string; region?: string; after?: string | null; before?: string | null }>(req);
+  if (!b.object) throw new BadRequest("which object?");
+  return lists.addMember(id!, b.object, b);
+});
+route("DELETE", "/lists/:id/members/:object", (_r, [id, object]) => lists.removeMember(id!, object!));
 
 // ------------------------------------------------------------ the vault, backups, encrypted projects
 

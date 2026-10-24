@@ -160,6 +160,124 @@ const TOOLS: Tool[] = [
   },
 ];
 
+// ------------------------------------------------------------ tasks
+
+interface TaskRow { id: string; title: string; status?: string; start?: string; due?: string; overdue?: boolean; recurring?: boolean; projects?: { title: string }[]; tags?: string[] }
+const STATUSES = ["not_started", "in_progress", "blocked", "done", "archived", "wont_do"];
+const taskLine = (r: TaskRow) => {
+  const bits = [r.status?.replace(/_/g, " ")];
+  if (r.start) bits.push(`available ${r.start}`);
+  if (r.due) bits.push(`due ${r.due}${r.overdue ? " OVERDUE" : ""}`);
+  if (r.recurring) bits.push("repeats");
+  if (r.projects?.length) bits.push(`project ${r.projects.map((p) => p.title).join(", ")}`);
+  if (r.tags?.length) bits.push(`#${r.tags.join(" #")}`);
+  return `- ${r.title} (${bits.filter(Boolean).join("; ")}) [${r.id}]`;
+};
+
+/** A project named by id or by title (exact, then part of one). */
+async function projectId(name: string): Promise<string> {
+  const all = await core<{ id: string; title: string }[]>("GET", "/tasks/projects");
+  const n = name.toLowerCase();
+  const hit = all.find((p) => p.id === name) ?? all.find((p) => p.title.toLowerCase() === n) ?? all.find((p) => p.title.toLowerCase().includes(n));
+  if (!hit) throw new Error(`no project called ${name}`);
+  return hit.id;
+}
+
+TOOLS.push(
+  {
+    name: "talaris_tasks",
+    description: "Find tasks in Talaris: by when (overdue, today — which includes overdue, tomorrow, week, available, unscheduled, or a YYYY-MM-DD date to mean due by then), status (one of not_started, in_progress, blocked, done, archived, wont_do; or open; or complete), project, tag, words, or a list's id.",
+    inputSchema: { type: "object", properties: {
+      when: { type: "string" }, status: { type: "string" }, project: { type: "string", description: "Its name or id." },
+      tag: { type: "string" }, text: { type: "string" }, list: { type: "string" }, limit: { type: "number" },
+    } },
+    annotations: { readOnlyHint: true, title: "Find tasks in Talaris" },
+    run: async (a) => {
+      const q = new URLSearchParams();
+      for (const k of ["when", "status", "tag", "text", "list"]) if (a[k]) q.set(k, str(a[k]));
+      if (a.project) q.set("project", await projectId(str(a.project)));
+      q.set("limit", String(Number(a.limit) || 50));
+      const rows = await core<TaskRow[]>("GET", `/tasks/find?${q}`);
+      return rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.";
+    },
+  },
+  {
+    name: "talaris_projects",
+    description: "Talaris's projects, each with how many open tasks it has.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true, title: "Projects in Talaris" },
+    run: async () => {
+      const all = await core<{ id: string; title: string; archived?: boolean }[]>("GET", "/tasks/projects");
+      const lines = await Promise.all(all.filter((p) => !p.archived).map(async (p) => {
+        const open = await core<TaskRow[]>("GET", `/tasks/find?project=${encodeURIComponent(p.id)}&status=open&limit=1000`);
+        return `- ${p.title}: ${open.length} open [${p.id}]`;
+      }));
+      return lines.join("\n") || "No projects.";
+    },
+  },
+  {
+    name: "talaris_task_create",
+    description: "Make a task in Talaris. Dates are YYYY-MM-DD, or YYYY-MM-DDTHH:mm for a time. Projects by name (made if new) or id.",
+    inputSchema: { type: "object", properties: {
+      title: { type: "string" }, notes: { type: "string" }, available: { type: "string" }, due: { type: "string" },
+      status: { type: "string", enum: STATUSES }, projects: { type: "array", items: { type: "string" } }, tags: { type: "array", items: { type: "string" } },
+    }, required: ["title"] },
+    annotations: { readOnlyHint: false, title: "Create a task in Talaris" },
+    run: async (a) => {
+      const projects: string[] = [];
+      for (const p of (a.projects as string[] | undefined) ?? []) {
+        try { projects.push(await projectId(p)); } catch { projects.push((await core<{ id: string }>("POST", "/tasks/projects", { title: p })).id); }
+      }
+      const t = await core<{ id: string }>("POST", "/tasks", {
+        title: str(a.title), description: str(a.notes) || undefined, start: str(a.available) || undefined, due: str(a.due) || undefined,
+        status: str(a.status) || undefined, projects, tags: (a.tags as string[] | undefined) ?? [],
+      });
+      return `Made ${str(a.title)} [${t.id}]`;
+    },
+  },
+  {
+    name: "talaris_task_update",
+    description: "Change a Talaris task: its title, notes, available or due date (an empty string clears one), status (done completes it; a recurring task then brings its next), projects to add or remove, tags to add or remove.",
+    inputSchema: { type: "object", properties: {
+      id: { type: "string" }, title: { type: "string" }, notes: { type: "string" }, available: { type: "string" }, due: { type: "string" },
+      status: { type: "string", enum: STATUSES },
+      addProjects: { type: "array", items: { type: "string" } }, removeProjects: { type: "array", items: { type: "string" } },
+      addTags: { type: "array", items: { type: "string" } }, removeTags: { type: "array", items: { type: "string" } },
+    }, required: ["id"] },
+    annotations: { readOnlyHint: false, title: "Update a task in Talaris" },
+    run: async (a) => {
+      const id = encodeURIComponent(str(a.id));
+      const now = await core<{ entity: { properties: Record<string, unknown>; tags?: string[] } }>("GET", `/entities/${id}`);
+      const p = now.entity.properties;
+      const props: Record<string, unknown> = {};
+      if (a.title !== undefined) props.title = str(a.title);
+      if (a.notes !== undefined) props.description = str(a.notes);
+      if (a.status !== undefined) props.status = str(a.status);
+      if (a.available !== undefined || a.due !== undefined) {
+        const span = { ...((p.schedule as Record<string, string>) ?? {}) };
+        if (a.available !== undefined) { if (str(a.available)) span.start = str(a.available); else delete span.start; }
+        if (a.due !== undefined) { if (str(a.due)) span.end = str(a.due); else delete span.end; }
+        props.schedule = Object.keys(span).length ? span : null;
+      }
+      if (a.addProjects || a.removeProjects) {
+        const list = new Set(Array.isArray(p.project) ? (p.project as string[]) : []);
+        for (const x of (a.addProjects as string[] | undefined) ?? []) list.add(await projectId(x));
+        for (const x of (a.removeProjects as string[] | undefined) ?? []) list.delete(await projectId(x));
+        props.project = list.size ? [...list] : null;
+      }
+      const patch: Record<string, unknown> = { properties: props };
+      if (a.addTags || a.removeTags) {
+        const tags = new Set(now.entity.tags ?? []);
+        for (const t of (a.addTags as string[] | undefined) ?? []) tags.add(t.toLowerCase());
+        for (const t of (a.removeTags as string[] | undefined) ?? []) tags.delete(t.toLowerCase());
+        patch.tags = [...tags];
+      }
+      await core("PATCH", `/entities/${id}`, patch);
+      return "Updated.";
+    },
+  },
+);
+
 type Message = { jsonrpc: "2.0"; id?: number | string; method?: string; params?: Record<string, unknown> };
 
 function reply(id: Message["id"], result: unknown): void {

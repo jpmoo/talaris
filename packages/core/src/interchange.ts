@@ -4,7 +4,9 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, renameSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { allRecords, getFile, putFile, reloadEntities, types, type Entity, type EntityType, type Relation } from "./entities.js";
+import { allRecords, getFile, putFile, reloadEntities, sealedList, sealedPut, types, type Entity, type EntityType, type Relation } from "./entities.js";
+import { allSeries } from "./tasks.js";
+import { show, type List } from "./lists.js";
 import { ENTITIES_DIR } from "./vault.js";
 import { seal } from "./seal.js";
 import { storeKey } from "./vault.js";
@@ -56,7 +58,7 @@ export const MANIFEST = {
   bindings: ["file"],
   profiles: ["contact", "event", "note", "task"],
   features: ["relations", "attachments"],
-  unsupported: ["series", "placement", "derivations", "hierarchy", "collections"],
+  unsupported: ["hierarchy"],
 };
 
 const PRODUCER_VERSION = "0.1.0";
@@ -95,7 +97,15 @@ export function exportEnvelope(options: { bytes?: boolean } = {}): Envelope {
     // Kept as they were made, `from` and all: an edge goes out as it came in.
     relations.push(...rec.relations.map((r) => (r.from === rec.object.id ? r : { ...r, from: rec.object.id })));
   }
-  const features = options.bytes ? [...MANIFEST.features, "attachment-bytes"] : MANIFEST.features;
+  const collections = sealedList<List>("lists").map(collectionOf);
+  const series = allSeries();
+  // Declared as they are present, never more: the checker holds the manifest
+  // to the data (conformance.undeclared-feature), and a promise is the data.
+  const features = [...MANIFEST.features, ...(options.bytes ? ["attachment-bytes"] : [])];
+  if (series.length) features.push("series");
+  if (collections.some((c) => c.placement)) features.push("placement");
+  if (collections.some((c) => (c.membership as { mode?: string })?.mode === "query")) features.push("derivations");
+  if (collections.some((c) => (c.order as { sort?: unknown; groupBy?: unknown } | undefined)?.sort || (c.order as { groupBy?: unknown } | undefined)?.groupBy)) features.push("ordering");
   return {
     format: FORMAT,
     producer: { name: "talaris", version: PRODUCER_VERSION, stableIds: true },
@@ -103,8 +113,27 @@ export function exportEnvelope(options: { bytes?: boolean } = {}): Envelope {
     types: types(),
     objects,
     relations,
+    ...(collections.length ? { collections } : {}),
+    ...(series.length ? { series } : {}),
     findings,
   };
+}
+
+/**
+ * A list as a format collection. A live query's members are its answer now —
+ * a snapshot for reference, as the format says (`materialized: false`); a
+ * board's members carry the column their value puts them in; the list's own
+ * keys go as they are, `talaris:` ones included.
+ */
+function collectionOf(l: List): Record<string, unknown> {
+  const shown = show(l);
+  const members = shown.rows.map((r) => ({
+    object: r.id,
+    position: r.position,
+    ...(l.placement && r.region ? { region: r.region } : {}),
+  }));
+  const { members: _kept, ...rest } = l;
+  return { ...rest, members };
 }
 
 /**
@@ -136,15 +165,9 @@ export function importEnvelope(env: Envelope): { findings: Finding[]; counts: { 
       }
     }
   }
-  for (const key of ["series", "collections", "derivations"]) {
-    const v = env[key];
-    if (Array.isArray(v) && v.length) {
-      findings.push({ code: `${key}.not-kept`, severity: "reduced", message: `${v.length} ${key} arrived; this store keeps none of them, and they are not carried` });
-    }
-  }
 
   const aside = `${ENTITIES_DIR}.before-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-  const parts = ["objects", "types"];
+  const parts = ["objects", "types", "lists", "series"];
   mkdirSync(aside, { recursive: true });
   for (const d of parts) if (existsSync(join(ENTITIES_DIR, d))) renameSync(join(ENTITIES_DIR, d), join(aside, d));
   try {
@@ -174,6 +197,9 @@ export function importEnvelope(env: Envelope): { findings: Finding[]; counts: { 
       const relations = out.get(o.id) ?? [];
       writeAtomic(join(ENTITIES_DIR, "objects", o.id.replace(/:/g, "%3A")), seal(k, JSON.stringify({ object, relations })));
     }
+    // Lists and series, as they came: their own keys are this store's.
+    for (const c of (env.collections as List[] | undefined) ?? []) sealedPut("lists", c.id, c);
+    for (const se of (env.series as { id: string }[] | undefined) ?? []) sealedPut("series", se.id, se);
     reloadEntities();
     rmSync(aside, { recursive: true, force: true });
     return { findings, counts: { types: env.types?.length ?? 0, objects: env.objects?.length ?? 0, relations: env.relations?.length ?? 0, files } };

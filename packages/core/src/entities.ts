@@ -120,14 +120,28 @@ export const BUILT_IN: EntityType[] = [
     profiles: { event: { title: "title", start: "start", end: "end", location: "location" } },
   },
   {
-    id: "t_task", name: "Task", "talaris:role": "task",
+    // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text", required: true },
-      { key: "status", kind: "enum", options: ["todo", "doing", "done"] },
-      { key: "due", kind: "date" },
+      { key: "description", kind: "richtext" },
+      { key: "schedule", kind: "datespan", startLabel: "Available", endLabel: "Due" },
+      {
+        key: "status", kind: "enum",
+        options: ["not_started", "in_progress", "blocked", "done", "archived", "wont_do"],
+        "talaris:labels": { not_started: "Not started", in_progress: "In progress", blocked: "Blocked", done: "Done", archived: "Archived", wont_do: "Won't do" },
+        "talaris:colors": { not_started: "#868c92", in_progress: "#5fa4b5", blocked: "#c26b6b", done: "#8aa878", archived: "#6c7277", wont_do: "#6c7277" },
+      },
       { key: "project", kind: "reference", targetType: "t_project", many: true },
+      { key: "done_at", kind: "datetime" },
     ],
-    profiles: { task: { title: "title", due: "due", status: "status", completeValues: ["done"] } },
+    "talaris:defaultStatus": "not_started",
+    profiles: {
+      task: {
+        title: "title", start: { field: "schedule", part: "start" }, due: { field: "schedule", part: "end" },
+        status: "status", completeValues: ["done", "archived", "wont_do"],
+      },
+    },
   },
   {
     id: "t_note", name: "Note", "talaris:role": "note",
@@ -245,9 +259,15 @@ function load(): Index {
     ix.types.set(t.id, t);
   }
   for (const t of BUILT_IN) {
-    if (!ix.types.has(t.id)) {
-      writeSealed(join(dir("types"), safe(t.id)), t);
-      ix.types.set(t.id, t);
+    const had = ix.types.get(t.id);
+    const behind = had && Number(t["talaris:version"] ?? 1) > Number(had["talaris:version"] ?? 1);
+    if (!had || behind) {
+      // A built-in type grown since: the new shape, keeping the name it was
+      // given and any fields somebody added to it.
+      const mine = new Set(t.fields.map((f) => f.key));
+      const merged = had ? { ...t, name: had.name, fields: [...t.fields, ...had.fields.filter((f) => !mine.has(f.key))] } : t;
+      writeSealed(join(dir("types"), safe(t.id)), merged);
+      ix.types.set(t.id, merged);
     }
   }
   for (const name of readdirSync(dir("objects"))) {
@@ -260,6 +280,42 @@ function load(): Index {
 /** Read again from disk (after a revival, or under test). */
 export function reloadEntities(): void {
   index = null;
+}
+
+// ------------------------------------------------------------ what else is kept
+
+/**
+ * Other sealed records beside the entities — series, lists — each a folder of
+ * their own, one file per record, by id.
+ */
+export function sealedList<T>(folder: string): T[] {
+  load();
+  const d = dir(folder);
+  mkdirSync(d, { recursive: true });
+  return readdirSync(d).filter((n) => !n.startsWith(".")).map((n) => readSealed<T>(join(d, n)));
+}
+export function sealedPut(folder: string, id: string, value: unknown): void {
+  load();
+  writeSealed(join(dir(folder), safe(id)), value);
+}
+export function sealedDrop(folder: string, id: string): void {
+  rmSync(join(dir(folder), safe(id)), { force: true });
+}
+
+/**
+ * What happens when an entity is made or changed, beyond the change itself:
+ * completing a task stamps it, and a recurring one brings its next (tasks.ts).
+ * Hooks see the entity before and after; a hook that changes it again goes
+ * through `updateEntity` like anything else.
+ */
+type Hook = (before: Entity | null, after: Entity) => void;
+const hooks: Hook[] = [];
+export function onChange(hook: Hook): void {
+  hooks.push(hook);
+}
+function changed(before: Entity | null, after: Entity): Entity {
+  for (const h of hooks) h(before, after);
+  return load().records.get(after.id)?.object ?? after;
 }
 
 function put(rec: Record_): Entity {
@@ -467,7 +523,7 @@ export function createEntity(input: NewEntity): Entity {
     ...(sources?.length ? { "talaris:sources": sources } : {}),
   };
   delete (o as { role?: unknown }).role;
-  return put({ object: o, relations: [] });
+  return changed(null, put({ object: o, relations: [] }));
 }
 
 export interface Patch {
@@ -514,7 +570,7 @@ export function updateEntity(id: string, patch: Patch): Entity {
     }
     next["talaris:sources"] = all;
   }
-  return put({ object: next, relations: rec.relations });
+  return changed(o, put({ object: next, relations: rec.relations }));
 }
 
 /** Removed for good. What pointed at it now points at nothing, and says so when read. */
