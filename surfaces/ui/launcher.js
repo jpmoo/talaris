@@ -40,7 +40,7 @@ const VERBS = [
 // How much each kind is worth before the words are compared. Projects are
 // where you go; windows are already open; files are many and come last.
 const WEIGHT = { project: 25, window: 15, canvas: 12, page: 12, app: 10, verb: 8, file: 0 };
-const KIND = { project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID" };
+const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID" };
 // Past conversations with Morgan for what is typed, asked for once typing
 // pauses: the query is embedded by Morgan, where it runs, never here. Shown
 // after what the launcher found itself, before the question to Morgan.
@@ -127,6 +127,7 @@ function mark(title, query) {
 }
 
 const GLYPH = {
+  sum: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 6h9M3.5 10h9"/></svg>',
   project: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg>',
   canvas: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><rect x="5" y="5.5" width="4.5" height="3.5" rx=".6"/></svg>',
   page: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10M3 7h10M3 10h10M3 13h6"/></svg>',
@@ -137,9 +138,92 @@ const GLYPH = {
   app: () => GLYPH.verb(), window: () => GLYPH.verb(),
 };
 
+/*
+ * Arithmetic, worked out as it is typed: + - * / ^ and parentheses, × ÷ and
+ * "x" between numbers, a trailing % ("15% of 80", "80 + 15%"), and a few
+ * functions (sqrt, abs, round, floor, ceil, sin, cos, tan, log, ln, pi).
+ * Its own small parser — never `eval` — so text is only ever numbers.
+ */
+const FUNCS = { sqrt: Math.sqrt, abs: Math.abs, round: Math.round, floor: Math.floor, ceil: Math.ceil,
+  sin: Math.sin, cos: Math.cos, tan: Math.tan, log: Math.log10, ln: Math.log };
+
+function sum(text) {
+  let s = text.toLowerCase().replace(/[×x]/g, (c, i, all) => (/[\d)\s]/.test(all[i - 1] ?? "") ? "*" : c)).replace(/÷/g, "/").replace(/,/g, "").trim();
+  s = s.replace(/^=\s*/, "");
+  // "15% of 80" is 15/100*80.
+  s = s.replace(/(\d+(?:\.\d+)?)\s*%\s*of\s*/g, "($1/100)*");
+  if (!/[\d)]/.test(s) || !/[-+*/^%(]|sqrt|abs|round|floor|ceil|sin|cos|tan|log|ln|pi/.test(s)) return null;
+  const tokens = s.match(/\d*\.?\d+(?:e[-+]?\d+)?|[a-z]+|[-+*/^%()]/g);
+  if (!tokens || tokens.join("") !== s.replace(/\s+/g, "")) return null;
+  let i = 0;
+  const peek = () => tokens[i];
+  const next = () => tokens[i++];
+  // Lowest first: + and -; then * and /; then ^ (right to left); then a number, a function, or a bracket.
+  function expr() {
+    let v = term();
+    while (peek() === "+" || peek() === "-") {
+      const op = next();
+      // "80 + 15%" is 80 plus fifteen percent of 80.
+      let r = term(true);
+      if (r.pct) r = { v: v.v * r.v / 100 };
+      v = { v: op === "+" ? v.v + r.v : v.v - r.v };
+    }
+    return v;
+  }
+  function term(afterSign = false) {
+    let v = power(afterSign);
+    while (peek() === "*" || peek() === "/") {
+      const op = next();
+      const r = power();
+      v = { v: op === "*" ? v.v * r.v : v.v / r.v };
+    }
+    return v;
+  }
+  function power(afterSign = false) {
+    const b = unary(afterSign);
+    if (peek() === "^") { next(); const e = power(); return { v: Math.pow(b.v, e.v) }; }
+    return b;
+  }
+  function unary(afterSign) {
+    if (peek() === "-") { next(); return { v: -unary(afterSign).v }; }
+    if (peek() === "+") { next(); return unary(afterSign); }
+    let v = atom();
+    if (peek() === "%") { next(); v = afterSign ? { v: v.v, pct: true } : { v: v.v / 100 }; }
+    return v;
+  }
+  function atom() {
+    const t = next();
+    if (t === undefined) throw new Error("short");
+    if (t === "(") { const v = expr(); if (next() !== ")") throw new Error("bracket"); return v; }
+    if (t === "pi") return { v: Math.PI };
+    if (t === "e") return { v: Math.E };
+    if (FUNCS[t]) { if (next() !== "(") throw new Error("call"); const v = expr(); if (next() !== ")") throw new Error("bracket"); return { v: FUNCS[t](v.v) }; }
+    if (/^\d*\.?\d+(e[-+]?\d+)?$/.test(t)) return { v: parseFloat(t) };
+    throw new Error("word");
+  }
+  try {
+    const v = expr();
+    if (i !== tokens.length || !Number.isFinite(v.v)) return null;
+    return v.v;
+  } catch {
+    return null;
+  }
+}
+
+// A result as people write it: no float noise, grouped digits for big ones.
+function figure(v) {
+  const r = Math.round(v * 1e10) / 1e10;
+  return Math.abs(r) >= 1e15 || (r !== 0 && Math.abs(r) < 1e-6) ? r.toExponential(6) : r.toLocaleString(undefined, { maximumFractionDigits: 10 });
+}
+
 function draw() {
   const query = $("q").value;
   shown = rank(query);
+  const worked = sum(query);
+  if (worked !== null) {
+    const plain = String(Math.round(worked * 1e10) / 1e10);
+    shown.unshift({ kind: "sum", title: figure(worked), sub: "Enter copies it", act: { kind: "copy", text: plain } });
+  }
   if (query.trim() && talked.query === query.trim().replace(/\s+/g, " ")) {
     for (const r of talked.results.slice(0, TALKED)) {
       shown.push({ kind: "conversation", key: `conversation:${r.id}`, title: r.title, sub: `${r.when}${r.said ? ` · “${r.said.slice(0, 80)}”` : ""}`,
@@ -167,7 +251,7 @@ function draw() {
     } else icon.innerHTML = GLYPH[x.kind]();
     const text = document.createElement("span");
     text.className = "text";
-    text.append(x.kind === "morgan" ? Object.assign(document.createElement("span"), { className: "title", textContent: x.title })
+    text.append(x.kind === "morgan" || x.kind === "sum" ? Object.assign(document.createElement("span"), { className: "title", textContent: x.title })
       : mark(armed === x.key ? `${x.title} — Enter again` : x.title, query));
     if (x.sub) text.append(Object.assign(document.createElement("span"), { className: "sub", textContent: x.sub }));
     const kind = Object.assign(document.createElement("span"), { className: "kind", textContent: KIND[x.kind] });
@@ -219,7 +303,7 @@ function how() {
   const m = state.motion || {};
   return {
     kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body, viewport: state.viewport,
-    shown: () => bridge && bridge.drawn(),
+    shown: () => { $("q").focus(); if (bridge) bridge.drawn(); },
     rules: (rule, rel, P) => {
       const top = $("top").getBoundingClientRect(), foot = $("foot").getBoundingClientRect();
       rule(rel(P.left, top.bottom), rel(P.right, top.bottom));
@@ -243,9 +327,31 @@ function onState(s) {
   items = [];
   draw();
   if (bridge) bridge.catalog((text) => { build(JSON.parse(text)); draw(); });
-  // After the surface has the keyboard, which it gets as it appears.
-  setTimeout(() => $("q").focus(), 30);
+  focusSoon();
 }
+
+/*
+ * Typing goes to the box at once. The box cannot take focus while the panel
+ * is still hidden for its arrival, so this tries until it holds — and anything
+ * typed before then is put in the box rather than lost (below).
+ */
+function focusSoon() {
+  let tries = 0;
+  const go = () => {
+    if (!state.up) return;
+    $("q").focus();
+    if (document.activeElement !== $("q") && ++tries < 25) setTimeout(go, 40);
+  };
+  setTimeout(go, 0);
+}
+addEventListener("focus", () => { if (state.up) $("q").focus(); });
+addEventListener("keydown", (e) => {
+  if (!state.up || document.activeElement === $("q") || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+  e.preventDefault();
+  $("q").focus();
+  $("q").value += e.key;
+  $("q").dispatchEvent(new Event("input"));
+}, true);
 
 Surface.connect({ onState: (s) => onState(s) }).then((b) => {
   bridge = b;

@@ -24,6 +24,7 @@ box, its keys again, the bar's button, `--file-all`, and an idle timeout.
 from __future__ import annotations
 
 import json
+import subprocess
 import os
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
@@ -245,6 +246,14 @@ class Launcher(QObject):
         if kind == "morgan":
             self.file_away()
             return self.desktop.morgan.ask(str(r["text"]))
+        if kind == "copy":
+            # A worked-out sum, onto the clipboard.
+            self.file_away()
+            try:
+                subprocess.run(["wl-copy"], input=str(r["text"]).encode(), timeout=3, check=False)
+            except (OSError, subprocess.SubprocessError):
+                return "Could not copy it"
+            return ""
         self.file_away()
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
