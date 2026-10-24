@@ -28,7 +28,7 @@ import os
 from dataclasses import dataclass
 
 import shiboken6
-from PySide6.QtCore import QMargins, QObject, QTimer
+from PySide6.QtCore import QEvent, QMargins, QObject, QTimer
 from PySide6.QtWidgets import QWidget
 
 import hypr
@@ -81,6 +81,15 @@ class Placement:
     margins: tuple[int, int, int, int] = (0, 0, 0, 0)
 
 
+class _Exposed(QObject):
+    """Hears the compositor put a surface on screen (Qt's expose), and gives the pointer back then."""
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
+        if event.type() == QEvent.Type.Expose and watched.isExposed():
+            QTimer.singleShot(20, hypr.refocus_pointer)
+        return False
+
+
 class LayerSurface:
     """One widget, drawn as a layer surface, re-placed on demand."""
 
@@ -88,6 +97,7 @@ class LayerSurface:
         self.widget = widget
         self.scope = scope
         self._window: QObject | None = None
+        self._exposed = None
         self.placement: Placement | None = None
 
     def _attach(self) -> QObject:
@@ -117,7 +127,9 @@ class LayerSurface:
         self.widget.show()
         self.placement = placement
         # Hyprland let go of the pointer when this appeared; it is given back
-        # (hypr.py) — and again a little later, as the compositor may not have
-        # put the surface up by the first.
-        QTimer.singleShot(60, hypr.refocus_pointer)
-        QTimer.singleShot(260, hypr.refocus_pointer)
+        # (hypr.py) once the compositor has put the surface on screen — which
+        # the first time, a page and its drawing made, takes longer than any
+        # guess — heard as Qt's expose.
+        if self._exposed is None:
+            self._exposed = _Exposed(self.widget)
+            self.widget.windowHandle().installEventFilter(self._exposed)
