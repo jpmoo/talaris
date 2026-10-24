@@ -813,6 +813,8 @@ addEventListener("blur", () => { delete document.body.dataset.focus; });
 if (document.hasFocus()) document.body.dataset.focus = "1";
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
+  // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
+  window.talarisAlive = true;
   bridge = channel.objects.bridge;
   bridge.replied.connect(onReply);
   bridge.state.connect((json) => update(JSON.parse(json)));

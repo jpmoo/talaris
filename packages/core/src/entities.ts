@@ -855,3 +855,53 @@ export function forgetNonPeople(): number {
   return gone.size;
 }
 
+// ------------------------------------------------------------ people
+
+export interface PersonRow {
+  id: string;
+  title: string;
+  organization?: string;
+  role?: string;
+  email?: string;
+  /** Their picture, a kept file by hash (`GET /files/:sha`). */
+  image?: string;
+  updated: string;
+  /** Contact cards they are tied to: "book/uid", as the address books know them. */
+  ties: string[];
+  /** Not to be offered contact cards to tie to (`talaris:noContact`). */
+  noContact?: boolean;
+}
+
+/** Every person, as People lists them: enough to group, sort and show a row. */
+export function listPeople(): PersonRow[] {
+  const type = typeFor("person");
+  const c = type.profiles?.contact ?? {};
+  const titleKey = String(c.title ?? "title"), emailKey = String(c.email ?? "emails");
+  const out: PersonRow[] = [];
+  for (const { object: o } of load().records.values()) {
+    if (o.type !== type.id || o.stub || o.archived) continue;
+    const p = o.properties;
+    const emails = Array.isArray(p[emailKey]) ? (p[emailKey] as unknown[]).map(String) : [];
+    const image = p.image as { sha256?: string } | undefined;
+    const ties = ((o["talaris:sources"] as Source[] | undefined) ?? []).filter((s) => s.kind === "eds-contact").map((s) => s.key);
+    out.push({
+      id: o.id, title: String(p[titleKey] ?? "") || emails[0] || "Unnamed", updated: o.updated, ties,
+      ...(typeof p.organization === "string" && p.organization.trim() ? { organization: p.organization.trim() } : {}),
+      ...(typeof p.role === "string" && p.role.trim() ? { role: p.role.trim() } : {}),
+      ...(emails[0] ? { email: emails[0] } : {}),
+      ...(image?.sha256 ? { image: image.sha256 } : {}),
+      ...(o["talaris:noContact"] ? { noContact: true } : {}),
+    });
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** A person tied to a contact card ("book/uid"), or untied from it. Nothing of the card is copied. */
+export function tieContact(id: string, key: string, on: boolean): Entity {
+  const o = getEntity(id);
+  if (o.type !== typeFor("person").id) throw new Conflict("only a person is tied to a contact");
+  if (!/^[^/]+\/.+/.test(key)) throw new Conflict("a card is known by its book and its id");
+  const sources = ((o["talaris:sources"] as Source[] | undefined) ?? []).filter((s) => !(s.kind === "eds-contact" && s.key === key));
+  return updateEntity(id, { "talaris:sources": on ? [...sources, { kind: "eds-contact", key }] : sources });
+}
+

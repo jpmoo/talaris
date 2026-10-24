@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Callable
 
 import shiboken6
-from PySide6.QtCore import QEvent, QObject, QTimer, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -188,10 +188,15 @@ class Presses(QObject):
     the launcher's box), which its own listeners did not always.
     """
 
-    def __init__(self, view: QWidget) -> None:
+    def __init__(self, view: QWidget, dead: Callable[[], None] | None = None) -> None:
         super().__init__(view)
         self.view = view
         self._watched = None
+        # A page whose script never ran far enough to hear presses or keys —
+        # an error as it loaded — still has to be got rid of: `dead` does it
+        # from here, when a press finds no `pressedAt`, or Escape a page that
+        # never connected (surface.js sets `talarisAlive`).
+        self.dead = dead
         # The engine's widget that takes the presses is made late and anew;
         # looked for again when the page loads and when the view is shown.
         view.loadFinished.connect(lambda _ok: self._watch())
@@ -213,10 +218,18 @@ class Presses(QObject):
         if kind == QEvent.Type.MouseButtonPress and watched is self._watched:
             z = self.view.zoomFactor() or 1
             p = event.position()
-            self.view.page().runJavaScript(f"window.pressedAt && pressedAt({p.x() / z:.1f}, {p.y() / z:.1f})")
+            script = f"window.pressedAt ? (pressedAt({p.x() / z:.1f}, {p.y() / z:.1f}), 1) : (window.talarisAlive ? 1 : 0)"
+            self.view.page().runJavaScript(script, 0, self._answered)
+        elif kind == QEvent.Type.KeyPress and watched is self._watched and event.key() == Qt.Key.Key_Escape and self.dead:
+            self.view.page().runJavaScript("window.talarisAlive || window.pressedAt ? 1 : 0", 0, self._answered)
         elif kind == QEvent.Type.Show and watched is self.view:
             self._watch()
         return False
+
+
+    def _answered(self, alive) -> None:
+        if not alive and self.dead:
+            self.dead()
 
 
 class Hover(QObject):

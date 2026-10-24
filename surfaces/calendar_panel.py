@@ -183,6 +183,11 @@ class CalendarService(QObject):
             elif "done" in msg:
                 # New's own, numbered from where the calendar page's never reach.
                 (self.made if msg["done"].get("req", 0) > 3 * MIRROR_REQ else self.done).emit(json.dumps(msg["done"]))
+            elif "cards" in msg:
+                waiting = self._finding.get(msg["cards"].get("req"))
+                if waiting:
+                    waiting[1] = msg["cards"].get("items", [])
+                    waiting[0].set()
             elif "people" in msg:
                 waiting = self._finding.get(msg["people"].get("req"))
                 if waiting:
@@ -241,6 +246,20 @@ class CalendarService(QObject):
                 named += status == 200
         if named:
             log(f"calendar: {named} people named from the address books")
+
+    def find_cards(self, query: str = "", keys: list | None = None, wait: float = 3.0) -> list:
+        """Address-book cards (calendard `cards`), from a worker thread, waited for here: by search, or by "book/uid"."""
+        if not self.state.get("ready"):
+            return []
+        with self._lock:
+            self._find_req += 1
+            req = self._find_req
+        waiting = [threading.Event(), []]
+        self._finding[req] = waiting
+        self._ask.emit(json.dumps({"do": "cards", "req": req, "q": query, "keys": keys or []}))
+        waiting[0].wait(wait)
+        self._finding.pop(req, None)
+        return waiting[1]
 
     def find_people(self, query: str, wait: float = 2.0) -> list:
         """

@@ -270,6 +270,19 @@ test("a calendar's own address is nobody; a person known by address takes their 
   assert.throws(() => entities.getEntity(stray.id));
 });
 
+test("people listed with their organization; tied to a card and untied, nothing else touched", () => {
+  const p = entities.createEntity({ role: "person", properties: { title: "Rosa Diaz", emails: ["rosa@nine-nine.example"], organization: "Nine-Nine", role: "Detective" } });
+  const row = entities.listPeople().find((r) => r.id === p.id)!;
+  assert.deepEqual([row.organization, row.role, row.email, row.ties], ["Nine-Nine", "Detective", "rosa@nine-nine.example", []]);
+  entities.tieContact(p.id, "book-1/card-9", true);
+  assert.deepEqual(entities.listPeople().find((r) => r.id === p.id)!.ties, ["book-1/card-9"]);
+  assert.equal(entities.bySource({ kind: "eds-contact", key: "book-1/card-9" })?.id, p.id, "found by the card");
+  entities.tieContact(p.id, "book-1/card-9", false);
+  assert.deepEqual(entities.listPeople().find((r) => r.id === p.id)!.ties, []);
+  assert.equal(entities.getEntity(p.id).properties.organization, "Nine-Nine");
+  assert.throws(() => entities.tieContact(p.id, "nobook", true), /book and its id/);
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

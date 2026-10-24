@@ -39,6 +39,9 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #bat-profiles:empty { display: none; }
 #project-list .menu-item { justify-content: space-between; }
 #project-list .menu-item .code { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+#project-list .menu-item { align-items: center; gap: 10px; }
+#project-list .menu-item .thumb { width: 72px; height: 45px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); background: var(--desk); flex: none; }
+#project-list .menu-item .pname { flex: 1; text-align: left; }
 #project-list .menu-item.current { color: var(--accent) !important; }
 #bat-profiles button { flex: 1; font-size: 12px; padding: 3px 6px !important; }
 #bat-profiles button.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }

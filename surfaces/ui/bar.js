@@ -27,7 +27,7 @@ function onState(s) {
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
-  for (const name of ["canvas", "writing", "tasks", "new"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  for (const name of ["canvas", "writing", "tasks", "new", "people"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -157,13 +157,12 @@ $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("theme").addEventListener("click", () => bridge && bridge.themeMode());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
-// The canvas and the writing surface, panels from the bar like the rest.
-// People and Tasks: their places on the bar kept, until their panels are built
-// (People: DESIGN, item 18).
+// The canvas, the writing surface, People, Tasks and New: panels from the bar like the rest.
 $("people").innerHTML = Icons.people();
 $("tasks").innerHTML = Icons.tasks();
 $("new").innerHTML = Icons.plus();
 $("new").addEventListener("click", () => bridge && bridge.openPanel("new"));
+$("people").addEventListener("click", () => bridge && bridge.openPanel("people"));
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));

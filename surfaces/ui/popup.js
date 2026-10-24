@@ -59,7 +59,9 @@ function drawProjects() {
     const list = JSON.parse(text);
     $("project-list").replaceChildren(...(list.length ? list.map((p) => {
       const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " current" : "") });
-      b.append(Object.assign(document.createElement("span"), { textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
+      // Its desktop as last seen (thumbs.py), or its wallpaper: a project known by its look too.
+      const thumb = Object.assign(document.createElement("img"), { className: "thumb", alt: "", src: `talaris-ui://thumb/?project=${encodeURIComponent(p.id)}&t=${Date.now()}` });
+      b.append(thumb, Object.assign(document.createElement("span"), { className: "pname", textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
       b.addEventListener("click", () => { if (!p.current) bridge.goProject(p.id); else bridge.file(); });
       return b;
     }) : [note("No projects")]));

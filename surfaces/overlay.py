@@ -99,7 +99,7 @@ class Overlay(QObject):
         self.bridge = bridge
         self.view = make_view(profile, self.NAME, url, bridge, self, area=area)
         self.surface = LayerSurface(self.view, f"talaris-{self.NAME}", nudge=False)
-        Presses(self.view)
+        Presses(self.view, dead=self._dead)
         # The same page as an ordinary window, made the first time it is wanted.
         self.window = None
         self.windowed = False
@@ -264,6 +264,12 @@ class Overlay(QObject):
         # Gone, said: a page that arrives only from away (the canvas's, the
         # writing's) hears that it is away, so that the next time it arrives.
         self.bridge.state.emit(json.dumps(self.describe()))
+
+    def _dead(self) -> None:
+        """Its page did not get far enough to put it away itself (Presses): put away from here."""
+        if self.up and not self.windowed:
+            log(f"{self.NAME}: its page is not answering; put away")
+            self.file_away()
 
     def touched(self) -> None:
         if self.up and self.IDLE_MS:

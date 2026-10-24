@@ -30,6 +30,8 @@ const Surface = (() => {
   function connect({ onState, onMachine } = {}) {
     return new Promise((ok) => {
       new QWebChannel(qt.webChannelTransport, (channel) => {
+        // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
+        window.talarisAlive = true;
         const bridge = channel.objects.bridge;
         const state = (text) => {
           const s = JSON.parse(text);

@@ -1053,7 +1053,16 @@ address — `personFor` — so the same person is never made twice. A mention
 clicked opens its card: what it points at and what points at it, in words read
 from the far end ("Invited to", "Mentioned in").
 
-### People (not built — what it must do)
+### People
+
+**Built (2026-10-24)**: a panel from the bar's People button (`people_panel.py`,
+`ui/people.html`). Everyone, grouped by organization or A to Z; the person
+chosen drawn from the person type's fields by kind; their picture, files,
+links (by kind, newest first); and their contact cards. A tie is a source on
+the person (`eds-contact`, "book/uid"); the cards are read from the address
+books by the calendar's helper (`calendard.py`, `cards`). Copying a card in
+fills only what is empty.
+
 
 **A person is Talaris's own, and may be tied to contacts.** Made here (New,
 an @) a person needs no contact behind them and is no less a person for it.

@@ -228,6 +228,13 @@ route("POST", "/entities/place", async (req) => {
 });
 // Where an entity standing for a page or a canvas points, to open it there; null for any other.
 route("GET", "/entities/:id/place", (_r, [id]) => placeOf(entities.getEntity(id!)));
+// People (DESIGN, People): each as a row, and their ties to contact cards.
+route("GET", "/people", () => entities.listPeople());
+route("POST", "/people/:id/ties", async (req, [id]) => {
+  const b = await json<{ key?: string }>(req);
+  return entities.tieContact(id!, b.key ?? "", true);
+});
+route("DELETE", "/people/:id/ties", (_r, [id], q) => entities.tieContact(id!, need(q, "key"), false));
 // Which of these addresses are people already: an @ picker's address-book finds, told apart from the new.
 route("POST", "/entities/people/known", async (req) => {
   const b = await json<{ emails?: string[] }>(req);

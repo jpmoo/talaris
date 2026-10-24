@@ -695,6 +695,8 @@ function how() {
 // ---------------------------------------------------------------- starting up
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
+  // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
+  window.talarisAlive = true;
   bridge = channel.objects.bridge;
   bridge.look((look) => {
     const { accent, font, glyphs, theme } = JSON.parse(look);

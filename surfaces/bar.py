@@ -146,6 +146,7 @@ class BarBridge(Bridge):
 
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        log(f"popup: go to {project}")
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.go_to_project(project)
 
@@ -182,7 +183,7 @@ class BarBridge(Bridge):
     @Slot(str)
     def openPanel(self, name: str) -> None:  # noqa: N802 — called from the page by this name (`panel` is the popups' signal)
         """The canvas, the writing surface or Tasks, from its button."""
-        if name in ("tasks", "new"):
+        if name in ("tasks", "new", "people"):
             getattr(self.owner.desktop, name).toggle()
             return
         w = self.owner.desktop.workspaces.get(name)
@@ -314,6 +315,8 @@ class Popup(QObject):
     def close(self) -> None:
         if not self.kind:
             return
+        import traceback
+        log(f"popup: closed {self.kind} by " + " < ".join(f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-5:-1]))
         # Remembered a moment: pressing a popup's own button closes it (the
         # popup loses the keyboard) just before the press arrives, which must
         # not open it again.
@@ -419,7 +422,8 @@ class Bar(QObject):
             "settingsOpen": bool(getattr(self.desktop, "settings", None) and self.desktop.settings.up),
             "panelsOpen": {**{n: w.up for n, w in getattr(self.desktop, "workspaces", {}).items()},
                            "tasks": bool(getattr(self.desktop, "tasks", None) and (self.desktop.tasks.up or self.desktop.tasks.windowed)),
-                           "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up)},
+                           "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
+                           "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed))},
         }
 
     def changed(self) -> None:

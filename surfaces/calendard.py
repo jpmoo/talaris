@@ -109,6 +109,8 @@ class Calendars:
         self.emails: dict[str, str] = {}
         self.met: dict | None = None
         self.books: dict[str, object] = {}
+        #: Each address book's name, as its account calls it: shown beside a card.
+        self.book_names: dict[str, str] = {}
         self.wanted: dict = {}
         self.views: list = []
         self._soon = 0
@@ -378,6 +380,8 @@ class Calendars:
                 continue
             self.connecting.add(uid)
 
+            self.book_names[uid] = source.get_display_name() or "Contacts"
+
             def done(_src, result, uid=uid) -> None:
                 self.connecting.discard(uid)
                 try:
@@ -419,6 +423,45 @@ class Calendars:
                         met[email] = name or met.get(email, "")
         self.met = met
         return met
+
+    @staticmethod
+    def _card(book: str, book_name: str, c) -> dict:
+        """One address-book card, as People shows it beside a person."""
+        def values(field) -> list:
+            return [v for v in (a.get_value() or "" for a in (c.get_attributes(field) or [])) if v]
+        return {"book": book, "bookName": book_name, "uid": c.get_property("id") or "",
+                "name": c.get_property("full-name") or "", "emails": [e.lower() for e in values(EBookContacts.ContactField.EMAIL)],
+                "phones": values(EBookContacts.ContactField.TEL), "org": c.get_property("org") or "",
+                "role": c.get_property("title") or c.get_property("role") or ""}
+
+    def cards(self, req: int, query: str, keys: list) -> None:
+        """
+        Address-book cards: those a person is tied to (`keys`, "book/uid"), or
+        those whose name or address holds `query` — what People suggests a
+        person be tied to.
+        """
+        items = []
+        for key in keys:
+            book, _, uid = str(key).partition("/")
+            client = self.books.get(book)
+            if not client or not uid:
+                continue
+            try:
+                _ok, c = client.get_contact_sync(uid, None)
+                items.append(self._card(book, self.book_names.get(book, ""), c))
+            except GLib.Error:
+                items.append({"book": book, "uid": uid, "gone": True})
+        q = query.strip().replace("\\", "").replace('"', "")
+        if len(q) >= 2:
+            for book, client in list(self.books.items()):
+                sexp = f'(or (contains "full_name" "{q}") (contains "email" "{q}"))'
+                try:
+                    _ok, contacts = client.get_contacts_sync(sexp, None)
+                except GLib.Error:
+                    continue
+                for c in contacts[:40]:
+                    items.append(self._card(book, self.book_names.get(book, ""), c))
+        say({"cards": {"req": req, "items": items}})
 
     def people(self, req: int, query: str) -> None:
         """Contacts whose name or address has this in it — the address books, then everyone in the calendars: for inviting."""
@@ -490,6 +533,8 @@ class Calendars:
             self.respond(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), str(msg["answer"]), msg.get("which", "all"))
         elif verb == "people":
             self.people(req, str(msg.get("q", "")))
+        elif verb == "cards":
+            self.cards(req, str(msg.get("q", "")), [str(k) for k in msg.get("keys", [])][:200])
         elif verb == "color":
             self.color(req, str(msg["calendar"]), str(msg["color"]))
         elif verb == "delete":

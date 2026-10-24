@@ -48,7 +48,9 @@ from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
 from new_panel import New
 from jump_panel import Jump
+from people_panel import People
 from desk import Desk
+import thumbs
 from osd import Osd
 from tip import Tip
 from tray import Tray
@@ -110,6 +112,23 @@ class Files(QWebEngineUrlSchemeHandler):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                 return
             self._reply(job, data, "image/png")
+            return
+        # `talaris-ui://thumb/?project=<id>`: what the project's desktop last
+        # looked like (thumbs.py), or its wallpaper if it has not been seen.
+        if url.host() == "thumb":
+            project = QUrlQuery(url).queryItemValue("project")
+            shot = thumbs.path_for(project) if project else ""
+            if shot and os.path.isfile(shot):
+                with open(shot, "rb") as f:
+                    self._reply(job, f.read(), "image/png")
+                return
+            config = getattr(self.parent(), "config", None)
+            path = wallpaper.for_project(config, project)["path"] if project and config else wallpaper_current()["path"]
+            if not path or not os.path.isfile(path):
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+            with open(path, "rb") as f:
+                self._reply(job, f.read(), mimetypes.guess_type(path)[0] or "image/jpeg")
             return
         # `talaris-ui://wallpaper/`: the default wallpaper, or `?project=<id>`
         # one project's — a picture Talaris itself is set to show, never a
@@ -179,9 +198,12 @@ class Desktop(QObject):
         # The calendar: its data in a process of its own, its panel up from the bar's clock.
         self.calendar_service = CalendarService(self)
         core.find_people = self.calendar_service.find_people
+        core.find_cards = self.calendar_service.find_cards
         self.calendar = Calendar(profile, self, self.calendar_service)
         # Tasks: projects and lists, up from the bar's Tasks button.
         self.tasks = Tasks(profile, self)
+        # People: everyone, grouped by organization, up from the bar's People button.
+        self.people = People(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
         # Project jump: Super+Alt+a letter.
@@ -189,6 +211,9 @@ class Desktop(QObject):
         # The empty desktop, under the windows: its right-click menu (the wallpaper).
         self.desk = Desk(profile, self)
         self.desk.place()
+        # Each project's likeness, for the project menus.
+        self.thumbs = thumbs.Thumbs(self)
+        self.thumbs.arrived()
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.tip = Tip(self)
@@ -231,7 +256,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "new", None), getattr(self, "jump", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "new", None), getattr(self, "jump", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -467,6 +492,7 @@ class Desktop(QObject):
         self.dock.refresh()
         wallpaper.show(self.config, found["id"])
         self.desk.changed()
+        self.thumbs.arrived()
         # Gone to by a key, with nothing on screen to say so: the OSD says where.
         if announce:
             self.osd.announce(found.get("name", ""), found.get("code", ""))
@@ -577,6 +603,8 @@ class Desktop(QObject):
                 self.calendar.toggle()
             elif verb == "tasks":
                 self.tasks.toggle()
+            elif verb == "people":
+                self.people.toggle()
             elif verb == "new":
                 self.new.toggle()
             elif verb == "jump" and len(arg) == 1 and arg.isalpha():
@@ -634,6 +662,8 @@ def main() -> int:
         return send("calendar")
     if args[:1] == ["--tasks"]:
         return send("tasks")
+    if args[:1] == ["--people"]:
+        return send("people")
     if args[:1] == ["--new"]:
         return send("new")
     if args[:1] == ["--jump-open"]:

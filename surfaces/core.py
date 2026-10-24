@@ -58,10 +58,16 @@ def call(method: str, path: str, body: str | None = None, timeout: float = 10) -
 #: Answers `/people/find?q=` — the calendar's address books, which live in this
 #: process and not the core's — when the calendar has set it (surfaces.py).
 find_people = None
+#: Answers `/contacts/cards?q=&keys=` — address-book cards, by search or by "book/uid" — likewise.
+find_cards = None
 
 
 def local_call(method: str, path: str, body: str | None, timeout: float | None = None) -> tuple[int, str]:
     """A page's call to the core, or the one question this process answers itself."""
+    if method == "GET" and path.startswith("/contacts/cards?"):
+        query = parse_qs(urlsplit(path).query)
+        keys = [k for k in query.get("keys", [""])[0].split(",") if k]
+        return 200, json.dumps(find_cards(query.get("q", [""])[0], keys) if find_cards else [])
     if method == "GET" and path.startswith("/people/find?"):
         q = parse_qs(urlsplit(path).query).get("q", [""])[0]
         return 200, json.dumps(find_people(q) if find_people else [])

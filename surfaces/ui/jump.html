@@ -18,7 +18,7 @@ more letters typed to narrow it; Backspace widens it again.
 <style>
 html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; cursor: pointer; }
 body {
-  cursor: default; position: relative; width: min(360px, calc(100% - 32px)); height: auto; max-height: 70vh; overflow: auto; margin: 22vh auto 0;
+  cursor: default; position: relative; width: min(420px, calc(100% - 32px)); height: auto; max-height: 70vh; overflow: auto; margin: 22vh auto 0;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
   box-shadow: var(--menu-shadow); padding: 10px; font-size: 13px;
 }
@@ -28,6 +28,8 @@ body {
 .p { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; border: 0 !important; background: none !important; padding: 7px 10px !important;
   border-radius: var(--radius-row) !important; color: var(--text) !important; cursor: pointer; font: inherit; }
 .p .code { color: var(--muted); font-size: 11px; letter-spacing: 1px; margin-left: auto; }
+.p { align-items: center !important; }
+.p .thumb { width: 80px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--desk); flex: none; }
 .p.cur .name::after { content: " · here"; color: var(--muted); font-size: 11.5px; }
 .p.on, .p:hover { background: var(--accent-wash) !important; color: var(--accent) !important; }
 .none { color: var(--muted); padding: 8px 10px; }
@@ -55,10 +57,13 @@ body {
     at = Math.max(0, Math.min(at, shown.length - 1));
     $("typed").replaceChildren(...(typed ? [document.createTextNode("Projects starting"), Object.assign(document.createElement("b"), { textContent: typed.toUpperCase() })]
       : [document.createTextNode("Projects — type to find one")]));
+    const stamp = Date.now();
     $("list").replaceChildren(...(shown.length ? shown.map((p, i) => {
       const b = document.createElement("button");
       b.className = "p" + (i === at ? " on" : "") + (p.current ? " cur" : "");
-      b.append(Object.assign(document.createElement("span"), { className: "name", textContent: p.name }),
+      // Its desktop as last seen (thumbs.py), or its wallpaper.
+      b.append(Object.assign(document.createElement("img"), { className: "thumb", alt: "", src: `talaris-ui://thumb/?project=${encodeURIComponent(p.id)}&t=${stamp}` }),
+        Object.assign(document.createElement("span"), { className: "name", textContent: p.name }),
         Object.assign(document.createElement("span"), { className: "code", textContent: p.code || "" }));
       b.addEventListener("click", () => go(p));
       b.addEventListener("pointermove", () => { if (at !== i) { at = i; draw(); } });
