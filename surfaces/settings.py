@@ -27,6 +27,7 @@ import os
 import shutil
 import re
 
+import shiboken6
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
@@ -317,6 +318,9 @@ class Settings(QObject):
         adder.setProgram(accounts.ADDER)
 
         def done(_code: int, _status) -> None:
+            # Ended as Talaris itself shuts down: Settings may be gone already.
+            if not shiboken6.isValid(self) or not shiboken6.isValid(adder):
+                return
             self._adder = None
             adder.deleteLater()
             if self.up:
