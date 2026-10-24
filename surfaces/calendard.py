@@ -104,6 +104,7 @@ class Calendars:
         self.clients: dict[str, ECal.Client] = {}
         self.connecting: set[str] = set()
         self.emails: dict[str, str] = {}
+        self.met: dict | None = None
         self.books: dict[str, object] = {}
         self.wanted: dict = {}
         self.views: list = []
@@ -382,8 +383,42 @@ class Calendars:
                     sys.stderr.write(f"address book {uid}: {e.message}\n")
             EBook.BookClient.connect(source, 30, None, done)
 
+    def _met(self) -> dict:
+        """
+        Everyone in the calendars — organizers and attendees, the past year and
+        the coming three months — by address: the people actually met with.
+        An account's whole directory (Google Workspace's, Microsoft's) is not
+        within what Online Accounts may read; these are most of it that matters.
+        Read once, on the first search, and kept.
+        """
+        if self.met is not None:
+            return self.met
+        now = time.time()
+        start = time.strftime("%Y%m%dT000000Z", time.gmtime(now - 365 * 86400))
+        end = time.strftime("%Y%m%dT000000Z", time.gmtime(now + 90 * 86400))
+        sexp = f'(occur-in-time-range? (make-time "{start}") (make-time "{end}"))'
+        met: dict[str, str] = {}
+        for client in list(self.clients.values()):
+            try:
+                _ok, comps = client.get_object_list_sync(sexp, None)
+            except GLib.Error:
+                continue
+            for comp in comps:
+                text = comp.as_ical_string().replace("\r\n ", "")
+                for line in text.splitlines():
+                    if not line.startswith(("ATTENDEE", "ORGANIZER")):
+                        continue
+                    email = (re.search(r"mailto:([^\s;]+)$", line, re.I) or [None, ""])[1].lower()
+                    name = (re.search(r'CN="?([^";:]+)', line) or [None, ""])[1].strip()
+                    if "@" not in email or name.lower() == email:
+                        name = met.get(email, "") if "@" in email else ""
+                    if "@" in email and not email.endswith(("calendar.google.com", "resource.calendar.google.com")):
+                        met[email] = name or met.get(email, "")
+        self.met = met
+        return met
+
     def people(self, req: int, query: str) -> None:
-        """Contacts whose name or address has this in it, from every address book: for inviting."""
+        """Contacts whose name or address has this in it — the address books, then everyone in the calendars: for inviting."""
         query = query.strip()
         found = []
         if len(query) >= 2:
@@ -400,6 +435,11 @@ class Calendars:
                         email = attr.get_value() or ""
                         if email and query.lower() in (name + " " + email).lower():
                             found.append({"name": name, "email": email.lower()})
+            # Then the people met with in the calendars, a name where one was given.
+            low = query.lower()
+            for email, name in sorted(self._met().items(), key=lambda kv: (not kv[1], kv[1] or kv[0])):
+                if low in f"{name} {email}".lower():
+                    found.append({"name": name, "email": email})
         seen, items = set(), []
         for f in found:
             if f["email"] not in seen:

@@ -114,8 +114,13 @@ function drawSide() {
   ]), el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
 }
 
+// Declined, faded; still to come and unanswered, a dashed edge.
+function answerClass(e) {
+  if (e.mine === "declined") return " declined";
+  return e.mine === "waiting" && e.end > Date.now() ? " waiting" : "";
+}
 function chip(e, timedLook) {
-  return el("div", { class: "chip" + (timedLook && !e.allDay ? " timed" : "") + (e.mine === "waiting" || e.mine === "declined" ? ` ${e.mine}` : ""), style: `--c:${colorOf(e.calendar)}`, title: e.title,
+  return el("div", { class: "chip" + (timedLook && !e.allDay ? " timed" : "") + answerClass(e), style: `--c:${colorOf(e.calendar)}`, title: e.title,
     onclick: (ev) => { ev.stopPropagation(); edit(e); } }, (!e.allDay ? `${clock(e.start)} ` : "") + (e.title || "(no title)"));
 }
 
@@ -172,7 +177,7 @@ function drawDays(view, cols) {
       const top = Math.max(0, (e.start - dayStart) / 3600000) * 48;
       const bottom = Math.min(24, (e.end - dayStart) / 3600000) * 48;
       const width = 100 / Math.max(1, lanes.length);
-      col.append(el("div", { class: "ev" + (e.mine === "waiting" || e.mine === "declined" ? ` ${e.mine}` : ""), style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width}% - 4px)`,
+      col.append(el("div", { class: "ev" + answerClass(e), style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width}% - 4px)`,
         onclick: () => edit(e) }, e.title || "(no title)", el("small", {}, `${clock(e.start)} – ${clock(e.end)}${e.location ? ` · ${e.location}` : ""}`)));
     }
     if (sameDay(d, today)) {

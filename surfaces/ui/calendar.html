@@ -98,8 +98,9 @@ main { flex: 1; min-height: 0; display: flex; }
 .chip-p .st { color: var(--muted); }
 .chip-p button { border: 0 !important; padding: 0 4px !important; color: var(--muted) !important; }
 #e-chips { display: contents; }
-/* Waiting on my answer: a dashed edge, until I say. */
-.chip.waiting, .ev.waiting { border-left-style: dashed; font-style: italic; }
+/* Still to come and waiting on my answer: a dashed edge, until I say. (Past
+   ones are not marked: an invitation never answered, Google keeps as such.) */
+.chip.waiting, .ev.waiting { border-left-style: dashed; }
 .chip.declined, .ev.declined { opacity: .5; text-decoration: line-through; }
 /* The pickers: buttons that read like fields, and the lists they open. */
 .pick { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line) !important; border-radius: var(--radius-row) !important;
