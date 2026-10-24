@@ -1,0 +1,217 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The Tasks panel (tasks_panel.py, DESIGN *Tasks*): lists and projects down the
+left, the one chosen on the right, a task opened in a sheet beside it. Up over
+a dimmed screen from the bar's Tasks button; a window by its grow button. The
+page's three parts and what each may call are in TASKS-CONTRACT.md.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris tasks</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<link rel="stylesheet" href="listeditor.css">
+<link rel="stylesheet" href="taskviews.css">
+<style>
+/* As the calendar's: a panel over the dimmed screen; a window, the whole surface. */
+html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; }
+/* The dim is a button: a press there closes it — the bar's button under it included. */
+html:not([data-window]) { cursor: pointer; }
+body { cursor: default; position: relative; }
+body {
+  width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+/* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
+html[data-window] { background: var(--surface); }
+html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
+
+header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header .t-btn { white-space: nowrap; flex: none; }
+header .spacer { flex: 1; }
+header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
+header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
+header .icon-btn.on { color: var(--accent) !important; }
+#count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg.err { color: var(--danger); }
+body.no-side #side { display: none; }
+
+main { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* The left column: lists, then projects. */
+#side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px 8px; overflow: auto; font-size: 13px; }
+#side h3 { display: flex; align-items: center; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 16px 4px 6px; font-weight: 500; }
+#side h3:first-child { margin-top: 0; }
+#side h3 span { flex: 1; }
+.add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; }
+.add:hover { color: var(--accent); background: var(--accent-wash); }
+.item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--radius-row); cursor: pointer; }
+.item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item:hover { background: color-mix(in srgb, var(--accent-wash) 60%, transparent); }
+.item.on { background: var(--accent-wash); color: var(--accent); }
+.item input, #side .new { width: 100%; padding: 3px 6px; font-size: 13px; }
+.item.dragging, .row.dragging { opacity: .4; }
+.drop-above { box-shadow: inset 0 2px 0 var(--accent); }
+.drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* The right: quick add over what is shown. */
+#view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#quick-bar { padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+#quick { width: 100%; padding: 6px 10px; font-size: 13px; }
+#rows { flex: 1; min-height: 0; overflow: auto; }
+.empty { color: var(--muted); padding: 24px; font-size: 13px; }
+
+/* The list view. */
+.list { display: flex; flex-direction: column; }
+.ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+.ghead:hover { color: var(--text); }
+.ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
+.ghead.folded .caret { transform: rotate(-90deg); }
+.ghead .n { letter-spacing: 0; }
+.row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 14px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); cursor: pointer; }
+.row:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); }
+.row.on { background: var(--accent-wash); }
+.row .num { color: var(--muted); font-size: 12px; min-width: 18px; text-align: right; padding-top: 1px; font-variant-numeric: tabular-nums; }
+.r-main { flex: 1; min-width: 0; }
+.r-title { font-size: 13.5px; overflow-wrap: anywhere; }
+.r-body { font-size: 12px; color: var(--muted); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.meta .overdue { color: var(--danger); }
+.row.done .r-title { text-decoration: line-through; color: var(--muted); }
+.row.done { opacity: .6; }
+.fmt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 12px; }
+.fmt-cards .ghead { grid-column: 1 / -1; padding: 6px 2px 0; }
+.fmt-cards .row { border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); padding: 10px 12px; }
+
+/* A task's status: a round checkbox, or a chip in its color. */
+.check { width: 16px; height: 16px; flex: none; margin-top: 2px; padding: 0 !important; border-radius: 50% !important; border: 1.5px solid var(--c, var(--muted)) !important;
+         background: transparent; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; color: transparent; }
+.check:hover { background: color-mix(in srgb, var(--c, var(--accent)) 25%, transparent); }
+.check.on { background: var(--c); color: var(--surface); }
+.st { font-size: 11px !important; padding: 0 8px !important; border-radius: 10px !important; flex: none; white-space: nowrap; line-height: 18px;
+      border: 1px solid color-mix(in srgb, var(--c) 70%, transparent) !important; color: var(--c) !important; background: color-mix(in srgb, var(--c) 12%, transparent) !important; }
+.st:hover { background: color-mix(in srgb, var(--c) 26%, transparent) !important; }
+.st.on { background: var(--c) !important; color: var(--surface) !important; }
+.nostat { width: 16px; flex: none; }
+
+/* The task's sheet: beside the list, not over everything. */
+#sheet { width: 340px; flex: none; border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;
+         background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); }
+#sheet[hidden], #rep[hidden], .s-row[hidden], #sheet [hidden] { display: none !important; }
+@media (max-width: 760px) { #sheet { position: absolute; right: 0; top: 0; bottom: 0; z-index: 5; background: var(--surface); box-shadow: var(--menu-shadow); } }
+.s-head { display: flex; align-items: center; gap: 8px; }
+.s-head input { flex: 1; font-size: 14px; padding: 5px 8px; }
+.s-row { display: flex; gap: 8px; align-items: center; }
+.s-row > .lab { width: 70px; color: var(--muted); flex: none; }
+.s-row.top { align-items: flex-start; }
+.s-row.top > .lab { padding-top: 4px; }
+.chips { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.chip-p { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 2px 1px 8px; border-radius: 10px; background: var(--accent-wash); }
+.chip-p button { border: 0 !important; padding: 0 5px !important; color: var(--muted) !important; }
+.chip-p button:hover { color: var(--accent) !important; }
+#s-tag-in { flex: 1; min-width: 80px; padding: 2px 6px; font-size: 12px; }
+.sum { flex: 1; color: var(--text); }
+.sum.none { color: var(--muted); }
+#s-notes { width: 100%; min-height: 110px; resize: vertical; padding: 6px 8px; font-size: 12.5px; }
+.s-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.s-foot .spacer { flex: 1; }
+#s-done { color: var(--muted); font-size: 11.5px; }
+.pick { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line) !important; border-radius: var(--radius-row) !important;
+        background: var(--desk) !important; color: var(--text) !important; padding: 4px 10px !important; font-size: 12.5px; min-width: 0; }
+.pick.none { color: var(--muted) !important; }
+.pick.overdue { color: var(--danger) !important; }
+.pick:hover { border-color: var(--accent) !important; }
+.time-in { flex: 0 0 82px; text-align: center; padding: 4px 6px; font-size: 12.5px; }
+
+/* Repeat's editor, in the sheet under its line. */
+#rep { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
+#rep .s-row > .lab { width: 62px; }
+#rep .seg button { padding: 2px 9px !important; }
+#r-n, #r-count { width: 46px; text-align: center; padding: 3px 4px; font-size: 12.5px; }
+#r-err { color: var(--danger); font-size: 11.5px; }
+#r-err:empty { display: none; }
+.acts { display: flex; gap: 8px; align-items: center; }
+.acts .spacer { flex: 1; }
+
+/* The one small list or menu at a time. */
+#pop { position: absolute; z-index: 40; }
+#pop[hidden] { display: none; }
+.menu-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; min-width: 150px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+.times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }
+.time { border: 0 !important; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; color: var(--text) !important; }
+.time:hover, .time.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.shifts { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 2px 6px; max-width: 232px; }
+.shifts button { font-size: 11.5px; padding: 0 8px; }
+.mini { width: 232px; padding: 2px; }
+.mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
+.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
+.mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
+.mini-grid .day.other { color: var(--muted) !important; }
+.mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.mini-grid .day:hover, .mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.find { width: 100%; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <button class="icon-btn" id="side-toggle"></button>
+  <h1 id="title"></h1>
+  <span id="count"></span>
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <button class="t-btn" id="edit-list" hidden>Edit list</button>
+  <button class="icon-btn" id="grow"></button>
+  <button class="icon-btn" id="close"></button>
+</header>
+<main>
+  <aside id="side"></aside>
+  <section id="view">
+    <div id="quick-bar"><input type="text" id="quick" placeholder="Add a task" spellcheck="false" autocomplete="off"></div>
+    <div id="rows"></div>
+  </section>
+  <aside id="sheet" hidden>
+    <div class="s-head">
+      <button class="check" id="s-check">✓</button>
+      <input type="text" id="s-title" spellcheck="false">
+      <button class="icon-btn" id="s-close" title="Close"></button>
+    </div>
+    <div class="s-row top"><span class="lab">Status</span><div class="chips" id="s-status"></div></div>
+    <div class="s-row" id="s-start-row"><span class="lab" id="s-start-l">Available</span><button class="pick" id="s-start"></button><input type="text" class="time-in" id="s-start-t" placeholder="Time" spellcheck="false"></div>
+    <div class="s-row" id="s-end-row"><span class="lab" id="s-end-l">Due</span><button class="pick" id="s-end"></button><input type="text" class="time-in" id="s-end-t" placeholder="Time" spellcheck="false"></div>
+    <div class="s-row"><span class="lab">Repeat</span><span class="sum" id="s-rep"></span><button class="t-btn" id="s-rep-btn">Repeat…</button></div>
+    <div id="rep" hidden>
+      <div class="s-row"><span class="lab">From</span><span class="seg" id="r-anchor"></span></div>
+      <div class="s-row"><span class="lab">Every</span><input type="text" id="r-n" spellcheck="false"><span class="seg" id="r-freq"></span></div>
+      <div class="s-row" id="r-days-row"><span class="lab">On</span><span class="seg" id="r-days"></span></div>
+      <div class="s-row" id="r-short-row"><span class="lab">Short month</span><span class="seg" id="r-short"></span></div>
+      <div class="s-row"><span class="lab">Ends</span><span class="seg" id="r-end"></span><input type="text" id="r-count" spellcheck="false"><button class="pick" id="r-until"></button></div>
+      <div id="r-err"></div>
+      <div class="acts"><button class="t-btn" id="r-none">Don't repeat</button><span class="spacer"></span><button class="t-btn" id="r-cancel">Cancel</button><button class="t-btn" id="r-save">Save</button></div>
+    </div>
+    <div class="s-row top" id="s-proj-row"><span class="lab">Projects</span><div class="chips" id="s-proj"></div></div>
+    <div class="s-row top"><span class="lab">Tags</span><div class="chips"><span id="s-tags" style="display:contents"></span><input type="text" id="s-tag-in" placeholder="Add" spellcheck="false"></div></div>
+    <textarea id="s-notes" placeholder="Notes" spellcheck="false"></textarea>
+    <div class="s-foot"><span id="s-done"></span><span class="spacer"></span><button class="t-btn" id="s-archive">Archive</button></div>
+  </aside>
+</main>
+<div id="pop" class="menu" hidden></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script src="listeditor.js"></script>
+<script src="taskviews.js"></script>
+<script src="tasks.js"></script>
+</body>
+</html>

@@ -91,7 +91,7 @@ def _checked(c: dict) -> str:
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
         return "Not a calendar"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar", "canvas", "writing")):
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"
     backups = c.get("data", {})
     if backups.get("schedule", "off") not in ("off", "daily", "weekly") or not 1 <= int(backups.get("keep", 7)) <= 60 \
@@ -343,6 +343,30 @@ class Settings(QObject):
         else:
             self.open()
 
+    def _step_aside(self) -> None:
+        """
+        Another program's window is coming — GNOME's sign-in for an account, a
+        file chooser. Ordinary windows open under Settings' layer, in the middle
+        of the screen where Settings is, and could not be reached: Settings goes
+        while it is open (its page as it was), and comes back when it closes.
+        """
+        self.idle.stop()
+        self.catcher.hide()
+        if self.up:
+            self._aside = True
+            self.view.hide()
+            self.surface.placement = None
+
+    def _come_back(self) -> None:
+        if not getattr(self, "_aside", False):
+            return
+        self._aside = False
+        if not self.up:
+            return
+        self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
+        self.catcher.show(dim=True)
+        self.touched()
+
     def file_away(self) -> None:
         if not self.up:
             return
@@ -380,14 +404,12 @@ class Settings(QObject):
                 return
             self._adder = None
             adder.deleteLater()
-            if self.up:
-                self.catcher.show(dim=True)
+            self._come_back()
             self.bridge.accountsChanged.emit()
 
         adder.finished.connect(done)
         self._adder = adder
-        # A window, under the catcher's layer: out of its way meanwhile.
-        self.catcher.hide()
+        self._step_aside()
         adder.start()
 
     def choose_wallpaper(self) -> None:
@@ -402,8 +424,7 @@ class Settings(QObject):
 
         def done(code: int, _status) -> None:
             self._chooser = None
-            if self.up:
-                self.catcher.show(dim=True)
+            self._come_back()
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
@@ -412,8 +433,7 @@ class Settings(QObject):
 
         chooser.finished.connect(done)
         self._chooser = chooser
-        # The chooser is a window, under the catcher's layer: out of its way meanwhile.
-        self.catcher.hide()
+        self._step_aside()
         chooser.start()
 
     def choose_path(self, kind: str) -> None:
@@ -430,8 +450,7 @@ class Settings(QObject):
 
         def done(code: int, _status) -> None:
             self._chooser = None
-            if self.up:
-                self.catcher.show(dim=True)
+            self._come_back()
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
@@ -439,7 +458,7 @@ class Settings(QObject):
 
         chooser.finished.connect(done)
         self._chooser = chooser
-        self.catcher.hide()
+        self._step_aside()
         chooser.start()
 
     def apply(self, wanted: dict) -> str:

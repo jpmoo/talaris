@@ -43,7 +43,7 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER ALT, SPACE"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows",
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows",
                  "canvas": "drawers", "writing": "drawers"},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.

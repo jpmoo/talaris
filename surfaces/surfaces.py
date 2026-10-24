@@ -45,6 +45,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from calendar_panel import Calendar, CalendarService
+from tasks_panel import Tasks
 from osd import Osd
 from tip import Tip
 from tray import Tray
@@ -165,6 +166,8 @@ class Desktop(QObject):
         # The calendar: its data in a process of its own, its panel up from the bar's clock.
         self.calendar_service = CalendarService(self)
         self.calendar = Calendar(profile, self, self.calendar_service)
+        # Tasks: projects and lists, up from the bar's Tasks button.
+        self.tasks = Tasks(profile, self)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.tip = Tip(self)
@@ -193,7 +196,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -448,6 +451,8 @@ class Desktop(QObject):
                 self.morgan.toggle()
             elif verb == "calendar":
                 self.calendar.toggle()
+            elif verb == "tasks":
+                self.tasks.toggle()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -495,6 +500,8 @@ def main() -> int:
         return send("morgan")
     if args[:1] == ["--calendar"]:
         return send("calendar")
+    if args[:1] == ["--tasks"]:
+        return send("tasks")
     if args[:1] == ["--window"] and len(args) == 2:
         return send(f"window {args[1]}")
     if args[:1] == ["--lid"] and len(args) == 2:

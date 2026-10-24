@@ -1,0 +1,107 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The list editor's sheet and the query builder (listeditor.js). Talaris's own
+controls (controls.css) do the buttons, menus, segments and fields; this only
+lays them out, in the calendar editor's manner: a box on a soft dim, a column
+of muted labels, choices beside them.
+*/
+
+/* ---- the sheet ---------------------------------------------------------- */
+
+.le-dim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0, 0, 0, .25); }
+.le-sheet {
+  position: relative; width: min(580px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto;
+  display: flex; flex-direction: column; gap: 10px; padding: 16px 18px;
+  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow);
+}
+.le-sheet.busy { cursor: progress; }
+.le-sheet.busy .le-acts button { pointer-events: none; opacity: .6; }
+.le-title { margin-bottom: 2px; }
+
+.le-row { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.le-label { flex: none; width: 74px; padding-top: 5px; color: var(--muted); }
+.le-val { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.le-val > .le-line, .le-val > .le-regions { flex-basis: 100%; }
+.le-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.le-then { width: 30px; color: var(--muted); font-size: 11.5px; }
+.le-muted, .le-note { color: var(--muted); font-size: 12px; }
+.le-name { flex: 1; padding: 5px 10px; }
+.le-sheet input[type="text"], .qb input[type="text"] { padding: 4px 8px; font-size: 12.5px; min-width: 0; }
+.le-sheet [hidden] { display: none !important; }
+
+.le-err { font-size: 12px; color: var(--danger); min-height: 0; }
+.le-err:empty { display: none; }
+.le-err.ok { color: var(--muted); }
+.le-acts { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.le-acts .spacer { flex: 1; }
+.le-danger { display: inline-flex; gap: 8px; }
+.le-save { border-color: var(--accent) !important; color: var(--accent) !important; }
+
+/* ---- pickers: buttons that read like fields ----------------------------- */
+
+.le-pick {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 220px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  border: 1px solid var(--line) !important; border-radius: var(--radius-row) !important;
+  background: var(--desk) !important; color: var(--text) !important; padding: 4px 10px !important; font-size: 12.5px;
+}
+.le-pick:hover { border-color: var(--accent) !important; }
+.le-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+.le-x { width: 22px !important; height: 22px !important; font-size: 14px; line-height: 1; flex: none; }
+
+/* The one popup: fixed to the window, above the sheet. */
+.le-pop { position: fixed; z-index: 60; max-width: 300px; }
+.le-pop[hidden] { display: none; }
+.le-menu-list { display: flex; flex-direction: column; max-height: 240px; overflow: auto; min-width: 140px; }
+.le-filter { width: 100%; margin-bottom: 4px; padding: 4px 8px; font-size: 12.5px; }
+
+/* Dates: chips, then a month. */
+.le-date { width: 120px; }
+.le-mini { width: 236px; padding: 4px; }
+.le-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.le-chip { padding: 1px 8px !important; font-size: 11.5px; color: var(--muted); }
+.le-chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+.le-mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
+.le-mini-head .icon-btn { width: 22px !important; height: 22px !important; }
+.le-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.le-mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
+.le-mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
+.le-mini-grid .day.other { color: var(--muted) !important; }
+.le-mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.le-mini-grid .day:hover, .le-mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+
+/* Colors for a region: a row of swatches; "none" is a slashed square. */
+.le-palette { display: flex; gap: 5px; padding: 4px; }
+.le-swatch { width: 20px; height: 20px; padding: 0 !important; flex: none; border-radius: 6px !important; border: 1px solid var(--line) !important; }
+.le-swatch:hover { border-color: var(--accent) !important; }
+.le-swatch.on { box-shadow: 0 0 0 1px var(--accent); border-color: var(--accent) !important; }
+.le-swatch.none { background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%) !important; }
+
+/* ---- matrix regions ----------------------------------------------------- */
+
+.le-regions { display: flex; flex-direction: column; gap: 6px; }
+.le-region { display: flex; flex-direction: column; gap: 5px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-row); }
+.le-region .le-line > input[type="text"]:not(.le-tag) { flex: 1; }
+.le-enter { padding-left: 26px; }
+.le-tag { width: 96px; }
+
+/* ---- the query builder -------------------------------------------------- */
+
+.le-query { padding-left: 82px; }
+.qb { display: flex; flex-direction: column; font-size: 12.5px; }
+.qb-group { display: flex; flex-direction: column; gap: 6px; }
+.qb-group.nested { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-row); }
+.qb-head { display: flex; align-items: center; gap: 6px; }
+.qb-head .spacer, .qb-cond .spacer { flex: 1; }
+.qb-items { display: flex; flex-direction: column; gap: 5px; padding-left: 10px; border-left: 1px solid var(--line); }
+.qb-items:empty { display: none; }
+.qb-cond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.qb-cond > input[type="text"]:not(.le-date) { flex: 1; min-width: 90px; }
+.qb-kind { width: 64px; flex: none; color: var(--muted); font-size: 11.5px; letter-spacing: .5px; }
+.qb-raw { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.qb-add { align-self: flex-start; font-size: 12px !important; }
+.qb-count { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.qb-count:empty { display: none; }
+.qb-n { color: var(--text); font-variant-numeric: tabular-nums; }
+.qb-some { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }

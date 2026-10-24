@@ -27,7 +27,7 @@ function onState(s) {
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
-  for (const name of ["canvas", "writing"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  for (const name of ["canvas", "writing", "tasks"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -165,6 +165,7 @@ $("tasks").innerHTML = Icons.tasks();
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
+$("tasks").addEventListener("click", () => bridge && bridge.openPanel("tasks"));
 $("writing").addEventListener("click", () => bridge && bridge.openPanel("writing"));
 // The date and time open the calendar, and it lights them while it is out.
 $("clock").addEventListener("click", () => bridge && bridge.calendar());
