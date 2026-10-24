@@ -19,8 +19,8 @@ from __future__ import annotations
 import glob
 import os
 
-from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
+from PySide6.QtCore import QObject, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QLabel
 
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
@@ -47,11 +47,32 @@ PAD_X, PAD_Y = 9, 4
 GAP = 6
 
 
+class _Label(QLabel):
+    """
+    A label that paints its own rounded, solid background. A stylesheet's
+    background is not painted on a translucent window (which the rounded
+    corners need), and the tip came out with its words on nothing.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fill, self.edge, self.radius = QColor("#222528"), QColor("#3a3f44"), 5
+
+    def paintEvent(self, event) -> None:  # noqa: N802 — Qt's name
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(self.edge, 1))
+        p.setBrush(self.fill)
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), self.radius, self.radius)
+        p.end()
+        super().paintEvent(event)
+
+
 class Tip(QObject):
     def __init__(self, desktop) -> None:
         super().__init__(desktop)
         self.desktop = desktop
-        self.label = QLabel()
+        self.label = _Label()
         self.label.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -67,9 +88,8 @@ class Tip(QObject):
         # The size the bar or the dock gives its own text (Settings → Look).
         font.setPixelSize(zoom(13, area))
         self.label.setFont(font)
-        self.label.setStyleSheet(
-            f"QLabel {{ background: {surface}; color: {text}; border: 1px solid {frame};"
-            f" border-radius: {zoom(5)}px; padding: {zoom(PAD_Y)}px {zoom(PAD_X)}px; }}")
+        self.label.fill, self.label.edge, self.label.radius = QColor(surface), QColor(frame), zoom(5)
+        self.label.setStyleSheet(f"QLabel {{ background: transparent; color: {text}; padding: {zoom(PAD_Y)}px {zoom(PAD_X)}px; }}")
         return font
 
     def show(self, text: str, x: float, edge: str, off: int = 0, area: str = "bar") -> None:
