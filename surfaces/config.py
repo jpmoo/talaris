@@ -32,7 +32,11 @@ DEFAULTS = {
             # trayFold: gathered behind one icon on the bar, which opens a pane of them.
             "tray": True, "trayHidden": [], "trayFold": False,
             # The project on the bar: its "name", its "code", or "both".
-            "project": "both"},
+            "project": "both",
+            # What the bar leaves out, by item (ui/bar.js BAR_ITEMS), and the
+            # space between its items in the page's pixels. Settings is never
+            # hidden: it is the way back.
+            "hidden": [], "spacing": 4},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.

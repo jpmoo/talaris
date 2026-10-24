@@ -12,6 +12,11 @@ const Icons = (() => {
   const svg = (body, extra = "") =>
     `<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ${extra}>${body}</svg>`;
 
+  // The system's icons (Wi-Fi, Bluetooth, volume) were drawn inside about ten
+  // of the sixteen units, and stood smaller beside the rest; drawn larger about
+  // the middle, the line kept its weight.
+  const larger = (body) => `<g transform="translate(8 8) scale(1.2) translate(-8 -8)" stroke-width="1.25">${body}</g>`;
+
   const search = () => svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>');
 
   // Morgan: a ring with a center — someone there, listening.
@@ -30,14 +35,14 @@ const Icons = (() => {
   const ethernet = () => svg('<rect x="2.5" y="5" width="11" height="7" rx="1"/><path d="M5 12v-2M8 12v-2M11 12v-2M6 5V3.5h4V5"/>');
   const offline = () => svg('<path d="M1.5 6.2a9.5 9.5 0 0 1 13 0" opacity=".3"/><path d="M3.8 8.7a6.2 6.2 0 0 1 8.4 0" opacity=".3"/><path d="M3 3l10 10"/>');
 
-  const bluetooth = (on) => svg('<path d="M4.5 5 11 10.5 8 13V3l3 2.5L4.5 11"/>', on ? "" : 'opacity=".45"');
+  const bluetooth = (on) => svg(larger('<path d="M4.5 5 11 10.5 8 13V3l3 2.5L4.5 11"/>'), on ? "" : 'opacity=".45"');
 
   function volume(level, muted) {
     const body = '<path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z"/>';
-    if (muted) return svg(body + '<path d="M11 6l3.5 4M14.5 6 11 10"/>');
+    if (muted) return svg(larger(body + '<path d="M11 6l3.5 4M14.5 6 11 10"/>'));
     const waves = (level > 0 ? '<path d="M10.8 6.2a2.6 2.6 0 0 1 0 3.6"/>' : "") +
       (level > 50 ? '<path d="M12.6 4.4a5.2 5.2 0 0 1 0 7.2"/>' : "");
-    return svg(body + waves);
+    return svg(larger(body + waves));
   }
 
   /** A cell filled to its level; a bolt when it is charging. */
@@ -62,8 +67,8 @@ const Icons = (() => {
   function crispBattery(level, charging, plugged, px) {
     const k = px / 16;
     const t = Math.max(1, Math.round(1.4 * k));           // the outline's weight
-    const L = Math.round(0.75 * k), R = Math.round(13.75 * k);
-    const T = Math.round(3.25 * k), B = px - T;            // tall, and centered
+    const L = Math.round(0.5 * k), R = Math.round(14 * k);
+    const T = Math.round(3 * k), B = px - T;               // tall, and centered
     const gap = Math.max(1, Math.round(0.9 * k));
     const nip = Math.max(t, Math.round(1.25 * k));
     const nipT = Math.round(px / 2 - 1.6 * k), nipB = px - nipT;
@@ -71,11 +76,13 @@ const Icons = (() => {
     const fillW = Math.round(Math.max(0, Math.min(1, level / 100)) * inner);
     const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
       : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
+    // Rounded, with the straight runs of every edge still on whole pixels: the
+    // outline is a stroke centered half its weight inside the box.
+    const r = Math.max(t, Math.round(2 * k));
     return `<svg class="ic" viewBox="0 0 ${px} ${px}" fill="currentColor" stroke="none">`
-      // The outline as a frame of filled shapes: two rectangles, one cut from the other.
-      + `<path fill-rule="evenodd" d="M${L} ${T}h${R - L}v${B - T}h${-(R - L)}z M${L + t} ${T + t}v${B - T - 2 * t}h${R - L - 2 * t}v${-(B - T - 2 * t)}z"/>`
-      + `<rect x="${R}" y="${nipT}" width="${nip}" height="${nipB - nipT}"/>`
-      + (fillW > 0 ? `<rect x="${L + t + gap}" y="${T + t + gap}" width="${fillW}" height="${B - T - 2 * t - 2 * gap}" opacity="${charging || plugged ? .35 : .8}"/>` : "")
+      + `<rect x="${L + t / 2}" y="${T + t / 2}" width="${R - L - t}" height="${B - T - t}" rx="${r - t / 2}" fill="none" stroke="currentColor" stroke-width="${t}"/>`
+      + `<rect x="${R}" y="${nipT}" width="${nip}" height="${nipB - nipT}" rx="${Math.min(nip, nipB - nipT) / 2}"/>`
+      + (fillW > 0 ? `<rect x="${L + t + gap}" y="${T + t + gap}" width="${fillW}" height="${B - T - 2 * t - 2 * gap}" rx="${Math.max(0.5, r - t - gap)}" opacity="${charging || plugged ? .35 : .8}"/>` : "")
       + (mark ? `<g transform="scale(${k})" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${mark}</g>` : "")
       + "</svg>";
   }

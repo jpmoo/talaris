@@ -128,6 +128,8 @@ function draw() {
   seg("bar", [["top", "Top"], ["bottom", "Bottom"]], cfg.bar.edge,
     (edge) => save({ bar: { edge }, dock: { edge: edge === "top" ? "bottom" : "top" } }));
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
+  drawBarShown();
+  slider("bar-spacing", cfg.bar.spacing ?? 4, (v) => `${v} px`, (spacing) => save({ bar: { spacing } }));
   seg("bar-project", [["name", "Name"], ["code", "Code"], ["both", "Both"]], cfg.bar.project || "both", (project) => save({ bar: { project } }));
   if (bridge && $("accounts").classList.contains("on")) drawCalendars();
   $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
@@ -725,6 +727,23 @@ $("unlock-go").addEventListener("click", async () => {
     loadData();
   } catch (e) { say(e.message, true); }
 });
+
+// What the bar shows, item by item. Settings is not among them: it is the way back.
+const BAR_SHOWN = [["ask", "Launcher"], ["morgan", "Morgan"], ["people", "People"], ["tasks", "Tasks"], ["canvas", "Canvas"],
+  ["writing", "Writing"], ["where", "Project"], ["day", "Date"], ["time", "Time"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
+  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["power", "Power"]];
+function drawBarShown() {
+  const hidden = new Set(cfg.bar.hidden || []);
+  $("bar-shown").replaceChildren(...BAR_SHOWN.map(([id, label]) => {
+    const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: "Shown" });
+    sw.addEventListener("click", () => {
+      const next = new Set(cfg.bar.hidden || []);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      save({ bar: { hidden: [...next] } });
+    });
+    return el("div", { class: "row" }, el("span", { class: "name" }, label), el("span", { class: "what" }, sw));
+  }));
+}
 
 function show(page) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.page === page);

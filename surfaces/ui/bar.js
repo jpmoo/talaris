@@ -15,6 +15,9 @@ $("settings").innerHTML = Icons.settings();
 $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
 
+/** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
+const BAR_ITEMS = ["ask", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "net", "bt", "vol", "bat", "bat-n", "power"];
+
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
@@ -45,6 +48,11 @@ function onState(s) {
   // The project: its name, its code, or both, as Settings, Bar says.
   const p = s.project || {};
   const shows = ((s.look || {}).project) || "both";
+  // What Settings, Bar has left out, and the space between what is left.
+  const hidden = new Set((s.look || {}).hidden || []);
+  for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
+  $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
+  document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   $("where").innerHTML = "";
   if (shows !== "code" || !p.code) $("where").append(p.name || "Home");
   if (p.code && shows !== "name") {
@@ -221,13 +229,15 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 /*
- * Text and icons on whole pixels. At a text size other than medium the bar is drawn at a
+ * Icons on whole pixels. At a text size other than medium the bar is drawn at a
  * fractional zoom, and a line of text can land between two rows of pixels:
  * its top strokes crisp, its bottom ones split across two rows at half
  * strength — "81%" looked thinner at the bottom than at the top. Each piece
  * of text is moved by the fraction of a pixel that puts it back on the grid.
  */
-const SNAP = "#where, #clock span, .bar-item .n, .bar-item .ic, .tray-item img";
+// Icons only: text nudged down even part of a pixel lost its bottom row to
+// the box round it (the project's clips, and so do the buttons).
+const SNAP = ".bar-item .ic, .tray-item img";
 function snap() {
   const dpr = window.devicePixelRatio || 1;
   // An icon a whole number of device pixels tall and wide, or its far edge sits
