@@ -101,6 +101,7 @@ function draw() {
     seg(`${part}-outline`, outlines, c.outline || "line", (outline) => save({ [part]: { outline } }));
     $(`${part}-shadow`).classList.toggle("on", !!c.shadow);
   }
+  slider("dock-icon", cfg.dock.iconSize ?? 24, (v) => `${v}px`, (v) => save({ dock: { iconSize: v } }));
   slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
   seg("dock-scope", [["desktop", "This project"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
   // Four margins, each its own slider; saved as the whole set, as the bar reads them.
@@ -181,7 +182,7 @@ function draw() {
     || cfg.drawers.canvas.autoshow || cfg.drawers.writing.autoshow;
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
   needs(["bar-m-top"], cfg.bar.shape === "floating");
-  needs(["dock-hide", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
+  needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
   needs(["drawer-align"], (cfg.drawers.canvas.height ?? 1) < 1);

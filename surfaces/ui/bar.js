@@ -18,6 +18,10 @@ $("power").innerHTML = Icons.power();
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
+  // A button whose popup is out shows it, as a pressed button would.
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power" };
+  for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
+  markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
   document.body.dataset.shape = look.shape || "strip";
@@ -137,6 +141,14 @@ $("bt").addEventListener("click", () => bridge && bridge.popupAt("bluetooth", un
 // action; the right one, its menu, under it.
 // Folded (Settings, Bar), they are one icon that opens a pane of them under it.
 let trayNow = [];
+// The tray's button lit while its pane, or a menu from it, is out; an icon
+// lit while its own menu is.
+function markTray() {
+  for (const b of document.querySelectorAll(".tray-item")) {
+    const out = b.classList.contains("tray-fold") ? state.popup === "trayicons" || state.popup === "tray" : state.popup === "tray" && b.dataset.id === state.trayItem;
+    b.classList.toggle("on", out);
+  }
+}
 function drawTray(items) {
   trayNow = items;
   const shown = items.filter((i) => !i.hidden);
@@ -144,15 +156,18 @@ function drawTray(items) {
     if (!shown.length) { $("tray").replaceChildren(); return; }
     const b = document.createElement("button");
     b.className = "bar-item tray-item tray-fold" + (shown.some((i) => i.status === "NeedsAttention") ? " attention" : "");
+    b.dataset.id = "";
     b.title = shown.map((i) => i.title).join(", ");
     b.innerHTML = Icons.tray();
     b.addEventListener("click", () => { const r = b.getBoundingClientRect(); if (bridge) bridge.trayPane(r.left + r.width / 2); });
     $("tray").replaceChildren(b);
+    markTray();
     return;
   }
   $("tray").replaceChildren(...shown.map((i) => {
     const b = document.createElement("button");
     b.className = "bar-item tray-item" + (i.status === "NeedsAttention" ? " attention" : "");
+    b.dataset.id = i.id;
     b.title = i.tooltip ? `${i.title}: ${i.tooltip}` : i.title;
     const img = document.createElement("img");
     img.src = i.icon;
@@ -164,6 +179,7 @@ function drawTray(items) {
     b.addEventListener("contextmenu", (e) => { e.preventDefault(); if (bridge) bridge.trayDo(i.id, "menu", x()); });
     return b;
   }));
+  markTray();
 }
 
 // A press anywhere else on the bar puts an open popup away.

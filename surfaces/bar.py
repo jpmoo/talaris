@@ -51,8 +51,10 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400), "tray": (260, 200),
-          "trayicons": (220, 80)}
+#: Each popup's surface: the panel and the clear room round it for the
+#: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
+POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
+          "trayicons": (244, 98)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -179,6 +181,7 @@ class Popup(QObject):
         # is (Qt's units), to center a popup under; -1 is at the bar's end.
         self.tray_item = ""
         self.at = -1
+        self.closed, self.closed_at, self.closed_item = "", 0.0, ""
         self.bridge = BarBridge(self, self)
         self.view = make_view(profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-popup")
@@ -230,6 +233,10 @@ class Popup(QObject):
     def close(self) -> None:
         if not self.kind:
             return
+        # Remembered a moment: pressing a popup's own button closes it (the
+        # popup loses the keyboard) just before the press arrives, which must
+        # not open it again.
+        self.closed, self.closed_at, self.closed_item = self.kind, time.monotonic(), self.tray_item
         self.kind = ""
         self.tray_item = ""
         self.idle.stop()
@@ -308,6 +315,8 @@ class Bar(QObject):
             "clock": self.desktop.config["clock"],
             "look": {**self.desktop.config["bar"], "margins": margins(self.desktop.config["bar"])},
             "popup": self.popup.kind,
+            # Which tray item's menu is out, for its icon to show it.
+            "trayItem": self.popup.tray_item,
             # `absent`, `idle`, `listening`, `thinking`… and whether its
             # conversation is out.
             "morgan": self.desktop.morgan_link.now,
@@ -337,6 +346,8 @@ class Bar(QObject):
         if self.popup.kind == "trayicons":
             self.popup.close()
             return
+        if self.just_closed("trayicons"):
+            return
         self.popup.tray_item, self.popup.at = "", int(x * zoom_of("bar"))
         self.popup.show("trayicons")
         log("popup: trayicons")
@@ -355,6 +366,8 @@ class Bar(QObject):
         if verb == "menu":
             if self.popup.kind == "tray" and self.popup.tray_item == item:
                 self.popup.close()
+                return
+            if self.just_closed("tray") and self.popup.closed_item == item:
                 return
             self.popup.tray_item, self.popup.at = item, at
             if known.get("menu"):
@@ -375,11 +388,17 @@ class Bar(QObject):
         self.popup.bridge.trayMenu.emit(json.dumps(menu))
         self.bridge.state.emit(json.dumps(self.describe()))
 
+    def just_closed(self, kind: str) -> bool:
+        """Whether this popup closed a moment ago — as its own button's press arrives."""
+        return self.popup.closed == kind and time.monotonic() - self.popup.closed_at < 0.4
+
     def toggle_popup(self, kind: str, x: float | None = None) -> None:
         if kind not in POPUPS:
             return
         if self.popup.kind == kind:
             self.popup.close()
+            return
+        if self.just_closed(kind):
             return
         # Under its button when the page says where that is; else at the bar's end.
         self.popup.at = int(x * zoom_of("bar")) if x is not None else -1

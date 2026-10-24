@@ -53,8 +53,9 @@ from layershell import (
 from sensor import Autohide
 from views import make_view, zoom
 
-#: The dock's thickness: a 32px icon, its dots, and room around them.
-DOCK = 50
+#: The dock's thickness beyond its icons: their dots, and room around them.
+#: At the 24px icons it starts with, 50.
+DOCK_ROOM = 26
 #: The item menu's size.
 MENU = (200, 190)
 
@@ -127,7 +128,7 @@ class DockMenu(QObject):
         bottom = self.dock.edge == "bottom"
         # Clear of the dock: its reserved space does that, unless it is hiding
         # and so reserves none, when the menu stands off by the dock's height.
-        off = DOCK if self.desktop.config["dock"].get("autohide") else 0
+        off = self.dock.thickness() if self.desktop.config["dock"].get("autohide") else 0
         anchor = (ANCHOR_BOTTOM if bottom else ANCHOR_TOP) | ANCHOR_LEFT
         margins = (left, 0 if bottom else off, 0, off if bottom else 0)
         self.surface.placement = None
@@ -199,6 +200,10 @@ class Dock(QObject):
             self._show()
         self.refresh()
 
+    def thickness(self) -> int:
+        """How tall the dock is: its icons at the size Settings gives, and the room round them."""
+        return int(self.desktop.config["dock"].get("iconSize", 24)) + DOCK_ROOM
+
     def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_TOP if self.edge == "top" else ANCHOR_BOTTOM
@@ -206,11 +211,12 @@ class Dock(QObject):
         # Room beyond the space reserved, clear: for a shadow to fall into, and
         # for icons to swell into when magnified (a 36px item at its largest).
         look = self.desktop.config["dock"]
-        swell = round(36 * (int(look.get("magnify", 100)) - 100) / 100)
+        swell = round((int(look.get("iconSize", 24)) + 12) * (int(look.get("magnify", 100)) - 100) / 100)
         room = max(14 if look.get("shadow") else 0, swell + 6 if swell else 0)
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), DOCK + room,
-                                     KEYBOARD_NONE, exclusive=0 if hide else DOCK))
+        tall = self.thickness()
+        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
+                                     KEYBOARD_NONE, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:

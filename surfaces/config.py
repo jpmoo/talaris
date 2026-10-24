@@ -43,8 +43,8 @@ DEFAULTS = {
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
-             # percent of their own; 100 is off.
-             "magnify": 100},
+             # percent of their own; 100 is off. iconSize: the icons at rest, in px.
+             "magnify": 100, "iconSize": 24},
     # How the drawers look: their outline (in the accent while in use, a plain
     # line, or none), a shadow, and their opacity in percent.
     # afterExpand: back from being the desktop, a drawer stays "open" or is "closed".

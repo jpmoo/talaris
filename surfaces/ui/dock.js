@@ -126,6 +126,8 @@ Surface.connect({
     document.body.dataset.edge = s.edge || "bottom";
     const look = s.look || {};
     magnify = Number(look.magnify ?? 100);
+    // The icons at rest, as Settings sizes them; the dock is as tall as they need.
+    document.body.style.setProperty("--icon", `${Number(look.iconSize ?? 24)}px`);
     document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
     document.body.dataset.outline = look.outline || "line";
     if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;

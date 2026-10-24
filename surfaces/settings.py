@@ -93,6 +93,8 @@ def _checked(c: dict) -> str:
         return "Not a tray setting"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings")):
         return "The launcher, Morgan and Settings move as windows or as drawers"
+    if not 16 <= int(c["dock"].get("iconSize", 24)) <= 48:
+        return "The dock's icons are 16 to 48 pixels"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
