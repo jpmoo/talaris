@@ -150,6 +150,7 @@ class CalendarBridge(Bridge):
 
 class Calendar(Overlay):
     NAME = "calendar"
+    TITLE = "Calendar"
     IDLE_MS = 5 * 60 * 1000
 
     def describe(self) -> dict:

@@ -36,8 +36,9 @@
          width: min(560px, calc(100% - 32px)); height: 80vh; margin: 10vh auto 0; box-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
   /* Not quite transparent: a page with no background at all has its body's
      painted across the whole surface, and the rounded corners are lost. */
-  html[data-expanded] { background: rgba(0, 0, 0, .004); }
-  html[data-expanded] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border-radius: 12px; border: 1px solid var(--frame); }
+  /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
+  html[data-window] { background: var(--bg); }
+  html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
   textarea, input { font-family: var(--font); }
   button { font: inherit; color: var(--text); background: none; border: 0; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
   button:hover { background: var(--raised); }
@@ -484,25 +485,24 @@ $("attach").onclick = () => bridge.pick((picked) => { files.push(...JSON.parse(p
 $("mic").onclick = () => bridge.call(state === "idle" || state === "listening" ? "toggle" : "stop");
 $("new").onclick = () => bridge.call("new");
 $("settings").onclick = () => bridge.settings();
-// Talaris: expanded, as a drawer is, and back — or closed, if Settings says
-// expanding ends that way; then the two buttons would be one, so one shows.
-let expandedState = { expanded: false, closes: false };
+// Talaris: a panel, or — loaded with ?window=1 (overlay.py) — an ordinary
+// window that Hyprland tiles. The panel's button makes it a window; the
+// window's makes it a panel again, and its other button is Hyprland's fullscreen.
+const WINDOW = new URLSearchParams(location.search).has("window");
+if (WINDOW) document.documentElement.dataset.window = "1";
 function paintGrow() {
-  const { expanded, closes } = expandedState;
-  // The drawers' own expand button (icons.js), so every pane's is the same.
-  $("grow").innerHTML = expanded ? (closes ? Icons.close() : Icons.shrink()) : Icons.grow();
-  $("close").innerHTML = Icons.close();
-  $("grow").title = expanded ? (closes ? "Close" : "Back to a panel") : "Full screen";
-  // Floating, a click off it closes it: no close button. Full screen, one —
-  // unless the expand button already closes.
-  $("close").hidden = !expanded || closes;
+  $("grow").innerHTML = WINDOW ? Icons.toPanel() : Icons.toWindow();
+  $("grow").title = WINDOW ? "Back to a panel" : "Make it a window";
+  $("close").innerHTML = Icons.grow();
+  $("close").title = "Full screen";
+  $("close").hidden = !WINDOW;
 }
 $("grow").onclick = () => bridge.grow();
 $("close").onclick = () => bridge.file();
 // A press on the dim, off the panel, puts it away.
-document.addEventListener("pointerdown", (event) => { if (event.target === document.documentElement && bridge && surfaceState.up && !surfaceState.expanded) bridge.file(); });
+document.addEventListener("pointerdown", (event) => { if (!WINDOW && event.target === document.documentElement && bridge && surfaceState.up) bridge.file(); });
 // The same, from Qt (sensor.Presses), which hears every press.
-window.pressedAt = (x, y) => { if (bridge && surfaceState.up && !surfaceState.expanded && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
+window.pressedAt = (x, y) => { if (!WINDOW && bridge && surfaceState.up && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
 
 // How it comes and goes (motion.js): from the top, as the launcher, over the
 // dimmed screen, with the line over the composer drawn too.
@@ -702,17 +702,16 @@ function start() {
     try {
       const s = JSON.parse(text);
       if (s.theme) Surface.applyTheme(s.theme);
-      if ("expanded" in s) { expandedState = s; paintGrow(); }
-      if (s.expanded) document.documentElement.dataset.expanded = "1"; else delete document.documentElement.dataset.expanded;
-      // Out, from away: it arrives. Full screen and back are not arrivals.
-      if (s.up && !surfaceState.up && !s.expanded) Motion.arrive(document.body, { ...how(), kind: (s.motion || {}).motion, speed: (s.motion || {}).speed });
-      else if (s.up && !!s.expanded !== !!surfaceState.expanded) Motion.reset(document.body, how());
+      // Out, from away: the panel arrives. A window is simply there.
+      if (!WINDOW && s.up && !surfaceState.up) Motion.arrive(document.body, { ...how(), kind: (s.motion || {}).motion, speed: (s.motion || {}).speed });
       surfaceState = s;
     } catch { /* fine */ }
   });
   paintGrow();
   // Going: played, then the process is told, and takes the surface away.
   bridge.leave.connect(() => {
+    // The panel's leaving; a window is not going anywhere.
+    if (WINDOW) return;
     surfaceState = { ...surfaceState, up: false };
     const going = Motion.leave(document.body, how());
     if (going) going.onfinish = () => bridge.left(); else bridge.left();

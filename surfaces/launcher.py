@@ -180,6 +180,8 @@ class Launcher(QObject):
             self.open(mode)
 
     def file_away(self) -> None:
+        import traceback
+        log("DEBUG launcher file_away up=%s from %s" % (self.up, " <- ".join(f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-6:-1])))
         """The page plays its leaving, then says so (`left`), and only then does the surface go."""
         if not self.up:
             return
@@ -190,6 +192,7 @@ class Launcher(QObject):
         QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
     def left(self) -> None:
+        log(f"DEBUG launcher left leaving={self.leaving} up={self.up} visible={self.view.isVisible()}")
         if not self.leaving:
             return
         self.leaving = False

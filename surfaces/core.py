@@ -99,9 +99,15 @@ class Bridge(QObject):
 
     @Slot()
     def grow(self) -> None:
-        """A drawer's expand button: the desktop, or back to a drawer."""
+        """A drawer's expand button: the desktop, or back to a drawer. A panel's: a window, or a panel again."""
         if hasattr(self.owner, "grow"):
             self.owner.grow()
+
+    @Slot()
+    def fullscreen(self) -> None:
+        """A window's fullscreen button: Hyprland's own, on or off."""
+        if hasattr(self.owner, "fullscreen"):
+            self.owner.fullscreen()
 
     @Slot()
     def left(self) -> None:

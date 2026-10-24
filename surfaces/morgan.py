@@ -170,6 +170,7 @@ class Panel(Overlay):
     """Morgan's conversation: an overlay (overlay.py), opened from the bar's button or Super+Shift+M."""
 
     NAME = "morgan"
+    TITLE = "Morgan"
     IDLE_MS = IDLE_MS
 
     def __init__(self, profile: QWebEngineProfile, desktop, link: Link) -> None:

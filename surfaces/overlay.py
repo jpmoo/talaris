@@ -1,92 +1,81 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-A panel that comes up over everything, as Morgan's conversation and the
-calendar do.
+What opens from the bar — Morgan's conversation, the calendar — as a panel,
+or as a window.
 
-**Floating:** centered over the rest of the screen, which it dims (the page
+**A panel:** centered over the rest of the screen, which it dims (the page
 draws the panel and the dim; `ui/motion.js` plays its coming and going, with
-the windows' or the drawers' motion as Settings says), and a press on the dim
-puts it away (`sensor.Presses`, which hears what the page may not).
+the windows' or the drawers' motion as Settings says), a layer surface over
+everything; a press on the dim puts it away (`sensor.Presses`, which hears
+what the page may not).
 
-**Expanded**, as a drawer is: the desktop, on a workspace of its own
-(`hypr.DESK`), between the bar and the dock where a window's frame would be,
-and below the windows, so one coming back shows above it. A window opened
-there, another workspace gone to, or the expand button again brings it back —
-or closes it, as Settings' "After full screen" says. Expanding one puts the
-drawers and any other expanded panel away.
+**A window:** the panel's button makes it an ordinary window of this process
+— the same page, loaded again with `?window=1`, sharing the panel's bridge —
+which Hyprland tiles beside the rest, full screen by Hyprland's own fullscreen
+(the window's button, or Hyprland's key). Its other button makes it a panel
+again; closing it as any window is closed puts it away. What was a desktop of
+its own for this (`hypr.DESK`) is not needed: a window is already where windows
+are. Layer surfaces and ordinary windows share the process because layer-shell
+is attached per window (layershell.py).
 """
 
 from __future__ import annotations
 
 import json
-import time
+import os
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
 import hypr
 from core import Bridge
-from layershell import (
-    ANCHOR_BOTTOM,
-    ANCHOR_LEFT,
-    ANCHOR_RIGHT,
-    ANCHOR_TOP,
-    BOTTOM,
-    KEYBOARD_ON_DEMAND,
-    OVERLAY,
-    QT_SCALE,
-    LayerSurface,
-    Placement,
-)
+from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from sensor import Presses
 from views import log, make_view
 
 #: How long the page has to finish leaving before the surface goes anyway.
 LEAVE_LIMIT_MS = 1600
+#: A window's size when first made, before Hyprland tiles it.
+WINDOW_SIZE = (1000, 720)
 
 
 class Overlay(QObject):
     #: Who it is: its log's name, its surface's, and its motion's in Settings (`overlays`).
     NAME = ""
+    #: Its window's title, which Hyprland and the dock show.
+    TITLE = ""
     #: Put away after this long untouched; 0 is never.
     IDLE_MS = 0
 
     def __init__(self, profile: QWebEngineProfile, desktop, url: str, bridge: Bridge, area: str = "interface") -> None:
         super().__init__(desktop)
         self.desktop = desktop
+        self.profile, self.url, self.area = profile, url, area
         self.up = False
-        self.expanded = False
-        self.came_from = None
-        self.expanded_at = 0.0
         self.leaving = False
         self.bridge = bridge
         self.view = make_view(profile, self.NAME, url, bridge, self, area=area)
         self.surface = LayerSurface(self.view, f"talaris-{self.NAME}")
         Presses(self.view)
+        # The same page as an ordinary window, made the first time it is wanted.
+        self.window = None
+        self.windowed = False
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._idle)
 
     def describe(self) -> dict:
-        return {"up": self.up, "theme": self.desktop.config["theme"], "expanded": self.expanded,
-                "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed",
+        return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,
                 "motion": self.desktop.motion(self.NAME)}
 
     def _place(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         self.surface.placement = None
-        if self.expanded:
-            gaps = getattr(self.desktop, "gaps", {})
-            margins = tuple(round(gaps.get(side, 0) / QT_SCALE) for side in ("left", "top", "right", "bottom"))
-            self.surface.apply(Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, margins=margins))
-        else:
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
+        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
+                                     screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
         self.bridge.state.emit(json.dumps(self.describe()))
-        log(f"DEBUG {self.NAME} placed expanded={self.expanded} visible={self.view.isVisible()} placement={self.surface.placement is not None}")
 
     # What a subclass adds to coming and going.
     def opened(self) -> None:
@@ -96,6 +85,9 @@ class Overlay(QObject):
         pass
 
     def open(self) -> None:
+        if self.windowed:
+            self.focus_window()
+            return
         self.leaving = False
         if not self.up:
             self.up = True
@@ -106,80 +98,87 @@ class Overlay(QObject):
         self.touched()
 
     def toggle(self) -> None:
-        if self.up:
+        """The bar's button: the panel out or away — or, when it is a window, that window brought forward."""
+        if self.windowed:
+            self.focus_window()
+        elif self.up:
             self.file_away()
         else:
             self.open()
 
-    # ------------------------------------------------------------ expanded
+    # ------------------------------------------------------------ a window
 
     def grow(self) -> None:
-        """The expand button: the desktop, or back to a panel (or closed, as Settings says)."""
-        if self.expanded:
-            self.collapse()
+        """The panel's button: a window. The window's: a panel again."""
+        if self.windowed:
+            self.to_panel()
         else:
-            self.expand()
+            self.to_window()
 
-    def expand(self) -> None:
-        for d in self.desktop.drawers.values():
-            d.collapse()
-            d.file_away()
-        for other in self.desktop.overlays():
-            if other is not self and other.expanded:
-                other.file_away()
-        self.came_from = hypr.windows()["active"]
-        self.expanded = True
-        self.expanded_at = time.monotonic()
-        self.idle.stop()
-        self.leaving = False
-        was_up, self.up = self.up, True
-        self._place()
-        if not was_up:
-            self.opened()
-        self.view.setFocus()
-        # The surface first, the workspace after, as for a drawer: making it
-        # anew hands the keyboard back to the last window, which Hyprland follows.
-        QTimer.singleShot(150, lambda: self.expanded and hypr.go(hypr.DESK))
+    def to_window(self) -> None:
+        if self.window is None:
+            sep = "&" if "?" in self.url else "?"
+            self.window = make_view(self.profile, f"{self.NAME}-window", f"{self.url}{sep}window=1", self.bridge, self, area=self.area)
+            self.window.setWindowTitle(self.TITLE or self.NAME.title())
+            self.window.resize(*WINDOW_SIZE)
+            self.window.installEventFilter(self)
+        # The panel goes at once — the window is where it went.
+        if self.up:
+            self.up = False
+            self.leaving = False
+            self.idle.stop()
+            self.view.hide()
+            self.surface.placement = None
+        self.windowed = True
+        self.window.show()
+        self.bridge.state.emit(json.dumps(self.describe()))
+        self.opened()
+        log(f"{self.NAME}: a window")
+        QTimer.singleShot(250, self.focus_window)
 
-    def collapse(self, follow: bool = True, close: bool | None = None) -> None:
-        """Back to the workspace it was expanded from, with any window opened meanwhile."""
-        if not self.expanded:
-            return
-        self.expanded = False
-        now = hypr.windows()
-        names = {w["id"]: w["name"] for w in now["workspaces"]}
-        if self.came_from is not None:
-            for w in now["windows"]:
-                if names.get(w["workspace"]) == hypr.DESK:
-                    hypr.bring(w["address"], self.came_from)
-            if follow and now["activeName"] == hypr.DESK:
-                hypr.go(self.came_from)
-        if close is None:
-            close = self.desktop.config["panels"].get("afterExpand", "open") == "closed"
-        if close:
-            self.file_away()
-        else:
-            self._place()
-            self.touched()
+    def to_panel(self) -> None:
+        self.windowed = False
+        if self.window is not None:
+            self.window.hide()
+        self.open()
 
-    def windows_changed(self, now: dict) -> None:
-        """Expanded: a window opened on its desktop, or another desktop gone to, makes it a panel again."""
-        if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
-            return
-        names = {w["id"]: w["name"] for w in now["workspaces"]}
-        if now["activeName"] != hypr.DESK:
-            self.collapse(follow=False)
-        elif any(names.get(w["workspace"]) == hypr.DESK and not w["hidden"] for w in now["windows"]):
-            self.collapse()
+    def _address(self) -> str:
+        """This window's address in Hyprland: this process's window with its title."""
+        try:
+            clients = json.loads(hypr.ask("j/clients") or "[]")
+        except ValueError:
+            return ""
+        title = self.window.windowTitle() if self.window is not None else ""
+        return next((c["address"] for c in clients if c.get("pid") == os.getpid() and c.get("title") == title), "")
+
+    def focus_window(self) -> None:
+        address = self._address()
+        if address:
+            hypr.focus(address)
+
+    def fullscreen(self) -> None:
+        """Hyprland's own fullscreen, on this window, or off again."""
+        address = self._address()
+        if address:
+            hypr.focus(address)
+            hypr.ask("/dispatch fullscreen 0")
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
+        # Closed as any window is closed (Hyprland's key, say): put away, a window no longer.
+        if watched is self.window and event.type() == QEvent.Type.Close:
+            self.windowed = False
+            self.bridge.state.emit(json.dumps(self.describe()))
+            self.closed()
+            log(f"{self.NAME}: window closed")
+        return False
+
+    def windows_changed(self, _now: dict) -> None:
+        """Nothing to follow: a window is Hyprland's to place."""
 
     # ------------------------------------------------------------ going
 
     def file_away(self) -> None:
-        import traceback
-        log(f"DEBUG {self.NAME} file_away up={self.up} from " + " <- ".join(f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-6:-1]))
-        if self.expanded:
-            self.collapse(close=True)
-            return
+        # A window stays: it is put away as windows are.
         if not self.up:
             return
         self.up = False
@@ -191,7 +190,6 @@ class Overlay(QObject):
         QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
     def left(self) -> None:
-        log(f"DEBUG {self.NAME} left leaving={self.leaving} up={self.up} visible={self.view.isVisible()}")
         if not self.leaving:
             return
         self.leaving = False
@@ -207,8 +205,6 @@ class Overlay(QObject):
         return False
 
     def _idle(self) -> None:
-        if self.expanded:
-            return
         if self.busy():
             self.touched()
             return

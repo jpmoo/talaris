@@ -496,7 +496,7 @@ class Desktop(QObject):
         return home or {"id": "", "code": "", "name": "Home"}
 
     def _windows_changed(self) -> None:
-        if any(d.expanded for d in (*self.drawers.values(), *self.overlays())):
+        if any(getattr(d, "expanded", False) for d in (*self.drawers.values(), *self.overlays())):
             now = hypr.windows()
             for d in (*self.drawers.values(), *self.overlays()):
                 d.windows_changed(now)
@@ -821,6 +821,11 @@ class Desktop(QObject):
                 self.morgan.toggle()
             elif verb == "calendar":
                 self.calendar.toggle()
+            elif verb == "window":
+                # A panel as a window, or a window back to a panel: `--window calendar`.
+                panel = {p.NAME: p for p in self.overlays()}.get(arg)
+                if panel:
+                    panel.grow()
             elif verb == "lid":
                 self.power.lid(arg)
             elif verb == "launcher":
@@ -863,6 +868,8 @@ def main() -> int:
         return send("morgan")
     if args[:1] == ["--calendar"]:
         return send("calendar")
+    if args[:1] == ["--window"] and len(args) == 2:
+        return send(f"window {args[1]}")
     if args[:1] == ["--lid"] and len(args) == 2:
         return send(f"lid {args[1]}")
     if args[:1] == ["--launcher"]:
@@ -876,6 +883,9 @@ def main() -> int:
 
     register_scheme()
     app = QApplication(sys.argv)
+    # The name Hyprland and the dock know Talaris's ordinary windows by (a
+    # panel made a window), rather than python3.
+    app.setDesktopFileName("talaris")
     app.setApplicationName("talaris-surfaces")
     app.setQuitOnLastWindowClosed(False)
     desktop = Desktop(app)

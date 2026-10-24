@@ -32,8 +32,13 @@ let calendars = [];
 let events = [];
 let mode = "month";
 let focus = startOfDay(new Date());
-let req = 0;
+// Two pages may share the bridge — the panel and its window — so each numbers
+// its requests from somewhere of its own, and takes only its own answers.
+let req = Math.floor(Math.random() * 1e9);
 let wanted = 0;
+// Loaded as a window (overlay.py), not a panel: always out, no dim, no motion.
+const WINDOW = new URLSearchParams(location.search).has("window");
+if (WINDOW) document.documentElement.dataset.window = "1";
 // The calendars not shown: Talaris's setting (Settings, Accounts, or the list here).
 let hidden = new Set();
 try { mode = localStorage.getItem("talaris.calendar.mode") || "month"; } catch { /* fine */ }
@@ -497,11 +502,18 @@ function step(n) {
 $("prev").addEventListener("click", () => step(-1));
 $("next").addEventListener("click", () => step(1));
 $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(0, 0, 0); at.setHours(at.getHours() + 1); create(mode === "month" && !sameDay(focus, new Date()) ? (() => { const d = new Date(focus); d.setHours(9); return d; })() : at, false); });
+// A panel's button makes it a window; a window's makes it a panel again, and
+// its other button is Hyprland's fullscreen.
 $("grow").addEventListener("click", () => bridge && bridge.grow());
-$("close").addEventListener("click", () => bridge && bridge.file());
+$("close").addEventListener("click", () => bridge && bridge.fullscreen());
+$("grow").innerHTML = WINDOW ? Icons.toPanel() : Icons.toWindow();
+$("grow").title = WINDOW ? "Back to a panel" : "Make it a window";
+$("close").innerHTML = Icons.grow();
+$("close").title = "Full screen";
+$("close").hidden = !WINDOW;
 // A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
-document.addEventListener("pointerdown", (e) => { if (e.target === document.documentElement && bridge && surface.up && !surface.expanded) bridge.file(); });
-window.pressedAt = (x, y) => { if (bridge && surface.up && !surface.expanded && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
+document.addEventListener("pointerdown", (e) => { if (!WINDOW && e.target === document.documentElement && bridge && surface.up) bridge.file(); });
+window.pressedAt = (x, y) => { if (!WINDOW && bridge && surface.up && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
 
 // ---------------------------------------------------------------- coming and going
 
@@ -513,19 +525,13 @@ function how() {
 function onState(s) {
   const was = surface;
   surface = s;
-  if (s.hidden) { hidden = new Set(s.hidden); if (s.up) draw(); }
-  if (s.expanded) document.documentElement.dataset.expanded = "1"; else delete document.documentElement.dataset.expanded;
-  $("grow").innerHTML = s.expanded ? (s.closes ? Icons.close() : Icons.shrink()) : Icons.grow();
-  $("grow").title = s.expanded ? (s.closes ? "Close" : "Back to a panel") : "Full screen";
-  $("close").innerHTML = Icons.close();
-  // Floating, a press off it closes it; full screen, a button does.
-  $("close").hidden = !s.expanded || s.closes;
-  console.warn(`DEBUG calendar state up=${s.up} was=${was.up} expanded=${s.expanded}`);
-  if (s.up && !was.up && !s.expanded) {
+  if (s.hidden) { hidden = new Set(s.hidden); if (s.up || WINDOW) draw(); }
+  if (WINDOW) return;
+  if (s.up && !was.up) {
     Motion.arrive(document.body, how());
     focus = startOfDay(new Date());
     draw(); fetchRange();
-  } else if (s.up && !!s.expanded !== !!was.expanded) Motion.reset(document.body, how());
+  }
 }
 
 Surface.connect({ onState }).then((b) => {
@@ -535,7 +541,7 @@ Surface.connect({ onState }).then((b) => {
   b.status.connect((text) => { status = JSON.parse(text); draw(); fetchRange(); });
   b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
   b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); });
-  b.changed.connect(() => { if (surface.up) fetchRange(); });
+  b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
   b.people.connect((text) => showPeople(JSON.parse(text)));
   b.done.connect((text) => {
     const d = JSON.parse(text);
@@ -547,7 +553,8 @@ Surface.connect({ onState }).then((b) => {
     fetchRange();
   });
   b.leave.connect(() => {
-    console.warn("DEBUG calendar leave");
+    // The panel's leaving; a window is not going anywhere.
+    if (WINDOW) return;
     surface = { ...surface, up: false };
     const going = Motion.leave(document.body, how());
     if (going) going.onfinish = () => bridge.left(); else bridge.left();

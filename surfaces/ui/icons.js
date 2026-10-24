@@ -71,9 +71,12 @@ const Icons = (() => {
   const grow = () => frame("M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9");
   const shrink = () => frame("M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3");
   const close = () => frame("M3 3l8 8M11 3l-8 8");
+  // A panel made a window (a frame with its title bar), and a window made a panel again.
+  const toWindow = () => frame("M2 3h10v8H2zM2 5.5h10");
+  const toPanel = () => frame("M4.5 4.5h5v5h-5zM2 2h2M10 2h2M2 12h2M10 12h2");
 
   // The tray, folded: a tray with things in it.
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
-  return { grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  return { grow, shrink, close, toWindow, toPanel, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();
