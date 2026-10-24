@@ -41,6 +41,25 @@ const WINDOW = new URLSearchParams(location.search).has("window");
 if (WINDOW) document.documentElement.dataset.window = "1";
 // The calendars not shown: Talaris's setting (Settings, Accounts, or the list here).
 let hidden = new Set();
+// Set aside here, by a press on its swatch: still in the list, its events not
+// on show — unlike one turned off in Settings, which is not here at all.
+let muted = new Set();
+try { muted = new Set(JSON.parse(localStorage.getItem("talaris.calendar.muted") || "[]")); } catch { /* fine */ }
+// Invitations declined: shown faded, or not at all.
+let declinedShown = true;
+try { declinedShown = localStorage.getItem("talaris.calendar.declined") !== "0"; } catch { /* fine */ }
+function showDeclined(on) {
+  declinedShown = on;
+  try { localStorage.setItem("talaris.calendar.declined", on ? "1" : "0"); } catch { /* fine */ }
+  drawSide();
+  draw();
+}
+function mute(id) {
+  if (muted.has(id)) muted.delete(id); else muted.add(id);
+  try { localStorage.setItem("talaris.calendar.muted", JSON.stringify([...muted])); } catch { /* fine */ }
+  drawSide();
+  draw();
+}
 try { mode = localStorage.getItem("talaris.calendar.mode") || "month"; } catch { /* fine */ }
 
 const DAY_MS = 86400000;
@@ -75,7 +94,9 @@ function title() {
   }
   return focus.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
-function shown() { return events.filter((e) => !hidden.has(e.calendar)); }
+function shown() {
+  return events.filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined"));
+}
 // The events on a day: those that start before it ends and end after it starts.
 function onDay(day) {
   const a = startOfDay(day).getTime(), b = a + DAY_MS;
@@ -114,9 +135,13 @@ function drawSide() {
   const side = $("side");
   side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) => [
     el("h3", {}, account),
-    ...list.map((c) => el("div", { class: "cal on", style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only" },
-      el("span", { class: "sw" }), el("span", {}, c.name))),
-  ]), el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
+    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only" },
+      el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name))),
+  ]), el("h3", {}, "Show"),
+  el("div", { class: "cal" + (declinedShown ? " on" : " muted"), style: "--c:var(--muted)" },
+    el("button", { class: "sw", title: declinedShown ? "Hide declined events" : "Show declined events", onclick: () => showDeclined(!declinedShown) }),
+    el("span", {}, "Declined")),
+  el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
 }
 
 // Declined, faded; still to come and unanswered, a dashed edge.

@@ -16,7 +16,7 @@ $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["ask", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "net", "bt", "vol", "bat", "bat-n", "power"];
+const BAR_ITEMS = ["ask", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -48,6 +48,10 @@ function onState(s) {
   // The project: its name, its code, or both, as Settings, Bar says.
   const p = s.project || {};
   const shows = ((s.look || {}).project) || "both";
+  // Light or dark: the button wears the mode in use, and a press changes it.
+  const dark = ((s.theme || {}).mode || "dark") !== "light";
+  $("theme").innerHTML = dark ? Icons.moon() : Icons.sun();
+  $("theme").title = dark ? "Dark — switch to light" : "Light — switch to dark";
   // What Settings, Bar has left out, and the space between what is left.
   const hidden = new Set((s.look || {}).hidden || []);
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
@@ -151,6 +155,7 @@ $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", und
 $("where").addEventListener("click", () => bridge && bridge.popupAt("projects", under("where")));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
+$("theme").addEventListener("click", () => bridge && bridge.themeMode());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 // The canvas and the writing surface, panels from the bar like the rest.
 // People and Tasks: their places on the bar kept, until their panels are built
@@ -217,7 +222,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #tasks, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

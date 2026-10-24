@@ -208,6 +208,14 @@ class BarBridge(Bridge):
         self.owner.desktop.settings.toggle()
 
     @Slot()
+    def themeMode(self) -> None:  # noqa: N802 — called from the page by this name
+        """Light or dark, the other of the two, through Settings' own keeping (checked and saved as any change is)."""
+        theme = self.owner.desktop.config["theme"]
+        error = self.owner.desktop.settings.apply({"theme": {"mode": "light" if theme.get("mode", "dark") == "dark" else "dark"}})
+        if error:
+            log(f"bar: theme not changed: {error}")
+
+    @Slot()
     def morgan(self) -> None:
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.morgan.toggle()

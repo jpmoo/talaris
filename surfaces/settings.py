@@ -80,7 +80,7 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("ask", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "net", "bt", "vol", "bat", "bat-n", "power")
+    BAR_ITEMS = ("ask", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:

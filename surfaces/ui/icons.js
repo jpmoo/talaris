@@ -69,6 +69,8 @@ const Icons = (() => {
       (muted ? '<path d="M2.5 2.5 13.5 13.5"/>' : ""));
   }
 
+  // Dark mode: a crescent.
+  const moon = () => svg('<path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6z"/>');
   const sun = () => svg('<circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>');
 
   // The launcher: four tiles, the way to anything.
@@ -103,5 +105,5 @@ const Icons = (() => {
   // Tasks: a checked box and two lines.
   // Tasks: a list, each line ticked off.
   const tasks = () => svg('<path d="M2 4.6 3.5 6 6 3.2M8.5 4.8h5.5M2 10.6 3.5 12 6 9.2M8.5 10.8h5.5"/>');
-  return { sideList, people, tasks, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  return { sideList, people, tasks, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();
