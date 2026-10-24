@@ -42,7 +42,8 @@ const Icons = (() => {
 
   /** A cell filled to its level; a bolt when it is charging. */
   /** The battery: its level, a bolt while charging, a plug while plugged in and held (at a charge limit). */
-  function battery(level, charging, plugged = false) {
+  function battery(level, charging, plugged = false, px = 0) {
+    if (px) return crispBattery(level, charging, plugged, px);
     const w = Math.max(0, Math.min(1, level / 100)) * 9;
     const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
       : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
@@ -50,6 +51,33 @@ const Icons = (() => {
       '<rect x="1.5" y="3.75" width="12" height="8.5" rx="1.75"/><path d="M14.5 6.5v3"/>' +
       `<rect x="3" y="5.25" width="${w.toFixed(1)}" height="5.5" rx=".6" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` +
       mark);
+  }
+
+  /*
+   * The battery drawn in device pixels, `px` of them square: its outline's
+   * edges on whole pixels at any scale. Drawn from the 16-unit design, a
+   * battery at 1.375 device pixels to the unit came out with a crisp top and
+   * a faint bottom, whatever it was placed on.
+   */
+  function crispBattery(level, charging, plugged, px) {
+    const k = px / 16;
+    const t = Math.max(1, Math.round(1.4 * k));           // the outline's weight
+    const L = Math.round(0.75 * k), R = Math.round(13.75 * k);
+    const T = Math.round(3.25 * k), B = px - T;            // tall, and centered
+    const gap = Math.max(1, Math.round(0.9 * k));
+    const nip = Math.max(t, Math.round(1.25 * k));
+    const nipT = Math.round(px / 2 - 1.6 * k), nipB = px - nipT;
+    const inner = R - L - 2 * t - 2 * gap;
+    const fillW = Math.round(Math.max(0, Math.min(1, level / 100)) * inner);
+    const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
+      : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
+    return `<svg class="ic" viewBox="0 0 ${px} ${px}" fill="currentColor" stroke="none">`
+      // The outline as a frame of filled shapes: two rectangles, one cut from the other.
+      + `<path fill-rule="evenodd" d="M${L} ${T}h${R - L}v${B - T}h${-(R - L)}z M${L + t} ${T + t}v${B - T - 2 * t}h${R - L - 2 * t}v${-(B - T - 2 * t)}z"/>`
+      + `<rect x="${R}" y="${nipT}" width="${nip}" height="${nipB - nipT}"/>`
+      + (fillW > 0 ? `<rect x="${L + t + gap}" y="${T + t + gap}" width="${fillW}" height="${B - T - 2 * t - 2 * gap}" opacity="${charging || plugged ? .35 : .8}"/>` : "")
+      + (mark ? `<g transform="scale(${k})" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${mark}</g>` : "")
+      + "</svg>";
   }
 
   function mic(muted) {

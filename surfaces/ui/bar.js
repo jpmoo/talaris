@@ -93,7 +93,8 @@ function onMachine(m) {
   if (bat.present) {
     const charging = bat.state === "charging";
     const plugged = !!bat.plugged || charging || bat.state === "full";
-    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged);
+    // Drawn in the bar's own device pixels, so its edges are crisp (icons.js).
+    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged, Math.round(16 * (window.devicePixelRatio || 1)));
     $("bat-n").textContent = `${bat.level}%`;
     $("bat").classList.toggle("low", bat.level <= 15 && !plugged);
     $("bat").title = `Battery ${bat.level}% · ${charging ? "charging" : plugged ? "plugged in" : "on battery"}`;
