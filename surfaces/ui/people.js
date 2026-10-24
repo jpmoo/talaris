@@ -231,7 +231,13 @@
     if (!q) return true;
     return [p.title, p.organization, p.role, p.email].some((x) => x && x.toLowerCase().includes(q));
   }
-  function shown() { const q = $("q").value.trim().toLowerCase(); return people.filter((p) => matches(p, q)); }
+  // Known by a name, or only by an address (a name is what the person has unless it is just their address).
+  const unnamed = (p) => /^[^\s@]+@[^\s@]+$/.test(String(p.title || "").trim()) || !String(p.title || "").trim();
+  let named = store.get("talaris.people.named", "all");
+  function shown() {
+    const q = $("q").value.trim().toLowerCase();
+    return people.filter((p) => matches(p, q) && (named === "all" || (named === "named") !== unnamed(p)));
+  }
 
   function personRow(p) {
     const sub = [p.role, p.email].filter(Boolean).join(" · ");
@@ -283,6 +289,7 @@
 
   function drawMode() {
     seg("mode", [["org", "Organization"], ["az", "A–Z"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
+    seg("named", [["all", "All"], ["named", "Named"], ["unnamed", "No name"]], named, (n) => { named = n; store.set("talaris.people.named", n); drawMode(); drawList(); });
   }
 
   async function loadPeople() {
