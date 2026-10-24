@@ -26,7 +26,9 @@
   /* As the launcher: a panel centered over the rest of the screen, which is
      dimmed; a press on the dim puts it away. Full screen, it is the desktop:
      the whole surface, nothing dimmed. */
-  html { background: rgba(0, 0, 0, .32); }
+  /* Clipped here too: otherwise Chromium hands the body's overflow to the
+     window, and the body's rounded corners stop clipping its header. */
+  html { background: rgba(0, 0, 0, .32); overflow: hidden; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { display: flex; flex-direction: column; background: var(--bg); color: var(--text);
@@ -488,7 +490,9 @@ function paintGrow() {
   $("grow").innerHTML = expanded ? (closes ? Icons.close() : Icons.shrink()) : Icons.grow();
   $("close").innerHTML = Icons.close();
   $("grow").title = expanded ? (closes ? "Close" : "Back to a panel") : "Full screen";
-  $("close").hidden = expanded && closes;
+  // Floating, a click off it closes it: no close button. Full screen, one —
+  // unless the expand button already closes.
+  $("close").hidden = !expanded || closes;
 }
 $("grow").onclick = () => bridge.grow();
 $("close").onclick = () => bridge.file();

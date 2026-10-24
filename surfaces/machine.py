@@ -160,11 +160,15 @@ def wifi_state(rescan: bool = False) -> dict:
         return {"on": False, "networks": []}
     known = {}
     active = None
-    for line in _run("nmcli", "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show").splitlines():
+    # Every network this machine remembers, in range or not: Settings lists
+    # them, with whether each is joined by itself.
+    saved = []
+    for line in _run("nmcli", "-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,DEVICE", "connection", "show").splitlines():
         f = _fields(line)
-        if len(f) >= 3 and f[1] == "802-11-wireless":
+        if len(f) >= 5 and f[2] == "802-11-wireless":
             known[f[0]] = True
-            if f[2]:
+            saved.append({"name": f[0], "uuid": f[1], "autoconnect": f[3] == "yes", "active": bool(f[4])})
+            if f[4]:
                 active = f[0]
     seen: dict[str, dict] = {}
     rows = _run("nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
@@ -190,14 +194,18 @@ def wifi_state(rescan: bool = False) -> dict:
             "connected": f[0] == "*" or (n or {}).get("connected", False),
         }
     networks = sorted(seen.values(), key=lambda n: (not n["connected"], not n["known"], -n["signal"]))
-    return {"on": True, "active": active, "networks": networks}
+    for s in saved:
+        s["inRange"] = s["name"] in seen
+        s["signal"] = seen.get(s["name"], {}).get("signal")
+    saved.sort(key=lambda s: (not s["active"], not s["inRange"], s["name"].lower()))
+    return {"on": True, "active": active, "networks": networks, "saved": saved}
 
 
 def _bt_info(mac: str) -> dict:
     info = _run("bluetoothctl", "info", mac)
     get = lambda key: (re.search(rf"^\s*{key}:\s*(.+)$", info, re.M) or [None, ""])[1].strip()
     battery = re.search(r"Battery Percentage:.*\((\d+)\)", info)
-    return {"connected": get("Connected") == "yes", "icon": get("Icon"),
+    return {"connected": get("Connected") == "yes", "icon": get("Icon"), "trusted": get("Trusted") == "yes",
             "battery": int(battery.group(1)) if battery else None}
 
 
@@ -218,8 +226,10 @@ def bluetooth_state(scan_seconds: int = 0) -> dict:
     if not show:
         return {"present": False}
     on = bool(re.search(r"Powered:\s*yes", show))
+    visible = bool(re.search(r"Discoverable:\s*yes", show))
+    alias = (re.search(r"^\s*Alias:\s*(.+)$", show, re.M) or [None, ""])[1].strip()
     if not on:
-        return {"present": True, "on": False, "paired": [], "nearby": []}
+        return {"present": True, "on": False, "visible": False, "alias": alias, "paired": [], "nearby": []}
     if scan_seconds:
         _run("bluetoothctl", "--timeout", str(scan_seconds), "scan", "on", timeout=scan_seconds + 5)
     paired = [{"mac": mac, "name": name, **_bt_info(mac)} for mac, name in _bt_devices("Paired")]
@@ -228,7 +238,7 @@ def bluetooth_state(scan_seconds: int = 0) -> dict:
     # no name shows its address as its name, and is not worth a row.
     nearby = [{"mac": mac, "name": name} for mac, name in _bt_devices()
               if mac not in taken and name.replace("-", ":").upper() != mac.upper()]
-    return {"present": True, "on": True, "paired": paired, "nearby": nearby}
+    return {"present": True, "on": True, "visible": visible, "alias": alias, "paired": paired, "nearby": nearby}
 
 
 class _Panel(QRunnable):
@@ -348,8 +358,13 @@ class Machine(QObject):
                 work = lambda: _ran("nmcli", "device", "wifi", "connect", ssid, timeout=45)
         elif verb == "leave" and ssid:
             work = lambda: _ran("nmcli", "connection", "down", "id", ssid)
-        elif verb == "forget" and ssid:
-            work = lambda: _ran("nmcli", "connection", "delete", "id", ssid)
+        elif verb == "forget" and (ssid or r.get("uuid")):
+            # By its uuid where Settings has one: two saved networks may share a name.
+            uuid = str(r.get("uuid", ""))
+            work = (lambda: _ran("nmcli", "connection", "delete", "uuid", uuid)) if uuid else (lambda: _ran("nmcli", "connection", "delete", "id", ssid))
+        elif verb == "auto" and r.get("uuid"):
+            uuid = str(r["uuid"])
+            work = lambda: _ran("nmcli", "connection", "modify", "uuid", uuid, "connection.autoconnect", "yes" if r.get("on") else "no")
         else:
             return
         self._panels.start(_Panel(self, "network", work))
@@ -358,6 +373,11 @@ class Machine(QObject):
         verb, mac = r.get("verb"), str(r.get("mac", ""))
         if verb == "power":
             work = lambda: _ran("bluetoothctl", "power", "on" if r.get("on") else "off")
+        elif verb == "visible":
+            # Seen by other devices looking to pair, for as long as bluetoothd allows (three minutes, usually).
+            work = lambda: _ran("bluetoothctl", "discoverable", "on" if r.get("on") else "off")
+        elif mac and _MAC.match(mac) and verb in ("trust", "untrust"):
+            work = lambda: _ran("bluetoothctl", verb, mac)
         elif mac and _MAC.match(mac) and verb in ("connect", "disconnect", "forget", "pair"):
             if verb == "pair":
                 # Pair, trust so it may come back by itself, then connect. A

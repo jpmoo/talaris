@@ -159,6 +159,25 @@ class SettingsBridge(Bridge):
 
     #: Pushed to the page: the wallpaper changed — `{path, fit, error}`.
     wallpaperChanged = Signal(str)
+    #: Pushed to the page: Wi-Fi's or Bluetooth's state after a read or a change, `{kind, state, error}`.
+    panel = Signal(str)
+
+    @Slot(str, bool)
+    def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.machine.panel_read(kind, deep)
+
+    @Slot(str)
+    def openTool(self, name: str) -> None:  # noqa: N802 — called from the page by this name
+        """A network that needs more than a password: nmtui, in a terminal."""
+        self.owner.desktop.machine.open_tool(name)
+
+    @Slot(str)
+    def network(self, request: str) -> None:
+        self.owner.desktop.machine.network(json.loads(request))
+
+    @Slot(str)
+    def bluetooth(self, request: str) -> None:
+        self.owner.desktop.machine.bluetooth(json.loads(request))
 
     @Slot(result=str)
     def wallpaper(self) -> str:
@@ -211,6 +230,8 @@ class Settings(QObject):
         self.surface = LayerSurface(self.view, "talaris-settings")
         # A clear layer behind it, over the windows: a click off Settings closes it.
         self.catcher = Catcher(profile, self.file_away, self, name="settings-catcher")
+        # Wi-Fi and Bluetooth: the same readings and changes as the bar's panels.
+        desktop.machine.panel.connect(self.bridge.panel.emit)
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.file_away)

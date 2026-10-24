@@ -74,10 +74,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .row.needs-off .switch, .row.needs-off .seg button { cursor: default; }
 #wall-preview { width: 128px; height: 80px; object-fit: cover; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--desk); }
 #wall-name { word-break: break-all; }
+h3.with-btn { display: flex; align-items: center; justify-content: space-between; }
+h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12px; padding: 3px 10px !important; }
+.net .what { gap: 6px; }
+.net .what .t-btn { padding: 3px 10px !important; font-size: 12px; }
+.net .what input { width: 150px; }
+.net.current .name { color: var(--accent); }
+.dim-row { opacity: .55; }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 footer { grid-column: 2; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); }
 footer #msg { flex: 1; font-size: 12px; color: var(--muted); }
-footer #msg.err { color: var(--danger); }
+footer #msg.err, .note.err { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -89,6 +96,8 @@ footer #msg.err { color: var(--danger); }
     <button data-page="dock-page">Dock</button>
     <button data-page="drawers">Drawers</button>
     <button data-page="windows">Windows</button>
+    <button data-page="wifi">Wi-Fi</button>
+    <button data-page="bluetooth">Bluetooth</button>
     <button data-page="edges">Edges</button>
     <button data-page="power">Power</button>
     <button data-page="keys">Keys</button>
@@ -191,6 +200,26 @@ footer #msg.err { color: var(--danger); }
       <div class="row"><span class="name">Width</span><span class="what"><input type="range" id="win-border" min="1" max="6" step="1"><span class="n" id="win-border-n"></span></span></div>
       <div class="row"><span class="name">Motion<small>How they open and close</small></span><span class="what"><span class="seg" id="win-motion"></span></span></div>
       <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="win-speed"></span></span></div>
+    </section>
+    <section id="wifi">
+      <h2>Wi-Fi</h2>
+      <div class="row"><span class="name">Wi-Fi</span><span class="what"><button class="switch" id="wifi-on"></button></span></div>
+      <p class="note" id="wifi-msg"></p>
+      <h3>Saved networks</h3>
+      <p class="note" style="margin:0 0 6px">Joined by itself when in range, if set to. Forget one to stop it.</p>
+      <div id="wifi-saved"></div>
+      <h3 class="with-btn">Available <button class="t-btn" id="wifi-rescan">Look again</button></h3>
+      <div id="wifi-near"></div>
+    </section>
+    <section id="bluetooth">
+      <h2>Bluetooth</h2>
+      <div class="row"><span class="name">Bluetooth</span><span class="what"><button class="switch" id="bt-on"></button></span></div>
+      <div class="row"><span class="name">Visible to others<small id="bt-alias"></small></span><span class="what"><button class="switch" id="bt-visible"></button></span></div>
+      <p class="note" id="bt-msg"></p>
+      <h3>Your devices</h3>
+      <div id="bt-mine"></div>
+      <h3 class="with-btn">Nearby <button class="t-btn" id="bt-scan">Look for devices</button></h3>
+      <div id="bt-near"></div>
     </section>
     <section id="edges">
       <h2>Edges</h2>

@@ -432,11 +432,106 @@ function powerNote() {
   });
 }
 
+// ---------------------------------------------------------------- Wi-Fi and Bluetooth
+//
+// The same readings and changes as the bar's panels (machine.py), at more
+// length: every saved network, in range or not, with whether it is joined by
+// itself; every device of yours, with whether it may reconnect by itself.
+const bars = (s) => (s == null ? "" : s > 70 ? "Strong" : s > 45 ? "Good" : s > 20 ? "Weak" : "Faint");
+let wifiNow = null, btNow = null;
+// A first press on Forget asks; a second, within a few seconds, does it.
+function twiceBtn(label, ask, act) {
+  const b = el("button", { class: "t-btn danger" }, label);
+  b.addEventListener("click", () => {
+    if (b.dataset.armed) { act(); return; }
+    b.dataset.armed = "1"; b.textContent = ask;
+    setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000);
+  });
+  return b;
+}
+function working(id, text) { $(id).textContent = text; $(id).className = "note"; }
+function netRow(name, meta, cls, ...controls) {
+  return el("div", { class: `row net ${cls || ""}` }, el("span", { class: "name" }, name, el("small", {}, meta)), el("span", { class: "what" }, ...controls));
+}
+function wifiSend(request, msg) { working("wifi-msg", msg); bridge.network(JSON.stringify(request)); }
+function btSend(request, msg) { working("bt-msg", msg); bridge.bluetooth(JSON.stringify(request)); }
+
+function drawWifi(w) {
+  wifiNow = w;
+  $("wifi-on").classList.toggle("on", !!w.on);
+  needs(["wifi-rescan"], !!w.on);
+  if (!w.on) {
+    $("wifi-saved").replaceChildren(el("p", { class: "note" }, "Wi-Fi is off."));
+    $("wifi-near").replaceChildren();
+    return;
+  }
+  $("wifi-saved").replaceChildren(...(w.saved || []).map((s) => {
+    const auto = el("button", { class: "switch" + (s.autoconnect ? " on" : ""), title: "Join by itself when in range" });
+    auto.addEventListener("click", () => wifiSend({ verb: "auto", uuid: s.uuid, on: !s.autoconnect }, s.autoconnect ? `${s.name} will wait to be joined` : `${s.name} will be joined by itself`));
+    const meta = s.active ? "Connected" : s.inRange ? `In range · ${bars(s.signal)}` : "Not in range";
+    const act = s.active
+      ? el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "leave", ssid: s.name }, `Leaving ${s.name}…`) }, "Disconnect")
+      : s.inRange ? el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "join", ssid: s.name, known: true }, `Joining ${s.name}…`) }, "Connect") : "";
+    return netRow(s.name, meta, s.active ? "current" : s.inRange ? "" : "dim-row", el("small", { class: "note", style: "margin:0" }, "Auto"), auto, act,
+      twiceBtn("Forget", "Forget it?", () => wifiSend({ verb: "forget", uuid: s.uuid, ssid: s.name }, `Forgetting ${s.name}…`)));
+  }));
+  if (!(w.saved || []).length) $("wifi-saved").replaceChildren(el("p", { class: "note" }, "None saved."));
+  const fresh = (w.networks || []).filter((n) => !n.known);
+  $("wifi-near").replaceChildren(...fresh.map((n) => {
+    const meta = `${bars(n.signal)}${n.secure ? " · Secured" : " · Open"}`;
+    if (n.enterprise) return netRow(n.ssid, meta + " · needs a sign-in", "", el("button", { class: "t-btn", onclick: () => bridge.openTool && bridge.openTool("network") }, "Open the network tool"));
+    if (!n.secure) return netRow(n.ssid, meta, "", el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "join", ssid: n.ssid }, `Joining ${n.ssid}…`) }, "Join"));
+    const pw = el("input", { type: "password", placeholder: "Password", class: "field" });
+    const join = () => pw.value && wifiSend({ verb: "join", ssid: n.ssid, password: pw.value }, `Joining ${n.ssid}…`);
+    pw.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+    return netRow(n.ssid, meta, "", pw, el("button", { class: "t-btn", onclick: join }, "Join"));
+  }));
+  if (!fresh.length) $("wifi-near").replaceChildren(el("p", { class: "note" }, "Nothing new in range."));
+}
+
+function drawBt(b) {
+  btNow = b;
+  if (!b.present) { $("bt-mine").replaceChildren(el("p", { class: "note" }, "No Bluetooth here.")); return; }
+  $("bt-on").classList.toggle("on", !!b.on);
+  $("bt-visible").classList.toggle("on", !!b.visible);
+  $("bt-alias").textContent = b.alias ? `As ${b.alias}, for a few minutes` : "For a few minutes";
+  needs(["bt-visible", "bt-scan"], !!b.on);
+  if (!b.on) { $("bt-mine").replaceChildren(el("p", { class: "note" }, "Bluetooth is off.")); $("bt-near").replaceChildren(); return; }
+  $("bt-mine").replaceChildren(...(b.paired || []).map((d) => {
+    const trust = el("button", { class: "switch" + (d.trusted ? " on" : ""), title: "Reconnect by itself" });
+    trust.addEventListener("click", () => btSend({ verb: d.trusted ? "untrust" : "trust", mac: d.mac }, d.trusted ? `${d.name} will wait to be connected` : `${d.name} will reconnect by itself`));
+    const meta = (d.connected ? "Connected" : "Not connected") + (d.battery != null ? ` · ${d.battery}%` : "");
+    const act = d.connected
+      ? el("button", { class: "t-btn", onclick: () => btSend({ verb: "disconnect", mac: d.mac }, `Disconnecting ${d.name}…`) }, "Disconnect")
+      : el("button", { class: "t-btn", onclick: () => btSend({ verb: "connect", mac: d.mac }, `Connecting ${d.name}…`) }, "Connect");
+    return netRow(d.name, meta, d.connected ? "current" : "", el("small", { class: "note", style: "margin:0" }, "Auto"), trust, act,
+      twiceBtn("Forget", "Forget it?", () => btSend({ verb: "forget", mac: d.mac }, `Forgetting ${d.name}…`)));
+  }));
+  if (!(b.paired || []).length) $("bt-mine").replaceChildren(el("p", { class: "note" }, "None paired."));
+  $("bt-near").replaceChildren(...(b.nearby || []).map((d) =>
+    netRow(d.name, d.mac, "", el("button", { class: "t-btn", onclick: () => btSend({ verb: "pair", mac: d.mac }, `Pairing with ${d.name}…`) }, "Pair"))));
+  if (!(b.nearby || []).length) $("bt-near").replaceChildren(el("p", { class: "note" }, "Nothing found yet. Put the device in pairing mode, then look."));
+}
+
+function onRadio(p) {
+  const id = p.kind === "network" ? "wifi-msg" : "bt-msg";
+  $(id).textContent = p.error || "";
+  $(id).className = p.error ? "note err" : "note";
+  if (p.kind === "network") drawWifi(p.state); else drawBt(p.state);
+}
+$("wifi-on").addEventListener("click", () => wifiSend({ verb: "power", on: !(wifiNow && wifiNow.on) }, "…"));
+$("wifi-rescan").addEventListener("click", () => { working("wifi-msg", "Looking…"); bridge.panelRead("network", true); });
+$("bt-on").addEventListener("click", () => btSend({ verb: "power", on: !(btNow && btNow.on) }, "…"));
+$("bt-visible").addEventListener("click", () => btSend({ verb: "visible", on: !(btNow && btNow.visible) }, ""));
+$("bt-scan").addEventListener("click", () => { working("bt-msg", "Looking for devices…"); bridge.panelRead("bluetooth", true); });
+
 function show(page) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.page === page);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
   say("");
   if (page === "morgan") loadMorgan();
+  if (page === "wifi") { working("wifi-msg", "Reading…"); bridge.panelRead("network", false); }
+  if (page === "bluetooth") { working("bt-msg", "Reading…"); bridge.panelRead("bluetooth", false); }
   if (page === "power") {
     bridge.power((text) => { powerProfile = JSON.parse(text).plugged ? "ac" : "battery"; draw(); });
     powerNote();
@@ -484,5 +579,6 @@ Surface.connect({
     if (going) going.onfinish = () => bridge.left(); else bridge.left();
   });
   b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
+  b.panel.connect((text) => onRadio(JSON.parse(text)));
   reload("look");
 });

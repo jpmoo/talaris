@@ -504,13 +504,12 @@ class Desktop(QObject):
     def catcher_update(self) -> None:
         """
         The catcher is out while a drawer is pulled (not expanded), if clicking
-        outside puts it away — dimmed, if the rest of the screen dims. Not for
-        a drawer out only because the pointer touched its edge: that one goes
-        when the pointer leaves, and dimming the screen for it is a flicker.
+        outside puts it away — dimmed, if the rest of the screen dims —
+        however the drawer came out: its keys, its handle, or a touch at its edge.
         """
         if not hasattr(self, "catcher"):
             return
-        want = self.catches() and any(d.mode == "pulled" and not d.bumped and not d.leaving for d in self.drawers.values())
+        want = self.catches() and any(d.mode == "pulled" and not d.leaving for d in self.drawers.values())
         if want:
             self.catcher.show(dim=bool(self.config["panels"].get("dim", True)))
         else:
