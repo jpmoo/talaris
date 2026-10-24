@@ -51,7 +51,7 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
+POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400), "tray": (260, 200)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -78,6 +78,27 @@ class BarBridge(Bridge):
     machine = Signal(str)
     #: Pushed to the popup: a Wi-Fi or Bluetooth panel's state, `{kind, state, error}`.
     panel = Signal(str)
+    #: Pushed to the bar: the tray's items, as Settings lets it show them.
+    tray = Signal(str)
+    #: Pushed to the popup: a tray item's menu, `{id, items}`.
+    trayMenu = Signal(str)
+
+    @Slot(str, str, float)
+    def trayDo(self, item: str, verb: str, x: float) -> None:  # noqa: N802 — called from the page by this name
+        """A press on a tray icon: `activate`, `secondary` or `menu`, at `x` along the bar (its page's pixels)."""
+        self.owner.desktop.bar.tray_do(item, verb, x)
+
+    @Slot(int)
+    def trayClick(self, entry: int) -> None:  # noqa: N802 — called from the page by this name
+        """An entry chosen in a tray item's menu."""
+        popup = self.owner.desktop.bar.popup
+        if popup.tray_item:
+            self.owner.desktop.tray.do(do="click", id=popup.tray_item, item=entry)
+        popup.close()
+
+    @Slot(result=str)
+    def trayItems(self) -> str:  # noqa: N802 — called from the page by this name
+        return self.owner.desktop.bar.tray_listing()
 
     @Slot(int)
     def fit(self, height: int) -> None:
@@ -144,6 +165,9 @@ class Popup(QObject):
         self.desktop = bar.desktop
         self.kind = ""
         self.shown_at = 0.0
+        # Which tray item's menu is out, and where along the bar it was asked for.
+        self.tray_item = ""
+        self.at = 0.0
         self.bridge = BarBridge(self, self)
         self.view = make_view(profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-popup")
@@ -160,7 +184,14 @@ class Popup(QObject):
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
-        self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND))
+        if kind == "tray":
+            # Under the icon it belongs to.
+            screen = QApplication.primaryScreen().geometry()
+            left = max(4, min(int(self.at - zoom(w) / 2), screen.width() - zoom(w) - 4))
+            self.surface.placement = None
+            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_LEFT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND, margins=(left, 0, 0, 0)))
+        else:
+            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND))
         self.bridge.state.emit(json.dumps(self.describe()))
         if kind in ("network", "bluetooth"):
             self.desktop.machine.panel_read(kind)
@@ -168,7 +199,7 @@ class Popup(QObject):
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.
-    FITTED = ("power", "volume")
+    FITTED = ("power", "volume", "tray")
 
     def fit(self, height: int) -> None:
         if self.kind not in self.FITTED or height <= 0:
@@ -189,6 +220,7 @@ class Popup(QObject):
         if not self.kind:
             return
         self.kind = ""
+        self.tray_item = ""
         self.idle.stop()
         self.view.hide()
         # Gone, so the next `apply` makes it anew rather than thinking it is up.
@@ -222,6 +254,8 @@ class Bar(QObject):
                               busy=lambda: bool(self.popup.kind), parent=self)
         desktop.machine.read.connect(self._reading)
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
+        desktop.tray.items.connect(lambda _text: self.bridge.tray.emit(self.tray_listing()))
+        desktop.tray.menu.connect(self._tray_menu)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
 
@@ -272,6 +306,45 @@ class Bar(QObject):
     def _reading(self, text: str) -> None:
         self.bridge.machine.emit(text)
         self.popup.bridge.machine.emit(text)
+
+    # ------------------------------------------------------------ the tray
+
+    def tray_listing(self) -> str:
+        """The tray's items as the bar shows them: none if Settings turned it off, less any put away."""
+        look = self.desktop.config["bar"]
+        hidden = set(look.get("trayHidden", []))
+        items = json.loads(self.desktop.tray.last)
+        return json.dumps([{**i, "hidden": i.get("appId") in hidden} for i in items] if look.get("tray", True) else [])
+
+    def tray_do(self, item: str, verb: str, x: float) -> None:
+        known = self.desktop.tray.known.get(item)
+        if not known:
+            return
+        # Where on the screen, for an item that places something of its own there.
+        at = int(x * zoom_of("bar"))
+        if verb == "activate" and known.get("itemIsMenu"):
+            verb = "menu"
+        if verb == "menu":
+            if self.popup.kind == "tray" and self.popup.tray_item == item:
+                self.popup.close()
+                return
+            self.popup.tray_item, self.popup.at = item, at
+            if known.get("menu"):
+                self.desktop.tray.do(do="menu", id=item)
+            else:
+                self.desktop.tray.do(do="context", id=item, x=at, y=0)
+        else:
+            self.popup.close()
+            self.desktop.tray.do(do=verb, id=item, x=at, y=0)
+
+    def _tray_menu(self, text: str) -> None:
+        menu = json.loads(text)
+        if menu.get("id") != self.popup.tray_item:
+            return
+        self.popup.show("tray")
+        menu["title"] = self.desktop.tray.known.get(menu["id"], {}).get("title", "")
+        self.popup.bridge.trayMenu.emit(json.dumps(menu))
+        self.bridge.state.emit(json.dumps(self.describe()))
 
     def toggle_popup(self, kind: str) -> None:
         if kind not in POPUPS:

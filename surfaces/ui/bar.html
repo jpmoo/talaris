@@ -64,6 +64,13 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #clock .day { color: var(--muted); margin-right: 8px; }
 .sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
 .ic { width: 16px; height: 16px; display: block; }
+/* The tray: running applications' own icons, in their own colors, a little
+   quieter until the pointer is on them; one asking for attention is not. */
+#tray { display: flex; align-items: center; gap: 2px; }
+#tray:not(:empty) { margin-right: 4px; }
+.tray-item img { width: 16px; height: 16px; display: block; opacity: .85; }
+.tray-item:hover img, .tray-item.attention img { opacity: 1; }
+.tray-item.attention { border-color: var(--accent); }
 </style>
 </head>
 <body data-edge="top">
@@ -74,6 +81,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   </div>
   <div id="where"></div>
   <div class="side end">
+    <span id="tray"></span>
     <button id="net" class="bar-item" title=""></button>
     <button id="bt" class="bar-item" title=""></button>
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>

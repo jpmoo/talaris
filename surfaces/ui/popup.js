@@ -244,6 +244,36 @@ function onPanel(p) {
 
 $("wifi-on").addEventListener("click", () => wifi && sendNet({ verb: "power", on: !wifi.on }, ""));
 $("bt-on").addEventListener("click", () => blue && sendBt({ verb: "power", on: !blue.on }, ""));
+// ---------------------------------------------------------------- the tray
+function trayEntries(items, into) {
+  for (const e of items) {
+    if (e.type === "separator") { into.append(Object.assign(document.createElement("div"), { className: "menu-sep" })); continue; }
+    if (e.children && e.children.length) {
+      into.append(Object.assign(document.createElement("div"), { className: "head", textContent: e.label }));
+      const sub = Object.assign(document.createElement("div"), { className: "sub" });
+      trayEntries(e.children, sub);
+      into.append(sub);
+      continue;
+    }
+    const b = Object.assign(document.createElement("button"), { className: "menu-item" });
+    const mark = Object.assign(document.createElement("span"), { className: "mark" });
+    if (e.toggle === "checkmark" && e.state === 1) mark.textContent = "✓";
+    if (e.toggle === "radio" && e.state === 1) mark.textContent = "●";
+    b.append(mark, Object.assign(document.createElement("span"), { textContent: e.label }));
+    b.disabled = e.enabled === false;
+    b.addEventListener("click", () => bridge.trayClick(e.id));
+    into.append(b);
+  }
+}
+function drawTrayMenu(menu) {
+  $("tray-title").textContent = (menu.title || "").toUpperCase();
+  const list = $("tray-menu");
+  list.replaceChildren();
+  if (menu.error || !menu.items.length) list.append(note(menu.error ? "No menu" : "Nothing in its menu"));
+  else trayEntries(menu.items, list);
+  refit();
+}
+
 $("rescan").addEventListener("click", () => { $("nets").replaceChildren(note("Looking…")); bridge.panelRead("network", true); });
 $("scan").addEventListener("click", () => { open.scanning = true; drawBlue(); bridge.panelRead("bluetooth", true); });
 $("net-more").addEventListener("click", () => bridge.openTool("network"));
@@ -252,4 +282,5 @@ $("bt-more").addEventListener("click", () => bridge.openTool("bluetooth"));
 Surface.connect({ onState, onMachine }).then((b) => {
   bridge = b;
   b.panel.connect((text) => onPanel(JSON.parse(text)));
+  b.trayMenu.connect((text) => drawTrayMenu(JSON.parse(text)));
 });

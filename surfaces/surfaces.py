@@ -48,6 +48,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from tray import Tray
 from winfx import WindowDraw
 from wallpaper import current as wallpaper_current
 from power import Power
@@ -439,6 +440,8 @@ class Desktop(QObject):
         sensor_module.TARGET.update(self.config["touch"])
         set_zoom(self.text_sizes())
         self.machine = Machine(self)
+        # Before the bar, which shows its icons.
+        self.tray = Tray(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
         # The bar first: its reserved space is what the drawers keep clear of.
@@ -640,6 +643,7 @@ class Desktop(QObject):
             hypr.unbind(keys)
         self.osd.unbind()
         self.power.stop()
+        self.tray.stop()
 
     # ---------------------------------------------------------------- settings
 

@@ -128,11 +128,35 @@ $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 $("net").addEventListener("click", () => bridge && bridge.popup("network"));
 $("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
 
+// The tray: running applications' icons. A press opens the application (or,
+// for one that is only a menu, its menu); the middle button is its second
+// action; the right one, its menu, under it.
+function drawTray(items) {
+  $("tray").replaceChildren(...items.filter((i) => !i.hidden).map((i) => {
+    const b = document.createElement("button");
+    b.className = "bar-item tray-item" + (i.status === "NeedsAttention" ? " attention" : "");
+    b.title = i.tooltip ? `${i.title}: ${i.tooltip}` : i.title;
+    const img = document.createElement("img");
+    img.src = i.icon;
+    img.alt = "";
+    b.append(img);
+    const x = () => { const r = b.getBoundingClientRect(); return r.left + r.width / 2; };
+    b.addEventListener("click", () => bridge && bridge.trayDo(i.id, "activate", x()));
+    b.addEventListener("auxclick", (e) => { if (e.button === 1 && bridge) bridge.trayDo(i.id, "secondary", x()); });
+    b.addEventListener("contextmenu", (e) => { e.preventDefault(); if (bridge) bridge.trayDo(i.id, "menu", x()); });
+    return b;
+  }));
+}
+
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #settings")) return;
+  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 
-Surface.connect({ onState, onMachine }).then((b) => { bridge = b; });
+Surface.connect({ onState, onMachine }).then((b) => {
+  bridge = b;
+  b.tray.connect((text) => drawTray(JSON.parse(text)));
+  b.trayItems((text) => drawTray(JSON.parse(text)));
+});

@@ -146,6 +146,8 @@ function draw() {
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
   $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
+  $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
+  if (bridge) trayRows();
   $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
   seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
@@ -211,6 +213,28 @@ $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.enabled === false } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
+// The tray: on or off, and each icon there is now shown or put away (kept by
+// the application's id, so it stays put away when the application comes back).
+$("tray-on").addEventListener("click", () => save({ bar: { tray: cfg.bar.tray === false } }));
+function trayRows() {
+  bridge.trayItems((text) => {
+    const hidden = new Set(cfg.bar.trayHidden || []);
+    const rows = JSON.parse(text).filter((i) => i.appId).map((i) => {
+      const sw = el("button", { class: "switch" + (hidden.has(i.appId) ? "" : " on") });
+      sw.addEventListener("click", () => {
+        const now = new Set(cfg.bar.trayHidden || []);
+        if (now.has(i.appId)) now.delete(i.appId); else now.add(i.appId);
+        save({ bar: { trayHidden: [...now] } });
+      });
+      const name = el("span", { class: "name" }, i.title || i.appId);
+      return el("div", { class: "row" }, name, el("span", { class: "what" }, sw));
+    });
+    $("tray-items").replaceChildren(...(rows.length ? rows : [el("p", { class: "note" }, "No tray icons right now.")]));
+    needs(["tray-items"], cfg.bar.tray !== false);
+    $("tray-items").classList.toggle("needs-off", cfg.bar.tray === false);
+  });
+}
+
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
 $("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 $("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
@@ -319,6 +343,11 @@ function drawMorgan() {
   body.push(field("Chat model", "ollama.model", (m.ollama || {}).model, "On the Ollama server"));
   body.push(field("Ollama server", "ollama.url", (m.ollama || {}).url));
   body.push(field("Oracle", "oracleModel", m.oracleModel, "Claude, when the chat model is not enough"));
+  // Which Claude account it asks as: read where the Oracle runs. An older Morgan does not say.
+  if (m.oracleAccount) {
+    body.push(el("div", { class: "row" }, el("span", { class: "name" }, "Oracle account", el("small", {}, "Its own Claude login, where Morgan runs")),
+      el("span", { class: "what" }, el("span", { class: "n", style: "width:auto" }, m.oracleAccount))));
+  }
   body.push(el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" },
     el("button", { class: "t-btn", onclick: saveMorgan }, "Save to Morgan"), el("span", { class: "note", style: "margin:0" }, "Some changes restart Morgan for a moment"))));
   $("morgan-body").replaceChildren(...body);

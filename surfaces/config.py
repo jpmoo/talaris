@@ -27,7 +27,9 @@ DEFAULTS = {
     # outline: "line" or "none"; shadow under it; motion as it comes out from
     # hiding: "slide" or "none".
     "bar": {"edge": "top", "autohide": False, "shape": "strip", "inset": 8, "opacity": 100,
-            "outline": "line", "shadow": False, "motion": "slide", "speed": "normal"},
+            "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
+            # The tray: running applications' icons; trayHidden lists the ones put away, by id.
+            "tray": True, "trayHidden": []},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.

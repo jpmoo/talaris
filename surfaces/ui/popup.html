@@ -23,6 +23,12 @@ body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth { d
 /* Wi-Fi and Bluetooth: a list that scrolls, things you can do under it. */
 .list { flex: 1; min-height: 0; overflow: auto; }
 .list .menu-item { justify-content: flex-start; }
+/* A tray item's own menu: its entries as it gives them, a tick or a dot for
+   a toggle, a submenu's entries under its name, set in. */
+#tray-menu .menu-item { justify-content: flex-start; gap: 8px; }
+#tray-menu .mark { width: 12px; flex: none; color: var(--accent); text-align: center; }
+#tray-menu .sub { padding-left: 14px; }
+#tray-menu .head { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); }
 .list .menu-item .ic { width: 16px; height: 16px; flex: none; }
 .list .menu-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .menu-item .meta { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; flex: none; }
@@ -68,6 +74,10 @@ input[type="range"]::-webkit-slider-thumb {
   <button class="menu-item" data-verb="logout" data-ask="Log out — again to confirm">Log out</button>
   <button class="menu-item" data-verb="restart" data-ask="Restart — again to confirm">Restart</button>
   <button class="menu-item" data-verb="shutdown" data-ask="Shut down — again to confirm">Shut down</button>
+</div>
+<div class="panel menu" id="tray">
+  <div class="hint"><span id="tray-title"></span></div>
+  <div id="tray-menu"></div>
 </div>
 <div class="panel menu" id="volume">
   <div class="hint"><span>Volume</span><span id="vol-state"></span></div>

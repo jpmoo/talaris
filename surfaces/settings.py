@@ -89,6 +89,8 @@ def _checked(c: dict) -> str:
         return "Text is small, medium or large"
     if not isinstance(p.get("dim", True), bool):
         return "Dim behind is on or off"
+    if not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
+        return "Not a tray setting"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings")):
         return "The launcher, Morgan and Settings move as windows or as drawers"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
@@ -171,6 +173,11 @@ class SettingsBridge(Bridge):
         now = wallpaper.current()
         error = wallpaper.choose(now["path"], fit) if now["path"] else "No picture yet"
         self.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+
+    @Slot(result=str)
+    def trayItems(self) -> str:  # noqa: N802 — called from the page by this name
+        """Every tray item there is now, shown on the bar or not."""
+        return self.owner.desktop.tray.last
 
     @Slot(result=str)
     def charging(self) -> str:
