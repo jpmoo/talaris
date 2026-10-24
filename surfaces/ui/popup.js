@@ -265,6 +265,21 @@ function trayEntries(items, into) {
     into.append(b);
   }
 }
+// The folded tray's pane: a press here does what it does on the bar; the
+// process places a menu where the pane is.
+function drawTrayIcons(items) {
+  $("tray-icons").replaceChildren(...items.filter((i) => !i.hidden).map((i) => {
+    const b = Object.assign(document.createElement("button"), { title: i.tooltip ? `${i.title}: ${i.tooltip}` : i.title });
+    if (i.status === "NeedsAttention") b.className = "attention";
+    b.append(Object.assign(document.createElement("img"), { src: i.icon, alt: "" }));
+    b.addEventListener("click", () => bridge.trayDo(i.id, "activate", -1));
+    b.addEventListener("auxclick", (e) => { if (e.button === 1) bridge.trayDo(i.id, "secondary", -1); });
+    b.addEventListener("contextmenu", (e) => { e.preventDefault(); bridge.trayDo(i.id, "menu", -1); });
+    return b;
+  }));
+  if (document.body.dataset.popup === "trayicons") refit();
+}
+
 function drawTrayMenu(menu) {
   $("tray-title").textContent = (menu.title || "").toUpperCase();
   const list = $("tray-menu");
@@ -283,4 +298,5 @@ Surface.connect({ onState, onMachine }).then((b) => {
   bridge = b;
   b.panel.connect((text) => onPanel(JSON.parse(text)));
   b.trayMenu.connect((text) => drawTrayMenu(JSON.parse(text)));
+  b.tray.connect((text) => drawTrayIcons(JSON.parse(text)));
 });

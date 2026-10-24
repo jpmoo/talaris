@@ -26,6 +26,12 @@ body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth { d
 /* A tray item's own menu: its entries as it gives them, a tick or a dot for
    a toggle, a submenu's entries under its name, set in. */
 #tray-menu .menu-item { justify-content: flex-start; gap: 8px; }
+/* The folded tray's pane: the icons in a row that wraps. */
+#tray-icons { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 6px 6px; }
+#tray-icons button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius-control); background: none; cursor: pointer; }
+#tray-icons button:hover { border-color: var(--line); }
+#tray-icons button.attention { border-color: var(--accent); }
+#tray-icons img { width: 20px; height: 20px; display: block; }
 #tray-menu .mark { width: 12px; flex: none; color: var(--accent); text-align: center; }
 #tray-menu .sub { padding-left: 14px; }
 #tray-menu .head { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); }
@@ -74,6 +80,10 @@ input[type="range"]::-webkit-slider-thumb {
   <button class="menu-item" data-verb="logout" data-ask="Log out — again to confirm">Log out</button>
   <button class="menu-item" data-verb="restart" data-ask="Restart — again to confirm">Restart</button>
   <button class="menu-item" data-verb="shutdown" data-ask="Shut down — again to confirm">Shut down</button>
+</div>
+<div class="panel menu" id="trayicons">
+  <div class="hint"><span>Tray</span></div>
+  <div id="tray-icons"></div>
 </div>
 <div class="panel menu" id="tray">
   <div class="hint"><span id="tray-title"></span></div>

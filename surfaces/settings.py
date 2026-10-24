@@ -89,7 +89,7 @@ def _checked(c: dict) -> str:
         return "Text is small, medium or large"
     if not isinstance(p.get("dim", True), bool):
         return "Dim behind is on or off"
-    if not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
+    if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings")):
         return "The launcher, Morgan and Settings move as windows or as drawers"

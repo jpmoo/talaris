@@ -147,6 +147,8 @@ function draw() {
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
   $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
+  $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
+  needs(["tray-fold"], cfg.bar.tray !== false);
   if (bridge) trayRows();
   $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
   seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
@@ -216,6 +218,7 @@ $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.doc
 // The tray: on or off, and each icon there is now shown or put away (kept by
 // the application's id, so it stays put away when the application comes back).
 $("tray-on").addEventListener("click", () => save({ bar: { tray: cfg.bar.tray === false } }));
+$("tray-fold").addEventListener("click", () => save({ bar: { trayFold: !cfg.bar.trayFold } }));
 function trayRows() {
   bridge.trayItems((text) => {
     const hidden = new Set(cfg.bar.trayHidden || []);

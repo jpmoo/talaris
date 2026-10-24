@@ -51,7 +51,8 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400), "tray": (260, 200)}
+POPUPS = {"power": (210, 200), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400), "tray": (260, 200),
+          "trayicons": (220, 80)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -87,6 +88,10 @@ class BarBridge(Bridge):
     def trayDo(self, item: str, verb: str, x: float) -> None:  # noqa: N802 — called from the page by this name
         """A press on a tray icon: `activate`, `secondary` or `menu`, at `x` along the bar (its page's pixels)."""
         self.owner.desktop.bar.tray_do(item, verb, x)
+
+    @Slot(float)
+    def trayPane(self, x: float) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.bar.tray_pane(x)
 
     @Slot(int)
     def trayClick(self, entry: int) -> None:  # noqa: N802 — called from the page by this name
@@ -184,7 +189,7 @@ class Popup(QObject):
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
-        if kind == "tray":
+        if kind in ("tray", "trayicons"):
             # Under the icon it belongs to.
             screen = QApplication.primaryScreen().geometry()
             left = max(4, min(int(self.at - zoom(w) / 2), screen.width() - zoom(w) - 4))
@@ -199,7 +204,7 @@ class Popup(QObject):
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.
-    FITTED = ("power", "volume", "tray")
+    FITTED = ("power", "volume", "tray", "trayicons")
 
     def fit(self, height: int) -> None:
         if self.kind not in self.FITTED or height <= 0:
@@ -254,7 +259,7 @@ class Bar(QObject):
                               busy=lambda: bool(self.popup.kind), parent=self)
         desktop.machine.read.connect(self._reading)
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
-        desktop.tray.items.connect(lambda _text: self.bridge.tray.emit(self.tray_listing()))
+        desktop.tray.items.connect(lambda _text: self._tray_changed())
         desktop.tray.menu.connect(self._tray_menu)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
@@ -316,12 +321,28 @@ class Bar(QObject):
         items = json.loads(self.desktop.tray.last)
         return json.dumps([{**i, "hidden": i.get("appId") in hidden} for i in items] if look.get("tray", True) else [])
 
+    def _tray_changed(self) -> None:
+        listing = self.tray_listing()
+        self.bridge.tray.emit(listing)
+        self.popup.bridge.tray.emit(listing)
+
+    def tray_pane(self, x: float) -> None:
+        """The folded tray's icon: its pane of icons, under it, out or away."""
+        if self.popup.kind == "trayicons":
+            self.popup.close()
+            return
+        self.popup.tray_item, self.popup.at = "", int(x * zoom_of("bar"))
+        self.popup.show("trayicons")
+        self.popup.bridge.tray.emit(self.tray_listing())
+        self.bridge.state.emit(json.dumps(self.describe()))
+
     def tray_do(self, item: str, verb: str, x: float) -> None:
         known = self.desktop.tray.known.get(item)
         if not known:
             return
-        # Where on the screen, for an item that places something of its own there.
-        at = int(x * zoom_of("bar"))
+        # Where on the screen, for an item that places something of its own
+        # there; from the folded tray's pane (x < 0), where the pane is.
+        at = int(x * zoom_of("bar")) if x >= 0 else self.popup.at
         if verb == "activate" and known.get("itemIsMenu"):
             verb = "menu"
         if verb == "menu":

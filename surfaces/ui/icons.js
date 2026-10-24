@@ -64,5 +64,8 @@ const Icons = (() => {
 
   const power = () => svg('<path d="M8 2v5.5"/><path d="M4.6 4.3a5 5 0 1 0 6.8 0"/>');
 
-  return { search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  // The tray, folded: a tray with things in it.
+  const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
+
+  return { tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();

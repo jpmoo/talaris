@@ -16,8 +16,10 @@ $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
 
 function onState(s) {
+  const folded = !!(state.look || {}).trayFold;
   state = s;
   const look = s.look || {};
+  if (!!look.trayFold !== folded) drawTray(trayNow);
   document.body.dataset.shape = look.shape || "strip";
   const m = look.margins || {};
   for (const side of ["top", "right", "bottom", "left"]) document.body.style.setProperty(`--m-${side}`, `${m[side] ?? 0}px`);
@@ -131,8 +133,22 @@ $("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
 // The tray: running applications' icons. A press opens the application (or,
 // for one that is only a menu, its menu); the middle button is its second
 // action; the right one, its menu, under it.
+// Folded (Settings, Bar), they are one icon that opens a pane of them under it.
+let trayNow = [];
 function drawTray(items) {
-  $("tray").replaceChildren(...items.filter((i) => !i.hidden).map((i) => {
+  trayNow = items;
+  const shown = items.filter((i) => !i.hidden);
+  if ((state.look || {}).trayFold) {
+    if (!shown.length) { $("tray").replaceChildren(); return; }
+    const b = document.createElement("button");
+    b.className = "bar-item tray-item tray-fold" + (shown.some((i) => i.status === "NeedsAttention") ? " attention" : "");
+    b.title = shown.map((i) => i.title).join(", ");
+    b.innerHTML = Icons.tray();
+    b.addEventListener("click", () => { const r = b.getBoundingClientRect(); if (bridge) bridge.trayPane(r.left + r.width / 2); });
+    $("tray").replaceChildren(b);
+    return;
+  }
+  $("tray").replaceChildren(...shown.map((i) => {
     const b = document.createElement("button");
     b.className = "bar-item tray-item" + (i.status === "NeedsAttention" ? " attention" : "");
     b.title = i.tooltip ? `${i.title}: ${i.tooltip}` : i.title;
