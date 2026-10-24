@@ -672,10 +672,11 @@ Decided 2026-10-23:
   its drawer, not one running document. Each page is a Markdown file.
 - **Canvases and pages are versioned.** You can go back to an earlier state of
   either, without a backup and without git.
-- **Plain files, no database.** JSON for projects and canvases, Markdown for
-  pages. One writer — the core — and every write goes to a temporary file
-  renamed into place, so a crash never leaves half a canvas. Any search index is
-  a rebuildable cache, never the source of truth.
+- **Plain files, no database** — for what a project holds. JSON for projects
+  and canvases, Markdown for pages. One writer — the core — and every write
+  goes to a temporary file renamed into place, so a crash never leaves half a
+  canvas. Any search index is a rebuildable cache, never the source of truth.
+  *Entities* (below) are the one exception, kept centrally and encrypted.
 
 ### A project is a folder
 
@@ -845,6 +846,116 @@ ticks the other.
 **Open, to settle when it is built:** where tasks are shown — their own drawer,
 a section of the writing drawer, cards on a canvas, all three — and how daily
 notes and tasks meet.
+
+## Entities
+
+Decided 2026-10-24. Some things have standing of their own: **people, notes,
+projects, tasks and events.** They are linked, annotated and asked about —
+"who was at that meeting", "what do I have on this person" — from anywhere:
+a canvas, a page, the calendar, Morgan. That reverses two earlier rules, on
+purpose: *plain files, no database* now holds for a project's own files only,
+and *Talaris keeps furniture; plugins keep knowledge* now reads *plugins sync
+knowledge* — Talaris keeps its own, and a plugin (Hermes first) syncs it.
+
+**The shape is `pkm-interchange`, not something like it.** Every entity is an
+interchange object; its kind is its type's profile (`contact`, `event`,
+`task`, `note`, `journal`), never its type's name; links are declared
+`reference` fields where a type declares them and `relations` where nobody
+did (`via: "edge"` for a line drawn on a canvas, `via: "inline"` for one
+written in a page); a name written before its thing exists is a **stub**;
+files and apps are **attachments**. Talaris's own keys go under `talaris:`.
+**A project is an entity like any other** — the format has no project profile
+and needs none: a task's `project` field is a `reference` (`many`, so a task
+can belong to two), and "what is in this project" is what references it. What
+makes one a Talaris project — its folder, its workspace — is `talaris:` keys.
+
+**Compliance is measured, not claimed.** The core exports an envelope
+(`stableIds: true`) that `pkm-interchange/check` scores, and imports one back;
+the tests run the format's fixtures and a round trip, as Hermes' build does.
+The core's reading of the format is its own — not Hermes' code — because two
+independent implementations is what makes the format prove anything. Syncing
+with Hermes is then a plugin's job and needs nothing special here: a Talaris
+entity that is also a Hermes object carries the Hermes id under `hermes:`.
+
+**An entity is made the first time something needs to point at it.** Not every
+doodle is an object (the format's own known limit: *a canvas holds things that
+are not objects*):
+
+- **Events** are mirrored from the calendars as the calendar loads them, one
+  entity per event (a recurring one as its series), refreshed when the
+  calendar changes. The calendar service stays their owner: Talaris keeps what
+  it adds — links, notes — beside what it mirrors.
+- **People** are made when they first matter: an invitee or organizer of a
+  mirrored event (matched by email to the address books, then to people
+  already known), or someone linked or mentioned. **An event's invitees are
+  people it references** (`attendees`, `organizer`), so "everyone connected to
+  this event" is a lookup, not a search.
+- **A canvas note** becomes an entity when it is made one — *this note is an
+  event*, *this is a person* — or linked to one. Its card keeps the entity's
+  id; it is the entity shown on that canvas, as many canvases as like.
+  Shapes and scribbles stay furniture.
+- **Pages** are notes by their path, the file still the source of their text;
+  the core keeps the id with the page through renames and moves.
+- **Apps and files are attachments** on an entity: an app's opening rules as a
+  JSON attachment of Talaris's own media type, its picture as another. The
+  hash is the identity, so a file attached twice is stored once.
+
+### Where entities live, and encryption
+
+- **Centrally**, in `~/.local/share/talaris/entities/`: one sealed file per
+  entity (with the links going out of it), one per attached file, kept by its
+  hash. The index — by kind, by source, by who points at what — is built in
+  memory at start and is a cache. Plain files rather than a database engine:
+  no native module to break on a Node upgrade, and the same one-writer,
+  rename-into-place rule as everything else.
+- **Everything stored is encrypted** — AES-256-GCM, with a key in the login
+  keyring. **A key is never made over existing data**: a keyring that is locked
+  or not up yet is a failure to try again, not an empty one (Morgan lost its
+  history to exactly that, 21 October 2026). The store's key is also kept
+  *wrapped to the recovery key*, so a lost keyring is not lost data.
+- **The recovery key** is made with the store and shown once, in Settings →
+  Data, until it is said to be kept. It is the private half of a key pair:
+  Talaris keeps only the public half, which is enough to seal backups and the
+  wrapped key, and never enough to open them. It can be replaced (new backups
+  use the new one; old ones still need the old).
+- **A project can be encrypted** (Settings → Data). Its pages, canvases and
+  versions are then sealed on disk with the store's key — readable through
+  Talaris, gibberish to any other application, so it is a choice per project
+  and not the default: a project is a folder other applications save into, and
+  those files are theirs and are not sealed. The disk itself is better
+  protected by full-disk encryption, which this machine does not have.
+
+### Backups
+
+A **backup is an interchange export, sealed to the recovery key**: the
+envelope, the files, the wrapped store key, written to a folder chosen in
+Settings → Data, on a schedule (daily or weekly), keeping as many as asked.
+Each is checked against the format as it is written, and the page says when
+the last one ran and whether it passed. **Reviving** one asks for the recovery
+key, shows what it holds, keeps the current store as a backup first, and then
+imports — the same import as any other, so every revival is also a test that
+the round trip loses nothing. Project folders are not in it: they are folders,
+for whatever already backs up folders.
+
+### Morgan
+
+**Morgan reaches entities through Talaris's MCP server** (`talaris-core mcp`),
+not through anything built into Morgan: find an entity, read it with
+everything connected to it — the people at an event, the events and notes a
+person turns up in, what a project holds — and link or annotate. Running
+locally, Morgan adds it like any MCP server. As a client of a server, it needs
+one general thing of Morgan's own: **MCP servers kept on the client**, whose
+tools the client offers the server and runs when asked, as it already does for
+files and sight.
+
+**Any MCP client can use it, which is the point and the risk.** Claude Code,
+Claude Desktop, the Oracle's `claude` — anything that speaks MCP on this
+machine reads the same graph Morgan does. The store is sealed on disk; this
+server hands out what is in it, opened. So it speaks over standard input
+only — a client on this machine, started as the user — and its reading tools
+and its writing tools are separate, so a client can be given only the first.
+Reaching it over the network (MCP over HTTP, with a key) would be a choice made
+in Settings, never the default.
 
 ## The compositor is a backend
 
