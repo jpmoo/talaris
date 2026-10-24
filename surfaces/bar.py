@@ -333,6 +333,7 @@ class Bar(QObject):
             return
         self.popup.tray_item, self.popup.at = "", int(x * zoom_of("bar"))
         self.popup.show("trayicons")
+        log("popup: trayicons")
         self.popup.bridge.tray.emit(self.tray_listing())
         self.bridge.state.emit(json.dumps(self.describe()))
 
@@ -363,6 +364,7 @@ class Bar(QObject):
         if menu.get("id") != self.popup.tray_item:
             return
         self.popup.show("tray")
+        log(f"popup: tray menu ({len(menu.get('items', []))} entries)")
         menu["title"] = self.desktop.tray.known.get(menu["id"], {}).get("title", "")
         self.popup.bridge.trayMenu.emit(json.dumps(menu))
         self.bridge.state.emit(json.dumps(self.describe()))
