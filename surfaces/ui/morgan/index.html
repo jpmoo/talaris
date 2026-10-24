@@ -44,6 +44,8 @@
   /* Talaris: no title bar — the bar's button already says who this is and
      what it is doing. A row across the top instead: the state and its meter
      on the left, the controls on the right. */
+  button.frame { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; color: var(--dim); }
+  button.frame:hover { color: var(--accent); }
   header { border-bottom: 1px solid var(--line); background: var(--panel); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
   .controls .name { display: none; }
@@ -164,8 +166,8 @@
     <button id="history" title="Earlier conversations, by day"><i class="ti" data-icon="calendar"></i></button>
     <button id="settings" title="Settings: memory, voice, listening, files, connections"><i class="ti" data-icon="settings"></i></button>
     <button id="new" title="Start a new conversation"><i class="ti" data-icon="plus"></i></button>
-    <button id="grow" title="Full screen"><i class="ti" id="growicon"></i></button>
-    <button id="close" title="Close"><i class="ti" data-icon="x"></i></button>
+    <button id="grow" class="frame" title="Full screen"></button>
+    <button id="close" class="frame" title="Close"></button>
   </div>
 </div></header>
 <main id="scroll"><div class="column" id="log"></div></main>
@@ -195,6 +197,7 @@
 <script src="markdown-it.min.js"></script>
 <script src="../surface.js"></script>
 <script src="../motion.js"></script>
+<script src="../icons.js"></script>
 <script>
 "use strict";
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
@@ -481,7 +484,9 @@ $("settings").onclick = () => bridge.settings();
 let expandedState = { expanded: false, closes: false };
 function paintGrow() {
   const { expanded, closes } = expandedState;
-  $("growicon").textContent = glyph(expanded ? (closes ? "x" : "arrows-minimize") : "arrows-maximize");
+  // The drawers' own expand button (icons.js), so every pane's is the same.
+  $("grow").innerHTML = expanded ? (closes ? Icons.close() : Icons.shrink()) : Icons.grow();
+  $("close").innerHTML = Icons.close();
   $("grow").title = expanded ? (closes ? "Close" : "Back to a panel") : "Full screen";
   $("close").hidden = expanded && closes;
 }

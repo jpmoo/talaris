@@ -64,8 +64,16 @@ const Icons = (() => {
 
   const power = () => svg('<path d="M8 2v5.5"/><path d="M4.6 4.3a5 5 0 1 0 6.8 0"/>');
 
+  // The expand button, the same on every pane that has one (the drawers,
+  // Morgan): four corners out to fill the screen, in to come back, and a
+  // cross where coming back closes it.
+  const frame = (d) => `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+  const grow = () => frame("M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9");
+  const shrink = () => frame("M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3");
+  const close = () => frame("M3 3l8 8M11 3l-8 8");
+
   // The tray, folded: a tray with things in it.
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
-  return { tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  return { grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();

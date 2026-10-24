@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+import shiboken6
 from PySide6.QtCore import QEvent, QObject, QTimer, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication, QWidget
@@ -189,21 +190,29 @@ class Presses(QObject):
         super().__init__(view)
         self.view = view
         self._watched = None
+        # The engine's widget that takes the presses is made late and anew;
+        # looked for again when the page loads and when the view is shown.
         view.loadFinished.connect(lambda _ok: self._watch())
+        view.installEventFilter(self)
         self._watch()
 
     def _watch(self) -> None:
+        if not shiboken6.isValid(self.view):
+            return
         target = self.view.focusProxy() or self.view
         if target is not self._watched:
             target.installEventFilter(self)
             self._watched = target
 
-    def eventFilter(self, _watched, event) -> bool:  # noqa: N802 — Qt's name
-        if event.type() == QEvent.Type.MouseButtonPress:
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
+        if not shiboken6.isValid(self.view):
+            return False
+        kind = event.type()
+        if kind == QEvent.Type.MouseButtonPress and watched is self._watched:
             z = self.view.zoomFactor() or 1
             p = event.position()
             self.view.page().runJavaScript(f"window.pressedAt && pressedAt({p.x() / z:.1f}, {p.y() / z:.1f})")
-        else:
+        elif kind == QEvent.Type.Show and watched is self.view:
             self._watch()
         return False
 

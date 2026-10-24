@@ -62,10 +62,10 @@ function applyTheme(theme) {
 //
 // Slide, draw or none, as Settings says (motion.js has them).
 // Four corners out to expand; in to make it a drawer again.
-const GROW = '<svg viewBox="0 0 14 14"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>';
-const SHRINK = '<svg viewBox="0 0 14 14"><path d="M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3"/></svg>';
+const GROW = Icons.grow();
+const SHRINK = Icons.shrink();
 // Set to close after full screen, the button that ends it closes the drawer: it says so.
-const CLOSE = '<svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
+const CLOSE = Icons.close();
 const motion = () => document.documentElement.dataset.motion || "slide";
 
 // How it comes and goes (motion.js), as a drawer: from its edge, flush with
