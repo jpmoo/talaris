@@ -12,6 +12,9 @@ import { randomBytes } from "node:crypto";
  */
 export function writeAtomic(path: string, data: string | Buffer): void {
   mkdirSync(dirname(path), { recursive: true });
+  // A file inside an encrypted project is sealed on its way to disk.
+  const key = sealer?.keyFor(path);
+  if (key) data = sealer!.seal(key, data);
   const tmp = join(dirname(path), `.${basename(path)}.${randomBytes(4).toString("hex")}.tmp`);
   const fd = openSync(tmp, "w", 0o644);
   try {
@@ -28,7 +31,33 @@ export function writeJson(path: string, value: unknown): void {
 }
 
 export function readJson<T>(path: string): T {
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return JSON.parse(readText(path)) as T;
+}
+
+/**
+ * A file's text, opened first if it is sealed. Every file a project's pages,
+ * canvases and versions are read from comes through here, so an encrypted
+ * project reads like any other, and one half-way through being encrypted —
+ * some files sealed, some not yet — reads too.
+ */
+export function readText(path: string): string {
+  const data = readFileSync(path);
+  return (sealer && sealer.isSealed(data) ? sealer.open(data) : data).toString("utf8");
+}
+
+/**
+ * How files are sealed, set by `sealed-projects.ts` — which knows the projects
+ * and the key — so that this, the bottom of everything, depends on neither.
+ */
+export interface Sealer {
+  keyFor(path: string): Buffer | null;
+  seal(key: Buffer, data: string | Buffer): Buffer;
+  isSealed(data: Buffer): boolean;
+  open(data: Buffer): Buffer;
+}
+let sealer: Sealer | null = null;
+export function setSealer(s: Sealer | null): void {
+  sealer = s;
 }
 
 /** Short ids, prefixed by what they are, so a stray one in a log says what it was. */

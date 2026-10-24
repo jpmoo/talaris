@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { VersionEntry } from "@talaris/model";
-import { writeAtomic } from "./store.js";
+import { readText, writeAtomic } from "./store.js";
 
 /**
  * Versions of canvases and pages, kept as plain copies so they can be seen and
@@ -51,7 +51,7 @@ export function listVersions(dir: string): VersionEntry[] {
 
 export function readVersion(dir: string, name: string): string {
   if (name.includes("/") || name.startsWith(".")) throw new Error("not a version name");
-  return readFileSync(join(dir, name), "utf8");
+  return readText(join(dir, name));
 }
 
 export function saveVersion(dir: string, content: string, ext: string, now = new Date()): void {

@@ -13,9 +13,13 @@
 import { SOCKET, projectsRoot } from "./paths.js";
 import { ensureHome } from "./projects.js";
 import { listen, VERSION } from "./server.js";
+import { startSealing } from "./sealed-projects.js";
+import { startSchedule } from "./backup.js";
 
 async function main(): Promise<void> {
   const home = ensureHome();
+  startSealing();
+  startSchedule();
   const server = await listen(SOCKET);
   console.log(`talaris-core ${VERSION}: ${projectsRoot()} (Home ${home.code}), on ${SOCKET}`);
   const stop = () => server.close(() => process.exit(0));

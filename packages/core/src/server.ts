@@ -37,6 +37,13 @@ import {
   setPageLook,
 } from "./pages.js";
 
+import * as entities from "./entities.js";
+import { exportEnvelope } from "./interchange.js";
+import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
+import { SealError } from "./seal.js";
+import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
+import { encryptedProjects, setProjectEncrypted } from "./sealed-projects.js";
+
 /**
  * The core's HTTP, on a Unix socket. No port is opened: a port would make every
  * process on the machine a client of something that holds a person's work.
@@ -172,6 +179,84 @@ route("GET", "/projects/:id/page/versions/:name", (_r, [id, name], q) => pageVer
 route("POST", "/projects/:id/page/versions/:name/restore", (_r, [id, name], q) =>
   restorePage(id!, need(q, "path"), name!));
 
+// ------------------------------------------------------------ entities
+
+route("GET", "/entities", (_r, _p, q) =>
+  entities.findEntities({ q: q.get("q") ?? "", kind: q.get("kind") ?? undefined, limit: Number(q.get("limit") ?? 50), archived: q.get("archived") === "1" }));
+route("POST", "/entities", async (req) => entities.createEntity(await json<entities.NewEntity>(req)));
+route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
+route("POST", "/entities/mirror/events", async (req) => {
+  const b = await json<{ events?: entities.MirroredEvent[] }>(req);
+  return { ids: (b.events ?? []).map((e) => entities.mirrorEvent(e).id) };
+});
+route("POST", "/entities/person", async (req) => {
+  const b = await json<{ email?: string; name?: string }>(req);
+  if (!b.email) throw new BadRequest("a person is found by email");
+  return entities.personFor(b.email, b.name);
+});
+route("GET", "/entities/:id", (_r, [id]) => {
+  const { entity, out, in: incoming } = entities.connections(id!);
+  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming };
+});
+route("PATCH", "/entities/:id", async (req, [id]) => entities.updateEntity(id!, await json<entities.Patch>(req)));
+route("DELETE", "/entities/:id", (_r, [id]) => {
+  entities.deleteEntity(id!);
+  return { ok: true };
+});
+route("POST", "/entities/:id/connect", async (req, [id]) => {
+  const b = await json<{ to?: string; type?: string; via?: string }>(req);
+  if (!b.to) throw new BadRequest("connect to what?");
+  return entities.connect(id!, b.to, b);
+});
+route("DELETE", "/entities/:id/connect/:to", (_r, [id, to]) => {
+  entities.disconnect(id!, to!);
+  return { ok: true };
+});
+route("POST", "/entities/:id/files", async (req, [id]) => {
+  const b = await json<{ filename?: string; mediaType?: string; data?: string; field?: string }>(req);
+  if (!b.filename || !b.data) throw new BadRequest("a file has a name and data (base64)");
+  const value = entities.putFile(Buffer.from(b.data, "base64"), b.filename, b.mediaType);
+  if (b.field) entities.updateEntity(id!, { properties: { [b.field]: value } });
+  return value;
+});
+route("GET", "/entity-types", () => entities.types());
+route("GET", "/interchange/export", () => exportEnvelope());
+
+// ------------------------------------------------------------ the vault, backups, encrypted projects
+
+route("GET", "/vault", () => ({ ...recoveryState(), encryptedProjects: safely(encryptedProjects, []), backups: backupStatus() }));
+route("POST", "/vault/recovery-kept", () => {
+  recoveryKept();
+  return recoveryState();
+});
+route("POST", "/vault/recovery/replace", () => ({ recoveryKey: replaceRecovery() }));
+route("POST", "/vault/unlock", async (req) => {
+  const b = await json<{ recoveryKey?: string }>(req);
+  if (!b.recoveryKey) throw new BadRequest("the recovery key, please");
+  unlock(b.recoveryKey);
+  entities.reloadEntities();
+  return recoveryState();
+});
+route("POST", "/backups/now", () => backupNow("asked"));
+route("POST", "/backups/preview", async (req) => {
+  const b = await json<{ file?: string; recoveryKey?: string }>(req);
+  if (!b.file || !b.recoveryKey) throw new BadRequest("a backup file and its recovery key");
+  return previewBackup(b.file, b.recoveryKey);
+});
+route("POST", "/backups/revive", async (req) => {
+  const b = await json<{ file?: string; recoveryKey?: string }>(req);
+  if (!b.file || !b.recoveryKey) throw new BadRequest("a backup file and its recovery key");
+  return reviveBackup(b.file, b.recoveryKey);
+});
+route("PUT", "/projects/:id/encrypted", async (req, [id]) => {
+  const b = await json<{ on?: boolean }>(req);
+  return setProjectEncrypted(id!, b.on === true);
+});
+
+function safely<T>(f: () => T, fallback: T): T {
+  try { return f(); } catch { return fallback; }
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", "http://talaris");
   const path = url.pathname.split("/").map(decodeURIComponent).join("/");
@@ -186,7 +271,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     }
     send(res, 404, { error: `no route ${req.method} ${path}` });
   } catch (e) {
-    const status = e instanceof NotFound ? 404 : e instanceof Conflict ? 409 : e instanceof BadRequest ? 400 : 500;
+    // Locked is its own answer: the store is there, and needs its key.
+    const status = e instanceof NotFound ? 404 : e instanceof Conflict ? 409 : e instanceof BadRequest || e instanceof SealError ? 400
+      : e instanceof Locked ? 423 : 500;
     if (status === 500) console.error("talaris-core:", e);
     send(res, status, { error: e instanceof Error ? e.message : String(e) });
   }

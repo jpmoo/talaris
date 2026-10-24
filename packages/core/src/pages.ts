@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING } from "./paths.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
-import { readJson, writeAtomic, writeJson } from "./store.js";
+import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 
 /**
@@ -125,7 +125,7 @@ export function pageTree(projectId: string): PageNode[] {
 export function readPage(projectId: string, path: string): string {
   const { folder } = findProject(projectId);
   const file = pageFile(folder, path);
-  if (existsSync(file)) return readFileSync(file, "utf8");
+  if (existsSync(file)) return readText(file);
   if (existsSync(childDir(folder, path))) return "";
   throw new NotFound(`no page ${path}`);
 }
@@ -245,7 +245,7 @@ export function deletePage(projectId: string, path: string): void {
   }
   const file = pageFile(folder, p);
   if (existsSync(file)) {
-    saveVersion(versionDir(join(folder, MACHINERY), "page", p), readFileSync(file, "utf8"), "md");
+    saveVersion(versionDir(join(folder, MACHINERY), "page", p), readText(file), "md");
     rmSync(file);
   }
   if (existsSync(dir)) rmSync(dir, { recursive: true });
@@ -300,7 +300,7 @@ export function dailyMonth(projectId: string, month: string): Array<{ date: stri
     .filter((n) => n.startsWith(`${month}-`) && /^\d{4}-\d{2}-\d{2}\.md$/.test(n))
     .sort()
     .map((n) => {
-      const text = readFileSync(join(dir, n), "utf8");
+      const text = readText(join(dir, n));
       return { date: n.slice(0, 10), words: text.split(/\s+/).filter(Boolean).length };
     })
     .filter((d) => d.words > 0);
