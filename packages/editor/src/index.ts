@@ -238,7 +238,9 @@ const livePreview = ViewPlugin.fromClass(
  * accent, the typeface and light or dark without being told.
  */
 const look = EditorView.theme({
-  "&": { height: "100%", color: "var(--text)", backgroundColor: "transparent", fontSize: "14px" },
+  // --type-scale is Settings' writing size, set by the drawer; the page's own
+  // controls take the interface's.
+  "&": { height: "100%", color: "var(--text)", backgroundColor: "transparent", fontSize: "calc(14px * var(--type-scale, 1))" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font)", lineHeight: "1.6" },
   ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--accent)" },
@@ -279,7 +281,7 @@ const look = EditorView.theme({
   ".cm-foldPlaceholder": { background: "var(--accent-wash)", border: "none", color: "var(--accent)", borderRadius: "4px", padding: "0 5px", margin: "0 4px" },
   ".cm-task-done": { color: "var(--muted)", textDecoration: "line-through" },
   ".cm-hr": { background: "linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat" },
-  "&.raw .cm-scroller": { fontFamily: "ui-monospace, monospace", fontSize: "13px" },
+  "&.raw .cm-scroller": { fontFamily: "ui-monospace, monospace", fontSize: "calc(13px * var(--type-scale, 1))" },
 });
 
 const compactLook = EditorView.theme({

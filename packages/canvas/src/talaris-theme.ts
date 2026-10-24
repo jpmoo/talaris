@@ -82,6 +82,9 @@ export function wearTheme(): void {
         color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent);
     }
     .cv-wrap.paper-none, .framed .cv-wrap.paper-none { background: color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent); }
+    /* What is typed in notes and shapes, at Settings' canvas size (--type-scale,
+       shared in by the drawer). The note's editor takes its size from here. */
+    .cv-note .cv-paper, .cv-note .md-editor { font-size: calc(13px * var(--type-scale, 1)) !important; }
     /* Dark ink is for paper. A sticky is paper, so it keeps it; a note with no
        fill sits on the canvas itself and takes the theme's text, as does a
        canvas card. A note given a color of its own sets its ink inline. */

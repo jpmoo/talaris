@@ -283,6 +283,7 @@ function update(next) {
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
+  document.body.style.setProperty("--type-scale", String(state.typeScale ?? 1));
   // The paper — the writing page, the canvas — follows the opacity, or stays solid.
   const paperFollows = look.paperFollows !== false;
   document.body.style.setProperty("--paper-alpha", paperFollows ? `${look.opacity ?? 100}%` : "100%");
@@ -431,6 +432,8 @@ function shareTheme(frame) {
     }
     // The drawer's opacity, so the canvas's paper is as see-through as its frame.
     theirs.style.setProperty("--alpha", document.body.style.getPropertyValue("--paper-alpha") || "100%");
+    // Settings' canvas size: the type in notes and shapes.
+    theirs.style.setProperty("--type-scale", document.body.style.getPropertyValue("--type-scale") || "1");
   } catch { /* not loaded yet */ }
 }
 

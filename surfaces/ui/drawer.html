@@ -97,9 +97,11 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; }
 .editor[data-mode="live"], .editor[data-mode="raw"] { padding: 0; overflow: hidden; display: flex; }
 .editor .cm-editor { flex: 1; min-width: 0; }
 .editor h1, .editor h2, .editor h3 { font-weight: 500; letter-spacing: 1px; margin: 10px 0 4px; }
-.editor h1 { font-size: 20px; } .editor h2 { font-size: 17px; } .editor h3 { font-size: 15px; }
+/* The writing page's type, at Settings' writing size (--type-scale). */
+.editor { font-size: calc(14px * var(--type-scale, 1)); }
+.editor h1 { font-size: 1.43em; } .editor h2 { font-size: 1.21em; } .editor h3 { font-size: 1.07em; }
 .editor a { color: var(--accent); }
-.editor code { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--accent-wash); border-radius: 4px; padding: 0 4px; }
+.editor code { font-family: ui-monospace, monospace; font-size: .9em; background: var(--accent-wash); border-radius: 4px; padding: 0 4px; }
 .editor pre { background: var(--desk); border-radius: 6px; padding: 8px 10px; overflow: auto; }
 .editor pre code { background: none; padding: 0; }
 .editor table { border-collapse: collapse; } .editor td, .editor th { border: 1px solid var(--line); padding: 3px 8px; }

@@ -52,7 +52,7 @@ from sensor import Catcher, EdgeSensor, Hover
 import sensor as sensor_module
 from settings import Settings
 from machine import Machine
-from views import AREAS, log, make_view, set_zoom, zoom, zoom_of
+from views import AREAS, log, make_view, set_zoom, type_scale, zoom, zoom_of
 from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
@@ -157,7 +157,7 @@ class Drawer(QObject):
         self.leaving = False
 
         self.bridge = Bridge(self, self)
-        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self, area=name)
+        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
         self.sensor = EdgeSensor(profile, name, self.edge, self._bump, self)
         self.away = QTimer(self)
@@ -177,10 +177,12 @@ class Drawer(QObject):
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
             "look": self.desktop.config["panels"],
+            # The type on this drawer's page — writing's, or the canvas's notes.
+            "typeScale": type_scale(self.name),
             # Where a window's frame would be, side by side, in this page's own
             # pixels: Hyprland's gaps are the compositor's, which a page sees
             # through Qt's scale and its own zoom.
-            "insets": {side: round(px / (QT_SCALE * zoom_of(self.name)), 2)
+            "insets": {side: round(px / (QT_SCALE * zoom_of("interface")), 2)
                        for side, px in getattr(self.desktop, "gaps", {}).items()},
         }
 
@@ -498,11 +500,11 @@ class Desktop(QObject):
         # between it and the windows: the window gap on that side.
         bar = self.config["bar"]
         if bar.get("shape") == "floating" and not bar.get("autohide"):
-            sides[self.bar.edge] = zoom(bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"])
+            sides[self.bar.edge] = zoom(bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"], "bar")
         # Only a dock that reserves its edge stops short of it.
         dock = self.config["dock"]
         if dock.get("enabled", True) and not dock.get("autohide"):
-            sides[self.dock.edge] = max(0, gap - to_compositor(zoom(self.DOCK_SHORT, "dock")))
+            sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.
         # Between two windows Hyprland leaves its inner gap on each side, so the
@@ -572,16 +574,15 @@ class Desktop(QObject):
                 d.mode = ""
                 d.settle()
         changed = set_zoom(self.text_sizes())
-        if "dock" in changed:
-            self.dock.menu.file_away()
-            self.dock.place()
+        if "bar" in changed:
+            self.bar.place()
         if "morgan" in changed and self.morgan.up:
             self.morgan.file_away()
             self.morgan.open()
         if "interface" in changed:
             # Larger or smaller text: everything with a fixed size is made again.
-            self.bar.place()
             self.bar.close_popup()
+            self.dock.menu.file_away()
             if self.settings.up:
                 self.settings.surface.placement = None
                 self.settings.up = False

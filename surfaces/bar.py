@@ -49,7 +49,7 @@ BAR = 34
 
 #: What each popup is, and its size. They hang from the bar's right end, where
 #: the readings and the power button are.
-POPUPS = {"power": (210, 266), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
+POPUPS = {"power": (210, 232), "volume": (240, 104), "network": (300, 420), "bluetooth": (300, 400)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -194,7 +194,7 @@ class Bar(QObject):
         # layout of its own, and waits until somebody wants one.
         self.edge = config.get("edge", "top") if config.get("edge") in ("top", "bottom") else "top"
         self.bridge = BarBridge(self, self)
-        self.view = make_view(profile, "bar", "talaris-ui://ui/bar.html", self.bridge, self)
+        self.view = make_view(profile, "bar", "talaris-ui://ui/bar.html", self.bridge, self, area="bar")
         self.surface = LayerSurface(self.view, "talaris-bar")
         self.popup = Popup(profile, self)
         self.hider = Autohide(profile, "bar", self.view, self._show, self._hide,
@@ -221,10 +221,10 @@ class Bar(QObject):
         # Floating, the bar stands off the screen's edges: its surface is the
         # bar and the space between it and the edge, and reserves both.
         near = margins(look)[self.edge] if look.get("shape") == "floating" else 0
-        tall = zoom(BAR + near)
+        tall = zoom(BAR + near, "bar")
         # A shadow needs room to fall into: the surface is that much taller
         # than the space it reserves, and the extra is clear.
-        room = zoom(SHADOW_ROOM) if look.get("shadow") else 0
+        room = zoom(SHADOW_ROOM, "bar") if look.get("shadow") else 0
         self.surface.placement = None
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_NONE, exclusive=0 if hide else tall))

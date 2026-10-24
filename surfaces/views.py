@@ -42,12 +42,16 @@ class Page(QWebEnginePage):
             log(f"{self.name} page: {message} ({source.rsplit('/', 1)[-1]}:{line})")
 
 
-#: Settings' text sizes, one per area, each a zoom on that area's pages; the
-#: fixed surface sizes of an area are scaled by the same (`zoom`), so a larger
-#: page is not cut off. The areas: the interface (bar, its popups, Settings,
-#: the indicator, the edges), the dock, the launcher, Morgan (conversation and
-#: voice popup), and the two drawers, writing and canvas.
-AREAS = ("interface", "dock", "launcher", "morgan", "writing", "canvas")
+#: Settings' text sizes, one per area. Interface, bar, launcher and Morgan are
+#: zooms on their pages, with the area's fixed surface sizes scaled by the
+#: same (`zoom`) so a larger page is not cut off; the interface is every menu,
+#: popup, tree, header and button — the drawers' own included — and Settings.
+#: Writing and canvas are the size of the type on the writing page and in the
+#: canvas's notes, inside drawers whose own controls are the interface's. The
+#: dock has no text, and no size.
+AREAS = ("interface", "bar", "launcher", "morgan", "writing", "canvas")
+#: The areas that are page zooms; the rest are type sizes (`type_scale`).
+PAGE_AREAS = ("interface", "bar", "launcher", "morgan")
 ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12}
 _zoom = {area: 1.0 for area in AREAS}
 _views: list[tuple[QWebEngineView, str]] = []
@@ -77,11 +81,16 @@ def set_zoom(sizes: dict) -> set[str]:
     return changed
 
 
+def type_scale(area: str) -> float:
+    """Writing's or the canvas's type size, as a scale on the type itself."""
+    return _zoom.get(area, 1.0)
+
+
 def make_view(profile: QWebEngineProfile, name: str, url: str, bridge: QObject, owner: QObject,
               area: str = "interface") -> QWebEngineView:
     view = QWebEngineView()
     _views.append((view, area))
-    view.setZoomFactor(_zoom.get(area, 1.0))
+    view.setZoomFactor(_zoom.get(area, 1.0) if area in PAGE_AREAS else 1.0)
     view.setWindowTitle(f"talaris-{name}")
     view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     # The engine's own right-click menu — Back, Reload, View source — is a
