@@ -3,8 +3,10 @@
 # Copyright (c) 2026 Jeff Moore
 #
 # Move the focused window one way (l, r, u, d); if nothing is that way to move
-# beside, turn its split instead — two windows side by side become one above
-# the other, and back. For hyprland.conf, on Super+Shift and the arrows:
+# beside, turn its split so it lands on that side instead — two windows side
+# by side become one above the other (up: this one on top; down: below), and
+# left or right puts them back side by side. For hyprland.conf, on Super+Shift
+# and the arrows:
 #
 #   bind = $mainMod SHIFT, up, exec, ~/Documents/Scripts/talaris/bin/move-or-split u
 #
@@ -12,10 +14,30 @@
 # `togglesplit` (dwindle) is the only way to stack two; this is both, by key.
 set -euo pipefail
 dir="${1:?a direction: l, r, u or d}"
-where() { hyprctl activewindow -j | jq -r '"\(.at) \(.size)"'; }
-before="$(where)"
+me() { hyprctl activewindow -j; }
+before="$(me | jq -c '[.at, .size]')"
 hyprctl dispatch movewindow "$dir" >/dev/null
 sleep 0.05
-if [ "$(where)" = "$before" ]; then
-  hyprctl dispatch togglesplit >/dev/null
-fi
+[ "$(me | jq -c '[.at, .size]')" != "$before" ] && exit 0
+
+# The other tiled windows on this desktop, as `jq` asks of them beside this one.
+ask() {
+  local self; self="$(me)"
+  hyprctl clients -j | jq --argjson me "$self" --arg dir "$dir" "
+    [.[] | select(.workspace.id == \$me.workspace.id and .floating == false and .address != \$me.address)] | $1"
+}
+# Already lying across that way? Up or down: another window shares its column;
+# left or right: another shares its row.
+across='if ($dir == "u" or $dir == "d")
+  then any(.[]; .at[0] < $me.at[0] + $me.size[0] and .at[0] + .size[0] > $me.at[0])
+  else any(.[]; .at[1] < $me.at[1] + $me.size[1] and .at[1] + .size[1] > $me.at[1]) end'
+[ "$(ask "$across")" = "true" ] || hyprctl dispatch togglesplit >/dev/null
+sleep 0.05
+
+# On the wrong side of the split (a window above it when it should be on top, and so on): the halves swapped.
+wrong='if $dir == "u" then any(.[]; .at[1] < $me.at[1])
+  elif $dir == "d" then any(.[]; .at[1] > $me.at[1])
+  elif $dir == "l" then any(.[]; .at[0] < $me.at[0])
+  else any(.[]; .at[0] > $me.at[0]) end'
+[ "$(ask "$wrong")" = "true" ] && hyprctl dispatch swapsplit >/dev/null
+exit 0
