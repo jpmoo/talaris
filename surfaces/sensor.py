@@ -113,8 +113,8 @@ class Catcher(QObject):
     """
     A clear layer over the windows, under a pulled drawer: a press on it —
     anywhere off the drawer — puts the drawer away. On the top layer, so the
-    drawers (on the overlay) stay above it; reserving nothing, and kept clear
-    of the bar's and dock's reserved space by theirs.
+    drawers (on the overlay) stay above it; reserving nothing, and over the
+    bar and dock too (exclusive -1), so it dims all of it as the launcher does.
     """
 
     def __init__(self, profile: QWebEngineProfile, on_catch: Callable[[], None], parent: QObject, name: str = "catcher") -> None:
@@ -141,7 +141,7 @@ class Catcher(QObject):
         screen = QApplication.primaryScreen().geometry()
         self.surface.placement = None
         self.surface.apply(Placement(TOP, EDGE_ANCHOR["top"] | EDGE_ANCHOR["bottom"] | EDGE_ANCHOR["left"] | EDGE_ANCHOR["right"],
-                                     screen.width(), screen.height(), KEYBOARD_NONE))
+                                     screen.width(), screen.height(), KEYBOARD_NONE, exclusive=-1))
         self.up = True
         self._watch()
 
