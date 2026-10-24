@@ -26,15 +26,23 @@ function fit() {
   if (!panel || !bridge) return;
   const was = panel.style.bottom;
   panel.style.bottom = "auto";
-  const height = Math.ceil(panel.getBoundingClientRect().height + 12);
+  // A few pixels to spare: a fraction lost to rounding cuts a row off.
+  const height = Math.ceil(panel.getBoundingClientRect().height + 12 + 4);
   panel.style.bottom = was;
   bridge.fit(height);
+}
+// Measured once the typeface is in — the fallback is shorter, and a menu sized
+// to it was cut off — and again whenever what is in a panel changes size.
+const refit = () => document.fonts.ready.then(() => requestAnimationFrame(fit));
+if (window.ResizeObserver) {
+  const watch = new ResizeObserver(() => refit());
+  for (const id of ["power", "volume"]) { const el = document.getElementById(id); if (el) for (const child of el.children) watch.observe(child); }
 }
 
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   document.body.dataset.popup = s.popup || "";
-  if (s.popup) requestAnimationFrame(() => requestAnimationFrame(fit));
+  if (s.popup) refit();
   disarm();
   if (opening && (s.popup === "network" || s.popup === "bluetooth")) {
     open = { key: "", busy: "", armed: "", scanning: false };

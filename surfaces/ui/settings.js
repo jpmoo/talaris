@@ -136,6 +136,17 @@ function draw() {
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
+  // Power: minutes on the page, seconds in the settings; 0 is never.
+  const pw = cfg.power;
+  const mins = (v) => (Number(v) === 0 ? "Never" : `${v} min`);
+  $("power-on").classList.toggle("on", !!pw.managed);
+  slider("power-dim", Math.round(pw.dim / 60), mins, (v) => save({ power: { dim: v * 60 } }));
+  slider("power-dimto", pw.dimTo, (v) => `${v}%`, (v) => save({ power: { dimTo: v } }));
+  slider("power-lock", Math.round(pw.lock / 60), mins, (v) => save({ power: { lock: v * 60 } }));
+  slider("power-off", Math.round(pw.screenOff / 60), mins, (v) => save({ power: { screenOff: v * 60 } }));
+  slider("power-suspend", Math.round(pw.suspend / 60), mins, (v) => save({ power: { suspend: v * 60 } }));
+  for (const id of ["power-dim", "power-dimto", "power-lock", "power-off", "power-suspend"]) $(id).disabled = !pw.managed;
+  if (bridge && $("power").classList.contains("on")) powerNote();
   slider("touch-thick", cfg.touch.thick, (v) => `${v}px`, (v) => save({ touch: { thick: v } }));
   slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
@@ -153,6 +164,7 @@ $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
 $("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.enabled === false } }));
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
+$("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
 $("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 $("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
 $("drawer-auto").addEventListener("click", () => {
@@ -283,11 +295,27 @@ function saveMorgan() {
 
 // ---------------------------------------------------------------- pages and ways back
 
+// Two idle managers fight; say so, and what to take out.
+function powerNote() {
+  bridge.power((text) => {
+    const st = JSON.parse(text);
+    const n = $("power-note");
+    if (st.managed && st.others.length) {
+      n.textContent = `Another hypridle is running too (${st.others.length}), and screens would lock and turn off twice. Remove "exec-once = hypridle" from hyprland.conf and turn off the hypridle service: systemctl --user disable --now hypridle`;
+    } else if (st.managed) {
+      n.textContent = "Talaris's hypridle is running with these settings.";
+    } else {
+      n.textContent = st.others.length ? "Your own hypridle setup is running; Talaris is leaving it alone." : "";
+    }
+  });
+}
+
 function show(page) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.page === page);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
   say("");
   if (page === "morgan") loadMorgan();
+  if (page === "power") powerNote();
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
 

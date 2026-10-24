@@ -95,6 +95,10 @@ def _checked(c: dict) -> str:
             return "Not a bar or dock outline, shadow or motion"
     if b.get("shape") not in ("strip", "floating") or not all(0 <= int(v) <= 40 for v in (b.get("margins") or {}).values()):
         return "The bar is a strip or floating, its margins up to 40 pixels"
+    pw = c["power"]
+    if not isinstance(pw.get("managed"), bool) or any(not 0 <= int(pw.get(k, 0)) <= 7200 for k in ("dim", "lock", "screenOff", "suspend")) \
+            or not 1 <= int(pw.get("dimTo", 20)) <= 100:
+        return "Not a power setting"
     if not (2 <= int(c["touch"]["thick"]) <= 30 and 10 <= int(c["touch"]["length"]) <= 100):
         return "A touch target is 2 to 30 thick and 10 to 100 percent of its edge"
     if not 0 <= int(c["windows"]["gap"]) <= 40:
@@ -131,6 +135,10 @@ class SettingsBridge(Bridge):
         if r.get("op") not in MORGAN_OPS:
             return json.dumps({"ok": False, "error": "Not a setting this page changes"})
         return command("admin " + json.dumps({"op": r["op"], "args": r.get("args", {})}))
+
+    @Slot(result=str)
+    def power(self) -> str:
+        return json.dumps(self.owner.desktop.power.status())
 
     @Slot(result=str)
     def keys(self) -> str:
@@ -193,7 +201,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch", "text"):
+        for key in ("theme", "bar", "dock", "launcher", "windows", "clock", "panels", "touch", "text", "power"):
             after[key].update(wanted.get(key, {}))
         for name, d in wanted.get("drawers", {}).items():
             if name in after["drawers"]:

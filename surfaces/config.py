@@ -52,6 +52,10 @@ DEFAULTS = {
     # Text size per area (small, medium or large): interface, dock, launcher,
     # morgan, writing, canvas. One not set takes theme.fontSize.
     "text": {},
+    # When the screen dims, locks, turns off and the machine suspends, in
+    # seconds (0 is never), run by a hypridle of Talaris's own — only when
+    # `managed`, so it never runs alongside the user's own. dimTo is percent.
+    "power": {"managed": False, "dim": 0, "dimTo": 20, "lock": 300, "screenOff": 600, "suspend": 0},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},

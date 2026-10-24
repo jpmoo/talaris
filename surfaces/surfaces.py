@@ -48,6 +48,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from power import Power
 from sensor import Catcher, EdgeSensor, Hover
 import sensor as sensor_module
 from settings import Settings
@@ -416,6 +417,8 @@ class Desktop(QObject):
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.settings = Settings(profile, self)
+        self.power = Power(self)
+        self.power.apply()
         self.drawers = {
             name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
         }
@@ -533,6 +536,7 @@ class Desktop(QObject):
         for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER ALT, M", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
+        self.power.stop()
 
     # ---------------------------------------------------------------- settings
 
@@ -599,6 +603,8 @@ class Desktop(QObject):
                     d.surface.placement = None
                     d.surface.apply(d._placement("pulled"))
             self.catcher_update()
+        if after["power"] != before["power"]:
+            self.power.apply()
         if after["touch"] != before["touch"]:
             self.touch_targets()
         if after["launcher"]["keys"] != before["launcher"]["keys"]:

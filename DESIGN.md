@@ -340,7 +340,7 @@ plugin provides.
 | | |
 |---|---|
 | Lock screen | **`hyprlock`**, installed. Never build a lock screen. |
-| Idle | **`hypridle`**, installed and already in `hyprland.conf`. |
+| Idle | **`hypridle`**. Settings, Power, when Talaris manages power, writes `~/.config/talaris/hypridle.conf` (dim, lock, screen off, suspend) and runs a hypridle of its own with it; off, the user's own hypridle is left alone. Two at once would each lock and turn the screen off, so the page says when another is running. |
 | Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
 | Notifications, for now | **`mako`**, D-Bus-activated, in Talaris's look (`systemd/mako.config`), until Talaris holds the bus. |
 | Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture. |
