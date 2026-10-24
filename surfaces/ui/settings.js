@@ -66,20 +66,24 @@ function draw() {
   if (!cfg) return;
   const t = cfg.theme;
   // Appearance.
-  seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => save({ theme: { mode } }));
+  seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => { accentFor = mode; save({ theme: { mode } }); });
   // A text size for each area; one never set follows the single size there was before.
   const sizes = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   for (const area of ["interface", "bar", "launcher", "morgan", "writing", "canvas"]) {
     seg(`text-${area}`, sizes, (cfg.text || {})[area] || t.fontSize || "medium", (size) => save({ text: { ...(cfg.text || {}), [area]: size } }));
   }
+  // Which mode's accent is being set: the one in use, unless the other is asked for.
+  if (!accentFor) accentFor = t.mode === "light" ? "light" : "dark";
+  seg("accent-for", [["dark", "Dark"], ["light", "Light"]], accentFor, (m) => { accentFor = m; $("picker").classList.remove("open"); draw(); });
+  const now = editedAccent();
   // The tuner's five, then the picker for any other — wearing the custom
   // accent once one is chosen.
-  const custom = !ACCENTS.includes(t.accent);
-  const pick = el("button", { class: "swatch pick" + (custom ? " custom on" : ""), title: "Any color", style: custom ? `--custom:${t.accent}` : "",
-    onclick: () => { $("picker").classList.toggle("open"); if ($("picker").classList.contains("open")) picker.set(t.accent); } });
-  $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === t.accent ? " on" : ""), style: `background:${c}`, title: c,
-    onclick: () => { $("picker").classList.remove("open"); save({ theme: { accent: c } }); } })), pick);
-  if (document.activeElement !== $("hex")) $("hex").value = t.accent;
+  const custom = !ACCENTS.includes(now);
+  const pick = el("button", { class: "swatch pick" + (custom ? " custom on" : ""), title: "Any color", style: custom ? `--custom:${now}` : "",
+    onclick: () => { $("picker").classList.toggle("open"); if ($("picker").classList.contains("open")) picker.set(now); } });
+  $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === now ? " on" : ""), style: `background:${c}`, title: c,
+    onclick: () => { $("picker").classList.remove("open"); saveAccent(c); } })), pick);
+  if (document.activeElement !== $("hex")) $("hex").value = now;
   seg("motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], t.motion === "draw" ? "chaos" : t.motion || "slide", (motion) => save({ theme: { motion } }));
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
@@ -222,8 +226,20 @@ $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.powe
 $("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
 // ---------------------------------------------------------------- the picker
 //
-// Hue, saturation and value; the page's accent follows as you drag, and the
-// accent is saved when you let go.
+// The accent of the mode being set (Look, Accent): the one in use is `accent`,
+// which the process keeps in step; the other mode's is its own key.
+let accentFor = "";
+const inUse = () => accentFor === ((cfg && cfg.theme.mode === "light") ? "light" : "dark");
+function editedAccent() {
+  const t = cfg.theme;
+  return (accentFor === "light" ? t.accentLight : t.accentDark) || t.accent;
+}
+function saveAccent(c) {
+  save({ theme: inUse() ? { accent: c } : { [accentFor === "light" ? "accentLight" : "accentDark"]: c } });
+}
+
+// Hue, saturation and value; the page's accent follows as you drag (when it is
+// the mode in use's), and the accent is saved when you let go.
 const picker = (() => {
   let h = 0, s = 1, v = 1;
   const hex = () => {
@@ -238,7 +254,7 @@ const picker = (() => {
     const c = hex();
     $("picked").style.background = c;
     $("hex").value = c;
-    Surface.applyTheme({ ...(cfg ? cfg.theme : {}), accent: c });
+    if (inUse()) Surface.applyTheme({ ...(cfg ? cfg.theme : {}), accent: c });
   };
   const set = (color) => {
     const n = parseInt(color.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
@@ -253,7 +269,7 @@ const picker = (() => {
     const at = (ev) => { const r = box.getBoundingClientRect(); move(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height))); show(); };
     at(e);
     box.onpointermove = at;
-    box.onpointerup = () => { box.onpointermove = box.onpointerup = null; save({ theme: { accent: hex() } }); };
+    box.onpointerup = () => { box.onpointermove = box.onpointerup = null; saveAccent(hex()); };
   });
   drag($("sv"), (x, y) => { s = x; v = 1 - y; });
   drag($("hue"), (_x, y) => { h = Math.min(359, y * 360); });
@@ -263,7 +279,7 @@ const picker = (() => {
 $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   const v = $("hex").value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(v)) save({ theme: { accent: v.toLowerCase() } });
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) saveAccent(v.toLowerCase());
   else say("An accent is a color like #c98a5b", true);
 });
 
@@ -770,6 +786,7 @@ addEventListener("keydown", (e) => {
 for (const type of ["pointerdown", "keydown", "wheel"]) addEventListener(type, () => bridge && bridge.activity(), { capture: true, passive: true });
 
 function reload(page) {
+  accentFor = "";
   bridge.config((text) => { const c = JSON.parse(text); cfg = c.config; fonts = c.fonts; launcherKeys = c.launcherKeys; draw(); show(page); });
 }
 

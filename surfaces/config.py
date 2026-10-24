@@ -111,7 +111,24 @@ def load_config() -> dict:
                     config[key][k] = v
         else:
             config[key] = value
+    settle_accent(config["theme"])
     return config
+
+
+def settle_accent(theme: dict, chosen: str | None = None) -> None:
+    """
+    An accent for each mode — `accentDark`, `accentLight` — and `accent`, the
+    one in use, which is what everything else reads (the pages, the windows'
+    borders). A theme from before there were two has its one accent for both.
+    `chosen`, an accent just picked, is the mode's in force.
+    """
+    base = theme.get("accent") or DEFAULTS["theme"]["accent"]
+    theme.setdefault("accentDark", base)
+    theme.setdefault("accentLight", base)
+    key = "accentLight" if theme.get("mode") == "light" else "accentDark"
+    if chosen:
+        theme[key] = chosen
+    theme["accent"] = theme[key]
 
 
 def _differences(mine: dict, base: dict) -> dict:

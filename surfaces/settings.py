@@ -37,7 +37,7 @@ import accounts
 import power
 import wallpaper
 from power import LID_ACTIONS
-from config import DEFAULTS, save_config
+from config import DEFAULTS, save_config, settle_accent
 from core import Bridge, call as core_call
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
@@ -63,7 +63,7 @@ def _checked(c: dict) -> str:
     t = c["theme"]
     if t.get("mode") not in ("dark", "light"):
         return "Mode is dark or light"
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(t.get("accent", ""))):
+    if not all(re.fullmatch(r"#[0-9a-fA-F]{6}", str(t.get(k, ""))) for k in ("accent", "accentDark", "accentLight")):
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
@@ -451,6 +451,8 @@ class Settings(QObject):
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:
             after["idleSeconds"] = int(wanted["idleSeconds"])
+        # An accent picked is the mode in force's; a mode changed brings its own.
+        settle_accent(after["theme"], wanted.get("theme", {}).get("accent"))
         error = _checked(after)
         if error:
             return error
