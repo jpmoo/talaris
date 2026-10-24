@@ -986,7 +986,7 @@ of it and comes out at the end.
    Morgan's `watch` stream once, and the bar's button wears its state —
    listening and speaking breathe, thinking turns an arc. The conversation is
    Morgan's own page (`ui/morgan/`, from its application window, nearly as it
-   was), hung under the button as an overlay panel, on Super+Alt+M or the
+   was), hung under the button as an overlay panel, on Super+Shift+M or the
    button; it wears Talaris's theme and the Tabler icon font shipped in
    `ui/fonts` instead of Noctalia's, with no title bar: its state and controls
    sit in a row under the composer, ending in Full screen and Close. Full

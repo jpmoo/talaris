@@ -541,11 +541,11 @@ class Desktop(QObject):
                 hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
-        hypr.bind("SUPER ALT, M", f"{LAUNCHER} --morgan")
+        hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER ALT, M", self.config["launcher"]["keys"]):
+        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
         self.power.stop()
@@ -632,7 +632,7 @@ class Desktop(QObject):
         nice = lambda k: k.replace(",", " +").replace("SUPER", "Super").replace("ALT", "Alt").replace("ESCAPE", "Escape").replace("  ", " ").strip(" +")
         return [
             {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
-            {"keys": "Super + Alt + M", "does": "Morgan's conversation"},
+            {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
             {"keys": "Super + Alt + C", "does": "The canvas drawer"},
             {"keys": "Super + Alt + W", "does": "The writing drawer"},
             {"keys": "Super + Alt + Escape", "does": "Put everything away"},

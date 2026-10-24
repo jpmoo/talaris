@@ -14,7 +14,7 @@ layer — under the bar's left end, where Morgan's button is. It talks to the
 daemon through this bridge, as it did through Morgan's window: one command, one
 answer, over the daemon's socket.
 
-**Its ways back**: Morgan's button again, Super+Alt+M, Escape while Morgan is
+**Its ways back**: Morgan's button again, Super+Shift+M, Escape while Morgan is
 idle, `--file-all`, and a long idle — long, because a conversation is read,
 and only counted while Morgan is idle.
 

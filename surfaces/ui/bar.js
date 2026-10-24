@@ -48,7 +48,7 @@ function onState(s) {
   $("morgan").classList.toggle("on", !!s.morganOpen);
   $("morgan").title = now === "absent" ? "Morgan is not running"
     : ({ listening: "Morgan is listening", transcribing: "Morgan is listening", thinking: "Morgan is thinking",
-         consulting: "Morgan is consulting the Oracle", speaking: "Morgan is speaking" })[now] || "Morgan (Super+Alt+M)";
+         consulting: "Morgan is consulting the Oracle", speaking: "Morgan is speaking" })[now] || "Morgan (Super+Shift+M)";
   for (const [id, kind] of [["vol", "volume"], ["power", "power"], ["net", "network"], ["bt", "bluetooth"]]) {
     $(id).classList.toggle("on", s.popup === kind);
   }
