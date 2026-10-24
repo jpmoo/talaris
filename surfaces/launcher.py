@@ -171,6 +171,7 @@ class Launcher(QObject):
         self.view.setFocus()
         self.bridge.state.emit(json.dumps(self.describe()))
         self.touched()
+        self.desktop.bar.changed()
         log("launcher: open" + (f" ({mode})" if mode else ""))
 
     def toggle(self, mode: str = "") -> None:
@@ -185,6 +186,7 @@ class Launcher(QObject):
             return
         self.up = False
         self.idle.stop()
+        self.desktop.bar.changed()
         self.leaving = True
         self.bridge.leave.emit()
         QTimer.singleShot(LEAVE_LIMIT_MS, self.left)

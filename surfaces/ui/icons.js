@@ -75,6 +75,9 @@ const Icons = (() => {
   const shrink = () => frame("M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3");
   const close = () => frame("M3 3l8 8M11 3l-8 8");
 
+  // People: a head and shoulders.
+  const people = () => svg('<circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>');
+
   // The canvas: a framed grid with a card on it. Writing: the lines of a page.
   const canvas = () => svg('<rect x="2" y="2" width="12" height="12" rx="2"/><rect x="4.5" y="5" width="4.5" height="3.5" rx=".6"/>');
   const writing = () => svg('<path d="M3 4h10M3 7h10M3 10h10M3 13h6"/>');
@@ -85,5 +88,5 @@ const Icons = (() => {
   // The tray, folded: a tray with things in it.
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
-  return { sideList, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  return { sideList, people, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();

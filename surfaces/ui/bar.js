@@ -22,6 +22,8 @@ function onState(s) {
   const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
+  $("ask").classList.toggle("on", !!s.launcherOpen);
+  $("settings").classList.toggle("on", !!s.settingsOpen);
   for (const name of ["canvas", "writing"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
@@ -136,6 +138,8 @@ $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 // The canvas and the writing surface, panels from the bar like the rest.
+// People: its place on the bar kept, until its panel is built (DESIGN, item 18).
+$("people").innerHTML = Icons.people();
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
@@ -196,7 +200,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #bat, #net, #bt, #ask, #morgan, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

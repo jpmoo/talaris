@@ -278,6 +278,7 @@ class Settings(QObject):
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
         self.touched()
+        self.desktop.bar.changed()
 
     def toggle(self) -> None:
         if self.up:
@@ -291,6 +292,7 @@ class Settings(QObject):
         self.up = False
         self.idle.stop()
         self.catcher.hide()
+        self.desktop.bar.changed()
         # The page plays its leaving, then says so (`left`); then the surface goes.
         self.leaving = True
         self.bridge.leave.emit()

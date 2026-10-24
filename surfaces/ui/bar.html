@@ -59,12 +59,14 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
    own box centered by flex. The text keeps the font's own line height —
    squeezed to its size, descenders hung below the box and were cut off. */
 .bar-item .n, #clock span { display: block; line-height: normal; }
+/* In a button the number sat a part pixel low and lost its bottom row: a pixel of room. */
+.bar-item .n { padding-bottom: 1px; }
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
 #clock { cursor: pointer; border: 1px solid transparent; border-radius: var(--radius-control); }
-#clock:hover { border-color: var(--line); }
-#clock.on { border-color: var(--accent); background: var(--accent-wash); }
+#clock:hover, #clock:hover .day, #clock.on .day { color: var(--accent); }
+#clock.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
 .sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
 .ic { width: 16px; height: 16px; display: block; }
 /* The tray: running applications' own icons, in their own colors, a little
@@ -81,6 +83,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   <div class="side">
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
     <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span></button>
+    <button id="people" class="bar-item" title="People — coming"></button>
     <button id="canvas" class="bar-item" title="Canvas (Super+Alt+C)"></button>
     <button id="writing" class="bar-item" title="Writing (Super+Alt+W)"></button>
     <div id="where"></div>

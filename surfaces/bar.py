@@ -343,8 +343,14 @@ class Bar(QObject):
             "morgan": self.desktop.morgan_link.now,
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
+            "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),
+            "settingsOpen": bool(getattr(self.desktop, "settings", None) and self.desktop.settings.up),
             "panelsOpen": {n: w.up for n, w in getattr(self.desktop, "workspaces", {}).items()},
         }
+
+    def changed(self) -> None:
+        """Something the bar lights for opened or closed: said again."""
+        self.bridge.state.emit(json.dumps(self.describe()))
 
     def _reading(self, text: str) -> None:
         self.bridge.machine.emit(text)
