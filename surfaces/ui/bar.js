@@ -19,7 +19,7 @@ function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
   // A button whose popup is out shows it, as a pressed button would.
-  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat" };
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
@@ -134,6 +134,8 @@ $("vol").addEventListener("wheel", (e) => {
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
+// The project's name: the projects, to switch between.
+$("where").addEventListener("click", () => bridge && bridge.popupAt("projects", under("where")));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
@@ -200,7 +202,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

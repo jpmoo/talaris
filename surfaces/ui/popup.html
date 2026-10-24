@@ -18,7 +18,7 @@ html, body { height: 100%; }
 .panel { position: absolute; inset: 4px 18px 26px; display: none; flex-direction: column; }
 body[data-popup="power"] #power, body[data-popup="volume"] #volume,
 body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth,
-body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[data-popup="battery"] #battery { display: flex; }
+body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[data-popup="battery"] #battery, body[data-popup="projects"] #projects { display: flex; }
 .menu .hint { align-items: center; }
 
 /* Wi-Fi and Bluetooth: a list that scrolls, things you can do under it. */
@@ -35,6 +35,9 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #bat-rows .kv span:first-child { color: var(--muted); }
 #bat-profiles { display: flex; gap: 4px; padding: 6px 10px 2px; }
 #bat-profiles:empty { display: none; }
+#project-list .menu-item { justify-content: space-between; }
+#project-list .menu-item .code { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+#project-list .menu-item.current { color: var(--accent) !important; }
 #bat-profiles button { flex: 1; font-size: 12px; padding: 3px 6px !important; }
 #bat-profiles button.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
 /* The folded tray's pane: the icons in a row that wraps. */
@@ -91,6 +94,10 @@ input[type="range"]::-webkit-slider-thumb {
   <button class="menu-item" data-verb="logout" data-ask="Log out — again to confirm">Log out</button>
   <button class="menu-item" data-verb="restart" data-ask="Restart — again to confirm">Restart</button>
   <button class="menu-item" data-verb="shutdown" data-ask="Shut down — again to confirm">Shut down</button>
+</div>
+<div class="panel menu" id="projects">
+  <div class="hint"><span>Projects</span></div>
+  <div id="project-list"></div>
 </div>
 <div class="panel menu" id="battery">
   <div class="hint"><span>Battery</span><span id="bat-state"></span></div>

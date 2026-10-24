@@ -26,7 +26,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
-from core import Bridge
+from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
     ANCHOR_LEFT,
@@ -54,7 +54,7 @@ BAR = 34
 #: Each popup's surface: the panel and the clear room round it for the
 #: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
 POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
-          "trayicons": (244, 98), "battery": (304, 300)}
+          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -124,6 +124,23 @@ class BarBridge(Bridge):
     @Slot(str)
     def bluetooth(self, request: str) -> None:
         self.owner.desktop.machine.bluetooth(json.loads(request))
+
+    @Slot(result=str)
+    def projects(self) -> str:
+        """Every project, and which is the current one: for the bar's list to switch between."""
+        status, text = call("GET", "/projects")
+        try:
+            listed = json.loads(text) if status == 200 else []
+        except ValueError:
+            listed = []
+        here = self.owner.desktop.project.get("id")
+        return json.dumps([{"id": p.get("id"), "name": p.get("name", ""), "code": p.get("code", ""), "current": p.get("id") == here}
+                           for p in listed])
+
+    @Slot(str)
+    def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.go_to_project(project)
 
     @Slot(str)
     def powerProfile(self, name: str) -> None:  # noqa: N802 — called from the page by this name
@@ -234,7 +251,7 @@ class Popup(QObject):
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.
-    FITTED = ("power", "volume", "tray", "trayicons", "battery")
+    FITTED = ("power", "volume", "tray", "trayicons", "battery", "projects")
 
     def fit(self, height: int) -> None:
         if self.kind not in self.FITTED or height <= 0:

@@ -39,8 +39,23 @@ if (window.ResizeObserver) {
   for (const id of ["power", "volume"]) { const el = document.getElementById(id); if (el) for (const child of el.children) watch.observe(child); }
 }
 
+// The projects, from the bar's project name: the current one marked, another gone to.
+function drawProjects() {
+  bridge.projects((text) => {
+    const list = JSON.parse(text);
+    $("project-list").replaceChildren(...(list.length ? list.map((p) => {
+      const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " current" : "") });
+      b.append(Object.assign(document.createElement("span"), { textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
+      b.addEventListener("click", () => { if (!p.current) bridge.goProject(p.id); else bridge.file(); });
+      return b;
+    }) : [note("No projects")]));
+    refit();
+  });
+}
+
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
+  if (opening && s.popup === "projects" && bridge) drawProjects();
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
   disarm();
