@@ -141,6 +141,10 @@ class BarBridge(Bridge):
     def openTool(self, name: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.machine.open_tool(name)
 
+    @Slot()
+    def calendar(self) -> None:
+        self.owner.desktop.calendar.toggle()
+
     @Slot(str)
     def popup(self, kind: str) -> None:
         self.owner.desktop.bar.toggle_popup(kind)
@@ -321,6 +325,7 @@ class Bar(QObject):
             # conversation is out.
             "morgan": self.desktop.morgan_link.now,
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
+            "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
         }
 
     def _reading(self, text: str) -> None:

@@ -1087,7 +1087,16 @@ of it and comes out at the end.
     projects and tasks through the spec.
 16. Talaris's own notifications, replacing `mako`.
 17. Resume, once the spike says how.
-18. **Calendar and contacts** (asked for 2026-10-23, not designed yet): a
+18. **Calendar and contacts** (asked for 2026-10-23). **The calendar's first
+    pass is built** (2026-10-24): `calendar_panel.py` and `ui/calendar.html`,
+    an overlay up from the bar's date and time (`overlay.py`, shared with
+    Morgan's conversation: dim, motion, click away, full screen); day, week
+    and month; events made, changed and deleted, a repeating one's one
+    occurrence or all; calendars shown or hidden. Its data is Evolution Data
+    Server's through `calendard.py`, a child process; the accounts are GNOME
+    Online Accounts', listed and switched in Settings, Accounts
+    (`accounts.py`), added in that service's own window. People is next, to
+    its own spec. The first description: a
     full calendar — day, week and month; events made, edited and moved;
     invitations answered — and contacts, both kept in step with Google and
     Outlook accounts, any number of each, and Apple (iCloud) accounts.

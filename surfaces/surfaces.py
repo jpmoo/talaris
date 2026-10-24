@@ -47,6 +47,7 @@ from config import load_config
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
+from calendar_panel import Calendar, CalendarService
 from osd import Osd
 from tray import Tray
 from winfx import WindowDraw
@@ -324,7 +325,8 @@ class Drawer(QObject):
             if other is not self:
                 other.collapse()
                 other.file_away()
-        self.desktop.morgan.file_away()
+        for other in self.desktop.overlays():
+            other.file_away()
         now = hypr.windows()
         self.came_from = now["active"]
         self.expanded = True
@@ -452,6 +454,9 @@ class Desktop(QObject):
         self.dock.place()
         self.launcher = Launcher(profile, self, self.apps)
         self.morgan = Panel(profile, self, self.morgan_link)
+        # The calendar: its data in a process of its own, its panel up from the bar's clock.
+        self.calendar_service = CalendarService(self)
+        self.calendar = Calendar(profile, self, self.calendar_service)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.settings = Settings(profile, self)
@@ -491,15 +496,19 @@ class Desktop(QObject):
         return home or {"id": "", "code": "", "name": "Home"}
 
     def _windows_changed(self) -> None:
-        if any(d.expanded for d in (*self.drawers.values(), self.morgan)):
+        if any(d.expanded for d in (*self.drawers.values(), *self.overlays())):
             now = hypr.windows()
-            for d in (*self.drawers.values(), self.morgan):
+            for d in (*self.drawers.values(), *self.overlays()):
                 d.windows_changed(now)
 
     def catches(self) -> bool:
         """Whether a click off a pulled drawer puts it away: set so, or the rest of the screen dimmed behind it."""
         panels = self.config["panels"]
         return bool(panels.get("dismissOutside") or panels.get("dim", True))
+
+    def overlays(self) -> list:
+        """The panels that come up over everything and can be the desktop: Morgan's conversation, the calendar."""
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None)) if p]
 
     def catcher_update(self) -> None:
         """
@@ -643,6 +652,7 @@ class Desktop(QObject):
         self.osd.unbind()
         self.power.stop()
         self.tray.stop()
+        self.calendar_service.stop()
 
     # ---------------------------------------------------------------- settings
 
@@ -793,9 +803,9 @@ class Desktop(QObject):
                     d.file_away()
                 self.bar.close_popup()
                 self.launcher.file_away()
-                self.morgan.file_away()
                 self.settings.file_away()
-                self.morgan.file_away()
+                for panel in self.overlays():
+                    panel.file_away()
                 self.voice.file_away()
                 self.settings.file_away()
             elif verb == "grow" and arg in self.drawers:
@@ -806,6 +816,8 @@ class Desktop(QObject):
                 self.osd.show(arg)
             elif verb == "morgan":
                 self.morgan.toggle()
+            elif verb == "calendar":
+                self.calendar.toggle()
             elif verb == "lid":
                 self.power.lid(arg)
             elif verb == "launcher":
@@ -846,6 +858,8 @@ def main() -> int:
         return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:
         return send("morgan")
+    if args[:1] == ["--calendar"]:
+        return send("calendar")
     if args[:1] == ["--lid"] and len(args) == 2:
         return send(f"lid {args[1]}")
     if args[:1] == ["--launcher"]:

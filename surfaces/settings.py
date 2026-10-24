@@ -24,12 +24,14 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import re
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
+import accounts
 import power
 import wallpaper
 from power import LID_ACTIONS
@@ -91,7 +93,7 @@ def _checked(c: dict) -> str:
         return "Dim behind is on or off"
     if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings")):
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar")):
         return "The launcher, Morgan and Settings move as windows or as drawers"
     if not 16 <= int(c["dock"].get("iconSize", 24)) <= 48:
         return "The dock's icons are 16 to 48 pixels"
@@ -195,6 +197,29 @@ class SettingsBridge(Bridge):
         error = wallpaper.choose(now["path"], fit) if now["path"] else "No picture yet"
         self.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
 
+    #: Pushed to the page: the accounts changed (one was added in its window, say).
+    accountsChanged = Signal()
+
+    @Slot(result=str)
+    def accounts(self) -> str:
+        return json.dumps(accounts.listing())
+
+    @Slot(str, str, bool, result=str)
+    def accountSwitch(self, path: str, what: str, on: bool) -> str:  # noqa: N802 — called from the page by this name
+        return accounts.switch(path, what, on)
+
+    @Slot(str, result=str)
+    def accountRemove(self, path: str) -> str:  # noqa: N802 — called from the page by this name
+        return accounts.remove(path)
+
+    @Slot(str, result=str)
+    def accountSignIn(self, path: str) -> str:  # noqa: N802 — called from the page by this name
+        return accounts.sign_in_again(path)
+
+    @Slot()
+    def accountAdd(self) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.add_account()
+
     @Slot(result=str)
     def trayItems(self) -> str:  # noqa: N802 — called from the page by this name
         """Every tray item there is now, shown on the bar or not."""
@@ -283,6 +308,26 @@ class Settings(QObject):
     def touched(self) -> None:
         if self.up:
             self.idle.start(IDLE_MS)
+
+    def add_account(self) -> None:
+        """GNOME Online Accounts' own window, beside Settings: the provider's sign-in, then the account is here."""
+        if getattr(self, "_adder", None) or not shutil.which(accounts.ADDER):
+            return
+        adder = QProcess(self)
+        adder.setProgram(accounts.ADDER)
+
+        def done(_code: int, _status) -> None:
+            self._adder = None
+            adder.deleteLater()
+            if self.up:
+                self.catcher.show()
+            self.bridge.accountsChanged.emit()
+
+        adder.finished.connect(done)
+        self._adder = adder
+        # A window, under the catcher's layer: out of its way meanwhile.
+        self.catcher.hide()
+        adder.start()
 
     def choose_wallpaper(self) -> None:
         """A picture, chosen in the desktop's own chooser beside the surface, not inside it."""

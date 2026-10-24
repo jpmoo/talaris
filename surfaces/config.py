@@ -37,7 +37,7 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER ALT, SPACE"},
     # Whose motion the launcher and Morgan's conversation come and go with:
     # the windows' or the drawers'. Settings too.
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows"},
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows"},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",

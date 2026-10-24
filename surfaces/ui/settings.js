@@ -84,7 +84,7 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "morgan", "settings"]) {
+  for (const who of ["launcher", "morgan", "settings", "calendar"]) {
     seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As drawers"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
@@ -433,6 +433,31 @@ function powerNote() {
   });
 }
 
+// ---------------------------------------------------------------- accounts
+//
+// GNOME Online Accounts' (accounts.py): listed here, each one's calendar and
+// contacts on or off, removed; added in its own window, beside Settings.
+function drawAccounts() {
+  bridge.accounts((text) => {
+    const a = JSON.parse(text);
+    const msg = (t, err) => { $("acct-msg").textContent = t || ""; $("acct-msg").className = err ? "note err" : "note"; };
+    $("acct-add").disabled = !a.canAdd;
+    if (!a.canAdd) $("acct-add-note").textContent = "Needs gnome-online-accounts-gtk: sudo apt install gnome-online-accounts-gtk";
+    const done = (err) => { msg(err, !!err); drawAccounts(); };
+    $("acct-list").replaceChildren(...(a.accounts.length ? a.accounts.map((acc) => {
+      const switches = Object.entries(acc.uses).map(([what, on]) => {
+        const sw = el("button", { class: "switch" + (on ? " on" : ""), title: what === "calendar" ? "Calendar" : "Contacts" });
+        sw.addEventListener("click", () => bridge.accountSwitch(acc.path, what, !on, done));
+        return [el("small", { class: "note", style: "margin:0" }, what === "calendar" ? "Calendar" : "Contacts"), sw];
+      }).flat();
+      const again = acc.attention ? el("button", { class: "t-btn", onclick: () => { msg("Signing in…"); bridge.accountSignIn(acc.path, done); } }, "Sign in again") : "";
+      return netRow(acc.who || acc.provider, acc.attention ? `${acc.provider} · needs signing in again` : acc.provider, "", ...switches, again,
+        twiceBtn("Remove", "Remove it?", () => bridge.accountRemove(acc.path, done)));
+    }) : [el("p", { class: "note" }, a.present ? "No accounts yet." : `Online Accounts is not running here${a.error ? ` (${a.error})` : ""}.`)]));
+  });
+}
+$("acct-add").addEventListener("click", () => bridge && bridge.accountAdd());
+
 // ---------------------------------------------------------------- Wi-Fi and Bluetooth
 //
 // The same readings and changes as the bar's panels (machine.py), at more
@@ -531,6 +556,7 @@ function show(page) {
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
   say("");
   if (page === "morgan") loadMorgan();
+  if (page === "accounts") drawAccounts();
   if (page === "wifi") { working("wifi-msg", "Reading…"); bridge.panelRead("network", false); }
   if (page === "bluetooth") { working("bt-msg", "Reading…"); bridge.panelRead("bluetooth", false); }
   if (page === "power") {
@@ -581,5 +607,6 @@ Surface.connect({
   });
   b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
   b.panel.connect((text) => onRadio(JSON.parse(text)));
+  b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
   reload("look");
 });

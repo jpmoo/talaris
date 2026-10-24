@@ -48,6 +48,7 @@
      on the left, the controls on the right. */
   button.frame { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; color: var(--dim); }
   button.frame:hover { color: var(--accent); }
+  button.frame[hidden] { display: none; }
   header { border-bottom: 1px solid var(--line); background: var(--panel); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
   .controls .name { display: none; }

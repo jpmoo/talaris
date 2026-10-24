@@ -32,29 +32,14 @@ import json
 import os
 import shutil
 import socket
-import time
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWebEngineCore import QWebEngineProfile
-from PySide6.QtWidgets import QApplication
 
-import hypr
 from core import Bridge
-from layershell import (
-    ANCHOR_BOTTOM,
-    ANCHOR_LEFT,
-    ANCHOR_RIGHT,
-    ANCHOR_TOP,
-    BOTTOM,
-    KEYBOARD_NONE,
-    KEYBOARD_ON_DEMAND,
-    OVERLAY,
-    QT_SCALE,
-    LayerSurface,
-    Placement,
-)
-from sensor import Presses
+from layershell import ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
+from overlay import Overlay
 from views import log, make_view, zoom
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
@@ -181,158 +166,34 @@ class MorganBridge(Bridge):
         self.owner.desktop.morgan.open()
 
 
-class Panel(QObject):
+class Panel(Overlay):
+    """Morgan's conversation: an overlay (overlay.py), opened from the bar's button or Super+Shift+M."""
+
+    NAME = "morgan"
+    IDLE_MS = IDLE_MS
+
     def __init__(self, profile: QWebEngineProfile, desktop, link: Link) -> None:
-        super().__init__(desktop)
-        self.desktop = desktop
+        super().__init__(profile, desktop, "talaris-ui://ui/morgan/index.html", MorganBridge(None, None), area="morgan")
+        self.bridge.owner = self
+        self.bridge.setParent(self)
         self.link = link
-        self.up = False
-        self.bridge = MorganBridge(self, self)
-        self.view = make_view(profile, "morgan", "talaris-ui://ui/morgan/index.html", self.bridge, self, area="morgan")
-        self.surface = LayerSurface(self.view, "talaris-morgan")
-        Presses(self.view)
         link.event.connect(self.bridge.event.emit)
-        self.idle = QTimer(self)
-        self.idle.setSingleShot(True)
-        self.idle.timeout.connect(self._idle)
         self._chooser: QProcess | None = None
-        # Expanded, as a drawer is: the conversation is the desktop, on a
-        # workspace of its own (`hypr.DESK`), and `came_from` the one to go back to.
-        self.expanded = False
-        self.came_from = None
-        self.expanded_at = 0.0
-        self.leaving = False
 
-    def describe(self) -> dict:
-        return {"up": self.up, "theme": self.desktop.config["theme"], "expanded": self.expanded,
-                "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed",
-                "motion": self.desktop.motion("morgan")}
-
-    def _place(self) -> None:
-        screen = QApplication.primaryScreen().geometry()
-        self.surface.placement = None
-        if self.expanded:
-            # Between the bar and the dock, where a window's frame would be,
-            # and below the windows, so one coming back shows above it.
-            gaps = getattr(self.desktop, "gaps", {})
-            margins = tuple(round(gaps.get(side, 0) / QT_SCALE) for side in ("left", "top", "right", "bottom"))
-            self.surface.apply(Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, margins=margins))
-        else:
-            # As the launcher: centered over the rest of the screen, dimmed
-            # (the page draws both), and a press on the dim puts it away.
-            self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
-        self.bridge.state.emit(json.dumps(self.describe()))
+    def opened(self) -> None:
+        self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
+        self.desktop.voice.file_away()
 
     def open(self) -> None:
-        self.leaving = False
-        if not self.up:
-            self.up = True
-            self._place()
-            self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
-            self.desktop.voice.file_away()
-            log("morgan: open")
-        self.view.setFocus()
+        super().open()
         self.view.page().runJavaScript("document.getElementById('draft') && document.getElementById('draft').focus()")
-        self.touched()
 
-    def toggle(self) -> None:
-        if self.up:
-            self.file_away()
-        else:
-            self.open()
-
-    # ------------------------------------------------------------ expanded
-
-    def grow(self) -> None:
-        """The expand button: the desktop, or back to a panel (or closed, as Settings says)."""
-        if self.expanded:
-            self.collapse()
-        else:
-            self.expand()
-
-    def expand(self) -> None:
-        """The desktop, as an expanded drawer is — the windows left where they were."""
-        for d in self.desktop.drawers.values():
-            d.collapse()
-            d.file_away()
-        self.came_from = hypr.windows()["active"]
-        self.expanded = True
-        self.expanded_at = time.monotonic()
-        self.idle.stop()
-        self.leaving = False
-        self.up = True
-        self._place()
-        self.view.setFocus()
-        # The surface first, the workspace after, as for a drawer: making it
-        # anew hands the keyboard back to the last window, which Hyprland follows.
-        QTimer.singleShot(150, lambda: self.expanded and hypr.go(hypr.DESK))
-
-    def collapse(self, follow: bool = True, close: bool | None = None) -> None:
-        """Back to the workspace it was expanded from, with any window opened meanwhile."""
-        if not self.expanded:
-            return
-        self.expanded = False
-        now = hypr.windows()
-        names = {w["id"]: w["name"] for w in now["workspaces"]}
-        if self.came_from is not None:
-            for w in now["windows"]:
-                if names.get(w["workspace"]) == hypr.DESK:
-                    hypr.bring(w["address"], self.came_from)
-            if follow and now["activeName"] == hypr.DESK:
-                hypr.go(self.came_from)
-        if close is None:
-            close = self.desktop.config["panels"].get("afterExpand", "open") == "closed"
-        if close:
-            self.file_away()
-        else:
-            self._place()
-            self.touched()
-
-    def windows_changed(self, now: dict) -> None:
-        """Expanded: a window opened on its desktop, or another desktop gone to, makes it a panel again."""
-        if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
-            return
-        names = {w["id"]: w["name"] for w in now["workspaces"]}
-        if now["activeName"] != hypr.DESK:
-            self.collapse(follow=False)
-        elif any(names.get(w["workspace"]) == hypr.DESK and not w["hidden"] for w in now["windows"]):
-            self.collapse()
-
-    def file_away(self) -> None:
-        if self.expanded:
-            self.collapse(close=True)
-            return
-        if not self.up:
-            return
-        self.up = False
-        self.idle.stop()
+    def closed(self) -> None:
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
-        # The page plays its leaving, then says so (`left`); then the surface goes.
-        self.leaving = True
-        self.bridge.leave.emit()
-        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
-    def left(self) -> None:
-        if not self.leaving:
-            return
-        self.leaving = False
-        self.view.hide()
-        self.surface.placement = None
-
-    def touched(self) -> None:
-        if self.up:
-            self.idle.start(IDLE_MS)
-
-    def _idle(self) -> None:
-        if self.expanded:
-            return
+    def busy(self) -> bool:
         # Not in the middle of an answer: wait for Morgan to finish first.
-        if self.link.now not in ("idle", "absent"):
-            self.touched()
-            return
-        self.file_away()
+        return self.link.now not in ("idle", "absent")
 
     def show_conversation(self, conversation: str) -> None:
         """An earlier conversation, from the launcher: the panel opened on it."""

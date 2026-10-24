@@ -21,6 +21,7 @@ function onState(s) {
   // A button whose popup is out shows it, as a pressed button would.
   const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
+  $("clock").classList.toggle("on", !!s.calendarOpen);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -131,6 +132,8 @@ $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
+// The date and time open the calendar, and it lights them while it is out.
+$("clock").addEventListener("click", () => bridge && bridge.calendar());
 // Wi-Fi and Bluetooth open centered under their buttons.
 const under = (id) => { const r = $(id).getBoundingClientRect(); return r.left + r.width / 2; };
 $("net").addEventListener("click", () => bridge && bridge.popupAt("network", under("net")));

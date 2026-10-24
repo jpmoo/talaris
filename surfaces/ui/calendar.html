@@ -1,0 +1,130 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The calendar (calendar_panel.py): the accounts' events by month, week or day,
+made, changed and removed here and kept in step with each account by
+Evolution Data Server (calendard.py). Up over a dimmed screen from the bar's
+date and time; full screen by its expand button.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris calendar</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+/* As Morgan's: a panel over the dimmed screen; full screen, the whole surface. */
+html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; }
+body {
+  width: min(1040px, calc(100% - 32px)); height: 82%; margin: 5vh auto 0; display: flex; flex-direction: column;
+  background: var(--surface); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+html[data-expanded] { background: transparent; }
+html[data-expanded] body { width: 100%; height: 100%; margin: 0; box-shadow: none; }
+
+header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 8px 0 4px; min-width: 190px; letter-spacing: .3px; }
+header .spacer { flex: 1; }
+.frame { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; color: var(--muted); background: none; border: 0 !important; cursor: pointer; border-radius: var(--radius-control); }
+.frame:hover { color: var(--accent); }
+.frame[hidden] { display: none; }
+.seg { display: inline-flex; }
+
+main { flex: 1; min-height: 0; display: flex; }
+#side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px; overflow: auto; font-size: 12.5px; }
+#side h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 500; }
+#side h3:first-child { margin-top: 0; }
+.cal { display: flex; align-items: center; gap: 8px; padding: 3px 4px; border-radius: var(--radius-row); cursor: pointer; }
+.cal:hover { background: var(--accent-wash); }
+.cal .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; border: 1.5px solid var(--c); }
+.cal.on .sw { background: var(--c); }
+.cal span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.note { color: var(--muted); padding: 24px; font-size: 13px; line-height: 1.6; }
+.note code { user-select: all; background: var(--desk); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+/* Month */
+.month { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto repeat(6, 1fr); min-height: 0; }
+.dow { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 4px 2px; min-height: 0; overflow: hidden; cursor: default; display: flex; flex-direction: column; gap: 2px; }
+.cell:nth-child(7n+7) { border-right: 0; }
+.cell .n { font-size: 12px; color: var(--muted); padding: 1px 4px; align-self: flex-start; border-radius: 10px; cursor: pointer; }
+.cell.other .n { opacity: .45; }
+.cell.today .n { background: var(--accent); color: var(--surface); }
+.chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+        background: color-mix(in srgb, var(--c) 22%, transparent); border-left: 3px solid var(--c); }
+.chip.timed { background: none; }
+.chip:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
+.more { font-size: 11px; color: var(--muted); padding: 0 6px; cursor: pointer; }
+
+/* Week and day */
+.days { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.dayhead { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; }
+.dayhead div { padding: 6px 8px; font-size: 12px; color: var(--muted); }
+.dayhead .today { color: var(--accent); }
+.allday { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; min-height: 22px; }
+.allday > div { padding: 2px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line); }
+.allday > div:first-child { border-left: 0; font-size: 10px; color: var(--muted); padding: 4px 6px; }
+.grid { flex: 1; overflow: auto; position: relative; }
+.hours { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); position: relative; }
+.hour { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: 10px; color: var(--muted); padding: 0 6px; text-align: right; }
+.col { position: relative; border-left: 1px solid var(--line); }
+.col .slot { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.ev { position: absolute; left: 2px; right: 2px; border-radius: 5px; padding: 2px 6px; font-size: 11.5px; overflow: hidden; cursor: pointer;
+      background: color-mix(in srgb, var(--c) 30%, var(--surface)); border-left: 3px solid var(--c); line-height: 1.3; }
+.ev small { display: block; color: var(--muted); }
+.now { position: absolute; left: 0; right: 0; height: 2px; background: var(--accent); z-index: 2; pointer-events: none; }
+
+/* The editor */
+#editor { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, .25); z-index: 10; }
+#editor.open { display: grid; }
+#editor .box { width: min(460px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+#editor .row { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
+#editor .row > span:first-child { width: 74px; color: var(--muted); flex: none; }
+#editor input[type=text], #editor textarea, #editor select { flex: 1; }
+#editor textarea { min-height: 70px; resize: vertical; }
+#editor .acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
+#editor .acts .spacer { flex: 1; }
+#msg { font-size: 12px; color: var(--muted); }
+#msg.err { color: var(--danger); }
+body { position: relative; }
+</style>
+</head>
+<body>
+<header>
+  <button class="t-btn" id="today">Today</button>
+  <button class="frame" id="prev" title="Before"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
+  <button class="frame" id="next" title="After"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+  <h1 id="title"></h1>
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <span class="seg" id="mode"></span>
+  <button class="t-btn" id="new">New event</button>
+  <button class="frame" id="grow" title="Full screen"></button>
+  <button class="frame" id="close" title="Close"></button>
+</header>
+<main>
+  <aside id="side"></aside>
+  <section id="view"></section>
+</main>
+<div id="editor"><div class="box">
+  <div class="row"><span>Title</span><input type="text" class="field" id="e-title"></div>
+  <div class="row"><span>Calendar</span><select class="field" id="e-cal"></select></div>
+  <div class="row"><span>All day</span><input type="checkbox" id="e-allday"></div>
+  <div class="row"><span>Starts</span><input type="date" class="field" id="e-sd"><input type="time" class="field" id="e-st"></div>
+  <div class="row"><span>Ends</span><input type="date" class="field" id="e-ed"><input type="time" class="field" id="e-et"></div>
+  <div class="row"><span>Where</span><input type="text" class="field" id="e-where"></div>
+  <div class="row"><span>Notes</span><textarea class="field" id="e-notes"></textarea></div>
+  <div class="row" id="e-which-row"><span>Change</span><span class="seg" id="e-which"></span></div>
+  <div class="acts"><button class="t-btn danger" id="e-delete">Delete</button><span class="spacer"></span><button class="t-btn" id="e-cancel">Cancel</button><button class="t-btn" id="e-save">Save</button></div>
+</div></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script src="icons.js"></script>
+<script src="calendar.js"></script>
+</body>
+</html>
