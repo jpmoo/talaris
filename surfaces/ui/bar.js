@@ -220,13 +220,13 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 /*
- * Text on whole pixels. At a text size other than medium the bar is drawn at a
+ * Text and icons on whole pixels. At a text size other than medium the bar is drawn at a
  * fractional zoom, and a line of text can land between two rows of pixels:
  * its top strokes crisp, its bottom ones split across two rows at half
  * strength — "81%" looked thinner at the bottom than at the top. Each piece
  * of text is moved by the fraction of a pixel that puts it back on the grid.
  */
-const SNAP = "#where, #clock span, .bar-item .n";
+const SNAP = "#where, #clock span, .bar-item .n, .bar-item .ic, .tray-item img";
 function snap() {
   const dpr = window.devicePixelRatio || 1;
   for (const e of document.querySelectorAll(SNAP)) {
