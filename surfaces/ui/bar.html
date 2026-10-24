@@ -3,8 +3,8 @@
 SPDX-License-Identifier: GPL-3.0-only
 Copyright (c) 2026 Jeff Moore
 
-The bar. Left: the way to anything — the launcher's box and Morgan beside it.
-Middle: where you are. Right: the machine, and the way out.
+The bar. Left: the way to anything — the launcher's box and Morgan beside it — and
+where you are. Middle: the date and the time. Right: the machine, and the way out.
 -->
 <html>
 <head>
@@ -36,7 +36,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 
 
 /* Where you are: the project, letter-spaced like every label, with its code. */
-#where { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
+#where { margin-left: 10px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 
 /* Morgan's button says what Morgan is doing. Listening breathes; thinking
@@ -78,8 +78,9 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   <div class="side">
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
     <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span></button>
+    <div id="where"></div>
   </div>
-  <div id="where"></div>
+  <span id="clock"><span class="day" id="day"></span><span id="time"></span></span>
   <div class="side end">
     <span id="tray"></span>
     <button id="net" class="bar-item" title=""></button>
@@ -87,7 +88,6 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
     <span id="bat" class="bar-item static" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></span>
     <span class="sep"></span>
-    <span id="clock"><span class="day" id="day"></span><span id="time"></span></span>
     <button id="settings" class="bar-item" title="Settings"></button>
     <button id="power" class="bar-item" title="Power"></button>
   </div>
