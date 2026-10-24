@@ -74,16 +74,19 @@
         drawGone();
       }
 
-      // Statuses taken away: where their tasks go (the start status unless said).
+      // Statuses taken away: where their tasks go. A finished one's go to a
+      // finished status unless said — sending them to the start would reopen
+      // them all; an open one's go to the start.
+      const fallback = (s) => (s.complete ? (rows.find((r) => r.value && r.complete) || {}).value || def : def);
       function drawGone() {
         const kept = new Set(rows.map((r) => r.value).filter(Boolean));
         const removed = start.filter((s) => !kept.has(s.value));
         const targets = rows.filter((r) => r.value);
-        gone.replaceChildren(...removed.map((s) => {
-          const now = moveTo[s.value] && kept.has(moveTo[s.value]) ? moveTo[s.value] : def;
+        gone.replaceChildren(...(removed.length ? [el("div", { class: "le-muted st-gone-head" }, "Removed — when saved, their tasks move to:")] : []), ...removed.map((s) => {
+          const now = moveTo[s.value] && kept.has(moveTo[s.value]) ? moveTo[s.value] : fallback(s);
           return el("div", { class: "le-row" },
             el("span", { class: "le-label" }, s.label),
-            el("span", { class: "le-val" }, el("span", { class: "le-muted" }, "its tasks go to"),
+            el("span", { class: "le-val" },
               targets.map((t) => el("button", { type: "button", class: "t-btn st-flag" + (t.value === now ? " on" : ""), onclick: () => { moveTo[s.value] = t.value; drawGone(); } }, t.label))));
         }));
       }
@@ -96,7 +99,7 @@
           const statuses = rows.map((r) => ({ ...(r.value ? { value: r.value } : {}), label: r.label, ...(r.color ? { color: r.color } : {}), complete: r.complete }));
           const kept = new Set(rows.map((r) => r.value).filter(Boolean));
           const moves = {};
-          for (const s of start) if (!kept.has(s.value)) moves[s.value] = moveTo[s.value] && kept.has(moveTo[s.value]) ? moveTo[s.value] : def;
+          for (const s of start) if (!kept.has(s.value)) moves[s.value] = moveTo[s.value] && kept.has(moveTo[s.value]) ? moveTo[s.value] : fallback(s);
           const type = await ctx.api("PUT", "/tasks/statuses", { statuses, default: def, moveTo: moves });
           close(type);
         } catch (e) {
@@ -142,6 +145,8 @@
     .st-flag { font-size: 11.5px !important; padding: 2px 9px !important; }
     .st-flag.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
     .st-gone:empty { display: none; }
+    .st-gone-head { margin: 6px 0 4px; }
+    .st-gone .le-label { text-decoration: line-through; }
   `;
   document.head.append(style);
 

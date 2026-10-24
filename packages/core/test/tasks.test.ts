@@ -222,3 +222,13 @@ test("Home is not a project: never listed, and what was filed there is filed now
   assert.equal(entities.getEntity(t.id).properties.project, undefined);
   assert.throws(() => entities.getEntity(mirrored.id), /no entity/);
 });
+
+test("a finished status taken away sends its tasks to a finished one, not back to the start", () => {
+  const t = tasks.createTask({ title: "archived thing" });
+  tasks.setStatuses([
+    { value: "not_started", label: "To do" }, { value: "done", label: "Done", complete: true }, { value: "archived", label: "Archived", complete: true },
+  ], "not_started");
+  entities.updateEntity(t.id, { properties: { status: "archived" } });
+  tasks.setStatuses([{ value: "not_started", label: "To do" }, { value: "done", label: "Done", complete: true }], "not_started");
+  assert.equal(status(t.id), "done");
+});

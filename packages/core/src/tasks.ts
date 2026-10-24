@@ -339,10 +339,15 @@ export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Rec
   if (!values.has(defaultValue) || statuses.find((s) => s.value === defaultValue)!.complete) {
     throw new Conflict("a new task starts in a status that is not done");
   }
-  // Whatever held a status now gone goes where it was told to, or to the start.
+  // Whatever held a status now gone goes where it was told to; else a
+  // finished status's tasks to a finished status (not reopened), an open
+  // one's to the start.
+  const wasComplete = new Set(shape.complete);
+  const firstComplete = statuses.find((x) => x.complete)!.value;
+  const fallback = (g: string) => moveTo[g] ?? (wasComplete.has(g) ? firstComplete : defaultValue);
   const gone = (field.options ?? []).filter((v) => !values.has(v));
   for (const g of gone) {
-    const to = moveTo[g] ?? defaultValue;
+    const to = fallback(g);
     if (!values.has(to)) throw new Conflict(`tasks in ${g} need a status that is still there`);
   }
   const next: EntityType = {
@@ -364,7 +369,7 @@ export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Rec
       const o = r.object;
       if (o.type !== type.id) continue;
       const v = String(o.properties[field.key] ?? "");
-      if (gone.includes(v)) updateEntity(o.id, { properties: { [field.key]: moveTo[v] ?? defaultValue } });
+      if (gone.includes(v)) updateEntity(o.id, { properties: { [field.key]: fallback(v) } });
     }
   }
   return next;
