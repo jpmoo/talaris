@@ -529,6 +529,31 @@ class Desktop(QObject):
     #: edge is that much less, so the space you see is the same on every side.
     DOCK_SHORT = 3
 
+    def window_motion(self) -> None:
+        """
+        How windows open, close and move, as Settings says — Hyprland's own
+        animations, set at runtime like the borders, with the pages' curves
+        (in quick and settling, out accelerating). Draw has no window form:
+        the compositor animates a window, it cannot draw round one.
+        """
+        win = self.config["windows"]
+        motion = win.get("motion", "pop")
+        # Hyprland's speeds are tenths of a second; the pages' factors, applied.
+        pace = {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(win.get("speed", "normal"), 1)
+        ds = lambda base: f"{max(.5, base * pace):.2f}"  # noqa: E731
+        hypr.keyword("bezier", "talarisIn,0.2,0.8,0.2,1")
+        hypr.keyword("bezier", "talarisOut,0.5,0,0.9,0.4")
+        style = {"slide": "slide", "pop": "popin 87%"}.get(motion, "")
+        moving = motion != "none"
+        opening = motion in ("slide", "pop")
+        hypr.keyword("animation", f"windows,{int(moving)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
+        hypr.keyword("animation", f"windowsIn,{int(opening)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
+        hypr.keyword("animation", f"windowsOut,{int(opening)},{ds(3)},talarisOut" + (f",{style}" if style else ""))
+        hypr.keyword("animation", f"windowsMove,{int(moving)},{ds(4.5)},talarisIn")
+        # Fading goes with everything but none: the whole of "fade", and under the others.
+        hypr.keyword("animation", f"fadeIn,{int(moving)},{ds(2.5)},talarisIn")
+        hypr.keyword("animation", f"fadeOut,{int(moving)},{ds(2)},talarisOut")
+
     def style_compositor(self) -> None:
         """
         What Hyprland draws round the windows, made to match Talaris: the
@@ -546,6 +571,7 @@ class Desktop(QObject):
         hypr.keyword("general:border_size", "0" if outline == "none" else str(int(win.get("border", 2))))
         hypr.keyword("general:col.active_border", f"rgba({line}aa)" if outline == "line" else f"rgba({accent}ee)")
         hypr.keyword("general:col.inactive_border", f"rgba({accent}ee)" if outline == "accent" else f"rgba({line}aa)")
+        self.window_motion()
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
         # A floating bar's margin on the side away from its edge is the space
