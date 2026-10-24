@@ -88,6 +88,8 @@ without editing four thousand lines of fork.
 /* Every bar button alike: the accent's color under the pointer; a border and a
    wash while what it opens is out (and a press then closes it). */
 button.bar-item:hover { color: var(--accent); }
+/* Not the border every button gets under the pointer (theme.css): on the bar a border means open. */
+button.bar-item:hover:not(.on) { border-color: transparent; }
 .bar-item.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
 .bar-item.static { cursor: default; }
 .bar-item.low { color: var(--danger); }
