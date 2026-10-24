@@ -3,7 +3,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { MACHINERY, WRITING } from "./paths.js";
+import { FILES, MACHINERY, WRITING } from "./paths.js";
 import { findProject, listProjects, readProject } from "./projects.js";
 import { isSealed, seal, unseal } from "./seal.js";
 import { setSealer, writeAtomic, writeJson } from "./store.js";
@@ -14,8 +14,9 @@ import { storeKey } from "./vault.js";
  * default, because a project is a folder other applications save into.
  *
  * **What is sealed** is what Talaris writes there: the pages in `Writing/`,
- * and everything in `.talaris/` but `project.json` — canvases, versions, the
- * order and look of pages. **What is not:** the names of pages (they are file
+ * the files attached to pages and notes in `Files/`, and everything in
+ * `.talaris/` but `project.json` — canvases, versions, the order and look of
+ * pages. **What is not:** the names of pages (they are file
  * names), `project.json` (its name and code, so the project can be listed
  * before it is opened), exported pictures, and anything another application
  * saved into the folder. Those are the person's files, and theirs to protect;
@@ -47,6 +48,8 @@ function sealable(folder: string, path: string): boolean {
   if (rel.startsWith("..")) return false;
   const parts = rel.split(sep);
   if (parts[0] === WRITING) return rel.endsWith(".md");
+  // Files attached to its pages and notes: everything there, whatever it is.
+  if (parts[0] === FILES) return true;
   if (parts[0] === MACHINERY) return rel !== join(MACHINERY, "project.json");
   return false;
 }
@@ -85,6 +88,7 @@ function files(folder: string): string[] {
   };
   walk(join(folder, WRITING));
   walk(join(folder, MACHINERY));
+  walk(join(folder, FILES));
   return out;
 }
 

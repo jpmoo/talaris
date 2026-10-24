@@ -50,6 +50,9 @@ from gi.repository import EBook, EBookContacts, ECal, EDataServer, GLib, ICalGLi
 
 import re  # noqa: E402
 
+#: Addresses that are nobody's: a calendar's own, a room's, no-reply (as entities.ts isPersonAddress).
+NOT_A_PERSON = re.compile(r"@(group|resource|import|group\.v)\.calendar\.google\.com$|^(no-?reply|do-?not-?reply|calendar-notification)@", re.I)
+
 #: An attendee's answer, as iCalendar has it and as the page shows it.
 ANSWERS = {"ACCEPTED": "accepted", "DECLINED": "declined", "TENTATIVE": "maybe", "NEEDS-ACTION": "waiting", "DELEGATED": "delegated"}
 
@@ -442,6 +445,9 @@ class Calendars:
                     found.append({"name": name, "email": email})
         seen, items = set(), []
         for f in found:
+            # A calendar's own address (a shared calendar, a room) is nobody to invite or name.
+            if NOT_A_PERSON.search(f["email"]):
+                continue
             if f["email"] not in seen:
                 seen.add(f["email"])
                 items.append(f)

@@ -76,6 +76,8 @@ export function LongTextField({
         // @ names anything, asked of the core through the panel's door; a
         // mention clicked is peeked at by the panel, over the canvas.
         mentions: canvasMentions(),
+        // A file dropped or pasted into a note is kept in the canvas's project and linked (the drawer's files.js).
+        files: (window.parent as unknown as { talarisFileDefaults?: unknown }).talarisFileDefaults as never,
       });
       // Found again from the menu (fieldEditor), by the element it lives in.
       (host.current as HTMLElement & { talarisField?: Field }).talarisField = field.current;

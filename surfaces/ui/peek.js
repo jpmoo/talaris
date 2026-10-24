@@ -11,7 +11,9 @@
 window.Peek = (() => {
   const KIND = { contact: "Person", event: "Event", task: "Task", note: "Note", project: "Project" };
   // A link read from the far end, in words: a person is invited to the event that lists them.
-  const BACK = { mentions: "Mentioned in", attendees: "Invited to", organizer: "Organizer of", invitees: "Invited to", assignee: "Assigned", project: "In it" };
+  const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
+  // A link read from this end: an event's attendees are invited; what a page mentions is mentioned.
+  const OUT = { mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
   let card = null;
 
   function el(tag, attrs = {}, ...kids) {
@@ -35,6 +37,28 @@ window.Peek = (() => {
   function outside(e) { if (card && !card.contains(e.target)) close(); }
 
   const kindOf = (kinds) => KIND[(kinds || []).find((k) => KIND[k])] || "Thing";
+  // What a card's links are grouped by: what the other thing is.
+  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
+  const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const FIRST = 20;
+
+  /** One kind's rows: the newest twenty, then twenty more at a time, or all. */
+  function group(name, rows, api, opts) {
+    let shown = FIRST;
+    const list = el("div", {});
+    const more = el("div", { class: "peek-more" });
+    const draw = () => {
+      list.replaceChildren(...rows.slice(0, shown).map(({ e, how }) => el("button", { class: "peek-item", onclick: () => show(e.id, api, opts) },
+        el("span", { class: "peek-t" }, e.title), el("span", { class: "peek-how" }, how.join(", ")))));
+      const left = rows.length - shown;
+      more.replaceChildren(...(left > 0 ? [
+        el("button", { class: "t-btn", onclick: () => { shown += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
+        left > FIRST ? el("button", { class: "t-btn", onclick: () => { shown = rows.length; draw(); } }, `All ${rows.length}`) : null,
+      ] : []).filter(Boolean));
+    };
+    draw();
+    return el("div", { class: "peek-group" }, el("div", { class: "peek-label" }, `${name} · ${rows.length}`), list, more);
+  }
 
   async function show(id, api, opts = {}) {
     let got;
@@ -46,9 +70,25 @@ window.Peek = (() => {
       setTimeout(() => addEventListener("pointerdown", outside, true), 0);
     }
     const isTask = (got.kinds || []).includes("task");
+    // A page's or a canvas's entity: opened where it is, when the page can say where.
+    const place = opts.openPlace ? await api("GET", `/entities/${encodeURIComponent(id)}/place`).catch(() => null) : null;
+    // Everything it touches, either way, once each — grouped by what it is
+    // (people, events, notes…), newest first, each saying how it is linked.
+    const byId = new Map();
+    const touch = (e, how) => {
+      const had = byId.get(e.id);
+      if (had) { if (!had.how.includes(how)) had.how.push(how); return; }
+      byId.set(e.id, { e, how: [how] });
+    };
+    for (const c of got.out || []) touch(c.entity, OUT[c.name] || words(c.name));
+    for (const c of got.in || []) touch(c.entity, BACK[c.name] || `${words(c.name)} of`);
     const groups = new Map();
-    for (const c of got.out || []) { const k = c.name; groups.set(k, [...(groups.get(k) || []), c.entity]); }
-    for (const c of got.in || []) { const k = BACK[c.name] || `${c.name} of`; groups.set(k, [...(groups.get(k) || []), c.entity]); }
+    for (const row of byId.values()) {
+      const g = GROUP[(row.e.kinds || []).find((k) => GROUP[k])] || "Other";
+      groups.set(g, [...(groups.get(g) || []), row]);
+    }
+    for (const rows of groups.values()) rows.sort((a, b) => String(b.e.updated || "").localeCompare(String(a.e.updated || "")));
+    const order = [...new Set(Object.values(GROUP)), "Other"].filter((g) => groups.has(g));
     const props = got.entity.properties || {};
     const note = typeof props.notes === "string" ? props.notes : typeof props.description === "string" ? props.description : "";
     // Flattened: replaceChildren takes nodes, and would write an array of groups out as text.
@@ -60,10 +100,8 @@ window.Peek = (() => {
       Array.isArray(props.emails) && props.emails.length ? el("div", { class: "peek-line" }, props.emails.join(", ")) : null,
       note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1").slice(0, 300)) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
-      [...groups].map(([name, list]) => el("div", { class: "peek-group" },
-        el("div", { class: "peek-label" }, `${name} · ${list.length}`),
-        list.slice(0, 30).map((e) => el("button", { class: "peek-item", onclick: () => show(e.id, api, opts) },
-          el("span", { class: "peek-k" }, kindOf(e.kinds)), e.title)))),
+      place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, place.kind === "page" ? "Open page" : "Open canvas") : null,
+      order.map((name) => group(name, groups.get(name), api, opts)),
       groups.size ? null : el("div", { class: "peek-line" }, "Nothing connected yet"),
     ].flat().filter((x) => x != null));
   }
@@ -81,7 +119,12 @@ window.Peek = (() => {
     .peek-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
     .peek-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
     .peek-item:hover { background: var(--accent-wash); color: var(--accent); }
-    .peek-k { min-width: 52px; }
+    .peek-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .peek-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .peek-item:hover .peek-how { color: inherit; }
+    .peek-more { display: flex; gap: 6px; margin-top: 4px; }
+    .peek-more:empty { display: none; }
+    .peek-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
   `;
   document.head.append(style);
 

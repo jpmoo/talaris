@@ -51,3 +51,5 @@ export function projectsRoot(): string {
 /** Talaris's own folder inside a project: hidden, so the folder stays the user's. */
 export const MACHINERY = ".talaris";
 export const WRITING = "Writing";
+/** A project's files — attached to a page or a canvas note — in a visible folder of their own. */
+export const FILES = "Files";

@@ -710,6 +710,29 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 }
 .cv-entity-place:hover { background: var(--surface-2); }
 
+/*
+ * Entity cards: a task, an event, a person or a note from the core, drawn
+ * live. Framed like a card rather than written like a note — a quiet surface
+ * with a hairline, which a color somebody picks (`cv-shaded`) still overrides.
+ * The face is words to read, not to edit, so it takes no text selection.
+ */
+.cv-node.cv-entitycard .cv-paper { border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
+.cv-node.cv-entitycard:not(.cv-shaded) .cv-paper { background: var(--surface) !important; }
+.cv-card { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden; padding: 8px 10px; font-size: 12px; line-height: 1.35; }
+.cv-card-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cv-card-title { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cv-card-meta { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-card-indent { padding-left: 24px; }
+.cv-card-excerpt { color: var(--muted); white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+/* The status circle — the one control on a card. */
+.cv-card-status { flex: none; width: 16px; height: 16px; padding: 0; border: 2px solid var(--muted); border-radius: 50%; background: transparent; cursor: pointer; }
+.cv-card-status:disabled { cursor: default; opacity: .6; }
+.cv-card-done .cv-card-title { color: var(--muted); text-decoration: line-through; font-weight: 400; }
+.cv-card-gone { opacity: .5; }
+.cv-card-gone .cv-card-meta { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+.cv-card-option { display: flex; align-items: center; gap: 8px; }
+.cv-card-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+
 /* A small heading in a menu: what the swatches under it color. */
 .cv-menu-hint { padding: 6px 10px 0; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
 /* The crossed swatch: no color of its own — the note's, or the theme's. */

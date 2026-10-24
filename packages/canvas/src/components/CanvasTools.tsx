@@ -15,11 +15,15 @@
  * are written down, so a screen point becomes a document point without this
  * having to know anything else about the surface it sits on.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Image as ImageIcon, Search, SquareDashed, Type } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
+import { createPortal } from "react-dom";
+import { BringIn } from "./BringIn.tsx";
+import { cardKind } from "../cards.ts";
+import type { Summary } from "../entities.ts";
 
 /** The six the format has, in the Mac's order. */
 /*
@@ -162,6 +166,36 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
     window.document.addEventListener("talaria-drop-text", drop);
     return () => window.document.removeEventListener("talaria-drop-text", drop);
   });
+
+  /*
+   * "Bring in…", asked for by the canvas's own right-click menu — the same
+   * sibling arrangement as the drop above. The canvas says where; the strip,
+   * which owns placing things, opens the search there and places the card.
+   */
+  const [bringing, setBringing] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => {
+      const at = (e as CustomEvent<{ x: number; y: number }>).detail;
+      if (at) setBringing(at);
+    };
+    window.document.addEventListener("talaris-bring-in", open);
+    return () => window.document.removeEventListener("talaris-bring-in", open);
+  }, []);
+  const closeBringing = useCallback(() => setBringing(null), []);
+
+  /**
+   * An entity, placed as a card at the point the canvas was right-clicked.
+   *
+   * `seen` is written now, from the search row, so the card has a title to draw
+   * before the core is asked about it. A task or an event has its few lines
+   * and no more, so they come in a little shorter than a note.
+   */
+  function bringIn(s: Summary, clientX: number, clientY: number) {
+    const at = atPoint(clientX, clientY);
+    const kind = cardKind(s.kinds ?? []);
+    const h = kind === "task" ? 72 : kind === "event" ? 96 : 110;
+    void place({ id: id(), kind: "card", entity: s.id, x: at.x, y: at.y, w: 240, h, seen: { title: s.title, kind } });
+  }
 
   function dropText(clientX: number, clientY: number) {
     const at = atPoint(clientX, clientY);
@@ -523,6 +557,19 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
           if (file) void load(file);
         }}
       />
+      {bringing &&
+        createPortal(
+          <BringIn
+            x={bringing.x}
+            y={bringing.y}
+            onClose={closeBringing}
+            onPick={(s) => {
+              setBringing(null);
+              bringIn(s, bringing.x, bringing.y);
+            }}
+          />,
+          window.document.body,
+        )}
     </div>
   );
 }

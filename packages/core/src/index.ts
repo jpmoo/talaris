@@ -15,11 +15,19 @@ import { ensureHome } from "./projects.js";
 import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
 import { startSchedule } from "./backup.js";
+import { forgetNonPeople } from "./entities.js";
 
 async function main(): Promise<void> {
   const home = ensureHome();
   startSealing();
   startSchedule();
+  // People once made from calendars' own addresses, put right (entities.ts).
+  try {
+    const n = forgetNonPeople();
+    if (n) console.log(`talaris-core: ${n} calendar addresses were people; no longer`);
+  } catch (e) {
+    console.log(`talaris-core: people not checked yet: ${(e as Error).message}`);
+  }
   const server = await listen(SOCKET);
   console.log(`talaris-core ${VERSION}: ${projectsRoot()} (Home ${home.code}), on ${SOCKET}`);
   const stop = () => server.close(() => process.exit(0));

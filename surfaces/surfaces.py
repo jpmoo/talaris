@@ -422,6 +422,12 @@ class Desktop(QObject):
         self.dock.refresh()
         log(f"project: {found['name']}")
 
+    def open_place(self, kind: str, project: str, where: str) -> None:
+        """A page or a canvas, opened in its project: that project the current one first, if it is not."""
+        if project and project != self.project.get("id"):
+            self.go_to_project(project)
+        self.show_in_drawer("writing" if kind == "page" else "canvas", {"page": where} if kind == "page" else {"canvas": where})
+
     def show_in_drawer(self, name: str, target: dict) -> None:
         """The canvas or the writing surface, open on one canvas or one page."""
         w = self.workspaces.get(name)

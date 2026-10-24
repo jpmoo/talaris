@@ -7,7 +7,8 @@ import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs"
 import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
-import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, readProject, writeExport } from "./projects.js";
+import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
+import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, readProjectFile, writeExport } from "./projects.js";
 import {
   backlinks,
   canvasTree,
@@ -152,6 +153,18 @@ route("POST", "/projects/:id/exports", async (req, [id]) => {
   const path = writeExport(id!, b.name ?? "Canvas", b.kind, Buffer.from(b.data, "base64"));
   return { path, folder: findProject(id!).folder };
 });
+// A project's files (projects.ts, `Files/`): attached to a page or a canvas note, linked by their path.
+route("POST", "/projects/:id/files", async (req, [id]) => {
+  const b = await json<{ name?: string; data?: string }>(req);
+  if (!b.name || !b.data) throw new BadRequest("a file has a name and data (base64)");
+  return putProjectFile(id!, b.name, Buffer.from(b.data, "base64"));
+});
+// Where it is, to be opened as it is — or, sealed, its bytes, to be opened as a copy.
+route("GET", "/projects/:id/file", (_r, [id], q) => {
+  const at = attachedFile(id!, need(q, "path"));
+  return { path: need(q, "path"), abs: at.abs, sealed: at.sealed };
+});
+route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFile(id!, need(q, "path")).toString("base64") }));
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
 route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {
@@ -195,8 +208,20 @@ route("POST", "/entities/mirror/events", async (req) => {
 route("POST", "/entities/person", async (req) => {
   const b = await json<{ email?: string; name?: string }>(req);
   if (!b.email) throw new BadRequest("a person is found by email");
+  if (!entities.isPersonAddress(b.email)) throw new BadRequest("that address is a calendar's, not a person's");
   return entities.personFor(b.email, b.name);
 });
+// What an @ can link (mentionables.ts): entities, pages and canvases, this project's first.
+route("GET", "/mentionables", (_r, _p, q) =>
+  findMentionables(q.get("q") ?? "", q.get("project") ?? "", Math.min(Number(q.get("limit") ?? 12), 40)));
+// A page or a canvas, as the entity that stands for it (made the first time it is linked).
+route("POST", "/entities/place", async (req) => {
+  const b = await json<{ kind?: string; project?: string; where?: string; title?: string }>(req);
+  if ((b.kind !== "page" && b.kind !== "canvas") || !b.project || !b.where) throw new BadRequest("a place is a page or a canvas, in a project");
+  return placeEntity(b.kind, b.project, b.where, b.title ?? "");
+});
+// Where an entity standing for a page or a canvas points, to open it there; null for any other.
+route("GET", "/entities/:id/place", (_r, [id]) => placeOf(entities.getEntity(id!)));
 // Which of these addresses are people already: an @ picker's address-book finds, told apart from the new.
 route("POST", "/entities/people/known", async (req) => {
   const b = await json<{ emails?: string[] }>(req);

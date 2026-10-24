@@ -25,11 +25,11 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from core import Bridge, local_call
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, Placement
 from overlay import Overlay
-from tasks_panel import choose_files, send_files
+from files import choose_files, send_files
 from views import log
 
 #: What the page may ask the core for: making things, and finding people and projects.
-ALLOWED = re.compile(r"^/(tasks|entities|entity-types|people/find|projects)(/|$|\?)")
+ALLOWED = re.compile(r"^/(tasks|entities|entity-types|people/find|mentionables|projects)(/|$|\?)")
 
 
 class NewBridge(Bridge):
@@ -109,6 +109,10 @@ class New(Overlay):
         self.chosen_paths: set = set()
         service.made.connect(self.bridge.eventMade.emit)
 
+    def describe(self) -> dict:
+        # The current project, which a note is written into unless another is chosen.
+        return {**super().describe(), "project": self.desktop.project.get("id", "")}
+
     def _place(self) -> None:
         # As every panel, the whole screen — but the keyboard is its own: it opened to be typed into.
         screen = QGuiApplication.primaryScreen().geometry()
@@ -143,6 +147,9 @@ class New(Overlay):
             QTimer.singleShot(900, lambda: tasks.view.page().runJavaScript(ask))
         elif kind == "event":
             self.desktop.calendar.open()
+        elif kind == "page":
+            project, _, path = ident.partition("/")
+            self.desktop.open_place("page", project, path)
 
     def opened(self) -> None:
         self.desktop.bar.changed()

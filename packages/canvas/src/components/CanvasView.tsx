@@ -42,6 +42,7 @@ import { BlockIcon } from "../lib/icons.tsx";
 import { emitBlockChange, useBlockDeleted } from "../lib/block-events.ts";
 import { captureField, runFieldClipboard, type FieldSelection } from "../lib/field-clipboard.ts";
 import { EphemeralNote } from "./EphemeralNote.tsx";
+import { EntityCard } from "./EntityCard.tsx";
 import { PointerMenu } from "./PointerMenu.tsx";
 import { usePanels } from "../lib/right-panel.tsx";
 import { BlockCard } from "./BlockCard.tsx";
@@ -2494,6 +2495,15 @@ export function CanvasView({
       (document_().items.find((i) => `n:${i.id}` === id) as { kind?: string } | undefined)?.kind?.startsWith("canvas"),
     );
 
+  /**
+   * An entity card: a note-shaped node whose face is its entity, drawn live —
+   * see `EntityCard`. Its entity is what it is, so it is never linked or let go.
+   */
+  const cardOf = (id: string) => {
+    const item = document_().items.find((i) => `n:${i.id}` === id);
+    return item?.kind === "card" && typeof item.entity === "string" ? item : null;
+  };
+
   const setNodeEntity = (id: string, entity: string | null) =>
     saveNotes(notes.map((n) => (n.id === id ? { ...n, entity } : n)));
 
@@ -3097,7 +3107,8 @@ export function CanvasView({
      * title as a quiet line when the note's own words say something else — a
      * note reading "lunch w/ Sam" that is the event "Lunch with Sam Ortiz".
      */
-    const entity = isNote ? (r as { entity?: string | null }).entity : null;
+    // A card draws its entity itself, so it wears neither mark nor line.
+    const entity = isNote && !cardOf(id) ? (r as { entity?: string | null }).entity : null;
     const stands = entity ? known[entity] : null;
     const ownWords = isNote ? firstLine((r as { text?: string }).text ?? "").toLowerCase() : "";
     const entityLine =
@@ -3653,11 +3664,14 @@ export function CanvasView({
               </button>
             );
           })()}
-        {notes.map((n) =>
-          nodeBox(
+        {notes.map((n) => {
+          const card = cardOf(n.id);
+          return nodeBox(
             n.id,
             n,
-            n.image ? (
+            card ? (
+              <EntityCard entity={card.entity as string} seen={card.seen} />
+            ) : n.image ? (
               // Nothing to type into. An image note is the picture and a right
               // click — its words arrive when it becomes a block, in the fields
               // that block has.
@@ -3672,8 +3686,8 @@ export function CanvasView({
             />
             ),
             true,
-          ),
-        )}
+          );
+        })}
       </div>
 
       {/* inline add search (top left) */}
@@ -4003,7 +4017,7 @@ export function CanvasView({
                 </>
               );
             })()}
-            {menuNote && !isCanvasCard(menuNote.id) && (() => {
+            {menuNote && !isCanvasCard(menuNote.id) && !cardOf(menuNote.id) && (() => {
               /*
                * What this note stands for. Unlinked, it can be made one or
                * pointed at one that exists — "this note is actually that
@@ -4230,6 +4244,19 @@ export function CanvasView({
       {paneMenu &&
         createPortal(
           <PointerMenu x={paneMenu.x} y={paneMenu.y}>
+            {/* Asked of the tool strip, which owns placing things — the same
+                sibling arrangement as a double-click's new note. */}
+            {!locked && (
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setPaneMenu(null);
+                  document.dispatchEvent(new CustomEvent("talaris-bring-in", { detail: { x: paneMenu.x, y: paneMenu.y } }));
+                }}
+              >
+                Bring in…
+              </button>
+            )}
             <div className="cv-menu-hint">Background</div>
             <div className="cv-menu-row cv-text-colors">
               {CANVAS_BACKGROUNDS.map((c) => (

@@ -95,13 +95,23 @@ const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "eve
  */
 export const BUILT_IN: EntityType[] = [
   {
-    id: "t_person", name: "Person", "talaris:role": "person",
+    // A contact card's fields (vCard's, by and large), so a person can be tied
+    // to cards in contacts accounts and say what they say. Version 2 added role
+    // and the rest; `notes` is shown as the description.
+    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 2,
     fields: [
-      { key: "title", kind: "text", required: true },
+      { key: "title", kind: "text", required: true, "talaris:label": "Name" },
       { key: "emails", kind: "text", many: true },
       { key: "phones", kind: "text", many: true },
       { key: "organization", kind: "text" },
-      { key: "notes", kind: "richtext" },
+      { key: "role", kind: "text" },
+      { key: "pronouns", kind: "text" },
+      { key: "notes", kind: "richtext", "talaris:label": "Description" },
+      { key: "image", kind: "attachment" },
+      { key: "files", kind: "attachment", many: true },
+      { key: "addresses", kind: "text", many: true },
+      { key: "birthday", kind: "date" },
+      { key: "websites", kind: "text", many: true },
     ],
     profiles: { contact: { title: "title", email: "emails", phone: "phones" } },
   },
@@ -422,11 +432,13 @@ export interface Summary {
   type?: string;
   stub?: boolean;
   archived?: boolean;
+  /** When it last changed (or was made): what lists of connections are ordered by, newest first. */
+  updated?: string;
 }
 
 export function summary(o: Entity): Summary {
   return {
-    id: o.id, title: titleOf(o), kinds: profilesOf(o), type: o.type,
+    id: o.id, title: titleOf(o), kinds: profilesOf(o), type: o.type, updated: o.updated,
     ...(o.stub ? { stub: true } : {}), ...(o.archived ? { archived: true } : {}),
   };
 }
@@ -688,12 +700,26 @@ export function unlink(r: Relation): void {
  * The person with this email: known already, or made now. A name given later
  * fills an empty one, never replaces one somebody chose.
  */
+/**
+ * Addresses that are not anybody: a calendar's own (Google gives every shared
+ * calendar and every room an address, and they turn up as invitees), and the
+ * no-reply kind. An event's people are made from its invitees, so these are
+ * left out there rather than made into people.
+ */
+const NOT_A_PERSON = /@(group|resource|import|group\.v)\.calendar\.google\.com$|^(no-?reply|do-?not-?reply|calendar-notification)@/i;
+export const isPersonAddress = (email: string): boolean => /@/.test(email) && !NOT_A_PERSON.test(email.trim());
+
+/** A name that is only an address — what a person is called until their name is known. */
+const onlyAddress = (title: unknown): boolean => typeof title !== "string" || !title.trim() || /^[^\s@]+@[^\s@]+$/.test(title.trim());
+
 export function personFor(email: string, name?: string, extra: { sources?: Source[] } = {}): Entity {
   const known = byEmail(email);
   if (known) {
     const type = typeFor("person");
     const titleKey = String(type.profiles?.contact?.title ?? "title");
-    if (name && !known.properties[titleKey] && known.type === type.id) return updateEntity(known.id, { properties: { [titleKey]: name } });
+    // Known by name once a name is known: an address stands in only until then.
+    const real = name && !/@/.test(name) ? name.trim() : "";
+    if (real && onlyAddress(known.properties[titleKey]) && known.type === type.id) return updateEntity(known.id, { properties: { [titleKey]: real } });
     return known;
   }
   const type = typeFor("person");
@@ -730,12 +756,12 @@ export interface MirroredEvent {
  */
 export function mirrorEvent(e: MirroredEvent): Entity {
   const type = typeFor("event");
-  const organizer = e.organizer?.email ? personFor(e.organizer.email, e.organizer.name).id : undefined;
+  const organizer = e.organizer?.email && isPersonAddress(e.organizer.email) ? personFor(e.organizer.email, e.organizer.name).id : undefined;
   const seen = new Set<string>();
   const attendees: string[] = [];
   const attendance: Record<string, string> = {};
   for (const a of e.attendees ?? []) {
-    if (!a.email) continue;
+    if (!a.email || !isPersonAddress(a.email)) continue;
     const p = personFor(a.email, a.name).id;
     if (seen.has(p)) continue;
     seen.add(p);
@@ -795,3 +821,35 @@ export function fileHashes(): string[] {
   load();
   return readdirSync(dir("blobs")).filter((n) => /^[0-9a-f]{64}$/.test(n));
 }
+
+/**
+ * People made, before it was known better, from addresses that are nobody's
+ * (`isPersonAddress`): taken out of the events that list them, then gone.
+ * Run as the core starts; with none left, it costs one look at the people.
+ * Answers how many went.
+ */
+export function forgetNonPeople(): number {
+  const type = typeFor("person");
+  const emailKey = String(type.profiles?.contact?.email ?? "emails");
+  const gone = new Set<string>();
+  for (const { object: o } of load().records.values()) {
+    if (o.type !== type.id) continue;
+    const emails = (Array.isArray(o.properties[emailKey]) ? o.properties[emailKey] : []) as string[];
+    if (emails.length && emails.every((e) => !isPersonAddress(String(e)))) gone.add(o.id);
+  }
+  if (!gone.size) return 0;
+  for (const { object: o } of [...load().records.values()]) {
+    if (gone.has(o.id)) continue;
+    const patch: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o.properties)) {
+      if (Array.isArray(v) && v.some((x) => gone.has(x as string))) {
+        const rest = v.filter((x) => !gone.has(x as string));
+        patch[k] = rest.length ? rest : null;
+      } else if (typeof v === "string" && gone.has(v)) patch[k] = null;
+    }
+    if (Object.keys(patch).length) updateEntity(o.id, { properties: patch });
+  }
+  for (const id of gone) deleteEntity(id);
+  return gone.size;
+}
+

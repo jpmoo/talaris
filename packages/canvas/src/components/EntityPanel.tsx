@@ -85,12 +85,18 @@ export interface Placement {
 }
 
 /**
- * What an entity is connected to, grouped by the name of the link.
- *
- * Outgoing groups are called by their field — "attendees", "organizer" — and
- * incoming ones say so, "In: attendees", which is how a person's panel reads
- * as the events they were at.
+ * What an entity is connected to, grouped by what each thing is — people,
+ * events, tasks, notes — newest first, each saying how it is linked ("invited",
+ * "mentioned in"). Twenty of each at first, then more, or all: a person who
+ * has been to three hundred meetings is a long list, and the latest are the
+ * ones looked for.
  */
+const GROUP: Record<string, string> = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
+const BACK: Record<string, string> = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", project: "filed here" };
+const OUT: Record<string, string> = { mentions: "mentioned", attendees: "invited", organizer: "organizer", project: "project" };
+const FIRST = 20;
+const words = (key: string) => key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+
 export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows: Placement[]) => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [failed, setFailed] = useState(false);
@@ -108,18 +114,26 @@ export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows:
   if (failed) return <div className="hint cv-entity-none">Couldn't load</div>;
   if (!detail) return <div className="hint cv-entity-none">…</div>;
 
-  const groups = new Map<string, Placement[]>();
-  const add = (label: string, p: Placement) => {
-    const g = groups.get(label) ?? [];
-    g.push(p);
-    groups.set(label, g);
+  // Each thing once, however many ways it is connected (an organizer is
+  // usually an attendee too), with every way said.
+  const byId = new Map<string, Placement & { how: string[] }>();
+  const add = (p: Placement, how: string) => {
+    const had = byId.get(p.entity.id);
+    if (had) {
+      if (!had.how.includes(how)) had.how.push(how);
+    } else byId.set(p.entity.id, { ...p, how: [how] });
   };
-  for (const c of detail.out) add(c.name, { entity: c.entity, outgoing: true });
-  for (const c of detail.in) add(`In: ${c.name}`, { entity: c.entity, outgoing: false });
-
-  // Placing everything places each entity once, however many ways it is
-  // connected: an organizer is usually an attendee too.
-  const all = [...new Map([...groups.values()].flat().map((p) => [p.entity.id, p])).values()];
+  for (const c of detail.out) add({ entity: c.entity, outgoing: true }, OUT[c.name] ?? words(c.name));
+  for (const c of detail.in) add({ entity: c.entity, outgoing: false }, BACK[c.name] ?? `${words(c.name)} of`);
+  const all = [...byId.values()];
+  const groups = new Map<string, (Placement & { how: string[] })[]>();
+  for (const p of all) {
+    const g = GROUP[p.entity.kinds.find((k) => GROUP[k]) ?? ""] ?? "Other";
+    groups.set(g, [...(groups.get(g) ?? []), p]);
+  }
+  const newest = (x: { entity: { updated?: string } }) => x.entity.updated ?? "";
+  for (const rows of groups.values()) rows.sort((a, b) => newest(b).localeCompare(newest(a)));
+  const order = [...new Set(Object.values(GROUP)), "Other"].filter((g) => groups.has(g));
 
   return (
     <div className="cv-entity-panel">
@@ -133,21 +147,37 @@ export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows:
         )}
       </div>
       {all.length === 0 && <div className="hint cv-entity-none">No connections</div>}
-      {[...groups.entries()].map(([label, rows]) => (
-        <div key={label}>
-          <div className="menu-sep" />
-          <div className="hint" style={{ padding: "4px 10px" }}>{label}</div>
-          {rows.map((p) => (
-            <div key={p.entity.id} className="cv-entity-row">
-              <KindMark kinds={p.entity.kinds} />
-              <span className="cv-entity-title-text">{p.entity.title || "Untitled"}</span>
-              <button className="seg cv-entity-place" onClick={() => onPlace([p])}>
-                Place
-              </button>
-            </div>
-          ))}
-        </div>
+      {order.map((label) => (
+        <Group key={label} label={label} rows={groups.get(label)!} onPlace={onPlace} />
       ))}
     </div>
   );
 }
+
+function Group({ label, rows, onPlace }: { label: string; rows: (Placement & { how: string[] })[]; onPlace: (rows: Placement[]) => void }) {
+  const [shown, setShown] = useState(FIRST);
+  const left = rows.length - shown;
+  return (
+    <div>
+      <div className="menu-sep" />
+      <div className="hint" style={{ padding: "4px 10px" }}>{`${label} · ${rows.length}`}</div>
+      {rows.slice(0, shown).map((p) => (
+        <div key={p.entity.id} className="cv-entity-row">
+          <KindMark kinds={p.entity.kinds} />
+          <span className="cv-entity-title-text">{p.entity.title || "Untitled"}</span>
+          <span className="hint">{p.how.join(", ")}</span>
+          <button className="seg cv-entity-place" onClick={() => onPlace([p])}>
+            Place
+          </button>
+        </div>
+      ))}
+      {left > 0 && (
+        <div style={{ display: "flex", gap: 6, padding: "4px 10px" }}>
+          <button className="seg" onClick={() => setShown((n) => n + FIRST)}>{`${Math.min(FIRST, left)} more`}</button>
+          {left > FIRST && <button className="seg" onClick={() => setShown(rows.length)}>{`All ${rows.length}`}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+

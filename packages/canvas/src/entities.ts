@@ -21,6 +21,8 @@ export interface Summary {
   kinds: string[];
   type?: string;
   stub?: boolean;
+  /** When it last changed (or was made). */
+  updated?: string;
 }
 
 export interface Connection {

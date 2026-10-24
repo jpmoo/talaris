@@ -217,7 +217,30 @@ class CalendarService(QObject):
                     return
                 done += len(events[i:i + 100])
             log(f"calendar: {done} events mirrored as entities")
+            self._name_people()
         threading.Thread(target=send, daemon=True).start()
+
+    def _name_people(self) -> None:
+        """
+        People known only by an address, given the name an address book has
+        for it: a person is called by name where one is known, by address only
+        until then. From the mirror's own thread.
+        """
+        status, text = core_call("GET", "/entities?kind=contact&limit=5000", timeout=30)
+        if status != 200:
+            return
+        named = 0
+        for p in json.loads(text):
+            title = p.get("title", "")
+            if "@" not in title or " " in title.strip():
+                continue
+            email = title.strip().lower()
+            found = next((f for f in self.find_people(email) if f.get("email", "").lower() == email and f.get("name") and "@" not in f["name"]), None)
+            if found:
+                status, _ = core_call("POST", "/entities/person", json.dumps({"email": email, "name": found["name"]}), timeout=10)
+                named += status == 200
+        if named:
+            log(f"calendar: {named} people named from the address books")
 
     def find_people(self, query: str, wait: float = 2.0) -> list:
         """

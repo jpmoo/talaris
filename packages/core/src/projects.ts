@@ -4,8 +4,8 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { FORMAT_VERSION, type CanvasDocument, type Project, type ProjectSummary } from "@talaris/model";
-import { CONFIG_DIR, MACHINERY, WRITING, projectsRoot } from "./paths.js";
-import { newId, readJson, writeAtomic, writeJson } from "./store.js";
+import { CONFIG_DIR, FILES, MACHINERY, WRITING, projectsRoot } from "./paths.js";
+import { isSealedFile, newId, readBytes, readJson, writeAtomic, writeJson } from "./store.js";
 
 /**
  * A project is a folder: whatever the user and their applications put there,
@@ -182,3 +182,41 @@ export function writeExport(projectId: string, base: string, ext: string, data: 
   writeAtomic(join(dir, name), data);
   return join(EXPORTS, name);
 }
+
+/**
+ * A file attached to a page or a canvas note: kept in the project's visible
+ * `Files/` folder — a project's files live in it, by what they are for, not
+ * in a store of their own — under its own name, made unique beside another
+ * of the same name. Sealed there when the project is encrypted
+ * (sealed-projects.ts). Answers its path within the project, which is what
+ * a page or a note links it by.
+ */
+export function putProjectFile(projectId: string, filename: string, data: Buffer): { path: string; name: string } {
+  const { folder } = findProject(projectId);
+  const dir = join(folder, FILES);
+  mkdirSync(dir, { recursive: true });
+  const clean = (filename.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim() || "file").slice(0, 160);
+  const dot = clean.lastIndexOf(".");
+  const [stem, ext] = dot > 0 ? [clean.slice(0, dot), clean.slice(dot)] : [clean, ""];
+  let name = clean;
+  for (let n = 2; existsSync(join(dir, name)); n++) name = `${stem} ${n}${ext}`;
+  writeAtomic(join(dir, name), data);
+  return { path: `${FILES}/${name}`, name };
+}
+
+/** Where a project's file is on disk, if it is one: only within `Files/`, never above it. */
+export function attachedFile(projectId: string, rel: string): { abs: string; sealed: boolean } {
+  const { folder } = findProject(projectId);
+  const parts = rel.split("/");
+  if (parts[0] !== FILES || parts.length < 2 || parts.some((p) => !p || p === "." || p === ".." || p.includes("\\") || p.includes("\0"))) {
+    throw new Conflict("not a file of this project's");
+  }
+  const abs = join(folder, ...parts);
+  if (!existsSync(abs)) throw new NotFound(`no file ${rel}`);
+  return { abs, sealed: isSealedFile(abs) };
+}
+
+export function readProjectFile(projectId: string, rel: string): Buffer {
+  return readBytes(attachedFile(projectId, rel).abs);
+}
+

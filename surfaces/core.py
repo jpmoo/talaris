@@ -18,6 +18,7 @@ import http.client
 import json
 import os
 import socket
+import threading
 from urllib.parse import parse_qs, urlsplit
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
@@ -93,6 +94,8 @@ class Bridge(QObject):
     leave = Signal()
     #: Pushed to a drawer's page: open on this — `{canvas}` or `{page}`.
     show = Signal(str)
+    #: Files chosen and kept in a project (`attachToProject`): {project, files: [{name, path}], error}.
+    projectFiles = Signal(str)
 
     def __init__(self, owner, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -142,6 +145,34 @@ class Bridge(QObject):
     def activity(self) -> None:
         """The page saw input. The idle timeout counts from the last of these."""
         self.owner.touched()
+
+    @Slot(str, str, str)
+    def openPlace(self, kind: str, project: str, where: str) -> None:  # noqa: N802 — called from the page by this name
+        """A page or a canvas a mention points at, opened where it lives — in its project."""
+        desktop = getattr(self.owner, "desktop", None)
+        if desktop and kind in ("page", "canvas"):
+            # Asked from a panel (Tasks, New): it goes, so what opens is seen.
+            if getattr(self.owner, "NAME", "") not in ("canvas", "writing") and hasattr(self.owner, "file_away"):
+                self.owner.file_away()
+            desktop.open_place(kind, project, where)
+
+    @Slot(str, str)
+    def openProjectFile(self, project: str, path: str) -> None:  # noqa: N802 — called from the page by this name
+        """A file a page or a note links (`Files/…`), opened in its application."""
+        from files import open_project_file
+        open_project_file(project, path)
+
+    @Slot(str)
+    def attachToProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        """Files chosen in the desktop's chooser and kept in the project's `Files/`; the page hears where."""
+        from files import choose_files, send_project_files
+        if not hasattr(self.owner, "step_aside"):
+            return
+
+        def chosen(paths: list) -> None:
+            if paths:
+                threading.Thread(target=lambda: self.projectFiles.emit(json.dumps({"project": project, **send_project_files(project, paths)})), daemon=True).start()
+        choose_files(self.owner, "Attach files", chosen)
 
     @Slot(str)
     def openUrl(self, url: str) -> None:  # noqa: N802 — called from the page by this name

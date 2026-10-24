@@ -107,6 +107,8 @@ export function writeCanvas(projectId: string, doc: CanvasDocument, options: { d
   // A note that mentions something is an entity, holding those mentions as
   // its edges (mentions.ts); its card keeps the entity's id.
   for (const item of kept.items) {
+    // A card shows an entity (a task, a person); it has no words of its own to hold mentions.
+    if ((item as { kind?: string }).kind === "card") continue;
     const text = typeof (item as { text?: unknown }).text === "string" ? (item as { text: string }).text : "";
     if (!text.includes("](talaris:") && !(item as { entity?: string }).entity) continue;
     const id = syncText({ kind: "canvas-note", key: `${projectId}/${doc.id}/${item.id}` }, text.split("\n").find((l) => l.trim())?.trim() ?? "Note", text);

@@ -1055,12 +1055,19 @@ from the far end ("Invited to", "Mentioned in").
 
 ### People (not built — what it must do)
 
-**A person here should be tied to a real contact.** By address first: a person
-with an email is matched to the card in a contacts account that has it, and
-kept matched. **One with no address asks to be connected** — to a contact, or
-to more than one, since a person can have a card in each account — with
-suggestions: names alike, the same organization, the addresses of the people
-met with alongside them. Nothing is merged without being asked.
+**A person is Talaris's own, and may be tied to contacts.** Made here (New,
+an @) a person needs no contact behind them and is no less a person for it.
+**Tied by address first:** one with an email is matched to the card in a
+contacts account that has it, and kept matched. **One not tied is offered
+likely cards** — by name and by address alike, the same organization, the
+addresses of the people met with alongside them — to tie to one, or to more
+than one, since a person can have a card in each account. Nothing is tied or
+merged without being asked. **A switch per person stops the asking**
+("don't look for a contact"): they stay a person here, never suggested again.
+
+Known by name; by address only until a name is known (an address book's, or
+an invitation's). Calendars' own addresses (Google's shared calendars, rooms)
+are nobody, and are never made people (`isPersonAddress`).
 
 ### Making, and going
 

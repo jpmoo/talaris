@@ -118,8 +118,8 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
         // `[text](url)`: the text is between the first two marks.
         const textFrom = marks[0]?.to ?? node.from;
         const textTo = marks[1]?.from ?? node.to;
-        // A mention (`[@Name](talaris:id)`) is a link drawn as a chip.
-        specs.push({ kind: "mark", from: textFrom, to: textTo, cls: url.startsWith("talaris:") ? "cm-link cm-mention" : "cm-link", url });
+        // A mention (`[@Name](talaris:id)`) is a link drawn as a chip; a kept file (`talaris-file:`) too.
+        specs.push({ kind: "mark", from: textFrom, to: textTo, cls: url.startsWith("talaris:") ? "cm-link cm-mention" : url.startsWith("talaris-file:") ? "cm-link cm-file" : "cm-link", url });
         if (open || marks.length < 2) return false;
         specs.push({ kind: "hide", from: node.from, to: textFrom });
         specs.push({ kind: "hide", from: textTo, to: node.to });

@@ -207,6 +207,69 @@ test("an encrypted project reads as before, and is sealed on disk; turned off, p
   assert.equal(readFileSync(file, "utf8"), "Dear diary, again.");
 });
 
+test("a project's files: kept in Files/ by name, made unique, sealed in an encrypted project, never read above it", async () => {
+  const projects = await import("../src/projects.js");
+  const sealed = await import("../src/sealed-projects.js");
+  sealed.startSealing();
+  const p = projects.createProject("Letters");
+  const a = projects.putProjectFile(p.id, "to Chuck.pdf", Buffer.from("%PDF one"));
+  const b = projects.putProjectFile(p.id, "to Chuck.pdf", Buffer.from("%PDF two"));
+  assert.deepEqual([a.path, b.path], ["Files/to Chuck.pdf", "Files/to Chuck 2.pdf"]);
+  assert.equal(readFileSync(join(p.folder, "Files", "to Chuck.pdf"), "utf8"), "%PDF one", "plain where the project is");
+  assert.equal(projects.attachedFile(p.id, a.path).sealed, false);
+  assert.throws(() => projects.attachedFile(p.id, "Files/../.talaris/project.json"), /not a file/);
+  assert.throws(() => projects.attachedFile(p.id, "Writing/x.md"), /not a file/);
+  sealed.setProjectEncrypted(p.id, true);
+  assert.ok(seal.isSealed(readFileSync(join(p.folder, "Files", "to Chuck.pdf"))), "sealed once the project is encrypted");
+  assert.equal(projects.attachedFile(p.id, a.path).sealed, true);
+  assert.equal(projects.readProjectFile(p.id, a.path).toString(), "%PDF one");
+  const c = projects.putProjectFile(p.id, "new.txt", Buffer.from("hello"));
+  assert.ok(seal.isSealed(readFileSync(join(p.folder, "Files", "new.txt"))), "and a new one is sealed as it is written");
+  assert.equal(projects.readProjectFile(p.id, c.path).toString(), "hello");
+  sealed.setProjectEncrypted(p.id, false);
+});
+
+test("@ finds pages and canvases with entities, this project's first; a place is one entity, found again", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const m = await import("../src/mentionables.js");
+  const here = projects.createProject("Garden");
+  const there = projects.createProject("Roof");
+  pages.createPage(there.id, null, "Planting list (roof)");
+  pages.createPage(here.id, null, "Planting list");
+  entities.createEntity({ role: "note", properties: { title: "Planting ideas" } });
+  const found = m.findMentionables("planting", here.id);
+  assert.equal(found[0]!.title, "Planting list", "this project's page first");
+  assert.equal(found[0]!.kind, "page");
+  assert.equal(found[0]!.id, "", "no entity until it is linked");
+  assert.ok(found.some((f) => f.kind === "page" && f.project === there.id), "another project's too, after");
+  assert.ok(found.some((f) => f.title === "Planting ideas"));
+  const a = m.placeEntity("page", here.id, "Planting list", "Planting list");
+  const b = m.placeEntity("page", here.id, "Planting list", "Planting list");
+  assert.equal(a.id, b.id, "one entity for one page");
+  assert.deepEqual(m.placeOf(a), { kind: "page", project: here.id, where: "Planting list" });
+  assert.equal(m.findMentionables("planting", here.id)[0]!.id, a.id, "and the page is listed with it now");
+  assert.ok(m.findMentionables("canvas", here.id, 40).some((f) => f.kind === "canvas" && f.project === here.id && f.here), "a project's canvases, by their titles");
+});
+
+test("a calendar's own address is nobody; a person known by address takes their name when it comes", () => {
+  const ev = entities.mirrorEvent({
+    source: { kind: "eds-event", key: "cal/u-room" }, title: "Board meeting",
+    attendees: [{ email: "c_abc123@group.calendar.google.com" }, { email: "pat@example.org" }],
+  });
+  assert.equal((ev.properties.attendees as string[]).length, 1, "the calendar is not an invitee");
+  const pat = entities.byEmail("pat@example.org")!;
+  assert.equal(entities.titleOf(pat), "pat@example.org", "an address until a name is known");
+  assert.equal(entities.titleOf(entities.personFor("pat@example.org", "Pat Doyle")), "Pat Doyle");
+  assert.equal(entities.titleOf(entities.personFor("pat@example.org", "Someone Else")), "Pat Doyle", "a name is not replaced");
+  // One made before this was known: taken out of what lists it, then gone.
+  const stray = entities.createEntity({ role: "person", properties: { title: "c_x@group.calendar.google.com", emails: ["c_x@group.calendar.google.com"] } });
+  const e2 = entities.createEntity({ role: "event", properties: { title: "Old one", attendees: [stray.id, pat.id] } });
+  assert.equal(entities.forgetNonPeople(), 1);
+  assert.deepEqual(entities.getEntity(e2.id).properties.attendees, [pat.id]);
+  assert.throws(() => entities.getEntity(stray.id));
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

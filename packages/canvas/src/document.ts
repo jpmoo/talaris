@@ -47,6 +47,14 @@ export interface CanvasItem {
    */
   entity?: string;
   blockId?: string | null;
+  /**
+   * What the item is — the model's `ItemKind`. Absent is a note. `card` shows
+   * the entity named by `entity` live, and is drawn from the core rather than
+   * from `text`; `seen` is what it last looked like, for before the core has
+   * answered and for after the entity is gone.
+   */
+  kind?: string;
+  seen?: { title?: string; kind?: string; [key: string]: unknown };
 }
 
 export interface CanvasLink {
@@ -126,54 +134,64 @@ export const noteIdOf = (id: string) => (isNoteId(id) ? id.slice(2) : id);
  * around nothing; getting the second wrong drew every sticky white.
  */
 function notesOf(doc: CanvasDocument) {
-  return doc.items
-    .filter((item) => !item.blockId)
-    .map((item) => ({
-      id: NOTE_ID(item.id),
-      x: item.x,
-      y: item.y,
-      w: item.w,
-      h: item.h,
-      // A child canvas or a link to one is drawn as a note carrying the
-      // canvas's title; `main.tsx` opens it on a double-click.
-      text: item.text ?? (item as { seen?: { title?: string } }).seen?.title ?? "",
-      // An absent shape is the rounded default — a name nobody wrote, not
-      // "plain". Reading it as plain saved every rounded box as bare text on
-      // its first save, which is how new shapes seemed not to work.
-      shape: item.shape ?? ((item as { kind?: string }).kind?.startsWith("canvas") ? "rectangle" : undefined),
-      color: item.fill ?? null,
-      stroke: item.stroke ?? null,
-      strokeWidth: item.strokeWidth,
-      strokeStyle: item.strokeStyle,
-      hAlign: item.hAlign,
-      vAlign: item.vAlign,
-      textColor: item.textColor ?? null,
-      /*
-       * The picture, in the shape the component reads.
-       *
-       * Hermes carries a note's image inline — `{name, mime, data}`, where
-       * `data` is a data URI, because on that side the bytes ride on the
-       * collection itself. Talaria keeps the file beside the document and the
-       * item names it, which is the arrangement Hermes' own comment says it
-       * envies: "the same argument Talaria's canvas made for keeping its
-       * pictures beside the document rather than in it."
-       *
-       * So the shape is met without the bytes: `data` is the URL the daemon
-       * serves it at. `<img src>` cannot tell the difference, and a canvas of
-       * twenty photographs stays a canvas of twenty file names.
-       */
-      image: item.image
-        ? { name: item.image, mime: mimeOf(item.image), data: pictureAt(item.image) }
-        : null,
-      /** Which pictures this node has to choose from, when it has several. */
-      images: item.images ?? (item.image ? [item.image] : []),
-      /** …and which of them it is wearing, by name rather than by URL. */
-      imageName: item.image ?? null,
-      showImage: item.showImage,
-      // Only when there is one, so a note that is no entity hands back no key
-      // and `itemFromNote` leaves the item exactly as it found it.
-      ...(typeof item.entity === "string" ? { entity: item.entity } : {}),
-    }));
+  return doc.items.filter((item) => !item.blockId).map(noteOf);
+}
+
+/**
+ * One item, as the note the component is handed.
+ *
+ * Exported so the way back can ask what an untouched item would have looked
+ * like — an entity card keeps only the fields that actually changed, so a
+ * round trip through the component writes nothing it did not mean to.
+ */
+export function noteOf(item: CanvasItem) {
+  return {
+    id: NOTE_ID(item.id),
+    x: item.x,
+    y: item.y,
+    w: item.w,
+    h: item.h,
+    // A child canvas or a link to one is drawn as a note carrying the
+    // canvas's title; `main.tsx` opens it on a double-click. An entity card
+    // carries its last-known title the same way, though it draws its own body.
+    text: item.text ?? item.seen?.title ?? "",
+    // An absent shape is the rounded default — a name nobody wrote, not
+    // "plain". Reading it as plain saved every rounded box as bare text on
+    // its first save, which is how new shapes seemed not to work.
+    shape: item.shape ?? (item.kind?.startsWith("canvas") ? "rectangle" : undefined),
+    color: item.fill ?? null,
+    stroke: item.stroke ?? null,
+    strokeWidth: item.strokeWidth,
+    strokeStyle: item.strokeStyle,
+    hAlign: item.hAlign,
+    vAlign: item.vAlign,
+    textColor: item.textColor ?? null,
+    /*
+     * The picture, in the shape the component reads.
+     *
+     * Hermes carries a note's image inline — `{name, mime, data}`, where
+     * `data` is a data URI, because on that side the bytes ride on the
+     * collection itself. Talaria keeps the file beside the document and the
+     * item names it, which is the arrangement Hermes' own comment says it
+     * envies: "the same argument Talaria's canvas made for keeping its
+     * pictures beside the document rather than in it."
+     *
+     * So the shape is met without the bytes: `data` is the URL the daemon
+     * serves it at. `<img src>` cannot tell the difference, and a canvas of
+     * twenty photographs stays a canvas of twenty file names.
+     */
+    image: item.image
+      ? { name: item.image, mime: mimeOf(item.image), data: pictureAt(item.image) }
+      : null,
+    /** Which pictures this node has to choose from, when it has several. */
+    images: item.images ?? (item.image ? [item.image] : []),
+    /** …and which of them it is wearing, by name rather than by URL. */
+    imageName: item.image ?? null,
+    showImage: item.showImage,
+    // Only when there is one, so a note that is no entity hands back no key
+    // and `itemFromNote` leaves the item exactly as it found it.
+    ...(typeof item.entity === "string" ? { entity: item.entity } : {}),
+  };
 }
 
 /** `properties.canvas_edges` — links, with Hermes' end names. */

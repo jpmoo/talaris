@@ -180,6 +180,7 @@ import {
   endIn,
   isNoteId,
   noteIdOf,
+  noteOf,
   putDocument,
   type CanvasDocument,
   type CanvasItem,
@@ -277,6 +278,7 @@ addEventListener("pagehide", () => void flush());
  */
 function itemFromNote(note: Record<string, unknown>, was: CanvasItem | undefined): CanvasItem {
   const id = noteIdOf(String(note.id));
+  if (was?.kind === "card") return cardFromNote(note, was);
   const base: CanvasItem = was ?? { id, x: 0, y: 0, w: 200, h: 120 };
   const item = itemOverlaid(note, base, id);
   /*
@@ -288,6 +290,53 @@ function itemFromNote(note: Record<string, unknown>, was: CanvasItem | undefined
   if (typeof note.entity === "string") item.entity = note.entity;
   else if (note.entity === null) delete item.entity;
   return item;
+}
+
+/**
+ * An entity card, back from the component — **only what changed.**
+ *
+ * A card has no words of its own and most of a note's keys mean nothing to it,
+ * yet the overlay below writes every one of them: `text` from its last-known
+ * title, `fill: null` for a paper nobody chose. So the item is compared with
+ * what an untouched round trip would have given, and a key is written only
+ * where the component handed back something different — a move, a resize, a
+ * color somebody picked. The rest stays byte-identical, absent keys included.
+ *
+ * The entity is never let go here: a card *is* its entity, so an "Unlink" that
+ * reached one would leave a card showing nothing.
+ */
+function cardFromNote(note: Record<string, unknown>, was: CanvasItem): CanvasItem {
+  const id = was.id;
+  const untouched = itemOverlaid(noteOf(was) as unknown as Record<string, unknown>, was, id) as unknown as Record<string, unknown>;
+  const next = itemOverlaid(note, was, id) as unknown as Record<string, unknown>;
+  const item = { ...was } as unknown as Record<string, unknown>;
+  for (const key of Object.keys(next)) {
+    // Its words are its entity's, and the note's copy of them is the title as
+    // it was when the component was last handed the document — stale as soon
+    // as `keepSeen` has learned a new one.
+    if (key === "text") continue;
+    if (JSON.stringify(next[key]) !== JSON.stringify(untouched[key])) item[key] = next[key];
+  }
+  return item as unknown as CanvasItem;
+}
+
+/**
+ * What a card last looked like, kept current.
+ *
+ * Written only when the core's answer differs from what the item already says,
+ * so a canvas of cards that have not changed is never rewritten by being drawn.
+ * Every card on this canvas showing the entity is brought up to date together.
+ */
+export function keepSeen(entity: string, seen: { title: string; kind: string }) {
+  let changed = false;
+  for (const item of held.items) {
+    if (item.kind !== "card" || item.entity !== entity) continue;
+    if (item.seen?.title === seen.title && item.seen?.kind === seen.kind) continue;
+    // Spread, so anything else a newer build keeps in `seen` survives.
+    item.seen = { ...(item.seen ?? {}), ...seen };
+    changed = true;
+  }
+  if (changed) save();
 }
 
 function itemOverlaid(note: Record<string, unknown>, base: CanvasItem, id: string): CanvasItem {

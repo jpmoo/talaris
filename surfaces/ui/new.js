@@ -52,7 +52,8 @@
       const id = String(++reqNext);
       waiting.set(id, (r) => (r.status >= 200 && r.status < 300 ? ok(r.data)
         : fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`))));
-      bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
+      // A page's words go as they are; everything else as JSON.
+      bridge.core(id, method, path, body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body));
     });
   }
   const enc = encodeURIComponent;
@@ -183,13 +184,17 @@
       oninput: (e) => { v[key] = e.target.value; attrs.oninput && attrs.oninput(e.target.value); } });
   }
 
+  // A page or a canvas a mention points at opens where it lives (the sheet goes).
+  const mentionOpts = { project: () => "", openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where) };
+
   /** An editor line, or box, that takes @ — kept in v[key]. */
-  function writing(key, placeholder, { body = false, big = false } = {}) {
+  function writing(key, placeholder, { body = false, big = false, files = null } = {}) {
     const host = el("div", { class: "ed grow" + (body ? " ed-body" : "") + (big ? " ed-big" : ""), "data-placeholder": placeholder });
     const make = (m) => {
       const ed = m.createEditor(host, v[key] || "", {
         live: true, compact: true, singleLine: !body, placeholder,
-        mentions: TalarisMentions(api, (id) => Peek.show(id, api)),
+        mentions: TalarisMentions(api, null, mentionOpts),
+        ...(files ? { files } : {}),
         ...(body ? {} : { onEnter: () => make_(false) }),
         });
       editors.push({ ed, key });
@@ -262,6 +267,7 @@
   let calendars = [];
   const ROLE = { task: "task", contact: "person", note: "note", project: "project" };
   const typeFor = (k) => types.find((t) => t["talaris:role"] === ROLE[k]);
+  const labelOf = (f) => f["talaris:label"] || f.label || words(f.key);
   const words = (key) => key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 
   /** What a type's profiles say about its fields. */
@@ -358,13 +364,36 @@
       } });
     const chips = chosen.length ? el("div", { class: "chips" }, chosen.map((c, i) => el("span", { class: "chip-p" }, c.title,
       el("button", { title: "Remove", onclick: () => { chosen.splice(i, 1); paint(); } }, "×")))) : null;
-    return [row(f.label || words(f.key), el("div", { class: "grow col" }, chips, f.many || !chosen.length ? input : null)), found];
+    return [row(labelOf(f), el("div", { class: "grow col" }, chips, f.many || !chosen.length ? input : null)), found];
+  }
+
+  /**
+   * Several values — addresses, phones, websites — one to a line, since one
+   * of them may hold commas (a postal address does). A new line appears as
+   * the last is filled.
+   */
+  function manyField(f, label, oninput, known) {
+    const vals = v[f.key] = Array.isArray(v[f.key]) ? v[f.key] : [];
+    const box = el("div", { class: "grow col" });
+    const draw = () => {
+      const lines = [...vals.filter((x) => x !== undefined), ""].slice(0, Math.max(1, vals.filter((x) => String(x).trim()).length + 1));
+      box.replaceChildren(...lines.map((val, i) => el("input", { type: "text", class: "field", value: val, spellcheck: "false", placeholder: i ? "Another" : "Optional",
+        oninput: (e) => {
+          const wasLast = i === lines.length - 1;
+          vals[i] = e.target.value;
+          if (i === 0 && oninput) oninput(e.target.value);
+          // Typing in the last line opens one more under it.
+          if (wasLast && e.target.value.trim()) { draw(); box.children[i].focus(); }
+        } })));
+    };
+    draw();
+    return row(label, box, known ? el("span", { class: "hint", id: "known" }) : null);
   }
 
   function fileField(f) {
     const files = v[f.key] = v[f.key] || [];
     const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
-    return row(f.label || words(f.key), el("div", { class: "grow col" },
+    return row(labelOf(f), el("div", { class: "grow col" },
       files.length ? el("div", { class: "chips" }, files.map((x, i) => el("span", { class: "chip-p", title: x.path }, `${x.name} · ${kb(x.size)}`,
         el("button", { title: "Remove", onclick: () => { files.splice(i, 1); paint(); } }, "×")))) : null,
       el("div", {}, el("button", { class: "t-btn", onclick: () => bridge && bridge.chooseFiles(f.key) }, f.many || !files.length ? "Add files…" : "Change…"))));
@@ -373,20 +402,20 @@
   function enumField(f, def) {
     if (v[f.key] === undefined) v[f.key] = def ?? null;
     const labels = f["talaris:labels"] || {}, colors = f["talaris:colors"] || {};
-    return row(f.label || words(f.key), el("div", { class: "grow chips" }, (f.options || []).map((o) =>
+    return row(labelOf(f), el("div", { class: "grow chips" }, (f.options || []).map((o) =>
       el("button", { class: "t-btn tog" + (v[f.key] === o ? " on" : ""), onclick: () => { v[f.key] = v[f.key] === o && !def ? null : o; paint(); } },
         colors[o] ? el("span", { class: "sw", style: `background:${colors[o]}; margin-right: 6px` }) : null, labels[o] || words(o)))));
   }
 
   function fieldRow(f, info, t) {
-    const label = f.label || words(f.key);
+    const label = labelOf(f);
     // Drawn first, as the kind's own line — the status as the circle before it.
     if (f.key === info.titleKey || f.key === info.status) return null;
     switch (f.kind) {
       case "richtext": return row(label, writing(f.key, "@ to link a person, event or task", { body: true }));
       case "text":
-        return row(label, line(f.key, f.many ? "Optional — more than one, with commas" : "Optional", { spell: !f.many && f.key !== info.email,
-          ...(f.key === info.email ? { oninput: checkEmail } : {}) }), f.key === info.email ? el("span", { class: "hint", id: "known" }) : null);
+        if (f.many) return manyField(f, label, f.key === info.email ? checkEmail : null, f.key === info.email);
+        return row(label, line(f.key, "Optional", { spell: true }));
       case "number": return row(label, el("input", { type: "text", class: "field", style: "width: 120px", value: v[f.key] ?? "", oninput: (e) => { v[f.key] = e.target.value; } }));
       case "boolean": return row(label, el("button", { class: "t-btn tog" + (v[f.key] ? " on" : ""), onclick: () => { v[f.key] = !v[f.key]; paint(); } }, v[f.key] ? "Yes" : "No"));
       case "date": return row(label, ...dayField(f.key, "fri, 10/30…"));
@@ -419,13 +448,13 @@
       if (info.email) {
         // A person: the address books' people as their name is typed — a click, or Enter, fills them in.
         const found = el("div", { class: "found" });
-        const fill = (p) => { v[info.titleKey] = p.name || v[info.titleKey] || ""; v[info.email] = p.email; paint(); checkEmail(p.email); };
+        const fill = (p) => { v[info.titleKey] = p.name || v[info.titleKey] || ""; v[info.email] = [p.email]; paint(); checkEmail(p.email); };
         input.addEventListener("input", () => finder(found, input.value, fill));
         input.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && found.found && found.found.length && !v[info.email]) { e.preventDefault(); e.stopPropagation(); fill(found.found[0]); }
+          if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && found.found && found.found.length && !firstEmail(info)) { e.preventDefault(); e.stopPropagation(); fill(found.found[0]); }
         });
         title.push(found);
-        setTimeout(() => checkEmail(v[info.email]), 0);
+        setTimeout(() => checkEmail(firstEmail(info)), 0);
       }
     }
     return [title, t.fields.filter((f) => !f["talaris:auto"]).map((f) => fieldRow(f, info, t))];
@@ -450,6 +479,12 @@
     return b;
   }
 
+  /** A person's first address, as entered: who they are found by. */
+  const firstEmail = (info) => {
+    const e = v[info.email];
+    return String((Array.isArray(e) ? e.find((x) => String(x).trim()) : e) || "").trim().toLowerCase();
+  };
+
   // Whether this address is somebody already: said beside it, and making adds to them.
   function checkEmail(email) {
     const known = $("known");
@@ -458,6 +493,25 @@
     const e = String(email || "").split(/[,;]/)[0].trim().toLowerCase();
     if (!e.includes("@")) return;
     api("POST", "/entities/people/known", { emails: [e] }).then((k) => { if ($("known")) $("known").textContent = k[e] ? `Already here: ${k[e].title}` : ""; }).catch(() => {});
+  }
+
+  /**
+   * A note is a writing page: in a project (this one, unless another is
+   * chosen), listed with its pages and opened there. Its words take @ and
+   * files, kept in that project.
+   */
+  let projectList = [];
+  function noteForm() {
+    if (!v.project) v.project = surface.project || (projectList.find((p) => p.home) || {}).id || "";
+    const p = projectList.find((x) => x.id === v.project);
+    const pick = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(pick, projectList.map((x) => ({
+      label: `${x.name}${x.id === surface.project ? " · here" : ""}`, on: x.id === v.project, act: () => { v.project = x.id; paint(); } }))) },
+      p ? p.name : "Choose a project");
+    return [
+      row("Note", line("title", "Its title", { big: true, spell: true })),
+      row("Project", pick),
+      row("", writing("body", "Write — @ to link, or drop a file in", { body: true, files: TalarisFiles(api, () => v.project, () => bridge) })),
+    ];
   }
 
   function eventForm() {
@@ -520,7 +574,7 @@
     for (const { ed } of editors) ed.destroy();
     editors = [];
     popAway();
-    $("rows").replaceChildren(...[kind === "event" ? eventForm() : typeForm()].flat(3).filter(Boolean));
+    $("rows").replaceChildren(...[kind === "event" ? eventForm() : kind === "note" ? noteForm() : typeForm()].flat(3).filter(Boolean));
     if (at >= 0) { const again = [...$("rows").querySelectorAll("input, .cm-content")][at]; if (again) again.focus(); }
   }
   function focusId(id) { setTimeout(() => $(id) && $(id).focus(), 0); }
@@ -559,6 +613,7 @@
     // the projects, mirrored as entities when asked for), the calendars.
     Promise.all([api("GET", "/entity-types"), api("GET", "/tasks/projects").catch(() => [])])
       .then(([t]) => { types = t || []; if (kind !== "event") { paint(); setTimeout(focusFirst, 0); } }).catch((e) => say(e.message, true));
+    api("GET", "/projects").then((ps) => { projectList = ps || []; if (kind === "note") paint(); }).catch(() => {});
     if (bridge) bridge.calendars((text) => { try { calendars = JSON.parse(text) || []; } catch { calendars = []; } if (kind === "event") paint(); });
   }
 
@@ -576,9 +631,14 @@
       const k = f.key;
       switch (f.kind) {
         case "text": {
+          if (f.many) {
+            const list = (Array.isArray(v[k]) ? v[k] : []).map((x) => String(x).trim()).filter(Boolean);
+            if (list.length) out[k] = list;
+            break;
+          }
           const s = String(v[k] || "").trim();
           if (!s) break;
-          out[k] = f.many ? s.split(/\s*[,;]\s*/).filter(Boolean) : s;
+          out[k] = s;
           break;
         }
         case "richtext": if (String(v[k] || "").trim()) out[k] = v[k]; break;
@@ -587,7 +647,7 @@
         case "enum": if (v[k]) out[k] = v[k]; break;
         case "date": case "datetime": {
           if (!String(v[k + "Text"] || "").trim()) break;
-          if (!v[k]) throw new Error(`${f.label || words(k)}: that isn't a day I can read`);
+          if (!v[k]) throw new Error(`${labelOf(f)}: that isn't a day I can read`);
           out[k] = f.kind === "date" || v[k + "At"] == null ? isoDay(v[k]) : localAt(v[k], v[k + "At"]);
           break;
         }
@@ -626,7 +686,7 @@
   async function makeTyped(t, andOpen) {
     const info = readType(t);
     const required = t.fields.filter((f) => f.required && f.key === info.titleKey);
-    const email = info.email ? String(v[info.email] || "").split(/[,;]/)[0].trim().toLowerCase() : "";
+    const email = firstEmail(info);
     if (required.length && !plain(v[info.titleKey]) && !email) throw new Error(`${KINDS.find(([k]) => k === kind)[1]} needs a ${kind === "contact" ? "name" : kind === "project" ? "name" : "title"}`);
     await madeReferences();
     const props = properties(t, info);
@@ -697,6 +757,16 @@
         store.set("talaris.new.calendar", v.calendar);
         await new Promise((ok, fail) => { eventWait = { ok, fail }; bridge.createEvent(v.calendar, JSON.stringify(event)); });
         done(invites ? "Event made, invitations sent" : "Event made", andOpen ? () => bridge.openThing("event", "") : null);
+        return;
+      }
+      if (kind === "note") {
+        const title = plain(v.title) || plain((v.body || "").split("\n")[0]).slice(0, 80);
+        if (!title) throw new Error("A note needs a title or some words");
+        if (!v.project) throw new Error("Choose a project for it");
+        const page = await api("POST", `/projects/${enc(v.project)}/pages`, { parent: null, title });
+        if ((v.body || "").trim()) await api("PUT", `/projects/${enc(v.project)}/page?path=${enc(page.path)}`, v.body);
+        const where = (projectList.find((x) => x.id === v.project) || {}).name;
+        done(`Note made${where && v.project !== surface.project ? ` in ${where}` : ""}`, andOpen ? () => bridge.openThing("page", `${v.project}/${page.path}`) : null);
         return;
       }
       const t = typeFor(kind);

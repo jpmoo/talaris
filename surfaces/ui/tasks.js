@@ -677,12 +677,16 @@
   // Title and notes are the editor, so @ names anything in them (mentions.js);
   // a mention clicked opens a task here, or peeks at anything else.
   let titleEd = null, notesEd = null;
+  const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
   async function openMention(id) {
     try {
       const got = await api("GET", `/entities/${enc(id)}`);
       if ((got.kinds || []).includes("task")) { openTask(id); return; }
+      // A page or a canvas: opened where it lives.
+      const place = await api("GET", `/entities/${enc(id)}/place`);
+      if (place) { openPlace(place); return; }
     } catch { /* gone: peek says so */ }
-    if (window.Peek) Peek.show(id, api, { onTask: openTask });
+    if (window.Peek) Peek.show(id, api, { onTask: openTask, openPlace });
   }
   function saveTitle() {
     if (!entity || !shape || !titleEd) return;

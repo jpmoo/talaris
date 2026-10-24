@@ -45,6 +45,17 @@ export function readText(path: string): string {
   return (sealer && sealer.isSealed(data) ? sealer.open(data) : data).toString("utf8");
 }
 
+/** A file's bytes, opened first if sealed: an attachment, which is not text. */
+export function readBytes(path: string): Buffer {
+  const data = readFileSync(path);
+  return sealer && sealer.isSealed(data) ? sealer.open(data) : data;
+}
+
+/** Whether a file on disk is sealed: it cannot be handed to another program as it is. */
+export function isSealedFile(path: string): boolean {
+  return Boolean(sealer && sealer.isSealed(readFileSync(path)));
+}
+
 /**
  * How files are sealed, set by `sealed-projects.ts` — which knows the projects
  * and the key — so that this, the bottom of everything, depends on neither.

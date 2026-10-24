@@ -15,6 +15,7 @@ import { getDocument, getLinked, toCollection, toMembers } from "./document.ts";
 import "./canvas-forked.css";
 import "./canvas.css";
 import { wearTheme } from "./talaris-theme.ts";
+import { refreshCards } from "./cards.ts";
 
 function Canvas() {
   const [state, setState] = useState<{
@@ -47,6 +48,8 @@ function Canvas() {
       // The document is held by the api module and edited in place; this only
       // ever hands out a rendering of it.
       hold(doc, () => {});
+      // Entity cards ask the core again — once per reading, never on a timer.
+      refreshCards();
       const types = await api.get<BlockType[]>("/types").catch(() => [] as BlockType[]);
       setState({ collection: toCollection(doc), members: toMembers(doc, linked), types });
     } catch (err) {
@@ -165,21 +168,35 @@ function itemOf(node: Element | null) {
   const id = node?.getAttribute("data-block-id") ?? "";
   if (!id.startsWith("n:")) return null;
   return document_().items.find((i) => i.id === id.slice(2)) as
-    | { kind?: string; canvas?: string; project?: string }
+    | { kind?: string; canvas?: string; project?: string; entity?: string; seen?: { kind?: string } }
     | undefined;
 }
 addEventListener("dblclick", (e) => {
   const item = itemOf((e.target as Element).closest?.(".cv-node") ?? null);
+  /*
+   * An entity card opens the same way, onto the entity: the drawer shows its
+   * card. A note may also be a page, which only the drawer can tell, so it is
+   * asked to open one first — and it ignores that for a note that is not.
+   */
+  if (item?.kind === "card" && item.entity) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.seen?.kind === "note") window.parent.postMessage({ talaris: "open-entity", id: item.entity }, "*");
+    window.parent.postMessage({ talaris: "peek", id: item.entity }, "*");
+    return;
+  }
   if (!item || !item.kind?.startsWith("canvas") || !item.canvas) return;
   e.preventDefault();
   e.stopPropagation();
   window.parent.postMessage({ talaris: "open-canvas", canvas: item.canvas, project: item.project ?? where.project }, "*");
 }, true);
-// Which nodes are canvas cards, for the stylesheet — re-marked as the canvas redraws.
+// Which nodes are canvas cards and entity cards, for the stylesheet — re-marked
+// as the canvas redraws.
 new MutationObserver(() => {
   for (const node of document.querySelectorAll(".cv-node")) {
     const item = itemOf(node);
     node.classList.toggle("cv-canvascard", Boolean(item?.kind?.startsWith("canvas")));
+    node.classList.toggle("cv-entitycard", item?.kind === "card");
   }
 }).observe(document.body, { subtree: true, childList: true });
 

@@ -260,6 +260,12 @@ const look = EditorView.theme({
   ".cm-codeblock": { fontFamily: "ui-monospace, monospace", fontSize: "0.9em", background: "var(--desk)" },
   ".cm-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" },
   ".cm-link.cm-mention": { textDecoration: "none", background: "var(--accent-wash)", borderRadius: "4px", padding: "0 3px" },
+  // A kept file: a chip with a paperclip, drawn in the text's own color.
+  ".cm-link.cm-file": { textDecoration: "none", background: "var(--accent-wash)", borderRadius: "4px", padding: "0 4px 0 2px" },
+  ".cm-link.cm-file::before": {
+    content: '""', display: "inline-block", width: "0.85em", height: "0.85em", marginRight: "3px", verticalAlign: "-0.1em", backgroundColor: "currentColor",
+    mask: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M10.5 4.5 5.6 9.4a1.4 1.4 0 0 0 2 2l5.2-5.2a2.8 2.8 0 0 0-4-4L3.6 7.4a4.2 4.2 0 0 0 6 6l4-4'/%3E%3C/svg%3E\") center / contain no-repeat",
+  },
   ".cm-tooltip.cm-tooltip-autocomplete": { background: "var(--surface)", border: "1px solid var(--frame)", borderRadius: "8px", boxShadow: "var(--menu-shadow)", padding: "3px" },
   ".cm-tooltip.cm-tooltip-autocomplete > ul": { fontFamily: "inherit", maxHeight: "16em" },
   ".cm-tooltip.cm-tooltip-autocomplete > ul > li": { padding: "3px 8px", borderRadius: "5px", color: "var(--text)" },
@@ -326,6 +332,24 @@ export interface EditorOptions {
   onEnter?: () => void;
   /** Shown faintly while there are no words. */
   placeholder?: string;
+  /**
+   * Files: dropped or pasted in, each is kept (`attach`, by the page — in its
+   * project's `Files/`) and linked where it landed, `[name](talaris-file:path)`,
+   * drawn as a chip; a chip clicked is opened (`open`). Without it, a file
+   * dropped is the browser's to deal with.
+   */
+  files?: Files;
+}
+
+export interface Files {
+  attach(file: File): Promise<{ name: string; path: string }>;
+  open(path: string): void;
+}
+
+/** A kept file's link, its path made safe for a Markdown address. */
+export function fileLink(name: string, path: string): string {
+  const href = encodeURI(path).replace(/\(/g, "%28").replace(/\)/g, "%29");
+  return `[${name.replace(/[\[\]]/g, "")}](talaris-file:${href})`;
 }
 
 export interface Mentions {
@@ -361,10 +385,29 @@ export interface Editor {
   /** Whether any text is selected: what a color would apply to. */
   readonly selecting: boolean;
   focus(): void;
+  /** Words put in at the cursor, replacing what is selected (files chosen elsewhere, linked). */
+  insert(text: string): void;
   destroy(): void;
 }
 
 export function createEditor(host: HTMLElement, text: string, options: EditorOptions = {}): Editor {
+  // Each file kept, then all of them linked where they landed, in the order given.
+  const keepFiles = async (v: EditorView, files: File[], at: number) => {
+    const links: string[] = [];
+    for (const f of files) {
+      try {
+        const kept = await options.files!.attach(f);
+        links.push(fileLink(kept.name, kept.path));
+      } catch {
+        // The page says what went wrong; the rest are still kept.
+      }
+    }
+    if (!links.length) return;
+    const text = links.join(" ") + " ";
+    const pos = Math.min(at, v.state.doc.length);
+    v.dispatch({ changes: { from: pos, insert: text }, selection: EditorSelection.cursor(pos + text.length) });
+    v.focus();
+  };
   const preview = new Compartment();
   const liveOn = (on: boolean): Extension => (on ? livePreview : []);
   let live = options.live !== false;
@@ -410,7 +453,23 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
             event.preventDefault();
             const url = link.dataset.url;
             if (url.startsWith("talaris:")) options.mentions?.open?.(url.slice("talaris:".length));
+            else if (url.startsWith("talaris-file:")) options.files?.open(decodeURI(url.slice("talaris-file:".length)).replace(/%28/g, "(").replace(/%29/g, ")"));
             else options.onOpenUrl?.(url);
+            return true;
+          },
+          drop: (event, v) => {
+            const files = Array.from(event.dataTransfer?.files ?? []);
+            if (!options.files || !files.length) return false;
+            event.preventDefault();
+            const at = v.posAtCoords({ x: event.clientX, y: event.clientY }) ?? v.state.selection.main.head;
+            void keepFiles(v, files, at);
+            return true;
+          },
+          paste: (event, v) => {
+            const files = Array.from(event.clipboardData?.files ?? []);
+            if (!options.files || !files.length) return false;
+            event.preventDefault();
+            void keepFiles(v, files, v.state.selection.main.head);
             return true;
           },
         }),
@@ -453,6 +512,11 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
       view.dispatch({ effects: preview.reconfigure(liveOn(on)) });
     },
     focus() { view.focus(); },
+    insert(text: string) {
+      const r = view.state.selection.main;
+      view.dispatch({ changes: { from: r.from, to: r.to, insert: text }, selection: EditorSelection.cursor(r.from + text.length) });
+      view.focus();
+    },
     destroy() { view.destroy(); },
   };
 }
@@ -465,7 +529,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
  * new — a person, unless another kind is chosen. What goes in is a Markdown
  * link, `[@Name](talaris:id)`, which the live view draws as a chip.
  */
-const KIND_WORD: Record<string, string> = { contact: "person", event: "event", task: "task", note: "note", project: "project" };
+const KIND_WORD: Record<string, string> = { contact: "person", event: "event", task: "task", note: "note", project: "project", page: "page", canvas: "canvas" };
 
 function mentionPicker(m: Mentions) {
   const insert = (view: EditorView, from: number, to: number, id: string, title: string) => {

@@ -47,7 +47,10 @@ export interface ProjectSummary {
  * - `note` — drawn on this canvas and belonging to it.
  * - `canvas` — a child canvas, sitting on its one parent.
  * - `canvas-link` — a link to a canvas anywhere, this project or another.
- * - `card` — an application on a target, a website, a file.
+ * - `card` — an entity from the core (a task, an event, a person, a note),
+ *   drawn live from it; `entity` names it and `seen` keeps its last-known title
+ *   and profile kind, so a card draws before the core answers and still says
+ *   what it was once the entity is gone.
  * - `plugin` — a plugin's thing; `plugin` names it, `seen` keeps its last-known
  *   picture so it can be drawn honestly when the plugin is missing.
  *
@@ -70,8 +73,10 @@ export interface CanvasItem {
   /** For `plugin`: which plugin, and its own reference to the thing. */
   plugin?: string;
   ref?: string;
+  /** For `card`: the entity it shows, by id. */
+  entity?: string;
   /** Last-known picture, so a missing target or plugin is a placeholder, not a hole. */
-  seen?: { title?: string; icon?: string; fields?: Record<string, string> };
+  seen?: { title?: string; icon?: string; kind?: string; fields?: Record<string, string>; [key: string]: unknown };
   [key: string]: unknown;
 }
 

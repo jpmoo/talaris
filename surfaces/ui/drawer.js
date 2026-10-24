@@ -194,6 +194,15 @@ let canvasTreeCache = null;
 // What the canvas frame asks for, it asks through these: only this frame can
 // reach the process, so the canvas borrows its door.
 window.talarisCore = (method, path, body) => core(method, path, body);
+// What every @ in the drawer works from (mentions.js): this project's things
+// first, and a page or a canvas opened where it lives.
+// Files dropped into a page or a canvas note are this project's (files.js).
+window.talarisFileDefaults = TalarisFiles(core, () => state.project.id, () => bridge);
+let lastOpened = { id: "", at: 0 };
+window.talarisMentionDefaults = {
+  project: () => state.project.id,
+  openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where),
+};
 window.talarisStatus = (text) => status(text.toUpperCase().slice(0, 80));
 
 function pathTo(tree, id, trail = []) {
@@ -302,7 +311,14 @@ addEventListener("message", (e) => {
   const m = e.data;
   if (m && m.talaris === "open-url" && /^https?:/.test(m.url || "")) { bridge && bridge.openUrl(m.url); return; }
   // A mention clicked in a canvas note: the peek opens over the panel.
-  if (m && m.talaris === "peek" && typeof m.id === "string") { Peek.show(m.id, core); return; }
+  // A card's double-click (open-entity) too: a page or a canvas opens where it is, anything else peeks.
+  // A card sends both, one after the other: the second is the same opening.
+  if (m && (m.talaris === "peek" || m.talaris === "open-entity") && typeof m.id === "string") {
+    const now = Date.now();
+    if (lastOpened.id !== m.id || now - lastOpened.at > 500) TalarisMentions(core).open(m.id);
+    lastOpened = { id: m.id, at: now };
+    return;
+  }
   if (m && m.talaris === "status") { status(String(m.text || "").toUpperCase().slice(0, 90)); return; }
   if (m && m.talaris === "exported") {
     // Where it went, said once, and a click away from opening.
@@ -415,8 +431,10 @@ async function drawEditor() {
       live: mode === "live",
       onChange: changed,
       onOpenUrl: (url) => bridge && bridge.openUrl(url),
-      // @ names anything; a mention clicked peeks at it (mentions.js, peek.js).
+      // @ names anything; a mention clicked opens it, or peeks at it (mentions.js, peek.js).
       mentions: TalarisMentions(core),
+      // A file dropped or pasted is kept in the project and linked (files.js).
+      files: window.talarisFileDefaults,
     });
   }
   if (paperOf !== open) paperFor(open);
@@ -525,7 +543,9 @@ async function loadWriting() {
     dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
     pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
-    ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
+    ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())),
+    // Files chosen in the desktop's chooser, kept in the project, linked at the cursor.
+    el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(state.project.id); } }, "ATTACH"));
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), modes),
     el("div", { class: "editor", id: "editorHost" }));
@@ -781,6 +801,14 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge.leave.connect(leave);
   // The launcher found a canvas or a page: open on it. If the drawer is on its
   // way out, arriving will load it; if it is already out, load it now.
+  // Files chosen for the page and kept: linked where the cursor is.
+  bridge.projectFiles.connect((json) => {
+    const r = JSON.parse(json);
+    if (r.error) status(r.error.toUpperCase().slice(0, 80));
+    if (editor && r.files && r.files.length && r.project === state.project.id) {
+      editor.insert(r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ") + " ");
+    }
+  });
   bridge.show.connect((json) => {
     const target = JSON.parse(json);
     if (state.drawer === "canvas" && target.canvas) {
