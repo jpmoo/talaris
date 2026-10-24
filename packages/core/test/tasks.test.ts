@@ -210,3 +210,15 @@ test("a project made from Tasks is a Talaris project: a folder, a workspace, and
   assert.equal(tasks.taskProjects().filter((p) => p.title === "Garden").length, 1);
   assert.equal(tasks.taskProjects().find((p) => p.title === "Garden")!.id, e.id);
 });
+
+test("Home is not a project: never listed, and what was filed there is filed nowhere", async () => {
+  const projects = await import("../src/projects.js");
+  const home = projects.ensureHome();
+  // As it was before Home was left out: a mirrored Home with a task under it.
+  const mirrored = entities.createEntity({ role: "project", properties: { title: "Home" }, sources: [{ kind: "talaris-project", key: home.id }] });
+  const t = tasks.createTask({ title: "Filed at home", projects: [mirrored.id] });
+  const listed = tasks.taskProjects();
+  assert.ok(!listed.some((p) => p.title === "Home"));
+  assert.equal(entities.getEntity(t.id).properties.project, undefined);
+  assert.throws(() => entities.getEntity(mirrored.id), /no entity/);
+});

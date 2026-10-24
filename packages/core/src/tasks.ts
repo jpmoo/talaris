@@ -6,6 +6,7 @@ import {
   bySource,
   putType,
   createEntity,
+  deleteEntity,
   findEntities,
   getEntity,
   onChange,
@@ -243,6 +244,13 @@ export function dropSeries(id: string): void {
 export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string }[] {
   const type = typeFor("project");
   for (const p of listProjects()) {
+    // Home is the scratchpad, not a project: nothing is filed under it. One
+    // mirrored before that was decided goes, and what was filed there is
+    // simply filed nowhere.
+    if (p.home) {
+      unfileHome(p.id);
+      continue;
+    }
     const source = { kind: "talaris-project", key: p.id };
     const known = bySource(source);
     if (!known) createEntity({ type: type.id, properties: { title: p.name }, sources: [source] });
@@ -261,6 +269,19 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
  * the bar's list — and the same project for tasks to be filed under. One
  * thing, not a task project beside a workspace of the same name.
  */
+function unfileHome(homeId: string): void {
+  const home = bySource({ kind: "talaris-project", key: homeId });
+  if (!home) return;
+  for (const r of allRecords()) {
+    const v = r.object.properties.project;
+    if (Array.isArray(v) && v.includes(home.id)) {
+      const rest = v.filter((x) => x !== home.id);
+      updateEntity(r.object.id, { properties: { project: rest.length ? rest : null } });
+    }
+  }
+  deleteEntity(home.id);
+}
+
 export function createTaskProject(title: string): Entity {
   const name = title.trim();
   if (!name) throw new Conflict("a project has a name");
