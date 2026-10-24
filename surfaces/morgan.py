@@ -54,6 +54,7 @@ from layershell import (
     LayerSurface,
     Placement,
 )
+from sensor import Presses
 from views import log, make_view, zoom
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
@@ -189,6 +190,7 @@ class Panel(QObject):
         self.bridge = MorganBridge(self, self)
         self.view = make_view(profile, "morgan", "talaris-ui://ui/morgan/index.html", self.bridge, self, area="morgan")
         self.surface = LayerSurface(self.view, "talaris-morgan")
+        Presses(self.view)
         link.event.connect(self.bridge.event.emit)
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
@@ -204,7 +206,7 @@ class Panel(QObject):
     def describe(self) -> dict:
         return {"up": self.up, "theme": self.desktop.config["theme"], "expanded": self.expanded,
                 "closes": self.desktop.config["panels"].get("afterExpand", "open") == "closed",
-                "motion": self.desktop.config["overlays"]}
+                "motion": self.desktop.motion("morgan")}
 
     def _place(self) -> None:
         screen = QApplication.primaryScreen().geometry()
@@ -220,7 +222,7 @@ class Panel(QObject):
             # As the launcher: centered over the rest of the screen, dimmed
             # (the page draws both), and a press on the dim puts it away.
             self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND))
+                                         screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def open(self) -> None:

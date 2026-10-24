@@ -485,7 +485,9 @@ function paintGrow() {
 $("grow").onclick = () => bridge.grow();
 $("close").onclick = () => bridge.file();
 // A press on the dim, off the panel, puts it away.
-document.addEventListener("pointerdown", (event) => { if (event.target === document.documentElement && bridge) bridge.file(); });
+document.addEventListener("pointerdown", (event) => { if (event.target === document.documentElement && bridge && surfaceState.up && !surfaceState.expanded) bridge.file(); });
+// The same, from Qt (sensor.Presses), which hears every press.
+window.pressedAt = (x, y) => { if (bridge && surfaceState.up && !surfaceState.expanded && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
 
 // How it comes and goes (motion.js): from the top, as the launcher, over the
 // dimmed screen, with the line over the composer drawn too.

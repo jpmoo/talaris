@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QApplication
 
 import hypr
 from core import Bridge
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, TOP, LayerSurface, Placement
+from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, QT_SCALE, TOP, LayerSurface, Placement
 from views import make_view
 
 #: How long the layer stays up after the last drawing began, at normal speed.
@@ -82,8 +82,11 @@ class WindowDraw(QObject):
             m = monitors.get(c.get("monitor"))
             if not m or c.get("workspace", {}).get("id") not in shown or not c.get("mapped", True):
                 continue
+            # Hyprland's pixels are the compositor's; the page's are Qt's, each
+            # QT_SCALE of the compositor's — so the rectangle is scaled down to them.
             (x, y), (w, h) = c["at"], c["size"]
-            out[c["address"]] = {"x": x - m["x"], "y": y - m["y"], "w": w, "h": h}
+            out[c["address"]] = {k: round(v / QT_SCALE, 1) for k, v in
+                                 {"x": x - m["x"], "y": y - m["y"], "w": w, "h": h}.items()}
         return out
 
     def _remember(self) -> None:

@@ -41,6 +41,8 @@ from views import log, make_view, zoom
 
 SIZE = (860, 620)
 IDLE_MS = 3 * 60 * 1000
+#: How long the page has to finish leaving before the surface goes anyway.
+LEAVE_LIMIT_MS = 1600
 
 FONTS = ["Barlow Semi Condensed", "Rajdhani", "Saira Semi Condensed", "Exo 2"]
 EDGES = ("top", "bottom", "left", "right")
@@ -84,11 +86,10 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    o = c.get("overlays", {})
-    if o.get("motion") not in ("slide", "chaos", "none") or o.get("speed") not in speeds:
-        return "The launcher and Morgan slide, draw or do neither"
     if not isinstance(p.get("dim", True), bool):
         return "Dim behind is on or off"
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan")):
+        return "The launcher and Morgan move as windows or as drawers"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
@@ -205,10 +206,11 @@ class Settings(QObject):
         self.idle.timeout.connect(self.file_away)
 
     def describe(self) -> dict:
-        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"]}
+        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion()}
 
     def open(self, page: str = "") -> None:
         self.page = page
+        self.leaving = False
         if not self.up:
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
@@ -229,12 +231,18 @@ class Settings(QObject):
             return
         self.up = False
         self.idle.stop()
+        # The page plays its leaving, then says so (`left`); then the surface goes.
+        self.leaving = True
+        self.bridge.leave.emit()
+        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
+
+    def left(self) -> None:
+        if not getattr(self, "leaving", False):
+            return
+        self.leaving = False
         self.view.hide()
         self.surface.placement = None
         self.bridge.state.emit(json.dumps(self.describe()))
-
-    def left(self) -> None:
-        pass
 
     def touched(self) -> None:
         if self.up:

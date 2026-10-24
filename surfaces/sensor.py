@@ -178,6 +178,36 @@ class Catcher(QObject):
         pass
 
 
+class Presses(QObject):
+    """
+    A press on a view, seen in Qt, handed to its page as `pressedAt(x, y)` in
+    the page's own pixels — for a page that must hear every press (a click off
+    the launcher's box), which its own listeners did not always.
+    """
+
+    def __init__(self, view: QWidget) -> None:
+        super().__init__(view)
+        self.view = view
+        self._watched = None
+        view.loadFinished.connect(lambda _ok: self._watch())
+        self._watch()
+
+    def _watch(self) -> None:
+        target = self.view.focusProxy() or self.view
+        if target is not self._watched:
+            target.installEventFilter(self)
+            self._watched = target
+
+    def eventFilter(self, _watched, event) -> bool:  # noqa: N802 — Qt's name
+        if event.type() == QEvent.Type.MouseButtonPress:
+            z = self.view.zoomFactor() or 1
+            p = event.position()
+            self.view.page().runJavaScript(f"window.pressedAt && pressedAt({p.x() / z:.1f}, {p.y() / z:.1f})")
+        else:
+            self._watch()
+        return False
+
+
 class Hover(QObject):
     """Calls `on_change(inside)` as the pointer enters and leaves a view."""
 

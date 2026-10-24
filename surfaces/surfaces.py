@@ -531,6 +531,17 @@ class Desktop(QObject):
     #: edge is that much less, so the space you see is the same on every side.
     DOCK_SHORT = 3
 
+    def motion(self, who: str = "") -> dict:
+        """
+        How the launcher, Morgan and Settings come and go: as windows do, or —
+        for the launcher and Morgan, if Settings says so — as the drawers do.
+        """
+        if who and self.config.get("overlays", {}).get(who) == "drawers":
+            theme = self.config["theme"]
+            return {"motion": theme.get("motion", "slide"), "speed": theme.get("motionSpeed", "normal")}
+        win = self.config["windows"]
+        return {"motion": win.get("motion", "pop"), "speed": win.get("speed", "normal")}
+
     def window_motion(self) -> None:
         """
         How windows open, close and move, as Settings says — Hyprland's own
@@ -751,8 +762,11 @@ class Desktop(QObject):
         if name in ("canvas", "writing"):
             self.drawers[name].toggle()
         elif name == "file-all":
+            # Everything out, put away: the drawers, and the launcher, Morgan and Settings.
             for d in self.drawers.values():
                 d.file_away()
+            for thing in (self.launcher, self.morgan, self.settings):
+                thing.file_away()
         elif name in ("lock", "suspend", "logout", "restart", "shutdown"):
             self.machine.power(name)
         elif name in ("network", "bluetooth"):
@@ -776,6 +790,8 @@ class Desktop(QObject):
                     d.file_away()
                 self.bar.close_popup()
                 self.launcher.file_away()
+                self.morgan.file_away()
+                self.settings.file_away()
                 self.morgan.file_away()
                 self.voice.file_away()
                 self.settings.file_away()

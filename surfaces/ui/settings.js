@@ -84,8 +84,9 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  seg("ov-motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], ov.motion || "slide", (motion) => save({ overlays: { motion } }));
-  seg("ov-speed", SPEEDS, ov.speed || "normal", (speed) => save({ overlays: { speed } }));
+  for (const who of ["launcher", "morgan"]) {
+    seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As drawers"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
+  }
   const p = cfg.panels;
   seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
   $("shadow").classList.toggle("on", !!p.shadow);
@@ -426,13 +427,30 @@ function reload(page) {
 // Opening, or a page asked for, starts fresh; any other state — the theme
 // just changed, say — leaves the page as it is.
 let wasUp = false;
+// How it comes and goes (motion.js): as windows do, from the top, the line
+// beside the sections drawn too.
+let motionNow = {};
+function how() {
+  return {
+    kind: motionNow.motion, speed: motionNow.speed, edge: "top", flush: false,
+    rules: (rule, rel, P) => { const n = document.querySelector("nav").getBoundingClientRect(); rule(rel(n.right, P.top), rel(n.right, P.bottom)); },
+  };
+}
 Surface.connect({
   onState: (s) => {
+    if (s.motion) motionNow = s.motion;
+    if (s.up && !wasUp) Motion.arrive($("win"), how());
     if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
     wasUp = !!s.up;
   },
 }).then((b) => {
   bridge = b;
+  // Going: played, then the process is told, and takes the surface away.
+  b.leave.connect(() => {
+    wasUp = false;
+    const going = Motion.leave($("win"), how());
+    if (going) going.onfinish = () => bridge.left(); else bridge.left();
+  });
   b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
   reload("look");
 });

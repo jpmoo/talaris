@@ -6,11 +6,13 @@
  * The theme's motions, as design/theme-tuner.html first showed them: slide in
  * from the edge; draw (marks first, then lines between them in random order,
  * direction and timing — always mark to mark, never loose — then filled); and
- * none. Draw is stored as "chaos", its first name; an old "draw" (the traced
- * frame, since dropped) gets it too. Leaving is arriving backwards.
+ * none — and for things that are not drawers (the launcher, Morgan, Settings,
+ * which follow the windows' setting) pop, swelling from a little smaller, and
+ * fade. Draw is stored as "chaos", its first name; "draw" (the windows' name
+ * for it) gets it too. Leaving is arriving backwards.
  *
  * Each call takes what to move and how:
- *   kind     "slide", "chaos" or "none"
+ *   kind     "slide", "chaos", "pop", "fade" or "none"
  *   speed    "slow", "normal", "fast" or "fastest"
  *   edge     the edge it comes from: "left", "right", "top" or "bottom"
  *   flush    whether it sits against that edge (that side has no line to draw)
@@ -192,7 +194,9 @@ const Motion = (() => {
       o.backdrop.animate([{ backgroundColor: "rgba(0, 0, 0, 0)" }, { backgroundColor: dim }], { duration: P(300), easing: "ease-out" });
     }
     if (kindOf(o) === "chaos") { trace(panel, o); return; }
-    panel.animate([{ translate: off(panel, o.edge) }, { translate: "0 0" }], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
+    const from = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } }[kindOf(o)] || { translate: off(panel, o.edge) };
+    const to = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } }[kindOf(o)] || { translate: "0 0" };
+    panel.animate([from, to], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
   }
 
   /**
@@ -206,7 +210,9 @@ const Motion = (() => {
     use(o);
     if (o.backdrop) o.backdrop.animate([{}, { backgroundColor: "rgba(0, 0, 0, 0)" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" });
     if (kindOf(o) === "chaos") return untrace(panel, o);
-    return panel.animate([{ translate: "0 0" }, { translate: off(panel, o.edge) }], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+    const from = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } }[kindOf(o)] || { translate: "0 0" };
+    const to = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } }[kindOf(o)] || { translate: off(panel, o.edge) };
+    return panel.animate([from, to], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
   }
 
   return { arrive, leave, reset, still };

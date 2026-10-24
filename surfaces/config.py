@@ -32,9 +32,9 @@ DEFAULTS = {
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
-    # How the launcher and Morgan's conversation come and go, from the top:
-    # slide, draw ("chaos") or none, and how quickly.
-    "overlays": {"motion": "slide", "speed": "normal"},
+    # Whose motion the launcher and Morgan's conversation come and go with:
+    # the windows' or the drawers'. Settings always takes the windows'.
+    "overlays": {"launcher": "windows", "morgan": "windows"},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",

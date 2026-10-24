@@ -44,6 +44,7 @@ from layershell import (
     LayerSurface,
     Placement,
 )
+from sensor import Presses
 from views import log, make_view
 
 #: An open launcher nobody types into puts itself away.
@@ -120,6 +121,7 @@ class Launcher(QObject):
         self.bridge = LauncherBridge(self, self)
         self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self, area="launcher")
         self.surface = LayerSurface(self.view, "talaris-launcher")
+        Presses(self.view)
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.file_away)
@@ -127,7 +129,7 @@ class Launcher(QObject):
 
     def describe(self) -> dict:
         return {"up": self.up, "mode": self.mode, "project": self.desktop.project,
-                "theme": self.desktop.config["theme"], "motion": self.desktop.config["overlays"]}
+                "theme": self.desktop.config["theme"], "motion": self.desktop.motion("launcher")}
 
     def open(self, mode: str = "") -> None:
         self.mode = mode
@@ -135,7 +137,7 @@ class Launcher(QObject):
         self.leaving = False
         screen = QApplication.primaryScreen().geometry()
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_EXCLUSIVE))
+                                     screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
         self.view.setFocus()
         self.bridge.state.emit(json.dumps(self.describe()))
         self.touched()

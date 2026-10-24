@@ -191,8 +191,9 @@ addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) { e.preventDefault(); if (n) { at = (at - 1 + n) % n; armed = null; draw(); } }
   else if (e.key === "Enter") { e.preventDefault(); choose(at); }
 });
-// A press outside the box puts it away.
-addEventListener("pointerdown", (e) => { if (bridge && !e.target.closest("#box")) bridge.file(); });
+// A press outside the box puts it away — heard here, and from Qt (sensor.Presses).
+addEventListener("pointerdown", (e) => { if (bridge && state.up && !e.target.closest("#box")) bridge.file(); });
+window.pressedAt = (x, y) => { const at = document.elementFromPoint(x, y); if (bridge && state.up && !(at && at.closest("#box"))) bridge.file(); };
 
 // How it comes and goes (motion.js): from the top, over the dimmed screen,
 // with the lines under the field and over the foot drawn too.
