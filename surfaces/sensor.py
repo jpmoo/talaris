@@ -116,13 +116,13 @@ class Catcher(QObject):
     of the bar's and dock's reserved space by theirs.
     """
 
-    def __init__(self, profile: QWebEngineProfile, on_catch: Callable[[], None], parent: QObject) -> None:
+    def __init__(self, profile: QWebEngineProfile, on_catch: Callable[[], None], parent: QObject, name: str = "catcher") -> None:
         super().__init__(parent)
         self.on_catch = on_catch
         self.up = False
         self.bridge = SensorBridge(self, self)
-        self.view = make_view(profile, "catcher", "talaris-ui://ui/catch.html", self.bridge, self)
-        self.surface = LayerSurface(self.view, "talaris-catcher")
+        self.view = make_view(profile, name, "talaris-ui://ui/catch.html", self.bridge, self)
+        self.surface = LayerSurface(self.view, f"talaris-{name}")
         # The press is watched in Qt as well as in the page: the page's own
         # listener did not hear it, and a catcher that misses a click is a
         # drawer that will not go away.

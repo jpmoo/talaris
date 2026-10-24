@@ -37,6 +37,7 @@ from config import DEFAULTS, save_config
 from core import Bridge
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
+from sensor import Catcher
 from views import log, make_view, zoom
 
 SIZE = (860, 620)
@@ -88,8 +89,8 @@ def _checked(c: dict) -> str:
         return "Text is small, medium or large"
     if not isinstance(p.get("dim", True), bool):
         return "Dim behind is on or off"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan")):
-        return "The launcher and Morgan move as windows or as drawers"
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings")):
+        return "The launcher, Morgan and Settings move as windows or as drawers"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
     if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
@@ -201,12 +202,14 @@ class Settings(QObject):
         self.bridge = SettingsBridge(self, self)
         self.view = make_view(profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-settings")
+        # A clear layer behind it, over the windows: a click off Settings closes it.
+        self.catcher = Catcher(profile, self.file_away, self, name="settings-catcher")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.file_away)
 
     def describe(self) -> dict:
-        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion()}
+        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion("settings")}
 
     def open(self, page: str = "") -> None:
         self.page = page
@@ -215,6 +218,8 @@ class Settings(QObject):
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
             self.up = True
+            if not getattr(self, "_chooser", None):
+                self.catcher.show()
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -231,6 +236,7 @@ class Settings(QObject):
             return
         self.up = False
         self.idle.stop()
+        self.catcher.hide()
         # The page plays its leaving, then says so (`left`); then the surface goes.
         self.leaving = True
         self.bridge.leave.emit()
@@ -260,6 +266,8 @@ class Settings(QObject):
 
         def done(code: int, _status) -> None:
             self._chooser = None
+            if self.up:
+                self.catcher.show()
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
@@ -268,6 +276,8 @@ class Settings(QObject):
 
         chooser.finished.connect(done)
         self._chooser = chooser
+        # The chooser is a window, under the catcher's layer: out of its way meanwhile.
+        self.catcher.hide()
         chooser.start()
 
     def apply(self, wanted: dict) -> str:

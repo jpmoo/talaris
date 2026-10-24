@@ -84,7 +84,7 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "morgan"]) {
+  for (const who of ["launcher", "morgan", "settings"]) {
     seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As drawers"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
