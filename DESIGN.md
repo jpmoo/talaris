@@ -343,7 +343,7 @@ plugin provides.
 | Idle | **`hypridle`**. Settings, Power, when Talaris manages power, writes `~/.config/talaris/hypridle.conf` (dim, lock, screen off, suspend) and runs a hypridle of its own with it; off, the user's own hypridle is left alone. Two at once would each lock and turn the screen off, so the page says when another is running. |
 | Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
 | Notifications, for now | **`mako`**, D-Bus-activated, in Talaris's look (`systemd/mako.config`), until Talaris holds the bus. |
-| Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture. |
+| Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |
 | Network and Bluetooth settings | `nmtui`, `bluetoothctl`, opened from the bar. |
 
 ## Morgan
@@ -1013,8 +1013,9 @@ of it and comes out at the end.
    what changed. *The OSD* (`osd.py`): the media keys are bound again at
    runtime with the commands `hyprland.conf` gave them plus `--osd <kind>`, and
    bound back on quit. Since: the clock (12 or 24 hours, seconds,
-   the date's order or none), motion (slide, draw, chaos — the tuner's
-   "connect" — or none), the space round windows
+   the date's order or none), motion (slide, draw — the tuner's "chaos",
+   its "connect" — or none; the traced-frame draw was dropped, and Draw is
+   stored as `chaos`), the space round windows
    and between them (Talaris sets Hyprland's gaps and border colors at
    runtime), and showing by touch — the bar and the dock hide and come out when
    the pointer touches their edge, giving their space back to the windows, and
@@ -1032,8 +1033,8 @@ of it and comes out at the end.
    Settings is now one page per thing: Look, Bar, Dock, Drawers, Windows,
    Keys, Morgan. The bar and dock each have hiding, a motion out of hiding
    (slide or none), an outline, a shadow and opacity; a floating bar sets the
-   gap below it to its own inset, so it and the windows line up. Draw and
-   chaos play on a drawer's way out as on its way in.
+   gap below it to its own inset, so it and the windows line up. Draw
+   plays on a drawer's way out as on its way in.
    **The dock** (`dock.py`) is one row: pinned applications in your order, a
    rule, then what else is open — on this desktop, or all (the setting
    becomes "this project" with projects). Items drag to reorder; right-click

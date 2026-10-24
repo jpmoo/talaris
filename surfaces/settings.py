@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 
-from PySide6.QtCore import QObject, QTimer, Slot
+from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
+import wallpaper
 from config import DEFAULTS, save_config
 from core import Bridge
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
@@ -56,8 +58,8 @@ def _checked(c: dict) -> str:
         return "An accent is a color like #c98a5b"
     if t.get("font") not in FONTS:
         return "Not one of the typefaces"
-    if t.get("motion") not in ("slide", "draw", "chaos", "none"):
-        return "Motion is slide, draw, chaos or none"
+    if t.get("motion") not in ("slide", "chaos", "none"):
+        return "Motion is slide, draw or none"
     k = c["clock"]
     if k.get("hours") not in ("12", "24") or k.get("date") not in DATE_STYLES or not isinstance(k.get("seconds"), bool):
         return "Not a clock setting"
@@ -136,6 +138,23 @@ class SettingsBridge(Bridge):
             return json.dumps({"ok": False, "error": "Not a setting this page changes"})
         return command("admin " + json.dumps({"op": r["op"], "args": r.get("args", {})}))
 
+    #: Pushed to the page: the wallpaper changed — `{path, fit, error}`.
+    wallpaperChanged = Signal(str)
+
+    @Slot(result=str)
+    def wallpaper(self) -> str:
+        return json.dumps(wallpaper.current())
+
+    @Slot()
+    def chooseWallpaper(self) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.choose_wallpaper()
+
+    @Slot(str)
+    def fitWallpaper(self, fit: str) -> None:  # noqa: N802 — called from the page by this name
+        now = wallpaper.current()
+        error = wallpaper.choose(now["path"], fit) if now["path"] else "No picture yet"
+        self.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+
     @Slot(result=str)
     def power(self) -> str:
         return json.dumps(self.owner.desktop.power.status())
@@ -196,6 +215,28 @@ class Settings(QObject):
     def touched(self) -> None:
         if self.up:
             self.idle.start(IDLE_MS)
+
+    def choose_wallpaper(self) -> None:
+        """A picture, chosen in the desktop's own chooser beside the surface, not inside it."""
+        if getattr(self, "_chooser", None):
+            return
+        chooser = QProcess(self)
+        chooser.setProgram("zenity")
+        start = os.path.dirname(wallpaper.current()["path"]) or os.path.expanduser("~/Pictures")
+        chooser.setArguments(["--file-selection", "--title=A wallpaper", f"--filename={start}/",
+                              "--file-filter=Pictures | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG"])
+
+        def done(code: int, _status) -> None:
+            self._chooser = None
+            path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
+            chooser.deleteLater()
+            if path:
+                error = wallpaper.choose(path, wallpaper.current()["fit"])
+                self.bridge.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+
+        chooser.finished.connect(done)
+        self._chooser = chooser
+        chooser.start()
 
     def apply(self, wanted: dict) -> str:
         """Take a whole configuration, check it, keep it, and make the screen match it."""

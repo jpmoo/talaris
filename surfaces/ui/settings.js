@@ -80,7 +80,7 @@ function draw() {
   $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === t.accent ? " on" : ""), style: `background:${c}`, title: c,
     onclick: () => { $("picker").classList.remove("open"); save({ theme: { accent: c } }); } })), pick);
   if (document.activeElement !== $("hex")) $("hex").value = t.accent;
-  seg("motion", [["slide", "Slide"], ["draw", "Draw"], ["chaos", "Chaos"], ["none", "None"]], t.motion || "slide", (motion) => save({ theme: { motion } }));
+  seg("motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], t.motion === "draw" ? "chaos" : t.motion || "slide", (motion) => save({ theme: { motion } }));
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const p = cfg.panels;
@@ -315,6 +315,20 @@ function saveMorgan() {
 
 // ---------------------------------------------------------------- pages and ways back
 
+// ---------------------------------------------------------------- wallpaper
+//
+// What hyprpaper is set to, read from its file; a new picture comes through
+// the desktop's chooser, and either change restarts hyprpaper.
+function drawWallpaper(w) {
+  $("wall-name").textContent = w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
+  $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?t=${Date.now()}` : "";
+  seg("wall-fit", [["cover", "Cover"], ["contain", "Contain"], ["tile", "Tile"], ["fill", "Fill"]], w.fit || "cover",
+    (fit) => bridge.fitWallpaper(fit));
+  if (w.error) say(w.error, true);
+  else if (w.changed) say("Wallpaper set");
+}
+$("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper());
+
 // Two idle managers fight; say so, and what to take out.
 function powerNote() {
   bridge.power((text) => {
@@ -336,6 +350,7 @@ function show(page) {
   say("");
   if (page === "morgan") loadMorgan();
   if (page === "power") powerNote();
+  if (page === "look") bridge.wallpaper((text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
 
@@ -360,5 +375,6 @@ Surface.connect({
   },
 }).then((b) => {
   bridge = b;
+  b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
   reload("look");
 });

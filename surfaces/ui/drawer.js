@@ -61,16 +61,17 @@ function applyTheme(theme) {
 // ---------------------------------------------------------------- motion
 //
 // The theme's four motions, as design/theme-tuner.html first showed them:
-// slide in from the edge; draw (the frame traced, then filled); chaos (marks
-// first, then lines between them in random order, direction and timing —
-// always mark to mark, never loose — then filled); and none.
+// slide in from the edge; draw (marks first, then lines between them in
+// random order, direction and timing — always mark to mark, never loose —
+// then filled); and none. Draw is stored as "chaos", its first name.
 // Four corners out to expand; in to make it a drawer again.
 const GROW = '<svg viewBox="0 0 14 14"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"/></svg>';
 const SHRINK = '<svg viewBox="0 0 14 14"><path d="M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3"/></svg>';
 // Set to close after full screen, the button that ends it closes the drawer: it says so.
 const CLOSE = '<svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
 const OFF = { left: "translateX(-102%)", right: "translateX(102%)", top: "translateY(-102%)", bottom: "translateY(102%)" };
-const motion = () => document.documentElement.dataset.motion || "slide";
+// The old traced frame ("draw") is gone; a setting still naming it gets Draw.
+const motion = () => { const m = document.documentElement.dataset.motion || "slide"; return m === "draw" ? "chaos" : m; };
 // How quick: Settings' speed, as a factor on every duration and delay here.
 const pace = () => ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 })[(state.theme || {}).motionSpeed] || 1;
 const P = (ms) => Math.round(ms * pace());
@@ -86,12 +87,12 @@ function unhold() {
 function arrive() {
   unhold();
   if (still()) return;
-  if (motion() === "draw" || motion() === "chaos") { trace(motion()); return; }
+  if (motion() === "chaos") { trace(); return; }
   $("panel").animate([{ transform: OFF[state.edge] }, { transform: "none" }], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
 }
 
 /*
- * Draw and chaos are drawn once, as for a drawer on the left edge — depth
+ * Draw is drawn once, as for a drawer on the left edge — depth
  * across, breadth down, the flush side at x = 0 — on a layer that one
  * transform turns to the edge the drawer is really on.
  */
@@ -170,12 +171,12 @@ function lines(W, H) {
   return paths.filter((pts) => pts.length > 1 && (pts[0][0] === pts.at(-1)[0] || pts[0][1] === pts.at(-1)[1]));
 }
 
-/** Draw and chaos, leaving: the reverse of arriving. Returns the animation that says when it is done. */
-function untrace(kind) {
+/** Draw, leaving: the reverse of arriving. Returns the animation that says when it is done. */
+function untrace() {
   const panel = $("panel");
   const { fx, W, H } = fxLayer();
   const paths = lines(W, H);
-  const length = P(kind === "draw" ? 760 : 820);
+  const length = P(820);
   // Emptied first: contents, fill and frame, leaving only the lines.
   for (const child of panel.children) {
     if (!child.classList.contains("xh")) child.animate([{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: length, fill: "forwards" });
@@ -185,40 +186,27 @@ function untrace(kind) {
   const shrink = ([s, axis], delay, duration) => s.animate([
     { transform: `${axis}(1)`, opacity: 0 }, { transform: `${axis}(1)`, opacity: 1, offset: .2 }, { transform: `${axis}(0)`, opacity: 1 },
   ], { duration: P(duration), delay: P(delay), easing: "ease-in", fill: "both" });
-  if (kind === "draw") {
-    // The rules inside go first, then the frame, back to the screen edge.
-    paths.slice().reverse().forEach((pts, i) => shrink(segment(fx, pts[0], pts.at(-1), true), Math.min(i, paths.length - 3) * 70, 420));
-  } else {
-    const marks = new Map();
-    const pieces = [];
-    for (const pts of paths) {
-      pts.forEach((p) => marks.set(p.join(","), p));
-      for (let i = 1; i < pts.length; i++) pieces.push([pts[i - 1], pts[i]]);
-    }
-    pieces.forEach(([p, q]) => shrink(segment(fx, p, q, Math.random() < .5), Math.random() * 260, 300 + Math.random() * 220));
-    for (const [x, y] of marks.values()) {
-      const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
-      fx.append(m);
-      m.animate([{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1, offset: .75 }, { opacity: 0, transform: "scale(0)" }],
-        { duration: length, fill: "both" });
-    }
+  const marks = new Map();
+  const pieces = [];
+  for (const pts of paths) {
+    pts.forEach((p) => marks.set(p.join(","), p));
+    for (let i = 1; i < pts.length; i++) pieces.push([pts[i - 1], pts[i]]);
+  }
+  pieces.forEach(([p, q]) => shrink(segment(fx, p, q, Math.random() < .5), Math.random() * 260, 300 + Math.random() * 220));
+  for (const [x, y] of marks.values()) {
+    const m = el("span", { class: "fx-mark", style: `left:${x}px;top:${y}px` });
+    fx.append(m);
+    m.animate([{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1, offset: .75 }, { opacity: 0, transform: "scale(0)" }],
+      { duration: length, fill: "both" });
   }
   done.addEventListener("finish", () => fx.remove());
   return done;
 }
 
-function trace(kind) {
+function trace() {
   const { fx, W, H } = fxLayer();
   const paths = lines(W, H);
-  if (kind === "draw") {
-    // Traced in order: the frame first, each side from the screen edge out,
-    // then the rules inside, one after another.
-    fillAfter(.66);
-    paths.forEach((pts, i) => grow(segment(fx, pts[0], pts.at(-1), false), i < 2 ? 0 : 220 + (i - 2) * 120, 560));
-    setTimeout(() => fx.remove(), P(1400));
-    return;
-  }
-  // Chaos: every mark first, then a line between each pair of neighbors, in
+  // Every mark first, then a line between each pair of neighbors, in
   // random order, direction and timing — always mark to mark, never loose.
   fillAfter(.72);
   const marks = new Map();
@@ -257,7 +245,7 @@ function leave() {
   // lines drawn back to their marks.
   leaving = motion() === "slide"
     ? $("panel").animate([{ transform: "none" }, { transform: OFF[state.edge] }], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" })
-    : untrace(motion());
+    : untrace();
   leaving.onfinish = () => bridge.left();
 }
 let leaving = null;

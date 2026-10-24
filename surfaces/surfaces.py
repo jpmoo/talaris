@@ -48,6 +48,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from wallpaper import current as wallpaper_current
 from power import Power
 from sensor import Catcher, EdgeSensor, Hover
 import sensor as sensor_module
@@ -115,6 +116,16 @@ class Files(QWebEngineUrlSchemeHandler):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                 return
             self._reply(job, data, "image/png")
+            return
+        # `talaris-ui://wallpaper/`: the picture hyprpaper is set to — that one
+        # file, whatever a page asks — for Settings' preview.
+        if url.host() == "wallpaper":
+            path = wallpaper_current()["path"]
+            if not path or not os.path.isfile(path):
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+            with open(path, "rb") as f:
+                self._reply(job, f.read(), mimetypes.guess_type(path)[0] or "image/jpeg")
             return
         rel = url.path().lstrip("/") or "drawer.html"
         full = os.path.realpath(os.path.join(UI, rel))
