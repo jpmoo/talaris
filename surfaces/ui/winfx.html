@@ -1,0 +1,48 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+Draw, for windows (winfx.py): a clear page over the whole screen. Each window
+opening or closing is a box where it is, with the drawers' marks and lines
+played round it — drawn out as it opens, drawn back as it closes.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+html, body { margin: 0; height: 100%; background: transparent !important; overflow: hidden; }
+.ghost { position: absolute; pointer-events: none; }
+</style>
+</head>
+<body>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script>
+"use strict";
+function draw(text) {
+  const d = JSON.parse(text);
+  if (d.accent) document.documentElement.style.setProperty("--accent", d.accent);
+  const box = document.createElement("div");
+  box.className = "ghost";
+  Object.assign(box.style, { left: `${d.x}px`, top: `${d.y}px`, width: `${d.w}px`, height: `${d.h}px` });
+  document.body.append(box);
+  // Lines only, all four sides: a window is not flush with anything.
+  const how = { kind: "chaos", speed: d.speed, edge: "left", flush: false };
+  const pace = ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 })[d.speed] || 1;
+  if (d.kind === "open") {
+    Motion.arrive(box, how);
+    setTimeout(() => { if (box._fx) box._fx.remove(); box.remove(); }, 1600 * pace);
+  } else {
+    const going = Motion.leave(box, how);
+    const done = () => { if (box._fx) box._fx.remove(); box.remove(); };
+    if (going) going.addEventListener("finish", done); else done();
+  }
+}
+new QWebChannel(qt.webChannelTransport, (channel) => channel.objects.bridge.draw.connect(draw));
+</script>
+</body>
+</html>

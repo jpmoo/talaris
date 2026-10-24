@@ -56,9 +56,11 @@ const Motion = (() => {
     const across = edge === "left" || edge === "right";
     const W = across ? Wp : Hp, H = across ? Hp : Wp;
     const turn = { left: "none", right: `matrix(-1,0,0,1,${Wp},0)`, top: "matrix(0,1,1,0,0,0)", bottom: `matrix(0,-1,1,0,0,${Hp})` }[edge];
-    document.querySelectorAll(".fx").forEach((n) => n.remove());
+    // Each panel its own layer, so two at once (two windows opening) keep theirs.
+    if (panel._fx) panel._fx.remove();
     const fx = make("div", "fx", `left:${r.left + scrollX}px;top:${r.top + scrollY}px;width:${W}px;height:${H}px;transform:${turn}`);
     document.documentElement.append(fx);
+    panel._fx = fx;
     return { fx, W, H };
   }
   function segment(fx, p, q, far) {
@@ -178,7 +180,7 @@ const Motion = (() => {
   function reset(panel, o = {}) {
     for (const a of panel.getAnimations({ subtree: true })) a.cancel();
     if (o.backdrop) for (const a of o.backdrop.getAnimations()) a.cancel();
-    document.querySelectorAll(".fx").forEach((n) => n.remove());
+    if (panel._fx) panel._fx.remove();
   }
 
   function arrive(panel, o) {

@@ -193,7 +193,7 @@ function draw() {
     (outline) => save({ windows: { outline } }));
   slider("win-border", cfg.windows.border ?? 2, (v) => `${v}px`, (v) => save({ windows: { border: v } }));
   needs(["win-border"], (cfg.windows.outline || "focus") !== "none");
-  seg("win-motion", [["slide", "Slide"], ["pop", "Pop"], ["fade", "Fade"], ["none", "None"]], cfg.windows.motion || "pop",
+  seg("win-motion", [["slide", "Slide"], ["pop", "Pop"], ["fade", "Fade"], ["draw", "Draw"], ["none", "None"]], cfg.windows.motion || "pop",
     (motion) => save({ windows: { motion } }));
   seg("win-speed", SPEEDS, cfg.windows.speed || "normal", (speed) => save({ windows: { speed } }));
   needs(["win-speed"], (cfg.windows.motion || "pop") !== "none");

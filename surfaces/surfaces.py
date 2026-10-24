@@ -48,6 +48,7 @@ from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
 from osd import Osd
+from winfx import WindowDraw
 from wallpaper import current as wallpaper_current
 from power import Power
 from sensor import Catcher, EdgeSensor, Hover
@@ -468,6 +469,7 @@ class Desktop(QObject):
         self.events.windows.connect(lambda: self._windows_soon.start(120))
         # Clicking off a pulled drawer puts it away, when Settings says so.
         self.catcher = Catcher(profile, self._caught, self)
+        self.winfx = WindowDraw(profile, self)
         self.events.reloaded.connect(self._bind)
         self._bind()
 
@@ -546,6 +548,17 @@ class Desktop(QObject):
         style = {"slide": "slide", "pop": "popin 87%"}.get(motion, "")
         moving = motion != "none"
         opening = motion in ("slide", "pop")
+        if motion == "draw":
+            # Drawn over by winfx.py: Hyprland only fades the window, in late
+            # and slowly, so it fills in as the lines finish, as a drawer does.
+            hypr.keyword("bezier", "talarisLate,0.75,0,0.85,0.7")
+            hypr.keyword("animation", f"windows,1,{ds(4.5)},talarisIn")
+            hypr.keyword("animation", "windowsIn,0")
+            hypr.keyword("animation", "windowsOut,0")
+            hypr.keyword("animation", f"windowsMove,1,{ds(4.5)},talarisIn")
+            hypr.keyword("animation", f"fadeIn,1,{ds(9)},talarisLate")
+            hypr.keyword("animation", f"fadeOut,1,{ds(7)},talarisOut")
+            return
         hypr.keyword("animation", f"windows,{int(moving)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
         hypr.keyword("animation", f"windowsIn,{int(opening)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
         hypr.keyword("animation", f"windowsOut,{int(opening)},{ds(3)},talarisOut" + (f",{style}" if style else ""))

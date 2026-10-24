@@ -120,7 +120,7 @@ def _checked(c: dict) -> str:
         return "The space between windows is 0 to 40 pixels"
     if c["windows"].get("outline", "focus") not in ("focus", "accent", "line", "none") or not 1 <= int(c["windows"].get("border", 2)) <= 6:
         return "A window's outline is the accent, a line or none, 1 to 6 pixels wide"
-    if c["windows"].get("motion", "pop") not in ("slide", "pop", "fade", "none") or c["windows"].get("speed", "normal") not in speeds:
+    if c["windows"].get("motion", "pop") not in ("slide", "pop", "fade", "draw", "none") or c["windows"].get("speed", "normal") not in speeds:
         return "Windows slide, pop, fade or neither"
     if not 15 <= int(c["idleSeconds"]) <= 600:
         return "Idle is between 15 seconds and 10 minutes"

@@ -70,7 +70,7 @@ DEFAULTS = {
     # dock, the screen's edge — the same on every side.
     # outline: the focused window's border in the accent and the rest a line
     # ("focus"), all "accent", all "line", or "none"; border is its width in px.
-    # motion: how windows open and close — "slide", "pop", "fade" or "none" —
+    # motion: how windows open and close — "slide", "pop", "fade", "draw" or "none" —
     # at a speed, as everything else comes and goes.
     "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2, "motion": "pop", "speed": "normal"},
     "drawers": {
