@@ -1012,8 +1012,7 @@ of it and comes out at the end.
    their voice (a light sweeping along it while Morgan thinks), what was asked
    and the answer as it is spoken; it lingers 1.2 s after Morgan goes idle and
    goes at once on `stop`, and never takes the keyboard. Still to do: files
-   dropped on the panel, and Morgan's settings page (step 7) — its
-   settings button opens the Noctalia plugin's panel until then.
+   dropped on the panel. (Morgan's settings page is built: Settings, Morgan.)
 7. Settings, the theme, the OSD, the power menu. **First pass done.**
    *Settings* (`surfaces/settings.py`, `config.py`): one panel in the middle of
    the screen — from the launcher, the power menu, or Morgan's own settings
@@ -1091,12 +1090,19 @@ of it and comes out at the end.
 18. **Calendar and contacts** (asked for 2026-10-23, not designed yet): a
     full calendar — day, week and month; events made, edited and moved;
     invitations answered — and contacts, both kept in step with Google and
-    Outlook accounts, any number of each. The likely road, to be decided: the
+    Outlook accounts, any number of each, and Apple (iCloud) accounts.
+    **Microsoft by Graph**, not EWS, which Microsoft is retiring for Exchange
+    Online: Evolution's `evolution-ews` package carries a Microsoft 365 module
+    that speaks Graph. **Apple by CalDAV and CardDAV**, with an app-specific
+    password from appleid.apple.com — Apple has no other open way in. Google
+    by its own API (or CalDAV/CardDAV). The likely road, to be decided: the
     accounts signed in through GNOME Online Accounts and read and written
     through Evolution Data Server, which this machine already runs (no app of
-    ours registered with Google or Microsoft; laptop only). The other road is
-    Talaris or Hermes signing in itself (an app registered with each), which
-    reaches every device. Faces to decide: the clock's dropdown for today and
+    ours registered with Google or Microsoft; laptop only); to check first,
+    that Online Accounts' Microsoft 365 sign-in feeds Evolution's Graph
+    calendar and contacts, not only files. The other road is Talaris or Hermes
+    signing in itself (an app registered with Google and Microsoft, CalDAV for
+    Apple), which reaches every device. Faces to decide: the clock's dropdown for today and
     the month; a full view as a drawer or full screen; contacts in the
     launcher and to Morgan; the to-do list's dated tasks on the calendar.
 
