@@ -142,8 +142,10 @@ $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 // The canvas and the writing surface, panels from the bar like the rest.
-// People: its place on the bar kept, until its panel is built (DESIGN, item 18).
+// People and Tasks: their places on the bar kept, until their panels are built
+// (People: DESIGN, item 18).
 $("people").innerHTML = Icons.people();
+$("tasks").innerHTML = Icons.tasks();
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
@@ -204,7 +206,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #morgan, #people, #tasks, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

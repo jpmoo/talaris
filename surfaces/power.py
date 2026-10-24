@@ -34,6 +34,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 import subprocess
 
 from PySide6.QtCore import QObject, QProcess, QTimer
@@ -199,9 +200,22 @@ class Power(QObject):
         self._stop_idle()
         self.process = QProcess(self)
         self.process.setProgram("hypridle")
-        self.process.setArguments(["-q", "-c", IDLE_FILE])
+        # Not quiet: when a step fired is worth having in the log ("did the
+        # screen go off?" is otherwise unanswerable afterwards).
+        self.process.setArguments(["-c", IDLE_FILE])
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self._heard)
         self.process.start()
         log(f"power: hypridle running with Talaris's settings ({'plugged in' if self.plugged else 'on battery'})")
+
+    def _heard(self) -> None:
+        """hypridle's own lines worth keeping: a step run, a return, a refusal."""
+        if not self.process:
+            return
+        text = bytes(self.process.readAllStandardOutput()).decode("utf-8", "replace")
+        for line in text.splitlines():
+            if re.search(r"running|timeout|resume|inhibit|err|warn", line, re.I):
+                log(f"power: hypridle: {line.strip()[:200]}")
 
     def _charger(self) -> None:
         now = on_mains()

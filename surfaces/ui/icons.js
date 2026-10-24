@@ -88,5 +88,7 @@ const Icons = (() => {
   // The tray, folded: a tray with things in it.
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
-  return { sideList, people, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  // Tasks: a checked box and two lines.
+  const tasks = () => svg('<rect x="2.5" y="3" width="4" height="4" rx="1"/><path d="M3.6 5l.8.8 1.3-1.5M9 5h4.5M2.5 11h4M9 11h4.5"/>');
+  return { sideList, people, tasks, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();
