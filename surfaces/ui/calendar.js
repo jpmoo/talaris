@@ -100,18 +100,17 @@ function draw() {
   if (mode === "month") drawMonth(view); else drawDays(view, mode === "week" ? 7 : 1);
 }
 
+// The calendars on show, by account: a key to their colors. Which are on
+// show is Settings, Accounts' to say; those turned off are not here at all.
+const showing = () => calendars.filter((c) => !hidden.has(c.id));
 function drawSide() {
   const byAccount = {};
-  for (const c of calendars) (byAccount[c.account] ||= []).push(c);
+  for (const c of showing()) (byAccount[c.account] ||= []).push(c);
   const side = $("side");
   side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) => [
     el("h3", {}, account),
-    ...list.map((c) => el("div", { class: "cal" + (hidden.has(c.id) ? "" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only",
-      onclick: () => {
-        if (hidden.has(c.id)) hidden.delete(c.id); else hidden.add(c.id);
-        draw();
-        bridge.setHidden(JSON.stringify([...hidden]));
-      } }, el("span", { class: "sw" }), el("span", {}, c.name))),
+    ...list.map((c) => el("div", { class: "cal on", style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only" },
+      el("span", { class: "sw" }), el("span", {}, c.name))),
   ]), el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
 }
 
@@ -267,7 +266,7 @@ function paintEditor() {
 }
 
 function open(e, isNew) {
-  const writable = calendars.filter((c) => c.writable);
+  const writable = showing().filter((c) => c.writable);
   const s = new Date(e.start);
   const end = new Date(e.allDay ? e.end - DAY_MS : e.end);
   editing = { ...e, isNew, v: {
@@ -292,7 +291,7 @@ function open(e, isNew) {
 }
 function edit(e) { open(e, false); }
 function create(at, allDay) {
-  if (!calendars.some((c) => c.writable)) { say("No calendar here can be written to", true); return; }
+  if (!showing().some((c) => c.writable)) { say("No calendar on show can be written to", true); return; }
   const start = allDay ? startOfDay(at) : at;
   open({ start: start.getTime(), end: allDay ? start.getTime() + DAY_MS : start.getTime() + 3600000, allDay }, true);
 }
@@ -301,7 +300,7 @@ function closeEditor() { popAway(); $("editor").classList.remove("open"); editin
 $("e-cal").addEventListener("click", (ev) => {
   ev.stopPropagation();
   if (!editing || $("pop").dataset.for === "e-cal") { popAway(); return; }
-  popUnder($("e-cal"), el("div", { class: "menu-list" }, ...calendars.filter((c) => c.writable).map((c) =>
+  popUnder($("e-cal"), el("div", { class: "menu-list" }, ...showing().filter((c) => c.writable).map((c) =>
     el("button", { class: "time" + (c.id === editing.v.calendar ? " on" : ""), onclick: (e) => { e.stopPropagation(); editing.v.calendar = c.id; popAway(); paintEditor(); } },
       el("span", { class: "sw", style: `background:${c.color || "var(--accent)"}` }), `${c.name} · ${c.account}`))));
 });

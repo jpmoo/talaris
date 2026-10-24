@@ -39,7 +39,7 @@ DEFAULTS = {
     # the windows' or the drawers'. Settings too.
     "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows"},
     # The calendar: the calendars not shown (Evolution's ids), whichever
-    # account they belong to — set in Settings, Accounts, or the calendar's own list.
+    # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},
     # pinned: launcher ids, in order; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
