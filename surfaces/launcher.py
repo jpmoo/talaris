@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import os
 
-from PySide6.QtCore import QObject, QTimer, QUrl, Slot
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
@@ -44,6 +44,7 @@ from layershell import (
     LayerSurface,
     Placement,
 )
+from morgan import command as morgan_command
 from sensor import Presses
 from views import log, make_view
 
@@ -96,7 +97,33 @@ def _files(folder: str) -> list[dict]:
     return found
 
 
+class _MorganSearch(QRunnable):
+    """Morgan's search, off the screen's thread: the query goes to Morgan's brain to be embedded."""
+
+    def __init__(self, bridge: "LauncherBridge", query: str) -> None:
+        super().__init__()
+        self.bridge, self.query = bridge, query
+
+    def run(self) -> None:
+        try:
+            answer = json.loads(morgan_command(f"search {self.query}"))
+        except (ValueError, OSError):
+            answer = {"ok": False}
+        results = answer.get("results", []) if answer.get("ok") else []
+        self.bridge.morganFound.emit(json.dumps({"query": self.query, "results": results}))
+
+
 class LauncherBridge(Bridge):
+    #: Pushed to the page: Morgan's past conversations for a query, `{query, results}`.
+    morganFound = Signal(str)
+
+    @Slot(str)
+    def morganSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name
+        """Past conversations with Morgan for what was typed. Nothing is embedded here: Morgan does it, where it runs."""
+        query = " ".join(query.split())[:200]
+        if len(query) >= 3 and self.owner.desktop.morgan_link.now != "absent":
+            self.owner.searches.start(_MorganSearch(self, query))
+
     @Slot(result=str)
     def catalog(self) -> str:
         return json.dumps(self.owner.catalog())
@@ -119,6 +146,9 @@ class Launcher(QObject):
         self.mode = ""  # "" to find anything, "ask" when Morgan's button opened it
         self._windows: set[str] = set()
         self.bridge = LauncherBridge(self, self)
+        # One of Morgan's searches at a time, at most two waiting.
+        self.searches = QThreadPool(self)
+        self.searches.setMaxThreadCount(1)
         self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self, area="launcher")
         self.surface = LayerSurface(self.view, "talaris-launcher")
         Presses(self.view)
@@ -229,6 +259,8 @@ class Launcher(QObject):
             return self._open_file(str(r["path"]))
         elif kind == "verb":
             return self.desktop.verb(str(r["name"]))
+        elif kind == "conversation":
+            self.desktop.morgan.show_conversation(str(r["id"]))
         else:
             return "That cannot be done"
         return ""

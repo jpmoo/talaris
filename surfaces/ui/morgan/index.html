@@ -651,6 +651,8 @@ function pick(date, held) {
 }
 
 let viewing = null; // the earlier conversation showing, if one is: typing into it carries it on
+// Talaris: the launcher found one of these and asked for it.
+window.openConversation = (id) => load({ id });
 
 // An earlier conversation in place of the one showing, with a way back.
 function load(entry) {

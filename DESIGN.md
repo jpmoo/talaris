@@ -964,7 +964,8 @@ of it and comes out at the end.
    Qt and served to the page as `talaris-ui://icon/?n=…`. Special workspaces
    (scratchpads) are left out.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
-   **To do: Morgan's conversations in the launcher** (asked for 2026-10-23).
+   **Morgan's conversations in the launcher** (asked for and built
+   2026-10-23).
    Morgan gains a `search <text>` command (protocol 1.3) ranking past
    exchanges by meaning and by words together; the query is embedded on the
    home server by the Ollama Morgan already uses, never on the laptop, and

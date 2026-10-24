@@ -334,6 +334,11 @@ class Panel(QObject):
             return
         self.file_away()
 
+    def show_conversation(self, conversation: str) -> None:
+        """An earlier conversation, from the launcher: the panel opened on it."""
+        self.open()
+        self.view.page().runJavaScript(f"window.openConversation && openConversation({json.dumps(conversation)})")
+
     def ask(self, text: str) -> str:
         """A question from the launcher: typed to Morgan, with the conversation open to show it."""
         self.open()

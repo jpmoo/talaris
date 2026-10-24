@@ -40,7 +40,13 @@ const VERBS = [
 // How much each kind is worth before the words are compared. Projects are
 // where you go; windows are already open; files are many and come last.
 const WEIGHT = { project: 25, window: 15, canvas: 12, page: 12, app: 10, verb: 8, file: 0 };
-const KIND = { project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN" };
+const KIND = { project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID" };
+// Past conversations with Morgan for what is typed, asked for once typing
+// pauses: the query is embedded by Morgan, where it runs, never here. Shown
+// after what the launcher found itself, before the question to Morgan.
+const TALKED = 3;
+let talked = { query: "", results: [] };
+let talkSoon = null;
 
 $("glass").innerHTML = Icons.search();
 
@@ -127,12 +133,19 @@ const GLYPH = {
   file: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5z"/><path d="M9.5 1.5v3h3"/></svg>',
   verb: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M9 4.5 12.5 8 9 11.5"/></svg>',
   morgan: () => Icons.morgan(),
+  conversation: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>',
   app: () => GLYPH.verb(), window: () => GLYPH.verb(),
 };
 
 function draw() {
   const query = $("q").value;
   shown = rank(query);
+  if (query.trim() && talked.query === query.trim().replace(/\s+/g, " ")) {
+    for (const r of talked.results.slice(0, TALKED)) {
+      shown.push({ kind: "conversation", key: `conversation:${r.id}`, title: r.title, sub: `${r.when}${r.said ? ` · “${r.said.slice(0, 80)}”` : ""}`,
+        act: { kind: "conversation", id: r.id } });
+    }
+  }
   if (query.trim()) {
     shown.push({ kind: "morgan", title: query.trim(), sub: "Ask Morgan", act: { kind: "morgan", text: query.trim() } });
   }
@@ -181,7 +194,12 @@ function choose(i) {
   bridge.act(JSON.stringify(x.act), (error) => { if (error) say(error, true); });
 }
 
-$("q").addEventListener("input", () => { at = 0; armed = null; say(""); draw(); });
+$("q").addEventListener("input", () => {
+  at = 0; armed = null; say(""); draw();
+  clearTimeout(talkSoon);
+  const q = $("q").value.trim().replace(/\s+/g, " ");
+  if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => bridge && bridge.morganSearch(q), 350);
+});
 addEventListener("keydown", (e) => {
   if (!bridge) return;
   bridge.activity();
@@ -230,6 +248,13 @@ function onState(s) {
 
 Surface.connect({ onState: (s) => onState(s) }).then((b) => {
   bridge = b;
+  // An answer for what is still typed is drawn; one for an older query is dropped.
+  b.morganFound.connect((text) => {
+    const found = JSON.parse(text);
+    if (found.query !== $("q").value.trim().replace(/\s+/g, " ")) return;
+    talked = found;
+    draw();
+  });
   // Going: played, then the process is told, and takes the surface away.
   b.leave.connect(() => {
     // Gone as far as an opening is concerned: one during the leaving arrives afresh.
