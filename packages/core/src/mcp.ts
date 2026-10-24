@@ -66,7 +66,9 @@ function describe(r: Read): string {
     const by = new Map<string, Connection[]>();
     for (const c of cs) by.set(c.name, [...(by.get(c.name) ?? []), c]);
     for (const [name, list] of by) {
-      out.push("", heading(name));
+      // The count said outright: a long list is cut short on its way to a model,
+      // which then counted what it could see (98 of an event's 146 invitees).
+      out.push("", `${heading(name).replace(/:$/, "")} (${list.length}):`);
       for (const c of list) out.push(line(c.entity));
     }
   };
