@@ -280,6 +280,7 @@ function update(next) {
   $("grow").title = state.mode !== "expanded" ? "Make this the desktop" : closes ? "Close" : "Back to a drawer";
   const look = state.look || {};
   document.body.dataset.outline = look.outline || "focus";
+  if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   applyTheme(state.theme || {});
