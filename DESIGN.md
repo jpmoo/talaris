@@ -1062,6 +1062,20 @@ to more than one, since a person can have a card in each account — with
 suggestions: names alike, the same organization, the addresses of the people
 met with alongside them. Nothing is merged without being asked.
 
+### Making, and going
+
+**New** (Super+Shift+N, or the bar's plus) makes a task, an event, a person,
+a note or a project from one sheet. A task, a person, a note and a project are
+drawn from their types — every field, by its kind, which field is which read
+from the profiles — so a field added to a type is offered there too; only one
+the core fills itself (`talaris:auto`, a task's `done_at`) is left out. An
+event is the calendar's and gets the calendar's form.
+
+**Project jump** (Super+Alt and a letter) goes to the project whose name
+starts with it; with more than one, a short list over the dimmed screen,
+narrowed by typing more. That took Super+Alt for letters, so the canvas and
+the writing surface moved to Super+Shift+C and Super+Shift+W.
+
 ## The compositor is a backend
 
 Decided 2026-10-23. Talaris needs two things from a compositor, and they are not
@@ -1179,7 +1193,8 @@ of it and comes out at the end.
    out over windows, with every way back.~~ **First pass done** — `surfaces/`,
    `talaris-surfaces.service`, started by `~/.config/hypr/talaris.conf`. The
    canvas and writing drawers, filed as handles, out on an empty workspace,
-   pulled over windows (Super+Alt+C, Super+Alt+W), back on the same keys,
+   pulled over windows (Super+Shift+C, Super+Shift+W — once Super+Alt+C and
+   W, until Super+Alt+a letter became the project jump), back on the same keys,
    Super+Alt+Escape, Escape, or 45 idle seconds. Writing pages are real, and
    the canvas has come across (`packages/canvas`): notes, shapes, connections,
    regions, panning and zooming, child canvases as cards that open on a
@@ -1353,6 +1368,12 @@ of it and comes out at the end.
     Apple), which reaches every device. Faces to decide: the clock's dropdown for today and
     the month; a full view as a drawer or full screen; contacts in the
     launcher and to Morgan; the to-do list's dated tasks on the calendar.
+19. **Clipboard history** (asked for 2026-10-24; not started). What was copied,
+    kept and found again: a hotkey, a list over the dimmed screen as project
+    jump's is, typed to narrow, Enter to paste. Questions first: text only or
+    images too; how long it is kept and where (sealed, as entities are, since
+    passwords get copied); leaving out what a password manager marks as
+    secret; whether Morgan may read it.
 
 ## What did not come from Talaria
 

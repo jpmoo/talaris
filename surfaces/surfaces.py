@@ -47,6 +47,7 @@ from morgan import Link, Panel, Voice
 from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
 from new_panel import New
+from jump_panel import Jump
 from osd import Osd
 from tip import Tip
 from tray import Tray
@@ -82,6 +83,9 @@ def register_scheme() -> None:
     )
     QWebEngineUrlScheme.registerScheme(scheme)
 
+
+#: The letters Super+Alt jumps to a project by (jump_panel.py).
+JUMP_LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
 class Files(QWebEngineUrlSchemeHandler):
     """The pages' own files and applications' icons, and nothing else — every one a GET, so no request body is ever touched."""
@@ -173,6 +177,8 @@ class Desktop(QObject):
         self.tasks = Tasks(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
+        # Project jump: Super+Alt+a letter.
+        self.jump = Jump(profile, self)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.tip = Tip(self)
@@ -201,7 +207,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "new", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "new", None), getattr(self, "jump", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -296,8 +302,11 @@ class Desktop(QObject):
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
         self.style_compositor()
-        for name, keys in (("canvas", "SUPER ALT, C"), ("writing", "SUPER ALT, W")):
+        for name, keys in (("canvas", "SUPER SHIFT, C"), ("writing", "SUPER SHIFT, W")):
             hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
+        # Super+Alt and a letter: the project starting with it, or a choice of them.
+        for letter in JUMP_LETTERS:
+            hypr.bind(f"SUPER ALT, {letter}", f"{LAUNCHER} --jump {letter.lower()}")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -308,7 +317,7 @@ class Desktop(QObject):
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -467,6 +476,8 @@ class Desktop(QObject):
                 self.tasks.toggle()
             elif verb == "new":
                 self.new.toggle()
+            elif verb == "jump" and len(arg) == 1 and arg.isalpha():
+                self.jump.jump(arg)
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -518,6 +529,8 @@ def main() -> int:
         return send("tasks")
     if args[:1] == ["--new"]:
         return send("new")
+    if args[:1] == ["--jump"] and len(args) == 2:
+        return send(f"jump {args[1]}")
     if args[:1] == ["--window"] and len(args) == 2:
         return send(f"window {args[1]}")
     if args[:1] == ["--lid"] and len(args) == 2:

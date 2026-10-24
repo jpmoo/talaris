@@ -293,7 +293,7 @@
       on: (v.repeat || "") === k, act: () => { v.repeat = k; paint(); } }))) }, label);
     // A task can count from when it is done instead ("a week after I last did it").
     const after = forTask && v.repeat && v.repeat !== "weekdays"
-      ? el("button", { class: "t-btn switch" + (v.fromDone ? " on" : ""), title: "Count from when it is done, not from its date",
+      ? el("button", { class: "t-btn tog" + (v.fromDone ? " on" : ""), title: "Count from when it is done, not from its date",
         onclick: () => { v.fromDone = !v.fromDone; paint(); } }, "After done") : null;
     return row("Repeat", btn, after);
   }
@@ -374,20 +374,21 @@
     if (v[f.key] === undefined) v[f.key] = def ?? null;
     const labels = f["talaris:labels"] || {}, colors = f["talaris:colors"] || {};
     return row(f.label || words(f.key), el("div", { class: "grow chips" }, (f.options || []).map((o) =>
-      el("button", { class: "t-btn switch" + (v[f.key] === o ? " on" : ""), onclick: () => { v[f.key] = v[f.key] === o && !def ? null : o; paint(); } },
+      el("button", { class: "t-btn tog" + (v[f.key] === o ? " on" : ""), onclick: () => { v[f.key] = v[f.key] === o && !def ? null : o; paint(); } },
         colors[o] ? el("span", { class: "sw", style: `background:${colors[o]}; margin-right: 6px` }) : null, labels[o] || words(o)))));
   }
 
   function fieldRow(f, info, t) {
     const label = f.label || words(f.key);
-    if (f.key === info.titleKey) return null; // drawn first, as the kind's own line
+    // Drawn first, as the kind's own line — the status as the circle before it.
+    if (f.key === info.titleKey || f.key === info.status) return null;
     switch (f.kind) {
       case "richtext": return row(label, writing(f.key, "@ to link a person, event or task", { body: true }));
       case "text":
         return row(label, line(f.key, f.many ? "Optional — more than one, with commas" : "Optional", { spell: !f.many && f.key !== info.email,
           ...(f.key === info.email ? { oninput: checkEmail } : {}) }), f.key === info.email ? el("span", { class: "hint", id: "known" }) : null);
       case "number": return row(label, el("input", { type: "text", class: "field", style: "width: 120px", value: v[f.key] ?? "", oninput: (e) => { v[f.key] = e.target.value; } }));
-      case "boolean": return row(label, el("button", { class: "t-btn switch" + (v[f.key] ? " on" : ""), onclick: () => { v[f.key] = !v[f.key]; paint(); } }, v[f.key] ? "Yes" : "No"));
+      case "boolean": return row(label, el("button", { class: "t-btn tog" + (v[f.key] ? " on" : ""), onclick: () => { v[f.key] = !v[f.key]; paint(); } }, v[f.key] ? "Yes" : "No"));
       case "date": return row(label, ...dayField(f.key, "fri, 10/30…"));
       case "datetime": return row(label, ...dayField(f.key, "fri, 10/30…"), timeField(f.key + "At"));
       case "datespan": return [
@@ -410,7 +411,8 @@
     const titleField = t.fields.find((f) => f.key === info.titleKey);
     const placeholder = { task: "What needs doing", contact: "Their name", note: "Its title", project: "Its name" }[kind] || "";
     let title;
-    if (titleField && info.titleTakesAt) title = row(name, writing(info.titleKey, placeholder, { big: true }));
+    const circle = statusCircle(t, info);
+    if (titleField && info.titleTakesAt) title = row(name, circle, writing(info.titleKey, placeholder, { big: true }));
     else {
       const input = line(info.titleKey, placeholder, { big: true, spell: !info.email });
       title = [row(name, input)];
@@ -427,6 +429,25 @@
       }
     }
     return [title, t.fields.filter((f) => !f["talaris:auto"]).map((f) => fieldRow(f, info, t))];
+  }
+
+  /**
+   * A task's status, as the Tasks panel shows it: a circle before the title,
+   * in the status's color, filled when it counts as done. A press offers the
+   * statuses, the person's own (Tasks → Statuses).
+   */
+  function statusCircle(t, info) {
+    if (!info.status) return null;
+    const f = t.fields.find((x) => x.key === info.status);
+    if (!f) return null;
+    if (v[f.key] === undefined) v[f.key] = t["talaris:defaultStatus"] || (f.options || [])[0] || null;
+    const labels = f["talaris:labels"] || {}, colors = f["talaris:colors"] || {};
+    const done = new Set((info.task && info.task.completeValues) || []);
+    const now = v[f.key];
+    const b = el("button", { class: "circle" + (done.has(now) ? " done" : ""), "data-pops": "1", title: `Status: ${labels[now] || words(now || "")}`,
+      style: `--c:${colors[now] || "var(--muted)"}`,
+      onclick: () => menu(b, (f.options || []).map((o) => ({ label: labels[o] || words(o), color: colors[o] || "var(--muted)", on: o === now, act: () => { v[f.key] = o; paint(); } }))) });
+    return b;
   }
 
   // Whether this address is somebody already: said beside it, and making adds to them.
@@ -451,7 +472,7 @@
     if (cal) v.calendar = cal.id;
     const calBtn = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(calBtn, calendars.map((c) => ({ label: c.name, color: c.color, on: c.id === v.calendar, act: () => { v.calendar = c.id; paint(); } }))) },
       cal ? el("span", { class: "sw", style: `background:${cal.color || "var(--accent)"}; margin-right: 6px` }) : null, cal ? cal.name : "No calendar to write to");
-    const allDay = el("button", { class: "t-btn switch" + (v.allDay ? " on" : ""), onclick: () => { v.allDay = !v.allDay; paint(); } }, "All day");
+    const allDay = el("button", { class: "t-btn tog" + (v.allDay ? " on" : ""), onclick: () => { v.allDay = !v.allDay; paint(); } }, "All day");
     v.people = v.people || [];
     const chips = el("div", { class: "chips" }, v.people.map((p, i) => el("span", { class: "chip-p", title: p.email }, p.name || p.email,
       el("button", { title: "Remove", onclick: () => { v.people.splice(i, 1); paint(); } }, "×"))));
