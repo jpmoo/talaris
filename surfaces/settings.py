@@ -30,7 +30,9 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
+import power
 import wallpaper
+from power import LID_ACTIONS
 from config import DEFAULTS, save_config
 from core import Bridge
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
@@ -105,9 +107,11 @@ def _checked(c: dict) -> str:
     if b.get("shape") not in ("strip", "floating") or not all(0 <= int(v) <= 40 for v in (b.get("margins") or {}).values()):
         return "The bar is a strip or floating, its margins up to 40 pixels"
     pw = c["power"]
-    if not isinstance(pw.get("managed"), bool) or any(not 0 <= int(pw.get(k, 0)) <= 7200 for k in ("dim", "lock", "screenOff", "suspend")) \
-            or not 1 <= int(pw.get("dimTo", 20)) <= 100:
+    if not isinstance(pw.get("managed"), bool) or not 1 <= int(pw.get("dimTo", 20)) <= 100 \
+            or any(not 0 <= int(pw.get(s, {}).get(k, 0)) <= 7200 for s in ("ac", "battery") for k in ("dim", "lock", "screenOff", "suspend")):
         return "Not a power setting"
+    if any(v not in LID_ACTIONS for v in pw.get("lid", {}).values()):
+        return "The lid suspends, locks, turns the screen off or does nothing"
     if not (2 <= int(c["touch"]["thick"]) <= 30 and 10 <= int(c["touch"]["length"]) <= 100):
         return "A touch target is 2 to 30 thick and 10 to 100 percent of its edge"
     if not 0 <= int(c["windows"]["gap"]) <= 40:
@@ -161,6 +165,15 @@ class SettingsBridge(Bridge):
         now = wallpaper.current()
         error = wallpaper.choose(now["path"], fit) if now["path"] else "No picture yet"
         self.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+
+    @Slot(result=str)
+    def charging(self) -> str:
+        return json.dumps(power.charging())
+
+    @Slot(str, result=str)
+    def setCharging(self, wanted: str) -> str:  # noqa: N802 — called from the page by this name
+        w = json.loads(wanted)
+        return power.set_charging(str(w.get("mode", "")), w.get("start"), w.get("stop"))
 
     @Slot(result=str)
     def power(self) -> str:

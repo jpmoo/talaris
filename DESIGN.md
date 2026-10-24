@@ -340,7 +340,9 @@ plugin provides.
 | | |
 |---|---|
 | Lock screen | **`hyprlock`**, installed. Never build a lock screen. |
-| Idle | **`hypridle`**. Settings, Power, when Talaris manages power, writes `~/.config/talaris/hypridle.conf` (dim, lock, screen off, suspend) and runs a hypridle of its own with it; off, the user's own hypridle is left alone. Two at once would each lock and turn the screen off, so the page says when another is running. |
+| Idle | **`hypridle`**. Settings, Power, when Talaris manages power, writes `~/.config/talaris/hypridle.conf` (dim, lock, screen off, suspend) and runs a hypridle of its own with it; off, the user's own hypridle is left alone. Two at once would each lock and turn the screen off, so the page says when another is running. Plugged in and on battery each have their times; Talaris watches the charger and starts its hypridle again with the other set. |
+| Lid | **logind**, until Talaris manages power: then Talaris holds a `handle-lid-switch` inhibitor (`systemd-inhibit`, a child process) and acts on Hyprland's lid switch binds — suspend, lock, screen off or nothing, plugged in, on battery, and with another screen (first; screen off darkens only the laptop's). |
+| Charging | **The battery's own** `charge_types` and start/stop limits in sysfs, set from Settings, Power, Charging, whether or not Talaris manages power. Root's files, so `systemd/90-talaris-battery.rules` (installed once, with sudo) makes them writable by `users`. |
 | Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
 | Notifications, for now | **`mako`**, D-Bus-activated, in Talaris's look (`systemd/mako.config`), until Talaris holds the bus. |
 | Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |

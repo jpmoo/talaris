@@ -59,7 +59,13 @@ DEFAULTS = {
     # When the screen dims, locks, turns off and the machine suspends, in
     # seconds (0 is never), run by a hypridle of Talaris's own — only when
     # `managed`, so it never runs alongside the user's own. dimTo is percent.
-    "power": {"managed": False, "dim": 0, "dimTo": 20, "lock": 300, "screenOff": 600, "suspend": 0},
+    # Plugged in (`ac`) and on battery each have their times. `lid` is what
+    # closing it does — suspend, lock, screen-off or nothing — plugged in, on
+    # battery, and with another screen attached (`docked`), which comes first.
+    "power": {"managed": False, "dimTo": 20,
+              "ac": {"dim": 0, "lock": 600, "screenOff": 900, "suspend": 0},
+              "battery": {"dim": 120, "lock": 300, "screenOff": 420, "suspend": 1200},
+              "lid": {"ac": "suspend", "battery": "suspend", "docked": "nothing"}},
     # The space between the windows and whatever is round them — the bar, the
     # dock, the screen's edge — the same on every side.
     "windows": {"gap": 10, "between": 10},

@@ -574,10 +574,14 @@ class Desktop(QObject):
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
+        # The lid, for when Talaris holds it (power.py); on the lock screen too.
+        hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
+        hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", self.config["launcher"]["keys"]):
+        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", ", switch:on:Lid Switch",
+                     ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
         self.power.stop()
@@ -739,6 +743,8 @@ class Desktop(QObject):
                 self.osd.show(arg)
             elif verb == "morgan":
                 self.morgan.toggle()
+            elif verb == "lid":
+                self.power.lid(arg)
             elif verb == "launcher":
                 self.launcher.toggle(arg)
             elif verb == "popup":
@@ -777,6 +783,8 @@ def main() -> int:
         return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:
         return send("morgan")
+    if args[:1] == ["--lid"] and len(args) == 2:
+        return send(f"lid {args[1]}")
     if args[:1] == ["--launcher"]:
         return send("launcher " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--popup"] and len(args) == 2:

@@ -154,11 +154,20 @@ function draw() {
   const pw = cfg.power;
   const mins = (v) => (Number(v) === 0 ? "Never" : `${v} min`);
   $("power-on").classList.toggle("on", !!pw.managed);
-  slider("power-dim", Math.round(pw.dim / 60), mins, (v) => save({ power: { dim: v * 60 } }));
+  // One set of times on show at a time — plugged in or on battery — each saved whole.
+  seg("power-profile", [["ac", "Plugged in"], ["battery", "On battery"]], powerProfile, (which) => { powerProfile = which; draw(); });
+  const tm = pw[powerProfile] || {};
+  const setTime = (key) => (v) => save({ power: { [powerProfile]: { ...tm, [key]: v * 60 } } });
+  slider("power-dim", Math.round((tm.dim || 0) / 60), mins, setTime("dim"));
   slider("power-dimto", pw.dimTo, (v) => `${v}%`, (v) => save({ power: { dimTo: v } }));
-  slider("power-lock", Math.round(pw.lock / 60), mins, (v) => save({ power: { lock: v * 60 } }));
-  slider("power-off", Math.round(pw.screenOff / 60), mins, (v) => save({ power: { screenOff: v * 60 } }));
-  slider("power-suspend", Math.round(pw.suspend / 60), mins, (v) => save({ power: { suspend: v * 60 } }));
+  slider("power-lock", Math.round((tm.lock || 0) / 60), mins, setTime("lock"));
+  slider("power-off", Math.round((tm.screenOff || 0) / 60), mins, setTime("screenOff"));
+  slider("power-suspend", Math.round((tm.suspend || 0) / 60), mins, setTime("suspend"));
+  const LID = [["suspend", "Suspend"], ["lock", "Lock"], ["screen-off", "Screen off"], ["nothing", "Nothing"]];
+  const lid = pw.lid || {};
+  for (const which of ["ac", "battery", "docked"]) {
+    seg(`lid-${which}`, LID, lid[which] || (which === "docked" ? "nothing" : "suspend"), (v) => save({ power: { lid: { ...lid, [which]: v } } }));
+  }
   for (const id of ["power-dim", "power-dimto", "power-lock", "power-off", "power-suspend"]) $(id).disabled = !pw.managed;
   if (bridge && $("power").classList.contains("on")) powerNote();
 
@@ -174,8 +183,8 @@ function draw() {
   // Dimmed, a click outside already puts a drawer away.
   needs(["dismiss-outside"], cfg.panels.dim === false);
   needs(["touch-thick", "touch-length"], hidesSomething);
-  needs(["power-dim", "power-lock", "power-off", "power-suspend"], !!pw.managed);
-  needs(["power-dimto"], !!pw.managed && pw.dim > 0);
+  needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
+  needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
   slider("touch-thick", cfg.touch.thick, (v) => `${v}px`, (v) => save({ touch: { thick: v } }));
   slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
@@ -339,10 +348,38 @@ function drawWallpaper(w) {
 }
 $("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper());
 
+// Which set of idle times is on show; the page opens on the one in use.
+let powerProfile = "ac";
+
+// Charging is the battery's own, not hypridle's: it works whether or not
+// Talaris manages power, once the udev rule lets it write.
+function chargingRows() {
+  bridge.charging((text) => {
+    const ch = JSON.parse(text);
+    const rows = ["charge-mode", "charge-start", "charge-stop"];
+    if (!ch.present) { $("charge-note").textContent = "No battery."; needs(rows, false); return; }
+    $("charge-level").textContent = `Now ${ch.level}%`;
+    $("charge-note").textContent = ch.writable ? "" :
+      "To change these, install the rule once: sudo cp systemd/90-talaris-battery.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=power_supply";
+    const setCh = (change) => bridge.setCharging(JSON.stringify({ mode: ch.mode, start: ch.start, stop: ch.stop, ...change }), (error) => {
+      if (error) say(error, true); else say("Saved");
+      chargingRows();
+    });
+    seg("charge-mode", ch.modes.map((m) => [m, m]), ch.mode, (mode) => setCh({ mode }));
+    slider("charge-start", ch.start ?? 75, (v) => `${v}%`, (start) => setCh({ start }));
+    slider("charge-stop", ch.stop ?? 90, (v) => `${v}%`, (stop) => setCh({ stop }));
+    needs(["charge-mode"], ch.writable);
+    needs(["charge-start", "charge-stop"], ch.writable && ch.mode === "Custom");
+    for (const id of ["charge-start", "charge-stop"]) $(id).disabled = !(ch.writable && ch.mode === "Custom");
+  });
+}
+
 // Two idle managers fight; say so, and what to take out.
 function powerNote() {
+  chargingRows();
   bridge.power((text) => {
     const st = JSON.parse(text);
+    $("power-now").textContent = st.plugged ? "Plugged in now" : "On battery now";
     const n = $("power-note");
     if (st.managed && st.others.length) {
       n.textContent = `Another hypridle is running too (${st.others.length}), and screens would lock and turn off twice. Remove "exec-once = hypridle" from hyprland.conf and turn off the hypridle service: systemctl --user disable --now hypridle`;
@@ -359,7 +396,10 @@ function show(page) {
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
   say("");
   if (page === "morgan") loadMorgan();
-  if (page === "power") powerNote();
+  if (page === "power") {
+    bridge.power((text) => { powerProfile = JSON.parse(text).plugged ? "ac" : "battery"; draw(); });
+    powerNote();
+  }
   if (page === "look") bridge.wallpaper((text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }

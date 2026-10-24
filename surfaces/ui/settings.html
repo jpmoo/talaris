@@ -190,11 +190,21 @@ footer #msg.err { color: var(--danger); }
       <div class="row"><span class="name">Talaris manages power<small>Off: your hypridle is kept</small></span><span class="what"><button class="switch" id="power-on"></button></span></div>
       <p class="note" id="power-note"></p>
       <h3>When idle</h3>
+      <div class="row"><span class="name">Times for<small id="power-now"></small></span><span class="what"><span class="seg" id="power-profile"></span></span></div>
       <div class="row"><span class="name">Dim the screen</span><span class="what"><input type="range" id="power-dim" min="0" max="30"><span class="n" id="power-dim-n"></span></span></div>
       <div class="row"><span class="name">Dim to</span><span class="what"><input type="range" id="power-dimto" min="5" max="60" step="5"><span class="n" id="power-dimto-n"></span></span></div>
       <div class="row"><span class="name">Lock</span><span class="what"><input type="range" id="power-lock" min="0" max="60"><span class="n" id="power-lock-n"></span></span></div>
       <div class="row"><span class="name">Screen off</span><span class="what"><input type="range" id="power-off" min="0" max="60"><span class="n" id="power-off-n"></span></span></div>
       <div class="row"><span class="name">Suspend</span><span class="what"><input type="range" id="power-suspend" min="0" max="120" step="5"><span class="n" id="power-suspend-n"></span></span></div>
+      <h3>Closing the lid</h3>
+      <div class="row"><span class="name">Plugged in</span><span class="what"><span class="seg" id="lid-ac"></span></span></div>
+      <div class="row"><span class="name">On battery</span><span class="what"><span class="seg" id="lid-battery"></span></span></div>
+      <div class="row"><span class="name">Another screen<small>Comes first; screen off darkens only the laptop's</small></span><span class="what"><span class="seg" id="lid-docked"></span></span></div>
+      <h3>Charging</h3>
+      <p class="note" id="charge-note"></p>
+      <div class="row"><span class="name">Mode<small id="charge-level"></small></span><span class="what"><span class="seg" id="charge-mode"></span></span></div>
+      <div class="row"><span class="name">Start charging at<small>Custom only</small></span><span class="what"><input type="range" id="charge-start" min="50" max="95" step="5"><span class="n" id="charge-start-n"></span></span></div>
+      <div class="row"><span class="name">Stop charging at<small>Custom only</small></span><span class="what"><input type="range" id="charge-stop" min="55" max="100" step="5"><span class="n" id="charge-stop-n"></span></span></div>
     </section>
     <section id="keys">
       <h2>Keys</h2>
