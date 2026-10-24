@@ -55,10 +55,10 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 @keyframes breathe { 50% { transform: scale(.8); opacity: .6; } }
 @media (prefers-reduced-motion: reduce) { #morgan * { animation: none !important; } }
 
-/* One center line for everything: icons, their numbers, the clock. Text
-   sits on its own line box otherwise, a pixel or two off the icons. */
-.bar-item, #clock { line-height: 1; }
-.bar-item .n, #clock span { display: block; line-height: 1; }
+/* One center line for everything: icons, their numbers, the clock, each its
+   own box centered by flex. The text keeps the font's own line height —
+   squeezed to its size, descenders hung below the box and were cut off. */
+.bar-item .n, #clock span { display: block; line-height: normal; }
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
