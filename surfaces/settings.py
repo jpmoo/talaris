@@ -330,7 +330,7 @@ class Settings(QObject):
             self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
             self.up = True
             if not getattr(self, "_chooser", None):
-                self.catcher.show()
+                self.catcher.show(dim=True)
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -381,7 +381,7 @@ class Settings(QObject):
             self._adder = None
             adder.deleteLater()
             if self.up:
-                self.catcher.show()
+                self.catcher.show(dim=True)
             self.bridge.accountsChanged.emit()
 
         adder.finished.connect(done)
@@ -403,7 +403,7 @@ class Settings(QObject):
         def done(code: int, _status) -> None:
             self._chooser = None
             if self.up:
-                self.catcher.show()
+                self.catcher.show(dim=True)
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
@@ -431,7 +431,7 @@ class Settings(QObject):
         def done(code: int, _status) -> None:
             self._chooser = None
             if self.up:
-                self.catcher.show()
+                self.catcher.show(dim=True)
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
