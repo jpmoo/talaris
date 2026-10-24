@@ -61,19 +61,17 @@ function applyTheme(theme) {
 // ---------------------------------------------------------------- motion
 //
 // Slide, draw or none, as Settings says (motion.js has them).
-// Four corners out to expand; in to make it a drawer again.
-const GROW = Icons.grow();
-const SHRINK = Icons.shrink();
-// Set to close after full screen, the button that ends it closes the drawer: it says so.
-const CLOSE = Icons.close();
 const motion = () => document.documentElement.dataset.motion || "slide";
+// What were drawers are panels from the bar (workspace.py): centered over the
+// dimmed screen, or — loaded with ?window=1 — an ordinary window, filling it.
+const WINDOW = new URLSearchParams(location.search).has("window");
+if (WINDOW) document.documentElement.dataset.window = "1";
 
-// How it comes and goes (motion.js), as a drawer: from its edge, flush with
-// it, with the rules inside it drawn too — under the header, over the footer,
-// beside the side column.
+// How it comes and goes (motion.js), as a panel: from the top, with the rules
+// inside it drawn too — under the header, over the footer, beside the side column.
 function how() {
   return {
-    kind: motion(), speed: (state.theme || {}).motionSpeed, edge: state.edge, flush: true,
+    kind: motion(), speed: (state.theme || {}).motionSpeed, edge: "top", flush: false,
     rules: (rule, rel, P) => {
       const header = document.querySelector("header"), footer = document.querySelector("footer"), side = document.querySelector(".tree");
       if (header) { const r = header.getBoundingClientRect(); rule(rel(P.left, r.bottom + 4), rel(P.right, r.bottom + 4)); }
@@ -97,6 +95,8 @@ function arrive() {
  */
 function leave() {
   if (saveTimer) save();
+  // The panel's leaving; a window is not going anywhere.
+  if (WINDOW) return;
   if (state.mode === "filed") { bridge.left(); return; }
   // Held at the edge until the new mode arrives, so the panel never springs
   // back into view between the slide ending and the surface moving. Drawn
@@ -118,13 +118,15 @@ function update(next) {
     canvasTreeCache = null;
   }
   state = next;
+  // A window is always out, and fills itself.
+  if (WINDOW) state = { ...state, mode: "expanded", insets: { top: 0, right: 0, bottom: 0, left: 0 } };
   document.body.dataset.mode = state.mode;
   if (leaving) { leaving.cancel(); leaving = null; }
   document.body.dataset.edge = state.edge;
   for (const [side, px] of Object.entries(state.insets || {})) document.body.style.setProperty(`--in-${side}`, `${px}px`);
-  const closes = (state.look || {}).afterExpand === "closed";
-  $("grow").innerHTML = state.mode !== "expanded" ? GROW : closes ? CLOSE : SHRINK;
-  $("grow").title = state.mode !== "expanded" ? "Full screen" : closes ? "Close" : "Back to a drawer";
+  // A panel's one button makes it a window (the expand corners); a window's closes it.
+  $("grow").innerHTML = WINDOW ? Icons.close() : Icons.grow();
+  $("grow").title = WINDOW ? "Close" : "Make it a window";
   const look = state.look || {};
   document.body.dataset.outline = look.outline || "focus";
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
@@ -152,7 +154,7 @@ function update(next) {
     $("where").innerHTML = "";
     $("where").append(state.project.name || "Home", el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
   }
-  if (state.mode !== "filed" && was === "filed") arrive();
+  if (!WINDOW && state.mode !== "filed" && was === "filed") arrive();
   if (state.mode !== "filed") load();
 }
 
@@ -249,14 +251,15 @@ async function loadCanvas() {
 }
 
 /*
- * Hide or show a drawer's side column — the canvas tree, the writing list —
- * remembered per drawer. The button says what it will do next.
+ * Hide or show the side column — the canvas tree, the writing list —
+ * remembered for each. The calendar's button (icons.js), lit while it shows.
  */
 function sideToggle(pane, key, noun) {
   const shown = () => { try { return localStorage.getItem(key) !== "off"; } catch { return true; } };
   pane.classList.toggle("hidden", !shown());
-  const button = el("button", {}, "");
-  const label = () => { button.textContent = `${shown() ? "Hide" : "Show"} ${noun}`; };
+  const button = el("button", { class: "icon-btn side-toggle" });
+  button.innerHTML = Icons.sideList();
+  const label = () => { button.title = `${shown() ? "Hide" : "Show"} the ${noun}`; button.classList.toggle("on", shown()); };
   button.addEventListener("click", () => {
     try { localStorage.setItem(key, shown() ? "off" : "on"); } catch { /* fine */ }
     pane.classList.toggle("hidden", !shown());
@@ -632,7 +635,11 @@ addEventListener("keydown", (e) => {
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());
 $("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.file(); });
-$("grow").addEventListener("click", () => { if (saveTimer) save(); bridge && bridge.grow(); });
+$("grow").addEventListener("click", () => { if (saveTimer) save(); if (bridge) (WINDOW ? bridge.closeWindow() : bridge.grow()); });
+// A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
+const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel");
+document.addEventListener("pointerdown", (e) => { if (bridge && offPanel(e.target)) { if (saveTimer) save(); bridge.file(); } });
+window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(x, y))) { if (saveTimer) save(); bridge.file(); } };
 /*
  * Right-click in the writing editor: the drawer's own small menu, never the
  * engine's. Everywhere else in the drawer a right-click does nothing; the

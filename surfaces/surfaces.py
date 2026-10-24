@@ -3,28 +3,25 @@
 """
 Talaris's surfaces: everything on the screen that is not an application window.
 
-The bar (`bar.py`), the dock (`dock.py`), the launcher (`launcher.py`),
-Morgan's face (`morgan.py`) and the drawers. Each drawer belongs to one edge and is in one of three
-modes:
-
-- **filed** — a handle on its edge, above the windows, so it can be pulled out.
-- **out** — on an empty workspace, the canvas *is* the desktop: full size, on
-  the `bottom` layer, below where windows would be.
-- **pulled** — out over the windows, on the `overlay` layer.
+The bar (`bar.py`), the dock (`dock.py`), the launcher (`launcher.py`), and
+what opens from the bar: Morgan's conversation (`morgan.py`), the calendar
+(`calendar_panel.py`), the canvas and the writing surface (`workspace.py`) —
+each a panel over the dimmed screen, or an ordinary window that Hyprland tiles
+(`overlay.py`). Until 2026-10-24 the canvas and the writing surface were
+drawers, sliding from an edge.
 
 **Every way back exists from the first line.** The first spike pulled a surface
 over the screen with no way back but a terminal it had covered, and ended in a
-restart. So a pulled drawer goes back on its compositor bind, on Escape, on a
-command, and by itself after a stretch with no input.
+restart. So a panel goes away on a press off it, on Escape, on a compositor
+bind, on a command, and by itself after a stretch with no input.
 
-Run through `talaris-surfaces`, which sets the layer-shell integration for the
-whole process — that has to happen before Qt starts.
+Run through `talaris-surfaces`. Each surface is made a layer surface by itself
+(layershell.py), so the process holds ordinary windows too.
 """
 
 from __future__ import annotations
 
 import json
-import time
 import mimetypes
 import os
 import sys
@@ -53,30 +50,13 @@ from tray import Tray
 from winfx import WindowDraw
 from wallpaper import current as wallpaper_current
 from power import Power
-from sensor import Catcher, EdgeSensor, Hover
+from workspace import Workspace
 import sensor as sensor_module
 from settings import Settings
 from machine import Machine
-from views import AREAS, log, make_view, set_zoom, type_scale, zoom, zoom_of
-from core import Bridge, call
-from layershell import (
-    ANCHOR_BOTTOM,
-    ANCHOR_LEFT,
-    ANCHOR_RIGHT,
-    ANCHOR_TOP,
-    BOTTOM,
-    EDGE_ANCHOR,
-    EDGE_SPAN,
-    KEYBOARD_EXCLUSIVE,
-    KEYBOARD_NONE,
-    KEYBOARD_ON_DEMAND,
-    OVERLAY,
-    TOP,
-    LayerSurface,
-    QT_SCALE,
-    Placement,
-    to_compositor,
-)
+from views import AREAS, log, set_zoom, zoom
+from core import call
+from layershell import to_compositor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UI = os.path.join(HERE, "ui")
@@ -84,9 +64,6 @@ LAUNCHER = os.path.join(HERE, "talaris-surfaces")
 SCHEME = b"talaris-ui"
 CONTROL = f"talaris-surfaces-{os.getuid()}"
 # Small on purpose: the handle says "something is here", not "look at me".
-HANDLE = (10, 56)
-#: Room beside a pulled drawer for its shadow, in the page's pixels (drawer.html's 18px).
-SHADOW_ROOM = 18
 
 
 def register_scheme() -> None:
@@ -149,281 +126,11 @@ class Files(QWebEngineUrlSchemeHandler):
         job.reply(mime.encode("ascii"), buf)
 
 
-class Drawer(QObject):
-    def __init__(self, name: str, config: dict, profile: QWebEngineProfile, desktop: "Desktop") -> None:
-        super().__init__(desktop)
-        self.name = name
-        self.desktop = desktop
-        self.edge = config["edge"]
-        self.size = float(config["size"])
-        self.height = float(config.get("height", 1))
-        self.align = config.get("align", "center")
-        # "Canvas as desktop" — a drawer out on an empty workspace — was taken
-        # out of Settings (2026-10-23); an old setting does not bring it back.
-        self.out_when_empty = False
-        # Touch to show: no handle; the pointer touching the edge pulls the
-        # drawer, and leaving it files it again. Pulled by its keys instead,
-        # it stays until put away, as before.
-        self.autoshow = bool(config.get("autoshow"))
-        self.bumped = False
-        self.pulled = False
-        # Expanded, the drawer is the desktop: a workspace of its own
-        # (`hypr.DESK`), and `came_from` the one to go back to.
-        self.expanded = False
-        self.came_from = None
-        self.expanded_at = 0.0
-        self.mode = ""
-        self.leaving = False
-
-        self.bridge = Bridge(self, self)
-        self.view = make_view(profile, name, f"talaris-ui://ui/drawer.html?drawer={name}", self.bridge, self)
-        self.surface = LayerSurface(self.view, f"talaris-{name}")
-        self.sensor = EdgeSensor(profile, name, self.edge, self._bump, self)
-        self.away = QTimer(self)
-        self.away.setSingleShot(True)
-        self.away.timeout.connect(self._away)
-        Hover(self.view, self._hover)
-
-        self.idle = QTimer(self)
-        self.idle.setSingleShot(True)
-        self.idle.timeout.connect(self._idle)
-
-    def describe(self) -> dict:
-        return {
-            "drawer": self.name,
-            "edge": self.edge,
-            "mode": self.mode,
-            "project": self.desktop.project,
-            "theme": self.desktop.config["theme"],
-            "look": self.desktop.config["panels"],
-            # The type on this drawer's page — writing's, or the canvas's notes.
-            "typeScale": type_scale(self.name),
-            # Short of the screen's top or bottom: room there for the shadow.
-            "room": self._room(),
-            # Where a window's frame would be, side by side, in this page's own
-            # pixels: Hyprland's gaps are the compositor's, which a page sees
-            # through Qt's scale and its own zoom.
-            "insets": {side: round(px / (QT_SCALE * zoom_of("interface")), 2)
-                       for side, px in getattr(self.desktop, "gaps", {}).items()},
-        }
-
-    def _placement(self, mode: str) -> Placement:
-        screen = QApplication.primaryScreen().geometry()
-        anchor = EDGE_ANCHOR[self.edge]
-        across = self.edge in ("left", "right")
-        if mode == "expanded":
-            # The whole desktop, between the bar and the dock, below where
-            # windows would be — so one coming back shows above it.
-            return Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                             screen.width(), screen.height(), KEYBOARD_ON_DEMAND)
-        if mode == "filed":
-            w, h = (zoom(HANDLE[0]), zoom(HANDLE[1])) if across else (zoom(HANDLE[1]), zoom(HANDLE[0]))
-            # Anchored to its edge alone, the compositor centers it along that edge.
-            return Placement(TOP, anchor, w, h, KEYBOARD_NONE)
-        w = int(screen.width() * self.size) if across else screen.width()
-        h = screen.height() if across else int(screen.height() * self.size)
-        span = EDGE_SPAN[self.edge]
-        if across:
-            # A share of the whole screen, over the bar and the dock rather than
-            # between them (exclusive -1): full height spans it; shorter, it is
-            # anchored to the top or the bottom, or to neither, and centered.
-            # A side that stops short of the screen's edge has room for the shadow.
-            room = self._room()
-            if self.height < 1:
-                h = int(screen.height() * self.height) + zoom(SHADOW_ROOM) * (room["top"] + room["bottom"])
-                span = {"top": ANCHOR_TOP, "bottom": ANCHOR_BOTTOM}.get(self.align, 0)
-        # Pulled out, the drawer keeps the keyboard to itself: moving the
-        # pointer onto a window cannot hand that window the keyboard — waking
-        # it from its dimmed look and flickering the drawer's in-use outline —
-        # while scrolling still reaches whatever is under the pointer. To type
-        # in a window, put the drawer away.
-        # With click-outside on, the catcher already keeps the pointer off the
-        # windows — and an exclusive drawer kept clicks from reaching the
-        # catcher — so it takes the keyboard the ordinary way.
-        exclusive = mode == "pulled" and not self.desktop.catches()
-        keyboard = KEYBOARD_EXCLUSIVE if exclusive else KEYBOARD_ON_DEMAND
-        return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | span, w, h, keyboard, exclusive=-1 if across else 0)
-
-    def _room(self) -> dict:
-        """Which ends, top and bottom, stop short of the screen's — and so have room for a shadow."""
-        short = self.height < 1 and bool(self.desktop.config["panels"].get("shadow", True))
-        return {"top": short and self.align != "top", "bottom": short and self.align != "bottom"}
-
-    #: How long a page has to finish leaving before the surface goes anyway.
-    #: A page that never answers must not leave a drawer stuck over the screen.
-    LEAVE_LIMIT_MS = 800
-
-    def _wanted(self) -> str:
-        if self.expanded:
-            return "expanded"
-        return "pulled" if self.pulled else "out" if (self.out_when_empty and self.desktop.empty) else "filed"
-
-    def settle(self) -> None:
-        mode = self._wanted()
-        if mode == self.mode or self.leaving:
-            return
-        # Going back to a handle: the page plays its leaving first, then says
-        # so, and only then does the surface move. Moving it first is what made
-        # closing a snap rather than a slide.
-        if mode == "filed" and self.mode in ("pulled", "out"):
-            self.leaving = True
-            self.idle.stop()
-            self.desktop.catcher_update()
-            self.bridge.leave.emit()
-            QTimer.singleShot(self.LEAVE_LIMIT_MS, lambda: self.left(late=True))
-            return
-        self._become(mode)
-
-    def left(self, late: bool = False) -> None:
-        """The page has finished leaving — or ran out of time to."""
-        if not self.leaving:
-            return
-        if late:
-            log(f"{self.name}: the page did not finish leaving in time; filed anyway")
-        self.leaving = False
-        self._become(self._wanted())
-
-    def _become(self, mode: str) -> None:
-        if mode == self.mode:
-            return
-        self.mode = mode
-        if mode == "filed" and self.autoshow:
-            # No handle: the surface goes, and the edge waits to be touched.
-            self.view.hide()
-            self.surface.placement = None
-            self.sensor.show(self.edge)
-            self.sensor.disarm_if_under_pointer()
-        else:
-            self.surface.apply(self._placement(mode))
-            if not self.autoshow:
-                self.sensor.hide()
-        self.bridge.state.emit(json.dumps(self.describe()))
-        if mode == "pulled":
-            self.touched()
-        else:
-            self.idle.stop()
-        self.desktop.catcher_update()
-        log(f"{self.name}: {mode}")
-
-    # ------------------------------------------------------------ expanded
-
-    def grow(self) -> None:
-        """The expand button: the desktop, or back to a drawer."""
-        if self.expanded:
-            self.collapse()
-        else:
-            self.expand()
-
-    def expand(self) -> None:
-        """
-        The desktop: a workspace of its own, empty but for this drawer. The
-        windows are not moved — moving them out and back made Hyprland tile
-        them again in the order they came, losing their layout — they stay on
-        the workspace left, as they were, and that is where collapsing goes.
-        """
-        for other in self.desktop.drawers.values():
-            if other is not self:
-                other.collapse()
-                other.file_away()
-        for other in self.desktop.overlays():
-            other.file_away()
-        now = hypr.windows()
-        self.came_from = now["active"]
-        self.expanded = True
-        self.expanded_at = time.monotonic()
-        self.pulled = True
-        self.bumped = False
-        self.away.stop()
-        self.settle()
-        # The surface first, the workspace after: making the surface anew
-        # hands the keyboard back to the last window, and Hyprland, following
-        # focus, would take the screen back to that window's workspace.
-        QTimer.singleShot(150, lambda: self.expanded and hypr.go(hypr.DESK))
-
-    def collapse(self, follow: bool = True) -> None:
-        """
-        Back to a drawer, and to the workspace it was expanded from — with any
-        window opened meanwhile, which comes along. `follow` is false when the
-        user went to another workspace themself, and is left there.
-        """
-        if not self.expanded:
-            return
-        self.expanded = False
-        back = getattr(self, "came_from", None)
-        if back is not None:
-            now = hypr.windows()
-            names = {w["id"]: w["name"] for w in now["workspaces"]}
-            for w in now["windows"]:
-                if names.get(w["workspace"]) == hypr.DESK:
-                    hypr.bring(w["address"], back)
-            if follow and now["activeName"] == hypr.DESK:
-                hypr.go(back)
-        # Settings says whether it stays out as a drawer, or goes away too.
-        if self.desktop.config["panels"].get("afterExpand", "open") == "closed":
-            self.pulled = False
-        self.settle()
-
-    def windows_changed(self, now: dict) -> None:
-        """Expanded: a window opened on its desktop, or another desktop gone to, makes it a drawer again."""
-        if not self.expanded or time.monotonic() - self.expanded_at < 0.6:
-            return
-        names = {w["id"]: w["name"] for w in now["workspaces"]}
-        if now["activeName"] != hypr.DESK:
-            self.collapse(follow=False)
-        elif any(names.get(w["workspace"]) == hypr.DESK and not w["hidden"] for w in now["windows"]):
-            self.collapse()
-
-    def toggle(self) -> None:
-        if self.leaving:
-            return
-        self.pulled = not self.pulled
-        self.bumped = False
-        self.settle()
-
-    def _bump(self) -> None:
-        """The edge was touched: out, until the pointer leaves."""
-        if self.autoshow and not self.pulled and not self.leaving:
-            self.pulled = True
-            self.bumped = True
-            self.settle()
-            self.away.start(1400)
-
-    def _hover(self, inside: bool) -> None:
-        if not (self.bumped and self.pulled):
-            return
-        if inside:
-            self.away.stop()
-        else:
-            self.away.start(700)
-
-    def _away(self) -> None:
-        if self.bumped and self.pulled:
-            self.bumped = False
-            self.file_away()
-
-    def file_away(self) -> None:
-        # Expanded, Escape and the like make it a drawer again first.
-        if self.expanded:
-            self.collapse()
-            return
-        if self.pulled:
-            self.pulled = False
-            self.settle()
-
-    def touched(self) -> None:
-        if self.pulled and not self.expanded:
-            self.idle.start(int(self.desktop.config["idleSeconds"]) * 1000)
-
-    def _idle(self) -> None:
-        log(f"{self.name}: filed after {self.desktop.config['idleSeconds']}s with no input")
-        self.file_away()
-
-
 class Desktop(QObject):
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
         self.config = load_config()
-        self.empty = hypr.workspace_is_empty()
+
         # An earlier Talaris set follow_mouse to 2 while a panel was out, which
         # kept the pointer from reaching Settings until it was clicked; if one
         # left it so, it goes back to following the pointer.
@@ -462,21 +169,8 @@ class Desktop(QObject):
         self.settings = Settings(profile, self)
         self.power = Power(self)
         self.power.apply()
-        self.drawers = {
-            name: Drawer(name, cfg, profile, self) for name, cfg in self.config["drawers"].items()
-        }
-        for d in self.drawers.values():
-            d.settle()
-
-        self.events.changed.connect(self._changed)
-        # An expanded drawer hears when windows change: one coming back makes
-        # it a drawer again. Asked a moment after a burst, once.
-        self._windows_soon = QTimer(self)
-        self._windows_soon.setSingleShot(True)
-        self._windows_soon.timeout.connect(self._windows_changed)
-        self.events.windows.connect(lambda: self._windows_soon.start(120))
-        # Clicking off a pulled drawer puts it away, when Settings says so.
-        self.catcher = Catcher(profile, self._caught, self)
+        # The canvas and the writing surface: panels from the bar, as the rest.
+        self.workspaces = {name: Workspace(name, profile, self) for name in ("canvas", "writing")}
         self.winfx = WindowDraw(profile, self)
         self.events.reloaded.connect(self._bind)
         self._bind()
@@ -495,47 +189,10 @@ class Desktop(QObject):
         home = next((p for p in projects if p.get("home")), None)
         return home or {"id": "", "code": "", "name": "Home"}
 
-    def _windows_changed(self) -> None:
-        if any(getattr(d, "expanded", False) for d in (*self.drawers.values(), *self.overlays())):
-            now = hypr.windows()
-            for d in (*self.drawers.values(), *self.overlays()):
-                d.windows_changed(now)
-
-    def catches(self) -> bool:
-        """Whether a click off a pulled drawer puts it away: set so, or the rest of the screen dimmed behind it."""
-        panels = self.config["panels"]
-        return bool(panels.get("dismissOutside") or panels.get("dim", True))
-
     def overlays(self) -> list:
-        """The panels that come up over everything and can be the desktop: Morgan's conversation, the calendar."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None)) if p]
-
-    def catcher_update(self) -> None:
-        """
-        The catcher is out while a drawer is pulled (not expanded), if clicking
-        outside puts it away — dimmed, if the rest of the screen dims —
-        however the drawer came out: its keys, its handle, or a touch at its edge.
-        """
-        if not hasattr(self, "catcher"):
-            return
-        want = self.catches() and any(d.mode == "pulled" and not d.leaving for d in self.drawers.values())
-        if want:
-            self.catcher.show(dim=bool(self.config["panels"].get("dim", True)))
-        else:
-            self.catcher.hide()
-
-    def _caught(self) -> None:
-        log("catcher: a click outside the drawer")
-        for d in self.drawers.values():
-            if d.mode == "pulled":
-                d.file_away()
-
-    def _changed(self) -> None:
-        empty = hypr.workspace_is_empty()
-        if empty != self.empty:
-            self.empty = empty
-            for d in self.drawers.values():
-                d.settle()
+        """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None),
+                            *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
     #: a 44px panel and a 3px margin in a 50px surface). The gap on the dock's
@@ -624,19 +281,13 @@ class Desktop(QObject):
         # space seen is twice the number: the setting is the space seen.
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
-        # Kept for an expanded drawer, which sits where a window's frame would.
-        if sides != getattr(self, "gaps", None):
-            self.gaps = sides
-            for d in self.drawers.values():
-                if d.mode == "expanded":
-                    d.bridge.state.emit(json.dumps(d.describe()))
+        self.gaps = sides
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
         self.style_compositor()
         for name, keys in (("canvas", "SUPER ALT, C"), ("writing", "SUPER ALT, W")):
-            if name in self.drawers:
-                hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
+            hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -659,7 +310,7 @@ class Desktop(QObject):
     def touch_targets(self) -> None:
         """Every edge sensor, made again at the size Settings gives."""
         sensor_module.TARGET.update(self.config["touch"])
-        for s in [self.bar.hider.sensor, self.dock.hider.sensor, *(d.sensor for d in self.drawers.values())]:
+        for s in [self.bar.hider.sensor, self.dock.hider.sensor]:
             if s.up:
                 s.show()
 
@@ -671,7 +322,7 @@ class Desktop(QObject):
     def every_surface(self) -> list:
         """Everything that draws a page and wears the theme."""
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
-                self.osd, self.settings, *self.drawers.values()]
+                self.osd, self.settings, *self.overlays()]
 
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
@@ -682,18 +333,6 @@ class Desktop(QObject):
         if after["dock"] != before["dock"]:
             self.dock.edge = after["dock"]["edge"]
             self.dock.place()
-        for name, d in self.drawers.items():
-            mine = after["drawers"][name]
-            if mine != before["drawers"][name]:
-                d.edge, d.size = mine["edge"], float(mine["size"])
-                d.height, d.align = float(mine.get("height", 1)), mine.get("align", "center")
-                d.autoshow = bool(mine.get("autoshow"))
-                d.sensor.hide()
-                # Made anew where it now belongs, filed: a drawer that moves edge
-                # mid-pull would arrive somewhere it was not asked to be.
-                d.pulled = False
-                d.mode = ""
-                d.settle()
         changed = set_zoom(self.text_sizes())
         if "bar" in changed:
             self.bar.place()
@@ -708,18 +347,11 @@ class Desktop(QObject):
                 self.settings.surface.placement = None
                 self.settings.up = False
                 self.settings.open()
-            for d in self.drawers.values():
-                if d.mode == "filed" and not d.autoshow:
-                    d.surface.placement = None
-                    d.surface.apply(d._placement("filed"))
         self.style_compositor()
-        if after["panels"] != before["panels"]:
-            # How a pulled drawer holds the keyboard follows click-outside.
-            for d in self.drawers.values():
-                if d.mode == "pulled":
-                    d.surface.placement = None
-                    d.surface.apply(d._placement("pulled"))
-            self.catcher_update()
+        if after["panels"] != before["panels"] or changed & {"interface", "writing", "canvas"}:
+            # How the canvas and the writing surface look, and their text: told again.
+            for w in self.workspaces.values():
+                w.bridge.state.emit(json.dumps(w.describe()))
         if after.get("calendar") != before.get("calendar"):
             # Which calendars show: the calendar's page draws again with them.
             self.calendar.bridge.state.emit(json.dumps(self.calendar.describe()))
@@ -741,8 +373,8 @@ class Desktop(QObject):
         return [
             {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
             {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
-            {"keys": "Super + Alt + C", "does": "The canvas drawer"},
-            {"keys": "Super + Alt + W", "does": "The writing drawer"},
+            {"keys": "Super + Alt + C", "does": "The canvas"},
+            {"keys": "Super + Alt + W", "does": "The writing surface"},
             {"keys": "Super + Alt + Escape", "does": "Put everything away"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]
@@ -750,7 +382,7 @@ class Desktop(QObject):
     # ---------------------------------------------------------------- what the launcher asks
 
     def go_to_project(self, project_id: str) -> None:
-        """The current project changes: the bar says so, and the drawers open on it."""
+        """The current project changes: the bar says so, and the canvas and the writing surface open on it."""
         status, text = call("GET", "/projects")
         try:
             found = next((p for p in json.loads(text) if p.get("id") == project_id), None) if status == 200 else None
@@ -759,29 +391,24 @@ class Desktop(QObject):
         if not found or found["id"] == self.project.get("id"):
             return
         self.project = found
-        for d in self.drawers.values():
-            d.bridge.state.emit(json.dumps(d.describe()))
+        for w in self.workspaces.values():
+            w.bridge.state.emit(json.dumps(w.describe()))
         self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
         log(f"project: {found['name']}")
 
     def show_in_drawer(self, name: str, target: dict) -> None:
-        """Open a drawer on one canvas or one page."""
-        d = self.drawers.get(name)
-        if not d:
-            return
-        d.bridge.show.emit(json.dumps(target))
-        if not d.pulled and d.mode != "out":
-            d.toggle()
+        """The canvas or the writing surface, open on one canvas or one page."""
+        w = self.workspaces.get(name)
+        if w:
+            w.show_target(target)
 
     #: What the launcher's verbs do. The power ones were asked twice in the page.
     def verb(self, name: str) -> str:
-        if name in ("canvas", "writing"):
-            self.drawers[name].toggle()
+        if name in self.workspaces:
+            self.workspaces[name].toggle()
         elif name == "file-all":
-            # Everything out, put away: the drawers, and the launcher, Morgan and Settings.
-            for d in self.drawers.values():
-                d.file_away()
-            for thing in (self.launcher, self.morgan, self.settings):
+            # Every panel out, put away (windows stay: they are put away as windows are).
+            for thing in (self.launcher, self.settings, *self.overlays()):
                 thing.file_away()
         elif name in ("lock", "suspend", "logout", "restart", "shutdown"):
             self.machine.power(name)
@@ -799,11 +426,9 @@ class Desktop(QObject):
         def read() -> None:
             line = bytes(conn.readAll()).decode("utf-8", "replace").strip()
             verb, _, arg = line.partition(" ")
-            if verb == "toggle" and arg in self.drawers:
-                self.drawers[arg].toggle()
+            if verb == "toggle" and arg in self.workspaces:
+                self.workspaces[arg].toggle()
             elif verb == "file-all":
-                for d in self.drawers.values():
-                    d.file_away()
                 self.bar.close_popup()
                 self.launcher.file_away()
                 self.settings.file_away()
@@ -811,8 +436,8 @@ class Desktop(QObject):
                     panel.file_away()
                 self.voice.file_away()
                 self.settings.file_away()
-            elif verb == "grow" and arg in self.drawers:
-                self.drawers[arg].grow()
+            elif verb == "grow" and arg in self.workspaces:
+                self.workspaces[arg].grow()
             elif verb == "settings":
                 self.settings.open(arg)
             elif verb == "osd":
@@ -898,7 +523,7 @@ def main() -> int:
     tick.timeout.connect(lambda: None)
     tick.start(250)
     app.aboutToQuit.connect(desktop.unbind)
-    log("up:", ", ".join(f"{n} on the {d.edge}" for n, d in desktop.drawers.items()))
+    log("up")
     return app.exec()
 
 

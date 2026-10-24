@@ -104,10 +104,10 @@ class Bridge(QObject):
             self.owner.grow()
 
     @Slot()
-    def fullscreen(self) -> None:
-        """A window's fullscreen button: Hyprland's own, on or off."""
-        if hasattr(self.owner, "fullscreen"):
-            self.owner.fullscreen()
+    def closeWindow(self) -> None:  # noqa: N802 — called from the page by this name
+        """A panel made a window: its close button."""
+        if hasattr(self.owner, "close_window"):
+            self.owner.close_window()
 
     @Slot()
     def left(self) -> None:

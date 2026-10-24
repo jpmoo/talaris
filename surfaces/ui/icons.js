@@ -71,12 +71,16 @@ const Icons = (() => {
   const grow = () => frame("M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9");
   const shrink = () => frame("M5 2v3H2M12 5H9V2M9 12V9h3M2 9h3v3");
   const close = () => frame("M3 3l8 8M11 3l-8 8");
-  // A panel made a window (a frame with its title bar), and a window made a panel again.
-  const toWindow = () => frame("M2 3h10v8H2zM2 5.5h10");
-  const toPanel = () => frame("M4.5 4.5h5v5h-5zM2 2h2M10 2h2M2 12h2M10 12h2");
+
+  // The canvas: a framed grid with a card on it. Writing: the lines of a page.
+  const canvas = () => svg('<rect x="2" y="2" width="12" height="12" rx="2"/><rect x="4.5" y="5" width="4.5" height="3.5" rx=".6"/>');
+  const writing = () => svg('<path d="M3 4h10M3 7h10M3 10h10M3 13h6"/>');
+
+  // A side list shown or hidden: a frame with its column (the calendar, the canvas, the writing).
+  const sideList = () => frame("M2 2.5h10v9H2zM5.5 2.5v9");
 
   // The tray, folded: a tray with things in it.
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
-  return { grow, shrink, close, toWindow, toPanel, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
+  return { sideList, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();

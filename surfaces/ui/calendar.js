@@ -493,6 +493,18 @@ function say(text, error = false) { $("msg").textContent = text; $("msg").classN
 // ---------------------------------------------------------------- moving about
 
 $("today").addEventListener("click", () => { focus = startOfDay(new Date()); draw(); fetchRange(); });
+// The list of calendars, out or away — this page's own preference, kept.
+$("side-toggle").innerHTML = Icons.sideList();
+function sideShown(on) {
+  document.body.classList.toggle("no-side", !on);
+  $("side-toggle").classList.toggle("on", on);
+  $("side-toggle").title = on ? "Hide the list of calendars" : "Show the list of calendars";
+  try { localStorage.setItem("talaris.calendar.side", on ? "1" : "0"); } catch { /* fine */ }
+}
+let sideOn = true;
+try { sideOn = localStorage.getItem("talaris.calendar.side") !== "0"; } catch { /* fine */ }
+sideShown(sideOn);
+$("side-toggle").addEventListener("click", () => { sideOn = !sideOn; sideShown(sideOn); });
 function step(n) {
   if (mode === "day") focus = addDays(focus, n);
   else if (mode === "week") focus = addDays(focus, 7 * n);
@@ -502,14 +514,15 @@ function step(n) {
 $("prev").addEventListener("click", () => step(-1));
 $("next").addEventListener("click", () => step(1));
 $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(0, 0, 0); at.setHours(at.getHours() + 1); create(mode === "month" && !sameDay(focus, new Date()) ? (() => { const d = new Date(focus); d.setHours(9); return d; })() : at, false); });
-// A panel's button makes it a window; a window's makes it a panel again, and
-// its other button is Hyprland's fullscreen.
+// A panel's one button makes it a window (the expand corners); a window's one
+// button closes it.
 $("grow").addEventListener("click", () => bridge && bridge.grow());
-$("close").addEventListener("click", () => bridge && bridge.fullscreen());
-$("grow").innerHTML = WINDOW ? Icons.toPanel() : Icons.toWindow();
-$("grow").title = WINDOW ? "Back to a panel" : "Make it a window";
-$("close").innerHTML = Icons.grow();
-$("close").title = "Full screen";
+$("close").addEventListener("click", () => bridge && bridge.closeWindow());
+$("grow").innerHTML = Icons.grow();
+$("grow").title = "Make it a window";
+$("grow").hidden = WINDOW;
+$("close").innerHTML = Icons.close();
+$("close").title = "Close";
 $("close").hidden = !WINDOW;
 // A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
 document.addEventListener("pointerdown", (e) => { if (!WINDOW && e.target === document.documentElement && bridge && surface.up) bridge.file(); });

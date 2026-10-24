@@ -10,11 +10,11 @@ the windows' or the drawers' motion as Settings says), a layer surface over
 everything; a press on the dim puts it away (`sensor.Presses`, which hears
 what the page may not).
 
-**A window:** the panel's button makes it an ordinary window of this process
-— the same page, loaded again with `?window=1`, sharing the panel's bridge —
-which Hyprland tiles beside the rest, full screen by Hyprland's own fullscreen
-(the window's button, or Hyprland's key). Its other button makes it a panel
-again; closing it as any window is closed puts it away. What was a desktop of
+**A window:** the panel's button (the expand corners) makes it an ordinary
+window of this process — the same page, loaded again with `?window=1`, sharing
+the panel's bridge — which Hyprland tiles beside the rest, and puts full screen
+by its own key. A window has one button, close; closed by it or as any window
+is closed, it is put away, and the bar opens the panel again next time. What was a desktop of
 its own for this (`hypr.DESK`) is not needed: a window is already where windows
 are. Layer surfaces and ordinary windows share the process because layer-shell
 is attached per window (layershell.py).
@@ -156,12 +156,10 @@ class Overlay(QObject):
         if address:
             hypr.focus(address)
 
-    def fullscreen(self) -> None:
-        """Hyprland's own fullscreen, on this window, or off again."""
-        address = self._address()
-        if address:
-            hypr.focus(address)
-            hypr.ask("/dispatch fullscreen 0")
+    def close_window(self) -> None:
+        """The window's close button: closed as any window is (the event filter hears it)."""
+        if self.window is not None:
+            self.window.close()
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
         # Closed as any window is closed (Hyprland's key, say): put away, a window no longer.
@@ -195,6 +193,9 @@ class Overlay(QObject):
         self.leaving = False
         self.view.hide()
         self.surface.placement = None
+        # Gone, said: a page that arrives only from away (the canvas's, the
+        # writing's) hears that it is away, so that the next time it arrives.
+        self.bridge.state.emit(json.dumps(self.describe()))
 
     def touched(self) -> None:
         if self.up and self.IDLE_MS:

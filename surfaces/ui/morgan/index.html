@@ -486,19 +486,20 @@ $("mic").onclick = () => bridge.call(state === "idle" || state === "listening" ?
 $("new").onclick = () => bridge.call("new");
 $("settings").onclick = () => bridge.settings();
 // Talaris: a panel, or — loaded with ?window=1 (overlay.py) — an ordinary
-// window that Hyprland tiles. The panel's button makes it a window; the
-// window's makes it a panel again, and its other button is Hyprland's fullscreen.
+// window that Hyprland tiles. A panel's one button makes it a window (the
+// expand corners); a window's one button closes it.
 const WINDOW = new URLSearchParams(location.search).has("window");
 if (WINDOW) document.documentElement.dataset.window = "1";
 function paintGrow() {
-  $("grow").innerHTML = WINDOW ? Icons.toPanel() : Icons.toWindow();
-  $("grow").title = WINDOW ? "Back to a panel" : "Make it a window";
-  $("close").innerHTML = Icons.grow();
-  $("close").title = "Full screen";
+  $("grow").innerHTML = Icons.grow();
+  $("grow").title = "Make it a window";
+  $("grow").hidden = WINDOW;
+  $("close").innerHTML = Icons.close();
+  $("close").title = "Close";
   $("close").hidden = !WINDOW;
 }
 $("grow").onclick = () => bridge.grow();
-$("close").onclick = () => bridge.file();
+$("close").onclick = () => bridge.closeWindow();
 // A press on the dim, off the panel, puts it away.
 document.addEventListener("pointerdown", (event) => { if (!WINDOW && event.target === document.documentElement && bridge && surfaceState.up) bridge.file(); });
 // The same, from Qt (sensor.Presses), which hears every press.

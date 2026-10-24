@@ -84,8 +84,8 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "morgan", "settings", "calendar"]) {
-    seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As drawers"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
+  for (const who of ["launcher", "morgan", "settings", "calendar", "canvas", "writing"]) {
+    seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
   seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
@@ -127,33 +127,12 @@ function draw() {
   // Layout. An edge already taken is offered greyed, not hidden: it says why it is not a choice.
   seg("bar", [["top", "Top"], ["bottom", "Bottom"]], cfg.bar.edge,
     (edge) => save({ bar: { edge }, dock: { edge: edge === "top" ? "bottom" : "top" } }));
-  for (const name of ["canvas", "writing"]) {
-    const d = cfg.drawers[name];
-    const otherName = name === "canvas" ? "writing" : "canvas";
-    const other = cfg.drawers[otherName].edge;
-    // The other drawer's edge swaps the two; the bar's, or a dock's in use,
-    // is not a drawer's to take.
-    const dockEdge = cfg.dock.enabled === false ? null : cfg.dock.edge;
-    // Drawers come from the sides; the top and bottom are the bar's and the dock's.
-    seg(`${name}-edge`, [["left", "Left"], ["right", "Right"]], d.edge,
-      (edge) => save({ drawers: edge === other ? { [name]: { edge }, [otherName]: { edge: d.edge } } : { [name]: { edge } } }),
-      (edge) => edge === cfg.bar.edge || edge === dockEdge);
-  }
-  // Both drawers share one size and one touch-to-show; each keeps its own edge.
-  const both = (change) => save({ drawers: { canvas: change, writing: change } });
-  slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
-  slider("drawer-height", Math.round((cfg.drawers.canvas.height ?? 1) * 100), (v) => `${v}%`, (v) => both({ height: v / 100 }));
-  seg("drawer-align", [["top", "Top"], ["center", "Center"], ["bottom", "Bottom"]], cfg.drawers.canvas.align || "center", (align) => both({ align }));
-  $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
-  $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
-  $("panels-dim").classList.toggle("on", cfg.panels.dim !== false);
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
   if (bridge && $("accounts").classList.contains("on")) drawCalendars();
   $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
   needs(["tray-fold"], cfg.bar.tray !== false);
   if (bridge) trayRows();
   $("paper-follows").classList.toggle("on", cfg.panels.paperFollows !== false);
-  seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
@@ -179,16 +158,12 @@ function draw() {
   if (bridge && $("power").classList.contains("on")) powerNote();
 
   // Settings that only matter when another is on, dimmed while it is off.
-  const hidesSomething = cfg.bar.autohide || (cfg.dock.enabled !== false && cfg.dock.autohide)
-    || cfg.drawers.canvas.autoshow || cfg.drawers.writing.autoshow;
+  const hidesSomething = cfg.bar.autohide || (cfg.dock.enabled !== false && cfg.dock.autohide);
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
   needs(["bar-m-top"], cfg.bar.shape === "floating");
   needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["paper-follows"], (cfg.panels.opacity ?? 100) < 100);
-  needs(["drawer-align"], (cfg.drawers.canvas.height ?? 1) < 1);
-  // Dimmed, a click outside already puts a drawer away.
-  needs(["dismiss-outside"], cfg.panels.dim === false);
   needs(["touch-thick", "touch-length"], hidesSomething);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
@@ -242,12 +217,6 @@ function trayRows() {
 
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
 $("paper-follows").addEventListener("click", () => save({ panels: { paperFollows: cfg.panels.paperFollows === false } }));
-$("dismiss-outside").addEventListener("click", () => save({ panels: { dismissOutside: !cfg.panels.dismissOutside } }));
-$("panels-dim").addEventListener("click", () => save({ panels: { dim: cfg.panels.dim === false } }));
-$("drawer-auto").addEventListener("click", () => {
-  const on = !cfg.drawers.canvas.autoshow;
-  save({ drawers: { canvas: { autoshow: on }, writing: { autoshow: on } } });
-});
 // ---------------------------------------------------------------- the picker
 //
 // Hue, saturation and value; the page's accent follows as you drag, and the

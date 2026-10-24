@@ -22,6 +22,7 @@ function onState(s) {
   const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
+  for (const name of ["canvas", "writing"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -132,6 +133,11 @@ $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
+// The canvas and the writing surface, panels from the bar like the rest.
+$("canvas").innerHTML = Icons.canvas();
+$("writing").innerHTML = Icons.writing();
+$("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
+$("writing").addEventListener("click", () => bridge && bridge.openPanel("writing"));
 // The date and time open the calendar, and it lights them while it is out.
 $("clock").addEventListener("click", () => bridge && bridge.calendar());
 // Wi-Fi and Bluetooth open centered under their buttons.
@@ -188,7 +194,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #settings, .tray-item")) return;
+  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

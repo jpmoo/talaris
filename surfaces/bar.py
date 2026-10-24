@@ -146,6 +146,13 @@ class BarBridge(Bridge):
         self.owner.desktop.calendar.toggle()
 
     @Slot(str)
+    def openPanel(self, name: str) -> None:  # noqa: N802 — called from the page by this name (`panel` is the popups' signal)
+        """The canvas or the writing surface, from its button."""
+        w = self.owner.desktop.workspaces.get(name)
+        if w:
+            w.toggle()
+
+    @Slot(str)
     def popup(self, kind: str) -> None:
         self.owner.desktop.bar.toggle_popup(kind)
 
@@ -326,6 +333,7 @@ class Bar(QObject):
             "morgan": self.desktop.morgan_link.now,
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
+            "panelsOpen": {n: w.up for n, w in getattr(self.desktop, "workspaces", {}).items()},
         }
 
     def _reading(self, text: str) -> None:

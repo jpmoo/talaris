@@ -35,9 +35,10 @@ DEFAULTS = {
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
     "launcher": {"keys": "SUPER ALT, SPACE"},
-    # Whose motion the launcher and Morgan's conversation come and go with:
-    # the windows' or the drawers'. Settings too.
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows"},
+    # Whose motion each thing from the bar comes and goes with: the windows'
+    # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows",
+                 "canvas": "drawers", "writing": "drawers"},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},
@@ -48,11 +49,10 @@ DEFAULTS = {
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off. iconSize: the icons at rest, in px.
              "magnify": 100, "iconSize": 24},
-    # How the drawers look: their outline (in the accent while in use, a plain
-    # line, or none), a shadow, and their opacity in percent.
-    # afterExpand: back from being the desktop, a drawer stays "open" or is "closed".
-    # dim: the rest of the screen dims behind a pulled drawer, and a click there puts it away.
-    "panels": {"outline": "focus", "shadow": True, "opacity": 100, "dismissOutside": False, "afterExpand": "open", "dim": True,
+    # How the panels look — the canvas, the writing surface, and what follows
+    # them: their outline (in the accent while in use, a plain line, or none),
+    # a shadow, and their opacity in percent.
+    "panels": {"outline": "focus", "shadow": True, "opacity": 100,
                # Whether the writing page and the canvas follow the opacity too,
                # or stay solid inside a see-through frame.
                "paperFollows": True},
@@ -79,14 +79,6 @@ DEFAULTS = {
     # motion: how windows open and close — "slide", "pop", "fade", "draw" or "none" —
     # at a speed, as everything else comes and goes.
     "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2, "motion": "pop", "speed": "normal"},
-    "drawers": {
-        # One size for both (Settings shows them as one): under half each, so
-        # both pulled at once leave a gap rather than overlapping. Height is a
-        # share of the whole screen, aligned top, center or bottom; full
-        # height or at the top, a drawer lies over the bar (at the bottom, the dock).
-        "canvas": {"edge": "left", "size": 0.48, "height": 1.0, "align": "center", "outWhenEmpty": False, "autoshow": False},
-        "writing": {"edge": "right", "size": 0.48, "height": 1.0, "align": "center", "outWhenEmpty": False, "autoshow": False},
-    },
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.
     "idleSeconds": 45,

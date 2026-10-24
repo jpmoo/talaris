@@ -75,34 +75,21 @@ def _checked(c: dict) -> str:
         return "The bar and the dock go on the top or the bottom"
     if c["bar"]["edge"] == c["dock"]["edge"]:
         return "The bar and the dock need an edge each"
-    edges = [d["edge"] for d in c["drawers"].values()]
-    if any(e not in ("left", "right") for e in edges):
-        return "A drawer is on the left or the right"
-    if len(set(edges)) != len(edges):
-        return "Each drawer needs an edge of its own, for now"
-    if any(e == c["bar"]["edge"] or (c["dock"].get("enabled", True) and e == c["dock"]["edge"]) for e in edges):
-        return "A drawer cannot share the bar's or the dock's edge"
-    if any(not 0.25 <= float(d["size"]) <= 0.9 for d in c["drawers"].values()):
-        return "A drawer is a quarter to nine tenths of the screen"
-    if any(not 0.3 <= float(d.get("height", 1)) <= 1 or d.get("align", "center") not in ("top", "center", "bottom") for d in c["drawers"].values()):
-        return "A drawer is 30 to 100 percent tall, at the top, center or bottom"
     p, b, d = c["panels"], c["bar"], c["dock"]
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    if not isinstance(p.get("dim", True), bool):
-        return "Dim behind is on or off"
     if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
         return "Not a calendar"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar")):
-        return "The launcher, Morgan and Settings move as windows or as drawers"
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "morgan", "settings", "calendar", "canvas", "writing")):
+        return "What opens from the bar moves as windows or as panels"
     if not 16 <= int(c["dock"].get("iconSize", 24)) <= 48:
         return "The dock's icons are 16 to 48 pixels"
     if t.get("motionSpeed", "normal") not in speeds or any(x.get("speed", "normal") not in speeds for x in (b, d)):
         return "Speed is slow, normal, fast or very fast"
-    if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("dismissOutside", False), bool) or p.get("afterExpand", "open") not in ("open", "closed") or not isinstance(p.get("paperFollows", True), bool):
+    if p.get("outline") not in ("focus", "line", "none") or not isinstance(p.get("shadow"), bool) or not isinstance(p.get("paperFollows", True), bool):
         return "Not a drawer outline or shadow"
     if not all(30 <= int(x.get("opacity", 100)) <= 100 for x in (p, b, d)):
         return "Opacity is 30 to 100 percent"
@@ -376,9 +363,6 @@ class Settings(QObject):
         after = copy.deepcopy(before)
         for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power"):
             after[key].update(wanted.get(key, {}))
-        for name, d in wanted.get("drawers", {}).items():
-            if name in after["drawers"]:
-                after["drawers"][name].update(d)
         if "idleSeconds" in wanted:
             after["idleSeconds"] = int(wanted["idleSeconds"])
         error = _checked(after)

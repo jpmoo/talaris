@@ -31,6 +31,12 @@ body[data-edge="top"] #handle .grip, body[data-edge="bottom"] #handle .grip { wi
    button, Escape, or a window coming back make it a drawer again. */
 body[data-mode="expanded"] #panel { inset: var(--in-top, 10px) var(--in-right, 10px) var(--in-bottom, 10px) var(--in-left, 10px) !important; border: 1px solid var(--frame) !important; border-radius: 12px !important; }
 body[data-mode="expanded"] #tuck { display: none !important; }
+/* A panel from the bar (workspace.py): no handle, the rest of the screen dimmed
+   behind it; as a window, the whole window, Hyprland's frame round it. */
+#handle { display: none !important; }
+body[data-mode="expanded"] { background: rgba(0, 0, 0, .32); }
+html[data-window] body { background: transparent; }
+html[data-window] body[data-mode="expanded"] #panel { inset: 0 !important; border: 0 !important; border-radius: 0 !important; }
 /* With click-outside on, a click off the drawer puts it away: no tab for it. */
 body[data-dismiss] #tuck { display: none !important; }
 body[data-mode="expanded"][data-outline="none"] #panel { border-color: transparent !important; }
@@ -113,6 +119,7 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 
 .canvas-tree { min-width: 150px; max-width: 200px; }
 .tree.hidden { display: none; }
+.side-toggle { color: var(--muted); } .side-toggle.on { color: var(--accent); }
 .canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: transparent; }
 /* No fill of its own: the canvas's paper covers it, and a second see-through
    layer here would make a see-through drawer nearly solid again. */

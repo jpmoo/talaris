@@ -28,7 +28,13 @@ html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
 header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
-header h1 { font-size: 15px; font-weight: 500; margin: 0 8px 0 4px; min-width: 190px; letter-spacing: .3px; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 8px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Narrow (a window half the screen): the buttons keep one line each; the title gives way. */
+header .t-btn, header .seg button { white-space: nowrap; flex: none; }
+header .seg { flex: none; }
+#msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+body.no-side #side { display: none; }
+#side-toggle.on { color: var(--accent); }
 header .spacer { flex: 1; }
 .frame { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; color: var(--muted); background: none; border: 0 !important; cursor: pointer; border-radius: var(--radius-control); }
 .frame:hover { color: var(--accent); }
@@ -131,6 +137,7 @@ body { position: relative; }
 </head>
 <body>
 <header>
+  <button class="frame" id="side-toggle" title="Hide the list of calendars"></button>
   <button class="t-btn" id="today">Today</button>
   <button class="frame" id="prev" title="Before"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
   <button class="frame" id="next" title="After"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>

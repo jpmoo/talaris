@@ -99,7 +99,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <button data-page="look">Look</button>
     <button data-page="bar-page">Bar</button>
     <button data-page="dock-page">Dock</button>
-    <button data-page="drawers">Drawers</button>
+    <button data-page="drawers">Panels</button>
     <button data-page="windows">Windows</button>
     <button data-page="accounts">Accounts</button>
     <button data-page="wifi">Wi-Fi</button>
@@ -130,12 +130,14 @@ footer #msg.err, .note.err { color: var(--danger); }
     </section>
     <section id="bar-page">
       <h2>Bar</h2>
-      <h3>Launcher, Morgan, Settings and Calendar</h3>
-      <p class="note" style="margin:0 0 10px">How each comes and goes: as windows open, or as drawers come out.</p>
+      <h3>What opens from the bar</h3>
+      <p class="note" style="margin:0 0 10px">How each comes and goes: as windows open, or as panels do (the Panels page).</p>
       <div class="row"><span class="name">Launcher</span><span class="what"><span class="seg" id="ov-launcher"></span></span></div>
       <div class="row"><span class="name">Morgan</span><span class="what"><span class="seg" id="ov-morgan"></span></span></div>
       <div class="row"><span class="name">Settings</span><span class="what"><span class="seg" id="ov-settings"></span></span></div>
       <div class="row"><span class="name">Calendar</span><span class="what"><span class="seg" id="ov-calendar"></span></span></div>
+      <div class="row"><span class="name">Canvas</span><span class="what"><span class="seg" id="ov-canvas"></span></span></div>
+      <div class="row"><span class="name">Writing</span><span class="what"><span class="seg" id="ov-writing"></span></span></div>
       <h3>Tray</h3>
       <div class="row"><span class="name">Tray<small>Running applications' icons, before Wi-Fi</small></span><span class="what"><button class="switch" id="tray-on"></button></span></div>
       <div class="row"><span class="name">Folded<small>One icon on the bar; a press shows the rest under it</small></span><span class="what"><button class="switch" id="tray-fold"></button></span></div>
@@ -178,26 +180,16 @@ footer #msg.err, .note.err { color: var(--danger); }
       <p class="note">Right-click an item to pin, hide, show or close it; drag items to reorder them.</p>
     </section>
     <section id="drawers">
-      <h2>Drawers</h2>
+      <h2>Panels</h2>
+      <p class="note" style="margin:0 0 10px">The canvas, the writing surface — and the launcher, Morgan, Settings and the calendar where the Bar page says "As panels" — come up centered over the dimmed screen, and go on a press off them or Escape. Each one's expand button makes it a window.</p>
       <div class="row"><span class="name">Motion<small>How they come and go</small></span><span class="what"><span class="seg" id="motion"></span></span></div>
       <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="speed"></span></span></div>
-      <div class="row"><span class="name">Dim behind<small>The rest of the screen dims; a click there puts the drawer away</small></span><span class="what"><button class="switch" id="panels-dim"></button></span></div>
-      <div class="row"><span class="name">Click outside to close<small>A click off a pulled drawer puts it away. While it is out, the windows under it cannot be clicked or scrolled</small></span><span class="what"><button class="switch" id="dismiss-outside"></button></span></div>
-      <div class="row"><span class="name">After full screen<small>Back from full screen, the drawer stays out or closes</small></span><span class="what"><span class="seg" id="after-expand"></span></span></div>
-      <div class="row"><span class="name">Put away<small>Pulled out, after this long untouched</small></span><span class="what"><input type="range" id="idle" min="15" max="300" step="15"><span class="n" id="idle-n"></span></span></div>
+      <div class="row"><span class="name">Put away<small>Out, after this long untouched</small></span><span class="what"><input type="range" id="idle" min="15" max="300" step="15"><span class="n" id="idle-n"></span></span></div>
       <h3>Appearance</h3>
       <div class="row"><span class="name">Outline</span><span class="what"><span class="seg" id="outline"></span></span></div>
       <div class="row"><span class="name">Shadow</span><span class="what"><button class="switch" id="shadow"></button></span></div>
       <div class="row"><span class="name">Opacity</span><span class="what"><input type="range" id="panels-op" min="30" max="100" step="5"><span class="n" id="panels-op-n"></span></span></div>
       <div class="row"><span class="name">Paper follows opacity<small>Off: the writing page and the canvas stay solid inside a see-through frame</small></span><span class="what"><button class="switch" id="paper-follows"></button></span></div>
-      <h3>Both drawers</h3>
-      <div class="row"><span class="name">Width</span><span class="what"><input type="range" id="drawer-size" min="25" max="90"><span class="n" id="drawer-size-n"></span></span></div>
-      <div class="row"><span class="name">Height<small>Of the whole screen; full height lies over the bar</small></span><span class="what"><input type="range" id="drawer-height" min="30" max="100" step="5"><span class="n" id="drawer-height-n"></span></span></div>
-      <div class="row"><span class="name">Align<small>At the top it lies over the bar; at the bottom, over the dock</small></span><span class="what"><span class="seg" id="drawer-align"></span></span></div>
-      <div class="row"><span class="name">Touch to show<small>No handle; out when the pointer touches the edge</small></span><span class="what"><button class="switch" id="drawer-auto"></button></span></div>
-      <h3>Edges</h3>
-      <div class="row"><span class="name">Canvas</span><span class="what"><span class="seg" id="canvas-edge"></span></span></div>
-      <div class="row"><span class="name">Writing</span><span class="what"><span class="seg" id="writing-edge"></span></span></div>
     </section>
     <section id="windows">
       <h2>Windows</h2>
@@ -242,7 +234,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     </section>
     <section id="edges">
       <h2>Edges</h2>
-      <p class="note" style="margin:0 0 10px">Where the pointer brings out a hidden bar or dock, or a drawer set to touch to show.</p>
+      <p class="note" style="margin:0 0 10px">Where the pointer brings out a hidden bar or dock.</p>
       <div class="row"><span class="name">Thickness<small>How far in from the screen's edge</small></span><span class="what"><input type="range" id="touch-thick" min="2" max="30"><span class="n" id="touch-thick-n"></span></span></div>
       <div class="row"><span class="name">Length<small>How much of the edge, centered</small></span><span class="what"><input type="range" id="touch-length" min="10" max="100" step="5"><span class="n" id="touch-length-n"></span></span></div>
     </section>
