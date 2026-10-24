@@ -82,6 +82,7 @@ class CalendarService(QObject):
             QTimer.singleShot(3000, self._start)
 
     def _tell(self, state: dict) -> None:
+        log(f"calendar: {'ready' if state.get('ready') else state.get('error', '')}")
         self.state = state
         self.status.emit(json.dumps(state))
 
