@@ -14,8 +14,17 @@ import { useEffect, useRef } from "react";
 interface Field {
   text: string;
   set(next: string): void;
+  /** Color the selected words, or the colored words round the caret (editor's setColor). */
+  setColor?(color: string | null): boolean;
+  readonly selecting?: boolean;
   focus(): void;
   destroy(): void;
+}
+
+/** The editor of the note whose field holds `el`, for the note's menu to color its words. */
+export function fieldEditor(el: Element | null | undefined): Field | null {
+  const host = el?.closest?.(".longtext") as (HTMLElement & { talarisField?: Field }) | null;
+  return host?.talarisField ?? null;
 }
 
 export function LongTextField({
@@ -54,6 +63,8 @@ export function LongTextField({
         onChange: (text: string) => latest.current(text),
         onOpenUrl: (url: string) => window.parent.postMessage({ talaris: "open-url", url }, "*"),
       });
+      // Found again from the menu (fieldEditor), by the element it lives in.
+      (host.current as HTMLElement & { talarisField?: Field }).talarisField = field.current;
       // A note somebody has just made should take words without a click.
       if (autofocus) field.current.focus();
     })();

@@ -2,7 +2,8 @@ import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVe
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
-import { document_, keepResized, pictureAt } from "../api.ts";
+import { document_, keepResized, pictureAt, setBackground } from "../api.ts";
+import { fieldEditor } from "./LongTextField.tsx";
 import {
   connectEntities,
   firstLine,
@@ -293,6 +294,11 @@ const MIN_H = 80;
 // Two rows: the pale papers a card is normally written on, and a muted set for
 // when a canvas has enough cards that color has to carry meaning. Both stay
 // light enough for dark text, which is what the node styling assumes.
+/** Words' colors: the writing surface's own, so a color means the same in both. */
+const TEXT_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
+  "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
+/** A canvas's own background: light papers, two darks. */
+const CANVAS_BACKGROUNDS = ["#fdfaf3", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#2b2a28", "#1f2a33"];
 const NODE_COLORS = ["#ffffff", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#eef4f6"];
 const NODE_COLORS_MUTED = ["#e4d9b8", "#c9d8c4", "#bfd0dd", "#ddc3c9", "#cfc6e0", "#c8d6da", "#d6d3ce"];
 const REGION_COLORS = [
@@ -2198,6 +2204,9 @@ export function CanvasView({
   } | null>(null);
   const [edgeMenu, setEdgeMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  // A right-click on the canvas itself: its background.
+  const [paneMenu, setPaneMenu] = useState<{ x: number; y: number } | null>(null);
+  const [background, setBackgroundNow] = useState<string | null>(() => (document_() as { background?: string }).background ?? null);
   /** The node menu's second page for an entity: finding one, or its connections. */
   const [entityPanel, setEntityPanel] = useState<{
     id: string;
@@ -2206,7 +2215,7 @@ export function CanvasView({
     show: "link" | "connections";
   } | null>(null);
   useEffect(() => {
-    if (!nodeMenu && !edgeMenu && !regionMenu && !entityPanel) return;
+    if (!nodeMenu && !edgeMenu && !regionMenu && !entityPanel && !paneMenu) return;
     // pointerdown, not mousedown: canvas drags preventDefault() their
     // pointerdown, which suppresses derived mouse events — a canvas click
     // would never close the menu otherwise.
@@ -2217,11 +2226,12 @@ export function CanvasView({
         setEdgeMenu(null);
         setRegionMenu(null);
         setEntityPanel(null);
+        setPaneMenu(null);
       }
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [nodeMenu, edgeMenu, regionMenu, entityPanel]);
+  }, [nodeMenu, edgeMenu, regionMenu, entityPanel, paneMenu]);
 
   /** Region → a real collection of its blocks (manual; optionally kept in sync). */
   // Removal is membership-only — deleting the block itself is the info
@@ -2390,6 +2400,34 @@ export function CanvasView({
     const w = r.strokeWidth ?? 1;
     if (w === 0) return "none";
     return `${w}px ${r.strokeStyle ?? "solid"} ${r.stroke ?? "var(--border-strong)"}`;
+  };
+
+  /** The color of a note's words, all of them (a color inside them is the editor's). */
+  const setNodeTextColor = (id: string, textColor: string | null) => {
+    if (id.startsWith("n:")) {
+      saveNotes(notes.map((n) => (n.id === id ? { ...n, textColor } : n)));
+    } else {
+      const r = rectOf(id) as NodeCtx | null;
+      if (!r) return;
+      const ctx = { ...r, textColor };
+      setLocal((p) => ({ ...p, [id]: ctx }));
+      persistMemberCtx(id, ctx);
+    }
+  };
+
+  /**
+   * A text color from the note's menu: the selected words, if any were selected
+   * when it opened (or colored words the caret sits in); otherwise the whole note.
+   */
+  const colorWords = (id: string, field: FieldSelection | null, color: string | null) => {
+    const editor = fieldEditor(field?.el);
+    if (editor?.setColor && editor.selecting && editor.setColor(color)) return;
+    setNodeTextColor(id, color);
+  };
+
+  const pickBackground = (color: string | null) => {
+    setBackground(color);
+    setBackgroundNow(color);
   };
 
   const setNodeAlign = (id: string, align: { hAlign?: string; vAlign?: string }) => {
@@ -3324,8 +3362,15 @@ export function CanvasView({
       // zoom so it travels with what's drawn on it. Left fixed, panning felt
       // like sliding the cards over a stationary screen rather than moving
       // across a surface — and there was nothing to judge the movement against.
+      onContextMenu={(e) => {
+        // Only the canvas itself: notes, lines and regions have their own menus.
+        if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList?.contains("cv-layer")) return;
+        e.preventDefault();
+        setPaneMenu({ x: e.clientX, y: e.clientY });
+      }}
       style={{
         ...(wrapH != null ? { height: wrapH } : {}),
+        ...(background ? { ["--cv-paper" as string]: background } : {}),
         ["--cv-x" as string]: `${view.x}px`,
         ["--cv-y" as string]: `${view.y}px`,
         ["--cv-z" as string]: view.z,
@@ -3766,6 +3811,34 @@ export function CanvasView({
                 />
               </label>
             </div>
+            {/* The words' color: what is selected, or the whole note. */}
+            <div className="cv-menu-hint">{fieldEditor(nodeMenu.field?.el)?.selecting ? "Selected text" : "Text"}</div>
+            <div className="cv-menu-row cv-text-colors">
+              {TEXT_COLORS.map((c) => (
+                <button
+                  key={c}
+                  className="cv-swatch"
+                  style={{ background: c }}
+                  title={c}
+                  onClick={() => {
+                    const f = nodeMenu.field;
+                    const id = nodeMenu.id;
+                    setNodeMenu(null);
+                    colorWords(id, f, c);
+                  }}
+                />
+              ))}
+              <button
+                className="cv-swatch cv-swatch-plain"
+                title="The note's own color"
+                onClick={() => {
+                  const f = nodeMenu.field;
+                  const id = nodeMenu.id;
+                  setNodeMenu(null);
+                  colorWords(id, f, null);
+                }}
+              />
+            </div>
             {(() => {
               /*
                * Picture, or words — and which picture.
@@ -4165,6 +4238,27 @@ export function CanvasView({
           void clearCanvas();
         }}
       />
+
+      {/* the canvas's own menu: its background */}
+      {paneMenu &&
+        createPortal(
+          <PointerMenu x={paneMenu.x} y={paneMenu.y}>
+            <div className="cv-menu-hint">Background</div>
+            <div className="cv-menu-row cv-text-colors">
+              {CANVAS_BACKGROUNDS.map((c) => (
+                <button key={c} className="cv-swatch" style={{ background: c }} title={c}
+                  onClick={() => { setPaneMenu(null); pickBackground(c); }} />
+              ))}
+              <button className="cv-swatch cv-swatch-plain" title="The theme's"
+                onClick={() => { setPaneMenu(null); pickBackground(null); }} />
+              <label className="cv-swatch cv-swatch-custom" title="Custom color…">
+                <Pipette size={12} />
+                <input type="color" value={background ?? "#fdfaf3"} onChange={(e) => pickBackground(e.target.value)} />
+              </label>
+            </div>
+          </PointerMenu>,
+          document.body,
+        )}
 
       {/* region menu */}
       {regionMenu &&

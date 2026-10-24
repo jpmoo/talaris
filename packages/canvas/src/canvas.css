@@ -146,7 +146,7 @@ textarea {
   background:
     radial-gradient(circle, var(--border) 1px, transparent 1px) var(--cv-x, 0px) var(--cv-y, 0px) /
       calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
-    var(--surface-2);
+    var(--cv-paper, var(--surface-2));
 }
 
 /* --- Frosting, and the two layers of it ------------------------------------
@@ -164,7 +164,7 @@ textarea {
   background:
     radial-gradient(circle, var(--border) 1px, transparent 1px) var(--cv-x, 0px) var(--cv-y, 0px) /
       calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
-    color-mix(in srgb, CanvasText 4%, transparent);
+    var(--cv-paper, color-mix(in srgb, CanvasText 4%, transparent));
 }
 
 /* Frosting off: the surface is solid and the desktop is gone. The toggle is the
@@ -177,7 +177,7 @@ textarea {
   background:
     radial-gradient(circle, var(--border) 1px, transparent 1px) var(--cv-x, 0px) var(--cv-y, 0px) /
       calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
-    var(--surface-2);
+    var(--cv-paper, var(--surface-2));
 }
 .cv-frost-toggle.on { color: var(--accent); }
 
@@ -709,3 +709,11 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
   color: var(--text);
 }
 .cv-entity-place:hover { background: var(--surface-2); }
+
+/* A small heading in a menu: what the swatches under it color. */
+.cv-menu-hint { padding: 6px 10px 0; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+/* The crossed swatch: no color of its own — the note's, or the theme's. */
+.cv-swatch.cv-swatch-plain {
+  background: linear-gradient(135deg, transparent 45%, var(--text-muted) 45%, var(--text-muted) 55%, transparent 55%), var(--surface);
+}
+.cv-text-colors { max-width: 210px; }

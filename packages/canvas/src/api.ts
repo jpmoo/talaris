@@ -203,6 +203,18 @@ export function hold(doc: CanvasDocument, written: () => void) {
 }
 export const document_ = () => held;
 
+/**
+ * The canvas's own background color, kept on its document as `background`
+ * (#rrggbb), or none for the theme's. A key the core keeps as it keeps any.
+ */
+export function setBackground(color: string | null) {
+  const next = { ...held } as CanvasDocument & { background?: string };
+  if (color) next.background = color;
+  else delete next.background;
+  held = next;
+  save();
+}
+
 /*
  * Written on a pause.
  *
