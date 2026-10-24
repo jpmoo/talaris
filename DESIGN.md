@@ -69,7 +69,30 @@ drawer that slides in from the right is the same code as the one that drops from
 the top. An exclusive zone is reserved only for what is pinned; a hidden bar
 gives its space back to the windows.
 
-### The drawers
+### What opens from the bar (decided 2026-10-24)
+
+**There are no drawers.** The canvas and the writing surface are bar items, as
+Morgan's conversation and the calendar are, and all four behave alike
+(`surfaces/overlay.py`; the canvas and writing in `workspace.py`):
+
+- **A panel:** centered over the rest of the screen, which it dims, wider than
+  tall for the canvas and writing; it comes and goes with the windows' or the
+  panels' motion (Settings, Bar), and goes on a press off it, on Escape, or
+  after a stretch untouched.
+- **A window:** the panel's one button (the expand corners) makes it an
+  ordinary window of the same process, which Hyprland tiles beside the rest
+  and puts full screen by its own key. A window's one button closes it. No
+  desktop of its own is needed: a window is already where windows are.
+
+This rests on layer-shell attached per window rather than per process
+(`layershell.py`, 2026-10-24): one process holds the bar's layer surfaces and
+these ordinary windows. The bar reads left to right: making and finding (the
+launcher, Morgan, the canvas, writing; People to come), the date and time with
+the calendar in the middle, and the machine on the right.
+
+The drawers' design follows, kept as what was built and replaced:
+
+### The drawers (replaced 2026-10-24)
 
 The canvas and the writing surface are not the wallpaper and not windows. They
 are **drawers**:
