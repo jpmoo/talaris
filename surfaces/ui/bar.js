@@ -127,8 +127,10 @@ $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
-$("net").addEventListener("click", () => bridge && bridge.popup("network"));
-$("bt").addEventListener("click", () => bridge && bridge.popup("bluetooth"));
+// Wi-Fi and Bluetooth open centered under their buttons.
+const under = (id) => { const r = $(id).getBoundingClientRect(); return r.left + r.width / 2; };
+$("net").addEventListener("click", () => bridge && bridge.popupAt("network", under("net")));
+$("bt").addEventListener("click", () => bridge && bridge.popupAt("bluetooth", under("bt")));
 
 // The tray: running applications' icons. A press opens the application (or,
 // for one that is only a menu, its menu); the middle button is its second

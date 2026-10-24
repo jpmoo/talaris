@@ -143,6 +143,11 @@ class BarBridge(Bridge):
     def popup(self, kind: str) -> None:
         self.owner.desktop.bar.toggle_popup(kind)
 
+    @Slot(str, float)
+    def popupAt(self, kind: str, x: float) -> None:  # noqa: N802 — called from the page by this name
+        """A popup centered under the button at `x` along the bar (its page's pixels)."""
+        self.owner.desktop.bar.toggle_popup(kind, x)
+
     @Slot(str)
     def launcher(self, mode: str) -> None:
         self.owner.desktop.bar.close_popup()
@@ -170,9 +175,10 @@ class Popup(QObject):
         self.desktop = bar.desktop
         self.kind = ""
         self.shown_at = 0.0
-        # Which tray item's menu is out, and where along the bar it was asked for.
+        # Which tray item's menu is out, and where along the bar its button
+        # is (Qt's units), to center a popup under; -1 is at the bar's end.
         self.tray_item = ""
-        self.at = 0.0
+        self.at = -1
         self.bridge = BarBridge(self, self)
         self.view = make_view(profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-popup")
@@ -189,8 +195,8 @@ class Popup(QObject):
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
-        if kind in ("tray", "trayicons"):
-            # Under the icon it belongs to.
+        if kind in ("tray", "trayicons") or self.at >= 0:
+            # Centered under the icon it belongs to.
             screen = QApplication.primaryScreen().geometry()
             left = max(4, min(int(self.at - zoom(w) / 2), screen.width() - zoom(w) - 4))
             self.surface.placement = None
@@ -369,12 +375,14 @@ class Bar(QObject):
         self.popup.bridge.trayMenu.emit(json.dumps(menu))
         self.bridge.state.emit(json.dumps(self.describe()))
 
-    def toggle_popup(self, kind: str) -> None:
+    def toggle_popup(self, kind: str, x: float | None = None) -> None:
         if kind not in POPUPS:
             return
         if self.popup.kind == kind:
             self.popup.close()
             return
+        # Under its button when the page says where that is; else at the bar's end.
+        self.popup.at = int(x * zoom_of("bar")) if x is not None else -1
         self.popup.show(kind)
         self.bridge.state.emit(json.dumps(self.describe()))
         log(f"popup: {kind}")
