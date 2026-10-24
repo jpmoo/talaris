@@ -35,6 +35,13 @@ from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEY
 from sensor import Presses
 from views import log, make_view
 
+def viewport(view) -> list:
+    """The size a page will be once its surface covers the screen, in its own pixels: arriving waits for it."""
+    screen = QApplication.primaryScreen().geometry()
+    z = view.zoomFactor() or 1
+    return [round(screen.width() / z), round(screen.height() / z)]
+
+
 #: How long the page has to finish leaving before the surface goes anyway.
 LEAVE_LIMIT_MS = 1600
 #: A window's size when first made, before Hyprland tiles it.
@@ -68,7 +75,7 @@ class Overlay(QObject):
 
     def describe(self) -> dict:
         return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,
-                "motion": self.desktop.motion(self.NAME)}
+                "motion": self.desktop.motion(self.NAME), "viewport": viewport(self.view)}
 
     def _place(self) -> None:
         screen = QApplication.primaryScreen().geometry()

@@ -263,7 +263,9 @@ class Settings(QObject):
         self.idle.timeout.connect(self.file_away)
 
     def describe(self) -> dict:
-        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion("settings")}
+        # Its size in its page's pixels, for arriving to wait for.
+        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion("settings"),
+                "viewport": [round(zoom(SIZE[0]) / (self.view.zoomFactor() or 1)), round(zoom(SIZE[1]) / (self.view.zoomFactor() or 1))]}
 
     def open(self, page: str = "") -> None:
         self.page = page

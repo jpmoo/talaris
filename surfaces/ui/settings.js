@@ -601,13 +601,13 @@ let wasUp = false;
 let motionNow = {};
 function how() {
   return {
-    kind: motionNow.motion, speed: motionNow.speed, edge: "top", flush: false,
+    kind: motionNow.motion, speed: motionNow.speed, edge: "top", flush: false, viewport: motionNow.viewport,
     rules: (rule, rel, P) => { const n = document.querySelector("nav").getBoundingClientRect(); rule(rel(n.right, P.top), rel(n.right, P.bottom)); },
   };
 }
 Surface.connect({
   onState: (s) => {
-    if (s.motion) motionNow = s.motion;
+    if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
     if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
     wasUp = !!s.up;

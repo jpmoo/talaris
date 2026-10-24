@@ -19,6 +19,8 @@
  *   rules    (rule, rel, box) => …: the lines inside it, `rule(a, b)` for each,
  *            from screen points made local by `rel(x, y)`
  *   backdrop an element whose background (a dim) fades in and out with it
+ *   viewport the page's size once its surface is placed, [w, h] in page pixels:
+ *            arriving waits for it
  */
 "use strict";
 
@@ -192,7 +194,7 @@ const Motion = (() => {
    * arriving waits for two frames running at the same size (a third of a
    * second at most), the panel held unseen meanwhile.
    */
-  function settled() {
+  function settled(expect) {
     return new Promise((done) => {
       const began = performance.now();
       let last = "", same = 0;
@@ -200,7 +202,10 @@ const Motion = (() => {
         const now = `${innerWidth}x${innerHeight}`;
         same = innerWidth > 0 && now === last ? same + 1 : 0;
         last = now;
-        if (same >= 2 || performance.now() - began > 330) done();
+        // The size it was told it will be (`viewport`, page pixels), when told:
+        // a page can sit still at its old size for frames before the new one comes.
+        const there = expect ? Math.abs(innerWidth - expect[0]) <= 2 && Math.abs(innerHeight - expect[1]) <= 2 && same >= 1 : same >= 2;
+        if (there || performance.now() - began > (expect ? 600 : 330)) done();
         else requestAnimationFrame(look);
       };
       requestAnimationFrame(look);
@@ -213,7 +218,7 @@ const Motion = (() => {
     if (still(o)) return;
     const mine = ++arrival;
     panel.style.visibility = "hidden";
-    settled().then(() => {
+    settled(o.viewport).then(() => {
       panel.style.visibility = "";
       // Gone again, or arriving afresh, before it settled: this arrival is not wanted.
       if (mine === arrival) play(panel, o);

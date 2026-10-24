@@ -116,5 +116,8 @@ class LayerSurface:
         self.widget.hide()
         self.widget.show()
         self.placement = placement
-        # Hyprland let go of the pointer when this appeared; it is given back (hypr.py).
+        # Hyprland let go of the pointer when this appeared; it is given back
+        # (hypr.py) — and again a little later, as the compositor may not have
+        # put the surface up by the first.
         QTimer.singleShot(60, hypr.refocus_pointer)
+        QTimer.singleShot(260, hypr.refocus_pointer)

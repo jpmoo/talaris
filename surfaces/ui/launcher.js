@@ -218,7 +218,7 @@ window.pressedAt = (x, y) => { const at = document.elementFromPoint(x, y); if (b
 function how() {
   const m = state.motion || {};
   return {
-    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body,
+    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body, viewport: state.viewport,
     rules: (rule, rel, P) => {
       const top = $("top").getBoundingClientRect(), foot = $("foot").getBoundingClientRect();
       rule(rel(P.left, top.bottom), rel(P.right, top.bottom));

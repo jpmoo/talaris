@@ -532,7 +532,7 @@ window.pressedAt = (x, y) => { if (!WINDOW && bridge && surface.up && document.e
 
 function how() {
   const m = surface.motion || {};
-  return { kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement,
+  return { kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement, viewport: surface.viewport,
     rules: (rule, rel, P) => { const h = document.querySelector("header").getBoundingClientRect(); rule(rel(P.left, h.bottom), rel(P.right, h.bottom)); } };
 }
 function onState(s) {

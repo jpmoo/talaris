@@ -71,7 +71,7 @@ if (WINDOW) document.documentElement.dataset.window = "1";
 // inside it drawn too — under the header, over the footer, beside the side column.
 function how() {
   return {
-    kind: motion(), speed: (state.theme || {}).motionSpeed, edge: "top", flush: false,
+    kind: motion(), speed: (state.theme || {}).motionSpeed, edge: "top", flush: false, viewport: state.viewport,
     rules: (rule, rel, P) => {
       const header = document.querySelector("header"), footer = document.querySelector("footer"), side = document.querySelector(".tree");
       if (header) { const r = header.getBoundingClientRect(); rule(rel(P.left, r.bottom + 4), rel(P.right, r.bottom + 4)); }

@@ -709,7 +709,7 @@ function start() {
       const s = JSON.parse(text);
       if (s.theme) Surface.applyTheme(s.theme);
       // Out, from away: the panel arrives. A window is simply there.
-      if (!WINDOW && s.up && !surfaceState.up) Motion.arrive(document.body, { ...how(), kind: (s.motion || {}).motion, speed: (s.motion || {}).speed });
+      if (!WINDOW && s.up && !surfaceState.up) Motion.arrive(document.body, { ...how(), kind: (s.motion || {}).motion, speed: (s.motion || {}).speed, viewport: s.viewport });
       surfaceState = s;
     } catch { /* fine */ }
   });

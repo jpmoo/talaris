@@ -45,6 +45,7 @@ from layershell import (
     Placement,
 )
 from morgan import command as morgan_command
+from overlay import viewport
 from sensor import Presses
 from views import log, make_view
 
@@ -158,7 +159,7 @@ class Launcher(QObject):
         self.leaving = False
 
     def describe(self) -> dict:
-        return {"up": self.up, "mode": self.mode, "project": self.desktop.project,
+        return {"up": self.up, "mode": self.mode, "project": self.desktop.project, "viewport": viewport(self.view),
                 "theme": self.desktop.config["theme"], "motion": self.desktop.motion("launcher")}
 
     def open(self, mode: str = "") -> None:
