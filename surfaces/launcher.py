@@ -267,7 +267,7 @@ class Launcher(QObject):
                 hypr.focus(mine[0]["address"])
                 return ""
             now = hypr.windows()
-            before, here = {w["address"] for w in mine}, now["active"]
+            before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
             # Through the compositor, so it starts with the session's environment
             # and on the workspace in front of you.
             hypr.ask(f"/dispatch exec gtk-launch {r['id']}")
@@ -297,7 +297,7 @@ class Launcher(QObject):
         now = hypr.windows()
         return sorted((w for w in now["windows"] if self.apps.lookup(w["class"]).get("id") == app_id), key=lambda w: w["recent"])
 
-    def _follow(self, app_id: str, before: set, here) -> None:
+    def _follow(self, app_id: str, before: set, here: tuple) -> None:
         """
         Started again from the launcher, an application either opened a new
         window (here, as asked) or did not: one that keeps a single window —
@@ -309,11 +309,10 @@ class Launcher(QObject):
         # One that opens new windows (a browser) is not moved, however slow its new window is to come.
         if not mine or any(w["address"] not in before for w in mine) or opens_new_windows(app_id):
             return
-        if any(w["workspace"] == here and not w["hidden"] for w in mine) and hypr.windows()["active"] == here:
+        wid, spec = here
+        if any(w["workspace"] == wid and not w["hidden"] for w in mine) and hypr.windows()["active"] == wid:
             return
-        window = mine[0]["address"]
-        hypr.ask(f"/dispatch movetoworkspacesilent {here},address:{window}")
-        hypr.focus(window)
+        hypr.show(mine[0]["address"], spec)
         log(f"launcher: {app_id} brought here")
 
     def _open_file(self, path: str) -> str:

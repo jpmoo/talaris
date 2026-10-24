@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import time
 import sys
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery
@@ -90,8 +91,9 @@ def register_scheme() -> None:
 
 #: The letters Super+Alt jumps to a project by (jump_panel.py).
 JUMP_LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
-#: Super and Alt together, by the second of them to go down.
-JUMP_OPEN = ("SUPER, Alt_L", "SUPER, Alt_R", "ALT, Super_L", "ALT, Super_R")
+#: Super and Alt let go, by whichever goes first: a release bind on a modifier
+#: counts that modifier as still held, so it is SUPER ALT either way.
+JUMP_OPEN = ("SUPER ALT, Alt_L", "SUPER ALT, Alt_R", "SUPER ALT, Super_L", "SUPER ALT, Super_R")
 
 class Files(QWebEngineUrlSchemeHandler):
     """The pages' own files and applications' icons, and nothing else — every one a GET, so no request body is ever touched."""
@@ -361,6 +363,9 @@ class Desktop(QObject):
         # launcher) and Super+Alt+a letter go down through Super+Alt, and must not open it.
         for keys in JUMP_OPEN:
             hypr.bind(keys, f"{LAUNCHER} --jump-open", flags="r")
+        # The forms these were bound as before, gone if a crash left them.
+        for keys in ("SUPER, Alt_L", "SUPER, Alt_R", "ALT, Super_L", "ALT, Super_R"):
+            hypr.unbind(keys)
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -610,9 +615,12 @@ class Desktop(QObject):
             elif verb == "new":
                 self.new.toggle()
             elif verb == "jump" and len(arg) == 1 and arg.isalpha():
+                self.keyed_at = time.monotonic()
                 self.jump.jump(arg)
             elif verb == "jump-open":
-                self.jump.show_all()
+                # Let go after Super+Alt+Space or Super+Alt+a letter: that key was the point, not the list.
+                if time.monotonic() - getattr(self, "keyed_at", 0) > 1.0 and not self.launcher.up:
+                    self.jump.show_all()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -622,6 +630,7 @@ class Desktop(QObject):
                 self.power.lid(arg)
             elif verb == "launcher":
                 # Super+Alt+Space went by way of Super+Alt, which brought out the project list.
+                self.keyed_at = time.monotonic()
                 self.jump.file_away()
                 self.launcher.toggle(arg)
             elif verb == "popup":

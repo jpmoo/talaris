@@ -75,7 +75,10 @@ def windows() -> dict:
         return {"windows": [], "workspaces": [], "active": None, "focused": None}
     # Special workspaces are scratchpads summoned by a key, not places you go —
     # except Talaris's own, where the dock puts a window it hides.
-    regular = [c for c in clients if c.get("mapped", True) and (c.get("workspace", {}).get("id", -1) > 0
+    # A project's desktop is a named workspace, and Hyprland gives those negative
+    # ids as it does special ones: told apart by name, not by the sign.
+    ordinary = lambda w: not str(w.get("name", "")).startswith("special:") and w.get("id", 0) != 0
+    regular = [c for c in clients if c.get("mapped", True) and (ordinary(c.get("workspace", {}))
                                                                  or c.get("workspace", {}).get("name") == HIDDEN)]
     return {
         "windows": [
@@ -85,8 +88,10 @@ def windows() -> dict:
              "recent": c.get("focusHistoryID", 999)}
             for c in regular
         ],
-        "workspaces": [{"id": w["id"], "name": w.get("name", str(w["id"]))} for w in spaces if w.get("id", -1) > 0],
+        "workspaces": [{"id": w["id"], "name": w.get("name", str(w["id"]))} for w in spaces if ordinary(w)],
         "active": active.get("id"),
+        # The active workspace as a dispatcher names it (`target`).
+        "activeTarget": target(active) if active else "1",
         "activeName": active.get("name", ""),
         "focused": (focused or {}).get("address"),
     }
@@ -105,15 +110,26 @@ def hide(address: str) -> None:
         ask(f"/dispatch movetoworkspacesilent {HIDDEN},address:{address}")
 
 
-def show(address: str) -> None:
-    """Back from hiding, onto the workspace in front of you, and focused."""
+def target(workspace: dict) -> str:
+    """
+    How a dispatcher names a workspace. By name for a named one (a project's
+    desktop): its id is negative, and a dispatcher reads "-1337" as "that
+    many workspaces back".
+    """
+    wid = workspace.get("id", 1)
+    return str(wid) if isinstance(wid, int) and wid > 0 else f"name:{workspace.get('name', '')}"
+
+
+def show(address: str, to: str | None = None) -> None:
+    """Back from hiding (or from another desktop), onto the workspace in front of you — or `to` — and focused."""
     if not _address(address):
         return
-    try:
-        here = json.loads(ask("j/activeworkspace")).get("id", 1)
-    except (OSError, ValueError):
-        here = 1
-    ask(f"/dispatch movetoworkspacesilent {here},address:{address}")
+    if to is None:
+        try:
+            to = target(json.loads(ask("j/activeworkspace")))
+        except (OSError, ValueError):
+            to = "1"
+    ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
     focus(address)
 
 
