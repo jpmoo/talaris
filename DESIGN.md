@@ -961,6 +961,15 @@ of it and comes out at the end.
    Qt and served to the page as `talaris-ui://icon/?n=…`. Special workspaces
    (scratchpads) are left out.
 5. The launcher: applications, files, verbs, and Morgan as the fallthrough.
+   **To do: Morgan's conversations in the launcher** (asked for 2026-10-23).
+   Morgan gains a `search <text>` command (protocol 1.3) ranking past
+   exchanges by meaning and by words together; the query is embedded on the
+   home server by the Ollama Morgan already uses, never on the laptop, and
+   only after a pause in typing and three letters. The launcher's own
+   results stay instant and local; Morgan's arrive a moment later as their
+   own group, and choosing one opens Morgan's panel at that conversation.
+   Offline, the launcher is as it is. Possibly a setting to keep launcher
+   queries on the laptop.
    **First pass done** (`surfaces/launcher.py`, `ui/launcher.js`): Super+Alt+Space
    (Super+Space when Noctalia goes), or the bar's box; Morgan's button opens it
    already asking. Projects, open windows, the current project's canvases,

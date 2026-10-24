@@ -204,7 +204,11 @@ class Drawer(QObject):
         # it from its dimmed look and flickering the drawer's in-use outline —
         # while scrolling still reaches whatever is under the pointer. To type
         # in a window, put the drawer away.
-        keyboard = KEYBOARD_EXCLUSIVE if mode == "pulled" else KEYBOARD_ON_DEMAND
+        # With click-outside on, the catcher already keeps the pointer off the
+        # windows — and an exclusive drawer kept clicks from reaching the
+        # catcher — so it takes the keyboard the ordinary way.
+        exclusive = mode == "pulled" and not self.desktop.config["panels"].get("dismissOutside")
+        keyboard = KEYBOARD_EXCLUSIVE if exclusive else KEYBOARD_ON_DEMAND
         return Placement(BOTTOM if mode == "out" else OVERLAY, anchor | EDGE_SPAN[self.edge], w, h, keyboard)
 
     #: How long a page has to finish leaving before the surface goes anyway.
@@ -588,6 +592,11 @@ class Desktop(QObject):
                     d.surface.apply(d._placement("filed"))
         self.style_compositor()
         if after["panels"] != before["panels"]:
+            # How a pulled drawer holds the keyboard follows click-outside.
+            for d in self.drawers.values():
+                if d.mode == "pulled":
+                    d.surface.placement = None
+                    d.surface.apply(d._placement("pulled"))
             self.catcher_update()
         if after["touch"] != before["touch"]:
             self.touch_targets()
