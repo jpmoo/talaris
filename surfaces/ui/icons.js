@@ -105,5 +105,7 @@ const Icons = (() => {
   // Tasks: a checked box and two lines.
   // Tasks: a list, each line ticked off.
   const tasks = () => svg('<path d="M2 4.6 3.5 6 6 3.2M8.5 4.8h5.5M2 10.6 3.5 12 6 9.2M8.5 10.8h5.5"/>');
-  return { sideList, people, tasks, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  // New: a plus, for making something (new.html).
+  const plus = () => svg('<path d="M8 2.6v10.8M2.6 8h10.8"/>');
+  return { sideList, people, tasks, plus, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

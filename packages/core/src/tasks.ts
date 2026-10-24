@@ -23,6 +23,8 @@ import {
 } from "./entities.js";
 import { Conflict, NotFound, createProject, listProjects } from "./projects.js";
 import { nextSpan, ruleErrors, summary, type Rule, type Span } from "./recurrence.js";
+// Mentions in a task's words are kept as edges wherever tasks are used, not only through the server.
+import "./mentions.js";
 import { newId } from "./store.js";
 
 /**

@@ -301,6 +301,8 @@ function shareTheme(frame) {
 addEventListener("message", (e) => {
   const m = e.data;
   if (m && m.talaris === "open-url" && /^https?:/.test(m.url || "")) { bridge && bridge.openUrl(m.url); return; }
+  // A mention clicked in a canvas note: the peek opens over the panel.
+  if (m && m.talaris === "peek" && typeof m.id === "string") { Peek.show(m.id, core); return; }
   if (m && m.talaris === "status") { status(String(m.text || "").toUpperCase().slice(0, 90)); return; }
   if (m && m.talaris === "exported") {
     // Where it went, said once, and a click away from opening.
@@ -413,6 +415,8 @@ async function drawEditor() {
       live: mode === "live",
       onChange: changed,
       onOpenUrl: (url) => bridge && bridge.openUrl(url),
+      // @ names anything; a mention clicked peeks at it (mentions.js, peek.js).
+      mentions: TalarisMentions(core),
     });
   }
   if (paperOf !== open) paperFor(open);

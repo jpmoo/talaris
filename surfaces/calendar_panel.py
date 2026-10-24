@@ -95,6 +95,10 @@ class CalendarService(QObject):
     changed = Signal()
     #: `{ready, error, needs}`: whether there is a calendar to show at all.
     status = Signal(str)
+    #: A message for calendard from another thread, sent from this one.
+    _ask = Signal(str)
+    #: An event New asked for, written or not: {req, error, uid}.
+    made = Signal(str)
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
@@ -114,6 +118,12 @@ class CalendarService(QObject):
         self._mirror_every = QTimer(self)
         self._mirror_every.timeout.connect(self.mirror)
         self._mirror_every.start(6 * 60 * 60 * 1000)
+        # People looked up for an @, waited on by the asking thread: req → [Event, answer].
+        self._finding: dict = {}
+        self._find_req = 2 * MIRROR_REQ
+        self._make_req = 3 * MIRROR_REQ
+        self._lock = threading.Lock()
+        self._ask.connect(lambda text: self.send(json.loads(text)))
         self._start()
 
     def _start(self) -> None:
@@ -171,9 +181,15 @@ class CalendarService(QObject):
                 else:
                     self.events.emit(json.dumps(msg["events"]))
             elif "done" in msg:
-                self.done.emit(json.dumps(msg["done"]))
+                # New's own, numbered from where the calendar page's never reach.
+                (self.made if msg["done"].get("req", 0) > 3 * MIRROR_REQ else self.done).emit(json.dumps(msg["done"]))
             elif "people" in msg:
-                self.people.emit(json.dumps(msg["people"]))
+                waiting = self._finding.get(msg["people"].get("req"))
+                if waiting:
+                    waiting[1] = msg["people"].get("items", [])
+                    waiting[0].set()
+                else:
+                    self.people.emit(json.dumps(msg["people"]))
             elif msg.get("changed"):
                 self.changed.emit()
 
@@ -202,6 +218,31 @@ class CalendarService(QObject):
                 done += len(events[i:i + 100])
             log(f"calendar: {done} events mirrored as entities")
         threading.Thread(target=send, daemon=True).start()
+
+    def find_people(self, query: str, wait: float = 2.0) -> list:
+        """
+        The address books' people and those met in the calendars, as the
+        invitee picker finds them — for an @, from a worker thread: asked on
+        this object's own thread, the answer waited for here. Nothing, if the
+        calendar is not up or does not answer in time.
+        """
+        if not self.state.get("ready"):
+            return []
+        with self._lock:
+            self._find_req += 1
+            req = self._find_req
+        waiting = [threading.Event(), []]
+        self._finding[req] = waiting
+        self._ask.emit(json.dumps({"do": "people", "req": req, "q": query}))
+        waiting[0].wait(wait)
+        self._finding.pop(req, None)
+        return waiting[1]
+
+    def make_event(self, calendar: str, event: dict) -> int:
+        """An event written to a calendar, for New: the answer comes as `made`, under the number given back."""
+        self._make_req += 1
+        self.send({"do": "create", "req": self._make_req, "calendar": calendar, "event": event})
+        return self._make_req
 
     def send(self, msg: dict) -> None:
         if self.process and self.process.state() == QProcess.ProcessState.Running:

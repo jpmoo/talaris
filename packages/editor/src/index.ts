@@ -12,7 +12,8 @@
  * Built by esbuild into `surfaces/ui/editor.js`, which the drawer imports.
  */
 
-import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
+import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import {
   Decoration,
   type DecorationSet,
@@ -22,6 +23,7 @@ import {
   WidgetType,
   drawSelection,
   keymap,
+  placeholder,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@codemirror/language";
@@ -257,6 +259,13 @@ const look = EditorView.theme({
   ".cm-inline-code": { fontFamily: "ui-monospace, monospace", fontSize: "0.9em", background: "var(--accent-wash)", borderRadius: "4px", padding: "0 3px" },
   ".cm-codeblock": { fontFamily: "ui-monospace, monospace", fontSize: "0.9em", background: "var(--desk)" },
   ".cm-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" },
+  ".cm-link.cm-mention": { textDecoration: "none", background: "var(--accent-wash)", borderRadius: "4px", padding: "0 3px" },
+  ".cm-tooltip.cm-tooltip-autocomplete": { background: "var(--surface)", border: "1px solid var(--frame)", borderRadius: "8px", boxShadow: "var(--menu-shadow)", padding: "3px" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul": { fontFamily: "inherit", maxHeight: "16em" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li": { padding: "3px 8px", borderRadius: "5px", color: "var(--text)" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": { background: "var(--accent-wash)", color: "var(--accent)" },
+  ".cm-completionDetail": { marginLeft: "8px", color: "var(--muted)", fontStyle: "normal", fontSize: "0.85em" },
+  ".cm-completionIcon": { display: "none" },
   ".cm-quote": { borderLeft: "2px solid var(--line)", paddingLeft: "10px", color: "var(--muted)" },
   ".cm-bullet": { color: "var(--accent)", padding: "0 2px" },
   ".cm-check": { display: "inline-flex", width: "14px", height: "14px", margin: "0 6px 0 0", verticalAlign: "-2px", border: "1.5px solid var(--muted)", borderRadius: "4px", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "background .12s, border-color .12s" },
@@ -306,6 +315,37 @@ export interface EditorOptions {
   onChange?: (text: string) => void;
   /** A rendered link was clicked: open it somewhere else. */
   onOpenUrl?: (url: string) => void;
+  /**
+   * `@` names something: the picker searches with `search`, makes something
+   * new with `create`, and a mention clicked opens with `open`. Without it,
+   * `@` is only a character.
+   */
+  mentions?: Mentions;
+  /** One line: Enter does not break it (a title). `onEnter` hears it instead. */
+  singleLine?: boolean;
+  onEnter?: () => void;
+  /** Shown faintly while there are no words. */
+  placeholder?: string;
+}
+
+export interface Mentions {
+  /**
+   * What matches. One with `make` is not a thing yet (someone in an address
+   * book): chosen, it is made, and the mention points at what was made.
+   */
+  search(query: string): Promise<Array<MentionFound>>;
+  /** Make something new by this name: a person, unless another kind is chosen. */
+  create?(name: string, kind: string): Promise<{ id: string; title: string }>;
+  open?(id: string): void;
+}
+
+export interface MentionFound {
+  id: string;
+  title: string;
+  kind?: string;
+  /** Shown beside it: an address, say, to tell two of a name apart. */
+  detail?: string;
+  make?(): Promise<{ id: string; title: string }>;
 }
 
 export interface Editor {
@@ -345,6 +385,9 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
           ...defaultKeymap,
           ...historyKeymap,
         ]),
+        options.mentions ? mentionPicker(options.mentions) : [],
+        options.placeholder ? placeholder(options.placeholder) : [],
+        options.singleLine ? Prec.highest(keymap.of([{ key: "Enter", run: () => { options.onEnter?.(); return true; } }])) : [],
         listFolding,
         codeFolding({ placeholderText: "…" }),
         options.compact ? [] : [foldGutter({ markerDOM: chevron }), listDrag],
@@ -365,7 +408,9 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
             const inside = v.state.selection.ranges.some((r) => r.from <= to && r.to >= from);
             if (inside || !link.dataset.url) return false;
             event.preventDefault();
-            options.onOpenUrl?.(link.dataset.url);
+            const url = link.dataset.url;
+            if (url.startsWith("talaris:")) options.mentions?.open?.(url.slice("talaris:".length));
+            else options.onOpenUrl?.(url);
             return true;
           },
         }),
@@ -410,4 +455,48 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
     focus() { view.focus(); },
     destroy() { view.destroy(); },
   };
+}
+
+// ---------------------------------------------------------------- @ mentions
+
+/**
+ * The `@` picker: typed after a space (or at the start), `@Ch…` searches as it
+ * is typed; Enter takes the first, a click any, and the last choices make it
+ * new — a person, unless another kind is chosen. What goes in is a Markdown
+ * link, `[@Name](talaris:id)`, which the live view draws as a chip.
+ */
+const KIND_WORD: Record<string, string> = { contact: "person", event: "event", task: "task", note: "note", project: "project" };
+
+function mentionPicker(m: Mentions) {
+  const insert = (view: EditorView, from: number, to: number, id: string, title: string) => {
+    const text = `[@${title.replace(/[\[\]]/g, "")}](talaris:${id}) `;
+    view.dispatch({ changes: { from, to, insert: text }, selection: EditorSelection.cursor(from + text.length) });
+  };
+  const source = async (context: CompletionContext): Promise<CompletionResult | null> => {
+    const typed = context.matchBefore(/(?:^|[\s(])@[^\s@\[\]()]*(?: [^\s@\[\]()]+){0,2}$/);
+    if (!typed) return null;
+    const at = typed.from + typed.text.indexOf("@");
+    const query = context.state.sliceDoc(at + 1, context.pos);
+    let found: MentionFound[] = [];
+    try { found = await m.search(query); } catch { found = []; }
+    if (context.aborted) return null;
+    const options: Completion[] = found.slice(0, 10).map((f) => ({
+      label: f.title, detail: f.detail ?? KIND_WORD[f.kind ?? ""] ?? f.kind ?? "",
+      apply: (view, _c, _from, to) => {
+        if (f.make) void f.make().then((made) => insert(view, at, to, made.id, made.title));
+        else insert(view, at, to, f.id, f.title);
+      },
+    }));
+    const name = query.trim();
+    if (name && m.create) {
+      for (const kind of ["person", "task", "note", "project"]) {
+        options.push({
+          label: kind === "person" ? `New: ${name}` : `New ${kind}: ${name}`, detail: kind === "person" ? "person" : "", boost: -99,
+          apply: (view, _c, _from, to) => { void m.create!(name, kind).then((made) => insert(view, at, to, made.id, made.title)); },
+        });
+      }
+    }
+    return { from: at + 1, options, filter: false };
+  };
+  return autocompletion({ override: [source], activateOnTyping: true, icons: false, closeOnBlur: true });
 }

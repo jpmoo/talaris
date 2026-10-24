@@ -43,14 +43,15 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER ALT, SPACE"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows",
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "new": "windows",
                  "canvas": "drawers", "writing": "drawers"},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},
-    # pinned: launcher ids, in order; order: every item's place, as dragged;
+    # pinned: launcher ids pinned in every project; pinnedIn: {project id: ids}
+    # pinned in that project only; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
-    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "order": [], "scope": "desktop",
+    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "order": [], "scope": "desktop",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off. iconSize: the icons at rest, in px.

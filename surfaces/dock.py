@@ -4,8 +4,9 @@
 The dock: the applications you keep, and what is open.
 
 Along the bottom with its height reserved, like the bar along the top. One row:
-the **pinned** applications first, in the order you put them, then a rule,
-then whatever else is open. An item is one application — a dot under it for
+the **pinned** applications first, in the order you put them — those pinned
+in every project and those pinned in the current one only — then a rule, then
+whatever else is open. An item is one application — a dot under it for
 each of its windows, a longer bar for the focused one — and a press goes to
 the window you were last in, or, for a pin with nothing open, starts it.
 
@@ -243,7 +244,10 @@ class Dock(QObject):
 
     def refresh(self) -> None:
         cfg = self.desktop.config["dock"]
-        pinned = list(cfg.get("pinned", []))
+        # Pinned in every project, then in this one only.
+        everywhere_pins = list(cfg.get("pinned", []))
+        here = self.desktop.project.get("id", "")
+        pinned = everywhere_pins + [k for k in cfg.get("pinnedIn", {}).get(here, []) if k not in everywhere_pins]
         order = list(cfg.get("order", []))
         everywhere = cfg.get("scope") == "all"
         now = hypr.windows()
@@ -251,7 +255,8 @@ class Dock(QObject):
         for key in pinned:
             app = self.apps.by_id(key)
             if app:
-                items[key] = {"key": key, "id": key, "name": app["name"], "icon": app["icon"], "pinned": True, "windows": []}
+                items[key] = {"key": key, "id": key, "name": app["name"], "icon": app["icon"], "pinned": True,
+                              "pinnedWhere": "all" if key in everywhere_pins else "here", "windows": []}
         for w in sorted(now["windows"], key=lambda w: w["recent"]):
             # Hidden windows count wherever they were; the others only on this
             # desktop, unless the dock is set to show every desktop's.
@@ -303,13 +308,20 @@ class Dock(QObject):
         if not item:
             return
         cfg = self.desktop.config["dock"]
-        if verb in ("pin", "unpin"):
+        if verb in ("pin-all", "pin-here", "unpin"):
             if not item["id"]:
                 return  # nothing to start it by again, so nothing to pin
+            # Taken from wherever it was pinned, then put where it was asked: every
+            # project (pinned), or this one (pinnedIn, by the project's id).
+            here = self.desktop.project.get("id", "")
             pinned = [k for k in cfg.get("pinned", []) if k != item["id"]]
-            if verb == "pin":
+            within = {p: [k for k in ids if k != item["id"]] for p, ids in cfg.get("pinnedIn", {}).items()}
+            if verb == "pin-all":
                 pinned.append(item["id"])
+            elif verb == "pin-here" and here:
+                within.setdefault(here, []).append(item["id"])
             cfg["pinned"] = pinned
+            cfg["pinnedIn"] = {p: ids for p, ids in within.items() if ids}
             save_config(self.desktop.config)
         elif verb == "hide":
             for w in item["windows"]:

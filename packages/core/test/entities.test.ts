@@ -233,3 +233,12 @@ test("readdir sanity: no stray temporary files left behind", () => {
   const dir = join(process.env.TALARIS_DATA_DIR!, "entities", "objects");
   assert.deepEqual(readdirSync(dir).filter((n) => n.endsWith(".tmp")), []);
 });
+
+test("search finds the start of a word before the middle of one, and the kind preferred first", () => {
+  entities.createEntity({ role: "person", properties: { title: "dschumacher@example.org" } });
+  entities.createEntity({ role: "person", properties: { title: "Chuck Berry" } });
+  entities.createEntity({ role: "event", properties: { title: "Lunch with Chuck" } });
+  const titles = entities.findEntities({ q: "chu", prefer: "contact" }).map((s) => s.title);
+  assert.ok(titles.indexOf("Chuck Berry") < titles.indexOf("Lunch with Chuck"), titles.join(" | "));
+  assert.ok(titles.indexOf("Lunch with Chuck") < titles.indexOf("dschumacher@example.org"), titles.join(" | "));
+});

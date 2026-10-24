@@ -93,7 +93,7 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "morgan", "settings", "calendar", "tasks", "canvas", "writing"]) {
+  for (const who of ["launcher", "new", "morgan", "settings", "calendar", "tasks", "canvas", "writing"]) {
     seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
@@ -747,7 +747,7 @@ $("unlock-go").addEventListener("click", async () => {
 });
 
 // What the bar shows, item by item. Settings is not among them: it is the way back.
-const BAR_SHOWN = [["ask", "Launcher"], ["morgan", "Morgan"], ["people", "People"], ["tasks", "Tasks"], ["canvas", "Canvas"],
+const BAR_SHOWN = [["ask", "Launcher"], ["new", "New"], ["morgan", "Morgan"], ["people", "People"], ["tasks", "Tasks"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["where", "Project"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
   ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["power", "Power"]];
 function drawBarShown() {

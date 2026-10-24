@@ -23,7 +23,8 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <button class="menu-item" data-verb="show">Show</button>
   <button class="menu-item" data-verb="hide">Hide</button>
   <button class="menu-item" data-verb="new">New window</button>
-  <button class="menu-item" data-verb="pin">Pin to the dock</button>
+  <button class="menu-item" data-verb="pin-here">Pin to this project</button>
+  <button class="menu-item" data-verb="pin-all">Pin to all projects</button>
   <button class="menu-item" data-verb="unpin">Unpin</button>
   <div class="menu-sep" id="sep"></div>
   <button class="menu-item" data-verb="close">Close window</button>
@@ -47,7 +48,9 @@ function onState(s) {
   show("show", wins.some((w) => w.hidden));
   show("hide", wins.some((w) => !w.hidden));
   show("new", !!it.id);
-  show("pin", !!it.id && !it.pinned);
+  // Pinned in one way, it can be moved to the other.
+  show("pin-here", !!it.id && it.pinnedWhere !== "here");
+  show("pin-all", !!it.id && it.pinnedWhere !== "all");
   show("unpin", !!it.pinned);
   show("close", wins.length === 1);
   show("close-all", wins.length > 1);

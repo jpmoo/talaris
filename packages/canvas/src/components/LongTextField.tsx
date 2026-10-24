@@ -27,6 +27,17 @@ export function fieldEditor(el: Element | null | undefined): Field | null {
   return host?.talarisField ?? null;
 }
 
+function canvasMentions() {
+  // The drawer's own @ (mentions.js), so a canvas note finds what a page does;
+  // a mention clicked peeks over the drawer, which holds the card.
+  const host = window.parent as unknown as {
+    talarisCore?: (m: string, p: string, b?: unknown) => Promise<unknown>;
+    TalarisMentions?: (api: unknown, open: (id: string) => void) => unknown;
+  };
+  if (!host.talarisCore || !host.TalarisMentions) return undefined;
+  return host.TalarisMentions(host.talarisCore, (id) => window.parent.postMessage({ talaris: "peek", id }, "*"));
+}
+
 export function LongTextField({
   value,
   onChange,
@@ -62,6 +73,9 @@ export function LongTextField({
         compact: true,
         onChange: (text: string) => latest.current(text),
         onOpenUrl: (url: string) => window.parent.postMessage({ talaris: "open-url", url }, "*"),
+        // @ names anything, asked of the core through the panel's door; a
+        // mention clicked is peeked at by the panel, over the canvas.
+        mentions: canvasMentions(),
       });
       // Found again from the menu (fieldEditor), by the element it lives in.
       (host.current as HTMLElement & { talarisField?: Field }).talarisField = field.current;

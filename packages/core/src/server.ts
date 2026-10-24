@@ -40,6 +40,7 @@ import {
 import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
+import "./mentions.js";
 import { exportEnvelope } from "./interchange.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
@@ -184,7 +185,7 @@ route("POST", "/projects/:id/page/versions/:name/restore", (_r, [id, name], q) =
 // ------------------------------------------------------------ entities
 
 route("GET", "/entities", (_r, _p, q) =>
-  entities.findEntities({ q: q.get("q") ?? "", kind: q.get("kind") ?? undefined, limit: Number(q.get("limit") ?? 50), archived: q.get("archived") === "1" }));
+  entities.findEntities({ q: q.get("q") ?? "", kind: q.get("kind") ?? undefined, limit: Number(q.get("limit") ?? 50), archived: q.get("archived") === "1", prefer: q.get("prefer") ?? undefined }));
 route("POST", "/entities", async (req) => entities.createEntity(await json<entities.NewEntity>(req)));
 route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
 route("POST", "/entities/mirror/events", async (req) => {
@@ -195,6 +196,13 @@ route("POST", "/entities/person", async (req) => {
   const b = await json<{ email?: string; name?: string }>(req);
   if (!b.email) throw new BadRequest("a person is found by email");
   return entities.personFor(b.email, b.name);
+});
+// Which of these addresses are people already: an @ picker's address-book finds, told apart from the new.
+route("POST", "/entities/people/known", async (req) => {
+  const b = await json<{ emails?: string[] }>(req);
+  const out: Record<string, entities.Summary> = {};
+  for (const e of b.emails ?? []) { const p = entities.byEmail(e); if (p) out[e.toLowerCase()] = entities.summary(p); }
+  return out;
 });
 route("GET", "/entities/:id", (_r, [id]) => {
   const { entity, out, in: incoming } = entities.connections(id!);
@@ -218,7 +226,14 @@ route("POST", "/entities/:id/files", async (req, [id]) => {
   const b = await json<{ filename?: string; mediaType?: string; data?: string; field?: string }>(req);
   if (!b.filename || !b.data) throw new BadRequest("a file has a name and data (base64)");
   const value = entities.putFile(Buffer.from(b.data, "base64"), b.filename, b.mediaType);
-  if (b.field) entities.updateEntity(id!, { properties: { [b.field]: value } });
+  if (b.field) {
+    // A field of many files gains this one (once, by its hash); a field of one is this one.
+    const o = entities.getEntity(id!);
+    const many = entities.types().find((t) => t.id === o.type)?.fields.find((f) => f.key === b.field)?.many;
+    const now = Array.isArray(o.properties[b.field]) ? (o.properties[b.field] as { sha256: string }[]) : [];
+    if (!many) entities.updateEntity(id!, { properties: { [b.field]: value } });
+    else if (!now.some((a) => a.sha256 === value.sha256)) entities.updateEntity(id!, { properties: { [b.field]: [...now, value] } });
+  }
   return value;
 });
 route("GET", "/entity-types", () => entities.types());

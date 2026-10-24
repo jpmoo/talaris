@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+New (new_panel.py): one sheet over the dimmed screen, from Super+Shift+N, for
+making a task, an event, a person, a note or a project — each with every
+field its type has. Ctrl+1–5 chooses which; Enter makes it; Shift+Enter makes it and opens it where it lives.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris new</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; cursor: pointer; }
+body {
+  cursor: default; position: relative; width: min(560px, calc(100% - 32px)); height: auto; max-height: 80vh; overflow: auto; margin: 10vh auto 0; display: flex; flex-direction: column; gap: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--menu-shadow); padding: 14px 16px; font-size: 13px;
+}
+.kinds { display: flex; gap: 4px; }
+.kind { font-size: 12px !important; padding: 3px 11px !important; }
+.kind.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
+.rows { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.row > label { width: 78px; flex: none; color: var(--muted); font-size: 12px; }
+.row > .grow { flex: 1; min-width: 0; }
+.row > .spacer { flex: 1; }
+.row .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.col { display: flex; flex-direction: column; gap: 4px; }
+.row > label { align-self: flex-start; padding-top: 7px; }
+input.bad { border-color: var(--danger) !important; }
+input.field { width: 100%; padding: 6px 9px; font-size: 13px; }
+input.big, .ed-big { font-size: 15px !important; }
+.ed { border: 1px solid var(--line); border-radius: var(--radius-row); padding: 3px 8px; background: var(--desk); }
+.ed:focus-within { border-color: var(--accent); }
+.ed-body { min-height: 110px; max-height: 40vh; overflow: auto; }
+.hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.hint.err { color: var(--danger); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-p { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border-radius: 10px; background: var(--accent-wash); color: var(--accent); font-size: 12px; }
+.chip-p button { border: 0 !important; background: none !important; color: inherit !important; padding: 0 4px !important; cursor: pointer; }
+.found { display: flex; flex-direction: column; margin-left: 86px; }
+.found:empty { display: none; }
+.found .menu-item { font-size: 12.5px; text-align: left; display: flex; gap: 8px; }
+.found .menu-item.first { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.found .menu-item .addr { color: var(--muted); }
+.acts { display: flex; align-items: center; gap: 8px; }
+.acts .spacer { flex: 1; }
+#msg { font-size: 12px; color: var(--muted); }
+#msg.err { color: var(--danger); }
+.switch.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
+/* The one small list at a time, and its kinds: a menu, a month, the times of a day. */
+#pop { position: fixed; z-index: 40; background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; box-shadow: var(--menu-shadow); padding: 6px; }
+#pop[hidden] { display: none; }
+.menu-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; min-width: 150px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+.times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }
+.time { border: 0 !important; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; color: var(--text) !important; }
+.time:hover, .time.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.mini { width: 232px; padding: 2px; }
+.mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
+.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
+.mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
+.mini-grid .day.other { color: var(--muted) !important; }
+.mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.mini-grid .day:hover, .mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+</style>
+</head>
+<body>
+<div class="kinds" id="kinds"></div>
+<div class="rows" id="rows"></div>
+<div class="acts">
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <button class="t-btn" id="make">Make</button>
+</div>
+<div id="pop" hidden></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script src="peek.js"></script>
+<script src="mentions.js"></script>
+<script src="new.js"></script>
+</body>
+</html>

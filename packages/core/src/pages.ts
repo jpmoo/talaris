@@ -7,6 +7,7 @@ import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING } from "./paths.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
+import { movedText, syncText } from "./mentions.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 
 /**
@@ -135,6 +136,8 @@ export function writePage(projectId: string, path: string, text: string): void {
   const file = pageFile(folder, path);
   writeAtomic(file, text);
   saveVersion(versionDir(join(folder, MACHINERY), "page", safe(path)), text, "md");
+  // What it mentions, held by an entity standing for the page (mentions.ts).
+  syncText({ kind: "page", key: `${projectId}/${safe(path)}` }, safe(path).split("/").pop() ?? path, text);
 }
 
 /** A title that is free among its siblings: "Untitled", then "Untitled 2"… */
@@ -216,6 +219,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
     for (const [k, v] of Object.entries(look)) moved[k === from || k.startsWith(`${from}/`) ? to + k.slice(from.length) : k] = v;
     writeJson(join(machinery, LOOK), moved);
   }
+  movedText({ kind: "page", key: `${projectId}/${from}` }, { kind: "page", key: `${projectId}/${to}` });
   return { path: to, title, children: [] };
 }
 

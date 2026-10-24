@@ -121,7 +121,7 @@ export const BUILT_IN: EntityType[] = [
   },
   {
     // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
-    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 3,
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 4,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
@@ -133,7 +133,8 @@ export const BUILT_IN: EntityType[] = [
         "talaris:colors": { not_started: "#868c92", in_progress: "#5fa4b5", blocked: "#c26b6b", done: "#8aa878", archived: "#6c7277", wont_do: "#6c7277" },
       },
       { key: "project", kind: "reference", targetType: "t_project", many: true },
-      { key: "done_at", kind: "datetime" },
+      // Stamped by the core when a task is finished: shown, never asked for (talaris:auto).
+      { key: "done_at", kind: "datetime", "talaris:auto": true },
       // Files kept with the task: the format's attachment values, the bytes
       // sealed beside the entities, once each by their hash.
       { key: "attachments", kind: "attachment", many: true },
@@ -367,11 +368,14 @@ export function titleOf(o: Entity): string {
   const t = o.type ? load().types.get(o.type) : undefined;
   for (const map of Object.values(t?.profiles ?? {})) {
     const key = map.title;
-    if (typeof key === "string" && typeof o.properties[key] === "string" && o.properties[key]) return o.properties[key] as string;
+    if (typeof key === "string" && typeof o.properties[key] === "string" && o.properties[key]) return plainText(o.properties[key] as string);
   }
-  if (typeof o.properties.title === "string" && o.properties.title) return o.properties.title;
-  return firstLine(bodyOf(o)) ?? "Untitled";
+  if (typeof o.properties.title === "string" && o.properties.title) return plainText(o.properties.title);
+  return firstLine(plainText(bodyOf(o))) ?? "Untitled";
 }
+
+/** A mention (`[@Name](talaris:id)`) read as the words it shows. */
+const plainText = (t: string) => t.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1");
 
 /** Its body: where its type's note profile says, else the reserved `content`. */
 export function bodyOf(o: Entity): string {
@@ -431,7 +435,7 @@ export function summary(o: Entity): Summary {
  * Entities matching words, of a kind if asked: every word somewhere in the
  * title, the text properties, or the body. Titles first, then the rest.
  */
-export function findEntities(options: { q?: string; kind?: string; limit?: number; archived?: boolean } = {}): Summary[] {
+export function findEntities(options: { q?: string; kind?: string; limit?: number; archived?: boolean; prefer?: string } = {}): Summary[] {
   const words = (options.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const found: { s: Summary; score: number }[] = [];
   for (const { object: o } of load().records.values()) {
@@ -440,8 +444,17 @@ export function findEntities(options: { q?: string; kind?: string; limit?: numbe
     const title = titleOf(o).toLowerCase();
     const rest = [JSON.stringify(o.properties), o.content ?? ""].join(" ").toLowerCase();
     if (!words.every((w) => title.includes(w) || rest.includes(w))) continue;
-    const score = words.length === 0 ? 0 : words.every((w) => title.includes(w)) ? (title.startsWith(words[0]!) ? 3 : 2) : 1;
-    found.push({ s: summary(o), score });
+    // A title that starts with what was typed, then one with a word that does,
+    // then one holding it anywhere, then a match only in its other words: "chu"
+    // finds Chuck before dschumacher@…. Within each, the kind preferred first
+    // (people, for an @).
+    const wordStart = (w: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "u").test(title);
+    const score = words.length === 0 ? 0
+      : title.startsWith(words[0]!) && words.every((w) => title.includes(w)) ? 4
+      : words.every(wordStart) ? 3
+      : words.every((w) => title.includes(w)) ? 2 : 1;
+    const preferred = options.prefer && profilesOf(o).includes(options.prefer) ? 1 : 0;
+    found.push({ s: summary(o), score: score * 2 + preferred });
   }
   found.sort((a, b) => b.score - a.score || a.s.title.localeCompare(b.s.title));
   return found.slice(0, options.limit ?? 50).map((f) => f.s);
@@ -641,6 +654,23 @@ export function disconnect(from: string, to: string): void {
   }
   if (Object.keys(props).length) updateEntity(from, { properties: props });
   unlink({ from, to, type: "" });
+}
+
+/**
+ * The edges an entity's text makes (`mentions`, `via: "inline"`), set to
+ * exactly these: the others it has are left alone. Unchanged, nothing is
+ * written. Not a change of the entity's own, so its hooks are not run again.
+ */
+export function setInlineRelations(from: string, edges: { to: string; field: string }[]): void {
+  const ix = load();
+  const rec = ix.records.get(from);
+  if (!rec) return;
+  const others = rec.relations.filter((r) => r.via !== "inline");
+  const inline = edges.map((e) => ({ from, to: e.to, type: "mentions", via: "inline", field: e.field }));
+  const before = rec.relations.filter((r) => r.via === "inline").map((r) => `${r.to} ${r.field}`).sort().join("|");
+  const after = inline.map((r) => `${r.to} ${r.field}`).sort().join("|");
+  if (before === after) return;
+  put({ object: rec.object, relations: [...others, ...inline] });
 }
 
 export function unlink(r: Relation): void {

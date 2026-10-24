@@ -66,7 +66,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 /* The right: quick add over what is shown. */
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #quick-bar { padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
-#quick { width: 100%; padding: 6px 10px; font-size: 13px; }
+#quick { width: 100%; font-size: 13px; }
+#quick .cm-content { padding: 5px 8px; }
 #rows { flex: 1; min-height: 0; overflow: auto; }
 .empty { color: var(--muted); padding: 24px; font-size: 13px; }
 
@@ -126,7 +127,15 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-files .chip-p:hover .fname { color: var(--accent); }
 #s-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
 #s-files-note.err { color: var(--danger); }
-#s-notes { width: 100%; min-height: 110px; resize: vertical; padding: 6px 8px; font-size: 12.5px; }
+/* Title and notes are the editor (editor.js), so @ works in them: drawn as fields. */
+.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-control); min-width: 0; }
+.ed-field:focus-within { border-color: var(--accent); }
+.ed-field .cm-editor { outline: none; }
+#s-title { flex: 1; font-size: 14px; }
+#s-title .cm-content { padding: 4px 6px; }
+#s-notes { width: 100%; min-height: 110px; font-size: 12.5px; }
+#s-notes .cm-content { padding: 6px 8px; min-height: 96px; }
+#s-notes:empty::before, #s-notes .cm-content:only-child:empty::before { content: attr(data-placeholder); color: var(--muted); }
 .s-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .s-foot .spacer { flex: 1; }
 #s-done { color: var(--muted); font-size: 11.5px; }
@@ -183,16 +192,16 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 <main>
   <aside id="side"></aside>
   <section id="view">
-    <div id="quick-bar"><input type="text" id="quick" placeholder="Add a task" spellcheck="false" autocomplete="off"></div>
+    <div id="quick-bar"><div id="quick" class="ed-field"></div></div>
     <div id="rows"></div>
   </section>
   <aside id="sheet" hidden>
     <div class="s-head">
       <button class="check" id="s-check">✓</button>
-      <input type="text" id="s-title" spellcheck="false">
+      <div id="s-title" class="ed-field"></div>
       <button class="icon-btn" id="s-close" title="Close"></button>
     </div>
-    <div class="s-row top"><span class="lab">Status</span><div class="chips" id="s-status"></div></div>
+    <div class="s-row top" id="s-status-row"><span class="lab">Status</span><div class="chips" id="s-status"></div></div>
     <div class="s-row" id="s-start-row"><span class="lab" id="s-start-l">Available</span><button class="pick" id="s-start"></button><input type="text" class="time-in" id="s-start-t" placeholder="Time" spellcheck="false"></div>
     <div class="s-row" id="s-end-row"><span class="lab" id="s-end-l">Due</span><button class="pick" id="s-end"></button><input type="text" class="time-in" id="s-end-t" placeholder="Time" spellcheck="false"></div>
     <div class="s-row"><span class="lab">Repeat</span><span class="sum" id="s-rep"></span><button class="t-btn" id="s-rep-btn">Repeat…</button></div>
@@ -208,7 +217,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
     <div class="s-row top" id="s-proj-row"><span class="lab">Projects</span><div class="chips" id="s-proj"></div></div>
     <div class="s-row top"><span class="lab">Tags</span><div class="chips"><span id="s-tags" style="display:contents"></span><input type="text" id="s-tag-in" placeholder="Add" spellcheck="false"></div></div>
     <div class="s-row top" id="s-files-row"><span class="lab">Files</span><div class="chips" id="s-files"></div></div>
-    <textarea id="s-notes" placeholder="Notes" spellcheck="false"></textarea>
+    <div id="s-notes" class="ed-field" data-placeholder="Notes"></div>
     <div class="s-foot"><span id="s-done"></span><span class="spacer"></span><button class="t-btn" id="s-archive">Archive</button></div>
   </aside>
 </main>
@@ -220,6 +229,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 <script src="listeditor.js"></script>
 <script src="taskviews.js"></script>
 <script src="statuses.js"></script>
+<script src="peek.js"></script>
+<script src="mentions.js"></script>
 <script src="tasks.js"></script>
 </body>
 </html>

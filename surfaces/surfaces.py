@@ -46,6 +46,7 @@ from launcher import Launcher
 from morgan import Link, Panel, Voice
 from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
+from new_panel import New
 from osd import Osd
 from tip import Tip
 from tray import Tray
@@ -57,6 +58,7 @@ import sensor as sensor_module
 from settings import Settings
 from machine import Machine
 from views import AREAS, log, set_zoom, zoom
+import core
 from core import call
 from layershell import to_compositor
 
@@ -165,9 +167,12 @@ class Desktop(QObject):
         self.morgan = Panel(profile, self, self.morgan_link)
         # The calendar: its data in a process of its own, its panel up from the bar's clock.
         self.calendar_service = CalendarService(self)
+        core.find_people = self.calendar_service.find_people
         self.calendar = Calendar(profile, self, self.calendar_service)
         # Tasks: projects and lists, up from the bar's Tasks button.
         self.tasks = Tasks(profile, self)
+        # New: a task, an event, a person, a note or a project, from Super+Shift+N.
+        self.new = New(profile, self, self.calendar_service)
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.tip = Tip(self)
@@ -196,7 +201,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "new", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -296,13 +301,14 @@ class Desktop(QObject):
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
+        hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
         # The lid, for when Talaris holds it (power.py); on the lock screen too.
         hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
         hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", ", switch:on:Lid Switch",
+        for keys in ("SUPER ALT, C", "SUPER ALT, W", "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -335,6 +341,10 @@ class Desktop(QObject):
         if after["bar"] != before["bar"]:
             self.bar.edge = after["bar"]["edge"]
             self.bar.place()
+            # The tray as Settings now has it (on, off, which icons): said again, not
+            # left as it was until an icon next changes.
+            if any(after["bar"].get(k) != before["bar"].get(k) for k in ("tray", "trayHidden", "trayFold")):
+                self.bar._tray_changed()
         if after["dock"] != before["dock"]:
             self.dock.edge = after["dock"]["edge"]
             self.dock.place()
@@ -399,6 +409,8 @@ class Desktop(QObject):
         for w in self.workspaces.values():
             w.bridge.state.emit(json.dumps(w.describe()))
         self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
+        # The dock: what is pinned in this project.
+        self.dock.refresh()
         log(f"project: {found['name']}")
 
     def show_in_drawer(self, name: str, target: dict) -> None:
@@ -453,6 +465,8 @@ class Desktop(QObject):
                 self.calendar.toggle()
             elif verb == "tasks":
                 self.tasks.toggle()
+            elif verb == "new":
+                self.new.toggle()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -502,6 +516,8 @@ def main() -> int:
         return send("calendar")
     if args[:1] == ["--tasks"]:
         return send("tasks")
+    if args[:1] == ["--new"]:
+        return send("new")
     if args[:1] == ["--window"] and len(args) == 2:
         return send(f"window {args[1]}")
     if args[:1] == ["--lid"] and len(args) == 2:

@@ -1040,6 +1040,28 @@ and its writing tools are separate, so a client can be given only the first.
 Reaching it over the network (MCP over HTTP, with a key) would be a choice made
 in Settings, never the default.
 
+### @, and the people it finds
+
+**One `@` for everything**, wherever words are written — a writing page, a
+canvas note, a task's title and notes: `[@Name](talaris:e_id)`, mirrored as a
+`mentions` relation (`via: inline`) so the graph has it both ways. People come
+first among what it finds, and the people it finds are the invitee picker's
+too: the address books and everyone in the calendars, by name or the part of
+an address before its `@` (not its domain, or "sch" finds a whole school
+district). One who is not yet a person here is made on being chosen, by
+address — `personFor` — so the same person is never made twice. A mention
+clicked opens its card: what it points at and what points at it, in words read
+from the far end ("Invited to", "Mentioned in").
+
+### People (not built — what it must do)
+
+**A person here should be tied to a real contact.** By address first: a person
+with an email is matched to the card in a contacts account that has it, and
+kept matched. **One with no address asks to be connected** — to a contact, or
+to more than one, since a person can have a card in each account — with
+suggestions: names alike, the same organization, the addresses of the people
+met with alongside them. Nothing is merged without being asked.
+
 ## The compositor is a backend
 
 Decided 2026-10-23. Talaris needs two things from a compositor, and they are not

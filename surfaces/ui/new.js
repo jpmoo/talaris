@@ -1,0 +1,780 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
+//
+// New (new.html): a task, an event, a person, a note or a project, made from
+// one sheet. Each kind is a few rows; the first is focused, Enter makes it,
+// Shift+Enter makes it and opens it where it lives (a task in Tasks, an event
+// in the calendar). The kind last made is the one the sheet opens on.
+//
+// No browser pickers — a <select>, a date or a time field opens a window of
+// the engine's own, which a layer surface cannot hold — so dates and times are
+// typed ("fri", "tomorrow", "10/30", "2:30pm") or chosen from lists drawn here.
+
+"use strict";
+
+(() => {
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+      else if (k === "class") e.className = v;
+      else if (k === "style") e.setAttribute("style", v);
+      else if (k === "value") e.value = v;
+      else e.setAttribute(k, v);
+    }
+    for (const k of kids.flat()) if (k != null && k !== false) e.append(k);
+    return e;
+  }
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* fine */ } },
+  };
+
+  const KINDS = [["task", "Task"], ["event", "Event"], ["contact", "Person"], ["note", "Note"], ["project", "Project"]];
+  let bridge = null;
+  let surface = { up: false };
+  let kind = store.get("talaris.new.kind", "task");
+  if (!KINDS.some(([k]) => k === kind)) kind = "task";
+  let v = {};            // what has been entered, for the kind on show
+  let editors = [];      // the editor fields made for it, to be put away
+  let editorMod = null;  // editor.js, once loaded
+  let busy = false;
+
+  // ---------------------------------------------------------------- the core
+
+  const waiting = new Map();
+  let reqNext = Math.floor(Math.random() * 1e9);
+  function api(method, path, body) {
+    return new Promise((ok, fail) => {
+      if (!bridge) { fail(new Error("Not connected")); return; }
+      const id = String(++reqNext);
+      waiting.set(id, (r) => (r.status >= 200 && r.status < 300 ? ok(r.data)
+        : fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`))));
+      bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
+    });
+  }
+  const enc = encodeURIComponent;
+  function say(text, error = false) { $("msg").textContent = text || ""; $("msg").className = error ? "err" : ""; }
+
+  // ---------------------------------------------------------------- days and times
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const startOfWeek = (d) => addDays(new Date(d.getFullYear(), d.getMonth(), 1), -new Date(d.getFullYear(), d.getMonth(), 1).getDay());
+  const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const dayLabel = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) });
+  const timeLabel = (m) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+  /** "today", "tom", "fri", "next fri", "+3", "+2w", "10/30", "10/30/27", "oct 30", "30 oct", "2026-10-30" — a day, or null. */
+  function parseDay(text) {
+    // "Fri, Oct 30" — as a picked day is shown — reads as "oct 30".
+    const t = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/^(next|this|on) /, "").replace(/^[a-z]{3,}, (?=[a-z]{3,}\.? \d)/, "");
+    const today = startOfDay(new Date());
+    if (!t) return null;
+    if (/^(today|tod|now)$/.test(t)) return today;
+    if (/^(tomorrow|tom|tmr|tmrw)$/.test(t)) return addDays(today, 1);
+    let m = t.match(/^(?:\+|in )(\d+) ?(d|day|days|w|wk|week|weeks|m|mo|month|months)?$/);
+    if (m) {
+      const n = Number(m[1]), u = (m[2] || "d")[0];
+      return u === "w" ? addDays(today, 7 * n) : u === "m" ? new Date(today.getFullYear(), today.getMonth() + n, today.getDate()) : addDays(today, n);
+    }
+    const wd = WEEKDAYS.findIndex((w) => t.length >= 2 && (w.startsWith(t) || t.startsWith(w)));
+    if (wd >= 0 && /^[a-z]+$/.test(t)) return addDays(today, ((wd - today.getDay() + 6) % 7) + 1);
+    m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return valid(Number(m[1]), Number(m[2]), Number(m[3]));
+    m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/);
+    if (m) return ahead(Number(m[1]), Number(m[2]), m[3]);
+    m = t.match(/^([a-z]{3,})\.? (\d{1,2})(?:,? (\d{4}))?$/) || t.match(/^(\d{1,2}) ([a-z]{3,})\.?(?: (\d{4}))?$/);
+    if (m) {
+      const [word, day] = /^\d/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
+      const mo = MONTHS.findIndex((x) => word.startsWith(x));
+      if (mo >= 0) return ahead(mo + 1, Number(day), m[3]);
+    }
+    return null;
+    function valid(y, mo, d) { const x = new Date(y, mo - 1, d); return x.getMonth() === mo - 1 && x.getDate() === d ? x : null; }
+    // A month and day with no year is the next one to come.
+    function ahead(mo, d, y) {
+      if (y) return valid(y.length === 2 ? 2000 + Number(y) : Number(y), mo, d);
+      const x = valid(today.getFullYear(), mo, d);
+      return x && x < today ? valid(today.getFullYear() + 1, mo, d) : x;
+    }
+  }
+  /** "9", "9:30", "930", "9:30 pm", "21:30", "noon" — minutes after midnight, or null. */
+  function parseTime(text) {
+    const t = text.trim().toLowerCase().replace(/\s+/g, "").replace(/\.m\.?$/, "m").replace(/\./g, "");
+    if (t === "noon") return 12 * 60;
+    if (t === "midnight") return 0;
+    const m = t.match(/^(\d{1,2})(?::?(\d{2}))?(a|am|p|pm)?$/);
+    if (!m) return null;
+    let h = Number(m[1]); const mi = Number(m[2] || 0);
+    if (mi > 59) return null;
+    if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3][0] === "p" ? 12 : 0); }
+    // A bare 1–6 is the afternoon: nobody meets at 3 in the morning.
+    else if (!m[2] && h >= 1 && h <= 6) h += 12;
+    if (h > 23) return null;
+    return h * 60 + mi;
+  }
+
+  // ---------------------------------------------------------------- the one small list
+
+  function popUnder(anchor, content) {
+    const pop = $("pop");
+    pop.replaceChildren(content);
+    pop.hidden = false;
+    // Fixed to the screen, not the sheet: a month under the last row would be cut off by its edge.
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.max(4, Math.min(r.left, innerWidth - pop.offsetWidth - 4))}px`;
+    pop.style.top = `${Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 4)}px`;
+    pop.dataset.for = anchor.id || "";
+  }
+  function popAway() { $("pop").hidden = true; }
+  document.addEventListener("pointerdown", (e) => {
+    if (!$("pop").hidden && !$("pop").contains(e.target) && !e.target.closest("[data-pops]")) popAway();
+  }, true);
+
+  function menu(anchor, items) {
+    popUnder(anchor, el("div", { class: "menu-list" }, items.map((it) =>
+      el("button", { class: "menu-item" + (it.on ? " on" : ""), onclick: (e) => { e.stopPropagation(); popAway(); it.act(); } },
+        it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null, it.label))));
+  }
+  function monthPicker(chosen, pick) {
+    let shown = new Date((chosen || new Date()).getFullYear(), (chosen || new Date()).getMonth(), 1);
+    const wrap = el("div", { class: "mini" });
+    const draw = () => {
+      const first = startOfWeek(shown);
+      wrap.replaceChildren(
+        el("div", { class: "mini-head" },
+          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); draw(); } }, "‹"),
+          el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); draw(); } }, "›")),
+        el("div", { class: "mini-grid" },
+          ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
+          Array.from({ length: 42 }, (_, i) => {
+            const d = addDays(first, i);
+            return el("button", { class: "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
+              onclick: (e) => { e.stopPropagation(); popAway(); pick(d); } }, String(d.getDate()));
+          })));
+    };
+    draw();
+    return wrap;
+  }
+  function timeList(current, pick) {
+    const list = el("div", { class: "times" });
+    for (let m = 0; m < 24 * 60; m += 15) {
+      list.append(el("button", { class: "time" + (m === current ? " on" : ""), onclick: (e) => { e.stopPropagation(); popAway(); pick(m); } }, timeLabel(m)));
+    }
+    setTimeout(() => { const on = list.querySelector(".on") || list.children[Math.floor((current ?? 540) / 15)]; if (on) list.scrollTop = on.offsetTop - 60; }, 0);
+    return list;
+  }
+
+  // ---------------------------------------------------------------- fields
+
+  const row = (label, ...kids) => el("div", { class: "row" }, el("label", {}, label), ...kids);
+
+  /** A plain line of text, kept in v[key]. */
+  function line(key, placeholder, attrs = {}) {
+    return el("input", { type: "text", class: "field grow" + (attrs.big ? " big" : ""), placeholder, value: v[key] || "", spellcheck: attrs.spell ? "true" : "false",
+      oninput: (e) => { v[key] = e.target.value; attrs.oninput && attrs.oninput(e.target.value); } });
+  }
+
+  /** An editor line, or box, that takes @ — kept in v[key]. */
+  function writing(key, placeholder, { body = false, big = false } = {}) {
+    const host = el("div", { class: "ed grow" + (body ? " ed-body" : "") + (big ? " ed-big" : ""), "data-placeholder": placeholder });
+    const make = (m) => {
+      const ed = m.createEditor(host, v[key] || "", {
+        live: true, compact: true, singleLine: !body, placeholder,
+        mentions: TalarisMentions(api, (id) => Peek.show(id, api)),
+        ...(body ? {} : { onEnter: () => make_(false) }),
+        });
+      editors.push({ ed, key });
+    };
+    if (editorMod) make(editorMod);
+    else import("./editor.js").then((m) => { editorMod = m; make(m); if (host.dataset.focus) focusFirst(); }).catch((e) => say(e.message, true));
+    return host;
+  }
+  // The editors' words, read at the moment of making (onChange may not be an option everywhere).
+  function readEditors() { for (const { ed, key } of editors) v[key] = ed.text; }
+
+  /** A day: typed or picked, its reading shown beside it. */
+  function dayField(key, placeholder) {
+    const hint = el("span", { class: "hint" });
+    const show = () => {
+      const t = v[key + "Text"] || "";
+      const d = parseDay(t);
+      v[key] = d;
+      hint.textContent = t.trim() ? (d ? dayLabel(d) : "?") : "";
+      hint.className = "hint" + (t.trim() && !d ? " err" : "");
+    };
+    const input = el("input", { type: "text", class: "field", placeholder, value: v[key + "Text"] || "", spellcheck: "false", style: "width: 150px",
+      oninput: (e) => { v[key + "Text"] = e.target.value; show(); } });
+    const pick = el("button", { class: "icon-btn", title: "Choose a day", "data-pops": "1",
+      onclick: () => popUnder(pick, monthPicker(v[key], (d) => { input.value = dayLabel(d); v[key + "Text"] = input.value; show(); input.focus(); })) }, "▾");
+    show();
+    return [input, pick, hint];
+  }
+
+  /** A time: typed or picked. */
+  function timeField(key, onSet) {
+    const input = el("input", { type: "text", id: `time-${key}`, class: "field", value: v[key] != null ? timeLabel(v[key]) : "", spellcheck: "false", style: "width: 96px",
+      oninput: (e) => { const m = parseTime(e.target.value); input.classList.toggle("bad", e.target.value.trim() !== "" && m == null); if (m != null) { v[key] = m; onSet && onSet(m); } },
+      onfocus: () => popUnder(input, timeList(v[key], (m) => { v[key] = m; input.value = timeLabel(m); onSet && onSet(m); })),
+      onblur: () => { if (v[key] != null) input.value = timeLabel(v[key]); },
+      "data-pops": "1" });
+    return input;
+  }
+
+  /**
+   * People found as typed — the address books and the calendars' (the same
+   * finding as the @ picker's) — under a field: a click, or Enter for the first.
+   */
+  function finder(listEl, query, choose) {
+    const q = query.trim();
+    if (q.length < 2) { listEl.replaceChildren(); return; }
+    const asked = q;
+    api("GET", `/people/find?q=${enc(q)}`).then((people) => {
+      if (listEl.dataset.q !== asked) return;
+      const low = q.toLowerCase();
+      const found = (people || []).map((p) => ({ email: p.email, name: p.name && !p.name.includes("@") ? p.name : "" }))
+        .filter((p) => p.name.toLowerCase().includes(low) || p.email.toLowerCase().split("@")[0].includes(low)).slice(0, 6);
+      listEl.found = found;
+      listEl.replaceChildren(...found.map((p, i) => el("button", { class: "menu-item" + (i === 0 ? " first" : ""), onclick: () => choose(p) },
+        el("span", {}, p.name || p.email), p.name ? el("span", { class: "addr" }, p.email) : null)));
+    }).catch(() => listEl.replaceChildren());
+    listEl.dataset.q = asked;
+  }
+
+  // ---------------------------------------------------------------- the kinds
+  //
+  // A task, a person, a note and a project are drawn from their types: every
+  // field the type has, each by its kind — so a field somebody adds to a type
+  // turns up here too. Which field is the title, the status, the dates or the
+  // address is read from the type's profiles, never from a name. Only a field
+  // the core fills itself (`talaris:auto`) is left out. An event is the
+  // calendar's, and has the calendar's form.
+
+  let types = [];
+  let calendars = [];
+  const ROLE = { task: "task", contact: "person", note: "note", project: "project" };
+  const typeFor = (k) => types.find((t) => t["talaris:role"] === ROLE[k]);
+  const words = (key) => key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+
+  /** What a type's profiles say about its fields. */
+  function readType(t) {
+    const p = t.profiles || {};
+    const any = p.task || p.note || p.contact || p.event || {};
+    const task = p.task || null;
+    const span = task && ((task.due && task.due.field) || (task.start && task.start.field)) || null;
+    return {
+      titleKey: typeof any.title === "string" ? any.title : "title",
+      task, span,
+      status: task && typeof task.status === "string" ? task.status : null,
+      email: p.contact && typeof p.contact.email === "string" ? p.contact.email : null,
+      // @ goes where words are written: a body, and the title of a thing that says something (a task, a note).
+      titleTakesAt: Boolean(p.task || p.note),
+    };
+  }
+
+  // ---- repeating, for a task (a series, by the format's rule) and an event (an RRULE)
+  const WD = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  const REPEATS = [
+    ["", "Doesn't repeat"], ["daily", "Every day"], ["weekdays", "Every weekday"], ["weekly", "Every week"],
+    ["biweekly", "Every two weeks"], ["monthly", "Every month"], ["yearly", "Every year"],
+  ];
+  function repeatRow(forTask, dayOf) {
+    const label = (REPEATS.find(([k]) => k === (v.repeat || "")) || REPEATS[0])[1];
+    const btn = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(btn, REPEATS.map(([k, l]) => ({
+      label: l + (k === "weekly" || k === "biweekly" ? ` on ${(dayOf() || new Date()).toLocaleDateString("en-US", { weekday: "long" })}` : ""),
+      on: (v.repeat || "") === k, act: () => { v.repeat = k; paint(); } }))) }, label);
+    // A task can count from when it is done instead ("a week after I last did it").
+    const after = forTask && v.repeat && v.repeat !== "weekdays"
+      ? el("button", { class: "t-btn switch" + (v.fromDone ? " on" : ""), title: "Count from when it is done, not from its date",
+        onclick: () => { v.fromDone = !v.fromDone; paint(); } }, "After done") : null;
+    return row("Repeat", btn, after);
+  }
+  /** The format's rule for a task (recurrence.ts), from the choice. */
+  function taskRule(day) {
+    const r = v.repeat;
+    if (!r) return null;
+    const anchor = v.fromDone && r !== "weekdays" ? "completion" : "schedule";
+    const base = { anchor, interval: 1, end: { type: "never" } };
+    if (r === "daily") return { ...base, freq: "daily" };
+    if (r === "weekdays") return { ...base, anchor: "schedule", freq: "weekly", byWeekday: ["MO", "TU", "WE", "TH", "FR"] };
+    if (r === "weekly" || r === "biweekly") return { ...base, freq: "weekly", interval: r === "biweekly" ? 2 : 1, ...(anchor === "schedule" ? { byWeekday: [WD[day.getDay()]] } : {}) };
+    return { ...base, freq: r };
+  }
+  /** An RRULE for a calendar. */
+  function eventRule(day) {
+    const r = v.repeat;
+    if (!r) return "";
+    if (r === "weekdays") return "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+    if (r === "weekly") return `FREQ=WEEKLY;BYDAY=${WD[day.getDay()]}`;
+    if (r === "biweekly") return `FREQ=WEEKLY;INTERVAL=2;BYDAY=${WD[day.getDay()]}`;
+    return `FREQ=${r.toUpperCase()}`;
+  }
+
+  // ---- a field, by its kind
+
+  /** Things of a type, chosen as chips: searched as typed, Enter or a click for one. */
+  function refField(f) {
+    const target = types.find((t) => t.id === f.targetType);
+    const people = Boolean(target && (target.profiles || {}).contact);
+    const chosen = v[f.key] = v[f.key] || [];
+    const found = el("div", { class: "found" });
+    const take = (x) => {
+      if (!chosen.some((c) => c.id === x.id && x.id)) { if (f.many) chosen.push(x); else chosen.splice(0, chosen.length, x); }
+      v[f.key + "Q"] = "";
+      paint();
+      focusId(`ref-${f.key}`);
+    };
+    const search = async (q) => {
+      found.dataset.q = q;
+      let got = [];
+      if (people) {
+        // People as @ finds them: here already, or in an address book (made when chosen).
+        got = q.trim().length >= 1 ? (await TalarisMentions(api).search(q)).filter((x) => x.kind === "contact") : [];
+      } else {
+        got = ((await api("GET", `/entities?q=${enc(q)}&limit=40`)) || []).filter((x) => x.type === f.targetType && !x.stub).map((x) => ({ id: x.id, title: x.title }));
+      }
+      if (found.dataset.q !== q) return;
+      got = got.filter((x) => !chosen.some((c) => c.id && c.id === x.id)).slice(0, 7);
+      found.found = got;
+      found.replaceChildren(...got.map((x, i) => el("button", { class: "menu-item" + (i === 0 ? " first" : ""), onclick: () => take(x) },
+        el("span", {}, x.title), x.detail ? el("span", { class: "addr" }, x.detail) : null)));
+    };
+    const input = el("input", { type: "text", id: `ref-${f.key}`, class: "field grow", placeholder: target ? `Find ${target.name.toLowerCase()}…` : "Find…",
+      value: v[f.key + "Q"] || "", spellcheck: "false",
+      oninput: (e) => { v[f.key + "Q"] = e.target.value; search(e.target.value).catch(() => {}); },
+      onfocus: (e) => { if (!people) search(e.target.value).catch(() => {}); },
+      onkeydown: (e) => {
+        if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || !input.value.trim()) return;
+        e.preventDefault(); e.stopPropagation();
+        if (found.found && found.found.length) take(found.found[0]);
+      } });
+    const chips = chosen.length ? el("div", { class: "chips" }, chosen.map((c, i) => el("span", { class: "chip-p" }, c.title,
+      el("button", { title: "Remove", onclick: () => { chosen.splice(i, 1); paint(); } }, "×")))) : null;
+    return [row(f.label || words(f.key), el("div", { class: "grow col" }, chips, f.many || !chosen.length ? input : null)), found];
+  }
+
+  function fileField(f) {
+    const files = v[f.key] = v[f.key] || [];
+    const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+    return row(f.label || words(f.key), el("div", { class: "grow col" },
+      files.length ? el("div", { class: "chips" }, files.map((x, i) => el("span", { class: "chip-p", title: x.path }, `${x.name} · ${kb(x.size)}`,
+        el("button", { title: "Remove", onclick: () => { files.splice(i, 1); paint(); } }, "×")))) : null,
+      el("div", {}, el("button", { class: "t-btn", onclick: () => bridge && bridge.chooseFiles(f.key) }, f.many || !files.length ? "Add files…" : "Change…"))));
+  }
+
+  function enumField(f, def) {
+    if (v[f.key] === undefined) v[f.key] = def ?? null;
+    const labels = f["talaris:labels"] || {}, colors = f["talaris:colors"] || {};
+    return row(f.label || words(f.key), el("div", { class: "grow chips" }, (f.options || []).map((o) =>
+      el("button", { class: "t-btn switch" + (v[f.key] === o ? " on" : ""), onclick: () => { v[f.key] = v[f.key] === o && !def ? null : o; paint(); } },
+        colors[o] ? el("span", { class: "sw", style: `background:${colors[o]}; margin-right: 6px` }) : null, labels[o] || words(o)))));
+  }
+
+  function fieldRow(f, info, t) {
+    const label = f.label || words(f.key);
+    if (f.key === info.titleKey) return null; // drawn first, as the kind's own line
+    switch (f.kind) {
+      case "richtext": return row(label, writing(f.key, "@ to link a person, event or task", { body: true }));
+      case "text":
+        return row(label, line(f.key, f.many ? "Optional — more than one, with commas" : "Optional", { spell: !f.many && f.key !== info.email,
+          ...(f.key === info.email ? { oninput: checkEmail } : {}) }), f.key === info.email ? el("span", { class: "hint", id: "known" }) : null);
+      case "number": return row(label, el("input", { type: "text", class: "field", style: "width: 120px", value: v[f.key] ?? "", oninput: (e) => { v[f.key] = e.target.value; } }));
+      case "boolean": return row(label, el("button", { class: "t-btn switch" + (v[f.key] ? " on" : ""), onclick: () => { v[f.key] = !v[f.key]; paint(); } }, v[f.key] ? "Yes" : "No"));
+      case "date": return row(label, ...dayField(f.key, "fri, 10/30…"));
+      case "datetime": return row(label, ...dayField(f.key, "fri, 10/30…"), timeField(f.key + "At"));
+      case "datespan": return [
+        row(f.startLabel || "From", ...dayField(f.key + "Start", "Optional")),
+        row(f.endLabel || "To", ...dayField(f.key + "End", "fri, 10/30…")),
+        info.task && info.span === f.key ? repeatRow(true, () => v[f.key + "End"] || v[f.key + "Start"]) : null,
+      ];
+      case "enum": return enumField(f, f.key === info.status ? t["talaris:defaultStatus"] || (f.options || [])[0] : null);
+      case "reference": return refField(f);
+      case "attachment": return fileField(f);
+      default: return null;
+    }
+  }
+
+  function typeForm() {
+    const t = typeFor(kind);
+    if (!t) return [row("", el("span", { class: "hint" }, types.length ? "There is no type for this" : "Reading the types…"))];
+    const info = readType(t);
+    const name = KINDS.find(([k]) => k === kind)[1];
+    const titleField = t.fields.find((f) => f.key === info.titleKey);
+    const placeholder = { task: "What needs doing", contact: "Their name", note: "Its title", project: "Its name" }[kind] || "";
+    let title;
+    if (titleField && info.titleTakesAt) title = row(name, writing(info.titleKey, placeholder, { big: true }));
+    else {
+      const input = line(info.titleKey, placeholder, { big: true, spell: !info.email });
+      title = [row(name, input)];
+      if (info.email) {
+        // A person: the address books' people as their name is typed — a click, or Enter, fills them in.
+        const found = el("div", { class: "found" });
+        const fill = (p) => { v[info.titleKey] = p.name || v[info.titleKey] || ""; v[info.email] = p.email; paint(); checkEmail(p.email); };
+        input.addEventListener("input", () => finder(found, input.value, fill));
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && found.found && found.found.length && !v[info.email]) { e.preventDefault(); e.stopPropagation(); fill(found.found[0]); }
+        });
+        title.push(found);
+        setTimeout(() => checkEmail(v[info.email]), 0);
+      }
+    }
+    return [title, t.fields.filter((f) => !f["talaris:auto"]).map((f) => fieldRow(f, info, t))];
+  }
+
+  // Whether this address is somebody already: said beside it, and making adds to them.
+  function checkEmail(email) {
+    const known = $("known");
+    if (!known) return;
+    known.textContent = "";
+    const e = String(email || "").split(/[,;]/)[0].trim().toLowerCase();
+    if (!e.includes("@")) return;
+    api("POST", "/entities/people/known", { emails: [e] }).then((k) => { if ($("known")) $("known").textContent = k[e] ? `Already here: ${k[e].title}` : ""; }).catch(() => {});
+  }
+
+  function eventForm() {
+    if (v.day === undefined) {
+      const now = new Date();
+      const next = Math.ceil((now.getHours() * 60 + now.getMinutes() + 1) / 30) * 30;
+      v.dayText = next >= 24 * 60 ? "tomorrow" : "today";
+      v.from = next % (24 * 60);
+      v.to = Math.min(v.from + 60, 24 * 60 - 15);
+    }
+    const cal = calendars.find((c) => c.id === v.calendar) || calendars.find((c) => c.id === store.get("talaris.new.calendar", "")) || calendars[0];
+    if (cal) v.calendar = cal.id;
+    const calBtn = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(calBtn, calendars.map((c) => ({ label: c.name, color: c.color, on: c.id === v.calendar, act: () => { v.calendar = c.id; paint(); } }))) },
+      cal ? el("span", { class: "sw", style: `background:${cal.color || "var(--accent)"}; margin-right: 6px` }) : null, cal ? cal.name : "No calendar to write to");
+    const allDay = el("button", { class: "t-btn switch" + (v.allDay ? " on" : ""), onclick: () => { v.allDay = !v.allDay; paint(); } }, "All day");
+    v.people = v.people || [];
+    const chips = el("div", { class: "chips" }, v.people.map((p, i) => el("span", { class: "chip-p", title: p.email }, p.name || p.email,
+      el("button", { title: "Remove", onclick: () => { v.people.splice(i, 1); paint(); } }, "×"))));
+    const found = el("div", { class: "found" });
+    const add = (p) => { if (!v.people.some((x) => x.email === p.email)) v.people.push(p); v.invite = ""; paint(); focusId("invite"); };
+    const invite = el("input", { type: "text", id: "invite", class: "field grow", placeholder: cal && !cal.invites ? "This calendar cannot invite" : "Name or address",
+      value: v.invite || "", spellcheck: "false", disabled: cal && !cal.invites ? "" : null,
+      oninput: (e) => { v.invite = e.target.value; finder(found, e.target.value, add); },
+      onkeydown: (e) => {
+        if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || !invite.value.trim()) return;
+        // Enter with words typed takes the first found, or an address as written; empty, it makes the event.
+        e.preventDefault(); e.stopPropagation();
+        const typed = invite.value.trim();
+        if (found.found && found.found.length) add(found.found[0]);
+        else if (/^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/.test(typed)) add({ email: typed.toLowerCase(), name: "" });
+        else say("No one found by that", true);
+      } });
+    return [
+      row("Event", line("title", "What it is", { big: true, spell: true })),
+      row("Day", ...dayField("day", "today, fri, 10/30…"), el("span", { class: "spacer" }), allDay),
+      v.allDay ? null : row("Time",
+        timeField("from", (m) => { if (v.to <= m) { v.to = Math.min(m + 60, 24 * 60 - 15); $("time-to").value = timeLabel(v.to); } }),
+        el("span", { class: "hint" }, "to"),
+        timeField("to")),
+      repeatRow(false, () => v.day),
+      row("Calendar", calBtn),
+      row("Invite", el("div", { class: "grow col" }, v.people.length ? chips : null, invite)),
+      found,
+      row("Where", line("location", "Optional", { spell: true })),
+      row("Notes", line("notes", "Optional", { spell: true })),
+    ];
+  }
+
+  // ---------------------------------------------------------------- drawing
+
+  function paintKinds() {
+    $("kinds").replaceChildren(...KINDS.map(([k, label], i) => el("button", { class: "t-btn kind" + (k === kind ? " on" : ""), title: `${label} — Ctrl+${i + 1}`,
+      onclick: () => choose(k) }, label)));
+  }
+  function paint() {
+    // Whatever is being typed is kept across a redraw, the editors' words with the rest.
+    readEditors();
+    const active = document.activeElement;
+    const at = active && active.closest && active.closest("#rows") ? [...$("rows").querySelectorAll("input, .cm-content")].indexOf(active) : -1;
+    for (const { ed } of editors) ed.destroy();
+    editors = [];
+    popAway();
+    $("rows").replaceChildren(...[kind === "event" ? eventForm() : typeForm()].flat(3).filter(Boolean));
+    if (at >= 0) { const again = [...$("rows").querySelectorAll("input, .cm-content")][at]; if (again) again.focus(); }
+  }
+  function focusId(id) { setTimeout(() => $(id) && $(id).focus(), 0); }
+  function focusFirst() {
+    const first = $("rows").querySelector("input.field, .ed");
+    if (!first) return;
+    if (first.classList.contains("ed")) {
+      const cm = first.querySelector(".cm-content");
+      if (cm) cm.focus(); else first.dataset.focus = "1";
+    } else first.focus();
+  }
+  const titleKeyOf = (k) => (k === "event" ? "title" : typeFor(k) ? readType(typeFor(k)).titleKey : "title");
+  function choose(k) {
+    if (k === kind) return;
+    readEditors();
+    // The words carry over — a task that turns out to be an event keeps its title,
+    // without its links where the title cannot hold them.
+    const was = v[titleKeyOf(kind)];
+    const takesAt = k !== "event" && typeFor(k) && readType(typeFor(k)).titleTakesAt;
+    kind = k;
+    store.set("talaris.new.kind", k);
+    v = { [titleKeyOf(k)]: takesAt ? was : plain(was) };
+    paintKinds();
+    paint();
+    say("");
+    setTimeout(focusFirst, 0);
+  }
+  function reset() {
+    v = {};
+    busy = false;
+    say("");
+    paintKinds();
+    paint();
+    setTimeout(focusFirst, 30);
+    // What the forms are made from, fresh each time it opens: the types (and
+    // the projects, mirrored as entities when asked for), the calendars.
+    Promise.all([api("GET", "/entity-types"), api("GET", "/tasks/projects").catch(() => [])])
+      .then(([t]) => { types = t || []; if (kind !== "event") { paint(); setTimeout(focusFirst, 0); } }).catch((e) => say(e.message, true));
+    if (bridge) bridge.calendars((text) => { try { calendars = JSON.parse(text) || []; } catch { calendars = []; } if (kind === "event") paint(); });
+  }
+
+  // ---------------------------------------------------------------- making
+
+  // A mention's words, for a title that must be plain (an event's, which a calendar shows as it is).
+  const plain = (s) => (s || "").replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1").replace(/^@/, "").trim();
+  const localAt = (d, m) => `${isoDay(d)}T${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+
+  /** The type's fields as properties, from what was entered; what cannot be read says so. */
+  function properties(t, info) {
+    const out = {};
+    for (const f of t.fields) {
+      if (f["talaris:auto"] || f.kind === "attachment") continue;
+      const k = f.key;
+      switch (f.kind) {
+        case "text": {
+          const s = String(v[k] || "").trim();
+          if (!s) break;
+          out[k] = f.many ? s.split(/\s*[,;]\s*/).filter(Boolean) : s;
+          break;
+        }
+        case "richtext": if (String(v[k] || "").trim()) out[k] = v[k]; break;
+        case "number": if (String(v[k] ?? "").trim()) { const n = Number(v[k]); if (Number.isNaN(n)) throw new Error(`${words(k)} isn't a number`); out[k] = n; } break;
+        case "boolean": if (v[k]) out[k] = true; break;
+        case "enum": if (v[k]) out[k] = v[k]; break;
+        case "date": case "datetime": {
+          if (!String(v[k + "Text"] || "").trim()) break;
+          if (!v[k]) throw new Error(`${f.label || words(k)}: that isn't a day I can read`);
+          out[k] = f.kind === "date" || v[k + "At"] == null ? isoDay(v[k]) : localAt(v[k], v[k + "At"]);
+          break;
+        }
+        case "datespan": {
+          const span = {};
+          for (const [part, key] of [["start", k + "Start"], ["end", k + "End"]]) {
+            if (!String(v[key + "Text"] || "").trim()) continue;
+            if (!v[key]) throw new Error(`${(part === "start" ? f.startLabel : f.endLabel) || part}: that isn't a day I can read`);
+            span[part] = isoDay(v[key]);
+          }
+          if (Object.keys(span).length) out[k] = span;
+          break;
+        }
+        case "reference": {
+          const ids = (v[k] || []).map((x) => x.id).filter(Boolean);
+          if (ids.length) out[k] = f.many ? ids : ids[0];
+          break;
+        }
+        default: break;
+      }
+    }
+    // A title is a title's words, with any link kept where the type takes them.
+    const title = String(v[info.titleKey] || "").trim();
+    if (title) out[info.titleKey] = info.titleTakesAt ? title : plain(title);
+    return out;
+  }
+
+  /** People chosen from an address book are made now, so a reference can point at them. */
+  async function madeReferences() {
+    for (const [k, list] of Object.entries(v)) {
+      if (!Array.isArray(list)) continue;
+      for (const x of list) if (x && !x.id && x.make) Object.assign(x, await x.make());
+    }
+  }
+
+  async function makeTyped(t, andOpen) {
+    const info = readType(t);
+    const required = t.fields.filter((f) => f.required && f.key === info.titleKey);
+    const email = info.email ? String(v[info.email] || "").split(/[,;]/)[0].trim().toLowerCase() : "";
+    if (required.length && !plain(v[info.titleKey]) && !email) throw new Error(`${KINDS.find(([k]) => k === kind)[1]} needs a ${kind === "contact" ? "name" : kind === "project" ? "name" : "title"}`);
+    await madeReferences();
+    const props = properties(t, info);
+    if (info.task && v.repeat && info.span) {
+      // Repeating needs a date to repeat from: today, if none was given.
+      const span = props[info.span] || {};
+      if (!span.end && !span.start) props[info.span] = { ...span, end: isoDay(new Date()) };
+    }
+    let made;
+    if (t["talaris:role"] === "project") {
+      // A project is a folder first (a Talaris project); its entity follows, and takes the rest.
+      const p = await api("POST", "/projects", { name: plain(v[info.titleKey]) });
+      const listed = await api("GET", "/tasks/projects");
+      made = (listed || []).find((x) => x.workspace === p.id);
+      const rest = { ...props };
+      delete rest[info.titleKey];
+      if (made && Object.keys(rest).length) await api("PATCH", `/entities/${enc(made.id)}`, { properties: rest });
+    } else if (email) {
+      // Somebody by address: the one already here, added to, or made.
+      const known = (await api("POST", "/entities/people/known", { emails: [email] }))[email];
+      if (known) {
+        const rest = { ...props };
+        if (!plain(v[info.titleKey])) delete rest[info.titleKey];
+        made = await api("PATCH", `/entities/${enc(known.id)}`, { properties: rest });
+      } else made = await api("POST", "/entities", { type: t.id, properties: props });
+    } else {
+      made = await api("POST", "/entities", { type: t.id, properties: props });
+    }
+    if (made && info.task && v.repeat) {
+      const span = props[info.span] || {};
+      const day = parseDay(span.end || span.start) || new Date();
+      await api("PUT", `/tasks/${enc(made.id)}/recurrence`, { rule: taskRule(day) });
+    }
+    // Files last: they are the thing's once it is.
+    if (made) {
+      const errors = [];
+      for (const f of t.fields.filter((x) => x.kind === "attachment")) {
+        const files = v[f.key] || [];
+        if (!files.length) continue;
+        say("Keeping the files…");
+        const r = await new Promise((ok) => { sentWait = ok; bridge.sendFiles(made.id, f.key, JSON.stringify(files.map((x) => x.path))); });
+        if (r.error) errors.push(r.error);
+      }
+      if (errors.length) { busy = false; say(`Made, but: ${errors.join("; ")}`, true); return; }
+    }
+    const word = KINDS.find(([k]) => k === kind)[1];
+    done(`${word} made`, andOpen && info.task && made ? () => bridge.openThing("task", made.id) : null);
+  }
+
+  async function make_(andOpen) {
+    if (busy) return;
+    readEditors();
+    try {
+      busy = true;
+      say("Making…");
+      if (kind === "event") {
+        const title = plain(v.title);
+        if (!title) throw new Error("An event needs a title");
+        if (!v.day) throw new Error("That day isn't one I can read");
+        if (!v.calendar) throw new Error("There is no calendar to write to");
+        const cal = calendars.find((c) => c.id === v.calendar);
+        const start = new Date(v.day.getTime() + (v.allDay ? 0 : v.from * 60000));
+        let end = v.allDay ? addDays(v.day, 1) : new Date(v.day.getTime() + v.to * 60000);
+        if (end <= start) end = new Date(start.getTime() + 3600000);
+        const invites = Boolean(cal && cal.invites && v.people.length);
+        const event = { title, allDay: Boolean(v.allDay), start: start.getTime(), end: end.getTime(), location: v.location || "", notes: v.notes || "",
+          ...(v.repeat ? { rrule: eventRule(v.day) } : {}), ...(invites ? { attendees: v.people } : {}) };
+        store.set("talaris.new.calendar", v.calendar);
+        await new Promise((ok, fail) => { eventWait = { ok, fail }; bridge.createEvent(v.calendar, JSON.stringify(event)); });
+        done(invites ? "Event made, invitations sent" : "Event made", andOpen ? () => bridge.openThing("event", "") : null);
+        return;
+      }
+      const t = typeFor(kind);
+      if (!t) throw new Error("There is no type for this");
+      await makeTyped(t, andOpen);
+    } catch (e) {
+      busy = false;
+      say(e.message, true);
+    }
+  }
+  let eventWait = null;
+  let sentWait = null;
+  function done(text, then) {
+    say(text);
+    // A moment to read that it was made, then away — or to where it lives.
+    setTimeout(() => {
+      busy = false;
+      if (then) then();
+      else if (bridge) bridge.file();
+    }, then ? 150 : 650);
+  }
+  $("make").addEventListener("click", () => make_(false));
+
+  // ---------------------------------------------------------------- keys
+
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && /^[1-5]$/.test(e.key)) {
+      e.preventDefault(); e.stopPropagation();
+      choose(KINDS[Number(e.key) - 1][0]);
+      return;
+    }
+    if (e.key === "Enter" && (e.shiftKey || e.ctrlKey)) {
+      // Shift+Enter makes and opens; Ctrl+Enter makes, from anywhere — the note's body included.
+      if (document.querySelector(".cm-tooltip-autocomplete")) return;
+      e.preventDefault(); e.stopPropagation();
+      make_(e.shiftKey);
+      return;
+    }
+  }, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (!$("pop").hidden) popAway();
+      else if (bridge) bridge.file();
+      return;
+    }
+    if (e.key === "Enter" && e.target.tagName === "INPUT") {
+      e.preventDefault();
+      popAway();
+      make_(false);
+    }
+  });
+  document.addEventListener("pointerdown", (e) => { if (e.target === document.documentElement && bridge && surface.up) bridge.file(); });
+  window.pressedAt = (x, y) => { if (bridge && surface.up && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
+  for (const t of ["pointerdown", "keydown"]) addEventListener(t, () => bridge && bridge.activity(), { capture: true, passive: true });
+
+  // ---------------------------------------------------------------- coming and going
+
+  function how() {
+    const m = surface.motion || {};
+    return { kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement, viewport: surface.viewport,
+      shown: () => bridge && bridge.drawn() };
+  }
+  function onState(s) {
+    const was = surface;
+    surface = s;
+    if (s.up && !was.up) {
+      Motion.arrive(document.body, how());
+      if (bridge) reset();
+    }
+  }
+
+  Surface.connect({ onState }).then((b) => {
+    bridge = b;
+    b.coreReply.connect((text) => { const r = JSON.parse(text); const d = waiting.get(r.id); waiting.delete(r.id); if (d) d(r); });
+    b.eventMade.connect((text) => {
+      const r = JSON.parse(text);
+      const w = eventWait;
+      eventWait = null;
+      if (!w) return;
+      if (r.error) w.fail(new Error(r.error)); else w.ok(r);
+    });
+    // Files chosen for a field: kept on the page until the thing is made.
+    b.chosen.connect((text) => {
+      const r = JSON.parse(text);
+      if (!r.files.length) return;
+      const list = v[r.field] = v[r.field] || [];
+      for (const f of r.files) if (!list.some((x) => x.path === f.path)) list.push(f);
+      paint();
+    });
+    b.sent.connect((text) => { const w = sentWait; sentWait = null; if (w) w(JSON.parse(text)); });
+    b.leave.connect(() => {
+      surface = { ...surface, up: false };
+      popAway();
+      Peek.close();
+      const going = Motion.leave(document.body, how());
+      if (going) going.onfinish = () => bridge.left(); else bridge.left();
+    });
+    if (surface.up) reset();
+  });
+})();

@@ -18,6 +18,7 @@ import http.client
 import json
 import os
 import socket
+from urllib.parse import parse_qs, urlsplit
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
@@ -53,13 +54,26 @@ def call(method: str, path: str, body: str | None = None, timeout: float = 10) -
         conn.close()
 
 
+#: Answers `/people/find?q=` — the calendar's address books, which live in this
+#: process and not the core's — when the calendar has set it (surfaces.py).
+find_people = None
+
+
+def local_call(method: str, path: str, body: str | None, timeout: float | None = None) -> tuple[int, str]:
+    """A page's call to the core, or the one question this process answers itself."""
+    if method == "GET" and path.startswith("/people/find?"):
+        q = parse_qs(urlsplit(path).query).get("q", [""])[0]
+        return 200, json.dumps(find_people(q) if find_people else [])
+    return call(method, path, body, **({"timeout": timeout} if timeout else {}))
+
+
 class _Call(QRunnable):
     def __init__(self, bridge: "Bridge", rid: int, method: str, path: str, body: str | None) -> None:
         super().__init__()
         self.bridge, self.rid, self.method, self.path, self.body = bridge, rid, method, path, body
 
     def run(self) -> None:
-        status, text = call(self.method, self.path, self.body)
+        status, text = local_call(self.method, self.path, self.body)
         self.bridge.replied.emit(self.rid, status, text)
 
 

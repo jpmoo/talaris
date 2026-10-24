@@ -249,3 +249,33 @@ test("files kept with a task: once each, sealed, off again, and carried in a bac
   tasks.detachFile(t.id, a.sha256);
   assert.equal(entities.getEntity(t.id).properties.attachments, undefined);
 });
+
+test("a mention in a task's words is an edge that follows the words, and the title reads plainly", () => {
+  const chuck = entities.createEntity({ role: "person", properties: { title: "Chuck Smith" } });
+  const t = tasks.createTask({ title: `Call [@Chuck Smith](talaris:${chuck.id}) back` });
+  assert.equal(entities.titleOf(entities.getEntity(t.id)), "Call @Chuck Smith back");
+  const edges = () => entities.relationsFrom(t.id).filter((r) => r.via === "inline");
+  assert.deepEqual(edges().map((r) => [r.to, r.type, r.field]), [[chuck.id, "mentions", "title"]]);
+  assert.ok(entities.connections(chuck.id).in.some((c) => c.entity.id === t.id), "Chuck's connections show the task");
+  entities.updateEntity(t.id, { properties: { title: "Call back" } });
+  assert.deepEqual(edges(), [], "the mention gone, the edge gone");
+});
+
+test("a writing page and a canvas note hold their mentions through entities that stand for them", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const canvases = await import("../src/canvases.js");
+  const ada = entities.createEntity({ role: "person", properties: { title: "Ada" } });
+  const p = projects.createProject("Mentions");
+  const page = pages.createPage(p.id, null, "Minutes");
+  pages.writePage(p.id, page.path, `Met with [@Ada](talaris:${ada.id}) today.`);
+  assert.ok(entities.connections(ada.id).in.some((c) => c.entity.title === "Minutes"));
+  const moved = pages.movePage(p.id, page.path, null, "Minutes 2");
+  assert.ok(entities.bySource({ kind: "page", key: `${p.id}/${moved.path}` }), "the page's entity follows it");
+  const top = projects.readProject(p.folder).topCanvas;
+  const doc = canvases.readCanvas(p.id, top);
+  const saved = canvases.writeCanvas(p.id, { ...doc, items: [...doc.items, { id: "it_n1", x: 0, y: 0, w: 1, h: 1, text: `Ask [@Ada](talaris:${ada.id})` } as any] });
+  const note = saved.items.find((i) => i.id === "it_n1") as { entity?: string };
+  assert.ok(note.entity, "the note became an entity");
+  assert.ok(entities.connections(ada.id).in.some((c) => c.entity.id === note.entity));
+});

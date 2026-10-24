@@ -533,11 +533,15 @@
     }
     return { title: words.join(" ").trim(), due, tags };
   }
-  $("quick").addEventListener("keydown", async (e) => {
-    if (e.key === "Escape" && $("quick").value) { e.preventDefault(); e.stopPropagation(); $("quick").value = ""; return; }
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const q = parseQuick($("quick").value.trim());
+  // An editor line, so @ links as it does in a task's title (made with the
+  // sheet's editors, below); Enter adds, Escape clears what was typed.
+  let quickEd = null;
+  $("quick").addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && quickEd && quickEd.text && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); quickEd.set(""); }
+  });
+  async function addQuick() {
+    if (!quickEd) return;
+    const q = parseQuick(quickEd.text.trim());
     if (!q.title) return;
     const t = { title: q.title };
     if (q.due) t.due = q.due;
@@ -546,8 +550,8 @@
     // core puts it there only if the list is one that is filled by hand).
     if (current && current.kind === "project") t.projects = [current.id];
     else if (current && current.kind === "list") t.list = current.id;
-    try { await newTask(t); $("quick").value = ""; say(""); } catch (err) { failed(err); }
-  });
+    try { await newTask(t); quickEd.set(""); say(""); } catch (err) { failed(err); }
+  }
 
   // ---------------------------------------------------------------- Tasks' own calls
 
@@ -611,10 +615,13 @@
     const p = props();
     const value = String(p[shape.statusKey] ?? "");
     const complete = completeValues().includes(value);
-    if (!focused("s-title")) $("s-title").value = p[shape.titleKey] || "";
+    if (titleEd && !$("s-title").contains(document.activeElement) && titleEd.text !== (p[shape.titleKey] || "")) titleEd.set(p[shape.titleKey] || "");
     $("s-check").classList.toggle("on", complete);
     $("s-check").style.setProperty("--c", complete ? status(value).color : "var(--muted)");
     $("s-check").title = status(value).label;
+    // Two statuses, one open and one done, say no more than the checkbox
+    // beside the title does: the row shows only when there is more to choose.
+    $("s-status-row").hidden = options().length <= 2;
     $("s-status").replaceChildren(...options().map((v) => el("button", { class: "st" + (v === value ? " on" : ""), style: `--c:${status(v).color}`,
       onclick: () => setStatus(editing, v).catch(failed) }, status(v).label)));
 
@@ -661,20 +668,42 @@
         el("button", { class: "add", title: "Attach files", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
         el("span", { id: "s-files-note" }));
     }
-    if (!focused("s-notes")) $("s-notes").value = p[notesKey()] || "";
+    if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");
     const stamp = split(p[shape.doneKey]);
     $("s-done").textContent = stamp.day ? `Done ${stamp.day.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${stamp.time != null ? `, ${timeLabel(stamp.time)}` : ""}` : "";
     $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
   }
 
-  // The title, saved as it is left.
-  $("s-title").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("s-title").blur(); } });
-  $("s-title").addEventListener("blur", () => {
-    if (!entity || !shape) return;
-    const v = $("s-title").value.trim();
+  // Title and notes are the editor, so @ names anything in them (mentions.js);
+  // a mention clicked opens a task here, or peeks at anything else.
+  let titleEd = null, notesEd = null;
+  async function openMention(id) {
+    try {
+      const got = await api("GET", `/entities/${enc(id)}`);
+      if ((got.kinds || []).includes("task")) { openTask(id); return; }
+    } catch { /* gone: peek says so */ }
+    if (window.Peek) Peek.show(id, api, { onTask: openTask });
+  }
+  function saveTitle() {
+    if (!entity || !shape || !titleEd) return;
+    const v = titleEd.text.trim();
     if (v && v !== (props()[shape.titleKey] || "")) update(editing, { properties: { [shape.titleKey]: v } }).catch(failed);
-    else $("s-title").value = props()[shape.titleKey] || "";
-  });
+    else if (!v) titleEd.set(props()[shape.titleKey] || "");
+  }
+  function saveNotes() {
+    if (!entity || !notesEd) return;
+    const key = notesKey(), v = notesEd.text;
+    if (v !== (props()[key] || "")) update(editing, { properties: { [key]: v || null } }).catch(failed);
+  }
+  import("./editor.js").then((m) => {
+    const mentions = TalarisMentions(api, openMention);
+    quickEd = m.createEditor($("quick"), "", { live: true, compact: true, singleLine: true, placeholder: "Add a task", mentions, onEnter: () => { addQuick(); } });
+    titleEd = m.createEditor($("s-title"), "", { live: true, compact: true, singleLine: true, mentions, onEnter: () => { saveTitle(); $("s-title").querySelector(".cm-content")?.blur(); } });
+    notesEd = m.createEditor($("s-notes"), "", { live: true, compact: true, mentions });
+    $("s-title").addEventListener("focusout", saveTitle);
+    $("s-notes").addEventListener("focusout", saveNotes);
+    if (entity) paintSheet();
+  }).catch(failed);
   $("s-check").addEventListener("click", () => {
     if (!entity) return;
     const complete = completeValues().includes(String(props()[shape.statusKey] ?? ""));
@@ -682,11 +711,7 @@
   });
   $("s-close").innerHTML = Icons.close();
   $("s-close").addEventListener("click", closeSheet);
-  $("s-notes").addEventListener("blur", () => {
-    if (!entity) return;
-    const key = notesKey(), v = $("s-notes").value;
-    if (v !== (props()[key] || "")) update(editing, { properties: { [key]: v || null } }).catch(failed);
-  });
+
   $("s-archive").addEventListener("click", () => { if (entity) update(editing, { archived: !entity.archived }).catch(failed); });
 
   // Dates: the whole datespan sent each time, null when nothing is left of it.
@@ -856,7 +881,7 @@
     }
     if (e.key === "n" && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(document.activeElement)) {
       e.preventDefault();
-      $("quick").focus();
+      $("quick").querySelector(".cm-content")?.focus();
     }
   });
 

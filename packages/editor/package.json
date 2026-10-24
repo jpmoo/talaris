@@ -10,6 +10,7 @@
     "test": "esbuild test/*.test.ts --bundle --platform=node --format=esm --outdir=dist && node --test dist/*.test.js"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.13.1",

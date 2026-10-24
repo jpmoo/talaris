@@ -14,6 +14,7 @@ import { MACHINERY } from "./paths.js";
 import { Conflict, NotFound, findProject, listProjects, readProject } from "./projects.js";
 import { newId, readJson, writeJson } from "./store.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
+import { syncText } from "./mentions.js";
 
 /**
  * A project's canvases are a tree: one top canvas, and below it children, each
@@ -103,6 +104,14 @@ export function writeCanvas(projectId: string, doc: CanvasDocument, options: { d
   // A canvas's title is changed by renaming it: a page that held the canvas
   // from before a rename must not put the old one back by saving.
   const kept = { ...doc, title: current.title, format: doc.format ?? FORMAT_VERSION };
+  // A note that mentions something is an entity, holding those mentions as
+  // its edges (mentions.ts); its card keeps the entity's id.
+  for (const item of kept.items) {
+    const text = typeof (item as { text?: unknown }).text === "string" ? (item as { text: string }).text : "";
+    if (!text.includes("](talaris:") && !(item as { entity?: string }).entity) continue;
+    const id = syncText({ kind: "canvas-note", key: `${projectId}/${doc.id}/${item.id}` }, text.split("\n").find((l) => l.trim())?.trim() ?? "Note", text);
+    if (id && !(item as { entity?: string }).entity) (item as { entity?: string }).entity = id;
+  }
   persist(folder, kept);
   return kept;
 }

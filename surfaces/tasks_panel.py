@@ -25,7 +25,7 @@ import threading
 from PySide6.QtCore import QProcess, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, call as core_call
+from core import Bridge, call as core_call, local_call
 from overlay import Overlay
 from views import log
 
@@ -36,7 +36,55 @@ OPENED = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()
 LARGEST = 48 * 1024 * 1024
 
 #: What the page may ask the core for.
-ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types)(/|$|\?)")
+ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find)(/|$|\?)")
+
+
+def choose_files(overlay, title: str, chosen) -> None:
+    """
+    Files chosen in the desktop's chooser, for `overlay`, which steps aside for
+    it (a layer surface over everything would sit on the chooser); `chosen`
+    hears the paths, or none.
+    """
+    if getattr(overlay, "_chooser", None):
+        return
+    chooser = QProcess(overlay)
+    chooser.setProgram("zenity")
+    chooser.setArguments(["--file-selection", "--multiple", "--separator=\n", f"--title={title}"])
+
+    def done(code: int, _status) -> None:
+        overlay._chooser = None
+        paths = [p for p in bytes(chooser.readAllStandardOutput()).decode().split("\n") if p.strip()] if code == 0 else []
+        chooser.deleteLater()
+        overlay.come_back()
+        chosen(paths)
+
+    chooser.finished.connect(done)
+    overlay._chooser = chooser
+    overlay.step_aside()
+    chooser.start()
+
+
+def send_files(path: str, files: list, extra: dict | None = None) -> tuple[int, list]:
+    """Files read and kept by the core at `path` (a task's attachments, an entity's files): how many, and what went wrong."""
+    added, errors = 0, []
+    for file in files:
+        name = os.path.basename(file)
+        try:
+            if os.path.getsize(file) > LARGEST:
+                errors.append(f"{name} is larger than {LARGEST // (1024 * 1024)} MB")
+                continue
+            with open(file, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+        except OSError as e:
+            errors.append(f"{name}: {e.strerror}")
+            continue
+        kind = mimetypes.guess_type(name)[0]
+        status, text = core_call("POST", path, json.dumps({"filename": name, "data": data, **({"mediaType": kind} if kind else {}), **(extra or {})}), timeout=120)
+        if status == 200:
+            added += 1
+        else:
+            errors.append(f"{name}: {text[:120]}")
+    return added, errors
 
 
 class TasksBridge(Bridge):
@@ -50,7 +98,7 @@ class TasksBridge(Bridge):
             return
 
         def run() -> None:
-            status, text = core_call(method, path, body or None, timeout=30)
+            status, text = local_call(method, path, body or None, timeout=30)
             try:
                 data = json.loads(text) if text else None
             except ValueError:
@@ -83,45 +131,13 @@ class Tasks(Overlay):
         self.bridge.setParent(self)
 
     def choose_files(self, task: str) -> None:
-        if getattr(self, "_chooser", None):
-            return
-        chooser = QProcess(self)
-        chooser.setProgram("zenity")
-        chooser.setArguments(["--file-selection", "--multiple", "--separator=\n", "--title=Files for the task"])
-
-        def done(code: int, _status) -> None:
-            self._chooser = None
-            paths = [p for p in bytes(chooser.readAllStandardOutput()).decode().split("\n") if p.strip()] if code == 0 else []
-            chooser.deleteLater()
-            self.come_back()
+        def chosen(paths: list) -> None:
             if paths:
                 threading.Thread(target=self._send, args=(task, paths), daemon=True).start()
-
-        chooser.finished.connect(done)
-        self._chooser = chooser
-        self.step_aside()
-        chooser.start()
+        choose_files(self, "Files for the task", chosen)
 
     def _send(self, task: str, paths: list) -> None:
-        added, errors = 0, []
-        for path in paths:
-            name = os.path.basename(path)
-            try:
-                if os.path.getsize(path) > LARGEST:
-                    errors.append(f"{name} is larger than {LARGEST // (1024 * 1024)} MB")
-                    continue
-                with open(path, "rb") as f:
-                    data = base64.b64encode(f.read()).decode()
-            except OSError as e:
-                errors.append(f"{name}: {e.strerror}")
-                continue
-            kind = mimetypes.guess_type(name)[0]
-            status, text = core_call("POST", f"/tasks/{task}/attachments",
-                                     json.dumps({"filename": name, "data": data, **({"mediaType": kind} if kind else {})}), timeout=120)
-            if status == 200:
-                added += 1
-            else:
-                errors.append(f"{name}: {text[:120]}")
+        added, errors = send_files(f"/tasks/{task}/attachments", paths)
         self.bridge.attached.emit(json.dumps({"task": task, "added": added, "error": "; ".join(errors)}))
 
     def open_file(self, sha: str, filename: str) -> None:

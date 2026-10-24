@@ -15,6 +15,9 @@ const sandbox = mkdtempSync(join(tmpdir(), "talaris-core-"));
 process.env.TALARIS_PROJECTS = join(sandbox, "Projects");
 process.env.TALARIS_CONFIG_DIR = join(sandbox, "config");
 process.env.TALARIS_STATE_DIR = join(sandbox, "state");
+// Pages and canvases keep what they mention in the entity store: a sealed one, here with a test key.
+process.env.TALARIS_DATA_DIR = join(sandbox, "data");
+process.env.TALARIS_KEY = (await import("node:crypto")).randomBytes(32).toString("base64");
 const SOCKET = join(sandbox, "core.sock");
 
 const projects = await import("../src/projects.js");
