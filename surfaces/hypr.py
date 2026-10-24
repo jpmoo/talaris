@@ -165,13 +165,17 @@ def option(name: str):
 
 def refocus_pointer() -> None:
     """
-    The cursor put where it already is. A surface appearing makes Hyprland let
-    go of what the pointer was over — the cursor falls back to an arrow, and a
-    press goes nowhere — until the pointer moves; this is that move, of nothing.
+    The cursor nudged and put back where it was. A surface appearing makes
+    Hyprland let go of what the pointer was over — the cursor falls back to an
+    arrow, and a press goes nowhere — until the pointer moves; this is that move.
     """
     try:
         at = json.loads(ask("j/cursorpos"))
-        ask(f"/dispatch movecursor {int(at['x'])} {int(at['y'])}")
+        x, y = int(at["x"]), int(at["y"])
+        # A pixel over and back: a page sets its cursor (the pointing hand on a
+        # button) only on a move it sees, and a move to the same place is none.
+        ask(f"/dispatch movecursor {x + 1} {y}")
+        ask(f"/dispatch movecursor {x} {y}")
     except (OSError, ValueError, KeyError):
         pass
 
