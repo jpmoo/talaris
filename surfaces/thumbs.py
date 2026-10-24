@@ -6,7 +6,9 @@ for the bar's project menu and the Super+Alt list — so a project is found by
 its look as well as its name.
 
 A small picture of the screen (grim), taken a moment after a project becomes
-the current one and then every minute while it stays, but never while a
+the current one, after a window is brought to it, and every twenty seconds
+while it stays — only what is in view can be pictured, so a desktop a window
+left keeps its old likeness until it is next seen — but never while a
 Talaris panel or menu is out — a dimmed screen is no likeness. Kept in the
 runtime directory, which only the user reads and which is cleared at logout:
 a picture of the screen is not something to leave on disk. A project not yet
@@ -30,7 +32,7 @@ from views import log
 DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-thumbs")
 #: Width of a thumbnail, in pixels: enough for a 128-wide tile on a dense screen.
 WIDTH = 384
-EVERY_MS = 60 * 1000
+EVERY_MS = 20 * 1000
 #: Surfaces of Talaris that are always there; any other one out means a panel or menu is.
 RESIDENT = ("talaris-bar", "talaris-dock", "talaris-edge-dock", "talaris-desk", "talaris-edge")
 

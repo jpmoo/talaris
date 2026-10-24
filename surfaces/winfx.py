@@ -100,6 +100,10 @@ class WindowDraw(QObject):
         # Laid out a moment after it opens; asked then.
         QTimer.singleShot(60, lambda: self._draw("open", self._clients().get(address)))
 
+    def arrived(self, address: str) -> None:
+        """A window brought from another desktop to this one: drawn in, as one that opened here is."""
+        self._opened(address)
+
     def _closed(self, address: str) -> None:
         if self.on():
             self._draw("close", self.where.pop(address, None))

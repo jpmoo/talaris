@@ -33,7 +33,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
 import hypr
-from apps import Apps, opens_new_windows
+from apps import Apps, keeps_one_window, opens_new_windows
 from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
@@ -51,8 +51,11 @@ from sensor import Presses
 from views import log, make_view
 
 #: How long a started application has to show a new window before its
-#: window elsewhere is brought here instead.
-FOLLOW_MS = 4000
+#: window elsewhere is brought here instead (one that offers new windows, a
+#: browser, is never moved, so this need not wait for a slow one); and how
+#: often it is looked for meanwhile.
+FOLLOW_MS = 1800
+LOOK_MS = 250
 #: An open launcher nobody types into puts itself away.
 IDLE_MS = 60000
 #: How long the page has to finish leaving before the surface goes anyway.
@@ -150,6 +153,9 @@ class Launcher(QObject):
         self.up = False
         self.mode = ""  # "" to find anything, "ask" when Morgan's button opened it
         self._windows: set[str] = set()
+        #: Applications just started again, watched for a window: id → (their windows then, where asked).
+        self._pending: dict[str, tuple] = {}
+        desktop.events.urgent.connect(self._urgent)
         self.bridge = LauncherBridge(self, self)
         # One of Morgan's searches at a time, at most two waiting.
         self.searches = QThreadPool(self)
@@ -268,10 +274,17 @@ class Launcher(QObject):
                 return ""
             now = hypr.windows()
             before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
+            # One that says it keeps a single window is brought here, not started again.
+            if mine and keeps_one_window(r["id"]):
+                self._bring(r["id"], here)
+                return ""
             # Through the compositor, so it starts with the session's environment
             # and on the workspace in front of you.
             hypr.ask(f"/dispatch exec gtk-launch {r['id']}")
-            QTimer.singleShot(FOLLOW_MS, lambda: self._follow(r["id"], before, here))
+            # Watched: brought here the moment it raises the window it has (urgent), or
+            # once it has shown no new window in the time given.
+            self._pending[r["id"]] = (before, here)
+            self._look(r["id"], FOLLOW_MS)
         elif kind == "window":
             if r["address"] not in self._windows:
                 return "That window has gone"
@@ -297,7 +310,25 @@ class Launcher(QObject):
         now = hypr.windows()
         return sorted((w for w in now["windows"] if self.apps.lookup(w["class"]).get("id") == app_id), key=lambda w: w["recent"])
 
-    def _follow(self, app_id: str, before: set, here: tuple) -> None:
+    def _look(self, app_id: str, left: int) -> None:
+        """A new window of it seen: as asked, nothing to bring. None in the time given: brought."""
+        if app_id not in self._pending:
+            return
+        before, _here = self._pending[app_id]
+        if any(w["address"] not in before for w in self._app_windows(app_id)):
+            self._pending.pop(app_id, None)
+        elif left <= 0:
+            self._follow(app_id)
+        else:
+            QTimer.singleShot(LOOK_MS, lambda: self._look(app_id, left - LOOK_MS))
+
+    def _urgent(self, address: str) -> None:
+        """A window asked to come forward: one of an application just started again, raising the one it has."""
+        for app_id, (before, _here) in list(self._pending.items()):
+            if address in before:
+                self._follow(app_id)
+
+    def _follow(self, app_id: str) -> None:
         """
         Started again from the launcher, an application either opened a new
         window (here, as asked) or did not: one that keeps a single window —
@@ -305,14 +336,26 @@ class Launcher(QObject):
         window it has, wherever it is. That window is brought to the desktop
         it was asked for on: the project you are in, not the one it was left in.
         """
+        if app_id not in self._pending:
+            return
+        before, here = self._pending.pop(app_id)
         mine = self._app_windows(app_id)
         # One that opens new windows (a browser) is not moved, however slow its new window is to come.
         if not mine or any(w["address"] not in before for w in mine) or opens_new_windows(app_id):
             return
+        self._bring(app_id, here)
+
+    def _bring(self, app_id: str, here: tuple) -> None:
+        """An application's window, from wherever it is, to the desktop it was asked for on — drawn in as it comes."""
+        mine = self._app_windows(app_id)
         wid, spec = here
-        if any(w["workspace"] == wid and not w["hidden"] for w in mine) and hypr.windows()["active"] == wid:
+        if not mine or (any(w["workspace"] == wid and not w["hidden"] for w in mine) and hypr.windows()["active"] == wid):
             return
-        hypr.show(mine[0]["address"], spec)
+        window = mine[0]["address"]
+        hypr.show(window, spec)
+        self.desktop.winfx.arrived(window)
+        # This desktop's likeness taken again, with the window in it.
+        self.desktop.thumbs.arrived()
         log(f"launcher: {app_id} brought here")
 
     def _open_file(self, path: str) -> str:

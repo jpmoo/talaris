@@ -60,6 +60,19 @@ def _read_entry(path: str) -> dict:
     return entry
 
 
+def keeps_one_window(app_id: str) -> bool:
+    """Whether an application's desktop file says it has a single main window (`SingleMainWindow=true`)."""
+    for d in _data_dirs():
+        path = os.path.join(d, "applications", f"{app_id}.desktop")
+        if os.path.isfile(path):
+            try:
+                main = open(path, encoding="utf-8", errors="replace").read().split("\n[", 1)[0]
+            except OSError:
+                return False
+            return bool(re.search(r"^SingleMainWindow\s*=\s*true", main, re.M | re.I))
+    return False
+
+
 def opens_new_windows(app_id: str) -> bool:
     """
     Whether an application opens a new window when started again, as its

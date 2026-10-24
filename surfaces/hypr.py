@@ -240,6 +240,8 @@ class Events(QObject):
     windows = Signal()
     #: The workspace gone to, by name: "3", or a project's id.
     workspace = Signal(str)
+    #: A window asked to be brought forward (an application started again raises the one it has): its address.
+    urgent = Signal(str)
     #: A window opened, or closed: its address (as `j/clients` writes it, 0x…).
     opened = Signal(str)
     closed = Signal(str)
@@ -262,6 +264,8 @@ class Events(QObject):
             name = line.split(b">>", 1)[0].decode("ascii", "replace")
             if name == "configreloaded":
                 self.reloaded.emit()
+            if name == "urgent":
+                self.urgent.emit("0x" + line.split(b">>", 1)[1].decode("ascii", "replace").strip())
             if name == "workspace":
                 self.workspace.emit(line.split(b">>", 1)[1].decode("utf-8", "replace"))
             if name in ("openwindow", "closewindow"):
