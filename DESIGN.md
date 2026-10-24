@@ -843,9 +843,92 @@ or card on a canvas, and a checkbox item in a page, can each be turned into a
 task — kept where it was, now linked to the task it became, so ticking one
 ticks the other.
 
-**Open, to settle when it is built:** where tasks are shown — their own drawer,
-a section of the writing drawer, cards on a canvas, all three — and how daily
-notes and tasks meet.
+**Where tasks are shown** (decided 2026-10-24): **the Tasks panel**, from the
+bar's Tasks button, a panel like the rest that expands into a window. Its left
+column lists **projects** and **lists** (saved queries); the right shows what
+is chosen. Cards on a canvas and checkboxes in a page come later, through the
+entity graph.
+
+### The list to match (read from Hermes' code, 2026-10-24)
+
+What Hermes does, with Hermes' own bugs named so they are not copied. Tasks and
+projects are entities (DESIGN, *Entities*); lists are interchange
+**collections**, which the entity store now has to carry — the format's
+`collections`, `placement` and `series` features, measured, not claimed.
+
+**A task** — its type's fields, all renameable, extensible by the user:
+- `title`; `description` (the body, Markdown); `schedule`, a datespan read as
+  **Available** (start) and **Due** (end), each a date or a date and time, no
+  zone (wall-clock); `status`; `recurrence`; `project`, a `reference`, many.
+- Status options, Hermes' own so a sync maps one to one: not started, in
+  progress, blocked, **done**, **archived**, **won't do** — the last three
+  complete. Each with an icon and a color. New tasks take the default (not
+  started).
+- Tags. `#tag` typed in a field adds the tag.
+- No priority field, as in Hermes; importance is where a task sits on a board
+  (below).
+
+**Completing** — read from status and its complete values, never a name:
+- stamps `done_at`; leaving complete clears it;
+- a recurring task spawns its next occurrence. **Not copied from Hermes:**
+  un-completing and completing again spawned a second next occurrence; here a
+  completion that already spawned one does not spawn again. And the new
+  occurrence joins its series at once (Hermes left it out, so "end after N"
+  never ended).
+- Done tasks archive themselves after a set number of days (Settings), and can
+  all be archived at once. Archive is reversible; delete is for the archived.
+
+**Recurrence** — a series, as the format has it:
+- from the **scheduled** date or from **completion**; daily, weekly (on chosen
+  weekdays), monthly, yearly; every N; a month too short for its day clamps to
+  its last day or is skipped; ends never, after N, or on a date.
+- The next occurrence copies the task (title, body, projects, custom fields),
+  resets its status, moves its dates — the whole span shifted (scheduled), or
+  due from the completion day with the available-to-due gap kept (completion).
+- Written in a small editor like Hermes' (complete from, frequency, every N,
+  weekdays, short months, end); summarized in a line on the task.
+
+**Dates** — overdue is a date-only due before today (a time: before now), and
+only for an open task. Quick shifts in the date picker: today, +1 day, +1
+week, next weekday, clear the time.
+
+**Projects** — an entity with a title and description; a project page lists
+what references it, grouped by kind. Archiving a project hides it from the
+list. Unknown project names given when making a task make the project.
+
+**Lists (collections)** — the core of the panel:
+- **Manual** (explicit members, dragged into order) or **smart** (a query);
+  a smart list is **dynamic** (re-run on every look, read-only order) or a
+  **snapshot** (filled now, then edited by hand until refreshed).
+- **The query**: groups of **all/any**, nested without limit; conditions on
+  kind (a type, or not), created/edited before/after, tag (has/lacks), any
+  field (is, is not, contains, before/after, empty, not empty — a datespan's
+  start and end separately), text, attachments, and **meaning** (semantic,
+  with a threshold — through the local embeddings, DESIGN *Entities*).
+  Relative dates: today, today±N, now. A live count of matches as you build.
+- **Sorting**: manual, or by fields, several levels (title, created, edited,
+  kind, any field); empties last. **Grouping** by kind or any field, groups
+  folding, in the field's option order.
+- **Views of a list**: **list** (plain, numbered, checklist — a checkbox that
+  is the task's status — or full cards), **table** (columns of fields, sort by
+  header, widths, inline editing), **board** (columns are a status field's
+  options; dropping a card sets it), **matrix** (a grid of named, colored
+  regions up to 6×6 — an Eisenhower matrix is a 2×2 — where entering a region
+  can add a tag or set a status), and **calendar** (tasks on their dates).
+  Day columns (a matrix by date) and rollups (projects → their tasks, nested)
+  come after.
+- Starting lists, editable like any: **Today** (due today or overdue, open),
+  **Upcoming** (due in the next 7 days), **Available** (available now, not
+  done), **Unscheduled**, **Done recently**. Hermes has these only as Morgan's
+  filters; here they are lists.
+
+**Morgan** reaches all of it through the MCP server: find tasks by status,
+when (overdue, today, this week, available, unscheduled), project, tag, list
+and region; create, update, complete, archive; projects with their counts.
+
+**Built in this order:** the task and project model with completion and
+recurrence; the panel with projects and lists; the query builder; list and
+table views; board and matrix; calendar; then the rest.
 
 ## Entities
 
