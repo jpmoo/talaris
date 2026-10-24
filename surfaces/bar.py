@@ -146,7 +146,6 @@ class BarBridge(Bridge):
 
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
-        log(f"popup: go to {project}")
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.go_to_project(project)
 
@@ -258,7 +257,8 @@ class Popup(QObject):
         self.idle.timeout.connect(self.close)
 
     def describe(self) -> dict:
-        return {"popup": self.kind, "theme": self.desktop.config["theme"]}
+        # `shown`: which showing this is — a popup opened again on the same kind is a new one to its page.
+        return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"]}
 
     def show(self, kind: str) -> None:
         self.kind = kind
@@ -315,8 +315,6 @@ class Popup(QObject):
     def close(self) -> None:
         if not self.kind:
             return
-        import traceback
-        log(f"popup: closed {self.kind} by " + " < ".join(f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-5:-1]))
         # Remembered a moment: pressing a popup's own button closes it (the
         # popup loses the keyboard) just before the press arrives, which must
         # not open it again.

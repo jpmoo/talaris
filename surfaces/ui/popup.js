@@ -54,6 +54,7 @@ if (window.ResizeObserver) {
 }
 
 // The projects, from the bar's project name: the current one marked, another gone to.
+let projectsShown = null;
 function drawProjects() {
   bridge.projects((text) => {
     const list = JSON.parse(text);
@@ -62,7 +63,9 @@ function drawProjects() {
       // Its desktop as last seen (thumbs.py), or its wallpaper: a project known by its look too.
       const thumb = Object.assign(document.createElement("img"), { className: "thumb", alt: "", src: `talaris-ui://thumb/?project=${encodeURIComponent(p.id)}&t=${Date.now()}` });
       b.append(thumb, Object.assign(document.createElement("span"), { className: "pname", textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
-      b.addEventListener("click", () => { if (!p.current) bridge.goProject(p.id); else bridge.file(); });
+      // Always asked of the process, the current one too: it knows which is current now, and
+      // going to the current project brings its desktop back if the screen is elsewhere.
+      b.addEventListener("click", () => bridge.goProject(p.id));
       return b;
     }) : [note("No projects")]));
     refit();
@@ -71,7 +74,9 @@ function drawProjects() {
 
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
-  if (opening && s.popup === "projects" && bridge) drawProjects();
+  // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
+  // and a list kept from before marks the project that was current then.
+  if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
   disarm();
