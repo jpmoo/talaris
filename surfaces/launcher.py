@@ -33,7 +33,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
 import hypr
-from apps import Apps
+from apps import Apps, opens_new_windows
 from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
@@ -50,6 +50,9 @@ from overlay import point_at, pointer_back, viewport
 from sensor import Presses
 from views import log, make_view
 
+#: How long a started application has to show a new window before its
+#: window elsewhere is brought here instead.
+FOLLOW_MS = 4000
 #: An open launcher nobody types into puts itself away.
 IDLE_MS = 60000
 #: How long the page has to finish leaving before the surface goes anyway.
@@ -258,9 +261,17 @@ class Launcher(QObject):
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
                 return "No such application"
+            mine = self._app_windows(r["id"])
+            # Shift+Enter: where it is already open, if it is — in its project.
+            if r.get("there") and mine:
+                hypr.focus(mine[0]["address"])
+                return ""
+            now = hypr.windows()
+            before, here = {w["address"] for w in mine}, now["active"]
             # Through the compositor, so it starts with the session's environment
             # and on the workspace in front of you.
             hypr.ask(f"/dispatch exec gtk-launch {r['id']}")
+            QTimer.singleShot(FOLLOW_MS, lambda: self._follow(r["id"], before, here))
         elif kind == "window":
             if r["address"] not in self._windows:
                 return "That window has gone"
@@ -280,6 +291,30 @@ class Launcher(QObject):
         else:
             return "That cannot be done"
         return ""
+
+    def _app_windows(self, app_id: str) -> list:
+        """An application's windows, most recently used first."""
+        now = hypr.windows()
+        return sorted((w for w in now["windows"] if self.apps.lookup(w["class"]).get("id") == app_id), key=lambda w: w["recent"])
+
+    def _follow(self, app_id: str, before: set, here) -> None:
+        """
+        Started again from the launcher, an application either opened a new
+        window (here, as asked) or did not: one that keeps a single window —
+        a music player, a messenger — ignores a second start, or raises the
+        window it has, wherever it is. That window is brought to the desktop
+        it was asked for on: the project you are in, not the one it was left in.
+        """
+        mine = self._app_windows(app_id)
+        # One that opens new windows (a browser) is not moved, however slow its new window is to come.
+        if not mine or any(w["address"] not in before for w in mine) or opens_new_windows(app_id):
+            return
+        if any(w["workspace"] == here and not w["hidden"] for w in mine) and hypr.windows()["active"] == here:
+            return
+        window = mine[0]["address"]
+        hypr.ask(f"/dispatch movetoworkspacesilent {here},address:{window}")
+        hypr.focus(window)
+        log(f"launcher: {app_id} brought here")
 
     def _open_file(self, path: str) -> str:
         projects = _json("/projects", [])

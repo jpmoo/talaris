@@ -268,14 +268,15 @@ function say(text, error = false) {
   $("msg").replaceChildren(text ? Object.assign(document.createElement("span"), { className: error ? "err" : "", textContent: text }) : "");
 }
 
-function choose(i) {
+// `there`: Shift+Enter — an application already open in another project is gone to, not brought here.
+function choose(i, there = false) {
   const x = shown[i];
   if (!x || !bridge) return;
   if (x.ask && armed !== x.key) { armed = x.key; draw(); return; }
   armed = null;
   if (x.key) remember(x.key);
   if (x.kind === "morgan") say("Asking Morgan…");
-  bridge.act(JSON.stringify(x.act), (error) => { if (error) say(error, true); });
+  bridge.act(JSON.stringify(there && x.act.kind === "app" ? { ...x.act, there: true } : x.act), (error) => { if (error) say(error, true); });
 }
 
 $("q").addEventListener("input", () => {
@@ -291,7 +292,7 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); bridge.file(); }
   else if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) { e.preventDefault(); if (n) { at = (at + 1) % n; armed = null; draw(); } }
   else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) { e.preventDefault(); if (n) { at = (at - 1 + n) % n; armed = null; draw(); } }
-  else if (e.key === "Enter") { e.preventDefault(); choose(at); }
+  else if (e.key === "Enter") { e.preventDefault(); choose(at, e.shiftKey); }
 });
 // A press outside the box puts it away — heard here, and from Qt (sensor.Presses).
 addEventListener("pointerdown", (e) => { if (bridge && state.up && !e.target.closest("#box")) bridge.file(); });

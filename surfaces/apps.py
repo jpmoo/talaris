@@ -19,6 +19,7 @@ cannot read files, so `icon_png` hands the surfaces' file handler the picture.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
@@ -57,6 +58,28 @@ def _read_entry(path: str) -> dict:
     except OSError:
         pass
     return entry
+
+
+def opens_new_windows(app_id: str) -> bool:
+    """
+    Whether an application opens a new window when started again, as its
+    desktop file says: a "new window" action (a browser, a terminal), and not
+    `SingleMainWindow=true`. Read from the file each time; it is asked rarely.
+    """
+    for d in _data_dirs():
+        path = os.path.join(d, "applications", f"{app_id}.desktop")
+        if not os.path.isfile(path):
+            continue
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            return False
+        main = text.split("\n[", 1)[0]
+        if re.search(r"^SingleMainWindow\s*=\s*true", main, re.M | re.I):
+            return False
+        actions = re.search(r"^Actions\s*=(.*)$", main, re.M)
+        return bool(actions and re.search(r"new[-_ ]?(private[-_ ]?)?window", actions.group(1), re.I))
+    return False
 
 
 class Apps:

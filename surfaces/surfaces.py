@@ -357,8 +357,10 @@ class Desktop(QObject):
         for letter in JUMP_LETTERS:
             hypr.bind(f"SUPER ALT, {letter}", f"{LAUNCHER} --jump {letter.lower()}")
         # Super+Alt alone, whichever goes down second: every project, to type into.
+        # On release, and only if nothing else was pressed meanwhile: Super+Alt+Space (the
+        # launcher) and Super+Alt+a letter go down through Super+Alt, and must not open it.
         for keys in JUMP_OPEN:
-            hypr.bind(keys, f"{LAUNCHER} --jump-open")
+            hypr.bind(keys, f"{LAUNCHER} --jump-open", flags="r")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
