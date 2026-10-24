@@ -637,3 +637,75 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 /* Not while something is being dragged: the marks would follow the node around
  * suggesting a resize that is not what is happening. */
 .cv-wrap.cv-holding .cv-corner::after { opacity: 0; }
+
+/*
+ * Entities. A note standing for one wears its kind in the corner and, when its
+ * own words differ, the entity's title as a quiet last line. Both are marks,
+ * not controls: they take no clicks, so a note drags and edits as before.
+ */
+.cv-entity-mark {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: flex;
+  opacity: .55;
+  pointer-events: none;
+}
+.cv-entity-line {
+  flex: none;
+  padding: 0 10px 6px;
+  font-size: 11px;
+  opacity: .6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.cv-kind { display: inline-flex; align-items: center; flex: none; }
+
+/* The menu's second page: finding an entity, or listing what one connects to. */
+.cv-entity-panel {
+  width: 260px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.cv-entity-hint { display: flex; align-items: center; gap: 6px; padding: 4px 10px; }
+.cv-entity-q {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.cv-entity-none { padding: 6px 10px; }
+.cv-entity-head,
+.cv-entity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.cv-entity-head { font-weight: 600; }
+.cv-entity-title-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cv-entity-place {
+  flex: none;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.cv-entity-place:hover { background: var(--surface-2); }

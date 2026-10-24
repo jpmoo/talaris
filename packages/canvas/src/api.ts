@@ -266,6 +266,19 @@ addEventListener("pagehide", () => void flush());
 function itemFromNote(note: Record<string, unknown>, was: CanvasItem | undefined): CanvasItem {
   const id = noteIdOf(String(note.id));
   const base: CanvasItem = was ?? { id, x: 0, y: 0, w: 200, h: 120 };
+  const item = itemOverlaid(note, base, id);
+  /*
+   * The entity a note stands for. Said only when the note says it: a string
+   * links, `null` is "Unlink" and takes the key off, and a note that does not
+   * mention it keeps whatever the item had — the spread above already carried
+   * it, so this is the one field that has to be able to go away.
+   */
+  if (typeof note.entity === "string") item.entity = note.entity;
+  else if (note.entity === null) delete item.entity;
+  return item;
+}
+
+function itemOverlaid(note: Record<string, unknown>, base: CanvasItem, id: string): CanvasItem {
   return {
     ...base,
     id,

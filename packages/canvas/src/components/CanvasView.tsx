@@ -2,7 +2,18 @@ import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVe
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
-import { keepResized, pictureAt } from "../api.ts";
+import { document_, keepResized, pictureAt } from "../api.ts";
+import {
+  connectEntities,
+  firstLine,
+  makeEntity,
+  remember,
+  ROLES,
+  summaryOf,
+  type Role,
+  type Summary,
+} from "../entities.ts";
+import { EntityConnections, EntitySearch, KindMark, type Placement } from "./EntityPanel.tsx";
 import { useIsMobile } from "../lib/useIsMobile.ts";
 import {
   useEffect,
@@ -201,6 +212,11 @@ interface CanvasNote extends Rect, TalariaInk {
    * so the trade is worth making once and undoing at conversion.
    */
   image?: { name: string; mime: string; data: string } | null;
+  /**
+   * The entity this note stands for, by id. `null` is "Unlink", said once on
+   * the way out so the seam knows to take the key off the item.
+   */
+  entity?: string | null;
 }
 /*
  * ---------------------------------------------------------------------------
@@ -1025,6 +1041,21 @@ export function CanvasView({
         arrow: "forward",
       },
     ]);
+    /*
+     * A line between two entity notes is a link between the entities too, so
+     * it is there when the same two are asked about from anywhere else. Only
+     * on drawing: taking the line off leaves the graph alone, because a line
+     * on one canvas is not the only thing that can have said these two are
+     * connected, and this canvas cannot tell whether it was.
+     */
+    const a = notes.find((n) => n.id === from)?.entity;
+    const b = notes.find((n) => n.id === to)?.entity;
+    if (a && b && a !== b) {
+      connectEntities(a, b).catch((err) => {
+        console.error("canvas: could not connect the entities —", err);
+        showToast("Line drawn; entities not linked.");
+      });
+    }
   };
 
 
@@ -2167,8 +2198,15 @@ export function CanvasView({
   } | null>(null);
   const [edgeMenu, setEdgeMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  /** The node menu's second page for an entity: finding one, or its connections. */
+  const [entityPanel, setEntityPanel] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    show: "link" | "connections";
+  } | null>(null);
   useEffect(() => {
-    if (!nodeMenu && !edgeMenu && !regionMenu) return;
+    if (!nodeMenu && !edgeMenu && !regionMenu && !entityPanel) return;
     // pointerdown, not mousedown: canvas drags preventDefault() their
     // pointerdown, which suppresses derived mouse events — a canvas click
     // would never close the menu otherwise.
@@ -2178,11 +2216,12 @@ export function CanvasView({
         setNodeMenu(null);
         setEdgeMenu(null);
         setRegionMenu(null);
+        setEntityPanel(null);
       }
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [nodeMenu, edgeMenu, regionMenu]);
+  }, [nodeMenu, edgeMenu, regionMenu, entityPanel]);
 
   /** Region → a real collection of its blocks (manual; optionally kept in sync). */
   // Removal is membership-only — deleting the block itself is the info
@@ -2375,6 +2414,132 @@ export function CanvasView({
       setLocal((p) => ({ ...p, [id]: ctx }));
       persistMemberCtx(id, ctx);
     }
+  };
+
+  /*
+   * ---------------------------------------------------------------------------
+   * Entities. A note can stand for a person, an event, a task, a note or a
+   * project in the core; the note keeps the id and the core keeps the rest.
+   * See `entities.ts`.
+   * ---------------------------------------------------------------------------
+   */
+
+  /**
+   * What each linked note stands for, once asked.
+   *
+   * Asked for the ids on the canvas whenever that set changes, never on a
+   * render: `summaryOf` holds one answer per id for the life of the page, so
+   * this effect costs nothing for an id it has already seen.
+   */
+  const [known, setKnown] = useState<Record<string, Summary | null>>({});
+  const entityIds = [...new Set(notes.map((n) => n.entity).filter((e): e is string => !!e))].sort().join(" ");
+  useEffect(() => {
+    let live = true;
+    for (const id of entityIds ? entityIds.split(" ") : []) {
+      void summaryOf(id).then((s) => {
+        if (live) setKnown((k) => (k[id] === s ? k : { ...k, [id]: s }));
+      });
+    }
+    return () => {
+      live = false;
+    };
+  }, [entityIds]);
+  const learn = (s: Summary) => {
+    remember(s);
+    setKnown((k) => ({ ...k, [s.id]: s }));
+  };
+
+  /** A child canvas's card is a way into that canvas, not a thing in the graph. */
+  const isCanvasCard = (id: string) =>
+    Boolean(
+      (document_().items.find((i) => `n:${i.id}` === id) as { kind?: string } | undefined)?.kind?.startsWith("canvas"),
+    );
+
+  const setNodeEntity = (id: string, entity: string | null) =>
+    saveNotes(notes.map((n) => (n.id === id ? { ...n, entity } : n)));
+
+  /** "Make it": a new entity from the note's own words, and the note becomes it. */
+  const makeNodeEntity = async (id: string, role: Role) => {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+    if (!firstLine(note.text)) {
+      showToast("Nothing to name it by.");
+      return;
+    }
+    try {
+      const made = await makeEntity(role, note.text);
+      learn(made);
+      // Read again by id rather than from the closure: the create took a round
+      // trip, and the note may have been typed into meanwhile.
+      setNotes((ns) => {
+        const next = ns.map((n) => (n.id === id ? { ...n, entity: made.id } : n));
+        persistProps({ canvas_notes: next });
+        return next;
+      });
+    } catch (err) {
+      console.error("canvas: could not make the entity —", err);
+      showToast(String((err as Error).message || err));
+    }
+  };
+
+  /**
+   * Put connected entities on the canvas, each a note joined to the source.
+   *
+   * One already on this canvas is joined rather than placed again: the same
+   * person twice on one canvas is two cards that disagree the moment either is
+   * moved. The new ones go in a column to the right of the source, stepped
+   * down so none overlaps — and `findSpot` moves any that would land on
+   * something already there.
+   *
+   * No graph call here: these are connections the graph already has, which is
+   * how they were found.
+   */
+  const PLACED_W = 180;
+  const PLACED_H = 64;
+  const placeEntities = (sourceId: string, rows: Placement[]) => {
+    const src = notes.find((n) => n.id === sourceId);
+    if (!src) return;
+    const nextNotes = [...notes];
+    const nextEdges = [...edges];
+    const taken: Rect[] = allRects();
+    const fresh = rows.filter((p) => !notes.some((n) => n.entity === p.entity.id));
+    const gap = 16;
+    const column = fresh.length * PLACED_H + Math.max(0, fresh.length - 1) * gap;
+    let y = src.y + src.h / 2 - column / 2;
+    const x = src.x + src.w + 120;
+    for (const p of rows) {
+      learn(p.entity);
+      let target = nextNotes.find((n) => n.entity === p.entity.id);
+      if (!target) {
+        const spot = findSpot(x + PLACED_W / 2, y + PLACED_H / 2, PLACED_W, PLACED_H, taken);
+        y += PLACED_H + gap;
+        target = {
+          id: `n:${uid()}`,
+          x: Math.round(spot.x),
+          y: Math.round(spot.y),
+          w: PLACED_W,
+          h: PLACED_H,
+          text: p.entity.title,
+          entity: p.entity.id,
+        };
+        taken.push(target);
+        nextNotes.push(target);
+      }
+      const [from, to] = p.outgoing ? [src, target] : [target, src];
+      if (nextEdges.some((e) => (e.from === from.id && e.to === to.id) || (e.from === to.id && e.to === from.id))) {
+        continue;
+      }
+      nextEdges.push({
+        id: uid(),
+        from: from.id,
+        to: to.id,
+        fromSide: facingSide(from, to),
+        toSide: facingSide(to, from),
+        arrow: "forward",
+      });
+    }
+    saveNotes(nextNotes);
+    saveEdges(nextEdges);
   };
 
   // Bulk removal (Delete key / Clear): regions dissolve (blocks stay unless
@@ -2888,6 +3053,18 @@ export function CanvasView({
     ) : (
       body
     );
+    /*
+     * The entity a note stands for: its kind as a mark in the corner, and its
+     * title as a quiet line when the note's own words say something else — a
+     * note reading "lunch w/ Sam" that is the event "Lunch with Sam Ortiz".
+     */
+    const entity = isNote ? (r as { entity?: string | null }).entity : null;
+    const stands = entity ? known[entity] : null;
+    const ownWords = isNote ? firstLine((r as { text?: string }).text ?? "").toLowerCase() : "";
+    const entityLine =
+      stands && stands.title && stands.title.trim().toLowerCase() !== ownWords ? (
+        <div className="cv-entity-line">{stands.title}</div>
+      ) : null;
     return (
     <div
       key={id}
@@ -3069,7 +3246,13 @@ export function CanvasView({
           </div>
         )}
         <div className="cv-body" style={alignment(r)}>{shown}</div>
+        {entityLine}
       </div>
+      {stands && (
+        <div className="cv-entity-mark">
+          <KindMark kinds={stands.kinds} size={11} />
+        </div>
+      )}
       {/* The outline of a clipped shape, drawn rather than bordered. A sibling
           of the paper, so the clip that cuts the sheet does not cut this —
           which is exactly why a CSS border on an ellipse never appeared, and
@@ -3760,6 +3943,67 @@ export function CanvasView({
                 </>
               );
             })()}
+            {menuNote && !isCanvasCard(menuNote.id) && (() => {
+              /*
+               * What this note stands for. Unlinked, it can be made one or
+               * pointed at one that exists — "this note is actually that
+               * event". Linked, it can let go (the entity stays) or show what
+               * the entity is connected to.
+               */
+              const id = menuNote.id;
+              const at = { x: nodeMenu.x, y: nodeMenu.y };
+              const linked = menuNote.entity ? known[menuNote.entity] : undefined;
+              return (
+                <>
+                  <div className="menu-sep" />
+                  <div className="hint cv-entity-hint">
+                    {menuNote.entity ? (
+                      <>
+                        {linked && <KindMark kinds={linked.kinds} />}
+                        <span>{linked?.title || "Entity"}</span>
+                      </>
+                    ) : (
+                      "Make it"
+                    )}
+                  </div>
+                  {menuNote.entity ? (
+                    <>
+                      <button className="menu-item" onClick={() => {
+                        setNodeMenu(null);
+                        setEntityPanel({ id, ...at, show: "connections" });
+                      }}>
+                        Connections
+                      </button>
+                      <button className="menu-item" onClick={() => {
+                        setNodeMenu(null);
+                        setNodeEntity(id, null);
+                      }}>
+                        Unlink
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="cv-menu-row">
+                        {ROLES.map(({ role, label }) => (
+                          <button key={role} className="seg" onClick={() => {
+                            setNodeMenu(null);
+                            void makeNodeEntity(id, role);
+                          }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <button className="menu-item" onClick={() => {
+                        setNodeMenu(null);
+                        setEntityPanel({ id, ...at, show: "link" });
+                      }}>
+                        Link to…
+                      </button>
+                    </>
+                  )}
+                </>
+              );
+            })()}
             <div className="menu-sep" />
             <button
               className="menu-item"
@@ -3771,6 +4015,33 @@ export function CanvasView({
             >
               {nodeMenu.id.startsWith("n:") ? "Delete note" : "Remove from canvas"}
             </button>
+          </PointerMenu>,
+          document.body,
+        )}
+
+      {entityPanel &&
+        createPortal(
+          <PointerMenu x={entityPanel.x} y={entityPanel.y}>
+            {entityPanel.show === "link" ? (
+              <EntitySearch
+                onPick={(s) => {
+                  learn(s);
+                  setNodeEntity(entityPanel.id, s.id);
+                  setEntityPanel(null);
+                }}
+              />
+            ) : (
+              (() => {
+                const entity = notes.find((n) => n.id === entityPanel.id)?.entity;
+                return entity ? (
+                  <EntityConnections
+                    key={entity}
+                    id={entity}
+                    onPlace={(rows) => placeEntities(entityPanel.id, rows)}
+                  />
+                ) : null;
+              })()
+            )}
           </PointerMenu>,
           document.body,
         )}

@@ -41,6 +41,11 @@ export interface CanvasItem {
   images?: string[];
   /** Show the picture instead of the card. Absent means "if there is one". */
   showImage?: boolean;
+  /**
+   * The entity this note stands for, by id — DESIGN.md, "Entities". Absent on
+   * a note that is only a note; never set on a placed block or a child canvas.
+   */
+  entity?: string;
   blockId?: string | null;
 }
 
@@ -165,6 +170,9 @@ function notesOf(doc: CanvasDocument) {
       /** …and which of them it is wearing, by name rather than by URL. */
       imageName: item.image ?? null,
       showImage: item.showImage,
+      // Only when there is one, so a note that is no entity hands back no key
+      // and `itemFromNote` leaves the item exactly as it found it.
+      ...(typeof item.entity === "string" ? { entity: item.entity } : {}),
     }));
 }
 
