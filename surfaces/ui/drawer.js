@@ -283,6 +283,8 @@ function update(next) {
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
   if (look.shadow === false) delete document.body.dataset.shadow; else document.body.dataset.shadow = "1";
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
+  const frame = document.querySelector(".canvas-frame");
+  if (frame) shareTheme(frame);
   applyTheme(state.theme || {});
   $("handle").title = NAMES[state.drawer] || state.drawer;
   document.body.dataset.drawer = state.drawer;
@@ -423,6 +425,8 @@ function shareTheme(frame) {
       const value = mine.style.getPropertyValue(v);
       if (value) theirs.style.setProperty(v, value);
     }
+    // The drawer's opacity, so the canvas's paper is as see-through as its frame.
+    theirs.style.setProperty("--alpha", document.body.style.getPropertyValue("--alpha") || "100%");
   } catch { /* not loaded yet */ }
 }
 

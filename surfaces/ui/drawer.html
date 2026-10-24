@@ -112,7 +112,9 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 
 .canvas-tree { min-width: 150px; max-width: 200px; }
 .tree.hidden { display: none; }
-.canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: var(--desk); }
+.canvas-pane { flex: 1; min-width: 0; display: flex; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: transparent; }
+/* No fill of its own: the canvas's paper covers it, and a second see-through
+   layer here would make a see-through drawer nearly solid again. */
 .canvas-frame { flex: 1; border: 0; background: transparent; }
 .crumb { cursor: pointer; }
 .crumb:hover { color: var(--accent); }

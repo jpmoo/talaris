@@ -68,9 +68,10 @@ export function wearTheme(): void {
 
     /* The paper: dots, graph lines, or nothing. Drawn here so it wins over the
        forked sheet's one fixed dot grid, and moves and scales with the view. */
+    /* The drawer's opacity reaches the paper too (shared in as --alpha). */
     .cv-wrap.paper-dots, .framed .cv-wrap.paper-dots {
       background: radial-gradient(circle, var(--line) 1px, transparent 1px)
-        var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)), var(--desk);
+        var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)), color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent);
     }
     .cv-wrap.paper-lines, .framed .cv-wrap.paper-lines {
       background:
@@ -78,9 +79,9 @@ export function wearTheme(): void {
           var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
         linear-gradient(to bottom, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px)
           var(--cv-x, 0px) var(--cv-y, 0px) / calc(24px * var(--cv-z, 1)) calc(24px * var(--cv-z, 1)),
-        var(--desk);
+        color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent);
     }
-    .cv-wrap.paper-none, .framed .cv-wrap.paper-none { background: var(--desk); }
+    .cv-wrap.paper-none, .framed .cv-wrap.paper-none { background: color-mix(in srgb, var(--desk) var(--alpha, 100%), transparent); }
     /* Dark ink is for paper. A sticky is paper, so it keeps it; a note with no
        fill sits on the canvas itself and takes the theme's text, as does a
        canvas card. A note given a color of its own sets its ink inline. */
