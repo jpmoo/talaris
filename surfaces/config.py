@@ -41,7 +41,8 @@ DEFAULTS = {
              "magnify": 100},
     # How the drawers look: their outline (in the accent while in use, a plain
     # line, or none), a shadow, and their opacity in percent.
-    "panels": {"outline": "focus", "shadow": True, "opacity": 100, "dismissOutside": False},
+    # afterExpand: back from being the desktop, a drawer stays "open" or is "closed".
+    "panels": {"outline": "focus", "shadow": True, "opacity": 100, "dismissOutside": False, "afterExpand": "open"},
     # The edge you touch to bring out a hidden bar or dock, or a drawer set to
     # touch-to-show: how thick (Qt units) and how much of the edge (percent).
     "touch": {"thick": 6, "length": 100},

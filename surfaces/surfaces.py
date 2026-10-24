@@ -299,6 +299,9 @@ class Drawer(QObject):
             hypr.restore(address, workspace)
         if hid:
             hypr.focus(hid[0][0])
+        # Settings says whether it stays out as a drawer, or goes away too.
+        if self.desktop.config["panels"].get("afterExpand", "open") == "closed":
+            self.pulled = False
         self.settle()
 
     def windows_changed(self, now: dict) -> None:

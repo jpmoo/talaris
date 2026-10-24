@@ -125,6 +125,7 @@ function draw() {
   slider("drawer-size", Math.round(cfg.drawers.canvas.size * 100), (v) => `${v}%`, (v) => both({ size: v / 100 }));
   $("drawer-auto").classList.toggle("on", !!cfg.drawers.canvas.autoshow);
   $("dismiss-outside").classList.toggle("on", !!cfg.panels.dismissOutside);
+  seg("after-expand", [["open", "Stay open"], ["closed", "Close"]], cfg.panels.afterExpand || "open", (afterExpand) => save({ panels: { afterExpand } }));
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
   $("dock-on").classList.toggle("on", cfg.dock.enabled !== false);
