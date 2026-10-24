@@ -38,6 +38,7 @@ from layershell import (
     TOP,
     LayerSurface,
     Placement,
+    whole,
 )
 from machine import Machine
 from sensor import Autohide
@@ -344,6 +345,15 @@ class Bar(QObject):
         # A shadow needs room to fall into: the surface is that much taller
         # than the space it reserves, and the extra is clear.
         room = zoom(SHADOW_ROOM, "bar") if look.get("shadow") else 0
+        # The surface on whole pixels from Qt to the screen (layershell.whole):
+        # the difference comes out of the clear room where there is any, else
+        # out of the bar itself.
+        total = whole(tall + room)
+        if room:
+            room = max(0, total - tall)
+        else:
+            tall = total
+        self.room = room
         self.surface.placement = None
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_NONE, exclusive=0 if hide else tall))
@@ -358,6 +368,8 @@ class Bar(QObject):
             "edge": self.edge,
             "project": self.desktop.project,
             "theme": self.desktop.config["theme"],
+            # The clear room below (or above) the bar, in the page's pixels.
+            "room": round(getattr(self, "room", 0) / (zoom_of("bar") or 1), 3),
             "clock": self.desktop.config["clock"],
             "look": {**self.desktop.config["bar"], "margins": margins(self.desktop.config["bar"])},
             "popup": self.popup.kind,

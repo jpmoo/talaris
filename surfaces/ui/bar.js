@@ -37,7 +37,7 @@ function onState(s) {
   document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
   document.body.dataset.outline = look.outline || "line";
   if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;
-  document.body.style.setProperty("--room", look.shadow ? "14px" : "0px");
+  document.body.style.setProperty("--room", `${s.room ?? (look.shadow ? 14 : 0)}px`);
   // Out from hiding, in the bar's own motion: slide, or none.
   if (s.arrived && (look.motion || "slide") === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     $("bar").animate([{ transform: s.edge === "bottom" ? "translateY(110%)" : "translateY(-110%)" }, { transform: "none" }],
@@ -101,8 +101,7 @@ function onMachine(m) {
   if (bat.present) {
     const charging = bat.state === "charging";
     const plugged = !!bat.plugged || charging || bat.state === "full";
-    // Drawn in the bar's own device pixels, so its edges are crisp (icons.js).
-    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged, Math.round(16 * (window.devicePixelRatio || 1)));
+    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged);
     $("bat-n").textContent = `${bat.level}%`;
     $("bat").classList.toggle("low", bat.level <= 15 && !plugged);
     $("bat").title = `Battery ${bat.level}% · ${charging ? "charging" : plugged ? "plugged in" : "on battery"}`;
@@ -228,31 +227,3 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.trayItems((text) => drawTray(JSON.parse(text)));
 });
 
-/*
- * Icons on whole pixels. At a text size other than medium the bar is drawn at a
- * fractional zoom, and a line of text can land between two rows of pixels:
- * its top strokes crisp, its bottom ones split across two rows at half
- * strength — "81%" looked thinner at the bottom than at the top. Each piece
- * of text is moved by the fraction of a pixel that puts it back on the grid.
- */
-// Icons only: text nudged down even part of a pixel lost its bottom row to
-// the box round it (the project's clips, and so do the buttons).
-const SNAP = ".bar-item .ic, .tray-item img";
-function snap() {
-  const dpr = window.devicePixelRatio || 1;
-  // An icon a whole number of device pixels tall and wide, or its far edge sits
-  // on a half pixel whatever its near one does (16px at 1.40625 is 22.5).
-  const icon = `${Math.round(16 * dpr) / dpr}px`;
-  for (const e of document.querySelectorAll(".bar-item .ic, .tray-item img")) e.style.width = e.style.height = icon;
-  for (const e of document.querySelectorAll(SNAP)) {
-    e.style.transform = "";
-    const top = e.getBoundingClientRect().top * dpr;
-    const off = (Math.round(top) - top) / dpr;
-    if (Math.abs(off) > 0.01) e.style.transform = `translateY(${off}px)`;
-  }
-}
-let snapping = 0;
-const snapSoon = () => { cancelAnimationFrame(snapping); snapping = requestAnimationFrame(snap); };
-new MutationObserver(snapSoon).observe(document.getElementById("bar"), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "hidden"] });
-addEventListener("resize", snapSoon);
-document.fonts.ready.then(snapSoon);

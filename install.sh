@@ -40,11 +40,14 @@ if [ -d "$HYPR" ]; then
 # agent, without which password prompts quietly never appear, and hyprpaper
 # for the wallpaper. Notifications are mako's until Talaris holds the bus;
 # mako starts itself the first time something notifies.
+# Then what is set to start at login (~/.config/autostart: Nextcloud,
+# 1Password): a desktop session starts xdg-desktop-autostart.target, and
+# Hyprland alone does not.
 # Restarted, not started, after their failures are cleared: the user manager
 # outlives a session, and at the next login it may already have started them
 # with the last session's display — hyprpaper crashes on a display that is
 # gone, and after a few tries systemd refuses to start it at all.
-exec-once = systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP QT_SCALE_FACTOR && systemctl --user reset-failed talaris-surfaces.service hyprpolkitagent.service hyprpaper.service; systemctl --user restart talaris-surfaces.service hyprpolkitagent.service hyprpaper.service
+exec-once = systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP QT_SCALE_FACTOR && systemctl --user reset-failed talaris-surfaces.service hyprpolkitagent.service hyprpaper.service; systemctl --user restart talaris-surfaces.service hyprpolkitagent.service hyprpaper.service; systemctl --user start xdg-desktop-autostart.target
 CONF
   # hyprpaper's own file, only if there is none and a picture was named
   # (TALARIS_WALLPAPER): the wallpaper is yours, and a file you have is kept.

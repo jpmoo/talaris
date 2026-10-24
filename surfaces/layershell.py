@@ -54,6 +54,28 @@ def to_compositor(px: float) -> int:
     return math.ceil(px * QT_SCALE - 1e-9)
 
 
+def whole(units: int) -> int:
+    """
+    The nearest length to `units` that lands on whole pixels all the way to the
+    screen. Qt draws a surface QT_SCALE_FACTOR times its size, and the
+    compositor shows that at the monitor's scale; at 1.25 and 1.25 the bar's
+    49 units were 61.25 and then 76.56 pixels, and the bar came out squeezed
+    from top to bottom — every bottom edge on it fainter than its top. 48 is
+    60 and then 75.
+    """
+    import json
+
+    import hypr
+    try:
+        monitors = json.loads(hypr.ask("j/monitors") or "[]")
+        scale = next((m["scale"] for m in monitors if m.get("focused")), monitors[0]["scale"] if monitors else 1)
+    except (ValueError, KeyError, IndexError):
+        scale = 1
+    whole_at = lambda q, f: abs(q * f - round(q * f)) < 1e-6  # noqa: E731
+    step = next((q for q in range(1, 65) if whole_at(q, QT_SCALE) and whole_at(q, QT_SCALE * scale)), 1)
+    return max(step, round(units / step) * step)
+
+
 EDGE_ANCHOR = {"top": ANCHOR_TOP, "bottom": ANCHOR_BOTTOM, "left": ANCHOR_LEFT, "right": ANCHOR_RIGHT}
 # The two edges a surface stretches between when it runs along an edge.
 EDGE_SPAN = {

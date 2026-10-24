@@ -47,44 +47,21 @@ const Icons = (() => {
 
   /** A cell filled to its level; a bolt when it is charging. */
   /** The battery: its level, a bolt while charging, a plug while plugged in and held (at a charge limit). */
-  function battery(level, charging, plugged = false, px = 0) {
-    if (px) return crispBattery(level, charging, plugged, px);
-    const w = Math.max(0, Math.min(1, level / 100)) * 9;
+  /*
+   * The battery. Every edge sits where the other icons' edges do on the
+   * screen's pixels: here a unit of the drawing is 1⅓ of the screen's pixels,
+   * so an edge lands whole every ¾ of a unit (the canvas's, at 2 and 14, both
+   * do). Drawn off that grid, its bottom edge fell between two rows and
+   * looked fainter than its top.
+   */
+  function battery(level, charging, plugged = false) {
+    const w = Math.round(Math.max(0, Math.min(1, level / 100)) * 12) * 0.75; // in steps of ¾, up to 9
     const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
       : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
     return svg(
-      '<rect x="1.5" y="3.75" width="12" height="8.5" rx="1.75"/><path d="M14.5 6.5v3"/>' +
-      `<rect x="3" y="5.25" width="${w.toFixed(1)}" height="5.5" rx=".6" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` +
+      '<rect x="1.25" y="3.5" width="12" height="9" rx="2"/><path d="M14.75 6.5v3"/>' +
+      (w > 0 ? `<rect x="2.75" y="5" width="${w}" height="6" rx=".75" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` : "") +
       mark);
-  }
-
-  /*
-   * The battery drawn in device pixels, `px` of them square: its outline's
-   * edges on whole pixels at any scale. Drawn from the 16-unit design, a
-   * battery at 1.375 device pixels to the unit came out with a crisp top and
-   * a faint bottom, whatever it was placed on.
-   */
-  function crispBattery(level, charging, plugged, px) {
-    const k = px / 16;
-    const t = Math.max(1, Math.round(1.4 * k));           // the outline's weight
-    const L = Math.round(0.5 * k), R = Math.round(14 * k);
-    const T = Math.round(3 * k), B = px - T;               // tall, and centered
-    const gap = Math.max(1, Math.round(0.9 * k));
-    const nip = Math.max(t, Math.round(1.25 * k));
-    const nipT = Math.round(px / 2 - 1.6 * k), nipB = px - nipT;
-    const inner = R - L - 2 * t - 2 * gap;
-    const fillW = Math.round(Math.max(0, Math.min(1, level / 100)) * inner);
-    const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
-      : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
-    // Rounded, with the straight runs of every edge still on whole pixels: the
-    // outline is a stroke centered half its weight inside the box.
-    const r = Math.max(t, Math.round(2 * k));
-    return `<svg class="ic" viewBox="0 0 ${px} ${px}" fill="currentColor" stroke="none">`
-      + `<rect x="${L + t / 2}" y="${T + t / 2}" width="${R - L - t}" height="${B - T - t}" rx="${r - t / 2}" fill="none" stroke="currentColor" stroke-width="${t}"/>`
-      + `<rect x="${R}" y="${nipT}" width="${nip}" height="${nipB - nipT}" rx="${Math.min(nip, nipB - nipT) / 2}"/>`
-      + (fillW > 0 ? `<rect x="${L + t + gap}" y="${T + t + gap}" width="${fillW}" height="${B - T - 2 * t - 2 * gap}" rx="${Math.max(0.5, r - t - gap)}" opacity="${charging || plugged ? .35 : .8}"/>` : "")
-      + (mark ? `<g transform="scale(${k})" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${mark}</g>` : "")
-      + "</svg>";
   }
 
   function mic(muted) {
@@ -124,6 +101,7 @@ const Icons = (() => {
   const tray = () => svg('<path d="M2 9.5h3.2l1 1.8h3.6l1-1.8H14"/><path d="M2 9.5 3.6 4h8.8L14 9.5V13H2z"/>');
 
   // Tasks: a checked box and two lines.
-  const tasks = () => svg('<rect x="2.5" y="3" width="4" height="4" rx="1"/><path d="M3.6 5l.8.8 1.3-1.5M9 5h4.5M2.5 11h4M9 11h4.5"/>');
+  // Tasks: a list, each line ticked off.
+  const tasks = () => svg('<path d="M2 4.6 3.5 6 6 3.2M8.5 4.8h5.5M2 10.6 3.5 12 6 9.2M8.5 10.8h5.5"/>');
   return { sideList, people, tasks, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, launcher, settings, power };
 })();
