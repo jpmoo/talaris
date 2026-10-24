@@ -245,7 +245,7 @@ export function dropSeries(id: string): void {
  * project (a folder, a workspace) is one, made the first time it is asked for,
  * known by its source so a rename in either place is the same project.
  */
-export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string }[] {
+export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string; group?: string; description?: string }[] {
   const type = typeFor("project");
   for (const p of listProjects()) {
     // Home is the scratchpad, not a project: nothing is filed under it. One
@@ -263,7 +263,10 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
   return findEntities({ kind: "project", limit: 1000, archived: true }).map((s) => {
     const e = getEntity(s.id);
     const ws = ((e["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project");
-    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws.key } : {}) };
+    // Its group is Tasks' own way of arranging the list (`talaris:group`): no folder, no meaning anywhere else.
+    const group = typeof e["talaris:group"] === "string" && e["talaris:group"] ? (e["talaris:group"] as string) : undefined;
+    const description = typeof e.properties.description === "string" && e.properties.description ? e.properties.description : undefined;
+    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws.key } : {}), ...(group ? { group } : {}), ...(description ? { description } : {}) };
   });
 }
 

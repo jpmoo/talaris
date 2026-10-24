@@ -116,7 +116,8 @@ export const BUILT_IN: EntityType[] = [
     profiles: { contact: { title: "title", email: "emails", phone: "phones" } },
   },
   {
-    id: "t_event", name: "Event", "talaris:role": "event",
+    // Version 2: files kept with an event (an agenda, the slides).
+    id: "t_event", name: "Event", "talaris:role": "event", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "start", kind: "datetime" },
@@ -126,6 +127,7 @@ export const BUILT_IN: EntityType[] = [
       { key: "organizer", kind: "reference", targetType: "t_person" },
       { key: "attendees", kind: "reference", targetType: "t_person", many: true },
       { key: "notes", kind: "richtext" },
+      { key: "files", kind: "attachment", many: true },
     ],
     profiles: { event: { title: "title", start: "start", end: "end", location: "location" } },
   },

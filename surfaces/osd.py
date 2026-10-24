@@ -80,18 +80,26 @@ class Osd(QObject):
     def describe(self) -> dict:
         return {"up": self.up, **self.shown, "theme": self.desktop.config["theme"]}
 
+    def announce(self, title: str, code: str) -> None:
+        """A project gone to by a key: its name, where a level would be, for as long."""
+        self.shown = {"kind": "project", "title": title, "code": code, "level": 0, "muted": False}
+        self._show()
+
     def show(self, kind: str) -> None:
         if kind not in ("volume", "mic", "brightness"):
             return
         self.shown = level(kind)
+        self._show()
+        # The bar's reading of the volume catches up at once, not at its next poll.
+        self.desktop.machine.refresh()
+
+    def _show(self) -> None:
         if not self.up:
             # On the bottom edge, clear of what reserves it — just above the dock.
             self.surface.apply(Placement(OVERLAY, ANCHOR_BOTTOM, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_NONE))
             self.up = True
         self.bridge.state.emit(json.dumps(self.describe()))
         self._hide.start(SHOW_MS)
-        # The bar's reading of the volume catches up at once, not at its next poll.
-        self.desktop.machine.refresh()
 
     def file_away(self) -> None:
         if not self.up:

@@ -369,17 +369,37 @@ function saveMorgan() {
 
 // ---------------------------------------------------------------- wallpaper
 //
-// What hyprpaper is set to, read from its file; a new picture comes through
-// the desktop's chooser, and either change restarts hyprpaper.
+// Whose wallpaper is on show: the default ("") — every project without its
+// own — or one project's. The strip above says which: the default first,
+// then each project, its own picture or the default's, faded. Choosing a
+// picture for a project that has none gives it its own; "Use the default"
+// gives it up. A new picture comes through the desktop's chooser.
+let wallScope = null;
 function drawWallpaper(w) {
-  $("wall-name").textContent = w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
-  $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?t=${Date.now()}` : "";
+  if (wallScope === null) wallScope = w.scope || "";
+  const stamp = Date.now();
+  const tile = (scope, name, sub, own) => {
+    const b = el("button", { class: "wall" + (scope === wallScope ? " on" : "") + (scope && !own ? " inherits" : ""), title: scope ? (own ? `${name}: its own` : `${name}: the default`) : "Every project without its own" });
+    b.append(el("img", { alt: "", src: `talaris-ui://wallpaper/?${scope ? `project=${encodeURIComponent(scope)}&` : ""}t=${stamp}` }),
+      el("span", { class: "wn" }, name), el("span", { class: "ws" }, sub));
+    b.addEventListener("click", () => { wallScope = scope; bridge.wallpaper(scope, (text) => drawWallpaper(JSON.parse(text))); });
+    return b;
+  };
+  const projects = (w.projects || []).slice().sort((a, b) => (b.id === w.here) - (a.id === w.here) || (b.home - a.home) || a.name.localeCompare(b.name));
+  $("walls").replaceChildren(tile("", "Default", "every project", true),
+    ...projects.map((p) => tile(p.id, p.name, [p.id === w.here ? "here" : "", p.own ? "own" : "default"].filter(Boolean).join(" · "), p.own)));
+  const scoped = wallScope !== "";
+  $("wall-name").textContent = scoped && !w.own ? "The default" : w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
+  $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?${scoped ? `project=${encodeURIComponent(wallScope)}&` : ""}t=${stamp}` : "";
+  // A button style wins over `hidden`: shown or not by its display.
+  $("wall-default").style.display = scoped && w.own ? "" : "none";
   seg("wall-fit", [["cover", "Cover"], ["contain", "Contain"], ["tile", "Tile"], ["fill", "Fill"]], w.fit || "cover",
-    (fit) => bridge.fitWallpaper(fit));
+    (fit) => bridge.fitWallpaper(wallScope, fit));
   if (w.error) say(w.error, true);
   else if (w.changed) say("Wallpaper set");
 }
-$("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper());
+$("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper(wallScope || ""));
+$("wall-default").addEventListener("click", () => bridge && bridge.defaultWallpaper(wallScope || ""));
 
 // Which set of idle times is on show; the page opens on the one in use.
 let powerProfile = "ac";
@@ -776,7 +796,7 @@ function show(page) {
     powerNote();
   }
   if (page === "data") loadData();
-  if (page === "look") bridge.wallpaper((text) => drawWallpaper(JSON.parse(text)));
+  if (page === "look") bridge.wallpaper(wallScope || "", (text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
 
@@ -819,7 +839,8 @@ Surface.connect({
     const going = Motion.leave($("win"), how());
     if (going) going.onfinish = () => bridge.left(); else bridge.left();
   });
-  b.wallpaperChanged.connect((text) => drawWallpaper({ ...JSON.parse(text), changed: true }));
+  // Only the wallpaper on show is redrawn by a change to it; another scope's answer is for its own showing.
+  b.wallpaperChanged.connect((text) => { const w = JSON.parse(text); if ((w.scope || "") === (wallScope || "")) drawWallpaper({ ...w, changed: !w.error }); });
   b.panel.connect((text) => onRadio(JSON.parse(text)));
   b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
   b.coreReply.connect((text) => { const r = JSON.parse(text); const done = coreWaiting.get(r.id); coreWaiting.delete(r.id); if (done) done(r); });

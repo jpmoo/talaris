@@ -15,6 +15,7 @@ of it.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 
@@ -24,9 +25,10 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from core import Bridge, local_call
 from files import choose_files, open_kept_file, send_files
 from overlay import Overlay
+import wallpaper
 
 #: What the page may ask the core for.
-ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find|mentionables)(/|$|\?)")
+ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find|mentionables)(/|$|\?)|^/projects/[A-Za-z0-9_]+/name$")
 
 
 class TasksBridge(Bridge):
@@ -57,6 +59,23 @@ class TasksBridge(Bridge):
         """Files for a task, chosen in the desktop's chooser (the panel steps aside for it)."""
         self.owner.choose_files(task)
 
+    #: A project's wallpaper, after a change: {project, path, fit, own, error}.
+    wallpaperChanged = Signal(str)
+
+    @Slot(str, result=str)
+    def wallpaperOf(self, project: str) -> str:  # noqa: N802 — called from the page by this name
+        """A project's wallpaper (by its Talaris id): its own, or the default."""
+        return json.dumps({"project": project, **wallpaper.for_project(self.owner.desktop.config, project)})
+
+    @Slot(str)
+    def chooseWallpaper(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.choose_wallpaper(project)
+
+    @Slot(str)
+    def defaultWallpaper(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        error = self.owner.desktop.set_wallpaper(project, clear=True)
+        self.wallpaperChanged.emit(json.dumps({"project": project, **wallpaper.for_project(self.owner.desktop.config, project), "error": error}))
+
     @Slot(str, str)
     def openFile(self, sha: str, filename: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.open_file(sha, filename)
@@ -81,6 +100,22 @@ class Tasks(Overlay):
     def _send(self, task: str, paths: list) -> None:
         added, errors = send_files(f"/tasks/{task}/attachments", paths)
         self.bridge.attached.emit(json.dumps({"task": task, "added": added, "error": "; ".join(errors)}))
+
+    def choose_wallpaper(self, project: str) -> None:
+        """A picture for a project, from the desktop's chooser (the panel steps aside for it)."""
+        if getattr(self, "_chooser", None):
+            return
+        self._chooser = True
+        now = wallpaper.for_project(self.desktop.config, project)
+
+        def chosen(path: str) -> None:
+            self._chooser = None
+            self.come_back()
+            error = self.desktop.set_wallpaper(project, path=path) if path else ""
+            self.bridge.wallpaperChanged.emit(json.dumps({"project": project, **wallpaper.for_project(self.desktop.config, project), "error": error}))
+
+        self.step_aside()
+        wallpaper.pick(self, os.path.dirname(now["path"]), chosen)
 
     def open_file(self, sha: str, filename: str) -> None:
         open_kept_file(sha, filename)

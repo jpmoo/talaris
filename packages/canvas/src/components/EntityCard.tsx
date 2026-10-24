@@ -28,6 +28,12 @@ import {
 } from "../cards.ts";
 import type { Detail } from "../entities.ts";
 
+/** "YYYY-MM-DD…" as a local day, not midnight in Greenwich. */
+function localDate(v: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 export function EntityCard({ entity, seen }: { entity: string; seen?: { title?: string; kind?: string } }) {
@@ -54,10 +60,15 @@ export function EntityCard({ entity, seen }: { entity: string; seen?: { title?: 
   if (kind === "contact") {
     const emails = Array.isArray(props.emails) ? (props.emails as unknown[]).map(str).filter(Boolean) : [];
     return (
-      <div className="cv-card">
-        <div className="cv-card-title">{title}</div>
-        {emails[0] && <div className="cv-card-meta">{emails[0]}</div>}
-        {str(props.organization) && <div className="cv-card-meta">{str(props.organization)}</div>}
+      <div className="cv-card cv-card-person">
+        <div className="cv-card-row">
+          <span className="cv-card-avatar" style={{ background: avatarTint(entity) }}>{initials(title)}</span>
+          <div className="cv-card-body">
+            <div className="cv-card-title">{title}</div>
+            {emails[0] && <div className="cv-card-meta">{emails[0]}</div>}
+            {str(props.organization) && <div className="cv-card-meta">{str(props.organization)}</div>}
+          </div>
+        </div>
       </div>
     );
   }
@@ -161,6 +172,28 @@ function StatusMenu({
   );
 }
 
+/*
+ * A person's mark: two letters, on a tint picked by the id rather than the
+ * name, so renaming somebody does not repaint them. Each tint is a hue mixed
+ * into the theme's surface, so it stays quiet in either mode.
+ */
+const TINTS = ["var(--accent)", "var(--danger)", "#6f93ad", "#7d9c6c", "#9c82b4", "#b39b5f"];
+
+function avatarTint(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return `color-mix(in srgb, ${TINTS[Math.abs(h) % TINTS.length]} 45%, var(--surface))`;
+}
+
+/** First and last name's first letters; one word gives its first two; an address its local part. */
+function initials(name: string): string {
+  const words = name.split("@")[0]!.split(/[\s._-]+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  if (!words.length) return "?";
+  const first = [...words[0]!];
+  const pair = words.length > 1 ? first[0]! + [...words[words.length - 1]!][0]! : first.slice(0, 2).join("");
+  return pair.toUpperCase();
+}
+
 /** An event: when, where, and who — the first few invitees by name. */
 function EventFace({ title, props, detail }: { title: string; props: Record<string, unknown>; detail: Detail | null }) {
   const start = str(props.start);
@@ -178,12 +211,24 @@ function EventFace({ title, props, detail }: { title: string; props: Record<stri
   }
   const people = (detail?.out ?? []).filter((c) => c.name === "attendees").map((c) => c.entity.title || "Someone");
   const shown = people.slice(0, 4).join(", ") + (people.length > 4 ? ` +${people.length - 4}` : "");
+  const day = localDate(start);
   return (
-    <div className="cv-card">
-      <div className="cv-card-title">{title}</div>
-      {when && <div className="cv-card-meta">{when}</div>}
-      {str(props.location) && <div className="cv-card-meta">{str(props.location)}</div>}
-      {shown && <div className="cv-card-meta">{shown}</div>}
+    <div className="cv-card cv-card-event">
+      <div className="cv-card-row">
+        {/* The day it falls on, as a calendar leaf; none when it has no start. */}
+        {day && (
+          <span className="cv-card-date">
+            <span className="cv-card-month">{day.toLocaleDateString(undefined, { month: "short" })}</span>
+            <span className="cv-card-day">{day.getDate()}</span>
+          </span>
+        )}
+        <div className="cv-card-body">
+          <div className="cv-card-title">{title}</div>
+          {when && <div className="cv-card-meta">{when}</div>}
+          {str(props.location) && <div className="cv-card-meta">{str(props.location)}</div>}
+          {shown && <div className="cv-card-meta">{shown}</div>}
+        </div>
+      </div>
     </div>
   );
 }

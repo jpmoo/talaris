@@ -222,6 +222,8 @@ class Events(QObject):
     reloaded = Signal()
     #: Something the dock shows changed: a window, its title, focus, a workspace.
     windows = Signal()
+    #: The workspace gone to, by name: "3", or a project's id.
+    workspace = Signal(str)
     #: A window opened, or closed: its address (as `j/clients` writes it, 0x…).
     opened = Signal(str)
     closed = Signal(str)
@@ -244,6 +246,8 @@ class Events(QObject):
             name = line.split(b">>", 1)[0].decode("ascii", "replace")
             if name == "configreloaded":
                 self.reloaded.emit()
+            if name == "workspace":
+                self.workspace.emit(line.split(b">>", 1)[1].decode("utf-8", "replace"))
             if name in ("openwindow", "closewindow"):
                 address = "0x" + line.split(b">>", 1)[1].split(b",", 1)[0].decode("ascii", "replace")
                 (self.opened if name == "openwindow" else self.closed).emit(address)

@@ -1078,10 +1078,25 @@ from the profiles — so a field added to a type is offered there too; only one
 the core fills itself (`talaris:auto`, a task's `done_at`) is left out. An
 event is the calendar's and gets the calendar's form.
 
-**Project jump** (Super+Alt and a letter) goes to the project whose name
-starts with it; with more than one, a short list over the dimmed screen,
-narrowed by typing more. That took Super+Alt for letters, so the canvas and
-the writing surface moved to Super+Shift+C and Super+Shift+W.
+**Project jump**: Super+Alt brings every project up in a short list over the
+dimmed screen; letters typed — with Super+Alt still held, or after — narrow
+it, and it goes the moment one is left; with more, arrows and Enter or a
+click. Wherever a key changed the project, the on-screen display says which.
+That took Super+Alt for letters, so the canvas and the writing surface moved
+to Super+Shift+C and Super+Shift+W.
+
+**A project is a desktop**: its Hyprland workspace, named by its id, empty
+the first time it is gone to. **Home is the ordinary, numbered workspaces**,
+and going Home goes back to the last of them. Going to a workspace any other
+way (its keys, the dock) makes its project the current one.
+
+**A project may have a wallpaper of its own** (Home too); the rest show the
+default, which is hyprpaper's file. Kept in Talaris's config by project, and
+shown by asking the running hyprpaper as the project changes. Chosen in
+Settings — a strip of the default and every project, each its own picture or
+the default's faded — from a project's properties in Tasks, or by a
+right-click on the empty desktop, which is a clear surface of Talaris's under
+the windows (`desk.py`).
 
 ## The compositor is a backend
 

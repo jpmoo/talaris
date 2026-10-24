@@ -1,13 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-The wallpaper: hyprpaper's, chosen in Settings.
+The wallpaper: hyprpaper's, chosen in Settings or from the desktop's menu.
 
 **Borrowed, not built** (DESIGN.md, "What Talaris borrows"): hyprpaper draws
-it, started by `talaris.conf`, from `~/.config/hypr/hyprpaper.conf`. Settings,
-Look, reads that file to show what is there, and when a picture or a fit is
-chosen there, writes it and restarts hyprpaper so it shows at once. The file
-is the one truth: nothing about the wallpaper is kept anywhere else.
+it, started by `talaris.conf`, from `~/.config/hypr/hyprpaper.conf`. **The
+default** — every project's that has none of its own — is that file: Settings
+reads it to show what is there and writes it when it changes, so hyprpaper
+starts with it.
+
+**A project's own** (Home is a project like the rest) is kept in Talaris's
+config (`wallpaper.projects`, by project id), and shown by asking the running
+hyprpaper for it (`hyprctl hyprpaper wallpaper`) as that project becomes the
+current one — no restart, so no black frame between them.
 """
 
 from __future__ import annotations
@@ -33,6 +38,31 @@ def current() -> dict:
     return {"path": os.path.expanduser(path.group(1)) if path else "", "fit": fit.group(1) if fit else "cover"}
 
 
+def check(path: str, fit: str) -> str:
+    """Why this is not a wallpaper, or nothing."""
+    path = os.path.expanduser(path)
+    if not (os.path.isfile(path) and path.lower().endswith(PICTURES)):
+        return "Not a picture: a .jpg, .png or .webp"
+    return "" if fit in FITS else "Not a fit"
+
+
+def for_project(config: dict, project: str) -> dict:
+    """A project's wallpaper: its own (`own`), or the default; `{path, fit, own}`."""
+    mine = config.get("wallpaper", {}).get("projects", {}).get(project) if project else None
+    if mine and mine.get("path"):
+        return {"path": mine["path"], "fit": mine.get("fit", "cover"), "own": True}
+    return {**current(), "own": False}
+
+
+def show(config: dict, project: str) -> None:
+    """The current project's wallpaper, on screen now: asked of the running hyprpaper."""
+    w = for_project(config, project)
+    if not w["path"] or not os.path.isfile(w["path"]):
+        return
+    subprocess.Popen(["hyprctl", "hyprpaper", "wallpaper", f",{w['path']},{w['fit']}"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 def choose(path: str, fit: str) -> str:
     """Set the wallpaper: write hyprpaper's file and restart it. Answers why not, or nothing."""
     path = os.path.expanduser(path)
@@ -47,3 +77,21 @@ def choose(path: str, fit: str) -> str:
     subprocess.Popen(["systemctl", "--user", "restart", "hyprpaper.service"],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     return ""
+
+
+def pick(parent, start: str, chosen) -> None:
+    """A picture, chosen in the desktop's own chooser; `chosen` hears its path, or "" if none was."""
+    from PySide6.QtCore import QProcess
+    chooser = QProcess(parent)
+    chooser.setProgram("zenity")
+    chooser.setArguments(["--file-selection", "--title=A wallpaper", f"--filename={start or os.path.expanduser('~/Pictures')}/",
+                          "--file-filter=Pictures | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG"])
+
+    def done(code: int, _status) -> None:
+        path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
+        chooser.deleteLater()
+        chosen(path)
+
+    chooser.finished.connect(done)
+    chooser.start()
+

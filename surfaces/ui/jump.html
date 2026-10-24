@@ -48,9 +48,13 @@ body {
 
   function draw() {
     const all = surface.projects || [];
-    shown = all.filter((p) => p.name.toLowerCase().startsWith(typed));
+    // The start of the name, or of any word in it ("o" finds "1 Offs"); names that start with it first.
+    const starts = (p) => p.name.toLowerCase().startsWith(typed);
+    const words = (p) => p.name.toLowerCase().split(/[^\p{L}\p{N}]+/u).some((w) => w.startsWith(typed));
+    shown = [...all.filter(starts), ...all.filter((p) => !starts(p) && words(p))];
     at = Math.max(0, Math.min(at, shown.length - 1));
-    $("typed").replaceChildren(document.createTextNode("Projects starting"), Object.assign(document.createElement("b"), { textContent: typed.toUpperCase() }));
+    $("typed").replaceChildren(...(typed ? [document.createTextNode("Projects starting"), Object.assign(document.createElement("b"), { textContent: typed.toUpperCase() })]
+      : [document.createTextNode("Projects — type to find one")]));
     $("list").replaceChildren(...(shown.length ? shown.map((p, i) => {
       const b = document.createElement("button");
       b.className = "p" + (i === at ? " on" : "") + (p.current ? " cur" : "");
@@ -72,7 +76,7 @@ body {
     else if (k === "ArrowDown" || (k === "Tab" && !e.shiftKey)) { e.preventDefault(); at = (at + 1) % Math.max(1, shown.length); draw(); }
     else if (k === "ArrowUp" || (k === "Tab" && e.shiftKey)) { e.preventDefault(); at = (at - 1 + shown.length) % Math.max(1, shown.length); draw(); }
     else if (k === "Enter") { e.preventDefault(); go(shown[at]); }
-    else if (k === "Backspace") { e.preventDefault(); if (typed.length > 1) { typed = typed.slice(0, -1); at = 0; draw(); } }
+    else if (k === "Backspace") { e.preventDefault(); if (typed.length) { typed = typed.slice(0, -1); at = 0; draw(); } }
     else if (k.length === 1 && !e.altKey) {
       e.preventDefault();
       typed += k.toLowerCase();
@@ -99,12 +103,20 @@ body {
     if (s.up && !was.up) Motion.arrive(document.body, how());
     if (s.up) {
       draw();
-      // None at all: said, then away.
-      if (!shown.length) setTimeout(() => { if (surface.up && !shown.length && bridge) bridge.file(); }, 1200);
+      // None at all for a letter given: said, then away.
+      if (typed && !shown.length) setTimeout(() => { if (surface.up && !shown.length && bridge) bridge.file(); }, 1200);
     }
   }
   Surface.connect({ onState }).then((b) => {
     bridge = b;
+    // A letter typed with Super+Alt still held reaches here through the process.
+    b.typed.connect((k) => {
+      if (!surface.up) return;
+      typed += k;
+      at = 0;
+      draw();
+      if (shown.length === 1) go(shown[0]);
+    });
     b.leave.connect(() => {
       surface = { ...surface, up: false };
       const going = Motion.leave(document.body, how());

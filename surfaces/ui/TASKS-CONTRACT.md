@@ -16,7 +16,7 @@ then `qrc:///qtwebchannel/qwebchannel.js`, `icons.js`, `surface.js`, `motion.js`
 - `Tasks.api(method, path, body?) → Promise<data>` — the core, through the bridge. Rejects with an Error whose message is the core's.
 - `Tasks.taskType` — the task type: `{id, name, fields: [{key, kind, options?, "talaris:labels"?, "talaris:colors"?, startLabel?, endLabel?, targetType?, many?}], profiles}`.
 - `Tasks.status(value) → {label, color}` — a status option's words and color.
-- `Tasks.projects` — `[{id, title, archived?, workspace?}]`.
+- `Tasks.projects` — `[{id, title, archived?, workspace?, group?, description?}]`. `group` is `talaris:group` on the project's entity: the side column's own arrangement, no meaning outside this page.
 - `Tasks.openTask(id)` — opens the task editor on that task.
 - `Tasks.update(id, patch) → Promise` — `PATCH /entities/:id` with `{properties?, tags?}`; refreshes the view after.
 - `Tasks.setStatus(id, value) → Promise` — sets the status (completing a recurring task brings its next).

@@ -220,3 +220,16 @@ export function readProjectFile(projectId: string, rel: string): Buffer {
   return readBytes(attachedFile(projectId, rel).abs);
 }
 
+/**
+ * A project's name changed: what the bar, the dock and Tasks call it. Its
+ * folder keeps the name it was made with — other applications, and Nextcloud,
+ * know it by that.
+ */
+export function renameProject(projectId: string, name: string): ProjectSummary {
+  const clean = name.trim().slice(0, 120);
+  if (!clean) throw new Conflict("a project needs a name");
+  const { folder } = findProject(projectId);
+  writeJson(projectFile(folder), { ...readProject(folder), name: clean });
+  return findProject(projectId);
+}
+

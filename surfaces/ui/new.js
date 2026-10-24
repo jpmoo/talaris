@@ -457,7 +457,9 @@
         setTimeout(() => checkEmail(firstEmail(info)), 0);
       }
     }
-    return [title, t.fields.filter((f) => !f["talaris:auto"]).map((f) => fieldRow(f, info, t))];
+    return [title, t.fields.filter((f) => !f["talaris:auto"]).map((f) => fieldRow(f, info, t)),
+      // A project's files are its folder's (Files/): kept there once it is made.
+      t["talaris:role"] === "project" ? fileField({ key: "projectFiles", kind: "attachment", many: true, "talaris:label": "Files" }) : null];
   }
 
   /**
@@ -511,6 +513,8 @@
       row("Note", line("title", "Its title", { big: true, spell: true })),
       row("Project", pick),
       row("", writing("body", "Write — @ to link, or drop a file in", { body: true, files: TalarisFiles(api, () => v.project, () => bridge) })),
+      // Kept in the project's Files/ when the note is made, and linked at its end.
+      fileField({ key: "noteFiles", kind: "attachment", many: true, "talaris:label": "Files" }),
     ];
   }
 
@@ -557,6 +561,8 @@
       found,
       row("Where", line("location", "Optional", { spell: true })),
       row("Notes", line("notes", "Optional", { spell: true })),
+      // Kept with the event's entity, made as soon as the calendar has it.
+      fileField({ key: "files", kind: "attachment", many: true, "talaris:label": "Files" }),
     ];
   }
 
@@ -704,6 +710,8 @@
       const rest = { ...props };
       delete rest[info.titleKey];
       if (made && Object.keys(rest).length) await api("PATCH", `/entities/${enc(made.id)}`, { properties: rest });
+      const kept = await keepInProject(p.id, "projectFiles");
+      if (kept.error) { busy = false; say(`Project made, but: ${kept.error}`, true); return; }
     } else if (email) {
       // Somebody by address: the one already here, added to, or made.
       const known = (await api("POST", "/entities/people/known", { emails: [email] }))[email];
@@ -755,7 +763,22 @@
         const event = { title, allDay: Boolean(v.allDay), start: start.getTime(), end: end.getTime(), location: v.location || "", notes: v.notes || "",
           ...(v.repeat ? { rrule: eventRule(v.day) } : {}), ...(invites ? { attendees: v.people } : {}) };
         store.set("talaris.new.calendar", v.calendar);
-        await new Promise((ok, fail) => { eventWait = { ok, fail }; bridge.createEvent(v.calendar, JSON.stringify(event)); });
+        const r = await new Promise((ok, fail) => { eventWait = { ok, fail }; bridge.createEvent(v.calendar, JSON.stringify(event)); });
+        if ((v.files || []).length && r.uid) {
+          // Its entity now, as the calendar's mirror would make it later (calendar_panel.py), so the files have it to go with.
+          const local = (d) => `${isoDay(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          const m = await api("POST", "/entities/mirror/events", { events: [{
+            source: { kind: "eds-event", key: `${v.calendar}/${r.uid}` }, also: [{ kind: "ical-uid", key: r.uid }],
+            title, start: local(start), end: local(end), allDay: Boolean(v.allDay), location: v.location || "",
+            ...(invites ? { attendees: v.people } : {}),
+          }] });
+          const id = (m.ids || [])[0];
+          if (id) {
+            say("Keeping the files…");
+            const sent = await new Promise((ok) => { sentWait = ok; bridge.sendFiles(id, "files", JSON.stringify(v.files.map((x) => x.path))); });
+            if (sent.error) { busy = false; say(`Event made, but: ${sent.error}`, true); return; }
+          }
+        }
         done(invites ? "Event made, invitations sent" : "Event made", andOpen ? () => bridge.openThing("event", "") : null);
         return;
       }
@@ -763,8 +786,11 @@
         const title = plain(v.title) || plain((v.body || "").split("\n")[0]).slice(0, 80);
         if (!title) throw new Error("A note needs a title or some words");
         if (!v.project) throw new Error("Choose a project for it");
+        const kept = await keepInProject(v.project, "noteFiles");
+        const body = [String(v.body || "").trimEnd(), kept.files.map(linkOf).join(" ")].filter(Boolean).join("\n\n");
         const page = await api("POST", `/projects/${enc(v.project)}/pages`, { parent: null, title });
-        if ((v.body || "").trim()) await api("PUT", `/projects/${enc(v.project)}/page?path=${enc(page.path)}`, v.body);
+        if (body.trim()) await api("PUT", `/projects/${enc(v.project)}/page?path=${enc(page.path)}`, body);
+        if (kept.error) { busy = false; say(`Note made, but: ${kept.error}`, true); return; }
         const where = (projectList.find((x) => x.id === v.project) || {}).name;
         done(`Note made${where && v.project !== surface.project ? ` in ${where}` : ""}`, andOpen ? () => bridge.openThing("page", `${v.project}/${page.path}`) : null);
         return;
@@ -777,6 +803,14 @@
       say(e.message, true);
     }
   }
+  /** Chosen files kept in a project: their links, or why not. */
+  async function keepInProject(project, key) {
+    const files = v[key] || [];
+    if (!files.length) return { files: [], error: "" };
+    say("Keeping the files…");
+    return new Promise((ok) => { sentWait = ok; bridge.sendProjectFiles(project, JSON.stringify(files.map((x) => x.path))); });
+  }
+  const linkOf = (f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`;
   let eventWait = null;
   let sentWait = null;
   function done(text, then) {

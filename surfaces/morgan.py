@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import socket
 
@@ -56,6 +57,18 @@ LINGER_MS = 1200
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GLYPHS = os.path.join(HERE, "ui", "morgan", "tabler.json")
+
+#: What the page may ask the core for: `@` in the composer (mentions.js), the
+#: card a mention opens (peek.js), and what is read to go with the message.
+#: Not a door to the rest of the core.
+ALLOWED = tuple((method, re.compile(path)) for method, path in (
+    ("GET", r"/mentionables\?.*"),
+    ("GET", r"/people/find\?.*"),
+    ("GET", r"/entities/[A-Za-z0-9_]+(/place)?"),
+    ("GET", r"/projects/[^/?]+/page\?path=.*"),
+    ("POST", r"/entities(/people/known|/person|/place)?"),
+    ("POST", r"/tasks"),
+))
 
 
 def command(line: str, timeout: float = 20) -> str:
@@ -126,10 +139,17 @@ class Link(QObject):
 
 
 class MorganBridge(Bridge):
-    """What Morgan's page asks of its host — the same as Morgan's own window answered."""
+    """What Morgan's page asks of its host — the same as Morgan's own window answered, and the core for `@`."""
 
     event = Signal(str)
     dropped = Signal(str)
+
+    @Slot(int, str, str, str)
+    def request(self, rid: int, method: str, path: str, body: str) -> None:
+        if not any(m == method.upper() and r.fullmatch(path) for m, r in ALLOWED):
+            self.replied.emit(rid, 400, json.dumps({"error": "not a route Morgan's page uses"}))
+            return
+        super().request(rid, method, path, body)
 
     @Slot(str, result=str)
     def call(self, line: str) -> str:
@@ -187,7 +207,7 @@ class Panel(Overlay):
 
     def open(self) -> None:
         super().open()
-        self.view.page().runJavaScript("document.getElementById('draft') && document.getElementById('draft').focus()")
+        self.view.page().runJavaScript("window.focusDraft && focusDraft()")
 
     def closed(self) -> None:
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))

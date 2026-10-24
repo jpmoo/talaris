@@ -137,6 +137,15 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .crumb { cursor: pointer; }
 .crumb:hover { color: var(--accent); }
 .pane-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pane-bar .spacer { flex: 1; }
+.pane-bar .attach { border: 1px solid var(--line); border-radius: 14px; padding: 2px 12px; font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-right: 10px; }
+.pane-bar .attach:hover { color: var(--accent); border-color: var(--accent); }
+/* What the page links, to open: under the writing. */
+.page-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 2px 0; }
+.page-files:empty { display: none; }
+.page-files .label { margin-right: 4px; }
+.file-chip { border: 1px solid var(--line); border-radius: 12px; padding: 2px 10px; font-size: 12px; color: var(--text); background: var(--accent-wash); cursor: pointer; }
+.file-chip:hover { border-color: var(--accent); color: var(--accent); }
 .section { margin: 12px 8px 4px; }
 .calendar { padding: 0 4px 6px; border-bottom: 1px solid var(--line); }
 .cal-bar, .cal-month { display: flex; justify-content: space-between; align-items: center; margin: 2px 4px 6px; }

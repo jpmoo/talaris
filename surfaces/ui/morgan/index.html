@@ -9,7 +9,9 @@
   everything typed here is a command to the daemon. What changed coming across:
   Talaris's theme and typeface, the icon font shipped here instead of read from
   Noctalia's, Escape putting the panel away when Morgan is idle, and no title
-  bar — its state and controls sit in a row under the composer.
+  bar — its state and controls sit in a row under the composer. And the
+  composer is Talaris's editor, so `@` links a thing there as everywhere else;
+  what is linked goes to Morgan with the message, read from the core.
 -->
 <html lang="en">
 <head>
@@ -162,7 +164,17 @@
   #chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   #chips button { border: 1px solid var(--line); font-size: 12px; padding: 2px 8px; }
   .composer { display: flex; gap: 8px; align-items: flex-end; background: var(--raised); border-radius: 14px; padding: 6px 8px; }
-  textarea { flex: 1; resize: none; border: 0; outline: 0; background: none; color: var(--text); font: inherit; max-height: 220px; padding: 6px 4px; }
+  /* The composer is the editor (editor.js), so @ works in it: as tall as its words, up to a point. */
+  #draft { flex: 1; min-width: 0; align-self: center; cursor: text; }
+  #draft .cm-scroller { max-height: 220px; overflow-y: auto; font-family: var(--font); line-height: 1.5; }
+  #draft .cm-content { padding: 6px 4px; }
+  #draft .cm-placeholder { color: var(--dim); }
+  /* A thing linked in a message sent, as the editor draws it. */
+  .msg .mention { color: var(--accent); background: var(--accent-wash); border-radius: 4px; padding: 0 3px; cursor: pointer; }
+  /* A mention's card (peek.js) here, without controls.css: its buttons drawn as Morgan's. */
+  .peek { --menu-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
+  .peek .t-btn { border: 1px solid var(--line); padding: 2px 10px; margin: 6px 6px 0 0; }
+  .peek .icon-btn { padding: 0 7px; }
   #mic.on { background: var(--accent); color: #0c0d0e; }
   body.dropping main { outline: 2px dashed var(--accent); outline-offset: -8px; }
 </style>
@@ -200,7 +212,7 @@
   <div id="chips"></div>
   <div class="composer">
     <button id="attach" title="Attach files (or drop them on the window)"><i class="ti" data-icon="paperclip"></i></button>
-    <textarea id="draft" rows="1" placeholder="Type here. Enter sends; Shift+Enter starts a new line." autofocus></textarea>
+    <div id="draft"></div>
     <button id="mic" title="Speak"><i class="ti" id="micicon"></i></button>
   </div>
 </div></footer>
@@ -210,6 +222,8 @@
 <script src="../surface.js"></script>
 <script src="../motion.js"></script>
 <script src="../icons.js"></script>
+<script src="../peek.js"></script>
+<script src="../mentions.js"></script>
 <script>
 "use strict";
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
@@ -305,7 +319,7 @@ function message(who, text, oracle, record, at) {
   head.append(copy);
 
   const body = el("div", "body");
-  if (who === "you") body.textContent = text; else body.innerHTML = md.render(text);
+  if (who === "you") { body.append(...yours(text)); text = body.textContent; } else body.innerHTML = md.render(text);
   box.append(head, body);
   // Only once the heading is in the box: the marks are put into it there.
   if (record) { marks(box, record.t); box.classList.toggle("hidden", Boolean(record.hidden)); box.classList.toggle("good", Boolean(record.good)); review(box, record.t, record.review); }
@@ -354,6 +368,134 @@ function toolCard(tool, args) {
   return [icon, title, detail];
 }
 
+// ---------------------------------------------------------------- the core, for @
+
+// The core through the bridge (core.py `request`, held to Morgan's few routes
+// in morgan.py): the @ picker, a mention's card, and what goes with a message.
+// The panel and its window may share the bridge, so each page numbers its own.
+const waiting = new Map();
+let asked = Math.floor(Math.random() * 1e9);
+function api(method, path, body) {
+  return new Promise((ok, fail) => {
+    if (!bridge) { fail(new Error("Not connected")); return; }
+    const id = ++asked;
+    waiting.set(id, { ok, fail });
+    bridge.request(id, method, path, body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body));
+  });
+}
+function replied(id, status, text) {
+  const p = waiting.get(id);
+  if (!p) return;
+  waiting.delete(id);
+  let data = text;
+  try { data = JSON.parse(text); } catch { /* a page's Markdown */ }
+  if (status >= 200 && status < 300) p.ok(data);
+  else p.fail(new Error((data && data.error) || `the core answered ${status}`));
+}
+const enc = encodeURIComponent;
+
+const MENTION = /\[@([^\]\n]*)\]\(talaris:([A-Za-z0-9_]+)\)/g;
+const named = (text) => text.replace(MENTION, "$1");
+// Where the user's words end and what Talaris adds begins: the record keeps
+// both, so a bubble drawn from it cuts here.
+const CONTEXT = "\n\n---\nContext from Talaris (linked in this message):\n";
+
+// A message of yours as shown: your words, a thing linked a chip that opens its card.
+function yours(text) {
+  const at = text.indexOf(CONTEXT);
+  if (at >= 0) {
+    // Files attached still say so, after the context in the record.
+    const tail = text.slice(at).match(/(\n\n(?:📎 .*(?:\n|$))+| \[attached: [^\]]*\])$/u);
+    text = text.slice(0, at) + (tail ? tail[0] : "");
+  }
+  const out = [];
+  let from = 0;
+  for (const m of text.matchAll(MENTION)) {
+    out.push(text.slice(from, m.index));
+    const chip = el("span", "mention", m[1]);
+    chip.title = "Open its card";
+    chip.onclick = () => peek(m[2]);
+    out.push(chip);
+    from = m.index + m[0].length;
+  }
+  out.push(text.slice(from));
+  return out;
+}
+
+// What each thing linked in a message is, read from the core and written out
+// for Morgan: its kind, its fields in words, what it touches, and a page's text.
+const KIND_WORD = { contact: "person", event: "event", task: "task", note: "note", project: "project", page: "page", canvas: "canvas" };
+// A link read from the far end, and from this one, in words (as peek.js says them).
+const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
+const OUT = { mentions: "mentions", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
+const ENTITY_ID = /^e_[A-Za-z0-9]+$/;
+const spaced = (key) => key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase();
+const some = (names) => (names.length > 15 ? `${names.slice(0, 15).join(", ")} and ${names.length - 15} more` : names.join(", "));
+
+// A field's value in words; null when there is nothing to say. An id is the
+// title of what it points at, or nothing: an id alone tells Morgan nothing.
+function worded(value, titles) {
+  if (value == null || value === "") return null;
+  if (Array.isArray(value)) {
+    const parts = value.map((v) => worded(v, titles)).filter((v) => v != null);
+    return parts.length ? some(parts) : null;
+  }
+  if (typeof value === "string") {
+    if (ENTITY_ID.test(value)) return titles.get(value) ?? null;
+    const s = named(value).trim();
+    return s ? (s.length > 1500 ? `${s.slice(0, 1500)}…` : s) : null;
+  }
+  if (typeof value === "object") { const s = JSON.stringify(value); return s === "{}" ? null : s.slice(0, 300); }
+  return String(value);
+}
+
+async function described(id, name) {
+  const got = await api("GET", `/entities/${enc(id)}`);
+  const place = await api("GET", `/entities/${enc(id)}/place`).catch(() => null);
+  const where = place && (place.kind === "page" || place.kind === "canvas") ? place : null;
+  const kinds = got.kinds || [];
+  const kind = where ? where.kind : KIND_WORD[kinds.find((k) => KIND_WORD[k])] || kinds[0] || "thing";
+  const titles = new Map([...(got.out || []), ...(got.in || [])].map((c) => [c.entity.id, c.entity.title]));
+  const lines = [`## ${got.title || name} (${kind})`];
+  const fields = new Set();
+  for (const [key, value] of Object.entries(got.entity?.properties || {})) {
+    if (key === "title") continue;
+    const said = worded(value, titles);
+    if (said == null) continue;
+    fields.add(key);
+    lines.push(`${spaced(key)}: ${said}`);
+  }
+  // What it touches, by how — a field already written out above is not said twice.
+  const how = new Map();
+  let count = 0, more = 0;
+  const touch = (word, title) => {
+    if (!title) return;
+    const had = how.get(word) || [];
+    if (had.includes(title)) return;
+    if (count >= 15) { more++; return; }
+    count++;
+    how.set(word, [...had, title]);
+  };
+  for (const c of got.out || []) if (!fields.has(c.name)) touch(OUT[c.name] || spaced(c.name), c.entity.title);
+  for (const c of got.in || []) touch(BACK[c.name] || `${spaced(c.name)} of`, c.entity.title);
+  for (const [word, names] of how) lines.push(`${word}: ${names.join(", ")}`);
+  if (more) lines.push(`(and ${more} more connections)`);
+  if (where?.kind === "page") {
+    const page = await api("GET", `/projects/${enc(where.project)}/page?path=${enc(where.where)}`).catch(() => null);
+    const words = named(typeof page === "string" ? page : page == null ? "" : JSON.stringify(page)).trim();
+    if (words) lines.push(`page text:\n${words.length > 4000 ? `${words.slice(0, 4000)}\n…(cut)` : words}`);
+  }
+  return lines.join("\n");
+}
+
+// The context for a message: each distinct thing linked in it, or "" for none.
+async function linked(text) {
+  const ids = new Map([...text.matchAll(MENTION)].map((m) => [m[2], m[1]]));
+  if (!ids.size) return "";
+  const blocks = await Promise.all([...ids].map(([id, name]) => described(id, name).catch(() => `## ${name}\n(could not be read from Talaris)`)));
+  return CONTEXT + blocks.join("\n\n");
+}
+
 // ---------------------------------------------------------------- the daemon's news
 
 function hear(line) {
@@ -361,7 +503,7 @@ function hear(line) {
   try { e = JSON.parse(line); } catch { return; }
   switch (e.type) {
     case "state":
-      if (e.name && e.name !== name) { name = e.name; $("name").textContent = name; bridge.title(name); $("draft").placeholder = `Type to ${name}. Enter sends; Shift+Enter starts a new line.`; }
+      if (e.name && e.name !== name) { name = e.name; $("name").textContent = name; bridge.title(name); hint(`Type to ${name}. Enter sends; Shift+Enter starts a new line.`); }
       state = e.state;
       $("state").textContent = STATES[state] ?? "";
       $("mic").classList.toggle("on", state === "listening");
@@ -458,8 +600,11 @@ function chips() {
   }));
 }
 
-function send() {
-  const text = $("draft").value.trim();
+async function send() {
+  if (!draft) return;
+  // What is typed is Markdown, mentions in it as `[@Name](talaris:id)`; Morgan reads them as names.
+  const raw = draft.text.trim();
+  const text = named(raw);
   if (!text && !files.length) return;
   if (["/new", "/interview", "/stop"].includes(text)) bridge.call(text.slice(1));
   else if (viewing) {
@@ -467,27 +612,47 @@ function send() {
     // Typed into an earlier conversation: it is carried on first, then this goes to it.
     const id = viewing;
     viewing = null;
-    bridge.call(`continue ${id}`, () => { $("draft").value = text; send(); });
+    bridge.call(`continue ${id}`, () => { draft.set(raw); send(); });
     return;
   } else {
     calendar(false); $("similar").hidden = true;
     following = true;
     mine = true;
-    add(message("you", files.length ? `${text}\n\n${files.map((path) => `📎 ${path.split("/").pop()}`).join("\n")}` : text, "", null, Date.now()));
+    add(message("you", files.length ? `${raw}\n\n${files.map((path) => `📎 ${path.split("/").pop()}`).join("\n")}` : raw, "", null, Date.now()));
     $("scroll").scrollTop = $("scroll").scrollHeight;
-    bridge.call(files.length ? `ask ${JSON.stringify({ text, files })}` : `type ${text.replace(/\n+/g, " ")}`);
+    const sending = files;
+    files = []; chips(); draft.set("");
+    // Read before it goes, so the box is cleared at once and not after the core answers.
+    const context = await linked(raw);
+    // `ask`, not `type`, once there is context: a line cannot carry its line breaks.
+    bridge.call(sending.length || context ? `ask ${JSON.stringify({ text: text + context, files: sending })}` : `type ${text.replace(/\n+/g, " ")}`);
+    return;
   }
-  files = []; chips();
-  $("draft").value = ""; grow();
+  files = []; chips(); draft.set("");
 }
 
-function grow() { const box = $("draft"); box.style.height = "auto"; box.style.height = `${Math.min(220, box.scrollHeight)}px`; }
-$("draft").addEventListener("input", grow);
+// The composer: Talaris's editor, one that takes @. Enter sends (the picker's
+// Enter first, while it is open); Shift+Enter is the editor's own new line.
+let draft = null;
+let hintText = "Type here. Enter sends; Shift+Enter starts a new line.";
+function hint(text) { hintText = text; for (const node of document.querySelectorAll("#draft .cm-placeholder .hint")) node.textContent = text; }
+window.focusDraft = () => draft?.focus();
+const peek = (id) => Peek.show(id, api, {});
+import("../editor.js").then((m) => {
+  draft = m.createEditor($("draft"), "", {
+    live: true, compact: true, singleLine: true, onEnter: () => { send(); },
+    placeholder: () => el("span", "hint", hintText),
+    mentions: TalarisMentions(api, peek),
+  });
+  draft.focus();
+}).catch((error) => console.error(error));
 $("draft").addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
-  if (event.key === "Escape" && state !== "idle") bridge.call("stop");
+  // Not when the editor took it — Escape closing the @ picker.
+  if (event.key === "Escape" && !event.defaultPrevented && state !== "idle") bridge.call("stop");
 });
-$("attach").onclick = () => bridge.pick((picked) => { files.push(...JSON.parse(picked)); chips(); $("draft").focus(); });
+// A file dropped here would be read into the text by the editor; files come by the paperclip.
+$("draft").addEventListener("drop", (event) => { if (event.dataTransfer?.files?.length) { event.preventDefault(); event.stopPropagation(); } }, true);
+$("attach").onclick = () => bridge.pick((picked) => { files.push(...JSON.parse(picked)); chips(); focusDraft(); });
 $("mic").onclick = () => bridge.call(state === "idle" || state === "listening" ? "toggle" : "stop");
 $("new").onclick = () => bridge.call("new");
 $("settings").onclick = () => bridge.settings();
@@ -692,7 +857,8 @@ $("next").onclick = () => { shownMonth.setMonth(shownMonth.getMonth() + 1); mont
 $("weekdays").append(...["S", "M", "T", "W", "T", "F", "S"].map((letter) => el("span", "", letter)));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("calendar").hidden) { calendar(false); event.stopPropagation(); } }, true);
 // Talaris: Escape while Morgan is idle puts the panel away; while it is busy, it stops Morgan (above).
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && state === "idle" && bridge) bridge.file(); });
+// Not when the composer took it, closing the @ picker.
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !event.defaultPrevented && state === "idle" && bridge) bridge.file(); });
 for (const type of ["pointerdown", "keydown", "wheel"]) document.addEventListener(type, () => bridge && bridge.activity(), { capture: true, passive: true });
 document.addEventListener("mousedown", (event) => { if (!$("calendar").hidden && !$("calendar").contains(event.target) && !$("history").contains(event.target)) calendar(false); });
 
@@ -703,7 +869,8 @@ function start() {
     // The stream's opening line, which says who this is and what it is doing, may have gone by already.
     bridge.call("status", (status) => { try { const now = JSON.parse(status); hear(JSON.stringify({ type: "state", state: now.state, name: now.name })); } catch { /* not up */ } });
   });
-  bridge.dropped.connect((dropped) => { files.push(...JSON.parse(dropped)); chips(); $("draft").focus(); });
+  bridge.dropped.connect((dropped) => { files.push(...JSON.parse(dropped)); chips(); focusDraft(); });
+  bridge.replied.connect(replied);
   // Talaris: a theme changed in Settings reaches this page as its state.
   bridge.state.connect((text) => {
     try {

@@ -8,7 +8,7 @@ import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
-import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, readProjectFile, writeExport } from "./projects.js";
+import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
   backlinks,
   canvasTree,
@@ -116,6 +116,12 @@ route("POST", "/projects", async (req) => {
   if (b.adopt) return adoptFolder(b.adopt, b.name);
   if (!b.name) throw new BadRequest("a project needs a name");
   return createProject(b.name);
+});
+route("PUT", "/projects/:id/name", async (req, [id]) => {
+  const b = await json<{ name?: string }>(req);
+  const p = renameProject(id!, b.name ?? "");
+  tasks.taskProjects(); // its entity takes the new name
+  return p;
 });
 route("GET", "/projects/:id", (_r, [id]) => {
   const p = findProject(id!);

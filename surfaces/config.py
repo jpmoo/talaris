@@ -45,6 +45,9 @@ DEFAULTS = {
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
     "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "new": "windows", "jump": "windows",
                  "canvas": "drawers", "writing": "drawers"},
+    # Wallpapers of their own, by project id ({path, fit}); a project without
+    # one shows the default, which is hyprpaper's own file (wallpaper.py).
+    "wallpaper": {"projects": {}},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},

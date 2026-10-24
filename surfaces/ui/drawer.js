@@ -388,8 +388,23 @@ const editorModules = () => (modules ??= Promise.all([import("./editor.js"), imp
   .then(([ed, md]) => ({ createEditor: ed.createEditor, render: md.render })));
 let editor = null;   // the one editor, kept across Live and Raw
 
+// The files a page links (`talaris:file` chips), listed under it to open.
+const FILE_LINK = () => /\[([^\]\n]*)\]\(talaris-file:([^)\s]+)\)/g;
+function drawPageFiles() {
+  const box = $("pageFiles");
+  if (!box) return;
+  const seen = new Map();
+  for (const m of (open ? text : "").matchAll(FILE_LINK())) {
+    const path = decodeURI(m[2]).replace(/%28/g, "(").replace(/%29/g, ")");
+    if (!seen.has(path)) seen.set(path, m[1] || path.split("/").pop());
+  }
+  box.replaceChildren(...(seen.size ? [el("span", { class: "label" }, `FILES · ${seen.size}`),
+    ...[...seen].map(([path, name]) => el("button", { class: "file-chip", title: path, onclick: () => bridge && bridge.openProjectFile(state.project.id, path) }, name))] : []));
+}
+
 function changed(next) {
   text = next;
+  drawPageFiles();
   clearTimeout(saveTimer);
   status("EDITING");
   saveTimer = setTimeout(save, 600);
@@ -438,6 +453,7 @@ async function drawEditor() {
     });
   }
   if (paperOf !== open) paperFor(open);
+  drawPageFiles();
   editor.focus();
 }
 
@@ -543,12 +559,14 @@ async function loadWriting() {
     dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
     pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
-    ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())),
-    // Files chosen in the desktop's chooser, kept in the project, linked at the cursor.
-    el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(state.project.id); } }, "ATTACH"));
+    ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
+  // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
+  // a thing done to the page, so apart from the ways of seeing it.
+  const attach = el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(state.project.id); } }, "ATTACH");
   const pane = el("div", { class: "pane" },
-    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), modes),
-    el("div", { class: "editor", id: "editorHost" }));
+    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
+    el("div", { class: "editor", id: "editorHost" }),
+    el("div", { class: "page-files", id: "pageFiles" }));
   $("body").replaceChildren(tree, pane);
   $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list"), " ", el("button", { onclick: () => newPage(null) }, "New page")];

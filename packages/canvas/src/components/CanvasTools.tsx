@@ -16,12 +16,12 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Image as ImageIcon, Search, SquareDashed, Type } from "lucide-react";
+import { Calendar, FileText, Image as ImageIcon, Search, SquareDashed, Type, User } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
 import { createPortal } from "react-dom";
-import { BringIn } from "./BringIn.tsx";
+import { BringIn, type BringKind } from "./BringIn.tsx";
 import { cardKind } from "../cards.ts";
 import type { Summary } from "../entities.ts";
 
@@ -172,7 +172,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
    * sibling arrangement as the drop above. The canvas says where; the strip,
    * which owns placing things, opens the search there and places the card.
    */
-  const [bringing, setBringing] = useState<{ x: number; y: number } | null>(null);
+  const [bringing, setBringing] = useState<{ x: number; y: number; kind?: BringKind } | null>(null);
   useEffect(() => {
     const open = (e: Event) => {
       const at = (e as CustomEvent<{ x: number; y: number }>).detail;
@@ -193,7 +193,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
   function bringIn(s: Summary, clientX: number, clientY: number) {
     const at = atPoint(clientX, clientY);
     const kind = cardKind(s.kinds ?? []);
-    const h = kind === "task" ? 72 : kind === "event" ? 96 : 110;
+    const h = kind === "task" ? 72 : kind === "event" ? 96 : kind === "contact" ? 76 : 110;
     void place({ id: id(), kind: "card", entity: s.id, x: at.x, y: at.y, w: 240, h, seen: { title: s.title, kind } });
   }
 
@@ -411,6 +411,22 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
     onPlaced();
   }
 
+  /*
+   * The Person and Event tools drop a search rather than a node: what lands is
+   * a card of somebody or something, found or made, so the drop point is where
+   * the search opens and where its card goes.
+   */
+  const DROPS: Record<string, BringKind> = { person: "contact", event: "event" };
+  const dropAt = (key: string, clientX: number, clientY: number) => {
+    if (key === "text") dropText(clientX, clientY);
+    else if (DROPS[key]) setBringing({ x: clientX, y: clientY, kind: DROPS[key] });
+  };
+  /** A click rather than a drag: the search opens in the middle of the canvas. */
+  const searchMiddle = (kind: BringKind) => {
+    const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
+    setBringing({ x: (box?.left ?? 0) + (box?.width ?? 800) / 2, y: (box?.top ?? 0) + (box?.height ?? 600) / 2, kind });
+  };
+
   const tool = (key: string, title: string, node: React.ReactNode, onClick?: () => void) => (
     <button
       key={key}
@@ -421,14 +437,14 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       // work. A plain click still drops one in the middle, for a pointer that
       // would rather not drag.
       onPointerDown={(e) => {
-        if (key !== "text" || e.button !== 0) return;
+        if ((key !== "text" && !DROPS[key]) || e.button !== 0) return;
         e.preventDefault();
         setDragging(key);
         const finish = (up: PointerEvent) => {
           window.removeEventListener("pointerup", finish);
           setDragging(null);
           const over = window.document.elementFromPoint(up.clientX, up.clientY);
-          if (over?.closest(".cv-wrap")) dropText(up.clientX, up.clientY);
+          if (over?.closest(".cv-wrap")) dropAt(key, up.clientX, up.clientY);
         };
         window.addEventListener("pointerup", finish);
       }}
@@ -511,6 +527,9 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
         </div>
       )}
 
+      {tool("person", "Drag onto the canvas — a person", <User size={15} />, () => searchMiddle("contact"))}
+      {tool("event", "Drag onto the canvas — an event", <Calendar size={15} />, () => searchMiddle("event"))}
+
       <button
         className={`tool${selecting ? " armed" : ""}`}
         title={selecting ? "Selecting — drag to sweep, Escape to stop" : "Select: drag to sweep without holding Shift"}
@@ -560,8 +579,11 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       {bringing &&
         createPortal(
           <BringIn
+            // A new drop is a new search, not the last one moved.
+            key={`${bringing.x},${bringing.y},${bringing.kind ?? ""}`}
             x={bringing.x}
             y={bringing.y}
+            kind={bringing.kind}
             onClose={closeBringing}
             onPick={(s) => {
               setBringing(null);

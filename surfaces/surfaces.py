@@ -40,7 +40,7 @@ import hypr
 from apps import Apps
 from bar import Bar
 from bar import margins as bar_margins
-from config import load_config
+from config import load_config, save_config
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
@@ -48,10 +48,12 @@ from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
 from new_panel import New
 from jump_panel import Jump
+from desk import Desk
 from osd import Osd
 from tip import Tip
 from tray import Tray
 from winfx import WindowDraw
+import wallpaper
 from wallpaper import current as wallpaper_current
 from power import Power
 from workspace import Workspace
@@ -86,6 +88,8 @@ def register_scheme() -> None:
 
 #: The letters Super+Alt jumps to a project by (jump_panel.py).
 JUMP_LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
+#: Super and Alt together, by the second of them to go down.
+JUMP_OPEN = ("SUPER, Alt_L", "SUPER, Alt_R", "ALT, Super_L", "ALT, Super_R")
 
 class Files(QWebEngineUrlSchemeHandler):
     """The pages' own files and applications' icons, and nothing else — every one a GET, so no request body is ever touched."""
@@ -107,10 +111,13 @@ class Files(QWebEngineUrlSchemeHandler):
                 return
             self._reply(job, data, "image/png")
             return
-        # `talaris-ui://wallpaper/`: the picture hyprpaper is set to — that one
-        # file, whatever a page asks — for Settings' preview.
+        # `talaris-ui://wallpaper/`: the default wallpaper, or `?project=<id>`
+        # one project's — a picture Talaris itself is set to show, never a
+        # path a page names — for Settings' previews.
         if url.host() == "wallpaper":
-            path = wallpaper_current()["path"]
+            project = QUrlQuery(url).queryItemValue("project")
+            config = getattr(self.parent(), "config", None)
+            path = wallpaper.for_project(config, project)["path"] if project and config else wallpaper_current()["path"]
             if not path or not os.path.isfile(path):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                 return
@@ -179,6 +186,9 @@ class Desktop(QObject):
         self.new = New(profile, self, self.calendar_service)
         # Project jump: Super+Alt+a letter.
         self.jump = Jump(profile, self)
+        # The empty desktop, under the windows: its right-click menu (the wallpaper).
+        self.desk = Desk(profile, self)
+        self.desk.place()
         self.voice = Voice(profile, self, self.morgan_link)
         self.osd = Osd(profile, self)
         self.tip = Tip(self)
@@ -189,12 +199,26 @@ class Desktop(QObject):
         self.workspaces = {name: Workspace(name, profile, self) for name in ("canvas", "writing")}
         self.winfx = WindowDraw(profile, self)
         self.events.reloaded.connect(self._bind)
+        # Home's desktop is the ordinary workspaces: the last one of them, to go back to.
+        self._ordinary = "1"
+        self.events.workspace.connect(self._workspace_changed)
+        # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
+        try:
+            active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
+        except (ValueError, OSError):
+            active = ""
+        if active and not active.startswith(("prj_", "special")):
+            self._ordinary = active
+        elif active.startswith("prj_"):
+            QTimer.singleShot(0, lambda: self._workspace_changed(active))
         self._bind()
 
         self.control = QLocalServer(self)
         QLocalServer.removeServer(CONTROL)
         self.control.listen(CONTROL)
         self.control.newConnection.connect(self._command)
+        # The current project's own wallpaper, once hyprpaper (started beside this) is up.
+        QTimer.singleShot(4000, lambda: wallpaper.show(self.config, self.project.get("id", "")))
 
     def _home(self) -> dict:
         status, text = call("GET", "/projects")
@@ -307,6 +331,9 @@ class Desktop(QObject):
         # Super+Alt and a letter: the project starting with it, or a choice of them.
         for letter in JUMP_LETTERS:
             hypr.bind(f"SUPER ALT, {letter}", f"{LAUNCHER} --jump {letter.lower()}")
+        # Super+Alt alone, whichever goes down second: every project, to type into.
+        for keys in JUMP_OPEN:
+            hypr.bind(keys, f"{LAUNCHER} --jump-open")
         hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -317,7 +344,7 @@ class Desktop(QObject):
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), *JUMP_OPEN, "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -342,7 +369,7 @@ class Desktop(QObject):
     def every_surface(self) -> list:
         """Everything that draws a page and wears the theme."""
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
-                self.osd, self.settings, *self.overlays()]
+                self.osd, self.settings, self.desk, *self.overlays()]
 
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
@@ -405,22 +432,92 @@ class Desktop(QObject):
 
     # ---------------------------------------------------------------- what the launcher asks
 
-    def go_to_project(self, project_id: str) -> None:
-        """The current project changes: the bar says so, and the canvas and the writing surface open on it."""
+    def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
+        """
+        The current project changes: the bar says so, the canvas and the
+        writing surface open on it, the dock shows its pins, the wallpaper its
+        own — and (`move`) the screen goes to its desktop.
+
+        **A project is a desktop** (DESIGN, *Workspace*): Hyprland's workspace
+        named by its id, empty the first time it is gone to. **Home is the
+        ordinary ones** — the numbered workspaces (or named by you), where the windows of no
+        project in particular live — and going Home is going back to the last
+        of those. Going to a workspace by other means (its keys, the dock)
+        makes its project current in turn (`_workspace_changed`).
+        """
         status, text = call("GET", "/projects")
         try:
             found = next((p for p in json.loads(text) if p.get("id") == project_id), None) if status == 200 else None
         except ValueError:
             found = None
-        if not found or found["id"] == self.project.get("id"):
+        if not found:
+            return
+        if move:
+            back = self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
+            hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
+        if found["id"] == self.project.get("id"):
+            if announce:
+                self.osd.announce(found.get("name", ""), found.get("code", ""))
             return
         self.project = found
         for w in self.workspaces.values():
             w.bridge.state.emit(json.dumps(w.describe()))
         self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
-        # The dock: what is pinned in this project.
+        # The dock: what is pinned in this project; the wallpaper: its own, or the default.
         self.dock.refresh()
+        wallpaper.show(self.config, found["id"])
+        self.desk.changed()
+        # Gone to by a key, with nothing on screen to say so: the OSD says where.
+        if announce:
+            self.osd.announce(found.get("name", ""), found.get("code", ""))
         log(f"project: {found['name']}")
+
+    def _workspace_changed(self, name: str) -> None:
+        """A workspace gone to: a project's (by its id), or an ordinary one — numbered, or named by you — which is Home's."""
+        if name.startswith("special"):
+            return
+        if not name.startswith("prj_"):
+            self._ordinary = name
+            if not self.project.get("home"):
+                self.go_to_project(self._home()["id"], move=False, announce=True)
+        elif name.startswith("prj_") and name != self.project.get("id"):
+            self.go_to_project(name, move=False, announce=True)
+
+    def set_wallpaper(self, scope: str, path: str | None = None, fit: str | None = None, clear: bool = False) -> str:
+        """
+        The default wallpaper (`scope` empty) or one project's: a new picture,
+        a new fit, or (`clear`) the project's own given up for the default.
+        Shown at once if it is what the current project shows. Answers why
+        not, or nothing.
+        """
+        here = self.project.get("id", "")
+        now = wallpaper.for_project(self.config, scope) if scope else {**wallpaper.current(), "own": False}
+        if not scope:
+            path, fit = path or now["path"], fit or now["fit"]
+            if not path:
+                return "No picture yet"
+            error = wallpaper.choose(path, fit)
+            # hyprpaper starts again on the default; a project with its own is shown it again after.
+            if not error and wallpaper.for_project(self.config, here)["own"]:
+                QTimer.singleShot(1500, lambda: wallpaper.show(self.config, here))
+            return error
+        projects = self.config.setdefault("wallpaper", {}).setdefault("projects", {})
+        if clear:
+            projects.pop(scope, None)
+        else:
+            path, fit = path or (now["path"] if now["own"] else ""), fit or now["fit"]
+            if not path:
+                # A fit for a project still on the default: it takes the default's picture as its own.
+                path = wallpaper.current()["path"]
+            error = wallpaper.check(path, fit)
+            if error:
+                return error
+            projects[scope] = {"path": os.path.expanduser(path), "fit": fit}
+        save_config(self.config)
+        if scope == here:
+            wallpaper.show(self.config, here)
+        self.desk.changed()
+        return ""
 
     def open_place(self, kind: str, project: str, where: str) -> None:
         """A page or a canvas, opened in its project: that project the current one first, if it is not."""
@@ -484,6 +581,8 @@ class Desktop(QObject):
                 self.new.toggle()
             elif verb == "jump" and len(arg) == 1 and arg.isalpha():
                 self.jump.jump(arg)
+            elif verb == "jump-open":
+                self.jump.show_all()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -492,6 +591,8 @@ class Desktop(QObject):
             elif verb == "lid":
                 self.power.lid(arg)
             elif verb == "launcher":
+                # Super+Alt+Space went by way of Super+Alt, which brought out the project list.
+                self.jump.file_away()
                 self.launcher.toggle(arg)
             elif verb == "popup":
                 self.bar.toggle_popup(arg)
@@ -535,6 +636,8 @@ def main() -> int:
         return send("tasks")
     if args[:1] == ["--new"]:
         return send("new")
+    if args[:1] == ["--jump-open"]:
+        return send("jump-open")
     if args[:1] == ["--jump"] and len(args) == 2:
         return send(f"jump {args[1]}")
     if args[:1] == ["--window"] and len(args) == 2:

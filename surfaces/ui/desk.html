@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The desk (desk.py): the empty desktop, clear, over the wallpaper and under
+every window. A right-click on it offers this project's wallpaper — its own,
+or the default every project without one shows.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris desk</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<style>
+html, body { background: transparent !important; }
+#menu { position: fixed; z-index: 10; min-width: 230px; padding: 5px; background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; box-shadow: var(--menu-shadow); }
+#menu[hidden] { display: none; }
+#menu .menu-item { display: block; width: 100%; text-align: left; }
+#menu .head { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 4px 10px 2px; }
+</style>
+</head>
+<body>
+<div id="menu" hidden></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="surface.js"></script>
+<script>
+"use strict";
+(() => {
+  let bridge = null, s = {};
+  const menu = document.getElementById("menu");
+  const item = (label, act) => {
+    const b = document.createElement("button");
+    b.className = "menu-item";
+    b.textContent = label;
+    b.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = true; act(); });
+    return b;
+  };
+  const head = (text) => Object.assign(document.createElement("div"), { className: "head", textContent: text });
+
+  addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    if (!bridge) return;
+    // Home is a project like the rest: it has its own, or shows the default.
+    menu.replaceChildren(
+      head(`Wallpaper · ${s.name || "this project"}`),
+      item(s.own ? `Change ${s.name}'s wallpaper…` : `A wallpaper for ${s.name}…`, () => bridge.wallpaperFor(s.project)),
+      ...(s.own ? [item("Use the default here", () => bridge.useDefault(s.project))] : []),
+      item("Default wallpaper…", () => bridge.wallpaperFor("")),
+      item("Wallpaper settings…", () => bridge.wallpaperSettings()));
+    menu.hidden = false;
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = `${Math.min(e.clientX, innerWidth - w - 6)}px`;
+    menu.style.top = `${Math.min(e.clientY, innerHeight - h - 6)}px`;
+  });
+  addEventListener("pointerdown", (e) => { if (!menu.contains(e.target)) menu.hidden = true; });
+
+  Surface.connect({ onState: (next) => { s = next; } }).then((b) => { bridge = b; });
+})();
+</script>
+</body>
+</html>

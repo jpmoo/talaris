@@ -25,7 +25,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from core import Bridge, local_call
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, Placement
 from overlay import Overlay
-from files import choose_files, send_files
+from files import choose_files, send_files, send_project_files
 from views import log
 
 #: What the page may ask the core for: making things, and finding people and projects.
@@ -87,6 +87,15 @@ class NewBridge(Bridge):
             asked = [p for p in json.loads(paths) if p in self.owner.chosen_paths]
             added, errors = send_files(f"/entities/{ident}/files", asked, {"field": field})
             self.sent.emit(json.dumps({"id": ident, "added": added, "error": "; ".join(errors)}))
+        threading.Thread(target=run, daemon=True).start()
+
+    @Slot(str, str)
+    def sendProjectFiles(self, project: str, paths: str) -> None:  # noqa: N802 — called from the page by this name
+        """Chosen files kept in a project's `Files/` (a note's, a new project's): {id: project, added, error, files}."""
+        def run() -> None:
+            asked = [p for p in json.loads(paths) if p in self.owner.chosen_paths]
+            r = send_project_files(project, asked)
+            self.sent.emit(json.dumps({"id": project, "added": len(r["files"]), "error": r["error"], "files": r["files"]}))
         threading.Thread(target=run, daemon=True).start()
 
     @Slot(str, str)

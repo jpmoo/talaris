@@ -732,6 +732,13 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .cv-card-gone .cv-card-meta { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
 .cv-card-option { display: flex; align-items: center; gap: 8px; }
 .cv-card-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+/* A person: initials on a tint left of the name. An event: its day as a small calendar leaf. */
+.cv-card-person > .cv-card-row, .cv-card-event > .cv-card-row { align-items: flex-start; gap: 9px; }
+.cv-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cv-card-avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; letter-spacing: .5px; color: var(--text); }
+.cv-card-date { flex: none; width: 32px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--paper); line-height: 1.1; }
+.cv-card-month { align-self: stretch; text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 1px 0; color: var(--text); background: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+.cv-card-day { font-size: 15px; font-weight: 600; padding: 1px 0 2px; }
 
 /* A small heading in a menu: what the swatches under it color. */
 .cv-menu-hint { padding: 6px 10px 0; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }

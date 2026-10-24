@@ -24,10 +24,15 @@ html, body { height: 100%; }
 #fill { height: 100%; background: currentColor; transition: width .12s; }
 #n { width: 34px; text-align: right; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
 #osd.muted #n { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; }
+/* A project gone to: its name where the level would be, its code where the number would. */
+#title { flex: 1; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#osd.project #track { display: none; }
+#osd:not(.project) #title { display: none; }
+#osd.project #n { width: auto; font-size: 10.5px; letter-spacing: 1.5px; color: var(--muted); }
 </style>
 </head>
 <body>
-<div id="osd"><span id="ic"></span><div id="track"><div id="fill"></div></div><span id="n"></span></div>
+<div id="osd"><span id="ic"></span><span id="title"></span><div id="track"><div id="fill"></div></div><span id="n"></span></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="icons.js"></script>
 <script src="surface.js"></script>
@@ -37,6 +42,14 @@ Surface.connect({
   onState: (s) => {
     if (!s.up) return;
     const osd = document.getElementById("osd");
+    osd.classList.toggle("project", s.kind === "project");
+    if (s.kind === "project") {
+      document.getElementById("ic").innerHTML = Icons.sideList();
+      document.getElementById("title").textContent = s.title || "";
+      document.getElementById("n").textContent = s.code || "";
+      osd.classList.remove("muted");
+      return;
+    }
     const icon = s.kind === "brightness" ? Icons.sun() : s.kind === "mic" ? Icons.mic(s.muted) : Icons.volume(s.level, s.muted);
     document.getElementById("ic").innerHTML = icon;
     osd.classList.toggle("muted", !!s.muted);

@@ -185,19 +185,25 @@ class SettingsBridge(Bridge):
     def bluetooth(self, request: str) -> None:
         self.owner.desktop.machine.bluetooth(json.loads(request))
 
-    @Slot(result=str)
-    def wallpaper(self) -> str:
-        return json.dumps(wallpaper.current())
-
-    @Slot()
-    def chooseWallpaper(self) -> None:  # noqa: N802 — called from the page by this name
-        self.owner.choose_wallpaper()
+    @Slot(str, result=str)
+    def wallpaper(self, scope: str) -> str:
+        """The default's (`scope` empty) or a project's wallpaper, with every project's say: {path, fit, own, projects}."""
+        return json.dumps(self.owner.wallpapers(scope))
 
     @Slot(str)
-    def fitWallpaper(self, fit: str) -> None:  # noqa: N802 — called from the page by this name
-        now = wallpaper.current()
-        error = wallpaper.choose(now["path"], fit) if now["path"] else "No picture yet"
-        self.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+    def chooseWallpaper(self, scope: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.choose_wallpaper(scope)
+
+    @Slot(str, str)
+    def fitWallpaper(self, scope: str, fit: str) -> None:  # noqa: N802 — called from the page by this name
+        error = self.owner.desktop.set_wallpaper(scope, fit=fit)
+        self.wallpaperChanged.emit(json.dumps({**self.owner.wallpapers(scope), "error": error}))
+
+    @Slot(str)
+    def defaultWallpaper(self, scope: str) -> None:  # noqa: N802 — called from the page by this name
+        """A project's own wallpaper given up: it shows the default again."""
+        error = self.owner.desktop.set_wallpaper(scope, clear=True) if scope else ""
+        self.wallpaperChanged.emit(json.dumps({**self.owner.wallpapers(scope), "error": error}))
 
     #: Pushed to the page: the accounts changed (one was added in its window, say).
     accountsChanged = Signal()
@@ -412,29 +418,36 @@ class Settings(QObject):
         self._step_aside()
         adder.start()
 
-    def choose_wallpaper(self) -> None:
+    def wallpapers(self, scope: str) -> dict:
+        """What Settings shows: one wallpaper (the default, or a project's), and every project's state."""
+        desktop = self.desktop
+        status, text = core_call("GET", "/projects")
+        try:
+            projects = json.loads(text) if status == 200 else []
+        except ValueError:
+            projects = []
+        here = desktop.project.get("id", "")
+        mine = wallpaper.for_project(desktop.config, scope) if scope else {**wallpaper.current(), "own": False}
+        return {**mine, "scope": scope, "here": here,
+                "projects": [{"id": p["id"], "name": p.get("name", ""), "home": bool(p.get("home")),
+                              "own": wallpaper.for_project(desktop.config, p["id"])["own"]} for p in projects]}
+
+    def choose_wallpaper(self, scope: str = "") -> None:
         """A picture, chosen in the desktop's own chooser beside the surface, not inside it."""
         if getattr(self, "_chooser", None):
             return
-        chooser = QProcess(self)
-        chooser.setProgram("zenity")
-        start = os.path.dirname(wallpaper.current()["path"]) or os.path.expanduser("~/Pictures")
-        chooser.setArguments(["--file-selection", "--title=A wallpaper", f"--filename={start}/",
-                              "--file-filter=Pictures | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG"])
+        now = wallpaper.for_project(self.desktop.config, scope) if scope else wallpaper.current()
 
-        def done(code: int, _status) -> None:
+        def chosen(path: str) -> None:
             self._chooser = None
             self._come_back()
-            path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
-            chooser.deleteLater()
             if path:
-                error = wallpaper.choose(path, wallpaper.current()["fit"])
-                self.bridge.wallpaperChanged.emit(json.dumps({**wallpaper.current(), "error": error}))
+                error = self.desktop.set_wallpaper(scope, path=path)
+                self.bridge.wallpaperChanged.emit(json.dumps({**self.wallpapers(scope), "error": error, "changed": not error}))
 
-        chooser.finished.connect(done)
-        self._chooser = chooser
+        self._chooser = True
         self._step_aside()
-        chooser.start()
+        wallpaper.pick(self, os.path.dirname(now["path"]), chosen)
 
     def choose_path(self, kind: str) -> None:
         if getattr(self, "_chooser", None):

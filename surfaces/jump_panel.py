@@ -1,18 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-Project jump: Super+Alt+a letter goes to the project whose name starts with
-it. One such project, and it is simply the current project now; more than
-one, and they are offered in a short list over the dimmed screen — arrows and
-Enter, a click, or more letters typed to narrow it. None, and the list says
-so and goes.
+Project jump: Super+Alt brings up every project in a short list over the
+dimmed screen, and the letters typed narrow it — held with Super+Alt, or
+after — going to the project the moment only one is left; with more, the
+list waits for arrows and Enter, or a click. Super+Alt+a letter typed all
+at once goes straight there when one project starts with it.
 """
 
 from __future__ import annotations
 
 import json
+import re
 
-from PySide6.QtCore import Slot
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
@@ -23,10 +24,13 @@ from views import log
 
 
 class JumpBridge(Bridge):
+    #: A letter typed with Super+Alt still held, while the list is out: it narrows the list.
+    typed = Signal(str)
+
     @Slot(str)
     def choose(self, project_id: str) -> None:
         self.owner.file_away()
-        self.owner.desktop.go_to_project(project_id)
+        self.owner.desktop.go_to_project(project_id, announce=True)
 
 
 class Jump(Overlay):
@@ -57,18 +61,37 @@ class Jump(Overlay):
     def grow(self) -> None:
         """A list, not a panel: there is no window of it."""
 
+    def _projects(self) -> list:
+        status, text = call("GET", "/projects")
+        try:
+            return [p for p in json.loads(text) if not p.get("archived")] if status == 200 else []
+        except ValueError:
+            return []
+
+    def show_all(self) -> None:
+        """Super+Alt alone: every project, waiting for a letter."""
+        if self.up:
+            return
+        self.letter, self.projects = "", sorted(self._projects(), key=lambda p: p.get("name", "").lower())
+        self.open()
+
     def jump(self, letter: str) -> None:
         letter = letter[:1].lower()
+        if self.up:
+            # The list is out (Super+Alt went down first): the letter narrows it, there.
+            self.bridge.typed.emit(letter)
+            return
         status, text = call("GET", "/projects")
         try:
             projects = [p for p in json.loads(text) if not p.get("archived")] if status == 200 else []
         except ValueError:
             projects = []
-        starting = [p for p in projects if p.get("name", "").lower().startswith(letter)]
+        # The start of the name, or of any word in it, as the list matches (jump.html).
+        starting = [p for p in projects if any(w.startswith(letter) for w in re.split(r"\W+", p.get("name", "").lower()) if w)]
         if len(starting) == 1:
             if self.up:
                 self.file_away()
-            self.desktop.go_to_project(starting[0]["id"])
+            self.desktop.go_to_project(starting[0]["id"], announce=True)
             return
         log(f"jump: {letter}, {len(starting)} projects")
         # More than one, or none: the list, holding every project, narrowed to the letter on the page.
