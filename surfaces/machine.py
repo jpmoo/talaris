@@ -26,6 +26,8 @@ import subprocess
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
+from power import charging, on_mains
+
 #: How often the bar's readings are refreshed, when nothing has asked sooner.
 POLL_MS = 3000
 
@@ -95,7 +97,34 @@ def _battery() -> dict:
         level = int(read("capacity"))
     except ValueError:
         return {"present": False}
-    return {"present": True, "level": level, "state": read("status").lower()}
+    # Plugged in, whether or not it is charging: held at a charge limit, it is
+    # plugged in and "not charging", and the bar says so.
+    return {"present": True, "level": level, "state": read("status").lower(), "plugged": on_mains()}
+
+
+def battery_state() -> dict:
+    """The battery at length, for its panel: upower's reading, the charging mode and limits, the power mode."""
+    found = [p for p in _run("upower", "-e").splitlines() if "battery" in p.lower()]
+    info = {}
+    for line in (_run("upower", "-i", found[0]) if found else "").splitlines():
+        key, sep, value = line.partition(":")
+        if sep:
+            info[key.strip()] = value.strip()
+    num = lambda key: float(re.sub(r"[^0-9.]", "", info.get(key, "")) or 0)  # noqa: E731
+    full, design = num("energy-full"), num("energy-full-design")
+    profiles = []
+    if shutil.which("powerprofilesctl"):
+        current = _run("powerprofilesctl", "get").strip()
+        for line in _run("powerprofilesctl", "list").splitlines():
+            m = re.match(r"\s*(\*?)\s*([a-z-]+):$", line)
+            if m:
+                profiles.append({"name": m.group(2), "on": m.group(2) == current})
+    return {
+        **_battery(), "charging": charging(),
+        "upowerState": info.get("state", ""), "untilFull": info.get("time to full", ""), "untilEmpty": info.get("time to empty", ""),
+        "rate": round(num("energy-rate"), 1), "health": round(100 * full / design) if design else None,
+        "cycles": int(num("charge-cycles")) or None, "profiles": profiles,
+    }
 
 
 def read_all() -> dict:
@@ -254,7 +283,7 @@ class _Panel(QRunnable):
             error = self.work() or ""
         except Exception as e:  # noqa: BLE001 — whatever went wrong is shown, not raised
             error = str(e)
-        state = wifi_state() if self.kind == "network" else bluetooth_state()
+        state = {"network": wifi_state, "bluetooth": bluetooth_state, "battery": battery_state}[self.kind]()
         self.machine.panel.emit(json.dumps({"kind": self.kind, "state": state, "error": error}))
         self.machine.refresh()
 
@@ -339,8 +368,13 @@ class Machine(QObject):
                 bluetooth_state(scan_seconds=8)
             return ""
 
-        if kind in ("network", "bluetooth"):
+        if kind in ("network", "bluetooth", "battery"):
             self._panels.start(_Panel(self, kind, work))
+
+    def power_profile(self, name: str) -> None:
+        """Balanced, performance or power saver — where the machine has power-profiles-daemon."""
+        if re.fullmatch(r"[a-z-]+", name) and shutil.which("powerprofilesctl"):
+            self._panels.start(_Panel(self, "battery", lambda: _ran("powerprofilesctl", "set", name)))
 
     def network(self, r: dict) -> None:
         verb, ssid = r.get("verb"), str(r.get("ssid", ""))

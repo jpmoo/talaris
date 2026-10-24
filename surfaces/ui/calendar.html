@@ -34,11 +34,12 @@ header .t-btn, header .seg button { white-space: nowrap; flex: none; }
 header .seg { flex: none; }
 #msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 body.no-side #side { display: none; }
-#side-toggle.on { color: var(--accent); }
+
 header .spacer { flex: 1; }
-.frame { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; color: var(--muted); background: none; border: 0 !important; cursor: pointer; border-radius: var(--radius-control); }
-.frame:hover { color: var(--accent); }
-.frame[hidden] { display: none; }
+/* The header's icon buttons are the shared ones (controls.css .icon-btn). */
+header .icon-btn[hidden] { display: none !important; }
+header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
+header .icon-btn.on { color: var(--accent) !important; }
 .seg { display: inline-flex; }
 
 main { flex: 1; min-height: 0; display: flex; }
@@ -137,17 +138,17 @@ body { position: relative; }
 </head>
 <body>
 <header>
-  <button class="frame" id="side-toggle" title="Hide the list of calendars"></button>
+  <button class="icon-btn" id="side-toggle" title="Hide the list of calendars"></button>
   <button class="t-btn" id="today">Today</button>
-  <button class="frame" id="prev" title="Before"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
-  <button class="frame" id="next" title="After"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+  <button class="icon-btn" id="prev" title="Before"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
+  <button class="icon-btn" id="next" title="After"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
   <h1 id="title"></h1>
   <span id="msg"></span>
   <span class="spacer"></span>
   <span class="seg" id="mode"></span>
   <button class="t-btn" id="new">New event</button>
-  <button class="frame" id="grow" title="Full screen"></button>
-  <button class="frame" id="close" title="Close"></button>
+  <button class="icon-btn" id="grow" title="Full screen"></button>
+  <button class="icon-btn" id="close" title="Close"></button>
 </header>
 <main>
   <aside id="side"></aside>

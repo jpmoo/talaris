@@ -19,7 +19,7 @@ function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
   // A button whose popup is out shows it, as a pressed button would.
-  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power" };
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
   for (const name of ["canvas", "writing"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
@@ -85,11 +85,12 @@ function onMachine(m) {
   const bat = m.battery || {};
   $("bat").hidden = !bat.present;
   if (bat.present) {
-    const charging = bat.state === "charging" || bat.state === "full";
-    $("bat-ic").innerHTML = Icons.battery(bat.level, charging);
+    const charging = bat.state === "charging";
+    const plugged = !!bat.plugged || charging || bat.state === "full";
+    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged);
     $("bat-n").textContent = `${bat.level}%`;
-    $("bat").classList.toggle("low", bat.level <= 15 && !charging);
-    $("bat").title = `Battery ${bat.level}% · ${bat.state || "unknown"}`;
+    $("bat").classList.toggle("low", bat.level <= 15 && !plugged);
+    $("bat").title = `Battery ${bat.level}% · ${charging ? "charging" : plugged ? "plugged in" : "on battery"}`;
   }
 }
 
@@ -130,6 +131,7 @@ $("vol").addEventListener("wheel", (e) => {
   bridge.volume(e.deltaY < 0 ? "+5" : "-5");
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
+$("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
@@ -194,7 +196,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#vol, #power, #net, #bt, #ask, #morgan, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#vol, #power, #bat, #net, #bt, #ask, #morgan, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

@@ -239,9 +239,9 @@ function monthPicker(chosen, pick) {
     const first = startOfWeek(shown);
     wrap.replaceChildren(
       el("div", { class: "mini-head" },
-        el("button", { class: "frame", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); drawMini(); } }, "‹"),
+        el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); drawMini(); } }, "‹"),
         el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
-        el("button", { class: "frame", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); drawMini(); } }, "›")),
+        el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); drawMini(); } }, "›")),
       el("div", { class: "mini-grid" },
         ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
         ...Array.from({ length: 42 }, (_, i) => {

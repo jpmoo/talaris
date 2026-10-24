@@ -49,8 +49,10 @@
   /* Talaris: no title bar — the bar's button already says who this is and
      what it is doing. A row across the top instead: the state and its meter
      on the left, the controls on the right. */
-  button.frame { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; color: var(--dim); }
-  button.frame:hover { color: var(--accent); }
+  /* As every icon button in Talaris (controls.css .icon-btn): a rounded square, a hairline border. */
+  button.frame { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+                 color: var(--dim); border: 1px solid var(--line); border-radius: 8px; background: transparent; }
+  button.frame:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
   button.frame[hidden] { display: none; }
   header { border-bottom: 1px solid var(--line); background: var(--panel); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }

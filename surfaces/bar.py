@@ -54,7 +54,7 @@ BAR = 34
 #: Each popup's surface: the panel and the clear room round it for the
 #: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
 POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
-          "trayicons": (244, 98)}
+          "trayicons": (244, 98), "battery": (304, 300)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -124,6 +124,16 @@ class BarBridge(Bridge):
     @Slot(str)
     def bluetooth(self, request: str) -> None:
         self.owner.desktop.machine.bluetooth(json.loads(request))
+
+    @Slot(str)
+    def powerProfile(self, name: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.machine.power_profile(name)
+
+    @Slot()
+    def powerSettings(self) -> None:  # noqa: N802 — called from the page by this name
+        """The battery panel's way on: Settings, Power."""
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.settings.open("power")
 
     @Slot(str)
     def volume(self, change: str) -> None:
@@ -218,13 +228,13 @@ class Popup(QObject):
         else:
             self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND))
         self.bridge.state.emit(json.dumps(self.describe()))
-        if kind in ("network", "bluetooth"):
+        if kind in ("network", "bluetooth", "battery"):
             self.desktop.machine.panel_read(kind)
         self.touched()
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.
-    FITTED = ("power", "volume", "tray", "trayicons")
+    FITTED = ("power", "volume", "tray", "trayicons", "battery")
 
     def fit(self, height: int) -> None:
         if self.kind not in self.FITTED or height <= 0:

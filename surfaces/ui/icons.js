@@ -41,12 +41,15 @@ const Icons = (() => {
   }
 
   /** A cell filled to its level; a bolt when it is charging. */
-  function battery(level, charging) {
+  /** The battery: its level, a bolt while charging, a plug while plugged in and held (at a charge limit). */
+  function battery(level, charging, plugged = false) {
     const w = Math.max(0, Math.min(1, level / 100)) * 9;
+    const mark = charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>'
+      : plugged ? '<path d="M6.6 6v1.3M8.4 6v1.3M6 7.3h3v1.2a1.5 1.5 0 0 1-3 0zM7.5 10v1" stroke-width="1.1"/>' : "";
     return svg(
       '<rect x="1.5" y="4.5" width="12" height="7" rx="1.5"/><path d="M14.5 7v2"/>' +
-      `<rect x="3" y="6" width="${w.toFixed(1)}" height="4" rx=".5" fill="currentColor" stroke="none" opacity="${charging ? .35 : .8}"/>` +
-      (charging ? '<path d="M8.3 5.3 6.5 8.2h2.6L7.4 10.8" stroke-width="1.3"/>' : ""));
+      `<rect x="3" y="6" width="${w.toFixed(1)}" height="4" rx=".5" fill="currentColor" stroke="none" opacity="${charging || plugged ? .35 : .8}"/>` +
+      mark);
   }
 
   function mic(muted) {

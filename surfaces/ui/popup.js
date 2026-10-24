@@ -232,6 +232,8 @@ function onPanel(p) {
     $("net-err").textContent = p.error || "";
     if (!p.error) open.key = "";
     drawWifi();
+  } else if (p.kind === "battery") {
+    drawBattery(p.state, p.error);
   } else if (p.kind === "bluetooth") {
     blue = p.state;
     open.busy = "";
@@ -241,6 +243,37 @@ function onPanel(p) {
     drawBlue();
   }
 }
+
+// ---------------------------------------------------------------- the battery
+// What is worth knowing at a glance: the level, plugged in or not and what it
+// is doing, how long, what it draws, how worn it is, how it is set to charge.
+function drawBattery(b, error) {
+  if (!b || !b.present) { $("bat-rows").replaceChildren(note("No battery")); refit(); return; }
+  const ch = b.charging || {};
+  const charging = b.state === "charging";
+  const held = b.plugged && !charging;
+  $("bat-state").textContent = charging ? "CHARGING" : b.plugged ? "PLUGGED IN" : "ON BATTERY";
+  $("bat-level").textContent = `${b.level}%`;
+  $("bat-when").textContent = charging && b.untilFull ? `full in ${b.untilFull}`
+    : held ? (ch.mode === "Custom" && ch.stop && b.level >= ch.stop - 1 ? `held at the ${ch.stop}% limit` : "not charging")
+    : !b.plugged && b.untilEmpty ? `${b.untilEmpty} left` : "";
+  const rows = [];
+  const add = (k, v) => { if (v != null && v !== "") { const d = document.createElement("div"); d.className = "kv"; d.append(Object.assign(document.createElement("span"), { textContent: k }), Object.assign(document.createElement("span"), { textContent: v })); rows.push(d); } };
+  if (!b.plugged || charging) add(charging ? "Charging at" : "Drawing", b.rate ? `${b.rate} W` : "");
+  add("Charging", ch.mode ? (ch.mode === "Custom" && ch.start != null ? `Custom, ${ch.start}–${ch.stop}%` : ch.mode) : "");
+  add("Health", b.health != null ? `${Math.min(100, b.health)}% of new` : "");
+  add("Cycles", b.cycles != null ? String(b.cycles) : "");
+  if (error) add("", error);
+  $("bat-rows").replaceChildren(...rows);
+  // Balanced, performance, power saver — where the machine has a power mode to set.
+  $("bat-profiles").replaceChildren(...(b.profiles || []).map((p) => {
+    const btn = button(p.name.replace("power-saver", "Saver").replace(/^./, (c) => c.toUpperCase()), () => bridge.powerProfile(p.name));
+    if (p.on) btn.classList.add("on");
+    return btn;
+  }));
+  refit();
+}
+$("bat-settings").addEventListener("click", () => bridge.powerSettings());
 
 $("wifi-on").addEventListener("click", () => wifi && sendNet({ verb: "power", on: !wifi.on }, ""));
 $("bt-on").addEventListener("click", () => blue && sendBt({ verb: "power", on: !blue.on }, ""));

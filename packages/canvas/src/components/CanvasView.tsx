@@ -1701,7 +1701,10 @@ export function CanvasView({
       // desk; in a Talaris drawer nothing takes it, so the canvas stalled as
       // a swipe turned sideways.)
       e.preventDefault();
-      setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      // A touchpad's swipe moved the canvas a little faster than the fingers;
+      // three fifths of it reads as holding the paper.
+      const PAN = 0.6;
+      setView((v) => ({ ...v, x: v.x - e.deltaX * PAN, y: v.y - e.deltaY * PAN }));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
