@@ -40,7 +40,10 @@ DEFAULTS = {
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
-    "launcher": {"keys": "SUPER ALT, SPACE"},
+    # singleWindow: an application that keeps one window, open in another
+    # project and started from the launcher in this one — brought here
+    # ("bring"), or gone to where it is ("go"). Shift+Enter does the other.
+    "launcher": {"keys": "SUPER ALT, SPACE", "singleWindow": "bring"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
     "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "new": "windows", "jump": "windows",

@@ -194,6 +194,7 @@ function draw() {
   // Keys.
   seg("launcher-keys", launcherKeys.map((k) => [k, k.replace(",", " +").replace("SUPER", "Super").replace("ALT", "Alt").replace("SPACE", "Space")]),
     cfg.launcher.keys, (keys) => save({ launcher: { keys } }));
+  seg("single-window", [["bring", "Bring here"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));
 }
 
 $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));

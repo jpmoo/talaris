@@ -456,8 +456,11 @@ class Desktop(QObject):
         return [
             {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
             {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
-            {"keys": "Super + Alt + C", "does": "The canvas"},
-            {"keys": "Super + Alt + W", "does": "The writing surface"},
+            {"keys": "Super + Shift + N", "does": "New: a task, an event, a person, a note, a project"},
+            {"keys": "Super + Shift + C", "does": "The canvas"},
+            {"keys": "Super + Shift + W", "does": "The writing surface"},
+            {"keys": "Super + Alt", "does": "The projects, to go to one (type to find it)"},
+            {"keys": "Super + Alt + a letter", "does": "The project it starts, or a choice of them"},
             {"keys": "Super + Alt + Escape", "does": "Put everything away"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]

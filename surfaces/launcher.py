@@ -268,22 +268,21 @@ class Launcher(QObject):
             if not self.apps.is_launchable(r["id"]):
                 return "No such application"
             mine = self._app_windows(r["id"])
-            # Shift+Enter: where it is already open, if it is — in its project.
-            if r.get("there") and mine:
-                hypr.focus(mine[0]["address"])
-                return ""
+            # One that keeps a single window, open elsewhere: brought here, or gone to —
+            # as Settings says (Keys, Launcher); Shift+Enter the other.
+            go = (self.desktop.config["launcher"].get("singleWindow", "bring") == "go") != bool(r.get("there"))
             now = hypr.windows()
             before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
             # One that says it keeps a single window is brought here, not started again.
             if mine and keeps_one_window(r["id"]):
-                self._bring(r["id"], here)
+                self._bring(r["id"], here, go)
                 return ""
             # Through the compositor, so it starts with the session's environment
             # and on the workspace in front of you.
             hypr.ask(f"/dispatch exec gtk-launch {r['id']}")
             # Watched: brought here the moment it raises the window it has (urgent), or
             # once it has shown no new window in the time given.
-            self._pending[r["id"]] = (before, here)
+            self._pending[r["id"]] = (before, here, go)
             self._look(r["id"], FOLLOW_MS)
         elif kind == "window":
             if r["address"] not in self._windows:
@@ -314,7 +313,7 @@ class Launcher(QObject):
         """A new window of it seen: as asked, nothing to bring. None in the time given: brought."""
         if app_id not in self._pending:
             return
-        before, _here = self._pending[app_id]
+        before = self._pending[app_id][0]
         if any(w["address"] not in before for w in self._app_windows(app_id)):
             self._pending.pop(app_id, None)
         elif left <= 0:
@@ -324,7 +323,7 @@ class Launcher(QObject):
 
     def _urgent(self, address: str) -> None:
         """A window asked to come forward: one of an application just started again, raising the one it has."""
-        for app_id, (before, _here) in list(self._pending.items()):
+        for app_id, (before, _here, _go) in list(self._pending.items()):
             if address in before:
                 self._follow(app_id)
 
@@ -338,20 +337,28 @@ class Launcher(QObject):
         """
         if app_id not in self._pending:
             return
-        before, here = self._pending.pop(app_id)
+        before, here, go = self._pending.pop(app_id)
         mine = self._app_windows(app_id)
         # One that opens new windows (a browser) is not moved, however slow its new window is to come.
         if not mine or any(w["address"] not in before for w in mine) or opens_new_windows(app_id):
             return
-        self._bring(app_id, here)
+        self._bring(app_id, here, go)
 
-    def _bring(self, app_id: str, here: tuple) -> None:
-        """An application's window, from wherever it is, to the desktop it was asked for on — drawn in as it comes."""
+    def _bring(self, app_id: str, here: tuple, go: bool = False) -> None:
+        """
+        An application's window, from wherever it is, to the desktop it was
+        asked for on — drawn in as it comes; or (`go`) that desktop left for
+        the one it is on, whose project becomes the current one.
+        """
         mine = self._app_windows(app_id)
         wid, spec = here
         if not mine or (any(w["workspace"] == wid and not w["hidden"] for w in mine) and hypr.windows()["active"] == wid):
             return
         window = mine[0]["address"]
+        if go and not mine[0]["hidden"]:
+            hypr.focus(window)
+            log(f"launcher: gone to {app_id}")
+            return
         hypr.show(window, spec)
         self.desktop.winfx.arrived(window)
         # This desktop's likeness taken again, with the window in it.

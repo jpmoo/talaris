@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+#
+# Move the focused window one way (l, r, u, d); if nothing is that way to move
+# beside, turn its split instead — two windows side by side become one above
+# the other, and back. For hyprland.conf, on Super+Shift and the arrows:
+#
+#   bind = $mainMod SHIFT, up, exec, ~/Documents/Scripts/talaris/bin/move-or-split u
+#
+# Hyprland's own `movewindow` does nothing when no window is that way, and
+# `togglesplit` (dwindle) is the only way to stack two; this is both, by key.
+set -euo pipefail
+dir="${1:?a direction: l, r, u or d}"
+where() { hyprctl activewindow -j | jq -r '"\(.at) \(.size)"'; }
+before="$(where)"
+hyprctl dispatch movewindow "$dir" >/dev/null
+sleep 0.05
+if [ "$(where)" = "$before" ]; then
+  hyprctl dispatch togglesplit >/dev/null
+fi

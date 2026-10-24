@@ -136,6 +136,8 @@ def _checked(c: dict) -> str:
         return "Idle is between 15 seconds and 10 minutes"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
+    if c["launcher"].get("singleWindow", "bring") not in ("bring", "go"):
+        return "Bring it here, or go to it"
     return ""
 
 
