@@ -97,9 +97,12 @@ class _Exposed(QObject):
 class LayerSurface:
     """One widget, drawn as a layer surface, re-placed on demand."""
 
-    def __init__(self, widget: QWidget, scope: str) -> None:
+    def __init__(self, widget: QWidget, scope: str, nudge: bool = True) -> None:
         self.widget = widget
         self.scope = scope
+        # A page that says when it has drawn (a panel's) gives the pointer back
+        # then (core.Bridge.drawn): nudged before, it answered with an arrow.
+        self.nudge = nudge
         self._window: QObject | None = None
         self._exposed = None
         self.placement: Placement | None = None
@@ -134,6 +137,6 @@ class LayerSurface:
         # (hypr.py) once the compositor has put the surface on screen — which
         # the first time, a page and its drawing made, takes longer than any
         # guess — heard as Qt's expose.
-        if self._exposed is None:
+        if self._exposed is None and self.nudge:
             self._exposed = _Exposed(self.widget)
             self.widget.windowHandle().installEventFilter(self._exposed)

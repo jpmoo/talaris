@@ -213,15 +213,19 @@ const Motion = (() => {
   }
   let arrival = 0;
 
+  // Drawn: two frames after showing, the page laid out and able to answer
+  // the pointer (`o.shown`, which gives it back: core.Bridge.drawn).
+  const drawn = (o) => { if (o.shown) requestAnimationFrame(() => requestAnimationFrame(o.shown)); };
+
   function arrive(panel, o) {
     reset(panel, o);
-    if (still(o)) return;
+    if (still(o)) { settled(o.viewport).then(() => drawn(o)); return; }
     const mine = ++arrival;
     panel.style.visibility = "hidden";
     settled(o.viewport).then(() => {
       panel.style.visibility = "";
       // Gone again, or arriving afresh, before it settled: this arrival is not wanted.
-      if (mine === arrival) play(panel, o);
+      if (mine === arrival) { play(panel, o); drawn(o); }
     });
   }
 

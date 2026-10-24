@@ -75,7 +75,7 @@ class Overlay(QObject):
         self.leaving = False
         self.bridge = bridge
         self.view = make_view(profile, self.NAME, url, bridge, self, area=area)
-        self.surface = LayerSurface(self.view, f"talaris-{self.NAME}")
+        self.surface = LayerSurface(self.view, f"talaris-{self.NAME}", nudge=False)
         Presses(self.view)
         # The same page as an ordinary window, made the first time it is wanted.
         self.window = None

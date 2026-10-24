@@ -151,7 +151,7 @@ class Launcher(QObject):
         self.searches = QThreadPool(self)
         self.searches.setMaxThreadCount(1)
         self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self, area="launcher")
-        self.surface = LayerSurface(self.view, "talaris-launcher")
+        self.surface = LayerSurface(self.view, "talaris-launcher", nudge=False)
         Presses(self.view)
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)

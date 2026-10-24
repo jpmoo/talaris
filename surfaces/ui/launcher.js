@@ -219,6 +219,7 @@ function how() {
   const m = state.motion || {};
   return {
     kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body, viewport: state.viewport,
+    shown: () => bridge && bridge.drawn(),
     rules: (rule, rel, P) => {
       const top = $("top").getBoundingClientRect(), foot = $("foot").getBoundingClientRect();
       rule(rel(P.left, top.bottom), rel(P.right, top.bottom));

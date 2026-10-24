@@ -22,6 +22,8 @@ import socket
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
+import hypr
+
 SOCKET = os.environ.get(
     "TALARIS_SOCKET",
     os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris.sock"),
@@ -102,6 +104,11 @@ class Bridge(QObject):
         """A drawer's expand button: the desktop, or back to a drawer. A panel's: a window, or a panel again."""
         if hasattr(self.owner, "grow"):
             self.owner.grow()
+
+    @Slot()
+    def drawn(self) -> None:
+        """A panel's page has drawn itself, arrived: the pointer given back now, to a page that can answer it."""
+        hypr.refocus_pointer()
 
     @Slot()
     def closeWindow(self) -> None:  # noqa: N802 — called from the page by this name

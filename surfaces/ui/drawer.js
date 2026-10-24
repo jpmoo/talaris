@@ -72,6 +72,7 @@ if (WINDOW) document.documentElement.dataset.window = "1";
 function how() {
   return {
     kind: motion(), speed: (state.theme || {}).motionSpeed, edge: "top", flush: false, viewport: state.viewport,
+    shown: () => bridge && bridge.drawn(),
     rules: (rule, rel, P) => {
       const header = document.querySelector("header"), footer = document.querySelector("footer"), side = document.querySelector(".tree");
       if (header) { const r = header.getBoundingClientRect(); rule(rel(P.left, r.bottom + 4), rel(P.right, r.bottom + 4)); }
@@ -645,6 +646,9 @@ window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(
  * engine's. Everywhere else in the drawer a right-click does nothing; the
  * canvas, in its own frame, has its own menu.
  */
+// The colors words may take: Google's and Outlook's own, and the accents (as calendars).
+const TEXT_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
+  "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
 let menu = null;
 function closeMenu() { if (menu) { menu.remove(); menu = null; } }
 addEventListener("contextmenu", (e) => {
@@ -659,9 +663,16 @@ addEventListener("contextmenu", (e) => {
       editor && editor.focus();
       document.execCommand(command);
     } }, label);
+  // Colors for the selected words (or the colored words the cursor is in);
+  // the crossed swatch makes them plain again.
+  const colors = el("div", { class: "cv-menu-row text-colors" },
+    ...TEXT_COLORS.map((c) => el("button", { class: "cv-swatch", style: `background:${c}`, title: c,
+      onclick: () => { closeMenu(); editor && editor.setColor(c); } })),
+    el("button", { class: "cv-swatch plain", title: "No color", onclick: () => { closeMenu(); editor && editor.setColor(null); } }));
   menu = el("div", { class: "context" },
     item("Cut", "cut", picked), item("Copy", "copy", picked), item("Paste", "paste"),
-    el("div", { class: "menu-sep" }), item("Select all", "selectAll"));
+    el("div", { class: "menu-sep" }), item("Select all", "selectAll"),
+    el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Text color"), colors);
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
   document.body.append(menu);
