@@ -287,6 +287,8 @@ class Running {
   tools: McpTool[] = [];
   /** A line the plugin sets about itself ("synced 2 minutes ago"), shown in Settings. */
   status = "";
+  /** What it has put to the person to decide (`talaris/decide`): its whole list, as it last said it. */
+  decisions: Decision[] = [];
   log: string[] = [];
   startedAt = 0;
   private next = 1;
@@ -340,7 +342,7 @@ class Running {
         protocolVersion: PROTOCOL,
         // Talaris's extension (DESIGN, *The protocol*): what a plugin may ask, said once, up front.
         // Its settings come with the greeting, so the first call has them; changes follow as notifications.
-        capabilities: { experimental: { talaris: { version: 1, requests: ["talaris/settings", "talaris/interchange", "talaris/notify", "talaris/status"],
+        capabilities: { experimental: { talaris: { version: 1, requests: ["talaris/settings", "talaris/interchange", "talaris/notify", "talaris/status", "talaris/decide"],
           settings: settingsFor(this.manifest) } } },
         clientInfo: { name: "talaris", version: "0.1.0" },
       }, 20_000)) as { serverInfo?: { name?: string } };
@@ -420,6 +422,11 @@ class Running {
       if (method === "ping") return reply({});
       if (method === "talaris/settings") return reply({ settings: settingsFor(this.manifest) });
       if (method === "talaris/status") { this.status = String(params.text ?? "").slice(0, 200); return reply({}); }
+      if (method === "talaris/decide") {
+        // Its whole list, each time: an item answered or gone simply is not in the next one.
+        this.decisions = checkedDecisions(params.items);
+        return reply({});
+      }
       if (method === "talaris/notify") {
         if (!this.manifest.permissions.notify) return refuse(-32001, "its manifest does not ask to notify");
         notifyDesktop(this.manifest.name, String(params.title ?? this.manifest.name), String(params.body ?? ""));
@@ -431,6 +438,48 @@ class Running {
       return refuse(-32000, (e as Error).message);
     }
   }
+}
+
+/**
+ * Something a plugin puts to the person (DESIGN, *Plugins*: drawn by Talaris,
+ * in its own look, from what the plugin describes): a question, the values
+ * it is about side by side, and the answers to choose from. Answered in
+ * Settings, Plugins; the answer goes back to the plugin as `talaris/decided`.
+ */
+export interface Decision {
+  id: string;
+  title: string;
+  detail?: string;
+  /** What it is about, side by side: a label, and each side's value as words. */
+  fields?: { label: string; here?: string; there?: string }[];
+  /** What the two sides are called, for the columns ("Talaris", "Hermes"). */
+  sides?: [string, string];
+  choices: { key: string; label: string }[];
+}
+function checkedDecisions(v: unknown): Decision[] {
+  const items = Array.isArray(v) ? v : [];
+  return items.slice(0, 500).flatMap((x) => {
+    const d = x as Record<string, unknown>;
+    if (typeof d.id !== "string" || typeof d.title !== "string" || !Array.isArray(d.choices) || !d.choices.length) return [];
+    const words = (w: unknown) => (w === undefined || w === null ? undefined : String(w).slice(0, 2000));
+    return [{
+      id: d.id.slice(0, 200), title: d.title.slice(0, 300), ...(typeof d.detail === "string" ? { detail: d.detail.slice(0, 2000) } : {}),
+      ...(Array.isArray(d.fields) ? { fields: (d.fields as Record<string, unknown>[]).slice(0, 40).map((f) => ({ label: String(f.label ?? ""), here: words(f.here), there: words(f.there) })) } : {}),
+      ...(Array.isArray(d.sides) && d.sides.length === 2 ? { sides: [String(d.sides[0]), String(d.sides[1])] as [string, string] } : {}),
+      choices: (d.choices as Record<string, unknown>[]).slice(0, 6).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? "") })),
+    }];
+  });
+}
+
+/** An answer, given in Settings: sent to the plugin, which acts on it and says its list again. */
+export async function decide(id: string, item: string, choice: string): Promise<unknown> {
+  const r = running.get(id);
+  if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
+  const d = r.decisions.find((x) => x.id === item);
+  if (!d) throw new NotFound("that has been decided already, or is no longer asked");
+  if (!d.choices.some((c) => c.key === choice)) throw new Conflict("not one of its answers");
+  r.decisions = r.decisions.filter((x) => x.id !== item);
+  return r.request("talaris/decided", { item, choice }, 120_000);
 }
 
 const running = new Map<string, Running>();
@@ -531,6 +580,7 @@ export interface PluginRow {
   problem: string;
   tools: McpTool[];
   settings: Record<string, unknown>;
+  decisions: Decision[];
 }
 
 export function listPlugins(): PluginRow[] {
@@ -547,6 +597,7 @@ export function listPlugins(): PluginRow[] {
       problem: r?.error ?? "",
       tools: r?.tools ?? [],
       settings: x.manifest ? settingsShown(x.manifest) : {},
+      decisions: r?.decisions ?? [],
     };
   });
 }

@@ -1518,7 +1518,7 @@ async function loadPlugins() {
       pel("span", { class: "name" }, `${m.name} `, pel("small", {}, [`${m.version}`, m.description, r.status, r.problem && r.state !== "running" ? r.problem : ""].filter(Boolean).join(" · "))),
       pel("span", { class: "what" }, pel("span", { class: `pl-state ${r.state}` }, state),
         pel("button", { class: "t-btn", onclick: () => { if (open) plOpen.delete(r.id); else plOpen.add(r.id); redraw(); } }, open ? "Less" : "More"), sw));
-    const block = pel("div", { class: "mg-server" }, head, asking);
+    const block = pel("div", { class: "mg-server" }, head, asking, plDecisions(r, redraw));
     if (!open) return block;
     const body = pel("div", { class: "pl-body" });
     body.append(pel("h3", {}, "It adds"),
@@ -1554,6 +1554,32 @@ async function loadPlugins() {
     block.append(body);
     return block;
   }) : [pel("p", { class: "note" }, "None installed yet.")]));
+}
+
+/**
+ * What a plugin has put to the person (plugins.ts, `talaris/decide`): shown
+ * whether or not the plugin is opened, each with what it is about side by
+ * side and its answers as buttons; an answer goes back to the plugin.
+ */
+function plDecisions(r, redraw) {
+  const items = r.decisions || [];
+  if (!items.length) return null;
+  return pel("div", { class: "pl-decide" },
+    pel("h3", {}, `To decide · ${items.length}`),
+    ...items.slice(0, 50).map((d) => {
+      const [here, there] = d.sides || ["", ""];
+      const table = d.fields && d.fields.length ? pel("table", { class: "pl-fields" },
+        here || there ? pel("tr", {}, pel("th", {}), pel("th", {}, here), pel("th", {}, there)) : null,
+        ...d.fields.map((f) => pel("tr", {}, pel("td", { class: "pl-label" }, f.label), pel("td", {}, f.here ?? "—"), pel("td", {}, f.there ?? "—")))) : null;
+      const buttons = d.choices.map((c) => pel("button", { class: "t-btn", onclick: async (e) => {
+        for (const b of e.target.parentElement.querySelectorAll("button")) b.disabled = true;
+        try { await core("POST", `/plugins/${encodeURIComponent(r.id)}/decide`, { item: d.id, choice: c.key }); say("Done"); } catch (err) { say(err.message, true); }
+        setTimeout(redraw, 600);
+      } }, c.label));
+      return pel("div", { class: "pl-item" }, pel("div", { class: "pl-q" }, d.title), d.detail ? pel("p", { class: "note", style: "margin:2px 0 6px" }, d.detail) : null, table,
+        pel("div", { class: "acts" }, ...buttons));
+    }),
+    items.length > 50 ? pel("p", { class: "note" }, `And ${items.length - 50} more, after these.`) : null);
 }
 
 async function installPlugin(from, replace = false) {

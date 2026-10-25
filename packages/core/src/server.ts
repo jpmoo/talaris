@@ -381,6 +381,11 @@ route("PUT", "/plugins/:id/settings", async (req, [id]) => {
   return { ok: true };
 });
 route("GET", "/plugins/:id/log", (_r, [id]) => plugins.pluginLog(id!));
+route("POST", "/plugins/:id/decide", async (req, [id]) => {
+  const b = await json<{ item?: string; choice?: string }>(req);
+  if (!b.item || !b.choice) throw new BadRequest("which, and what was chosen");
+  return plugins.decide(id!, b.item, b.choice);
+});
 route("POST", "/plugins/:id/call", async (req, [id]) => {
   const b = await json<{ tool?: string; arguments?: Record<string, unknown> }>(req);
   if (!b.tool) throw new BadRequest("call which tool?");

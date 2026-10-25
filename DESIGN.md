@@ -1433,7 +1433,13 @@ of it and comes out at the end.
     Talaris's MCP as `<id>__<tool>`, with Morgan's Allow, Ask or Off. Settings,
     Plugins shows each before and after enabling. `examples/plugins/hello` is a
     whole plugin with no dependencies; `examples/plugins/README.md` is how to
-    write one. Next: the Hermes sync plugin.
+    write one. **The Hermes sync plugin is built** (`plugins/hermes-sync`, its
+    README says how it decides): matching on the first sync with the unsure
+    put to the person and the plan confirmed before anything is written;
+    merge with conflicts put to the person, or one side winning; deletions
+    asked about, never carried; calendar events one way. The host gained
+    `talaris/decide` — a plugin's list of things for the person to decide,
+    drawn by Talaris in Settings, Plugins, answered back as `talaris/decided`.
 14. Pruning.
 15. Tasks — Hermes' system, feature for feature — and the plugin that syncs
     projects and tasks through the spec.

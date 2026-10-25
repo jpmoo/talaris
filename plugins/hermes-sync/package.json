@@ -1,0 +1,11 @@
+{
+  "name": "@talaris/hermes-sync",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "description": "A Talaris plugin keeping tasks, projects, events and people in step with Hermes Notes, through pkm-interchange",
+  "scripts": {
+    "test": "node --test test/sync.test.mjs && node test/e2e.mjs"
+  }
+}

@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
+//
+// The sync, as a plan: given both sides as they are, the links between them
+// and what each linked pair last agreed on (its `base`), what to write where,
+// what to make, and what to ask. Pure — nothing here reads or writes either
+// app — so it can be measured on made-up libraries (test/sync.test.mjs) and
+// trusted on a real one.
+//
+// **Merge**: a slot changed on one side since the pair last agreed is carried
+// to the other; changed on both, differently, it is put to the person. Made
+// on one side, it is made on the other. **Replace**: one side wins — every
+// linked pair made to match it, and what it has that the other lacks made
+// there; what only the loser has is left alone (the binding has no way to
+// delete, and a sync that cannot undo should not try).
+//
+// **The first time**, nothing is written until the person says so. Things
+// are matched where that is certain (a project by its name, a person by an
+// address, a task by its name within a matched project); where it is not,
+// the person is asked whether two are the same; and the whole plan — how
+// many matched, made each way — is put to them before it starts.
+
+import { KINDS, ORDER, REFS, Side, merge } from "./sides.mjs";
+
+const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
+const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
+  start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project" };
+const KIND_WORDS = { project: "project", contact: "person", event: "event", task: "task" };
+
+/**
+ * @param state    { started, links: [{ kind, t, h, base }], apart: [[t, h]], only: [id], mode }
+ * @param T, H     envelopes read from Talaris and from Hermes
+ * @param s        settings: { mode: "merge" | "hermes" | "talaris", kinds: { task, project, event, contact },
+ *                   people: "known" | "everyone", calendar: "none" | <days back>, now }
+ * @param newId    a fresh id for something made in Hermes
+ * @returns { writes: [{ side, op, id, type?, patch?, body?, link? }], ask: [decision], links, summary }
+ */
+export function plan(state, T, H, s, newId) {
+  const t = new Side("Talaris", T), h = new Side("Hermes Notes", H);
+  const links = state.links.map((l) => ({ ...l, base: { ...(l.base ?? {}) } }));
+  const byT = new Map(links.map((l) => [l.t, l])), byH = new Map(links.map((l) => [l.h, l]));
+  const apart = new Set((state.apart ?? []).map(([a, b]) => `${a}|${b}`));
+  // Kept on one side only, by the person's choice: never carried again.
+  const only = new Set(state.only ?? []);
+  const writes = [], ask = [];
+  const summary = { matched: 0, toHermes: 0, toTalaris: 0, carried: 0, conflicts: 0, gone: 0, left: 0 };
+  const wanted = (k) => s.kinds?.[k] !== false && t.typeFor(k) && h.typeFor(k);
+
+  // A reference compared as the Talaris id of what it points at; a Talaris id written as Hermes' and back.
+  const keyT = (id) => (byT.has(id) ? id : null), keyH = (id) => byH.get(id)?.t ?? null;
+  const idT = (key) => (byT.has(key) ? key : null), idH = (key) => byT.get(key)?.h ?? null;
+  const fromCalendar = (o) => (o["talaris:sources"] ?? []).some((x) => x.kind === "eds-event");
+
+  /** Whether a Talaris thing is one this sync carries at all. */
+  const carriesT = (o, kind) => {
+    if (o.archived || o.stub || only.has(o.id)) return false;
+    if (kind === "event" && fromCalendar(o)) {
+      if (s.calendar === "none" || s.calendar === undefined) return false;
+      const start = Date.parse(t.raw(o, "event", "start") ?? "");
+      return Number.isNaN(start) || start >= (s.now ?? Date.now()) - Number(s.calendar) * 86_400_000;
+    }
+    return true;
+  };
+  const carriesH = (o) => !o.archived && !o.stub && !only.has(o.id);
+
+  const slotsOf = (kind) => KINDS[kind].filter((slot) => t.has(kind, slot) && h.has(kind, slot));
+  const valuesT = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(t.value(o, kind, slot, keyT))]));
+  const valuesH = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(h.value(o, kind, slot, keyH))]));
+
+  /** A write making `to` hold the given slots from `fromSide`'s object. */
+  const carry = (toSide, toObj, kind, fromSide, fromObj, slots) => merge(slots.map((slot) => {
+    const key = fromSide === t ? keyT : keyH;
+    const value = fromSide.value(fromObj, kind, slot, key);
+    const raw = fromSide.raw(fromObj, kind, slot);
+    return toSide.write(toObj, kind, slot, value, raw, toSide === t ? idT : idH);
+  }));
+
+  /** Making on the other side a thing it lacks: its type, and every slot carried. */
+  const make = (toSide, kind, fromSide, fromObj, id) => {
+    const type = toSide.typeFor(kind);
+    const p = carry(toSide, null, kind, fromSide, fromObj, slotsOf(kind));
+    return { side: toSide === t ? "talaris" : "hermes", op: "put", id, body: { type: type.id, properties: p.set ?? {} } };
+  };
+
+  // ------------------------------------------------------------ the first time: matching
+
+  if (!state.started) {
+    for (const kind of ORDER) {
+      if (!wanted(kind)) continue;
+      const ts = [...t.objects.values()].filter((o) => t.kindOf(o) === kind && carriesT(o, kind) && !byT.has(o.id));
+      const hs = [...h.objects.values()].filter((o) => h.kindOf(o) === kind && carriesH(o) && !byH.has(o.id));
+      const taken = new Set();
+      for (const a of ts) {
+        // Certain: the same address, or the same name where names are how the thing is known.
+        const sure = hs.filter((b) => !taken.has(b.id) && !apart.has(`${a.id}|${b.id}`) && same(kind, a, b));
+        const maybe = hs.filter((b) => !taken.has(b.id) && !apart.has(`${a.id}|${b.id}`) && !sure.includes(b) && kind !== "project" && norm(t.raw(a, kind, "title")) === norm(h.raw(b, kind, "title")));
+        if (sure.length === 1) {
+          taken.add(sure[0].id);
+          const l = { kind, t: a.id, h: sure[0].id, base: {} };
+          links.push(l); byT.set(l.t, l); byH.set(l.h, l);
+          summary.matched++;
+        } else if (sure.length + maybe.length >= 1) {
+          for (const b of [...sure, ...maybe].slice(0, 3)) {
+            ask.push({
+              id: `same:${kind}:${a.id}:${b.id}`,
+              title: `The same ${KIND_WORDS[kind]}? ${t.raw(a, kind, "title") ?? "Untitled"}`,
+              sides: ["Talaris", "Hermes Notes"],
+              fields: slotsOf(kind).map((slot) => ({ label: SLOT_WORDS[slot], here: t.shown(a, kind, slot), there: h.shown(b, kind, slot) })),
+              choices: [{ key: "same", label: "The same" }, { key: "apart", label: "Not the same" }],
+            });
+          }
+        }
+      }
+    }
+    // The plan, put to the person, once what is unsure has been decided.
+    if (!ask.length) {
+      summary.matched = links.filter((l) => wanted(l.kind)).length;
+      for (const kind of ORDER) {
+        if (!wanted(kind)) continue;
+        for (const o of t.objects.values()) if (t.kindOf(o) === kind && carriesT(o, kind) && !byT.has(o.id) && toHermesAllowed(kind, s)) summary.toHermes++;
+        for (const o of h.objects.values()) if (h.kindOf(o) === kind && carriesH(o) && !byH.has(o.id) && s.mode !== "talaris") summary.toTalaris++;
+      }
+      const mode = s.mode === "hermes" ? "Hermes Notes replaces what Talaris has, for the pairs matched"
+        : s.mode === "talaris" ? "Talaris replaces what Hermes Notes has, for the pairs matched" : "Merged: a difference between matched pairs is put to you";
+      ask.push({
+        id: "start",
+        title: "The first sync with Hermes Notes",
+        detail: `${summary.matched} matched. ${summary.toHermes} to make in Hermes Notes, ${summary.toTalaris} to make in Talaris. ${mode}. Nothing is deleted on either side.`,
+        choices: [{ key: "start", label: "Start" }, { key: "later", label: "Not yet" }],
+      });
+    }
+    return { writes: [], ask, links, summary };
+  }
+
+  // ------------------------------------------------------------ every time after
+
+  const winner = s.mode === "hermes" ? "hermes" : s.mode === "talaris" ? "talaris" : null;
+  for (const kind of ORDER) {
+    if (!wanted(kind)) continue;
+    const slots = slotsOf(kind);
+
+    // Linked pairs.
+    for (const l of links.filter((x) => x.kind === kind)) {
+      const a = t.objects.get(l.t), b = h.objects.get(l.h);
+      if (!a || !b) {
+        // Gone from one side, deleted there: never made again without asking, and never deleted here.
+        if (!a && !b) { l.gone = true; continue; }
+        summary.gone++;
+        const left = a ? t : h, there = a ? "Hermes Notes" : "Talaris", here = a ? "Talaris" : "Hermes Notes", o = a ?? b;
+        ask.push({
+          id: `gone:${kind}:${a ? l.t : l.h}`,
+          title: `Deleted in ${there}: ${KIND_WORDS[kind]} “${left.raw(o, kind, "title") ?? "Untitled"}”`,
+          detail: `It is still in ${here}. The sync cannot delete it there — delete it yourself if it should go.`,
+          choices: [{ key: "here", label: `Keep it in ${here} only` }, { key: "again", label: `Make it again in ${there}` }],
+        });
+        continue;
+      }
+      if (a.archived || b.archived || a.stub) continue;
+      const tv = valuesT(a, kind), hv = valuesH(b, kind);
+      const calendarOnly = kind === "event" && fromCalendar(a); // a calendar's event: Talaris's word, always
+      const toH = [], toT = [];
+      for (const slot of slots) {
+        const x = tv[slot], y = hv[slot], base = l.base[slot];
+        if (x === y) { l.base[slot] = x; if (l.pick) delete l.pick[slot]; continue; }
+        // The person chose, for this one: that side's value is carried, once.
+        const picked = l.pick?.[slot];
+        if (picked) { (picked === "talaris" ? toH : toT).push(slot); delete l.pick[slot]; continue; }
+        const side = calendarOnly ? "talaris" : winner;
+        if (side === "talaris") { toH.push(slot); continue; }
+        if (side === "hermes") { toT.push(slot); continue; }
+        if (base !== undefined && x === base) toT.push(slot);
+        else if (base !== undefined && y === base) toH.push(slot);
+        // Never agreed yet (matched on the first sync), and one side simply empty: filled, not asked.
+        else if (base === undefined && x === null) toT.push(slot);
+        else if (base === undefined && y === null) toH.push(slot);
+        else {
+          summary.conflicts++;
+          ask.push({
+            id: `conflict:${l.t}:${slot}`,
+            title: `${KIND_WORDS[kind][0].toUpperCase()}${KIND_WORDS[kind].slice(1)} “${t.raw(a, kind, "title") ?? h.raw(b, kind, "title") ?? "Untitled"}” — ${SLOT_WORDS[slot]}`,
+            detail: base === undefined ? "Matched on the first sync, and different on each side." : "Changed on both sides since they last agreed.",
+            sides: ["Talaris", "Hermes Notes"],
+            fields: [{ label: SLOT_WORDS[slot], here: t.shown(a, kind, slot), there: h.shown(b, kind, slot) }],
+            choices: [{ key: "talaris", label: "Keep Talaris's" }, { key: "hermes", label: "Keep Hermes Notes'" }],
+          });
+        }
+      }
+      if (toH.length) {
+        const patch = carry(h, b, kind, t, a, toH);
+        if (patch.set || patch.unset) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, link: l, slots: toH, values: tv });
+        summary.carried += toH.length;
+      }
+      if (toT.length) {
+        const patch = carry(t, a, kind, h, b, toT);
+        if (patch.set || patch.unset) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, link: l, slots: toT, values: hv });
+        summary.carried += toT.length;
+      }
+    }
+
+    // Made on one side only: made on the other (in Replace, only the winner's).
+    if (winner !== "hermes") {
+      for (const a of t.objects.values()) {
+        if (t.kindOf(a) !== kind || !carriesT(a, kind) || byT.has(a.id) || !toHermesAllowed(kind, s)) continue;
+        const id = newId();
+        const l = { kind, t: a.id, h: id, base: {}, made: "hermes" };
+        links.push(l); byT.set(l.t, l); byH.set(l.h, l);
+        writes.push({ ...make(h, kind, t, a, id), link: l, values: valuesT(a, kind) });
+        summary.toHermes++;
+      }
+    } else for (const a of t.objects.values()) if (t.kindOf(a) === kind && carriesT(a, kind) && !byT.has(a.id)) summary.left++;
+    if (winner !== "talaris") {
+      for (const b of h.objects.values()) {
+        if (h.kindOf(b) !== kind || !carriesH(b) || byH.has(b.id)) continue;
+        // Made in Talaris at Hermes' own id: the same id on both sides, for anyone reading either.
+        const l = { kind, t: b.id, h: b.id, base: {}, made: "talaris" };
+        links.push(l); byT.set(l.t, l); byH.set(l.h, l);
+        writes.push({ ...make(t, kind, h, b, b.id), link: l, values: valuesH(b, kind) });
+        summary.toTalaris++;
+      }
+    } else for (const b of h.objects.values()) if (h.kindOf(b) === kind && carriesH(b) && !byH.has(b.id)) summary.left++;
+  }
+  return { writes, ask, links: links.filter((l) => !l.gone), summary };
+
+  /** Certain enough to match without asking. */
+  function same(kind, a, b) {
+    if (kind === "contact") {
+      const ea = t.value(a, kind, "email", keyT) ?? [], eb = h.value(b, kind, "email", keyH) ?? [];
+      return ea.some((x) => eb.includes(x));
+    }
+    const ta = norm(t.raw(a, kind, "title")), tb = norm(h.raw(b, kind, "title"));
+    if (!ta || ta !== tb) return false;
+    if (kind === "project") return true;
+    if (kind === "event") return t.value(a, kind, "start", keyT) === h.value(b, kind, "start", keyH);
+    // A task: the same name within the same project (or both in none).
+    if (kind === "task") return json(t.value(a, kind, "project", keyT)) === json(h.value(b, kind, "project", keyH));
+    return false;
+  }
+}
+
+/** People go to Hermes only when the setting says everyone: Talaris keeps whole address books. */
+function toHermesAllowed(kind, s) {
+  return kind !== "contact" || s.people === "everyone";
+}
+
+/** What a pair agrees on once a write has landed: the values carried, as the base. */
+export function agreed(link, slots, values) {
+  for (const slot of slots) link.base[slot] = values[slot];
+}
+
+export { REFS };

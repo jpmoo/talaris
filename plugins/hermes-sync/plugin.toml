@@ -1,0 +1,85 @@
+# Hermes Notes sync: tasks, projects, events and people kept in step between
+# Talaris and Hermes Notes, through pkm-interchange alone — an implementation
+# of the format of its own, knowing neither app's field names.
+
+id = "hermes-sync"
+name = "Hermes Notes sync"
+version = "0.1.0"
+description = "Keeps tasks, projects, events and people in step with Hermes Notes."
+author = "Jeff Moore"
+license = "GPL-3.0-only"
+command = ["node", "main.mjs"]
+
+[[tools]]
+name = "sync_now"
+description = "Sync with Hermes Notes now, rather than at the next interval"
+
+[[tools]]
+name = "sync_status"
+description = "When it last synced, what it carried, and what waits to be decided"
+
+[permissions]
+read = ["task", "project", "event", "person"]
+write = ["task", "project", "event", "person"]
+notify = true
+network = ["your Hermes Notes server"]
+
+[[settings]]
+key = "server"
+label = "Hermes Notes address"
+kind = "text"
+help = "Where you open Hermes Notes, e.g. https://example.org/hermesnotes"
+
+[[settings]]
+key = "key"
+label = "Access key"
+kind = "secret"
+help = "A Hermes Notes access key (Settings, Access keys in Hermes Notes)."
+
+[[settings]]
+key = "mode"
+label = "When they differ"
+kind = "choice"
+choices = ["Merge, and ask me", "Hermes Notes wins", "Talaris wins"]
+default = "Merge, and ask me"
+help = "Merge carries each change across and asks when both changed. A side that wins makes the other match it."
+
+[[settings]]
+key = "tasks"
+label = "Tasks"
+kind = "boolean"
+default = true
+
+[[settings]]
+key = "projects"
+label = "Projects"
+kind = "boolean"
+default = true
+
+[[settings]]
+key = "events"
+label = "Events"
+kind = "boolean"
+default = true
+
+[[settings]]
+key = "people"
+label = "People"
+kind = "choice"
+choices = ["Off", "Only those Hermes Notes has", "Everyone"]
+default = "Only those Hermes Notes has"
+help = "Talaris keeps whole address books; Everyone sends them all to Hermes Notes."
+
+[[settings]]
+key = "calendar"
+label = "Calendar events to Hermes Notes"
+kind = "choice"
+choices = ["Don't send", "From 30 days back", "From 90 days back", "All"]
+default = "Don't send"
+help = "Events from your calendars go one way, Talaris to Hermes Notes. Events made in either app sync both ways."
+
+[[settings]]
+key = "minutes"
+label = "Every (minutes)"
+kind = "number"
+default = 15
