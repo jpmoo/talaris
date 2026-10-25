@@ -69,9 +69,11 @@ MORGAN_OPS = {
     "memory.garden.report", "memory.garden.run", "memory.garden.undo",
     "reminders.list", "reminders.cancel",
     "mcp.list", "mcp.add", "mcp.remove", "mcp.allow", "mcp.tool", "mcp.reconnect",
+    # This machine's own servers (client.json), answered by the Morgan here whatever its role.
+    "client.mcp.list", "client.mcp.add", "client.mcp.remove", "client.mcp.allow", "client.mcp.tool",
 }
 #: Ops that may take Morgan a long while (tidying its memory, a server's restart): waited for longer.
-MORGAN_SLOW = {"memory.garden.run", "client.set", "config.set", "ollama.models", "mcp.add", "mcp.reconnect"}
+MORGAN_SLOW = {"memory.garden.run", "client.set", "config.set", "ollama.models", "mcp.add", "mcp.reconnect", "client.mcp.add", "client.mcp.remove"}
 
 
 def _checked(c: dict) -> str:

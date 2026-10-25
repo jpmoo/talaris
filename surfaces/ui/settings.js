@@ -860,65 +860,100 @@ async function mgReminders() {
 // ---------------------------------------------------------------- Morgan: connections
 
 const mgToolsOpen = new Set();
+const MODES = [["allow", "Allow"], ["ask", "Ask"], ["off", "Off"]];
+const MODE_SAID = { allow: "runs when Morgan calls it", ask: "waits for your yes", off: "not given to Morgan" };
 
+/*
+ * Morgan's MCP servers, in two lists: those Morgan's brain keeps — here, or on
+ * the server when this machine is its client — and **this machine's own**
+ * (`client.json`), which run here and reach only what is here: Talaris's,
+ * which reads this machine's encrypted store, first among them. Both are
+ * changed from here; each tool is Allow (run when Morgan calls it), Ask (put
+ * to you for a yes first) or Off (protocol 1.5).
+ */
 async function mgConnections() {
-  const r = await ask("mcp.list");
+  const [r, own] = await Promise.all([ask("mcp.list"), ask("client.mcp.list")]);
   if (!mgLive() || failed(r)) return;
-  const draw = (servers) => {
-    const redraw = (x) => { if (x && mgLive()) draw(x.servers || []); };
-    const rows = servers.map((s) => {
-      const device = s.allow === "device";
+  let servers = r.servers || [];
+  let mine = own.ok ? own.servers || [] : [];
+  const client = own.ok && own.role === "client";
+  const draw = () => {
+    const redrawServers = (x) => { if (x && mgLive()) { servers = x.servers || []; draw(); } };
+    const redrawMine = (x) => { if (x && mgLive()) { mine = x.servers || []; draw(); } };
+    // This machine's own, as the server lists them too, are shown once: in their own list.
+    const ownNames = new Set(mine.map((m) => m.name));
+    const theirs = servers.filter((s) => !(s.allow === "device" && ownNames.has(s.name)));
+
+    const serverBlock = (s, onThisMachine) => {
+      const elsewhere = s.allow === "device";
+      const op = (o) => (onThisMachine ? `client.${o}` : o);
+      const redraw = onThisMachine ? redrawMine : redrawServers;
+      const key = `${onThisMachine ? "own" : "brain"}:${s.name}`;
       const state = s.connected ? "Connected" : `Can't reach it${s.error ? `: ${s.error}` : ""}`;
-      const meta = [s.target, s.hasKey ? "key saved" : "", device ? "" : state].filter(Boolean).join(" · ");
-      const open = mgToolsOpen.has(s.name);
-      const head = el("div", { class: "row net" + (s.connected ? "" : " mg-bad") }, el("span", { class: "name" }, s.name, el("small", {}, meta)),
+      const meta = [s.target, s.hasKey ? "key saved" : "", elsewhere ? "" : state].filter(Boolean).join(" · ");
+      const open = mgToolsOpen.has(key);
+      const head = el("div", { class: "row net" + (s.connected || elsewhere ? "" : " mg-bad") }, el("span", { class: "name" }, s.name, el("small", {}, meta)),
         el("span", { class: "what" },
-          el("button", { class: "t-btn", onclick: () => { if (open) mgToolsOpen.delete(s.name); else mgToolsOpen.add(s.name); draw(servers); } }, open ? "Hide tools" : `Tools (${(s.tools || []).length})`),
-          ...(device ? [] : [twiceBtn("Remove", "Remove it?", async () => redraw(await change("mcp.remove", { name: s.name }, "Server removed")))])));
+          el("button", { class: "t-btn", onclick: () => { if (open) mgToolsOpen.delete(key); else mgToolsOpen.add(key); draw(); } }, open ? "Hide tools" : `Tools (${(s.tools || []).length})`),
+          ...(elsewhere ? [] : [twiceBtn("Remove", "Remove it?", async () => redraw(await change(op("mcp.remove"), { name: s.name }, "Server removed")))])));
       const block = el("div", { class: "mg-server" }, head);
       if (!open) return block;
       const body = el("div", { class: "mg-tools" });
-      // One a client keeps for itself is changed on that client, not here.
-      if (device) body.append(el("p", { class: "note", style: "margin:0 0 4px" }, `Kept on ${s.device}; changed there.`));
+      // Another device's own: changed on that device.
+      if (elsewhere) body.append(el("p", { class: "note", style: "margin:0 0 4px" }, `Kept on ${s.device}; changed there.`));
       else {
-        body.append(mgRow("Allowed", "A tool that changes something always waits for your yes", segOf([["read", "Tools that read"], ["all", "Every tool"]], s.allow,
-          async (allow) => redraw(await change("mcp.allow", { name: s.name, allow }, "Saved")))));
+        body.append(mgRow("Tools that change things", "Until one is set by itself: Ask, or Off", segOf([["all", "Ask"], ["read", "Off"]], s.allow,
+          async (allow) => redraw(await change(op("mcp.allow"), { name: s.name, allow }, "Saved")))));
       }
       for (const t of s.tools || []) {
-        body.append(mgRow(t.name, t.readOnly ? "Reads" : "Changes things", ...(device ? [] : [mgSwitch(t.on, async (on, sw) => {
-          sw.disabled = true;
-          redraw(await change("mcp.tool", { name: s.name, tool: t.name, on }, `${t.name} ${on ? "on" : "off"}`));
-          sw.disabled = false;
-        }, "Given to Morgan")])));
+        const mode = t.mode || (t.on ? (t.readOnly ? "allow" : "ask") : "off");
+        body.append(mgRow(t.name, `${t.readOnly ? "Reads" : "Changes things"} · ${MODE_SAID[mode]}`, ...(elsewhere ? [] : [segOf(MODES, mode,
+          async (m) => redraw(await change(op("mcp.tool"), { name: s.name, tool: t.name, mode: m }, `${t.name}: ${m}`)))])));
       }
       if (!(s.tools || []).length) body.append(el("p", { class: "note", style: "margin:4px 0" }, "No tools read."));
       block.append(body);
       return block;
-    });
+    };
+
     const reconnect = el("button", { class: "t-btn" }, "Reconnect all");
-    reconnect.addEventListener("click", async () => { reconnect.disabled = true; say("Connecting…"); redraw(await change("mcp.reconnect", {}, "Connected again")); reconnect.disabled = false; });
+    reconnect.addEventListener("click", async () => { reconnect.disabled = true; say("Connecting…"); redrawServers(await change("mcp.reconnect", {}, "Connected again")); reconnect.disabled = false; });
 
     const name = el("input", { type: "text", spellcheck: "false", placeholder: "Short name" });
     const target = el("input", { type: "text", spellcheck: "false", placeholder: "https://… or a command to run" });
     const key = el("input", { type: "password", placeholder: "Access key, if it needs one" });
+    // A client adds a server to the brain on the server, or to its own list, here.
+    let where = "brain";
+    const mgRowWhere = () => {
+      const row = mgRow("Runs", "On the server, or on this machine (it reaches what is here)",
+        segOf([["brain", "On the server"], ["here", "Here"]], where, (w) => { where = w; row.replaceWith(mgRowWhere()); }));
+      return row;
+    };
     const add = async () => {
       const t = target.value.trim();
       if (!name.value.trim() || !t) { say("A server needs a name, and a URL or a command", true); return; }
       const args = /^https?:\/\//.test(t) ? { name: name.value.trim(), url: t, ...(key.value.trim() ? { key: key.value.trim() } : {}) } : { name: name.value.trim(), command: t };
       say("Connecting…");
-      redraw(await change("mcp.add", args, "Server added"));
+      if (where === "here") redrawMine(await change("client.mcp.add", args, "Server added"));
+      else redrawServers(await change("mcp.add", args, "Server added"));
     };
     mgBody(
-      el("h3", { class: "with-btn" }, "MCP servers", reconnect),
-      el("div", { class: "mg-scroll" }, ...(rows.length ? rows : [el("p", { class: "note" }, "None yet.")])),
+      el("h3", { class: "with-btn" }, client ? "On the server" : "MCP servers", reconnect),
+      el("div", { class: "mg-scroll" }, ...(theirs.length ? theirs.map((s) => serverBlock(s, false)) : [el("p", { class: "note" }, "None yet.")])),
+      ...(mine.length ? [
+        el("h3", {}, client ? "On this machine" : "This machine's own"),
+        el("p", { class: "note" }, client ? "Run here and offered to the server; what they reach never leaves this machine but as answers."
+          : "Kept for this machine (client.json): they stay if Morgan's brain moves to a server."),
+        el("div", { class: "mg-scroll" }, ...mine.map((s) => serverBlock(s, true))),
+      ] : []),
       el("h3", {}, "Add a server"),
       mgRow("Name", "Letters and digits", name),
-      mgRow("Where", "A URL, or a command to run here", target),
+      mgRow("Where", "A URL, or a command to run", target),
       mgRow("Access key", "For a URL that needs one", key),
+      ...(client ? [mgRowWhere()] : []),
       el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" }, el("button", { class: "t-btn", onclick: add }, "Add"))),
       el("p", { class: "note" }, "Servers that need a browser sign-in cannot be added here; those are reached through the Oracle."));
   };
-  draw(r.servers || []);
+  draw();
 }
 
 // ---------------------------------------------------------------- Morgan: log
