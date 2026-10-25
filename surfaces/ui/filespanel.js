@@ -28,10 +28,6 @@
     $(host).replaceChildren(...choices.map(([value, label]) =>
       el("button", { class: value === current ? "on" : "", onclick: () => pick(value) }, label)));
   }
-  function choice(host, choices, current, pick) {
-    $(host).replaceChildren(...choices.map(([value, label]) => el("option", { value, ...(value === current ? { selected: "" } : {}) }, label)));
-    $(host).onchange = () => pick($(host).value);
-  }
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* fine */ } },
@@ -161,6 +157,10 @@
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
         reload();
       })),
+      el("div", { class: "s-head" }, "What it is"),
+      ...Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); })),
+      el("div", { class: "s-head" }, "Type"),
+      ...TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); })),
       el("div", { class: "s-head" }, "Kept views"),
       ...kept.map((k, i) => item(k.name, false, () => useKept(k), el("span", { class: "x", title: "Forget it", onclick: (e) => {
         e.stopPropagation(); kept.splice(i, 1); store.set("talaris.files.kept", kept); drawSide();
@@ -194,6 +194,7 @@
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
         ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
+        r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
         r.on.length ? el("span", { class: "mk on", title: r.on.map((o) => o.title).join(", ") }, `on ${r.on.length === 1 ? r.on[0].title : `${r.on.length} things`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
       el("span", { class: "date" }, when(r.mtime)),
@@ -220,7 +221,8 @@
     const said = [];
     if (s.includes("folder")) said.push(el("span", {}, el("b", {}, "In the folder"), ` of ${projectName(r.project)}.`));
     if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A writing page"), " — Writing opens it, and moves and renames it with its children."));
-    if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives elsewhere. Nothing of it is in the project's folder.`));
+    if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
+    if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", by a shortcut there" : ""}.`));
     if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked on a task"), " from where it lives, outside every project."));
     if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "A snapshot"), ` — a copy Talaris keeps${r.fromHermes ? ", that came from Hermes Notes" : ""}. No file of it exists anywhere until it is saved into the project.`));
     if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing:"), " the file is no longer where it was."));
@@ -246,6 +248,8 @@
     if (s.includes("snapshot")) act("Save into the project", () => api("POST", "/files/snapshot/save", { holder: r.holder, sha256: r.sha256, project: r.project })
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Attach to a task…", () => inline("attach", r));
+    if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
+    if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; store.set("talaris.files.project", project); reload(); });
     if (s.includes("shortcut")) act(armed === r.key ? "Yes, take the shortcut away" : "Remove the shortcut", () => {
       if (armed !== r.key) { armed = r.key; drawDetail(); return; }
       armed = "";
@@ -296,13 +300,24 @@
       const dot = r.name.lastIndexOf(".");
       name.setSelectionRange(0, dot > 0 ? dot : r.name.length);
     } else if (what === "move") {
-      const to = el("select", {}, ...projects.map((p) => el("option", { value: p.id, ...(p.id === r.project ? { selected: "" } : {}) }, p.name)));
+      // No browser pickers on a layer surface: the projects as buttons, the one chosen lit.
+      const to = { value: r.project };
+      const picks = el("div", { class: "pick-list" });
+      const drawPicks = () => picks.replaceChildren(...projects.map((p) => el("button", { class: `t-btn${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
+      drawPicks();
       const folders = [...new Set(rows.filter((x) => x.project === r.project && x.path).map(whereOf).filter(Boolean))].sort();
       const list = el("datalist", { id: "folders" }, ...folders.map((f) => el("option", { value: f })));
       const dir = el("input", { type: "text", placeholder: "Folder (empty: the top)", list: "folders", value: whereOf(r), spellcheck: "false" });
       const go = () => api("POST", "/files/move", { project: r.project, path: r.path, toProject: to.value, toDir: dir.value.trim().replace(/^\/+|\/+$/g, "") })
         .then((x) => { chosen = `p:${to.value}/${x.path}`; say(`Moved to ${projectName(to.value)}${x.path.includes("/") ? ` / ${x.path.slice(0, x.path.lastIndexOf("/"))}` : ""}`); return load(); }).catch(failed);
-      host.replaceChildren(to, dir, list, el("button", { class: "t-btn", onclick: go }, "Move"));
+      host.replaceChildren(picks, dir, list, el("button", { class: "t-btn", onclick: go }, "Move"));
+    } else if (what === "also") {
+      // A shortcut in each project chosen: the file stays where it is, and is in all of them.
+      const taken = new Set([r.project, ...(r.alsoIn || []), ...(r.livesIn ? [r.livesIn.project] : [])]);
+      const left = projects.filter((p) => !taken.has(p.id));
+      host.replaceChildren(left.length ? el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/shortcut", { project: p.id, path: r.abs })
+        .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name)))
+        : el("span", { class: "hint" }, "It is in every project already."));
     } else if (what === "attach") {
       const q = el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" });
       const found = el("div", { style: "width:100%" });
@@ -357,7 +372,7 @@
         el("p", {}, "A shortcut leaves the file where it is and shows it here. Moving it puts the file itself in the project's folder."),
         el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
           el("button", { class: "t-btn", onclick: () => bringIn(paths, "move", to) }, "Move in…"),
-          el("button", { class: "t-btn le-save", onclick: () => { close(); bringIn(paths, "shortcut", to); } }, "Make shortcuts"))));
+          el("button", { class: "t-btn primary", onclick: () => { close(); bringIn(paths, "shortcut", to); } }, "Make shortcuts"))));
       sheet.hidden = false;
       return;
     }
@@ -377,7 +392,7 @@
           : c.warnings.length ? el("ul", {}, ...c.warnings.map((w) => el("li", {}, w.text))) : el("ul", { class: "fine" }, el("li", {}, "Nothing else is disturbed.")))),
       el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
         el("button", { class: "t-btn", onclick: () => { close(); bringIn(ok.map((c) => c.path), "shortcut", to); } }, "Shortcuts instead"),
-        ok.length ? el("button", { class: "t-btn le-save", onclick: async () => {
+        ok.length ? el("button", { class: "t-btn primary", onclick: async () => {
           close();
           let moved = 0;
           for (const c of ok) {
@@ -430,9 +445,7 @@
 
   function drawControls() {
     seg("view", [["folders", "Folders"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
-    choice("status", [["", "Anything"], ...Object.entries(STATUS)], filters.status, (v) => { filters.status = v; reload(); });
-    choice("type", [["", "Any type"], ...TYPES], filters.type, (v) => { filters.type = v; reload(); });
-    choice("days", [["0", "Any time"], ["1", "Today"], ["7", "This week"], ["31", "This month"]], String(filters.days), (v) => { filters.days = Number(v); reload(); });
+    seg("days", [["0", "Any time"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
   }
 
   let typing = 0;

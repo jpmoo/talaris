@@ -52,6 +52,7 @@
       const { rows: start, def: startDef } = read(ctx.taskType);
       let rows = start.map((r) => ({ ...r }));
       let def = startDef;
+      let menuFor = -1; // the row whose meaning menu is open
       const moveTo = {};
       const dim = el("div", { class: "le-dim" });
       const sheet = el("div", { class: "le-sheet", role: "dialog" });
@@ -73,9 +74,12 @@
             el("span", { class: "st-dot", style: `background:${r.color || "var(--muted)"}` }),
             el("input", { type: "text", class: "st-label", value: r.label, spellcheck: "false", oninput: (e) => { r.label = e.target.value; drawGone(); } }),
             swatches,
-            el("select", { class: "st-means" + (r.state ? "" : " unset"), title: "What it means to other apps", onchange: (e) => { r.state = e.target.value; draw(); } },
-              el("option", { value: "", ...(r.state ? {} : { selected: "" }) }, "Means…"),
-              fits(r.complete).map((m) => el("option", { value: m, ...(r.state === m ? { selected: "" } : {}) }, MEANINGS[m]))),
+            // No browser picker (a <select> opens a window of its own): a button, and a small menu of what fits.
+            el("span", { class: "st-means-wrap" },
+              el("button", { type: "button", class: "t-btn st-means" + (r.state ? "" : " unset"), title: "What it means to other apps",
+                onclick: (e) => { e.stopPropagation(); menuFor = menuFor === i ? -1 : i; draw(); } }, r.state ? MEANINGS[r.state] : "Means…"),
+              menuFor === i ? el("span", { class: "menu st-menu" }, fits(r.complete).map((m) =>
+                el("button", { type: "button", class: "menu-item" + (r.state === m ? " on" : ""), onclick: (e) => { e.stopPropagation(); r.state = m; menuFor = -1; draw(); } }, MEANINGS[m]))) : null),
             el("button", { type: "button", class: "t-btn st-flag" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.state && !fits(r.complete).includes(r.state)) r.state = r.complete ? "done" : "not-started"; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
             el("button", { type: "button", class: "t-btn st-flag" + (def === r.value && r.value ? " on" : ""), title: "New tasks start here",
               disabled: r.complete || !r.value ? "" : null, onclick: () => { def = r.value; draw(); } }, "Start"),
@@ -134,6 +138,7 @@
           el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Save")));
       dim.append(sheet);
       dim.addEventListener("pointerdown", (e) => { if (e.target === dim) close(null); });
+      sheet.addEventListener("click", () => { if (menuFor >= 0) { menuFor = -1; draw(); } });
       addEventListener("keydown", esc, true);
       document.body.append(dim);
       draw();
@@ -155,8 +160,11 @@
     .st-sw.on { box-shadow: 0 0 0 2px var(--text); }
     .st-flag { font-size: 11.5px !important; padding: 2px 9px !important; }
     .st-flag.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
-    .st-means { font-size: 11.5px; padding: 2px 4px; max-width: 110px; }
-    .st-means.unset { color: var(--danger); }
+    .st-means-wrap { position: relative; display: inline-flex; }
+    .st-means { font-size: 11.5px !important; padding: 2px 9px !important; white-space: nowrap; }
+    .st-means.unset { color: var(--danger) !important; border-color: var(--danger) !important; }
+    .st-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; display: flex; flex-direction: column; min-width: 120px; padding: 4px; }
+    .st-menu .menu-item.on { color: var(--accent); }
     .st-hint { margin: -2px 0 8px; font-size: 11.5px; }
     .st-gone:empty { display: none; }
     .st-gone-head { margin: 6px 0 4px; }

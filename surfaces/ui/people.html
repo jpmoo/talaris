@@ -32,7 +32,10 @@ body {
 html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+/* Wrapping onto a second line rather than running off the panel's side. */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+/* The actions keep to the right, on whichever line they land. */
+#list-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; white-space: nowrap; }
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
@@ -41,7 +44,7 @@ header .icon-btn:hover { color: var(--accent) !important; border-color: var(--ac
 header .seg { flex: none; }
 header .seg button { padding: 2px 10px !important; font-size: 12px; }
 #count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 40%; }
 #msg.err { color: var(--danger); }
 #q { width: 200px; flex: 0 1 200px; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
 
