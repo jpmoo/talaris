@@ -117,7 +117,8 @@ async function handOver(w) {
 
 // ------------------------------------------------------------ what it keeps
 
-const STATE_DIR = join((process.env.XDG_STATE_HOME || "").trim() || join(homedir(), ".local/state"), "talaris", "plugins", "hermes-sync");
+// The state folder Talaris hands it (and backs up what [backup] names of it); the same place, run by hand.
+const STATE_DIR = (process.env.TALARIS_PLUGIN_STATE || "").trim() || join((process.env.XDG_STATE_HOME || "").trim() || join(homedir(), ".local/state"), "talaris", "plugins", "hermes-sync");
 const STATE = join(STATE_DIR, "state.json");
 const fresh = () => ({ started: false, links: [], apart: [], only: [], mode: null, cursors: null, last: null });
 let state = (() => { try { return { ...fresh(), ...JSON.parse(readFileSync(STATE, "utf8")) }; } catch { return fresh(); } })();

@@ -167,3 +167,16 @@ test("a snapshot opens as a read-only copy", () => {
   assert.match(path, /snap\.txt$/);
   assert.throws(() => writeFileSync(path, "changed"));
 });
+
+test("one file in several projects: a shortcut in each other one, and each row says where else it is", async () => {
+  write(join(alpha.folder, "Shared plan.odt"));
+  await wait(700);
+  files.makeShortcut(beta.id, join(alpha.folder, "Shared plan.odt"));
+  files.makeShortcut(home.id, join(alpha.folder, "Shared plan.odt"));
+  assert.deepEqual(find(alpha.id, "Shared plan.odt")!.alsoIn!.sort(), [beta.id, home.id].sort());
+  const there = find(beta.id, "Shared plan.odt")!;
+  assert.deepEqual(there.status, ["shortcut"]);
+  assert.deepEqual(there.livesIn, { project: alpha.id, path: "Shared plan.odt" });
+  assert.deepEqual(there.alsoIn!.sort(), [alpha.id, home.id].sort());
+  assert.throws(() => files.makeShortcut(alpha.id, join(alpha.folder, "Shared plan.odt")), /already in this project's folder/);
+});

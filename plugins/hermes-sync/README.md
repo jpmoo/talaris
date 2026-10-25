@@ -46,9 +46,9 @@ address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
 "Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.
 
 **Sync now, from where you are.** With "Sync now buttons" on (the default), a
-person's entry, Tasks' editor and a project's sheet have a Sync now button, and
-the tops of People and Tasks have Sync all people and Sync all tasks and
-projects (each an `[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
+person's entry, Tasks' editor, a project's sheet and an undated note have a
+Sync with Hermes Notes button, and the tops of People, Tasks and the undated
+notes have Sync all with Hermes Notes (each an `[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
 changed, not only that one thing: a sync of one alone would move the cursor past
 what it did not look at. It says Done, what went wrong, or how many decisions
 wait in Settings, Plugins.
@@ -88,6 +88,12 @@ held: only whether a task is done goes across, and the plugin's status line
 names the statuses still without a meaning. The first time statuses go by
 meaning, a pair that differs only because one side could not say more
 before keeps the more particular one.
+
+**In a Talaris backup**: its settings (never the access key, which stays in
+this machine's keyring and is typed again after reviving) and its state — which
+Talaris thing is which Hermes Notes one, and what each pair last agreed on
+(`[backup]` in `plugin.toml`). Revived, the sync picks up where it left off
+rather than matching everything again.
 
 **Not yet:** a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { backupPlugins, restorePlugins, type PluginBackup } from "./plugins.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -119,7 +120,8 @@ export function backupNow(reason = "asked"): BackupRecord {
     const env = exportEnvelope({ bytes: true });
     const verdict = check(env);
     const made = new Date();
-    const payload = JSON.stringify({ kind: "talaris-backup", version: 1, made: made.toISOString(), reason, vault: vaultForBackup(), envelope: env });
+    // Plugins' own parts too: their settings (never a secret) and the state they declare (plugins.ts).
+    const payload = JSON.stringify({ kind: "talaris-backup", version: 1, made: made.toISOString(), reason, vault: vaultForBackup(), envelope: env, plugins: backupPlugins() });
     const sealed = sealTo(vaultPublicKey(), payload);
     const dir = folder();
     mkdirSync(dir, { recursive: true });
@@ -142,6 +144,7 @@ function prune(dir: string): void {
 
 interface Opened {
   made: string;
+  plugins?: PluginBackup[];
   vault: { publicKey: string; wrapped: string; check: string };
   envelope: Envelope;
 }
@@ -154,7 +157,7 @@ function open(file: string, recoveryKey: string): Opened {
 }
 
 /** What a backup holds, before anything is replaced. */
-export function previewBackup(file: string, recoveryKey: string): { made: string; objects: number; types: number; relations: number; kinds: Record<string, number> } {
+export function previewBackup(file: string, recoveryKey: string): { made: string; objects: number; types: number; relations: number; kinds: Record<string, number>; plugins: string[] } {
   const o = open(file, recoveryKey);
   const kinds: Record<string, number> = {};
   const profileOf = new Map((o.envelope.types ?? []).map((t) => [t.id, Object.keys(t.profiles ?? {})[0] ?? (t["talaris:role"] as string) ?? "other"]));
@@ -162,7 +165,7 @@ export function previewBackup(file: string, recoveryKey: string): { made: string
     const k = x.stub ? "stub" : profileOf.get(x.type ?? "") ?? "other";
     kinds[k] = (kinds[k] ?? 0) + 1;
   }
-  return { made: o.made, objects: o.envelope.objects?.length ?? 0, types: o.envelope.types?.length ?? 0, relations: o.envelope.relations?.length ?? 0, kinds };
+  return { made: o.made, objects: o.envelope.objects?.length ?? 0, types: o.envelope.types?.length ?? 0, relations: o.envelope.relations?.length ?? 0, kinds , plugins: (o.plugins ?? []).map((p) => p.name) };
 }
 
 /**
@@ -171,7 +174,7 @@ export function previewBackup(file: string, recoveryKey: string): { made: string
  * encrypted project sealed with it opens; projects sealed here are sealed again
  * with it), and then the envelope is imported — the same import as any other.
  */
-export function reviveBackup(file: string, recoveryKey: string): { findings: Finding[]; counts: Record<string, number>; safety: string | null } {
+export function reviveBackup(file: string, recoveryKey: string): { findings: Finding[]; counts: Record<string, number>; safety: string | null; plugins: ReturnType<typeof restorePlugins> } {
   const o = open(file, recoveryKey);
   let safety: string | null = null;
   try {
@@ -185,7 +188,9 @@ export function reviveBackup(file: string, recoveryKey: string): { findings: Fin
   const after = storeKey();
   if (before && !before.equals(after)) resealProjects(before, after);
   const result = importEnvelope(o.envelope);
-  return { ...result, safety };
+  // After the things they refer to are back: a sync's state names them by id.
+  const plugins = restorePlugins(o.plugins ?? []);
+  return { ...result, safety, plugins };
 }
 
 let timer: NodeJS.Timeout | null = null;

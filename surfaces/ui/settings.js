@@ -1386,7 +1386,8 @@ function drawRevive() {
     try {
       const p = await core("POST", "/backups/preview", { file: reviving, recoveryKey: key.value });
       const kinds = Object.entries(p.kinds).map(([k, n]) => `${n} ${k}`).join(", ");
-      out.textContent = `Made ${when(p.made)}: ${p.objects} things (${kinds || "nothing"}), ${p.relations} links. Reviving replaces what is here now, which is backed up first.`;
+      const plugs = (p.plugins || []).length ? ` Plugins' settings and state: ${p.plugins.join(", ")}.` : "";
+      out.textContent = `Made ${when(p.made)}: ${p.objects} things (${kinds || "nothing"}), ${p.relations} links.${plugs} Reviving replaces what is here now, which is backed up first.`;
       go.hidden = false;
     } catch (e) { out.textContent = e.message; out.className = "preview note err"; }
   });
@@ -1397,7 +1398,12 @@ function drawRevive() {
     try {
       const r = await core("POST", "/backups/revive", { file: reviving, recoveryKey: key.value });
       const lost = r.findings.filter((f) => f.severity !== "info");
-      out.textContent = `Revived: ${r.counts.objects} things, ${r.counts.files} files.` + (lost.length ? ` ${lost.length} things could not come back whole: ${lost.map((f) => f.message).join("; ")}` : "");
+      const pl = r.plugins || { restored: [], waiting: [], secrets: [] };
+      out.textContent = `Revived: ${r.counts.objects} things, ${r.counts.files} files.` + (lost.length ? ` ${lost.length} things could not come back whole: ${lost.map((f) => f.message).join("; ")}` : "")
+        + (pl.restored.length ? ` Plugins put back: ${pl.restored.join(", ")}.` : "")
+        + (pl.waiting.length ? ` Waiting until they are installed: ${pl.waiting.join(", ")}.` : "")
+        // Secrets are never in a backup: said, so they are typed again.
+        + (pl.secrets.length ? ` Enter again in Plugins (never kept in a backup): ${pl.secrets.join("; ")}.` : "");
       reviving = null;
       setTimeout(loadData, 2500);
     } catch (e) { out.textContent = e.message; out.className = "preview note err"; go.disabled = false; }

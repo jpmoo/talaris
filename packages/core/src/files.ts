@@ -233,6 +233,10 @@ export interface FileRow {
   holder?: string;
   fromHermes?: boolean;
   sealed?: boolean;
+  /** The other projects it is in, by a shortcut there: one file, in several projects. */
+  alsoIn?: string[];
+  /** A shortcut to a file in another project's folder: that project, and its place there. */
+  livesIn?: { project: string; path: string };
 }
 
 const fileSource = (projectId: string, rel: string) => ({ kind: "file", key: `${projectId}/${rel}` });
@@ -291,6 +295,17 @@ function allRows(only?: string): FileRow[] {
     }
   }
   const { of } = projectsByEntity();
+  // Every shortcut's file, first: a file in one project's folder is also in each project with a shortcut to it.
+  const shortcutsTo = new Map<string, string[]>();
+  for (const { object: o } of allRecords()) {
+    if (typeof o[SHORTCUT] !== "string" || o.archived) continue;
+    const p = valuesIn(o.properties.file)[0]?.[LINK]?.path;
+    if (p) shortcutsTo.set(p, [...(shortcutsTo.get(p) ?? []), o[SHORTCUT] as string]);
+  }
+  for (const r of rows.values()) {
+    const also = r.abs ? (shortcutsTo.get(r.abs) ?? []).filter((p) => p !== r.project) : [];
+    if (also.length) r.alsoIn = [...new Set(also)];
+  }
   for (const { object: o } of allRecords()) {
     if (o.archived || o.stub) continue;
     // A folder file's own entity: its tags.
@@ -305,7 +320,11 @@ function allRows(only?: string): FileRow[] {
       if (only && shortcutIn !== only) continue;
       const v = valuesIn(o.properties.file)[0];
       const link = v?.[LINK];
+      const lives = link ? placeOf(link.path) : null;
+      const others = link ? (shortcutsTo.get(link.path) ?? []).filter((p) => p !== shortcutIn) : [];
       rows.set(`s:${o.id}`, { key: `s:${o.id}`, project: shortcutIn, name: v?.filename ?? titleOf(o), ...(link ? { abs: link.path } : {}),
+        ...(lives ? { livesIn: { project: lives.project, path: lives.rel } } : {}),
+        ...(others.length || lives ? { alsoIn: [...new Set([...(lives ? [lives.project] : []), ...others])] } : {}),
         type: typeOfName(v?.filename ?? titleOf(o)), ...(link ? { size: link.size, mtime: new Date(link.mtime).toISOString() } : {}),
         status: v?.[MISSING] ? ["shortcut", "missing"] : ["shortcut"], on: [], tags: o.tags ?? [], entity: o.id });
       continue;

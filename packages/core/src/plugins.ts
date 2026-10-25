@@ -2,14 +2,14 @@
 // Copyright (c) 2026 Jeff Moore
 
 import { spawn, execFile, execFileSync, type ChildProcess } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { getEntity, types } from "./entities.js";
 import { restoreLinks, unbacked } from "./links.js";
 import { createObject, getInterchangeFile, liveManifest, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
-import { CONFIG_DIR } from "./paths.js";
+import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
 import { parseToml } from "./toml.js";
@@ -109,6 +109,12 @@ export interface Manifest {
   apps: AppDecl[];
   actions: ActionDecl[];
   settings: SettingDef[];
+  /**
+   * What of its own a backup carries (`[backup] state = [...]`): files and
+   * folders in its state folder (`TALARIS_PLUGIN_STATE`), named relative to
+   * it. Its settings go too, always, but never a secret.
+   */
+  backup: { state: string[] };
   permissions: {
     read: string[];
     write: string[];
@@ -180,6 +186,11 @@ export function readManifest(dir: string): Manifest {
     if (a.only !== undefined && a.only !== "missing-files") throw new Conflict(`action ${a.id}'s only is missing-files`);
     return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}), ...(a.only ? { only: a.only as string } : {}) };
   });
+  const b = (t.backup ?? {}) as Record<string, unknown>;
+  const state = strs(b.state);
+  for (const s of state) {
+    if (!s || s.startsWith("/") || s.split("/").some((x) => x === ".." || x === "")) throw new Conflict(`backup state ${s}: a path inside its state folder`);
+  }
   const read = kinds(p.read);
   const write = kinds(p.write);
   return {
@@ -188,7 +199,7 @@ export function readManifest(dir: string): Manifest {
     ...(typeof t.author === "string" ? { author: t.author } : {}),
     ...(typeof t.license === "string" ? { license: t.license } : {}),
     ...(typeof t.homepage === "string" ? { homepage: t.homepage } : {}),
-    command, tools, apps, actions, settings,
+    command, tools, apps, actions, settings, backup: { state },
     // Changing a kind means reading it: a write permission brings the read with it.
     permissions: { read: [...new Set([...read, ...write])], write, notify: p.notify === true, network: strs(p.network), files: strs(p.files) },
   };
@@ -314,6 +325,84 @@ export function install(from: string, options: { replace?: boolean } = {}): Mani
   }
 }
 
+// ------------------------------------------------------------ in a backup
+
+/** Where a plugin keeps what it knows (`TALARIS_PLUGIN_STATE`): Talaris's state folder, under its id. */
+export const pluginStateDir = (id: string) => join(STATE_DIR, "plugins", id);
+/** More than this of one plugin's state is left out of a backup, and the backup says so. */
+const MOST_STATE = 32 << 20;
+
+export interface PluginBackup {
+  id: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  /** Its settings but its secrets, which stay in this machine's keyring and are typed again. */
+  settings: Record<string, unknown>;
+  /** The files its manifest names, relative to its state folder, as base64. */
+  state: Record<string, string>;
+  /** What could not be carried, said. */
+  left?: string;
+}
+
+/** Every installed plugin's part of a backup: whether it was on, its settings, the state it declares. */
+export function backupPlugins(): PluginBackup[] {
+  const k = kept();
+  return installed().map(({ manifest: m }) => {
+    const root = pluginStateDir(m.id);
+    const state: Record<string, string> = {};
+    let bytes = 0, left = "";
+    const add = (abs: string) => {
+      const st = statSync(abs);
+      if (st.isDirectory()) { for (const n of readdirSync(abs)) add(join(abs, n)); return; }
+      if (!st.isFile()) return;
+      if (bytes + st.size > MOST_STATE) { left = `its state is larger than ${MOST_STATE >> 20} MB`; return; }
+      bytes += st.size;
+      state[relative(root, abs)] = readFileSync(abs).toString("base64");
+    };
+    for (const s of m.backup.state) {
+      const abs = join(root, s);
+      if (existsSync(abs)) add(abs);
+    }
+    return { id: m.id, name: m.name, version: m.version, enabled: k.enabled[m.id] === true, settings: { ...(k.settings[m.id] ?? {}) }, state, ...(left ? { left } : {}) };
+  });
+}
+
+/**
+ * Plugins' parts of a backup, put back: each one's settings and state, and
+ * whether it was on — stopped while its files are written, started again if
+ * it was. One not installed here has its settings and state waiting for it,
+ * found when it is installed. Secrets are never in a backup: they are asked
+ * for again.
+ */
+export function restorePlugins(list: PluginBackup[]): { restored: string[]; waiting: string[]; secrets: string[] } {
+  const here = new Map(installed().map((p) => [p.manifest.id, p.manifest]));
+  const restored: string[] = [], waiting: string[] = [], secrets: string[] = [];
+  const k = kept();
+  for (const b of list) {
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(b.id)) continue;
+    const m = here.get(b.id);
+    if (m) stop(b.id);
+    k.settings[b.id] = { ...(b.settings ?? {}) };
+    k.enabled[b.id] = b.enabled === true;
+    const root = pluginStateDir(b.id);
+    for (const [rel, data] of Object.entries(b.state ?? {})) {
+      const abs = resolve(root, rel);
+      if (!abs.startsWith(root + "/")) continue;
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, Buffer.from(data, "base64"));
+    }
+    if (m) {
+      restored.push(m.name);
+      const missing = m.settings.filter((s) => s.kind === "secret" && getSecret(secretName(m.id, s.key)) === null).map((s) => s.label);
+      if (missing.length) secrets.push(`${m.name}: ${missing.join(", ")}`);
+    } else waiting.push(b.name);
+  }
+  keep(k);
+  for (const b of list) if (here.has(b.id) && b.enabled) { try { start(b.id); } catch { /* said by its state */ } }
+  return { restored, waiting, secrets };
+}
+
 /** Gone: stopped, its folder removed, its settings and secrets forgotten. */
 export function uninstall(id: string): void {
   const p = installed().find((x) => x.manifest.id === id);
@@ -374,7 +463,7 @@ class Running {
     const [cmd, ...args] = this.manifest.command;
     const child = spawn(cmd!, args, {
       cwd: this.dir,
-      env: { ...process.env, TALARIS_PLUGIN: this.manifest.id, TALARIS_PLUGIN_DIR: this.dir },
+      env: { ...process.env, TALARIS_PLUGIN: this.manifest.id, TALARIS_PLUGIN_DIR: this.dir, TALARIS_PLUGIN_STATE: pluginStateDir(this.manifest.id) },
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child = child;

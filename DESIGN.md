@@ -511,6 +511,12 @@ Decided 2026-10-23.
 - **Installing is a folder** in `~/.local/share/talaris/plugins/`, copied in or
   cloned from a git address. A catalog can come when there are plugins to list.
   A paid plugin handles its own license key.
+- **A backup carries a plugin's own part** (`[backup]` in its manifest,
+  2026-10-25): its settings, whether it was on, and the files it names in the
+  state folder Talaris hands it (`TALARIS_PLUGIN_STATE`). Never a secret: those
+  stay in this machine's keyring, and reviving says which to type again. A
+  plugin not installed when a backup is revived finds its part waiting when it
+  is.
 
 ### How a plugin's things look
 
