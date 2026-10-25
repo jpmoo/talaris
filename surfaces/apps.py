@@ -147,7 +147,23 @@ class Apps:
         except (OSError, subprocess.SubprocessError):
             return ""
 
+    def _stamp(self) -> tuple:
+        """When each applications folder last changed: an application installed or removed changes its folder."""
+        out = []
+        for base in _data_dirs():
+            try:
+                out.append(os.stat(os.path.join(base, "applications")).st_mtime_ns)
+            except OSError:
+                out.append(0)
+        return tuple(out)
+
+    def fresh(self) -> None:
+        """Read again if anything was installed or removed since: cheap enough to ask whenever the list is wanted."""
+        if self._stamp() != getattr(self, "_read_at", None):
+            self.index()
+
     def index(self) -> None:
+        self._read_at = self._stamp()
         found: dict[str, dict] = {}
         listed: dict[str, dict] = {}
         # Later directories are lower priority, so the first one to claim a key keeps it.
@@ -185,7 +201,8 @@ class Apps:
         self._listed = listed
 
     def launchable(self) -> list[dict]:
-        """Every application a menu would show, by its desktop id."""
+        """Every application a menu would show, by its desktop id — just installed ones included."""
+        self.fresh()
         for app in self._listed.values():
             if app["icon"]:
                 self._handed.add(app["icon"])

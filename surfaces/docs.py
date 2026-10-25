@@ -145,9 +145,75 @@ def firefox_tabs() -> list[dict]:
     return _by_mtime(os.path.join(profile, "sessionstore-backups", "recovery.jsonlz4"), _tabs) or []
 
 
+# ---------------------------------------------------------------- Chrome, Chromium, Vivaldi, Brave, Edge
+
+#: The Chromium family: what a window's class or app id says, and where each keeps its profiles.
+CHROMIUM = {
+    "vivaldi": os.path.join(HOME, ".config", "vivaldi"),
+    "google-chrome": os.path.join(HOME, ".config", "google-chrome"),
+    "chromium": os.path.join(HOME, ".config", "chromium"),
+    "brave": os.path.join(HOME, ".config", "BraveSoftware", "Brave-Browser"),
+    "microsoft-edge": os.path.join(HOME, ".config", "microsoft-edge"),
+}
+
+
+def _family(app: dict, wm_class: str) -> str | None:
+    """Which browser a window is: "firefox", one of the Chromium family's keys, or None."""
+    said = (app.get("id", "") + " " + wm_class).lower()
+    if "firefox" in said:
+        return "firefox"
+    if "chrome" in said and "chromium" not in said:
+        return "google-chrome"
+    return next((k for k in CHROMIUM if k.split("-")[0] in said), None)
+
+
+def _chromium_profiles(family: str) -> list[str]:
+    root = CHROMIUM.get(family, "")
+    try:
+        return [os.path.join(root, d) for d in os.listdir(root) if (d == "Default" or d.startswith("Profile ")) and os.path.isfile(os.path.join(root, d, "History"))]
+    except OSError:
+        return []
+
+
+def _copy_db(path: str, work: str) -> str | None:
+    """A browser's database, copied: it is locked while the browser runs. Its journal is left, so what is half-written is not read."""
+    if not os.path.isfile(path):
+        return None
+    out = os.path.join(work, os.path.basename(path))
+    shutil.copy(path, out)
+    return out
+
+
+def _titles(history: str) -> dict:
+    """A history's pages by title, the most recently visited of each: what a window's title finds its address by."""
+    with tempfile.TemporaryDirectory() as work:
+        db = _copy_db(history, work)
+        if not db:
+            return {}
+        con = sqlite3.connect(db)
+        try:
+            rows = con.execute("SELECT title, url FROM urls WHERE title != '' ORDER BY last_visit_time DESC LIMIT 5000").fetchall()
+        finally:
+            con.close()
+    out: dict = {}
+    for title, url in rows:
+        out.setdefault(title, url)
+    return out
+
+
+def chromium_page(family: str, title: str) -> str | None:
+    """The address of the page a Chromium-family window shows, by its title in that browser's history; None if not there yet."""
+    for profile in _chromium_profiles(family):
+        found = (_by_mtime(os.path.join(profile, "History"), _titles) or {}).get(title)
+        if found:
+            return found
+    return None
+
+
 def page_title(window_title: str) -> str:
     """A browser window's title without the browser's name after it."""
-    return re.sub(r"\s+[—–-]\s+(Mozilla\s+)?Firefox(\s+Private Browsing)?$", "", window_title).strip()
+    t = re.sub(r"\s+[—–-]\s+(Mozilla\s+)?Firefox(\s+Private Browsing)?$", "", window_title)
+    return re.sub(r"\s+[—–-]\s+(Google Chrome|Chromium|Vivaldi|Brave|Microsoft\u200b? Edge)$", "", t).strip()
 
 
 def same_page(a: str, b: str) -> bool:
@@ -159,13 +225,16 @@ def same_page(a: str, b: str) -> bool:
 
 
 def is_browser(app: dict, wm_class: str) -> bool:
-    return "firefox" in (app.get("id", "") + " " + wm_class).lower()
+    return _family(app, wm_class) is not None
 
 
-def _browser_page(title: str) -> dict | None:
+def _browser_page(title: str, family: str = "firefox") -> dict | None:
     want = page_title(title)
     if not want:
         return None
+    if family != "firefox":
+        url = chromium_page(family, want)
+        return {"kind": "url", "target": url, "name": want} if url else None
     hits = [t for t in firefox_tabs() if t["title"] == want]
     # The tab a window shows first; any tab of that title after.
     hits.sort(key=lambda t: not t["selected"])
@@ -232,17 +301,19 @@ def _file_in(title: str, pid: int) -> dict | None:
 
 def document_of(window: dict, app: dict) -> dict | None:
     """The document a window shows — `{kind: "file"|"url", target, name}` — or None where it cannot be told."""
-    if is_browser(app, window.get("class", "")):
-        return _browser_page(window.get("title", ""))
+    family = _family(app, window.get("class", ""))
+    if family:
+        return _browser_page(window.get("title", ""), family)
     return _file_in(window.get("title", ""), int(window.get("pid") or 0))
 
 
 def shows(doc: dict, window: dict, app: dict) -> bool:
     """Whether a window is showing a pinned document now."""
     if doc.get("kind") == "url":
-        if not is_browser(app, window.get("class", "")):
+        family = _family(app, window.get("class", ""))
+        if not family:
             return False
-        page = _browser_page(window.get("title", ""))
+        page = _browser_page(window.get("title", ""), family)
         return bool(page and same_page(page["target"], doc["target"]))
     base = os.path.basename(doc.get("target", ""))
     return bool(base) and base in window.get("title", "")
@@ -278,27 +349,47 @@ def _places_copy(profile: str, name: str, work: str) -> str | None:
     return os.path.join(work, name)
 
 
-def page_icon(url: str) -> str:
-    """The page's icon as Firefox keeps it, saved where the dock can draw it; empty if it has none to give."""
-    profile = firefox_profile()
-    if not profile:
-        return ""
-    os.makedirs(CACHE, exist_ok=True)
+def _icon_rows(url: str) -> list:
+    """Every icon a browser keeps for this page or its site: (bytes, width, page) — Firefox's, then the Chromium family's."""
+    origin = "{0.scheme}://{0.netloc}".format(urlsplit(url))
+    rows: list = []
     with tempfile.TemporaryDirectory() as work:
-        db = _places_copy(profile, "favicons.sqlite", work)
-        if not db:
-            return ""
-        origin = "{0.scheme}://{0.netloc}".format(urlsplit(url))
-        try:
-            con = sqlite3.connect(db)
-            rows = con.execute(
-                """SELECT i.data, i.width, p.page_url FROM moz_icons i
-                   JOIN moz_icons_to_pages ip ON ip.icon_id = i.id JOIN moz_pages_w_icons p ON p.id = ip.page_id
-                   WHERE (p.page_url = ? OR p.page_url LIKE ?) AND i.data IS NOT NULL""",
-                (url, origin + "/%")).fetchall()
-            con.close()
-        except sqlite3.Error:
-            return ""
+        profile = firefox_profile()
+        db = _places_copy(profile, "favicons.sqlite", work) if profile else None
+        if db:
+            try:
+                con = sqlite3.connect(db)
+                rows += con.execute(
+                    """SELECT i.data, i.width, p.page_url FROM moz_icons i
+                       JOIN moz_icons_to_pages ip ON ip.icon_id = i.id JOIN moz_pages_w_icons p ON p.id = ip.page_id
+                       WHERE (p.page_url = ? OR p.page_url LIKE ?) AND i.data IS NOT NULL""",
+                    (url, origin + "/%")).fetchall()
+                con.close()
+            except sqlite3.Error:
+                pass
+        for family in CHROMIUM:
+            for prof in _chromium_profiles(family):
+                sub = os.path.join(work, family + os.path.basename(prof).replace(" ", "_"))
+                os.makedirs(sub, exist_ok=True)
+                db = _copy_db(os.path.join(prof, "Favicons"), sub)
+                if not db:
+                    continue
+                try:
+                    con = sqlite3.connect(db)
+                    rows += con.execute(
+                        """SELECT b.image_data, b.width, m.page_url FROM favicon_bitmaps b JOIN icon_mapping m ON m.icon_id = b.icon_id
+                           WHERE (m.page_url = ? OR m.page_url LIKE ?) AND b.image_data IS NOT NULL""",
+                        (url, origin + "/%")).fetchall()
+                    con.close()
+                except sqlite3.Error:
+                    pass
+    return rows
+
+
+def page_icon(url: str) -> str:
+    """The page's icon as a browser keeps it, saved where the dock can draw it; empty if none has one to give."""
+    os.makedirs(CACHE, exist_ok=True)
+    rows = _icon_rows(url)
     if not rows:
         return ""
     # The nearest page's — two apps on one site have icons of their own — then the size nearest the dock's.
@@ -340,5 +431,11 @@ def page_name(url: str) -> str:
                         return row[0]
                 except sqlite3.Error:
                     pass
+    for family in CHROMIUM:
+        for prof in _chromium_profiles(family):
+            titles = _by_mtime(os.path.join(prof, "History"), _titles) or {}
+            found = next((t for t, u in titles.items() if same_page(u, url)), None)
+            if found:
+                return found
     p = urlsplit(url)
     return (p.netloc + p.path).rstrip("/")
