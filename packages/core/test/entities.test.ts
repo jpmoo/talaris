@@ -324,14 +324,36 @@ test("a project at a glance: its pages, canvases, filed things and files, and on
   assert.equal(by(`page:${p.id}/Program`)?.own, true);
   assert.ok(g.nodes.some((n) => n.kind === "canvas" && n.own), "its top canvas");
   assert.equal(by(`e:${task.id}`)?.how, "filed here");
-  assert.equal(by(`file:${file.path}`)?.own, true, "the file, in its folder");
-  assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `file:${file.path}` && e.how === "links"), "the page links the file");
+  assert.equal(by(`file:${p.id}/${file.path}`)?.own, true, "the file, in its folder");
+  assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `file:${p.id}/${file.path}` && e.how === "links"), "the page links the file");
   assert.equal(by(`e:${show.id}`)?.own, false, "the event the page mentions, one step out");
   assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `e:${show.id}`));
   assert.equal(by(`e:${amy.id}`), undefined, "and not two steps: the event's people stay out");
   const two = glance(p.id, 2);
   assert.ok(two.nodes.some((n) => n.key === `e:${amy.id}`), "two steps out: the people at the meeting the page mentions");
   assert.ok(two.edges.some((e) => e.from === `e:${show.id}` && e.to === `e:${amy.id}`));
+  assert.equal(by(`e:${show.id}`)?.beyond?.contact, 1, "at one step, the event says it has a person past the edge");
+  // From the event: its people and the page that mentions it, and that page's project two out.
+  const fromShow = glance(p.id, 1, `e:${show.id}`);
+  assert.equal(fromShow.root, `e:${show.id}`);
+  const near = (k: string) => fromShow.nodes.find((n) => n.key === k);
+  assert.equal(near(`e:${show.id}`)?.depth, 0);
+  assert.equal(near(`e:${amy.id}`)?.depth, 1);
+  assert.equal(near(`page:${p.id}/Program`)?.depth, 1, "the page that mentions it, found from the event's side");
+  assert.equal(near(`project:${p.id}`), undefined, "the project is two steps away");
+  assert.ok(near(`page:${p.id}/Program`)?.beyond?.project, "and the page says so");
+  // From the file: its project, and the page that links it.
+  const fromFile = glance(p.id, 1, `file:${p.id}/${file.path}`);
+  assert.ok(fromFile.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `file:${p.id}/${file.path}`));
+  assert.ok(fromFile.nodes.some((n) => n.key === `project:${p.id}`));
+  // A search in the project puts what is tied to it first: the task filed here
+  // before another of the same name, and the person at the meeting the page mentions.
+  const { nearProject } = await import("../src/glance.js");
+  const elsewhere = tasks.createTask({ title: "Print programs again" });
+  const tied = nearProject(p.id);
+  assert.ok(tied.has(task.id) && tied.has(show.id) && !tied.has(elsewhere.id));
+  const found = entities.findEntities({ q: "print", kind: "task", near: tied });
+  assert.equal(found[0]?.id, task.id);
 });
 
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {

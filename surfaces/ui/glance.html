@@ -107,7 +107,8 @@ main > [hidden] { display: none !important; }
 #steps .steps-l { font-size: 11px; color: var(--muted); padding: 0 6px 0 8px; align-self: center; }
 #steps button { min-width: 24px; }
 #fit { position: absolute; top: 10px; right: 12px; font-size: 11.5px; padding: 1px 10px; }
-#display-btn { position: absolute; top: 10px; right: 58px; font-size: 11.5px; padding: 1px 10px; }
+#reset { position: absolute; top: 10px; right: 58px; font-size: 11.5px; padding: 1px 10px; }
+#display-btn { position: absolute; top: 10px; right: 120px; font-size: 11.5px; padding: 1px 10px; }
 #display-btn.on { border-color: var(--accent); color: var(--accent); }
 /* The graph's look and pull, changed live: a panel over its top right. */
 #display { position: absolute; top: 40px; right: 12px; width: 270px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
@@ -129,6 +130,14 @@ main > [hidden] { display: none !important; }
 #legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 #gempty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 #gempty[hidden] { display: none; }
+
+/* The walk so far, when it has left the project: each step back is a press. */
+#trail { gap: 2px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+#trail[hidden] { display: none; }
+#trail button { background: none; border: 0; padding: 1px 5px; border-radius: 5px; color: var(--muted); font: inherit; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#trail button:hover { color: var(--accent); background: var(--accent-wash); }
+#trail .here { color: var(--text); padding: 1px 5px; }
+#trail .sep { opacity: .6; }
 
 /* Out of sight, read for its resolved colors. */
 #probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
@@ -152,13 +161,15 @@ main > [hidden] { display: none !important; }
     <button class="icon-btn" id="close"></button>
   </div>
   <div class="row" id="kinds"></div>
+  <div class="row" id="trail" hidden></div>
 </header>
 <main>
   <section id="list"></section>
   <section id="graph" hidden>
     <canvas id="cv"></canvas>
     <button class="t-btn" id="display-btn" title="Size, distance, repulsion, gravity, labels">Display</button>
-    <button class="t-btn" id="fit" title="Everything in view">Fit</button>
+    <button class="t-btn" id="reset" title="Back to the project this desktop is">Reset</button>
+    <button class="t-btn" id="fit" title="Everything in view, the one in the middle centred">Fit</button>
     <div id="display" hidden></div>
     <div id="legend"></div>
     <div id="gtip" hidden></div>

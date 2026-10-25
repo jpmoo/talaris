@@ -48,6 +48,10 @@
   let shut = new Set(store.get("talaris.glance.shut", []));   // list groups folded
   let mine = store.get("talaris.glance.mine", false);
   let data = null;        // the glance, as the core answers it
+  // Where the walk is: "" for the project itself, or the key of the thing walked to, and
+  // the things walked through on the way ({key, title}), the project first.
+  let from = "";
+  let trail = [];
   let loadedFor = null;   // the project id it was asked for
   let loadSeq = 0;        // answers to an older asking are dropped
 
@@ -82,7 +86,8 @@
   const NAME = Object.fromEntries(GROUPS);
   const KNOWN = new Set(GROUPS.map(([k]) => k));
   const groupOf = (n) => (KNOWN.has(n.kind) ? n.kind : "other");
-  const isRoot = (n) => n.key === "project";
+  // The middle: the project as the glance opens, or the thing walked to.
+  const isRoot = (n) => Boolean(data && n.key === data.root);
 
   // A 16-point grid, a 1.5 line, as icons.js draws.
   const ic = (body) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -111,6 +116,38 @@
   function drawProject() {
     const p = (data && data.project) || surface.project || {};
     $("proj").replaceChildren(p.name || "", p.code ? el("span", { class: "code" }, p.code) : null);
+    // The way here, each step a way back; the last is where it is.
+    const box = $("trail");
+    box.hidden = !from;
+    if (!from) { box.replaceChildren(); return; }
+    const here = data && data.nodes.find(isRoot);
+    const steps = [{ key: "", title: p.name || "Project" }, ...trail];
+    box.replaceChildren(...steps.flatMap((t, i) => [
+      el("button", { title: i ? `Back to ${t.title}` : "Back to the project", onclick: () => walkBack(i) }, t.title || "Untitled"),
+      el("span", { class: "sep" }, "›"),
+    ]), el("span", { class: "here" }, (here && here.title) || ""));
+  }
+
+  /** The glance walked on: the thing at its middle now, what it is tied to round it. */
+  function walkTo(n) {
+    if (!n || isRoot(n) || !data) return;
+    const here = data.nodes.find(isRoot);
+    // The project walked to again is the start again, not a step.
+    if (n.key === `project:${data.project.id}`) { reset(); return; }
+    trail = [...trail, ...(here && from ? [{ key: from, title: here.title }] : [])];
+    from = n.key;
+    load();
+  }
+  // The i-th crumb: 0 is the project; the rest are trail[i - 1].
+  function walkBack(i) {
+    if (i === 0) { from = ""; trail = []; } else { from = trail[i - 1].key; trail = trail.slice(0, i - 1); }
+    load();
+  }
+  /** Back to the start: the project this desktop is. */
+  function reset() {
+    if (!from && !trail.length) { Graph.fit(); return; }
+    from = ""; trail = [];
+    load();
   }
 
   function drawKinds() {
@@ -151,7 +188,7 @@
     // A project — this one or another tied to it — is gone to: its desktop.
     if (n.kind === "project") { if (n.projectId) bridge.goProject(n.projectId); return; }
     if (n.place && (n.place.kind === "page" || n.place.kind === "canvas")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
-    if (n.path && data) { bridge.openProjectFile(data.project.id, n.path); return; }
+    if (n.path && data) { bridge.openProjectFile(n.fileProject || data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
     if (n.id) Peek.show(n.id, api, { openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), onTask: (id) => bridge.openTask(id), openPerson: (id) => bridge.openPerson(id) });
   }
@@ -232,11 +269,16 @@
     /** A new glance: the nodes kept where they were by key, so a refresh does not throw the picture. */
     function load(d) {
       const before = byKey;
+      // Walked to something already on show: the world moved so it is the middle, and the
+      // camera with it, so nothing jumps — then the view glides it to the centre.
+      const was0 = before.get(d.root);
+      const ox = was0 ? was0.x : 0, oy = was0 ? was0.y : 0;
+      if (was0 && (ox || oy)) { cam.x += ox * cam.s; cam.y += oy * cam.s; }
       byKey = new Map();
       nodes = d.nodes.map((src) => {
         const was = before.get(src.key);
-        const n = { ...src, x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null, deg: 0 };
-        if (was) { n.x = was.x; n.y = was.y; } else seed(n);
+        const n = { ...src, x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null, deg: 0, fresh: !was };
+        if (was) { n.x = was.x - ox; n.y = was.y - oy; } else seed(n);
         if (isRoot(n)) { n.fx = 0; n.fy = 0; n.x = 0; n.y = 0; }
         byKey.set(n.key, n);
         return n;
@@ -251,12 +293,21 @@
         adj.get(t.key).add(s.key);
       }
       for (const n of nodes) n.deg = adj.get(n.key).size;
+      // What is new starts beside something it is tied to that was already placed.
+      for (const n of nodes) {
+        if (!n.fresh || isRoot(n)) continue;
+        const by = [...adj.get(n.key)].map((k) => byKey.get(k)).find((m) => m && !m.fresh);
+        if (by) { const a = Math.random() * Math.PI * 2; n.x = by.x + Math.cos(a) * gs.distance; n.y = by.y + Math.sin(a) * gs.distance; }
+      }
       hover = null;
+      chosen = null;
       $("gtip").hidden = true;
-      // Kept positions only need a nudge; a fresh set wants the whole warm-up.
-      laid = before.size > 0 && nodes.every((n) => before.has(n.key)) ? laid : false;
+      // Mostly kept, it only needs stirring; mostly new, the whole warm-up.
+      const kept = nodes.filter((n) => !n.fresh).length;
+      const stir = laid && kept >= nodes.length / 2;
+      laid = stir;
       pick();
-      if (!$("graph").hidden) show();
+      if (!$("graph").hidden) { show(); if (stir) { heat(0.6); glideHome(); } }
     }
 
     // Seeded by kind around the middle, its own nearer than what is one step out, so it settles fast.
@@ -365,11 +416,10 @@
     }
     new ResizeObserver(resize).observe($("graph"));
 
-    // The camera glided so a thing sits in the middle, at the zoom it is at, and marked chosen.
+    // The camera glided so the middle sits at the centre, at the zoom it is at.
     let lastClick = { node: null, at: 0, x: 0, y: 0 }, glide = 0;
-    function centre(n) {
-      chosen = n;
-      const from = { ...cam }, to = { s: cam.s, x: W / 2 - n.x * cam.s, y: H / 2 - n.y * cam.s };
+    function glideHome() {
+      const from = { ...cam }, to = { s: cam.s, x: W / 2, y: H / 2 };
       const t0 = performance.now(), seq = ++glide;
       const step = (t) => {
         if (seq !== glide) return;
@@ -381,15 +431,17 @@
       requestAnimationFrame(step);
     }
 
+    /** Everything in view, with the middle — the project, or the thing walked to — at the centre. */
     function fit() {
       if (!W || !H) return;
       const list = vis.length ? vis : nodes;
       if (!list.length) { cam = { s: 1, x: W / 2, y: H / 2 }; return; }
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const n of list) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x); y1 = Math.max(y1, n.y); }
+      // The middle is the world's origin: what is furthest from it, either way, sets the zoom.
+      let rx = 1, ry = 1;
+      for (const n of list) { rx = Math.max(rx, Math.abs(n.x)); ry = Math.max(ry, Math.abs(n.y)); }
       const pad = 48;
-      const s = Math.max(0.2, Math.min(2, Math.min((W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0))));
-      cam = { s, x: W / 2 - ((x0 + x1) / 2) * s, y: H / 2 - ((y0 + y1) / 2) * s };
+      const s = Math.max(0.2, Math.min(2, Math.min((W / 2 - pad) / rx, (H / 2 - pad) / ry)));
+      cam = { s, x: W / 2, y: H / 2 };
       need();
     }
     const toWorld = (sx, sy) => [(sx - cam.x) / cam.s, (sy - cam.y) / cam.s];
@@ -448,6 +500,9 @@
         for (const e of bright) { ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y); }
         ctx.stroke();
       }
+      // Past the edge: a thing whose ties go on beyond what is shown has them as short
+      // spikes in their far end's color, out away from the middle, fading to nothing.
+      for (const n of vis) if (n.beyond) spikes(n, dim && !lit(n) ? 0.25 : 1);
       // Nodes: its own filled, one step out a ring, so the two read apart.
       for (const n of vis) {
         const r = radius(n), c = pal[groupOf(n)] || pal.muted;
@@ -496,6 +551,38 @@
       if (hover) placeTip();
     }
 
+    const MOST_SPIKES = 7;
+    const fade = (c, a) => { const m = String(c).match(/[\d.]+/g) || [0, 0, 0]; return `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${a})`; };
+    function spikes(n, alpha) {
+      const kinds = Object.entries(n.beyond).map(([k, c]) => [KNOWN.has(k) ? k : "other", c]).filter(([k]) => !off.has(k));
+      const total = kinds.reduce((a, [, c]) => a + c, 0);
+      if (!total) return;
+      // A few, shared out by how many of each kind lie past it; at least one for each kind.
+      const lines = [];
+      for (const [k, c] of kinds) for (let i = 0, m = Math.max(1, Math.round((c / total) * Math.min(MOST_SPIKES, total))); i < m; i++) lines.push(k);
+      const out = isRoot(n) ? 0 : Math.atan2(n.y, n.x);
+      const spread = isRoot(n) ? Math.PI * 2 : Math.min(Math.PI * 0.9, 0.35 * lines.length);
+      const r = radius(n), len = gs.distance * 0.45;
+      ctx.lineWidth = gs.line / cam.s;
+      ctx.globalAlpha = alpha;
+      lines.forEach((k, i) => {
+        const a = out + (lines.length === 1 ? 0 : (isRoot(n) ? (i / lines.length) * spread : -spread / 2 + (i / (lines.length - 1)) * spread));
+        const x0 = n.x + Math.cos(a) * r, y0 = n.y + Math.sin(a) * r;
+        const x1 = n.x + Math.cos(a) * (r + len), y1 = n.y + Math.sin(a) * (r + len);
+        const g = ctx.createLinearGradient(x0, y0, x1, y1);
+        const c = pal[k] || pal.muted;
+        g.addColorStop(0, fade(c, 0.9));
+        g.addColorStop(1, fade(c, 0));
+        ctx.strokeStyle = g;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      });
+    }
+
+    // "3 people, 1 task further": what the spikes stand for, in words.
+    const ONE = { page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", event: "event", note: "note", project: "project", other: "other" };
+    const MANY = { page: "pages", canvas: "canvases", task: "tasks", file: "files", contact: "people", event: "events", note: "notes", project: "projects", other: "others" };
+    const further = (b) => Object.entries(b).map(([k, c]) => `${c} ${(c === 1 ? ONE : MANY)[KNOWN.has(k) ? k : "other"]}`).join(", ") + " further";
+
     function placeTip() {
       const tip = $("gtip");
       const sx = hover.x * cam.s + cam.x, sy = hover.y * cam.s + cam.y;
@@ -509,9 +596,10 @@
       if (n === hover) return;
       hover = n;
       const tip = $("gtip");
-      if (n) tip.replaceChildren(el("div", {}, isRoot(n) ? (data.project.name || n.title) : n.title || "Untitled"), n.how ? el("div", { class: "how" }, n.how) : null);
+      if (n) tip.replaceChildren(el("div", {}, n.title || "Untitled"), n.how && !isRoot(n) ? el("div", { class: "how" }, n.how) : null,
+        n.beyond ? el("div", { class: "how" }, further(n.beyond)) : null);
       else tip.hidden = true;
-      cv.classList.toggle("over", Boolean(n && !isRoot(n)));
+      cv.classList.toggle("over", Boolean(n));
       need();
     }
 
@@ -570,7 +658,9 @@
           open(n);
         } else if (p.node) {
           lastClick = { node: p.node, at: now, x, y };
-          centre(p.node);
+          // Marked at once; the glance round it follows when the core answers. The middle,
+          // clicked, is already there: a second click opens it.
+          if (!isRoot(p.node)) { chosen = p.node; need(); walkTo(p.node); }
         }
       }
       if (e.type === "pointerup") { const [x, y] = at(e); setHover(hit(x, y)); }
@@ -588,6 +678,7 @@
       need();
     }, { passive: false });
     $("fit").addEventListener("click", fit);
+    $("reset").addEventListener("click", () => reset());
 
     // The Display panel: each change drawn at once, the layout stirred where it moves things, and kept.
     const ROWS = [
@@ -628,7 +719,7 @@
       if (!box.hidden) drawDisplay();
     });
 
-    return { load, show, filtered, palette, need, clear: () => { warmSeq++; warm = false; nodes = []; edges = []; vis = []; visEdges = []; byKey = new Map(); laid = false; pick(); need(); } };
+    return { load, show, filtered, palette, need, fit, clear: () => { warmSeq++; warm = false; nodes = []; edges = []; vis = []; visEdges = []; byKey = new Map(); laid = false; pick(); need(); } };
   })();
 
   // ---------------------------------------------------------------- loading
@@ -638,15 +729,15 @@
     if (!bridge) return;
     const seq = ++loadSeq;
     if (!p.id) { data = null; loadedFor = null; Graph.clear(); drawAll(); say("No project open"); return; }
-    if (loadedFor !== p.id) { data = null; Graph.clear(); showing = new Map(); drawAll(); }
+    // Another project: the walk starts again from it.
+    if (loadedFor !== p.id) { data = null; from = ""; trail = []; Graph.clear(); showing = new Map(); drawAll(); }
     loadedFor = p.id;
     say("Reading…");
     try {
-      const got = await api("GET", `/projects/${enc(p.id)}/glance?steps=${steps}`);
+      const got = await api("GET", `/projects/${enc(p.id)}/glance?steps=${steps}${from ? `&from=${enc(from)}` : ""}`);
       if (seq !== loadSeq) return;
-      data = { project: (got && got.project) || p, nodes: (got && got.nodes) || [], edges: (got && got.edges) || [] };
-      // The middle is always there, even if the core left it out.
-      if (!data.nodes.some(isRoot)) data.nodes.unshift({ key: "project", id: data.project.id, title: data.project.name || "Project", kind: "project", updated: "", own: true, how: "" });
+      data = { project: got.project || p, root: got.root, nodes: got.nodes || [], edges: got.edges || [] };
+      showing = new Map();
       say("");
       Graph.load(data);
       drawAll();
@@ -668,7 +759,7 @@
   let steps = Number(store.get("talaris.glance.steps", 1)) || 1;
   function drawSteps() {
     $("steps").replaceChildren(el("span", { class: "steps-l" }, "Steps"), ...[1, 2, 3].map((n) =>
-      el("button", { class: n === steps ? "on" : "", title: n === 1 ? "What the project's own things touch" : `${n} steps out`,
+      el("button", { class: n === steps ? "on" : "", title: n === 1 ? (from ? "What it is tied to" : "What the project's own things touch") : `${n} steps out`,
         onclick: () => { if (n === steps) return; steps = n; store.set("talaris.glance.steps", n); drawSteps(); load(); } }, String(n))));
   }
   drawSteps();

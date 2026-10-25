@@ -81,9 +81,11 @@ export function forget(id: string) {
   summaries.delete(id);
 }
 
-export const findEntities = (q: string, kind?: string) => {
+/** `near`: a project, whose own things come first (and are marked `near`). */
+export const findEntities = (q: string, kind?: string, near?: string) => {
   const p = new URLSearchParams({ q, limit: "20" });
   if (kind) p.set("kind", kind);
+  if (near) p.set("near", near);
   return ask<Summary[]>("GET", `/entities?${p}`);
 };
 

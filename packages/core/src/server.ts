@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs"
 import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
-import { glance } from "./glance.js";
+import { glance, nearProject } from "./glance.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
 import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
@@ -173,7 +173,7 @@ route("GET", "/projects/:id/file", (_r, [id], q) => {
 });
 route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFile(id!, need(q, "path")).toString("base64") }));
 // A project at a glance (glance.ts): its own things, one step out, and how they are tied.
-route("GET", "/projects/:id/glance", (_r, [id], q) => glance(id!, Number(q.get("steps") ?? 1)));
+route("GET", "/projects/:id/glance", (_r, [id], q) => glance(id!, Number(q.get("steps") ?? 1), q.get("from") ?? ""));
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
 route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {
@@ -206,8 +206,12 @@ route("POST", "/projects/:id/page/versions/:name/restore", (_r, [id, name], q) =
 
 // ------------------------------------------------------------ entities
 
-route("GET", "/entities", (_r, _p, q) =>
-  entities.findEntities({ q: q.get("q") ?? "", kind: q.get("kind") ?? undefined, limit: Number(q.get("limit") ?? 50), archived: q.get("archived") === "1", prefer: q.get("prefer") ?? undefined }));
+route("GET", "/entities", (_r, _p, q) => {
+  // `near`: a project, whose own things and what they touch come first, and say so.
+  const near = q.get("near") ? nearProject(q.get("near")!) : undefined;
+  const found = entities.findEntities({ q: q.get("q") ?? "", kind: q.get("kind") ?? undefined, limit: Number(q.get("limit") ?? 50), archived: q.get("archived") === "1", prefer: q.get("prefer") ?? undefined, near });
+  return near ? found.map((s) => ({ ...s, near: near.has(s.id) })) : found;
+});
 route("POST", "/entities", async (req) => entities.createEntity(await json<entities.NewEntity>(req)));
 route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
 route("POST", "/entities/mirror/events", async (req) => {
@@ -222,7 +226,7 @@ route("POST", "/entities/person", async (req) => {
 });
 // What an @ can link (mentionables.ts): entities, pages and canvases, this project's first.
 route("GET", "/mentionables", (_r, _p, q) =>
-  findMentionables(q.get("q") ?? "", q.get("project") ?? "", Math.min(Number(q.get("limit") ?? 12), 40)));
+  findMentionables(q.get("q") ?? "", q.get("project") ?? "", Math.min(Number(q.get("limit") ?? 12), 40), q.get("project") ? nearProject(q.get("project")!) : undefined));
 // A page or a canvas, as the entity that stands for it (made the first time it is linked).
 route("POST", "/entities/place", async (req) => {
   const b = await json<{ kind?: string; project?: string; where?: string; title?: string }>(req);

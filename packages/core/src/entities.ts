@@ -449,7 +449,7 @@ export function summary(o: Entity): Summary {
  * Entities matching words, of a kind if asked: every word somewhere in the
  * title, the text properties, or the body. Titles first, then the rest.
  */
-export function findEntities(options: { q?: string; kind?: string; limit?: number; archived?: boolean; prefer?: string } = {}): Summary[] {
+export function findEntities(options: { q?: string; kind?: string; limit?: number; archived?: boolean; prefer?: string; near?: Set<string> } = {}): Summary[] {
   const words = (options.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const found: { s: Summary; score: number }[] = [];
   for (const { object: o } of load().records.values()) {
@@ -468,7 +468,9 @@ export function findEntities(options: { q?: string; kind?: string; limit?: numbe
       : words.every(wordStart) ? 3
       : words.every((w) => title.includes(w)) ? 2 : 1;
     const preferred = options.prefer && profilesOf(o).includes(options.prefer) ? 1 : 0;
-    found.push({ s: summary(o), score: score * 2 + preferred });
+    // Tied to the project being worked in: ahead of all but a much closer match.
+    const near = options.near?.has(o.id) ? 3 : 0;
+    found.push({ s: summary(o), score: score * 2 + preferred + near });
   }
   found.sort((a, b) => b.score - a.score || a.s.title.localeCompare(b.s.title));
   return found.slice(0, options.limit ?? 50).map((f) => f.s);

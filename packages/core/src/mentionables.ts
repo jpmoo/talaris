@@ -60,18 +60,19 @@ function score(title: string, words: string[]): number {
   return t.startsWith(words[0]!) ? 4 : words.every(wordStart) ? 3 : 2;
 }
 
-export function findMentionables(q: string, here: string, limit = 12): Mentionable[] {
+/** `near`: the entities tied to the project (glance.ts, nearProject), put ahead of the rest. */
+export function findMentionables(q: string, here: string, limit = 12, near?: Set<string>): Mentionable[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const found: { m: Mentionable; s: number }[] = [];
   const projects = listProjects();
   // Anything filed under this project (a task's project, a note's) points at its entity.
   const hereEntity = here ? bySource({ kind: "talaris-project", key: here })?.id : undefined;
-  for (const s of findEntities({ q, limit: 60, prefer: "contact" })) {
+  for (const s of findEntities({ q, limit: 60, prefer: "contact", near })) {
     if (s.stub) continue;
     const o = getEntity(s.id);
     // A page's or a canvas's entity is listed as the page or canvas, below.
     if (placeOf(o)) continue;
-    const mine = Boolean(hereEntity && JSON.stringify(o.properties).includes(hereEntity));
+    const mine = Boolean(hereEntity && JSON.stringify(o.properties).includes(hereEntity)) || Boolean(near?.has(o.id));
     const sc = Math.max(score(s.title, words), 1) * 2 + (s.kinds.includes("contact") ? 1 : 0) + (mine ? 3 : 0);
     found.push({ m: { id: s.id, title: s.title, kind: s.kinds[0] ?? "thing", here: mine }, s: sc });
   }

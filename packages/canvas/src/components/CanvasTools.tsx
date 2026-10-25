@@ -16,7 +16,7 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Calendar, FileText, Image as ImageIcon, Search, SquareDashed, Type, User } from "lucide-react";
+import { Calendar, CheckSquare, FileText, Image as ImageIcon, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
@@ -412,11 +412,11 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
   }
 
   /*
-   * The Person and Event tools drop a search rather than a node: what lands is
+   * The Person, Event, Task and Note tools drop a search rather than a node: what lands is
    * a card of somebody or something, found or made, so the drop point is where
    * the search opens and where its card goes.
    */
-  const DROPS: Record<string, BringKind> = { person: "contact", event: "event" };
+  const DROPS: Record<string, BringKind> = { person: "contact", event: "event", task: "task", note: "note" };
   const dropAt = (key: string, clientX: number, clientY: number) => {
     if (key === "text") dropText(clientX, clientY);
     else if (DROPS[key]) setBringing({ x: clientX, y: clientY, kind: DROPS[key] });
@@ -529,6 +529,8 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
 
       {tool("person", "Drag onto the canvas — a person", <User size={15} />, () => searchMiddle("contact"))}
       {tool("event", "Drag onto the canvas — an event", <Calendar size={15} />, () => searchMiddle("event"))}
+      {tool("task", "Drag onto the canvas — a task", <CheckSquare size={15} />, () => searchMiddle("task"))}
+      {tool("note", "Drag onto the canvas — a note or page", <StickyNote size={15} />, () => searchMiddle("note"))}
 
       <button
         className={`tool${selecting ? " armed" : ""}`}

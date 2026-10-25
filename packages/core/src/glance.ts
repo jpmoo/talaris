@@ -14,16 +14,21 @@ import { findProject } from "./projects.js";
 import { taskProjects } from "./tasks.js";
 
 /**
- * A project at a glance: everything that belongs to it and what that touches,
- * as things (nodes) and how they are tied (edges) — a list grouped by kind,
- * or a graph with the project at its middle (ui/glance.html).
+ * Glance (ui/glance.html): a thing and what it is tied to, as things (nodes)
+ * and ties (edges) — walked out from a start, a step at a time, as a list
+ * grouped by kind or a graph with the start at its middle.
  *
- * **Its own**: its writing pages and canvases, what is filed under it (a
- * task's project, a note's), and every file in its folder. **One step out**:
- * what those mention, carry on a canvas, or are linked with. **Further, if
- * asked** (`steps`, 1 to 3): each step out from the things the last one
- * reached — at two, the people at a meeting a page mentions. Each step is
- * held to a few hundred new things, since three reaches nearly everyone.
+ * **From a project** (the glance as it opens): its own things — its writing
+ * pages and canvases, what is filed under it, every file in its folder — and
+ * then `steps` more out from those. **From anything else** (a thing chosen
+ * in the graph, to walk on from it): what it is tied to, `steps` out. A page
+ * is tied to its project, what it mentions and the files it links; a canvas
+ * to what is on it and the canvases in and round it; a file to its project
+ * and what links it; a person, an event, a task to what their fields and
+ * links name, both ways. Each step is held to a few hundred new things.
+ *
+ * Keys: `project:<id>`, `page:<project>/<path>`, `canvas:<project>/<id>`,
+ * `file:<project>/<path in its folder>`, `e:<entity id>`.
  */
 export interface GlanceNode {
   key: string;
@@ -33,38 +38,45 @@ export interface GlanceNode {
   /** "project", "page", "canvas", "file", or an entity's profile: "task", "contact", "event", "note"… */
   kind: string;
   updated: string;
-  /** Whether it is the project's own (true), or one step out from something that is. */
+  /** Whether it belongs to the project this glance is of (its pages, canvases, files, what is filed under it). */
   own: boolean;
-  /** How it comes into the glance, in words: "in the project", "filed here", "mentioned in Budget". */
+  /** How far from the start it was found: 0 is the start. */
+  depth: number;
+  /** How it came in, in words: "in the project", "mentioned in Budget". */
   how: string;
   place?: { kind: "page" | "canvas"; project: string; where: string };
-  /** A project's own id, for a project: the one this glance is of, or another it is tied with — to go to. */
-  projectId?: string;
-  /** A file's path in the project's folder. */
+  /** A file's path in its project's folder, and that project. */
   path?: string;
+  fileProject?: string;
+  /** A project's own id, for a project: to go to. */
+  projectId?: string;
+  /** At the glance's edge: the ties it has on past it, not shown, counted by the kind at their far end. */
+  beyond?: Record<string, number>;
 }
 
 export interface GlanceEdge {
   from: string;
   to: string;
-  /** The link, from `from`'s side: "in the project", "mentions", "attendees", "on it", "linked". */
+  /** The tie, from `from`'s side: "in the project", "mentions", "attendees", "on it", "links". */
   how: string;
 }
 
 export interface Glance {
   project: { id: string; name: string; code: string };
+  /** The key at the middle: the project's, or the thing walked to. */
+  root: string;
   nodes: GlanceNode[];
   edges: GlanceEdge[];
 }
 
 /** Files looked at in a project's folder, at most: a glance, not an index. */
 const MOST_FILES = 400;
-/** New things a step out may bring, at most. */
+/** New things a step may bring, at most. */
 const MOST_OUT = 400;
 export const MOST_STEPS = 3;
+/** Ties whose words stand alone, without the name of what they were found from. */
+const PLAIN = new Set(["in the project", "in the folder", "filed here"]);
 const FILE_LINK = () => /\]\(talaris-file:([^)\s]+)\)/g;
-
-const fileKey = (rel: string) => `file:${rel}`;
 const decode = (href: string) => {
   try {
     return decodeURI(href).replace(/%28/g, "(").replace(/%29/g, ")");
@@ -72,176 +84,320 @@ const decode = (href: string) => {
     return href;
   }
 };
+const words = (name: string) => name.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+/** `kind:<project>/<rest>` split: the project, and what follows its first slash. */
+const split = (key: string): [string, string] => {
+  const body = key.slice(key.indexOf(":") + 1);
+  const at = body.indexOf("/");
+  return [body.slice(0, at), body.slice(at + 1)];
+};
 
-export function glance(projectId: string, steps = 1): Glance {
-  steps = Math.max(1, Math.min(MOST_STEPS, Math.floor(steps) || 1));
-  const p = findProject(projectId);
-  // Its entity, made if it has none yet (Tasks would make it on asking).
-  taskProjects();
-  const projectEntity = bySource({ kind: "talaris-project", key: projectId });
-  const nodes = new Map<string, GlanceNode>();
-  const edges: GlanceEdge[] = [];
-  const seenEdge = new Set<string>();
-  const link = (from: string, to: string, how: string) => {
+/** A tie found from one thing: the other end, and the words for it from this side. */
+interface Tie {
+  key: string;
+  how: string;
+  /** True when the tie runs into this thing (it is what the other names). */
+  back?: boolean;
+}
+
+class Walk {
+  nodes = new Map<string, GlanceNode>();
+  edges: GlanceEdge[] = [];
+  private seen = new Set<string>();
+  private texts = new Map<string, string>();
+  private projectEntities = new Map<string, string>();
+
+  constructor(readonly here: string) {
+    for (const p of taskProjects()) if (p.workspace) this.projectEntities.set(p.id, p.workspace);
+  }
+
+  link(from: string, to: string, how: string): void {
     const k = `${from}>${to}>${how}`;
-    if (from !== to && !seenEdge.has(k)) {
-      seenEdge.add(k);
-      edges.push({ from, to, how });
+    if (from !== to && !this.seen.has(k)) {
+      this.seen.add(k);
+      this.edges.push({ from, to, how });
     }
-  };
-  const put = (n: GlanceNode) => {
-    const had = nodes.get(n.key);
-    // A thing that is the project's own stays so, however else it is reached.
-    if (!had || (n.own && !had.own)) nodes.set(n.key, had ? { ...had, ...n, how: n.own ? n.how : had.how } : n);
-    return n.key;
-  };
-  nodes.set("project", { key: "project", id: projectEntity?.id, title: p.name, kind: "project", updated: "", own: true, how: "this project", projectId });
+  }
 
-  // What an entity is, in the glance: a page or a canvas where it stands for one, else by its profile.
-  const entityNode = (o: Entity, own: boolean, how: string): string => {
+  // ------------------------------------------------------------ what a key is
+
+  /** The key an entity is known by in a glance: its place, its project, or itself. */
+  keyOf(o: Entity): string {
     const place = placeOf(o);
-    if (place?.kind === "page") return put({ key: `page:${place.project}/${place.where}`, id: o.id, title: titleOf(o), kind: "page", updated: o.updated, own: own && place.project === projectId, how, place });
-    if (place?.kind === "canvas") return put({ key: `canvas:${place.project}/${place.where}`, id: o.id, title: titleOf(o), kind: "canvas", updated: o.updated, own: own && place.project === projectId, how, place });
-    const kinds = profilesOf(o);
-    const workspace = (o["talaris:sources"] as { kind: string; key: string }[] | undefined)?.find((s) => s.kind === "talaris-project")?.key;
-    const kind = ["task", "event", "contact", "note"].find((k) => kinds.includes(k)) ?? (workspace ? "project" : kinds[0] ?? "note");
-    // This project's own entity is the middle, not another thing.
-    if (workspace === projectId) return "project";
-    return put({ key: `e:${o.id}`, id: o.id, title: titleOf(o), kind, updated: o.updated, own, how, ...(workspace ? { projectId: workspace } : {}) });
-  };
-  const files = (rel: string, own: boolean, how: string): string => {
-    let updated = "";
-    try {
-      updated = statSync(join(p.folder, ...rel.split("/"))).mtime.toISOString();
-    } catch {
-      // A link to a file that has gone: still shown, by its name.
-    }
-    return put({ key: fileKey(rel), title: rel.split("/").pop() || rel, kind: "file", updated, own, how, path: rel });
-  };
-  // Words that link files and mention things: a page's, a canvas note's.
-  const fromWords = (from: string, text: string, fromTitle: string, mentioned: Set<string>) => {
-    for (const m of text.matchAll(FILE_LINK())) link(from, files(decode(m[1]!), false, `linked from ${fromTitle}`), "links");
-    for (const m of mentionsIn(text)) mentioned.add(`${from}\u0000${m.id}`);
-  };
-  const mentioned = new Set<string>();
+    if (place) return `${place.kind}:${place.project}/${place.where}`;
+    const workspace = this.projectEntities.get(o.id);
+    return workspace ? `project:${workspace}` : `e:${o.id}`;
+  }
 
-  // Its pages.
-  const pages = (list: PageNode[]) => {
-    for (const n of list) {
-      const e = bySource(placeSource("page", projectId, n.path));
-      const key = put({ key: `page:${projectId}/${n.path}`, id: e?.id, title: n.title, kind: "page", updated: pageModified(projectId, n.path), own: true,
-        how: "in the project", place: { kind: "page", project: projectId, where: n.path } });
-      link("project", key, "in the project");
-      try {
-        fromWords(key, readPage(projectId, n.path), n.title, mentioned);
-      } catch {
-        // A page that cannot be read (sealed, locked) is still listed.
+  /** The node for a key, made the first time it is met. */
+  node(key: string, depth: number, how: string): GlanceNode | null {
+    const had = this.nodes.get(key);
+    if (had) return had;
+    let n: GlanceNode | null = null;
+    try {
+      if (key.startsWith("project:")) {
+        const id = key.slice(8);
+        const p = findProject(id);
+        n = { key, id: bySource({ kind: "talaris-project", key: id })?.id, title: p.name, kind: "project", updated: "", own: id === this.here, depth, how, projectId: id };
+      } else if (key.startsWith("page:")) {
+        const [project, path] = split(key);
+        n = { key, id: bySource(placeSource("page", project, path))?.id, title: path.split("/").pop() || path, kind: "page", updated: pageModified(project, path),
+          own: project === this.here, depth, how, place: { kind: "page", project, where: path } };
+      } else if (key.startsWith("canvas:")) {
+        const [project, cid] = split(key);
+        const doc = projectCanvases(project).find((d) => d.id === cid);
+        if (!doc) return null;
+        n = { key, id: bySource(placeSource("canvas", project, cid))?.id, title: doc.title, kind: "canvas", updated: "",
+          own: project === this.here, depth, how, place: { kind: "canvas", project, where: cid } };
+      } else if (key.startsWith("file:")) {
+        const [project, rel] = split(key);
+        let updated = "";
+        try {
+          updated = statSync(join(findProject(project).folder, ...rel.split("/"))).mtime.toISOString();
+        } catch {
+          // A link to a file that has gone: still shown, by its name.
+        }
+        n = { key, title: rel.split("/").pop() || rel, kind: "file", updated, own: project === this.here, depth, how, path: rel, fileProject: project };
+      } else if (key.startsWith("e:")) {
+        const o = getEntity(key.slice(2));
+        if (o.stub || o.archived) return null;
+        const kinds = profilesOf(o);
+        const filedHere = this.filedUnder(o, this.here);
+        n = { key, id: o.id, title: titleOf(o), kind: ["task", "event", "contact", "note"].find((k) => kinds.includes(k)) ?? kinds[0] ?? "note",
+          updated: o.updated, own: filedHere, depth, how };
       }
-      pages(n.children);
+    } catch {
+      return null;
     }
-  };
-  pages(pageTree(projectId));
-
-  // Its canvases, and what is on them.
-  const docs = new Map(projectCanvases(projectId).map((d) => [d.id, d]));
-  const canvases = (n: CanvasNode, parent: string | null) => {
-    const e = bySource(placeSource("canvas", projectId, n.id));
-    const key = put({ key: `canvas:${projectId}/${n.id}`, id: e?.id, title: n.title, kind: "canvas", updated: "", own: true,
-      how: parent ? "inside another canvas" : "in the project", place: { kind: "canvas", project: projectId, where: n.id } });
-    link(parent ?? "project", key, parent ? "inside" : "in the project");
-    for (const item of (docs.get(n.id)?.items ?? []) as { entity?: string; text?: string; kind?: string }[]) {
-      if (item.entity && item.kind !== "canvas") mentioned.add(`${key}\u0000${item.entity}`);
-      if (typeof item.text === "string") fromWords(key, item.text, n.title, mentioned);
-    }
-    for (const child of n.children) canvases(child, key);
-  };
-  try {
-    canvases(canvasTree(projectId), null);
-  } catch {
-    // A project that has lost its top canvas still has the rest.
+    if (n) this.nodes.set(key, n);
+    return n;
   }
 
-  // What is filed under it: any entity whose fields name the project's entity.
-  if (projectEntity) {
-    for (const r of allRecords()) {
-      const o = r.object;
-      if (o.id === projectEntity.id || o.stub || o.archived) continue;
-      if (JSON.stringify(o.properties).includes(projectEntity.id)) link("project", entityNode(o, true, "filed here"), "filed here");
-    }
+  private filedUnder(o: Entity, project: string): boolean {
+    const e = [...this.projectEntities].find(([, ws]) => ws === project)?.[0];
+    return Boolean(e && JSON.stringify(o.properties).includes(e));
   }
 
-  // Every file in its folder (not its own machinery, nor the pages, which are listed as pages).
-  let counted = 0;
-  const walk = (dir: string) => {
-    let names: string[] = [];
+  // ------------------------------------------------------------ what a thing is tied to
+
+  private text(kind: "page" | "canvas", project: string, where: string): string {
+    const k = `${kind}:${project}/${where}`;
+    if (!this.texts.has(k)) {
+      let t = "";
+      try {
+        t = kind === "page" ? readPage(project, where)
+          : ((projectCanvases(project).find((d) => d.id === where)?.items ?? []) as { text?: string }[]).map((i) => i.text ?? "").join("\n");
+      } catch {
+        // Sealed and locked, or gone: nothing to read.
+      }
+      this.texts.set(k, t);
+    }
+    return this.texts.get(k)!;
+  }
+
+  /** What words tie to: the things they mention, the files they link. */
+  private fromWords(text: string, project: string, out: Tie[]): void {
+    for (const m of mentionsIn(text)) {
+      try {
+        out.push({ key: this.keyOf(getEntity(m.id)), how: "mentions" });
+      } catch {
+        // A mention of something since deleted.
+      }
+    }
+    for (const m of text.matchAll(FILE_LINK())) out.push({ key: `file:${project}/${decode(m[1]!)}`, how: "links" });
+  }
+
+  /** What an entity's own fields and links name, and what names it. */
+  private ofEntity(id: string, out: Tie[]): void {
+    let c;
     try {
-      names = readdirSync(dir);
+      c = connections(id);
     } catch {
       return;
     }
-    for (const name of names.sort()) {
-      if (counted >= MOST_FILES || name.startsWith(".") || name.endsWith(".tmp")) continue;
-      const full = join(dir, name);
-      const rel = relative(p.folder, full).split(sep).join("/");
-      if (rel === MACHINERY || (rel.startsWith(`${WRITING}/`) && name.endsWith(".md"))) continue;
-      let st;
-      try {
-        st = statSync(full);
-      } catch {
-        continue;
-      }
-      if (st.isDirectory()) walk(full);
-      else {
-        counted++;
-        link("project", files(rel, true, "in the folder"), "in the folder");
-      }
-    }
-  };
-  walk(p.folder);
+    for (const x of c.out) if (!x.entity.stub) out.push({ key: this.keyOf(getEntity(x.entity.id)), how: words(x.name) });
+    for (const x of c.in) if (!x.entity.stub) out.push({ key: this.keyOf(getEntity(x.entity.id)), how: words(x.name), back: true });
+  }
 
-  // One step out: what the project's own things mention or carry, and what they are linked with.
-  let out = 0;
-  for (const pair of mentioned) {
-    const [from, id] = pair.split("\u0000") as [string, string];
-    try {
-      const o = getEntity(id);
-      if (o.stub) continue;
-      link(from, entityNode(o, false, `in ${nodes.get(from)?.title ?? "the project"}`), "mentions");
-      out++;
-    } catch {
-      // A mention of something since deleted.
-    }
-  }
-  const words = (name: string) => name.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-  // Each step grows from what the step before reached: the first from the project's own.
-  let from = [...nodes.values()].filter((n) => n.own && n.id && n.kind !== "project");
-  const grown = new Set<string>();
-  for (let step = 1; step <= steps; step++) {
-    const before = new Set(nodes.keys());
-    // The first step's mentions are counted above; each later one has its own allowance.
-    if (step > 1) out = 0;
-    for (const n of from) {
-      if (out >= MOST_OUT || !n.id || grown.has(n.key)) continue;
-      grown.add(n.key);
-      let c;
+  ties(key: string): Tie[] {
+    const out: Tie[] = [];
+    if (key.startsWith("project:")) {
+      const id = key.slice(8);
+      const pages = (list: PageNode[]) => { for (const n of list) { out.push({ key: `page:${id}/${n.path}`, how: "in the project" }); pages(n.children); } };
       try {
-        c = connections(n.id);
+        pages(pageTree(id));
       } catch {
-        continue;
+        // A project that cannot be read has no pages to list.
       }
-      for (const x of c.out) {
-        if (out >= MOST_OUT || x.entity.stub) break;
-        link(n.key, entityNode(getEntity(x.entity.id), false, `${words(x.name)} of ${n.title}`), words(x.name));
-        out++;
+      try {
+        out.push({ key: `canvas:${id}/${canvasTree(id).id}`, how: "in the project" });
+      } catch {
+        // A project that has lost its top canvas still has the rest.
       }
-      for (const x of c.in) {
-        if (out >= MOST_OUT || x.entity.stub) break;
-        link(entityNode(getEntity(x.entity.id), false, `links to ${n.title}`), n.key, words(x.name));
-        out++;
+      const entity = [...this.projectEntities].find(([, ws]) => ws === id)?.[0];
+      if (entity) {
+        for (const r of allRecords()) {
+          const o = r.object;
+          if (o.id !== entity && !o.stub && !o.archived && JSON.stringify(o.properties).includes(entity)) out.push({ key: this.keyOf(o), how: "filed here" });
+        }
       }
+      for (const rel of this.folder(id)) out.push({ key: `file:${id}/${rel}`, how: "in the folder" });
+    } else if (key.startsWith("page:")) {
+      const [project, path] = split(key);
+      out.push({ key: `project:${project}`, how: "in the project", back: true });
+      this.fromWords(this.text("page", project, path), project, out);
+      const e = bySource(placeSource("page", project, path));
+      if (e) this.ofEntity(e.id, out);
+    } else if (key.startsWith("canvas:")) {
+      const [project, cid] = split(key);
+      const docs = projectCanvases(project);
+      const doc = docs.find((d) => d.id === cid);
+      if (doc?.parent) out.push({ key: `canvas:${project}/${doc.parent}`, how: "inside", back: true });
+      else out.push({ key: `project:${project}`, how: "in the project", back: true });
+      for (const d of docs) if (d.parent === cid) out.push({ key: `canvas:${project}/${d.id}`, how: "inside" });
+      for (const item of (doc?.items ?? []) as { entity?: string; kind?: string }[]) {
+        if (!item.entity || item.kind === "canvas") continue;
+        try {
+          out.push({ key: this.keyOf(getEntity(item.entity)), how: "on it" });
+        } catch {
+          // A card of something since deleted.
+        }
+      }
+      this.fromWords(this.text("canvas", project, cid), project, out);
+      const e = bySource(placeSource("canvas", project, cid));
+      if (e) this.ofEntity(e.id, out);
+    } else if (key.startsWith("file:")) {
+      const [project, rel] = split(key);
+      out.push({ key: `project:${project}`, how: "in the folder", back: true });
+      // What links it: the project's pages and canvases whose words name it.
+      const named = (t: string) => [...t.matchAll(FILE_LINK())].some((m) => decode(m[1]!) === rel);
+      const pages = (list: PageNode[]) => {
+        for (const n of list) {
+          if (named(this.text("page", project, n.path))) out.push({ key: `page:${project}/${n.path}`, how: "links", back: true });
+          pages(n.children);
+        }
+      };
+      try {
+        pages(pageTree(project));
+        for (const d of projectCanvases(project)) if (named(this.text("canvas", project, d.id))) out.push({ key: `canvas:${project}/${d.id}`, how: "links", back: true });
+      } catch {
+        // A project that cannot be read: only its folder, then.
+      }
+    } else if (key.startsWith("e:")) {
+      this.ofEntity(key.slice(2), out);
     }
-    // The next step grows from what this one (and the first step's mentions) brought in.
-    from = [...nodes.values()].filter((n) => n.id && n.kind !== "project" && !grown.has(n.key) && (!before.has(n.key) || (step === 1 && !n.own)));
+    return out;
   }
-  return { project: { id: projectId, name: p.name, code: p.code }, nodes: [...nodes.values()], edges };
+
+  /** Every file in a project's folder, but its machinery and its pages (which are pages). */
+  private folder(projectId: string): string[] {
+    const root = findProject(projectId).folder;
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      let names: string[] = [];
+      try {
+        names = readdirSync(dir);
+      } catch {
+        return;
+      }
+      for (const name of names.sort()) {
+        if (out.length >= MOST_FILES || name.startsWith(".") || name.endsWith(".tmp")) continue;
+        const full = join(dir, name);
+        const rel = relative(root, full).split(sep).join("/");
+        if (rel === MACHINERY || (rel.startsWith(`${WRITING}/`) && name.endsWith(".md"))) continue;
+        try {
+          if (statSync(full).isDirectory()) walk(full);
+          else out.push(rel);
+        } catch {
+          // Gone between listing and looking.
+        }
+      }
+    };
+    walk(root);
+    return out;
+  }
+
+  /** Out from `start`, `depth` steps, each held to MOST_OUT new things. */
+  run(start: string, depth: number): void {
+    if (!this.node(start, 0, "the middle")) throw new Error(`nothing is known by ${start}`);
+    let frontier = [start];
+    for (let d = 1; d <= depth && frontier.length; d++) {
+      const next: string[] = [];
+      for (const key of frontier) {
+        const from = this.nodes.get(key)!;
+        for (const t of this.ties(key)) {
+          if (next.length >= MOST_OUT && !this.nodes.has(t.key)) continue;
+          const isNew = !this.nodes.has(t.key);
+          const n = this.node(t.key, d, PLAIN.has(t.how) ? t.how : `${t.how} · ${from.title}`);
+          if (!n) continue;
+          if (t.back) this.link(t.key, key, t.how);
+          else this.link(key, t.key, t.how);
+          if (isNew) next.push(t.key);
+        }
+      }
+      frontier = next;
+    }
+    // The edge: what each thing found last leads on to, counted, so the graph can hint at it.
+    for (const key of frontier) {
+      const beyond: Record<string, number> = {};
+      const counted = new Set<string>();
+      for (const t of this.ties(key)) {
+        if (this.nodes.has(t.key) || counted.has(t.key)) continue;
+        counted.add(t.key);
+        const kind = this.kindOf(t.key);
+        if (kind) beyond[kind] = (beyond[kind] ?? 0) + 1;
+      }
+      if (counted.size) this.nodes.get(key)!.beyond = beyond;
+    }
+  }
+
+  /** What a key is, cheaply, without making its node: for counting past the edge. */
+  private kindOf(key: string): string {
+    const kind = key.slice(0, key.indexOf(":"));
+    if (kind !== "e") return kind;
+    try {
+      const o = getEntity(key.slice(2));
+      if (o.stub || o.archived) return "";
+      const kinds = profilesOf(o);
+      return ["task", "event", "contact", "note"].find((k) => kinds.includes(k)) ?? kinds[0] ?? "note";
+    } catch {
+      return "";
+    }
+  }
+}
+
+const nearCache = new Map<string, { at: number; ids: Set<string> }>();
+/**
+ * The entities tied to a project: what is filed under it, on its canvases,
+ * mentioned in its pages — and what those are tied to, a step on. What a
+ * search in the project puts first (a canvas's Task tool, an @). Kept a few
+ * seconds, since a search asks it at every pause in typing.
+ */
+export function nearProject(projectId: string): Set<string> {
+  const had = nearCache.get(projectId);
+  if (had && Date.now() - had.at < 15_000) return had.ids;
+  const walk = new Walk(projectId);
+  const ids = new Set<string>();
+  try {
+    walk.run(`project:${projectId}`, 2);
+    for (const n of walk.nodes.values()) if (n.id && n.kind !== "project") ids.add(n.id);
+  } catch {
+    // A project that cannot be read: nothing is nearer than anything else.
+  }
+  nearCache.set(projectId, { at: Date.now(), ids });
+  return ids;
+}
+
+/**
+ * A glance: from a project (`from` empty), its own things and `steps` out from
+ * them; from any thing's key, `steps` out from it.
+ */
+export function glance(projectId: string, steps = 1, from = ""): Glance {
+  steps = Math.max(1, Math.min(MOST_STEPS, Math.floor(steps) || 1));
+  const p = findProject(projectId);
+  const walk = new Walk(projectId);
+  const start = from || `project:${projectId}`;
+  // From a project, its own things are a step of their own before `steps` more.
+  walk.run(start, start.startsWith("project:") ? steps + 1 : steps);
+  return { project: { id: projectId, name: p.name, code: p.code }, root: start, nodes: [...walk.nodes.values()], edges: walk.edges };
 }

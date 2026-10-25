@@ -12,11 +12,16 @@
  * browser picker — a picker is the browser's own chrome, which this canvas
  * never wears.
  *
- * With a `kind` it is the Person or the Event tool's search instead: only
- * entities of that profile, and a last row that makes a new one from what was
+ * With a `kind` it is the Person, Event, Task or Note tool's search instead:
+ * only things of that kind, and a last row that makes a new one from what was
  * typed. People are also found in the address books, the way an @ finds them
  * (surfaces/ui/mentions.js) — one already a person here shows as that person,
- * and one who is not is made by address, so never made twice.
+ * and one who is not is made by address, so never made twice. A note is a
+ * writing page (or a note entity); a new one is a page in this project. A new
+ * task is filed under this project.
+ *
+ * What is tied to this canvas's project comes first, and says so (the core's
+ * `near`, glance.ts): before anything is typed, the search already lists it.
  */
 import { useEffect, useState } from "react";
 import { ask, where } from "../api.ts";
@@ -42,10 +47,37 @@ type Found = Summary & {
   make?: () => Promise<{ id: string }>;
   /** The New row, made from what was typed. */
   fresh?: boolean;
+  /** Tied to this project. */
+  near?: boolean;
 };
 
-/** What the Person and Event tools look for: a profile name. */
-export type BringKind = "contact" | "event";
+/** What the Person, Event, Task and Note tools look for: a profile name. */
+export type BringKind = "contact" | "event" | "task" | "note";
+
+const NEW_ROW: Record<BringKind, string> = { contact: "New person: ", event: "New event (not on a calendar): ", task: "New task: ", note: "New page: " };
+const PLACEHOLDER: Record<BringKind, string> = { contact: "Person…", event: "Event…", task: "Task…", note: "Note or page…" };
+
+/** This project's own entity, which a task made here is filed under. */
+let projectEntity: Promise<string | undefined> | null = null;
+const thisProject = () =>
+  (projectEntity ??= ask<{ id: string } | null>("GET", `/entities/by-source?kind=talaris-project&key=${encodeURIComponent(where.project)}`).then(
+    (e) => e?.id,
+    () => undefined,
+  ));
+
+/** Notes: this project's pages first (an @'s search), and note entities that are not a place. */
+async function findNotes(words: string): Promise<Found[]> {
+  const p = new URLSearchParams({ q: words, limit: "20", project: where.project });
+  const rows = await ask<Mentionable[]>("GET", `/mentionables?${p}`).catch(() => [] as Mentionable[]);
+  return (rows ?? [])
+    .filter((m) => m.kind === "page" || m.kind === "note")
+    .slice(0, 10)
+    .map((m) => ({
+      id: m.id, title: m.title, kinds: [m.kind === "page" ? "note" : m.kind], near: m.here,
+      ...(m.id ? {} : { place: { kind: m.kind, project: m.project, where: m.where } }),
+      ...(m.kind === "page" && !m.here ? { detail: m.projectName ?? "" } : {}),
+    }));
+}
 
 /** "YYYY-MM-DDTHH:MM", local. */
 const local = (d: Date) => {
@@ -59,8 +91,9 @@ const local = (d: Date) => {
  * district — and a name that is itself an address counts as none.
  */
 async function findOfKind(words: string, kind: BringKind): Promise<Found[]> {
+  if (kind === "note") return findNotes(words);
   let [out, people] = await Promise.all([
-    findEntities(words, kind).then((rows) => (rows ?? []).slice(0, 10) as Found[]),
+    findEntities(words, kind, where.project).then((rows) => (rows ?? []).slice(0, 10) as Found[]),
     kind === "contact" && words.length >= 2
       ? ask<{ name?: string; email: string }[]>("GET", `/people/find?q=${encodeURIComponent(words)}`).catch(() => [])
       : Promise.resolve([]),
@@ -98,6 +131,24 @@ async function findOfKind(words: string, kind: BringKind): Promise<Found[]> {
  * it starts at the next whole hour, for an hour, so its card has a day.
  */
 function newRow(words: string, kind: BringKind): Found {
+  if (kind === "task") {
+    return {
+      id: "", title: words, kinds: ["task"], fresh: true,
+      make: async () => {
+        const project = await thisProject();
+        return ask<{ id: string }>("POST", "/tasks", { title: words, ...(project ? { projects: [project] } : {}) });
+      },
+    };
+  }
+  if (kind === "note") {
+    return {
+      id: "", title: words, kinds: ["note"], fresh: true,
+      make: async () => {
+        const page = await ask<{ path: string; title: string }>("POST", `/projects/${encodeURIComponent(where.project)}/pages`, { parent: null, title: words });
+        return ask<{ id: string }>("POST", "/entities/place", { kind: "page", project: where.project, where: page.path, title: page.title });
+      },
+    };
+  }
   if (kind === "contact") {
     return {
       id: "", title: words, kinds: ["contact"], fresh: true,
@@ -133,7 +184,8 @@ export function BringIn({
 
   useEffect(() => {
     const words = q.trim();
-    if (!words) {
+    // A tool's search lists what is near before anything is typed; Bring in waits for words.
+    if (!words && !kind) {
       setFound(null);
       return;
     }
@@ -144,10 +196,10 @@ export function BringIn({
         findOfKind(words, kind).then(
           (rows) => {
             if (!live) return;
-            setFound([...rows, newRow(words, kind)]);
+            setFound(words ? [...rows, newRow(words, kind)] : rows);
             setAt(0);
           },
-          () => live && setFound([newRow(words, kind)]),
+          () => live && setFound(words ? [newRow(words, kind)] : []),
         );
         return;
       }
@@ -164,7 +216,7 @@ export function BringIn({
         },
         () => live && setFound([]),
       );
-    }, 180);
+    }, words ? 180 : 0);
     return () => {
       live = false;
       clearTimeout(t);
@@ -204,7 +256,7 @@ export function BringIn({
         <input
           className="cv-entity-q"
           autoFocus
-          placeholder={kind === "contact" ? "Person…" : kind === "event" ? "Event…" : "Bring in…"}
+          placeholder={kind ? PLACEHOLDER[kind] : "Bring in…"}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -223,7 +275,7 @@ export function BringIn({
             }
           }}
         />
-        {found && found.length === 0 && <div className="hint cv-entity-none">None</div>}
+        {found && found.length === 0 && <div className="hint cv-entity-none">{q.trim() ? "None" : "Nothing tied to this project yet — type to find"}</div>}
         {rows.map((s, i) => (
           <button
             key={s.id || (s.place ? `${s.place.project}/${s.place.where}` : `${s.fresh ? "+" : s.detail}/${s.title}`)}
@@ -233,10 +285,10 @@ export function BringIn({
           >
             <KindMark kinds={s.kinds} />
             <span className="cv-entity-title-text">
-              {s.fresh ? (kind === "contact" ? "New person: " : "New event (not on a calendar): ") : ""}
+              {s.fresh && kind ? NEW_ROW[kind] : ""}
               {s.title || "Untitled"}
             </span>
-            {s.detail && <span className="hint">{s.detail}</span>}
+            {s.detail ? <span className="hint">{s.detail}</span> : s.near && kind ? <span className="hint">this project</span> : null}
           </button>
         ))}
       </div>
