@@ -92,18 +92,18 @@ default = "Off"
 help = "Talaris's undated notes and Hermes Notes' notes (not its daily pages). Where a note sits among Talaris's undated notes stays in Talaris."
 
 [[settings]]
-key = "dailyNotes"
-label = "Daily notes"
-kind = "boolean"
-default = false
-help = "Talaris's daily notes (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
-
-[[settings]]
 key = "noteTags"
 label = "Note tags"
 kind = "text"
 default = "talaris"
 help = "For Only those with these tags: comma-separated. A note on either side takes part by wearing one — in Talaris, tag it in the writing drawer."
+
+[[settings]]
+key = "dailyNotes"
+label = "Daily notes"
+kind = "boolean"
+default = false
+help = "Talaris's daily notes (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
 
 [[settings]]
 key = "minutes"
