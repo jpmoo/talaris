@@ -47,6 +47,12 @@ class GlanceBridge(Bridge):
         threading.Thread(target=run, daemon=True).start()
 
     @Slot(str)
+    def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        """A project in the graph, gone to: its desktop, and it the current project."""
+        self.owner.file_away()
+        self.owner.desktop.go_to_project(project, announce=True)
+
+    @Slot(str)
     def openTask(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
         """A task, open in Tasks."""
         self.owner.open_task(entity)

@@ -20,9 +20,10 @@ import { taskProjects } from "./tasks.js";
  *
  * **Its own**: its writing pages and canvases, what is filed under it (a
  * task's project, a note's), and every file in its folder. **One step out**:
- * what those mention, carry on a canvas, or are linked with — the people at a
- * meeting a page mentions, say. One step only: two reaches everyone, since
- * everyone links on to every meeting they were in.
+ * what those mention, carry on a canvas, or are linked with. **Further, if
+ * asked** (`steps`, 1 to 3): each step out from the things the last one
+ * reached — at two, the people at a meeting a page mentions. Each step is
+ * held to a few hundred new things, since three reaches nearly everyone.
  */
 export interface GlanceNode {
   key: string;
@@ -37,6 +38,8 @@ export interface GlanceNode {
   /** How it comes into the glance, in words: "in the project", "filed here", "mentioned in Budget". */
   how: string;
   place?: { kind: "page" | "canvas"; project: string; where: string };
+  /** A project's own id, for a project: the one this glance is of, or another it is tied with — to go to. */
+  projectId?: string;
   /** A file's path in the project's folder. */
   path?: string;
 }
@@ -56,8 +59,9 @@ export interface Glance {
 
 /** Files looked at in a project's folder, at most: a glance, not an index. */
 const MOST_FILES = 400;
-/** Things one step out, at most. */
+/** New things a step out may bring, at most. */
 const MOST_OUT = 400;
+export const MOST_STEPS = 3;
 const FILE_LINK = () => /\]\(talaris-file:([^)\s]+)\)/g;
 
 const fileKey = (rel: string) => `file:${rel}`;
@@ -69,7 +73,8 @@ const decode = (href: string) => {
   }
 };
 
-export function glance(projectId: string): Glance {
+export function glance(projectId: string, steps = 1): Glance {
+  steps = Math.max(1, Math.min(MOST_STEPS, Math.floor(steps) || 1));
   const p = findProject(projectId);
   // Its entity, made if it has none yet (Tasks would make it on asking).
   taskProjects();
@@ -90,7 +95,7 @@ export function glance(projectId: string): Glance {
     if (!had || (n.own && !had.own)) nodes.set(n.key, had ? { ...had, ...n, how: n.own ? n.how : had.how } : n);
     return n.key;
   };
-  nodes.set("project", { key: "project", id: projectEntity?.id, title: p.name, kind: "project", updated: "", own: true, how: "this project" });
+  nodes.set("project", { key: "project", id: projectEntity?.id, title: p.name, kind: "project", updated: "", own: true, how: "this project", projectId });
 
   // What an entity is, in the glance: a page or a canvas where it stands for one, else by its profile.
   const entityNode = (o: Entity, own: boolean, how: string): string => {
@@ -98,9 +103,11 @@ export function glance(projectId: string): Glance {
     if (place?.kind === "page") return put({ key: `page:${place.project}/${place.where}`, id: o.id, title: titleOf(o), kind: "page", updated: o.updated, own: own && place.project === projectId, how, place });
     if (place?.kind === "canvas") return put({ key: `canvas:${place.project}/${place.where}`, id: o.id, title: titleOf(o), kind: "canvas", updated: o.updated, own: own && place.project === projectId, how, place });
     const kinds = profilesOf(o);
-    const kind = ["task", "event", "contact", "note"].find((k) => kinds.includes(k))
-      ?? ((o["talaris:sources"] as { kind: string }[] | undefined)?.some((s) => s.kind === "talaris-project") ? "project" : kinds[0] ?? "note");
-    return put({ key: `e:${o.id}`, id: o.id, title: titleOf(o), kind, updated: o.updated, own, how });
+    const workspace = (o["talaris:sources"] as { kind: string; key: string }[] | undefined)?.find((s) => s.kind === "talaris-project")?.key;
+    const kind = ["task", "event", "contact", "note"].find((k) => kinds.includes(k)) ?? (workspace ? "project" : kinds[0] ?? "note");
+    // This project's own entity is the middle, not another thing.
+    if (workspace === projectId) return "project";
+    return put({ key: `e:${o.id}`, id: o.id, title: titleOf(o), kind, updated: o.updated, own, how, ...(workspace ? { projectId: workspace } : {}) });
   };
   const files = (rel: string, own: boolean, how: string): string => {
     let updated = "";
@@ -206,25 +213,35 @@ export function glance(projectId: string): Glance {
     }
   }
   const words = (name: string) => name.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-  for (const n of [...nodes.values()]) {
-    if (!n.own || !n.id || n.kind === "project" || out >= MOST_OUT) continue;
-    let c;
-    try {
-      c = connections(n.id);
-    } catch {
-      continue;
+  // Each step grows from what the step before reached: the first from the project's own.
+  let from = [...nodes.values()].filter((n) => n.own && n.id && n.kind !== "project");
+  const grown = new Set<string>();
+  for (let step = 1; step <= steps; step++) {
+    const before = new Set(nodes.keys());
+    // The first step's mentions are counted above; each later one has its own allowance.
+    if (step > 1) out = 0;
+    for (const n of from) {
+      if (out >= MOST_OUT || !n.id || grown.has(n.key)) continue;
+      grown.add(n.key);
+      let c;
+      try {
+        c = connections(n.id);
+      } catch {
+        continue;
+      }
+      for (const x of c.out) {
+        if (out >= MOST_OUT || x.entity.stub) break;
+        link(n.key, entityNode(getEntity(x.entity.id), false, `${words(x.name)} of ${n.title}`), words(x.name));
+        out++;
+      }
+      for (const x of c.in) {
+        if (out >= MOST_OUT || x.entity.stub) break;
+        link(entityNode(getEntity(x.entity.id), false, `links to ${n.title}`), n.key, words(x.name));
+        out++;
+      }
     }
-    for (const x of c.out) {
-      if (out >= MOST_OUT || x.entity.stub) break;
-      link(n.key, entityNode(getEntity(x.entity.id), false, `${words(x.name)} of ${n.title}`), words(x.name));
-      out++;
-    }
-    for (const x of c.in) {
-      if (out >= MOST_OUT || x.entity.stub) break;
-      const o = getEntity(x.entity.id);
-      link(entityNode(o, false, `links to ${n.title}`), n.key, words(x.name));
-      out++;
-    }
+    // The next step grows from what this one (and the first step's mentions) brought in.
+    from = [...nodes.values()].filter((n) => n.id && n.kind !== "project" && !grown.has(n.key) && (!before.has(n.key) || (step === 1 && !n.own)));
   }
   return { project: { id: projectId, name: p.name, code: p.code }, nodes: [...nodes.values()], edges };
 }

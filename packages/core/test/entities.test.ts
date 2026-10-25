@@ -329,6 +329,9 @@ test("a project at a glance: its pages, canvases, filed things and files, and on
   assert.equal(by(`e:${show.id}`)?.own, false, "the event the page mentions, one step out");
   assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `e:${show.id}`));
   assert.equal(by(`e:${amy.id}`), undefined, "and not two steps: the event's people stay out");
+  const two = glance(p.id, 2);
+  assert.ok(two.nodes.some((n) => n.key === `e:${amy.id}`), "two steps out: the people at the meeting the page mentions");
+  assert.ok(two.edges.some((e) => e.from === `e:${show.id}` && e.to === `e:${amy.id}`));
 });
 
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {

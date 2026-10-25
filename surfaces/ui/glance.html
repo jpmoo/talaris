@@ -103,6 +103,9 @@ main > [hidden] { display: none !important; }
 #graph canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 #graph canvas.panning, #graph canvas.dragging { cursor: grabbing; }
 #graph canvas.over { cursor: pointer; }
+#steps { flex: none; }
+#steps .steps-l { font-size: 11px; color: var(--muted); padding: 0 6px 0 8px; align-self: center; }
+#steps button { min-width: 24px; }
 #fit { position: absolute; top: 10px; right: 12px; font-size: 11.5px; padding: 1px 10px; }
 #display-btn { position: absolute; top: 10px; right: 58px; font-size: 11.5px; padding: 1px 10px; }
 #display-btn.on { border-color: var(--accent); color: var(--accent); }
@@ -141,6 +144,7 @@ main > [hidden] { display: none !important; }
     <span class="seg" id="view"></span>
     <input type="text" id="q" placeholder="Find" spellcheck="false">
     <button class="t-btn tog" id="mine" title="Only the project's own things, not what they touch">Mine only</button>
+    <span class="seg" id="steps"></span>
     <span id="msg"></span>
     <span class="spacer"></span>
     <button class="icon-btn" id="refresh" title="Read it again"></button>

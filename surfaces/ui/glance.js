@@ -147,7 +147,9 @@
   // ---------------------------------------------------------------- opening
 
   function open(n) {
-    if (!n || isRoot(n) || !bridge) return;
+    if (!n || !bridge) return;
+    // A project — this one or another tied to it — is gone to: its desktop.
+    if (n.kind === "project") { if (n.projectId) bridge.goProject(n.projectId); return; }
     if (n.place && (n.place.kind === "page" || n.place.kind === "canvas")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
     if (n.path && data) { bridge.openProjectFile(data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
@@ -205,7 +207,7 @@
     let alpha = 0, target = 0, warm = false, laid = false, warmSeq = 0;
     let cam = { s: 1, x: 0, y: 0 };       // screen = world × s + (x, y), CSS pixels
     let W = 0, H = 0, dpr = 1;
-    let hover = null, frame = 0;
+    let hover = null, frame = 0, chosen = null;
     let pal = {};
 
     // The graph's look and pull, as the Display panel sets them (kept): tuned for a link
@@ -363,6 +365,22 @@
     }
     new ResizeObserver(resize).observe($("graph"));
 
+    // The camera glided so a thing sits in the middle, at the zoom it is at, and marked chosen.
+    let lastClick = { node: null, at: 0, x: 0, y: 0 }, glide = 0;
+    function centre(n) {
+      chosen = n;
+      const from = { ...cam }, to = { s: cam.s, x: W / 2 - n.x * cam.s, y: H / 2 - n.y * cam.s };
+      const t0 = performance.now(), seq = ++glide;
+      const step = (t) => {
+        if (seq !== glide) return;
+        const k = Math.min(1, (t - t0) / 260), e = 1 - Math.pow(1 - k, 3);
+        cam = { s: from.s, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
+        need();
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
     function fit() {
       if (!W || !H) return;
       const list = vis.length ? vis : nodes;
@@ -439,6 +457,12 @@
         if (n.own || isRoot(n)) { ctx.fillStyle = c; ctx.fill(); }
         else { ctx.fillStyle = pal.surface; ctx.fill(); ctx.lineWidth = 1.6 / cam.s; ctx.strokeStyle = c; ctx.stroke(); }
         if (isRoot(n)) {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 3.5 / cam.s, 0, Math.PI * 2);
+          ctx.lineWidth = 2 / cam.s; ctx.strokeStyle = pal.accent; ctx.stroke();
+        }
+        // The one centred on: ringed in the accent, so where the walk is stays plain.
+        if (n === chosen && !isRoot(n)) {
           ctx.beginPath();
           ctx.arc(n.x, n.y, r + 3.5 / cam.s, 0, Math.PI * 2);
           ctx.lineWidth = 2 / cam.s; ctx.strokeStyle = pal.accent; ctx.stroke();
@@ -534,7 +558,21 @@
       press = null;
       cv.classList.remove("dragging", "panning");
       if (p.node && !isRoot(p.node) && p.moved) { p.node.fx = null; p.node.fy = null; target = 0; }
-      if (e.type === "pointerup" && !p.moved && p.node) open(p.node);
+      // One click centres it, to walk the graph from it; a second, soon after on the same, opens it.
+      // The second click is counted where the pointer is, not what is under it now: the first
+      // set the view gliding, and the thing has moved from under the pointer since.
+      if (e.type === "pointerup" && !p.moved) {
+        const now = performance.now();
+        const [x, y] = at(e);
+        if (lastClick.node && now - lastClick.at < 380 && Math.hypot(x - lastClick.x, y - lastClick.y) < 8) {
+          const n = lastClick.node;
+          lastClick = { node: null, at: 0, x: 0, y: 0 };
+          open(n);
+        } else if (p.node) {
+          lastClick = { node: p.node, at: now, x, y };
+          centre(p.node);
+        }
+      }
       if (e.type === "pointerup") { const [x, y] = at(e); setHover(hit(x, y)); }
     };
     cv.addEventListener("pointerup", release);
@@ -604,7 +642,7 @@
     loadedFor = p.id;
     say("Reading…");
     try {
-      const got = await api("GET", `/projects/${enc(p.id)}/glance`);
+      const got = await api("GET", `/projects/${enc(p.id)}/glance?steps=${steps}`);
       if (seq !== loadSeq) return;
       data = { project: (got && got.project) || p, nodes: (got && got.nodes) || [], edges: (got && got.edges) || [] };
       // The middle is always there, even if the core left it out.
@@ -624,6 +662,16 @@
     if (e.key === "Escape" && $("q").value) { e.preventDefault(); e.stopPropagation(); $("q").value = ""; if (view === "list") drawList(); else Graph.need(); }
   });
   $("mine").addEventListener("click", () => { mine = !mine; store.set("talaris.glance.mine", mine); filtered(); });
+
+  // How far out from the project's own things: one step is what they touch; each more,
+  // what that touches in turn (the core holds each step to a few hundred).
+  let steps = Number(store.get("talaris.glance.steps", 1)) || 1;
+  function drawSteps() {
+    $("steps").replaceChildren(el("span", { class: "steps-l" }, "Steps"), ...[1, 2, 3].map((n) =>
+      el("button", { class: n === steps ? "on" : "", title: n === 1 ? "What the project's own things touch" : `${n} steps out`,
+        onclick: () => { if (n === steps) return; steps = n; store.set("talaris.glance.steps", n); drawSteps(); load(); } }, String(n))));
+  }
+  drawSteps();
   $("refresh").innerHTML = REFRESH;
   $("refresh").addEventListener("click", () => load());
 
