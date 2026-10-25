@@ -340,13 +340,18 @@ const TaskViews = (() => {
     const meta = [];
     if (row.due) meta.push(el("span", { class: "tv-due" + (row.overdue ? " late" : "") }, shortDate(row.due)));
     if (row.projects && row.projects.length) meta.push(el("span", { class: "tv-proj" }, row.projects.map((p) => p.title).join(", ")));
-    const node = el("div", { class: "tv-card" + (row.complete ? " done" : ""), "data-card": row.id },
+    // In a matrix's region, a card wears a wash of the region's color.
+    const node = el("div", { class: "tv-card" + (row.complete ? " done" : "") + (opts.color ? " tinted" : ""), "data-card": row.id,
+      ...(opts.color ? { style: `--rc:${opts.color}` } : {}) },
       statusDot(ctx, sh, row),
       el("div", { class: "tv-card-body" },
-        el("span", { class: "tv-title", onclick: () => ctx.openTask(row.id) }, row.title || "Untitled"),
+        el("span", { class: "tv-title" }, row.title || "Untitled"),
         meta.length ? el("div", { class: "tv-meta" }, ...meta) : ""),
       opts.remove ? el("button", { class: "tv-x", title: "To drawer", onclick: (e) => { e.stopPropagation(); opts.remove(); } }, "×") : "");
     if (opts.menu) node.addEventListener("contextmenu", (e) => { e.preventDefault(); openPop({ x: e.clientX, y: e.clientY }, ...opts.menu()); });
+    // A press anywhere on the card opens the task — not on its buttons or its status dot, which do their own thing
+    // (and the click that ends a drag never arrives: draggable swallows it).
+    node.addEventListener("click", (e) => { if (!e.target.closest("button, input, .tv-sdot, .tv-nodrag")) ctx.openTask(row.id); });
     return draggable(node, { id: row.id, row, from: opts.from, region: row.region });
   }
 
@@ -683,7 +688,7 @@ const TaskViews = (() => {
     for (const r of regions) {
       const rows = shown.rows.filter((x) => x.region === r.name);
       const box = el("div", { class: "tv-region-list" });
-      for (const row of rows) box.append(card(ctx, sh, row, { from: "region", menu: menu(row), remove: () => toDrawer(row.id) }));
+      for (const row of rows) box.append(card(ctx, sh, row, { from: "region", menu: menu(row), remove: () => toDrawer(row.id), color: r.color }));
       const words = enterWords(ctx, r.enter);
       const node = el("section", { class: "tv-region", style: `--c:${r.color || "var(--line)"}` },
         el("header", {}, el("span", { class: "tv-col-label" }, r.label),
