@@ -1410,7 +1410,7 @@ of it and comes out at the end.
     export.
 12. Floating, *place*, Recent.
 13. The plugin surface, and the Hermes plugin on it. **Begun 2026-10-25,
-    around the Hermes sync** (tasks, projects, events and people, kept in step,
+    around the Hermes sync** (tasks, projects and people, kept in step,
     merged with conflicts put to the person or replaced wholesale one way).
     Done so far: the format says what a person, an event and a project are
     (`pkm-interchange`, *Profiles*; both Hermes and Talaris declare them), and
@@ -1437,7 +1437,8 @@ of it and comes out at the end.
     README says how it decides): matching on the first sync with the unsure
     put to the person and the plan confirmed before anything is written;
     merge with conflicts put to the person, or one side winning; deletions
-    asked about, never carried; calendar events one way. The host gained
+    asked about, never carried; events not synced at all (they are the
+    calendars', which each app reads for itself). The host gained
     `talaris/decide` — a plugin's list of things for the person to decide,
     drawn by Talaris in Settings, Plugins, answered back as `talaris/decided`.
 14. Pruning.

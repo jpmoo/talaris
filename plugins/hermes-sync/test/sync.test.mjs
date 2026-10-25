@@ -16,8 +16,8 @@ const T_TYPES = [
   { id: "t_project", fields: [{ key: "title", kind: "text" }, { key: "description", kind: "richtext" }], profiles: { project: { title: "title", body: "description" } } },
   { id: "t_person", fields: [{ key: "title", kind: "text" }, { key: "emails", kind: "text", many: true }, { key: "notes", kind: "richtext" }],
     profiles: { contact: { title: "title", email: "emails", body: "notes" } } },
-  { id: "t_event", fields: [{ key: "title", kind: "text" }, { key: "start", kind: "datetime" }, { key: "end", kind: "datetime" }, { key: "attendees", kind: "reference", many: true }],
-    profiles: { event: { title: "title", start: "start", end: "end", attendees: "attendees" } } },
+  // An event type, as both apps have: events do not sync, so nothing of its may be made or written.
+  { id: "t_event", fields: [{ key: "title", kind: "text" }, { key: "start", kind: "datetime" }], profiles: { event: { title: "title", start: "start" } } },
 ];
 const H_TYPES = [
   { id: "h-task", fields: [{ key: "title", kind: "text" }, { key: "status", kind: "enum", options: ["not done", "done"] },
@@ -28,7 +28,7 @@ const H_TYPES = [
   { id: "h-event", fields: [{ key: "title", kind: "text" }, { key: "span", kind: "datespan" }], profiles: { event: { title: "title", start: { field: "span", part: "start" }, end: { field: "span", part: "end" } } } },
 ];
 const env = (types, objects) => ({ types, objects, cursor: "x.1" });
-const S = { mode: "merge", kinds: {}, people: "known", calendar: "none", now: Date.parse("2026-10-25") };
+const S = { mode: "merge", kinds: {}, people: "known" };
 let n = 0;
 const newId = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
 
@@ -122,18 +122,11 @@ test("replace: one side wins every difference, and what only the other has is le
   assert.deepEqual(talarisWins.writes.map((w) => [w.side, w.op]), [["hermes", "patch"], ["hermes", "put"]]);
 });
 
-test("a calendar's events: not sent unless asked, sent from a window when asked, and always Talaris's word", () => {
-  const cal = (id, start) => ({ id, type: "t_event", properties: { title: `Meeting ${id}`, start }, version: 1, "talaris:sources": [{ kind: "eds-event", key: `cal/${id}` }] });
-  const T = env(T_TYPES, [cal("e1", "2026-10-20T09:00"), cal("e2", "2026-01-01T09:00")]);
-  const H = env(H_TYPES, []);
-  assert.equal(plan({ started: true, links: [] }, T, H, S, newId).writes.length, 0, "Don't send");
-  const sent = plan({ started: true, links: [] }, T, H, { ...S, calendar: 30 }, newId);
-  assert.deepEqual(sent.writes.map((w) => w.body.properties.title), ["Meeting e1"], "only from thirty days back");
-  // Changed in Hermes: Talaris's calendar wins, every time, with nothing asked.
-  const H2 = env(H_TYPES, [{ id: "he1", type: "h-event", properties: { title: "Renamed in Hermes", span: { start: "2026-10-20T09:00" } }, version: 2 }]);
-  const p = plan({ started: true, links: [{ kind: "event", t: "e1", h: "he1", base: { title: '"Meeting e1"', start: '"2026-10-20T09:00"', end: null } }] }, T, H2, { ...S, calendar: 30 }, newId);
-  assert.deepEqual(p.writes[0].patch.set, { title: "Meeting e1" });
-  assert.equal(p.ask.length, 0);
+test("events do not sync, either way", () => {
+  const T = env(T_TYPES, [{ id: "e1", type: "t_event", properties: { title: "Meeting", start: "2026-10-20T09:00" }, version: 1 }]);
+  const H = env(H_TYPES, [{ id: "he1", type: "h-event", properties: { title: "Retreat", span: { start: "2026-11-01" } }, version: 1 }]);
+  const p = plan({ started: true, links: [] }, T, H, S, newId);
+  assert.equal(p.writes.length, 0);
 });
 
 test("a thing deleted on one side: asked about, never made again unasked, never deleted on the other", () => {

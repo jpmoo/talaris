@@ -1,11 +1,11 @@
-# Hermes Notes sync: tasks, projects, events and people kept in step between
+# Hermes Notes sync: tasks, projects and people kept in step between
 # Talaris and Hermes Notes, through pkm-interchange alone — an implementation
 # of the format of its own, knowing neither app's field names.
 
 id = "hermes-sync"
 name = "Hermes Notes sync"
 version = "0.1.0"
-description = "Keeps tasks, projects, events and people in step with Hermes Notes."
+description = "Keeps tasks, projects and people in step with Hermes Notes."
 author = "Jeff Moore"
 license = "GPL-3.0-only"
 command = ["node", "main.mjs"]
@@ -19,8 +19,8 @@ name = "sync_status"
 description = "When it last synced, what it carried, and what waits to be decided"
 
 [permissions]
-read = ["task", "project", "event", "person"]
-write = ["task", "project", "event", "person"]
+read = ["task", "project", "person"]
+write = ["task", "project", "person"]
 notify = true
 network = ["your Hermes Notes server"]
 
@@ -57,26 +57,12 @@ kind = "boolean"
 default = true
 
 [[settings]]
-key = "events"
-label = "Events"
-kind = "boolean"
-default = true
-
-[[settings]]
 key = "people"
 label = "People"
 kind = "choice"
 choices = ["Off", "Only those Hermes Notes has", "Everyone"]
 default = "Only those Hermes Notes has"
 help = "Talaris keeps whole address books; Everyone sends them all to Hermes Notes."
-
-[[settings]]
-key = "calendar"
-label = "Calendar events to Hermes Notes"
-kind = "choice"
-choices = ["Don't send", "From 30 days back", "From 90 days back", "All"]
-default = "Don't send"
-help = "Events from your calendars go one way, Talaris to Hermes Notes. Events made in either app sync both ways."
 
 [[settings]]
 key = "minutes"

@@ -26,7 +26,7 @@ const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
   start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project" };
-const KIND_WORDS = { project: "project", contact: "person", event: "event", task: "task" };
+const KIND_WORDS = { project: "project", contact: "person", task: "task" };
 /**
  * Each linked Talaris thing carries a way back to its Hermes Notes one: the
  * format's `url` for it, under this plugin's own key (unprefixed keys are the
@@ -39,8 +39,8 @@ const linkOf = (b) => (typeof b?.url === "string" && /^https?:\/\//.test(b.url) 
 /**
  * @param state    { started, links: [{ kind, t, h, base }], apart: [[t, h]], only: [id], mode }
  * @param T, H     envelopes read from Talaris and from Hermes
- * @param s        settings: { mode: "merge" | "hermes" | "talaris", kinds: { task, project, event, contact },
- *                   people: "known" | "everyone", calendar: "none" | <days back>, now }
+ * @param s        settings: { mode: "merge" | "hermes" | "talaris", kinds: { task, project, contact },
+ *                   people: "known" | "everyone" }
  * @param newId    a fresh id for something made in Hermes
  * @returns { writes: [{ side, op, id, type?, patch?, body?, link? }], ask: [decision], links, summary }
  */
@@ -58,17 +58,10 @@ export function plan(state, T, H, s, newId) {
   // A reference compared as the Talaris id of what it points at; a Talaris id written as Hermes' and back.
   const keyT = (id) => (byT.has(id) ? id : null), keyH = (id) => byH.get(id)?.t ?? null;
   const idT = (key) => (byT.has(key) ? key : null), idH = (key) => byT.get(key)?.h ?? null;
-  const fromCalendar = (o) => (o["talaris:sources"] ?? []).some((x) => x.kind === "eds-event");
 
   /** Whether a Talaris thing is one this sync carries at all. */
   const carriesT = (o, kind) => {
-    if (o.archived || o.stub || only.has(o.id)) return false;
-    if (kind === "event" && fromCalendar(o)) {
-      if (s.calendar === "none" || s.calendar === undefined) return false;
-      const start = Date.parse(t.raw(o, "event", "start") ?? "");
-      return Number.isNaN(start) || start >= (s.now ?? Date.now()) - Number(s.calendar) * 86_400_000;
-    }
-    return true;
+    return !(o.archived || o.stub || only.has(o.id));
   };
   const carriesH = (o) => !o.archived && !o.stub && !only.has(o.id);
 
@@ -166,7 +159,6 @@ export function plan(state, T, H, s, newId) {
       }
       if (a.archived || b.archived || a.stub) continue;
       const tv = valuesT(a, kind), hv = valuesH(b, kind);
-      const calendarOnly = kind === "event" && fromCalendar(a); // a calendar's event: Talaris's word, always
       const toH = [], toT = [];
       for (const slot of slots) {
         const x = tv[slot], y = hv[slot], base = l.base[slot];
@@ -174,7 +166,7 @@ export function plan(state, T, H, s, newId) {
         // The person chose, for this one: that side's value is carried, once.
         const picked = l.pick?.[slot];
         if (picked) { (picked === "talaris" ? toH : toT).push(slot); delete l.pick[slot]; continue; }
-        const side = calendarOnly ? "talaris" : winner;
+        const side = winner;
         if (side === "talaris") { toH.push(slot); continue; }
         if (side === "hermes") { toT.push(slot); continue; }
         if (base !== undefined && x === base) toT.push(slot);
@@ -245,7 +237,6 @@ export function plan(state, T, H, s, newId) {
     const ta = norm(t.raw(a, kind, "title")), tb = norm(h.raw(b, kind, "title"));
     if (!ta || ta !== tb) return false;
     if (kind === "project") return true;
-    if (kind === "event") return t.value(a, kind, "start", keyT) === h.value(b, kind, "start", keyH);
     // A task: the same name within the same project (or both in none).
     if (kind === "task") return json(t.value(a, kind, "project", keyT)) === json(h.value(b, kind, "project", keyH));
     return false;

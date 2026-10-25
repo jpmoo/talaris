@@ -1,18 +1,17 @@
 # Hermes Notes sync
 
-A Talaris plugin keeping **tasks, projects, events and people** in step with
+A Talaris plugin keeping **tasks, projects and people** in step with
 Hermes Notes, through pkm-interchange alone: it reads and writes both apps
 through their profiles, and knows neither one's field names. Install it from
 this folder (Settings, Plugins), give it Hermes Notes' address and an access
 key, and enable it.
 
 **In Hermes Notes first:** mark your types in the type editor's "What this is,
-to other apps" — a person, an event, a project — and your task type's project
-field. A kind no Hermes type declares does not sync, and the plugin says so.
+to other apps" — a person, a project — and your task type's project field. A kind no Hermes type declares does not sync, and the plugin says so.
 
 **The first time**, nothing is written until you say so. Things are matched
 where that is certain — a project by its name, a person by an address, a task
-by its name within a matched project, an event by its name and start — and
+by its name within a matched project — and
 where it is not (two people of one name, no address), you are asked. Then the
 plan is put to you: how many matched, how many to make on each side.
 
@@ -29,9 +28,11 @@ plan is put to you: how many matched, how many to make on each side.
 
 **What goes where.** Talaris's people go to Hermes Notes only if *People* says
 *Everyone* (Talaris keeps whole address books); otherwise the people Hermes
-Notes has are matched and kept in step, and new ones come across. Events made
-in either app sync both ways; events from your calendars go one way, Talaris
-to Hermes Notes, only if *Calendar events* says so — the calendar's word wins.
+Notes has are matched and kept in step, and new ones come across.
+
+**Events do not sync.** They belong to your calendars, which each app reads
+for itself; a copy of a copy, with the calendar's word and each app's edits to
+weigh, was more trouble than it was worth.
 
 **A way back.** Every Talaris thing linked to a Hermes Notes one carries its
 address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as

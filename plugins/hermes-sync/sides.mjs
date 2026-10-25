@@ -12,13 +12,12 @@
 export const KINDS = {
   project: ["title", "body"],
   contact: ["title", "email", "phone", "organization", "role", "body"],
-  event: ["title", "start", "end", "location", "attendees", "organizer", "body"],
   task: ["title", "complete", "start", "due", "project"],
 };
 /** The slots that point at other things, and what they point at. */
-export const REFS = { task: { project: "project" }, event: { attendees: "contact", organizer: "contact" } };
+export const REFS = { task: { project: "project" } };
 /** In order: what is pointed at is made before what points at it. */
-export const ORDER = ["project", "contact", "event", "task"];
+export const ORDER = ["project", "contact", "task"];
 const DATES = new Set(["start", "end", "due"]);
 
 const field = (type, key) => (type.fields ?? []).find((f) => f.key === key);

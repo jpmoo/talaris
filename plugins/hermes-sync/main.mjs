@@ -69,15 +69,13 @@ function save() {
 // ------------------------------------------------------------ the settings, in the plan's words
 
 const MODES = { "Merge, and ask me": "merge", "Hermes Notes wins": "hermes", "Talaris wins": "talaris" };
-const CALENDAR = { "Don't send": "none", "From 30 days back": 30, "From 90 days back": 90, "All": 1e6 };
 function words() {
   const asked = MODES[settings.mode] ?? "merge";
   return {
     // A side winning that was declined goes on merging, until the setting is changed.
     mode: asked === state.notMode ? "merge" : asked,
-    kinds: { task: settings.tasks !== false, project: settings.projects !== false, event: settings.events !== false, contact: settings.people !== "Off" },
+    kinds: { task: settings.tasks !== false, project: settings.projects !== false, contact: settings.people !== "Off" },
     people: settings.people === "Everyone" ? "everyone" : "known",
-    calendar: CALENDAR[settings.calendar] ?? "none",
     now: Date.now(),
   };
 }
@@ -134,7 +132,7 @@ async function once(force) {
   }
   // A kind wanted that one side has no type for: said, so the person knows where to mark one.
   const declares = (env, kind) => (env.types ?? []).some((t) => t.profiles && kind in t.profiles);
-  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && !declares(H, k)).map(([k]) => ({ contact: "person", event: "event", project: "project", task: "task" })[k]);
+  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && !declares(H, k)).map(([k]) => ({ contact: "person", project: "project", task: "task" })[k]);
   const p = plan(state, T, H, s, randomUUID);
   last.unmarked = unmarked;
   state.links = p.links;
