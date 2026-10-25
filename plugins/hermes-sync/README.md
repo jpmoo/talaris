@@ -97,6 +97,21 @@ names the statuses still without a meaning. The first time statuses go by
 meaning, a pair that differs only because one side could not say more
 before keeps the more particular one.
 
+**Collections**, when the Collections setting is on: each of Hermes Notes'
+lists, tables, matrices and calendars is asked about once — bring it down,
+match one of Talaris's of the same kind, or don't sync ("Choose collections to
+sync" on Tasks asks again about the ones declined). Hermes Notes' says what a
+collection is: its name, its order, its regions (their colors, and what
+entering one does — a tag added, taken off on leaving, a status set by what it
+means). Its rule is put into Talaris's own conditions — a type by what it is,
+a field through the profiles, a status by its meaning — and Talaris runs it
+itself, live. A rule that cannot be (a search by meaning, a field no profile
+names) holds what Hermes Notes says matches instead, and the status line says
+why. Which region a card sits in goes both ways, by the region's name; moved
+on both sides since they last agreed, you are asked. A synced collection wears
+⇄ in Tasks. Deleted in Talaris, it is no longer synced; Hermes Notes' is left
+as it is.
+
 **In a Talaris backup**: its settings (never the access key, which stays in
 this machine's keyring and is typed again after reviving) and its state — which
 Talaris thing is which Hermes Notes one, and what each pair last agreed on
