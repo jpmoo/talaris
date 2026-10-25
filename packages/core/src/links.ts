@@ -196,3 +196,73 @@ export function toLink(entityId: string, sha256: string, folder: string): Value 
   forgetFiles([a.sha256]);
   return linked;
 }
+
+/** Where to put back a file whose folder is gone: set by the server (a thing's project's Files, or Home's). */
+let fallbackFolder: (entityId: string) => string = () => join(home(), "Documents");
+export function setFallbackFolder(f: (entityId: string) => string): void { fallbackFolder = f; }
+
+/**
+ * Missing linked files put back from copies the store holds — a sync hands
+ * them over first (Restore missing files, the Hermes Notes plugin). Each goes
+ * to where it was; its folder gone, to the thing's project's Files; something
+ * else at that path now, beside it as "… (restored)", never over it. The
+ * copy is freed once the file holds it. Answers how many came back.
+ */
+export function restoreLinks(entityId: string): { restored: number; still: string[] } {
+  const o = getEntity(entityId);
+  let restored = 0;
+  const still: string[] = [];
+  const props: Record<string, unknown> = {};
+  const freed: string[] = [];
+  for (const [key, v] of Object.entries(o.properties ?? {})) {
+    const list = valuesIn(v);
+    if (!list.some((a) => a[LINK] && a[MISSING])) continue;
+    props[key] = (Array.isArray(v) ? list : list.slice(0, 1)).map((a) => {
+      const link = a[LINK];
+      if (!link || !a[MISSING]) return a;
+      const bytes = getFile(a.sha256);
+      if (!bytes) { still.push(a.filename); return a; }
+      let path = link.path;
+      if (!existsSync(join(path, ".."))) path = join(fallbackFolder(entityId), basename(path));
+      if (existsSync(path)) {
+        const ext = extname(path), stem = path.slice(0, path.length - ext.length);
+        path = `${stem} (restored)${ext}`;
+        for (let n = 2; existsSync(path); n++) path = `${stem} (restored ${n})${ext}`;
+      }
+      mkdirSync(join(path, ".."), { recursive: true });
+      writeFileSync(inHome(path), bytes);
+      const st = statSync(path);
+      restored++;
+      freed.push(a.sha256);
+      const { [MISSING]: _gone, ...rest } = a;
+      return { ...rest, filename: basename(path), [LINK]: { path, size: st.size, mtime: st.mtimeMs } } as Value;
+    });
+    if (!Array.isArray(v)) props[key] = (props[key] as Value[])[0];
+  }
+  if (restored) { updateEntity(entityId, { properties: props }); forgetFiles(freed); }
+  return { restored, still };
+}
+
+/** The plugin's mark on a copy that came from Hermes Notes, with no file of yours behind it. */
+export const FROM_HERMES = "hermes-sync:origin";
+
+/**
+ * Files with no file of yours behind them: links whose file is gone, and
+ * copies that came in from elsewhere (a sync's mark) and were never saved as
+ * a file. For Tasks' header and its warnings.
+ */
+export function unbacked(): { id: string; title: string; missing: string[]; onlyHere: string[] }[] {
+  const out: { id: string; title: string; missing: string[]; onlyHere: string[] }[] = [];
+  for (const { object: o } of allRecords()) {
+    if (o.archived) continue;
+    const missing: string[] = [], onlyHere: string[] = [];
+    for (const v of Object.values(o.properties ?? {})) {
+      for (const a of valuesIn(v)) {
+        if (a[LINK] && a[MISSING]) missing.push(a.filename);
+        else if (!a[LINK] && a[FROM_HERMES]) onlyHere.push(a.filename);
+      }
+    }
+    if (missing.length || onlyHere.length) out.push({ id: o.id, title: String(o.properties?.title ?? "Untitled"), missing, onlyHere });
+  }
+  return out;
+}

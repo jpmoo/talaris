@@ -22,6 +22,8 @@ export const ORDER = ["project", "contact", "task", "note"];
 const DATES = new Set(["start", "end", "due"]);
 
 const field = (type, key) => (type.fields ?? []).find((f) => f.key === key);
+/** The mark on a copy that came from Hermes Notes into Talaris (Talaris's links.ts reads it). */
+export const ORIGIN = "hermes-sync:origin";
 /**
  * Where a type keeps its files: the first field of the format's `attachment`
  * kind it declares. Not a profile slot — the format names none — and found by
@@ -166,7 +168,19 @@ export class Side {
       // The field written whole — a file not named goes from this side too — and each file to be handed over first (`files`).
       const f = filesField(type);
       if (!f) return null;
-      const list = (rawFrom ?? []).map(fileValue);
+      /*
+       * Into Talaris, a file it did not have is marked as having come from
+       * Hermes Notes (`hermes-sync:origin`): a copy with no file of anyone's
+       * behind it, which Talaris warns about. A file it already had keeps the
+       * mark it had — never given one it did not.
+       */
+      const had = new Map((Array.isArray(o?.properties?.[f.key]) ? o.properties[f.key] : o?.properties?.[f.key] ? [o.properties[f.key]] : [])
+        .filter((a) => a && a.sha256).map((a) => [a.sha256, a]));
+      const list = (rawFrom ?? []).map(fileValue).map((a) => {
+        if (this.name !== "Talaris") return a;
+        const before = had.get(a.sha256);
+        return before ? (before[ORIGIN] ? { ...a, [ORIGIN]: before[ORIGIN] } : a) : { ...a, [ORIGIN]: "hermes" };
+      });
       if (!list.length) return { unset: [f.key] };
       return { set: { [f.key]: f.many ? list : list[0] }, files: list };
     }

@@ -228,3 +228,16 @@ test("tags travel as moves: added and taken off on one side, the same on the oth
   assert.deepEqual(w.patch.removeTags, ["budget"]);
   assert.equal(w.patch.set, undefined, "tags are not properties");
 });
+
+test("files into Talaris from Hermes Notes are marked as having come from there; one Talaris already had is not", () => {
+  const links = [{ kind: "note", t: "tn1", h: "hn1", base: { title: '"Plan"', body: null, files: null, tags: null } }];
+  const mine = { kind: "attachment", filename: "mine.txt", sha256: SHA("b") };
+  const T = env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Plan", files: [mine] }, version: 2 }]);
+  const H = env(NOTE_H, [{ id: "hn1", type: "h-text", properties: { title: "Plan", attach: [mine, file("c", "scan.pdf")] }, version: 4 }]);
+  links[0].base.files = JSON.stringify([SHA("b")]);
+  const p = plan({ started: true, links }, T, H, { ...S, kinds: { note: true }, notes: "all", files: true }, newId);
+  const w = p.writes.find((x) => x.side === "talaris");
+  const bySha = Object.fromEntries(w.patch.set.files.map((a) => [a.sha256, a]));
+  assert.equal(bySha[SHA("c")]["hermes-sync:origin"], "hermes");
+  assert.equal(bySha[SHA("b")]["hermes-sync:origin"], undefined, "a file Talaris already had is not given the mark");
+});

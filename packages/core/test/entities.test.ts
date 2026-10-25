@@ -560,6 +560,42 @@ test("links: a file in the home folder linked where it is, served from there, fo
   assert.ok(there(saved["talaris:link"]!.path), "a link taken off never deletes its file");
 });
 
+test("missing links put back from a held copy, never over a file that is there now; and what has no file behind it is listed", async () => {
+  const { mkdirSync, writeFileSync, readFileSync: rd, rmSync: rm, existsSync: there } = await import("node:fs");
+  const homeDir = join(sandbox, "home");
+  mkdirSync(join(homeDir, "Docs"), { recursive: true });
+  process.env.TALARIS_LINK_HOME = homeDir;
+  const links = await import("../src/links.js");
+  const tasks = await import("../src/tasks.js");
+  const t = tasks.createTask({ title: "Restore me" });
+  const file = join(homeDir, "Docs", "plan.txt");
+  writeFileSync(file, "the plan");
+  const v = links.linkFile(t.id, file);
+  rm(file);
+  links.refreshLinks([t.id]);
+  assert.deepEqual(links.unbacked().find((u) => u.id === t.id)?.missing, ["plan.txt"]);
+  // The copy handed over (by a sync, from Hermes Notes), then put back where it was.
+  entities.putFile(Buffer.from("the plan"), "plan.txt");
+  assert.equal(links.restoreLinks(t.id).restored, 1);
+  assert.equal(rd(file, "utf8"), "the plan");
+  assert.equal(entities.getFile(v.sha256), null, "the file holds it again: the copy freed");
+  assert.equal(links.unbacked().some((u) => u.id === t.id), false);
+  // Gone again, and something else now at that path: put beside it, never over it.
+  rm(file);
+  links.refreshLinks([t.id]);
+  writeFileSync(file, "a different file");
+  entities.putFile(Buffer.from("the plan"), "plan.txt");
+  links.restoreLinks(t.id);
+  assert.equal(rd(file, "utf8"), "a different file");
+  assert.ok(there(join(homeDir, "Docs", "plan (restored).txt")));
+  // A copy that came from Hermes Notes, with no file behind it: listed as only in the apps.
+  const u = tasks.createTask({ title: "From Hermes" });
+  const key = links.filesField(entities.getEntity(u.id));
+  const kept = entities.putFile(Buffer.from("a scan"), "scan.pdf");
+  entities.updateEntity(u.id, { properties: { [key]: [{ ...kept, "hermes-sync:origin": "hermes" }] } });
+  assert.deepEqual(links.unbacked().find((x) => x.id === u.id)?.onlyHere, ["scan.pdf"]);
+});
+
 test("undated notes through the live binding: their file is the truth, renamed and rewritten by a write, made by a create, gone when deleted", async () => {
   const live = await import("../src/interchange.js");
   const pagesM = await import("../src/pages.js");

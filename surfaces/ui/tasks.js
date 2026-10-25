@@ -325,7 +325,29 @@
 
   // ---------------------------------------------------------------- loading
 
+  /*
+   * Files with no file of yours behind them, across every task: linked files
+   * gone from disk, and copies from Hermes Notes never saved as a file. Said
+   * in the header, so they are found without opening each task.
+   */
+  async function drawUnbacked() {
+    const b = $("unbacked");
+    if (!b) return;
+    const rows = await api("GET", "/files/unbacked").catch(() => []);
+    const n = rows.reduce((k, r) => k + r.missing.length + r.onlyHere.length, 0);
+    b.hidden = !n;
+    b.textContent = `⚠ ${n} file${n === 1 ? "" : "s"} with no local copy`;
+    b.onclick = (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      menuAt(r.left, r.bottom + 4, rows.map((x) => ({
+        label: `${x.title} — ${[x.missing.length ? `${x.missing.length} missing` : "", x.onlyHere.length ? `${x.onlyHere.length} only in the apps` : ""].filter(Boolean).join(", ")}`,
+        act: () => openTask(x.id),
+      })));
+    };
+  }
+
   async function loadSide() {
+    drawUnbacked();
     const [l, p, c] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => [])]);
     lists = l || [];
     projects = p || [];
@@ -976,10 +998,15 @@
       $("s-files").replaceChildren(
         ...files.map((a) => {
           const link = a["talaris:link"], missing = a["talaris:missing"];
-          return el("span", { class: "chip-p" + (link ? " linked" : "") + (missing ? " missing" : ""),
-            title: link ? (missing ? `${a.filename} is not at ${link.path} any more` : `Open ${link.path}`) : `Open ${a.filename} (a copy kept with the task)`,
+          // A copy that came from Hermes Notes with no file of yours behind it: warned about, and one right-click from being saved and linked.
+          const onlyHere = !link && a["hermes-sync:origin"];
+          return el("span", { class: "chip-p" + (link ? " linked" : "") + (missing ? " missing" : "") + (onlyHere ? " only-here" : ""),
+            title: link ? (missing ? `${a.filename} is not at ${link.path} any more — Hermes Notes has the last copy: Restore missing files` : `Open ${link.path}`)
+              : onlyHere ? `${a.filename}: only kept inside Talaris and Hermes Notes, no file of yours — right-click to save it to the project and link it`
+              : `Open ${a.filename} (a copy kept with the task)`,
             onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
             oncontextmenu: (e) => fileMenu(e, a) },
+            missing || onlyHere ? el("span", { class: "warn-mark" }, "⚠") : null,
             link ? el("span", { class: "link-mark" }, "↗") : null,
             el("span", { class: "fname" }, a.filename),
             el("button", { title: link ? "Take the link off the task (the file stays)" : "Take off the task", onclick: (e) => {
@@ -997,7 +1024,8 @@
     $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
     // Where else it lives (a sync's way back), beside its own buttons.
     // And what plugins put on a task (Sync now).
-    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api)] : []));
+    // A plugin's button done (a file restored, say): the task read again, so what changed shows.
+    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => { loadEditing(); drawUnbacked(); })] : []));
   }
 
   // Title and notes are the editor, so @ names anything in them (mentions.js);

@@ -7,6 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { getEntity, types } from "./entities.js";
+import { restoreLinks, unbacked } from "./links.js";
 import { createObject, getInterchangeFile, liveManifest, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { CONFIG_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
@@ -91,6 +92,8 @@ export interface ActionDecl {
   on: string[];
   tool: string;
   when?: string;
+  /** Shown only on a thing in this state: `missing-files` — a linked file gone from disk (links.ts). */
+  only?: string;
 }
 export interface Manifest {
   id: string;
@@ -174,7 +177,8 @@ export function readManifest(dir: string): Manifest {
     if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or undated note sheets, or the people, tasks or notes lists`);
     if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
     if (a.when !== undefined && !settings.some((s) => s.key === a.when && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names one of its yes-or-no settings`);
-    return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}) };
+    if (a.only !== undefined && a.only !== "missing-files") throw new Conflict(`action ${a.id}'s only is missing-files`);
+    return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}), ...(a.only ? { only: a.only as string } : {}) };
   });
   const read = kinds(p.read);
   const write = kinds(p.write);
@@ -401,7 +405,7 @@ class Running {
         protocolVersion: PROTOCOL,
         // Talaris's extension (DESIGN, *The protocol*): what a plugin may ask, said once, up front.
         // Its settings come with the greeting, so the first call has them; changes follow as notifications.
-        capabilities: { experimental: { talaris: { version: 1, requests: ["talaris/settings", "talaris/interchange", "talaris/notify", "talaris/status", "talaris/decide"],
+        capabilities: { experimental: { talaris: { version: 1, requests: ["talaris/settings", "talaris/interchange", "talaris/notify", "talaris/status", "talaris/decide", "talaris/restoreLinks"],
           settings: settingsFor(this.manifest) } } },
         clientInfo: { name: "talaris", version: "0.1.0" },
       }, 20_000)) as { serverInfo?: { name?: string } };
@@ -492,6 +496,14 @@ class Running {
         return reply({});
       }
       if (method === "talaris/interchange") return reply(interchangeFor(this.manifest, params));
+      // Missing linked files put back from copies it handed over first (links.ts) — on things it may change.
+      if (method === "talaris/restoreLinks") {
+        const id = String(params.entity ?? "");
+        let typeId: string | undefined;
+        try { typeId = getEntity(id).type; } catch { return refuse(-32000, `no object ${id}`); }
+        if (!kindsOfType(typeId).some((k) => this.manifest.permissions.write.includes(k))) return refuse(-32000, "its manifest does not ask to change that kind of thing");
+        return reply(restoreLinks(id));
+      }
       return refuse(-32601, `Talaris has no ${method}`);
     } catch (e) {
       return refuse(-32000, (e as Error).message);
@@ -709,11 +721,13 @@ export function pluginApps(): { plugin: string; pluginName: string; id: string; 
  * running plugin's that are on it — and whose `when` setting, if they name
  * one, is on.
  */
-export function pluginActions(kind: string): { plugin: string; pluginName: string; id: string; label: string }[] {
+export function pluginActions(kind: string, entity?: string): { plugin: string; pluginName: string; id: string; label: string }[] {
   const k = kindOf(kind);
+  // `only`: shown on a thing in that state — asked of the thing, once, if any action wants it.
+  const missing = entity ? unbacked().some((u) => u.id === entity && u.missing.length) : false;
   return [...running.values()].filter((r) => r.state === "running").flatMap((r) => {
     const mine = settingsShown(r.manifest);
-    return (r.manifest.actions ?? []).filter((a) => a.on.includes(k) && (!a.when || mine[a.when] === true))
+    return (r.manifest.actions ?? []).filter((a) => a.on.includes(k) && (!a.when || mine[a.when] === true) && (a.only !== "missing-files" || missing))
       .map((a) => ({ plugin: r.manifest.id, pluginName: r.manifest.name, id: a.id, label: a.label }));
   });
 }

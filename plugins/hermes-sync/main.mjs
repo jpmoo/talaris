@@ -77,6 +77,32 @@ const files = {
     if (!res.ok) throw new Error(`Hermes Notes refused a file: ${res.status}`);
   },
 };
+/**
+ * Linked files gone from disk on one Talaris thing, put back: each fetched by
+ * its hash from Hermes Notes (which kept the last synced version), handed to
+ * Talaris's store, and Talaris asked to write them back where they were
+ * (`talaris/restoreLinks`).
+ */
+async function restoreFiles(entity) {
+  if (!entity) return { text: "Which thing?", error: true };
+  const env = await tal("GET", "/interchange");
+  const o = (env.objects ?? []).find((x) => x.id === entity);
+  if (!o) return { text: "That is not something this sync can see.", error: true };
+  const missing = Object.values(o.properties ?? {}).flatMap((v) => (Array.isArray(v) ? v : [v]))
+    .filter((a) => a && a.kind === "attachment" && a["talaris:link"] && a["talaris:missing"]);
+  if (!missing.length) return { text: "No linked file of this one is missing." };
+  const gone = [];
+  for (const a of missing) {
+    const bytes = await files.fetch("hermes", a.sha256).catch(() => null);
+    if (!bytes) { gone.push(a.filename); continue; }
+    await files.give("talaris", a.sha256, bytes);
+  }
+  const r = await talaris("talaris/restoreLinks", { entity });
+  const back = r?.restored ?? 0;
+  const left = [...new Set([...gone, ...(r?.still ?? [])])];
+  return { text: `${back} restored${left.length ? `; Hermes Notes has no copy of ${left.join(", ")}` : ""}.`, error: back === 0 && left.length > 0 };
+}
+
 /** Before a write naming files the side it goes to lacks: each one fetched from the other side and handed over. */
 async function handOver(w) {
   const from = w.side === "talaris" ? "hermes" : "talaris";
@@ -256,6 +282,7 @@ async function decided(item, choice) {
 
 const TOOLS = [
   { name: "sync_now", description: "Sync Talaris with Hermes Notes now.", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: false, title: "Sync with Hermes Notes now" } },
+  { name: "restore_files", description: "Linked files deleted from disk on a Talaris task, person or project, put back from the last copy Hermes Notes holds.", inputSchema: { type: "object", properties: { entity: { type: "string" } }, required: ["entity"] }, annotations: { readOnlyHint: false, title: "Restore missing files from Hermes Notes" } },
   { name: "sync_status", description: "How the sync with Hermes Notes stands: when it last ran, what it wrote, what waits to be decided.", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true, title: "Sync status" } },
 ];
 
@@ -301,6 +328,7 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     if (m.method === "tools/call") {
       // Pressed from a sheet too (a Sync now button: {entity, kind}), and it is the same sync: everything that changed.
       if (m.params?.name === "sync_now") { await sync(true); return reply({ content: [{ type: "text", text: statusText() }], ...(last.error ? { isError: true } : {}) }); }
+      if (m.params?.name === "restore_files") { const r = await restoreFiles(String(m.params?.arguments?.entity ?? "")); return reply({ content: [{ type: "text", text: r.text }], ...(r.error ? { isError: true } : {}) }); }
       if (m.params?.name === "sync_status") return reply({ content: [{ type: "text", text: statusText() }] });
       return reply({ content: [{ type: "text", text: `no tool ${m.params?.name}` }], isError: true });
     }

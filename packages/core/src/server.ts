@@ -414,7 +414,7 @@ route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
 // Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
-route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? ""));
+route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? "", q.get("entity") ?? undefined));
 route("POST", "/plugins/:id/actions/:action", async (req, [id, action]) => {
   const b = await json<{ entity?: string; kind?: string }>(req);
   if (!b.kind) throw new BadRequest("pressed on what?");
@@ -530,6 +530,10 @@ route("POST", "/entities/:id/attachments/:sha/link", async (req, [id, sha]) => {
   const b = await json<{ folder?: string }>(req);
   return links.toLink(id!, sha!, b.folder || filesFolderFor(id!));
 });
+// Missing linked files put back from held copies (links.ts, restoreLinks); and what has no file of yours behind it.
+route("POST", "/entities/:id/links/restore", (_r, [id]) => links.restoreLinks(id!));
+route("GET", "/files/unbacked", () => links.unbacked());
+links.setFallbackFolder(filesFolderFor);
 /** Where a copy saved to be linked goes: the Files folder of the project the thing is filed under, or Home's. */
 function filesFolderFor(id: string): string {
   const e = entities.getEntity(id);

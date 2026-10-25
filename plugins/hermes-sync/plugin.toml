@@ -16,6 +16,10 @@ name = "sync_now"
 description = "Sync with Hermes Notes now, rather than at the next interval"
 
 [[tools]]
+name = "restore_files"
+description = "Put back linked files deleted from disk, from the copies Hermes Notes holds"
+
+[[tools]]
 name = "sync_status"
 description = "When it last synced, what it carried, and what waits to be decided"
 
@@ -129,3 +133,11 @@ label = "Sync all notes"
 on = ["notes"]
 tool = "sync_now"
 when = "buttons"
+
+[[actions]]
+id = "restore"
+label = "Restore missing files"
+on = ["person", "task", "project"]
+tool = "restore_files"
+when = "buttons"
+only = "missing-files"
