@@ -45,6 +45,13 @@ small questions; it reads both libraries only when something has.
 address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
 "Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.
 
+**Sync now, from where you are.** With "Sync now buttons" on (the default), a
+person's entry, Tasks' editor and a project's sheet have a Sync now button (an
+`[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
+changed, not only that one thing: a sync of one alone would move the cursor past
+what it did not look at. It says Done, what went wrong, or how many decisions
+wait in Settings, Plugins.
+
 **Not yet:** attachments (the format has no slot naming the field that holds
 them, and the live binding no way to hand over one file), a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a

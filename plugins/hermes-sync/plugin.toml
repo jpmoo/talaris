@@ -77,3 +77,18 @@ label = "Every (minutes)"
 kind = "number"
 default = 5
 help = "When nothing has changed, a sync is two small questions; it reads everything only when something has."
+
+[[settings]]
+key = "buttons"
+label = "Sync now buttons"
+kind = "boolean"
+default = true
+help = "A Sync now button on people, tasks and projects in Talaris. It runs the ordinary sync — everything that changed, not just that one — which is quick."
+
+# The button the setting above puts on Talaris's sheets.
+[[actions]]
+id = "sync"
+label = "Sync now"
+on = ["person", "task", "project"]
+tool = "sync_now"
+when = "buttons"

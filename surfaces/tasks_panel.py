@@ -28,7 +28,8 @@ from overlay import Overlay
 import wallpaper
 
 #: What the page may ask the core for.
-ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find|mentionables)(/|$|\?)|^/projects/[A-Za-z0-9_]+/name$")
+# And plugins' buttons on a task or a project (peek.js, actionButtons): listed and pressed, nothing else of plugins.
+ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find|mentionables)(/|$|\?)|^/projects/[A-Za-z0-9_]+/name$|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
 
 
 class TasksBridge(Bridge):

@@ -56,6 +56,47 @@ window.Peek = (() => {
     }
     return out;
   }
+  /*
+   * What plugins put on a sheet (`[[actions]]` in a plugin.toml, the core's
+   * /plugins/actions): a button each — Sync now, from the Hermes Notes sync —
+   * run with what it is on. Drawn into a holder at once and filled when the
+   * core answers; a press under way is remembered by what it is on, so a
+   * sheet drawn again meanwhile still says so.
+   */
+  const pressing = new Map(); // plugin/action/entity → what its button says while it runs, and a moment after
+  function actionButtons(kind, entityId, api, cls = "t-btn") {
+    const holder = el("span", { class: "plugin-actions" });
+    if (!entityId || !api) return holder;
+    api("GET", `/plugins/actions?kind=${encodeURIComponent(kind)}`).then((actions) => {
+      holder.replaceChildren(...(actions || []).map((a) => {
+        const key = `${a.plugin}/${a.id}/${entityId}`;
+        const b = el("button", { class: cls, title: `${a.label} (${a.pluginName})` }, pressing.get(key) || a.label);
+        const say = (text, title, ms) => {
+          pressing.set(key, text);
+          b.textContent = text;
+          if (title) b.title = title;
+          if (ms) setTimeout(() => { if (pressing.get(key) === text) pressing.delete(key); if (b.textContent === text) b.textContent = a.label; }, ms);
+        };
+        if (pressing.has(key)) b.disabled = pressing.get(key).endsWith("…");
+        b.addEventListener("click", () => {
+          if (b.disabled) return;
+          b.disabled = true;
+          say(a.label === "Sync now" ? "Syncing…" : `${a.label}…`);
+          api("POST", `/plugins/${encodeURIComponent(a.plugin)}/actions/${encodeURIComponent(a.id)}`, { entity: entityId, kind })
+            .then((r) => {
+              b.disabled = false;
+              // What came of it, in a word; the whole of what the plugin said on hover.
+              if (r.error) say("Didn't work", r.text, 8000);
+              else if (r.decisions) say(`${r.decisions} to decide`, `${r.text} Decide in Settings, Plugins.`, 8000);
+              else say("Done", r.text, 2500);
+            })
+            .catch((e) => { b.disabled = false; say("Didn't work", e.message, 8000); });
+        });
+        return b;
+      }));
+    }).catch(() => {});
+    return holder;
+  }
   /** "Open in …" buttons for those links; `open(url)` is the page's way to the browser. */
   function elsewhereButtons(entity, open, cls = "t-btn") {
     return elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, onclick: () => open(l.url) }, `Open in ${l.label}`));
@@ -180,5 +221,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons };
 })();

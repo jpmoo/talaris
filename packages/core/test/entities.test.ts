@@ -538,7 +538,7 @@ test("a plugin: installed from a folder, enabled, supervised over MCP, its tools
   assert.equal(plugins.listPlugins()[0]?.state, "disabled", "installing is not enabling");
   plugins.setSettings("hello", { greeting: "Ahoy", token: "s3cret" });
   after(() => plugins.stopPlugins());
-  assert.deepEqual(plugins.listPlugins()[0]?.settings, { greeting: "Ahoy", token: { set: true } }, "a secret is shown only as set");
+  assert.deepEqual(plugins.listPlugins()[0]?.settings, { greeting: "Ahoy", token: { set: true }, button: true }, "a secret is shown only as set");
   plugins.enable("hello", true);
   const until = async (ok: () => boolean) => { for (let n = 0; n < 100 && !ok(); n++) await new Promise((r) => setTimeout(r, 50)); };
   await until(() => plugins.listPlugins()[0]?.state === "running");
@@ -549,6 +549,14 @@ test("a plugin: installed from a folder, enabled, supervised over MCP, its tools
   const counted = (await plugins.callPluginTool("hello", "count_open_tasks", {})) as { content: { text: string }[] };
   assert.match(counted.content[0]!.text, /^\d+ open task/);
   assert.match(plugins.listPlugins()[0]!.status, /open task/, "it set a line about itself");
+  // Its button: on a task's sheet, not a person's; pressed, its tool runs; its setting off, gone.
+  assert.deepEqual(plugins.pluginActions("task").map((a) => a.id), ["count"]);
+  assert.deepEqual(plugins.pluginActions("person"), []);
+  const pressed = await plugins.runAction("hello", "count", "e_any", "task");
+  assert.match(pressed.text, /^\d+ open task/);
+  assert.equal(pressed.error, false);
+  plugins.setSettings("hello", { button: false });
+  assert.deepEqual(plugins.pluginActions("task"), [], "its setting off, the button is gone");
   try {
     const left = (await plugins.callPluginTool("hello", "leave_a_note", { words: "from a plugin" })) as { content: { text: string }[] };
     assert.match(left.content[0]!.text, /Left a note/);

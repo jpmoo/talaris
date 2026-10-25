@@ -39,3 +39,20 @@ key = "token"
 label = "A secret"
 kind = "secret"
 help = "Kept in the login keyring; shown here only as set or not."
+
+[[settings]]
+key = "button"
+label = "A button on tasks"
+kind = "boolean"
+default = true
+help = "Puts Count open tasks on every task's sheet."
+
+# A button on Talaris's own sheets — a task's, here — running one of its
+# tools with what it was pressed on ({entity, kind}); shown only while the
+# setting it names (`when`) is on.
+[[actions]]
+id = "count"
+label = "Count open tasks"
+on = ["task"]
+tool = "count_open_tasks"
+when = "button"

@@ -18,6 +18,12 @@ in a hundred lines with no dependencies: copy it, change the id, and it is yours
     `icon`. While the plugin is enabled, Talaris gives each a window of its own with
     a kept sign-in, a launcher entry, a place in the dock, and its key — one window,
     brought forward if open.
+  - `[[actions]]` — a button it puts on Talaris's own sheets: `id`, `label`, `on`
+    (`task`, `project`, `person`), `tool` (one of its `[[tools]]`, called with
+    `{entity, kind}` — what it was pressed on), and `when`, one of its `boolean`
+    settings, to show it only while that is on. The button says what came of it:
+    done, the plugin's error, or how many decisions it now waits on. (Hello's puts
+    "Count open tasks" on every task.)
   - `[[settings]]` — `key`, `label`, `kind` (`text`, `secret`, `choice`, `boolean`,
     `number`), `choices`, `default`, `help`. Secrets live in the login keyring.
 - Installed is a copy in `~/.local/share/talaris/plugins/<id>/` (Settings, Plugins:

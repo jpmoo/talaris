@@ -256,7 +256,8 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     if (m.method === "ping") return reply({});
     if (m.method === "tools/list") return reply({ tools: TOOLS });
     if (m.method === "tools/call") {
-      if (m.params?.name === "sync_now") { await sync(true); return reply({ content: [{ type: "text", text: statusText() }] }); }
+      // Pressed from a sheet too (a Sync now button: {entity, kind}), and it is the same sync: everything that changed.
+      if (m.params?.name === "sync_now") { await sync(true); return reply({ content: [{ type: "text", text: statusText() }], ...(last.error ? { isError: true } : {}) }); }
       if (m.params?.name === "sync_status") return reply({ content: [{ type: "text", text: statusText() }] });
       return reply({ content: [{ type: "text", text: `no tool ${m.params?.name}` }], isError: true });
     }

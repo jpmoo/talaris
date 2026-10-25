@@ -385,7 +385,8 @@
         ].filter(Boolean), e.currentTarget);
       } });
     // Where else they live (a sync's way back to them), under their name.
-    const elsewhere = window.Peek ? Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u)) : [];
+    // And what plugins put on a person (Sync now), filled in when the core answers.
+    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("person", got.entity.id, api)] : [];
     return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);
   }
 

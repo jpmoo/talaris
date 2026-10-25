@@ -372,6 +372,13 @@ route("GET", "/interchange/export", () => exportEnvelope());
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
+// Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
+route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? ""));
+route("POST", "/plugins/:id/actions/:action", async (req, [id, action]) => {
+  const b = await json<{ entity?: string; kind?: string }>(req);
+  if (!b.entity || !b.kind) throw new BadRequest("pressed on what?");
+  return plugins.runAction(id!, action!, b.entity, b.kind);
+});
 route("POST", "/plugins/install", async (req) => {
   const b = await json<{ from?: string; replace?: boolean }>(req);
   if (!b.from) throw new BadRequest("install from a folder or a git address");

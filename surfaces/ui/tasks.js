@@ -635,6 +635,8 @@
           });
           return b;
         })() : null,
+        // What plugins put on a project (Sync now).
+        window.Peek ? Peek.actionButtons("project", p.id, api) : null,
         el("span", { class: "spacer" }),
         el("button", { type: "button", class: "t-btn", onclick: close }, "Cancel"),
         el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Done")));
@@ -967,7 +969,8 @@
     $("s-done").textContent = stamp.day ? `Done ${stamp.day.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${stamp.time != null ? `, ${timeLabel(stamp.time)}` : ""}` : "";
     $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
     // Where else it lives (a sync's way back), beside its own buttons.
-    $("s-elsewhere").replaceChildren(...(window.Peek ? Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)) : []));
+    // And what plugins put on a task (Sync now).
+    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api)] : []));
   }
 
   // Title and notes are the editor, so @ names anything in them (mentions.js);

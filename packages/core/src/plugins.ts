@@ -74,6 +74,20 @@ export interface AppDecl {
   /** An image in the plugin's folder, for the dock and the launcher. */
   icon?: string;
 }
+/**
+ * A button a plugin offers on Talaris's own sheets (`[[actions]]`): on a
+ * person, a task or a project, running one of its tools with the thing it
+ * was pressed on (`{entity, kind}`). Shown while the plugin runs — and,
+ * naming one of its yes-or-no settings (`when`), only while that is on.
+ */
+export interface ActionDecl {
+  id: string;
+  label: string;
+  /** Which sheets: task, project, contact (a person). */
+  on: string[];
+  tool: string;
+  when?: string;
+}
 export interface Manifest {
   id: string;
   name: string;
@@ -86,6 +100,7 @@ export interface Manifest {
   command: string[];
   tools: ToolDecl[];
   apps: AppDecl[];
+  actions: ActionDecl[];
   settings: SettingDef[];
   permissions: {
     read: string[];
@@ -146,6 +161,17 @@ export function readManifest(dir: string): Manifest {
     if (a.key !== undefined && (typeof a.key !== "string" || !/^[A-Z ]*,\s*\S+$/.test(a.key))) throw new Conflict(`app ${a.id}'s key is Hyprland's form, e.g. "SUPER SHIFT, H"`);
     return { id: a.id, name: a.name.trim(), url: a.url.trim(), ...(typeof a.key === "string" ? { key: a.key } : {}), ...(typeof a.icon === "string" ? { icon: a.icon } : {}) };
   });
+  const actions = (Array.isArray(t.actions) ? t.actions : []).map((x, n) => {
+    const a = x as Record<string, unknown>;
+    if (typeof a.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,30}$/.test(a.id)) throw new Conflict(`actions ${n + 1} needs an id of lowercase letters, digits and dashes`);
+    if (typeof a.label !== "string" || !a.label.trim()) throw new Conflict(`action ${a.id} needs a label`);
+    const on = strs(a.on).map(kindOf);
+    const sheets = ["task", "project", "contact"];
+    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project or person sheets`);
+    if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
+    if (a.when !== undefined && !settings.some((s) => s.key === a.when && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names one of its yes-or-no settings`);
+    return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}) };
+  });
   const read = kinds(p.read);
   const write = kinds(p.write);
   return {
@@ -154,7 +180,7 @@ export function readManifest(dir: string): Manifest {
     ...(typeof t.author === "string" ? { author: t.author } : {}),
     ...(typeof t.license === "string" ? { license: t.license } : {}),
     ...(typeof t.homepage === "string" ? { homepage: t.homepage } : {}),
-    command, tools, apps, settings,
+    command, tools, apps, actions, settings,
     // Changing a kind means reading it: a write permission brings the read with it.
     permissions: { read: [...new Set([...read, ...write])], write, notify: p.notify === true, network: strs(p.network), files: strs(p.files) },
   };
@@ -658,6 +684,35 @@ export function pluginApps(): { plugin: string; pluginName: string; id: string; 
         ...(icon && icon.startsWith(p.dir + "/") && existsSync(icon) ? { icon } : {}) }];
     });
   });
+}
+
+/**
+ * The buttons plugins offer on one kind of sheet (`[[actions]]`): every
+ * running plugin's that are on it — and whose `when` setting, if they name
+ * one, is on.
+ */
+export function pluginActions(kind: string): { plugin: string; pluginName: string; id: string; label: string }[] {
+  const k = kindOf(kind);
+  return [...running.values()].filter((r) => r.state === "running").flatMap((r) => {
+    const mine = settingsShown(r.manifest);
+    return (r.manifest.actions ?? []).filter((a) => a.on.includes(k) && (!a.when || mine[a.when] === true))
+      .map((a) => ({ plugin: r.manifest.id, pluginName: r.manifest.name, id: a.id, label: a.label }));
+  });
+}
+
+/**
+ * An action pressed: its tool run with what it was pressed on. Answers what
+ * the tool said, and how many decisions the plugin is waiting on now, so the
+ * button can say "2 to decide" rather than "done".
+ */
+export async function runAction(id: string, action: string, entity: string, kind: string): Promise<{ text: string; error: boolean; decisions: number }> {
+  const r = running.get(id);
+  if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
+  const a = (r.manifest.actions ?? []).find((x) => x.id === action);
+  if (!a) throw new NotFound(`${r.manifest.name} offers no ${action}`);
+  const res = await callPluginTool(id, a.tool, { entity, kind: kindOf(kind) }) as { content?: { type: string; text?: string }[]; isError?: boolean };
+  const text = (res?.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n").trim();
+  return { text, error: Boolean(res?.isError), decisions: running.get(id)?.decisions.length ?? 0 };
 }
 
 /** Every running plugin's tools, for Talaris's MCP to pass to Morgan. */
