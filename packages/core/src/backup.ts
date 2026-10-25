@@ -197,8 +197,9 @@ export function startSchedule(): void {
     const s = dataSettings();
     if (!s.schedule || s.schedule === "off") return;
     const every = s.schedule === "weekly" ? 7 * DAY : DAY;
-    const last = readStatus().last;
-    if (last && Date.now() - Date.parse(last.at) < every) return;
+    // The newest backup in the folder set now: one made before the folder changed is not there, and does not count.
+    const newest = listBackups(folder())[0];
+    if (newest && Date.now() - Date.parse(newest.at) < every) return;
     try {
       backupNow("scheduled");
       console.log("talaris-core: backed up");
