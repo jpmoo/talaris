@@ -189,7 +189,8 @@ function twisty(key, hasKids, kids, shut, store) {
  * Both lists — the writing pages, the canvases — in the viewer's chosen order
  * (kept in this page's storage, per list): as dragged (Manual), by when last
  * edited or made, newest first, or by name. Starred ones, however deep, are
- * also gathered at the top of the list, in the same order. Dragging a row
+ * also gathered at the top of the list — always in an order of their own,
+ * by hand (dragged there; the newly starred last). Dragging a row
  * among its siblings sets the order by hand, which the core keeps for
  * everyone, and turns the list to Manual to show it.
  */
@@ -211,9 +212,12 @@ function sorted(nodes, list) {
 
 /**
  * The starred, from anywhere in the tree, as a section of their own at the top:
- * each a row that opens it, with where it lives beneath its name.
+ * each a row that opens it, with where it lives beneath its name. In the
+ * order they were dragged into (`kept`, keys as `keyOf` gives them), then the
+ * rest as the tree has them; dragged among themselves, the new order is
+ * handed to `commit`.
  */
-function starredSection(roots, list, row) {
+function starredSection(roots, list, keyOf, kept, row, commit) {
   const found = [];
   const walk = (nodes, trail) => {
     for (const n of nodes) {
@@ -223,10 +227,16 @@ function starredSection(roots, list, row) {
   };
   walk(roots, []);
   if (!found.length) return "";
-  const order = sorted(found.map((f) => f.n), list);
+  const rank = (f) => { const i = kept.indexOf(keyOf(f.n)); return i < 0 ? kept.length : i; };
+  const order = found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map((x) => x.f);
+  const keys = order.map((f) => keyOf(f.n));
   return el("div", { class: "starred" },
     el("div", { class: "label section" }, "STARRED"),
-    ...order.map((n) => row(n, found.find((f) => f.n === n).trail.join(" / "))));
+    ...order.map((f) => {
+      const r = row(f.n, f.trail.join(" / "));
+      dragRow(r, `${list}-starred`, "", keyOf(f.n), keys, commit);
+      return r;
+    }));
 }
 
 /** The list's order, chosen from a small menu under its button. */
@@ -361,8 +371,11 @@ async function loadCanvas() {
   const star = (node) => starButton(node.starred, async (on) => { await core("PUT", `/projects/${pid}/canvases/${node.id}/star`, { starred: on }); loadCanvas(); });
   const starredRow = (node, where) => el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id), ondblclick: () => renameCanvas(node) },
     el("span", { class: "starred-t" }, node.title, where ? el("span", { class: "where" }, where) : ""), star(node));
+  const kept = await core("GET", `/projects/${pid}/starred-order`).catch(() => ({ canvases: [] }));
   const treePane = el("div", { class: "tree canvas-tree" }, sortButton("canvas", loadCanvas),
-    starredSection(tree.children, "canvas", starredRow), walk(tree, null, []));
+    starredSection(tree.children, "canvas", (n) => n.id, kept.canvases || [], starredRow,
+      async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "canvases", keys }); loadCanvas(); }),
+    walk(tree, null, []));
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
@@ -661,6 +674,7 @@ async function loadWriting() {
   let count = 0;
   const pid = state.project.id;
   const star = (n) => starButton(n.starred, async (on) => { await core("PUT", `/projects/${pid}/page/star?path=${encodeURIComponent(n.path)}`, { starred: on }); loadWriting(); });
+  const kept = await core("GET", `/projects/${pid}/starred-order`).catch(() => ({ pages: [] }));
   const starredRow = (n, where) => el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
     el("span", { class: "starred-t" }, n.title, where ? el("span", { class: "where" }, where) : ""), star(n));
   const branch = (nodes, parent) => {
@@ -683,7 +697,8 @@ async function loadWriting() {
     dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
     dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
     pages.length ? sortButton("writing", loadWriting) : "",
-    starredSection(pages, "writing", starredRow),
+    starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
+      async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     pages.length ? branch(pages, "") : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));

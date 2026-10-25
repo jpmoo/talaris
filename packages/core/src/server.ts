@@ -8,6 +8,7 @@ import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
 import { glance, nearProject } from "./glance.js";
+import { setStarredOrder, starredOrder } from "./starred.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
 import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
@@ -195,6 +196,12 @@ route("POST", "/projects/:id/pages", async (req, [id]) => {
 route("PUT", "/projects/:id/page/star", async (req, [id], q) => {
   starPage(id!, need(q, "path"), Boolean((await json<{ starred?: boolean }>(req)).starred));
   return { ok: true };
+});
+route("GET", "/projects/:id/starred-order", (_r, [id]) => starredOrder(id!));
+route("PUT", "/projects/:id/starred-order", async (req, [id]) => {
+  const b = await json<{ kind?: string; keys?: string[] }>(req);
+  if (b.kind !== "pages" && b.kind !== "canvases") throw new BadRequest("kind is pages or canvases");
+  return setStarredOrder(id!, b.kind, b.keys ?? []);
 });
 route("PUT", "/projects/:id/pages/order", async (req, [id]) => {
   const b = await json<{ parent?: string | null; names?: string[] }>(req);

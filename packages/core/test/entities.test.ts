@@ -370,6 +370,12 @@ test("pages and canvases: named for when they were made, starred, and in an orde
   const tree = pages.pageTree(p.id);
   assert.deepEqual(tree.map((n) => n.title), ["Alpha", "Beta", a.title]);
   assert.equal(tree[0]?.starred, true);
+  const starred = await import("../src/starred.js");
+  pages.createPage(p.id, "Beta", "Inner");
+  starred.setStarredOrder(p.id, "pages", ["Beta/Inner", "Alpha"]);
+  pages.movePage(p.id, "Beta", null, "Gamma");
+  assert.deepEqual(starred.starredOrder(p.id).pages, ["Gamma/Inner", "Alpha"], "the starred order follows a rename");
+  pages.movePage(p.id, "Gamma", null, "Beta");
   assert.ok(tree.every((n) => n.created && n.modified));
   const top = canvases.canvasTree(p.id);
   const one = canvases.createChild(p.id, top.id, "One").canvas;

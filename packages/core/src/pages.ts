@@ -8,6 +8,7 @@ import { MACHINERY, WRITING, stamp } from "./paths.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
+import { starredPageMoved } from "./starred.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 
 /**
@@ -271,6 +272,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
     writeJson(join(machinery, LOOK), moved);
   }
   movedText({ kind: "page", key: `${projectId}/${from}` }, { kind: "page", key: `${projectId}/${to}` });
+  starredPageMoved(projectId, from, to);
   return { path: to, title, children: [] };
 }
 
