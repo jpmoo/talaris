@@ -177,9 +177,10 @@ const taskLine = (r: TaskRow) => {
 
 /** A project named by id or by title (exact, then part of one). */
 async function projectId(name: string): Promise<string> {
-  const all = await core<{ id: string; title: string }[]>("GET", "/tasks/projects");
+  const all = await core<{ id: string; title: string; workspace?: string }[]>("GET", "/tasks/projects");
   const n = name.toLowerCase();
-  const hit = all.find((p) => p.id === name) ?? all.find((p) => p.title.toLowerCase() === n) ?? all.find((p) => p.title.toLowerCase().includes(n));
+  // Its desktop's id too (prj_…, what talaris_now and the desktop tools name it by): the same project.
+  const hit = all.find((p) => p.id === name) ?? all.find((p) => p.workspace === name) ?? all.find((p) => p.title.toLowerCase() === n) ?? all.find((p) => p.title.toLowerCase().includes(n));
   if (!hit) throw new Error(`no project called ${name}`);
   return hit.id;
 }
@@ -189,7 +190,7 @@ TOOLS.push(
     name: "talaris_tasks",
     description: "Find tasks in Talaris: by when (overdue, today — which includes overdue, tomorrow, week, available, unscheduled, or a YYYY-MM-DD date to mean due by then), status (one of not_started, in_progress, blocked, done, archived, wont_do; or open; or complete), project, tag, words, or a list's id.",
     inputSchema: { type: "object", properties: {
-      when: { type: "string" }, status: { type: "string" }, project: { type: "string", description: "Its name or id." },
+      when: { type: "string" }, status: { type: "string" }, project: { type: "string", description: "Its name or id — either id, its own or its desktop's (from talaris_now for \"this project\")." },
       tag: { type: "string" }, text: { type: "string" }, list: { type: "string" }, limit: { type: "number" },
     } },
     annotations: { readOnlyHint: true, title: "Find tasks in Talaris" },
