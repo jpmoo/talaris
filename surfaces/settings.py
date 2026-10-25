@@ -53,7 +53,7 @@ LEAVE_LIMIT_MS = 1600
 
 FONTS = ["Barlow Semi Condensed", "Rajdhani", "Saira Semi Condensed", "Exo 2"]
 EDGES = ("top", "bottom", "left", "right")
-LAUNCHER_KEYS = ("SUPER ALT, SPACE", "SUPER, SPACE")
+LAUNCHER_KEYS = ("SUPER, SPACE",)
 DATE_STYLES = ("weekday-month-day", "weekday-day-month", "month-day", "day-month", "iso", "off")
 
 #: The Morgan calls this page may make, and nothing else.
@@ -170,7 +170,7 @@ class SettingsBridge(Bridge):
     @Slot(result=str)
     def config(self) -> str:
         return json.dumps({"config": self.owner.desktop.config, "fonts": FONTS,
-                           "launcherKeys": list(LAUNCHER_KEYS), "defaults": DEFAULTS})
+                           "defaults": DEFAULTS})
 
     @Slot(str, result=str)
     def save(self, text: str) -> str:

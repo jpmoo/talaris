@@ -25,7 +25,6 @@ import json
 import mimetypes
 import os
 import subprocess
-import time
 import sys
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery
@@ -97,11 +96,13 @@ def register_scheme() -> None:
     QWebEngineUrlScheme.registerScheme(scheme)
 
 
-#: The letters Super+Alt jumps to a project by (jump_panel.py).
-JUMP_LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
-#: Super and Alt let go, by whichever goes first: a release bind on a modifier
-#: counts that modifier as still held, so it is SUPER ALT either way.
-JUMP_OPEN = ("SUPER ALT, Alt_L", "SUPER ALT, Alt_R", "SUPER ALT, Super_L", "SUPER ALT, Super_R")
+#: The project carousel (jump_panel.py), and putting every panel away.
+PROJECTS_KEYS = "SUPER, TAB"
+FILE_ALL_KEYS = "SUPER, ESCAPE"
+#: What Super+Alt was once bound to — the project jump, its letters, the old way
+#: to put everything away — unbound at start, so a crash's leftovers do not stay.
+RETIRED = (*(f"SUPER ALT, {chr(c)}" for c in range(ord("A"), ord("Z") + 1)),
+           "SUPER ALT, Alt_L", "SUPER ALT, Alt_R", "SUPER ALT, Super_L", "SUPER ALT, Super_R", "SUPER ALT, ESCAPE", "SUPER ALT, SPACE")
 
 class Files(QWebEngineUrlSchemeHandler):
     """The pages' own files and applications' icons, and nothing else — every one a GET, so no request body is ever touched."""
@@ -223,7 +224,7 @@ class Desktop(QObject):
         self.archive = Archive(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
-        # Project jump: Super+Alt+a letter.
+        # The project carousel: Super+Tab.
         self.jump = Jump(profile, self)
         # Notifications: Talaris's own, in place of mako; the bar's bell lists them.
         self.notifications = Notifications(self, profile)
@@ -374,18 +375,12 @@ class Desktop(QObject):
         self.style_compositor()
         for name, keys in (("canvas", "SUPER SHIFT, C"), ("writing", "SUPER SHIFT, W")):
             hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
-        # Super+Alt and a letter: the project starting with it, or a choice of them.
-        for letter in JUMP_LETTERS:
-            hypr.bind(f"SUPER ALT, {letter}", f"{LAUNCHER} --jump {letter.lower()}")
-        # Super+Alt alone, whichever goes down second: every project, to type into.
-        # On release, and only if nothing else was pressed meanwhile: Super+Alt+Space (the
-        # launcher) and Super+Alt+a letter go down through Super+Alt, and must not open it.
-        for keys in JUMP_OPEN:
-            hypr.bind(keys, f"{LAUNCHER} --jump-open", flags="r")
         # The forms these were bound as before, gone if a crash left them.
-        for keys in ("SUPER, Alt_L", "SUPER, Alt_R", "ALT, Super_L", "ALT, Super_R"):
+        for keys in ("SUPER, Alt_L", "SUPER, Alt_R", "ALT, Super_L", "ALT, Super_R", *RETIRED):
             hypr.unbind(keys)
-        hypr.bind("SUPER ALT, ESCAPE", f"{LAUNCHER} --file-all")
+        # Super+Tab: the projects, most recent first; again while it is out, the next one.
+        hypr.bind(PROJECTS_KEYS, f"{LAUNCHER} --projects")
+        hypr.bind(FILE_ALL_KEYS, f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
@@ -399,7 +394,7 @@ class Desktop(QObject):
             self.webapps.rebind()
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), *JUMP_OPEN, "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -523,6 +518,7 @@ class Desktop(QObject):
                 self.osd.announce(found.get("name", ""), found.get("code", ""))
             return
         self.project = found
+        self.jump.went(found["id"])
         for w in self.workspaces.values():
             w.bridge.state.emit(json.dumps(w.describe()))
         self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
@@ -715,13 +711,8 @@ class Desktop(QObject):
                 self.archive.toggle()
             elif verb == "new":
                 self.new.toggle()
-            elif verb == "jump" and len(arg) == 1 and arg.isalpha():
-                self.keyed_at = time.monotonic()
-                self.jump.jump(arg)
-            elif verb == "jump-open":
-                # Let go after Super+Alt+Space or Super+Alt+a letter: that key was the point, not the list.
-                if time.monotonic() - getattr(self, "keyed_at", 0) > 1.0 and not self.launcher.up:
-                    self.jump.show_all()
+            elif verb == "projects":
+                self.jump.carousel()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)
@@ -730,9 +721,6 @@ class Desktop(QObject):
             elif verb == "lid":
                 self.power.lid(arg)
             elif verb == "launcher":
-                # Super+Alt+Space went by way of Super+Alt, which brought out the project list.
-                self.keyed_at = time.monotonic()
-                self.jump.file_away()
                 self.launcher.toggle(arg)
             elif verb == "popup":
                 self.bar.toggle_popup(arg)
@@ -784,10 +772,8 @@ def main() -> int:
         return send("archive")
     if args[:1] == ["--new"]:
         return send("new")
-    if args[:1] == ["--jump-open"]:
-        return send("jump-open")
-    if args[:1] == ["--jump"] and len(args) == 2:
-        return send(f"jump {args[1]}")
+    if args[:1] == ["--projects"]:
+        return send("projects")
     if args[:1] == ["--window"] and len(args) == 2:
         return send(f"window {args[1]}")
     if args[:1] == ["--lid"] and len(args) == 2:

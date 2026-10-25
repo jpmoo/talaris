@@ -1115,12 +1115,15 @@ from the profiles — so a field added to a type is offered there too; only one
 the core fills itself (`talaris:auto`, a task's `done_at`) is left out. An
 event is the calendar's and gets the calendar's form.
 
-**Project jump**: Super+Alt brings every project up in a short list over the
-dimmed screen; letters typed — with Super+Alt still held, or after — narrow
-it, and it goes the moment one is left; with more, arrows and Enter or a
-click. Wherever a key changed the project, the on-screen display says which.
-That took Super+Alt for letters, so the canvas and the writing surface moved
-to Super+Shift+C and Super+Shift+W.
+**The project carousel**: Super+Tab brings every project up in a ring over
+the dimmed screen, most recent first, turned to the one before this — so
+Super+Tab and Enter is back where you were. Left and Right (Tab, the wheel,
+or Super+Tab again) turn it; letters narrow it to the projects with them
+anywhere in the name, still most recent first, and it goes the moment one is
+left; Enter or a click goes to the one in front. Wherever a key changed the
+project, the on-screen display says which. It replaced the Super+Alt jump
+(Super+Alt and a letter, or held while typing), which was slow to reach for;
+Super+Alt is no longer bound at all.
 
 **A project is a desktop**: its Hyprland workspace, named by its id, empty
 the first time it is gone to. **Home is the ordinary, numbered workspaces**,
@@ -1252,9 +1255,8 @@ of it and comes out at the end.
    out over windows, with every way back.~~ **First pass done** — `surfaces/`,
    `talaris-surfaces.service`, started by `~/.config/hypr/talaris.conf`. The
    canvas and writing drawers, filed as handles, out on an empty workspace,
-   pulled over windows (Super+Shift+C, Super+Shift+W — once Super+Alt+C and
-   W, until Super+Alt+a letter became the project jump), back on the same keys,
-   Super+Alt+Escape, Escape, or 45 idle seconds. Writing pages are real, and
+   pulled over windows (Super+Shift+C, Super+Shift+W), back on the same keys,
+   Super+Escape, Escape, or 45 idle seconds. Writing pages are real, and
    the canvas has come across (`packages/canvas`): notes, shapes, connections,
    regions, panning and zooming, child canvases as cards that open on a
    double-click, a trail in the header. Pictures, library blocks and export
@@ -1287,8 +1289,8 @@ of it and comes out at the end.
    own group, and choosing one opens Morgan's panel at that conversation.
    Offline, the launcher is as it is. Possibly a setting to keep launcher
    queries on the laptop.
-   **First pass done** (`surfaces/launcher.py`, `ui/launcher.js`): Super+Alt+Space
-   (Super+Space when Noctalia goes), or the bar's box; Morgan's button opens it
+   **First pass done** (`surfaces/launcher.py`, `ui/launcher.js`): Super+Space,
+   or the bar's box; Morgan's button opens it
    already asking. Projects, open windows, the current project's canvases,
    pages and files, applications, and verbs (the drawers, the power menu's
    five). The process gathers on each open and the page ranks as you type:

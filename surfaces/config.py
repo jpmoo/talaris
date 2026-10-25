@@ -43,7 +43,7 @@ DEFAULTS = {
     # singleWindow: an application that keeps one window, open in another
     # project and started from the launcher in this one — brought here
     # ("bring"), or gone to where it is ("go"). Shift+Enter does the other.
-    "launcher": {"keys": "SUPER ALT, SPACE", "singleWindow": "bring"},
+    "launcher": {"keys": "SUPER, SPACE", "singleWindow": "bring"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
     "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "glance": "windows", "new": "windows", "jump": "windows",
@@ -126,6 +126,9 @@ def load_config() -> dict:
             config[key] = value
     settle_accent(config["theme"])
     settle_opacity(config)
+    # Super+Alt is retired (Super+Tab is the projects): a launcher kept on Super+Alt+Space moves to Super+Space.
+    if config["launcher"].get("keys") != "SUPER, SPACE":
+        config["launcher"]["keys"] = "SUPER, SPACE"
     return config
 
 

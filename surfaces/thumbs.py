@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Jeff Moore
 """
 Project thumbnails: what each project's desktop looked like when last seen,
-for the bar's project menu and the Super+Alt list — so a project is found by
+for the bar's project menu and the project carousel — so a project is found by
 its look as well as its name.
 
 A small picture of the screen (grim), taken a moment after a project becomes

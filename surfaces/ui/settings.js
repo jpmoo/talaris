@@ -11,7 +11,6 @@ const $ = (id) => document.getElementById(id);
 let bridge = null;
 let cfg = null;
 let fonts = [];
-let launcherKeys = [];
 
 // The accents of the approved theme (design/theme-tuner.html); any other by its hex.
 const ACCENTS = ["#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
@@ -188,8 +187,6 @@ function draw() {
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
 
   // Keys.
-  seg("launcher-keys", launcherKeys.map((k) => [k, k.replace(",", " +").replace("SUPER", "Super").replace("ALT", "Alt").replace("SPACE", "Space")]),
-    cfg.launcher.keys, (keys) => save({ launcher: { keys } }));
   seg("single-window", [["bring", "Bring here"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));
 }
 
@@ -1480,7 +1477,7 @@ for (const type of ["pointerdown", "keydown", "wheel"]) addEventListener(type, (
 
 function reload(page) {
   accentFor = "";
-  bridge.config((text) => { const c = JSON.parse(text); cfg = c.config; fonts = c.fonts; launcherKeys = c.launcherKeys; draw(); show(page); });
+  bridge.config((text) => { const c = JSON.parse(text); cfg = c.config; fonts = c.fonts; draw(); show(page); });
 }
 
 // Opening, or a page asked for, starts fresh; any other state — the theme
