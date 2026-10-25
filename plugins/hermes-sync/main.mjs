@@ -233,9 +233,16 @@ async function once(force) {
   state.mode = s.mode;
   state.cursors = { t: T.cursor, h: H.cursor };
   save();
-  last = { at: new Date().toISOString(), summary: { ...p.summary, written: done, failed }, error: failed ? `${failed} could not be written (its log says which)` : null };
+  last = { at: new Date().toISOString(), summary: { ...p.summary, written: done, failed }, error: failed ? `${failed} could not be written (its log says which)` : null, held: heldSaid(p.held) };
   await decideAgain(p.ask);
   await say();
+}
+
+/** Statuses held: which still need a meaning, and where — Talaris's in Settings, Types; Hermes Notes' in its type editor. */
+function heldSaid(held) {
+  if (!held || (!held.talaris.length && !held.hermes.length)) return null;
+  const side = (name, list) => (list.length ? `${name}: ${list.join(", ")}` : null);
+  return `Statuses go across as done or not until each has a meaning (${[side("Talaris", held.talaris), side("Hermes Notes", held.hermes)].filter(Boolean).join("; ")})`;
 }
 
 async function say() {
@@ -245,6 +252,7 @@ async function say() {
   if (sm?.written) bits.push(`${sm.written} written`);
   if (asked.length) bits.push(`${asked.length} to decide`);
   if (last.error) bits.push(last.error);
+  if (last.held) bits.push(last.held);
   if (last.unmarked?.length) bits.push(`Hermes Notes has no type marked as ${last.unmarked.join(", ")} — mark one in its type editor`);
   await status(bits.join(" · "));
 }
@@ -293,6 +301,7 @@ function statusText() {
     sm ? `${sm.written} written; ${sm.toHermes} made in Hermes Notes, ${sm.toTalaris} in Talaris; ${sm.conflicts} differing.` : "",
     asked.length ? `To decide: ${asked.map((d) => d.title).join("; ")}.` : "Nothing to decide.",
     last.error ? `Problem: ${last.error}` : "",
+    last.held ? `${last.held}.` : "",
     `${state.links.length} things linked.`,
   ].filter(Boolean).join(" ");
 }

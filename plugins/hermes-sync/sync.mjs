@@ -20,12 +20,12 @@
 // the person is asked whether two are the same; and the whole plan — how
 // many matched, made each way — is put to them before it starts.
 
-import { KINDS, ORDER, REFS, Side, merge } from "./sides.mjs";
+import { KINDS, ORDER, REFS, Side, collapser, merge } from "./sides.mjs";
 
 const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
-  start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project",
+  start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", status: "Status", project: "Project",
   files: "Attachments", tags: "Tags" };
 const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note" };
 /** The mark Talaris puts on its undated notes (notes.ts): the only notes of Talaris's this sync carries. */
@@ -83,8 +83,23 @@ export function plan(state, T, H, s, newId) {
     return true;
   };
 
+  /*
+   * Statuses go by what they mean once every status on both sides has a
+   * meaning — and until then are held, while whether a task is done still
+   * goes across (`complete`). A meaning one side has and the other lacks is
+   * put to the nearest both share, so the two compare equal rather than
+   * trading it back and forth.
+   */
+  const byState = t.has("task", "status") && h.has("task", "status");
+  if (byState) {
+    const st = t.statuses("task"), sh = h.statuses("task");
+    t.collapse = h.collapse = collapser(new Set(Object.values(st.states)), new Set(Object.values(sh.states)));
+  }
+  const held = byState ? null : { talaris: t.statuses("task")?.unmapped ?? [], hermes: h.statuses("task")?.unmapped ?? [] };
+
   // Files only when both sides offer them by hash (`attachment-files` in each one's manifest): otherwise they cannot be handed over.
-  const slotsOf = (kind) => KINDS[kind].filter((slot) => (slot !== "files" || s.files) && t.has(kind, slot) && h.has(kind, slot));
+  const slotsOf = (kind) => KINDS[kind].filter((slot) => (slot !== "files" || s.files) && (slot === "status" ? byState : slot === "complete" ? !byState : true)
+    && (slot === "status" || (t.has(kind, slot) && h.has(kind, slot))));
   const valuesT = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(t.value(o, kind, slot, keyT))]));
   const valuesH = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(h.value(o, kind, slot, keyH))]));
 
@@ -154,7 +169,7 @@ export function plan(state, T, H, s, newId) {
         choices: [{ key: "start", label: "Start" }, { key: "later", label: "Not yet" }],
       });
     }
-    return { writes: [], ask, links, summary };
+    return { writes: [], ask, links, summary, held };
   }
 
   // ------------------------------------------------------------ every time after
@@ -185,13 +200,20 @@ export function plan(state, T, H, s, newId) {
       const toH = [], toT = [];
       for (const slot of slots) {
         const x = tv[slot], y = hv[slot], base = l.base[slot];
-        if (x === y) { l.base[slot] = x; if (l.pick) delete l.pick[slot]; continue; }
+        if (x === y) {
+          l.base[slot] = x;
+          // Done-ness kept agreed too while statuses go by meaning, should they ever be held again.
+          if (slot === "status" && x !== null) l.base.complete = json(["done", "cancelled", "finished"].includes(JSON.parse(x)));
+          if (l.pick) delete l.pick[slot];
+          continue;
+        }
         // The person chose, for this one: that side's value is carried, once.
         const picked = l.pick?.[slot];
         if (picked) { (picked === "talaris" ? toH : toT).push(slot); delete l.pick[slot]; continue; }
         const side = winner;
         if (side === "talaris") { toH.push(slot); continue; }
         if (side === "hermes") { toT.push(slot); continue; }
+        if (slot === "status" && base === undefined && statusSettled(l, x, y, toH, toT)) continue;
         if (base !== undefined && x === base) toT.push(slot);
         else if (base !== undefined && y === base) toH.push(slot);
         // Never agreed yet (matched on the first sync), and one side simply empty: filled, not asked.
@@ -249,7 +271,32 @@ export function plan(state, T, H, s, newId) {
       }
     } else for (const b of h.objects.values()) if (h.kindOf(b) === kind && carriesH(b, kind) && !byH.has(b.id)) summary.left++;
   }
-  return { writes, ask, links: links.filter((l) => !l.gone), summary };
+  return { writes, ask, links: links.filter((l) => !l.gone), summary, held };
+
+  /**
+   * The first time a pair's statuses are compared by meaning, after only
+   * done-or-not went across: the side whose done-ness changed since they
+   * agreed on it is the one that moved; where neither did, the plainer
+   * meaning (not started, done) gave way to the more particular one, which
+   * is what the other side could not say before. Otherwise asked.
+   */
+  function statusSettled(l, x, y, toH, toT) {
+    const was = l.base.complete;
+    const fin = (v) => { const st = JSON.parse(v ?? "null"); return st === null ? null : st === "finished" || st === "done" || st === "cancelled"; };
+    const fx = fin(x), fy = fin(y);
+    if (fx === null || fy === null) return false;
+    if (was !== undefined && fx !== fy) {
+      const before = JSON.parse(was);
+      if (fx === before) { toT.push("status"); return true; }
+      if (fy === before) { toH.push("status"); return true; }
+      return false;
+    }
+    if (fx !== fy) return false;
+    const plain = (v) => ["not-started", "done", "open", "finished"].includes(JSON.parse(v));
+    if (plain(x) && !plain(y)) { toT.push("status"); return true; }
+    if (plain(y) && !plain(x)) { toH.push("status"); return true; }
+    return false;
+  }
 
   /** Certain enough to match without asking. */
   function same(kind, a, b) {

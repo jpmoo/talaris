@@ -343,7 +343,7 @@ class SettingsBridge(Bridge):
         not freeze meanwhile. Only the store's own routes: this is not a door
         to the rest of the core.
         """
-        if not re.match(r"^/(vault|backups|entities|projects|plugins)(/|$|\?)", path):
+        if not re.match(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses)(/|$|\?)", path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
             return
 

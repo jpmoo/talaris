@@ -1464,6 +1464,7 @@ function show(page) {
   }
   if (page === "data") loadData();
   if (page === "plugins") loadPlugins();
+  if (page === "types") loadTypes();
   if (page === "look") bridge.wallpaper(wallScope || "", (text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
@@ -1544,6 +1545,63 @@ function plAsks(m) {
   const said = [...(p.network.length ? [`Reaches ${p.network.join(", ")}`] : []), ...(p.files.length ? [`Uses ${p.files.join(", ")}`] : [])];
   return pel("div", {}, pel("ul", {}, ...items.map((x) => pel("li", {}, x))),
     said.length ? pel("p", { class: "note", style: "margin:0 0 6px" }, `It says it ${said.join("; ").replace(/^R/, "r").replace(/^U/, "u")} — said, not something Talaris can hold it to.`) : null);
+}
+
+// Settings → Types: each type's fields and profiles, and a task's statuses with what each means.
+const tyOpen = new Set(["task"]);
+const FIELD_KIND = { text: "text", richtext: "text, formatted", enum: "one of a list", date: "date", datetime: "date and time", datespan: "dates, from–to",
+  boolean: "yes / no", number: "number", reference: "link", attachment: "files", url: "address" };
+const MEANS = { "not-started": "not started", "in-progress": "in progress", waiting: "waiting", done: "done", cancelled: "cancelled" };
+async function loadTypes() {
+  let types;
+  try { types = await core("GET", "/entity-types"); } catch (e) { $("type-list").replaceChildren(pel("p", { class: "note err" }, e.message)); return; }
+  types = (Array.isArray(types) ? types : types.types || []).filter((t) => !t.archived);
+  const byId = Object.fromEntries(types.map((t) => [t.id, t]));
+  const label = (f) => f["talaris:label"] || f.key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  $("type-list").replaceChildren(...types.map((t) => {
+    const role = t["talaris:role"] || t.id;
+    const open = tyOpen.has(role);
+    const profiles = Object.keys(t.profiles || {});
+    const head = pel("div", { class: "row net" },
+      pel("span", { class: "name" }, `${t.name} `, pel("small", {}, [`${t.fields.length} fields`, profiles.length ? `read as ${kindsSaid(profiles)}` : ""].filter(Boolean).join(" · "))),
+      pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: () => { if (open) tyOpen.delete(role); else tyOpen.add(role); loadTypes(); } }, open ? "Less" : "More")));
+    const block = pel("div", { class: "mg-server" }, head);
+    if (!open) return block;
+    const body = pel("div", { class: "pl-body" });
+    const task = (t.profiles || {}).task;
+    if (task && task.status) {
+      const field = t.fields.find((f) => f.key === task.status) || {};
+      const labels = field["talaris:labels"] || {}, colors = field["talaris:colors"] || {};
+      const done = new Set(task.completeValues || []), states = task.states || {};
+      const unset = (field.options || []).filter((v) => !states[v]);
+      body.append(pel("h3", {}, "Statuses"),
+        ...(field.options || []).map((v) => pel("div", { class: "ty-st" },
+          pel("span", { class: "dot", style: `background:${colors[v] || "var(--muted)"}` }), labels[v] || v,
+          done.has(v) ? pel("span", { class: "fin" }, "finished") : null,
+          pel("span", { class: "means" + (states[v] ? "" : " unset") }, states[v] ? `means ${MEANS[states[v]] || states[v]}` : "no meaning yet"),
+          v === t["talaris:defaultStatus"] ? pel("span", { class: "fin" }, "new tasks start here") : null)),
+        unset.length ? pel("p", { class: "note", style: "margin:4px 0" }, `A sync carries statuses once each has a meaning — ${unset.length === 1 ? "one still needs" : `${unset.length} still need`} one.`) : null,
+        pel("div", { style: "margin:6px 0 10px" }, pel("button", { class: "t-btn", onclick: async () => {
+          if (await StatusEditor.open({ taskType: t, api: core })) { say("Statuses saved"); loadTypes(); }
+        } }, "Edit statuses")));
+    }
+    body.append(pel("h3", {}, "Fields"), pel("table", { class: "ty-fields" }, ...t.fields.map((f) =>
+      pel("tr", {}, pel("td", {}, label(f)),
+        pel("td", { class: "ty-kind" }, [FIELD_KIND[f.kind] || f.kind, f.kind === "reference" && byId[f.targetType] ? `to ${byId[f.targetType].name.toLowerCase()}` : "",
+          f.many ? "several" : "", f.required ? "required" : "", f["talaris:auto"] ? "kept by Talaris" : ""].filter(Boolean).join(", "))))));
+    for (const [kind, p] of Object.entries(t.profiles || {})) {
+      // A slot is a field, or half of one (a span's start or end).
+      const where = (v) => {
+        const f = t.fields.find((x) => x.key === (typeof v === "string" ? v : v && v.field));
+        return f ? (typeof v === "string" ? label(f) : `${label(f)}, ${f[`${v.part}Label`] ? f[`${v.part}Label`].toLowerCase() : v.part}`) : null;
+      };
+      const slots = Object.entries(p).map(([slot, v]) => [slot, where(v)]).filter(([, w]) => w);
+      body.append(pel("h3", {}, `Read as ${KIND_WORD[kind] ? KIND_WORD[kind].replace(/s$/, "").replace(/^people$/, "person") : kind}`),
+        pel("table", { class: "ty-fields" }, ...slots.map(([slot, w]) => pel("tr", {}, pel("td", {}, slot), pel("td", { class: "ty-kind" }, w)))));
+    }
+    block.append(body);
+    return block;
+  }));
 }
 
 async function loadPlugins() {

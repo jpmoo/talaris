@@ -375,24 +375,16 @@
     shown = s;
     drawView();
   }
+  // The type read again each time: its statuses are edited in Settings → Types.
   async function refresh() {
-    try { await loadSide(); await loadShown(); } catch (e) { failed(e); }
-  }
-  async function editStatuses() {
-    const saved = await StatusEditor.open(ctx());
-    if (!saved) return;
     try {
       const t = await api("GET", "/tasks/types");
       type = t.type; shape = t.shape;
+      await loadSide(); await loadShown();
     } catch (e) { failed(e); }
-    await refresh();
   }
 
   async function start() {
-    try {
-      const t = await api("GET", "/tasks/types");
-      type = t.type; shape = t.shape;
-    } catch (e) { failed(e); }
     await refresh();
   }
   function showThing(kind, id) {
@@ -477,8 +469,6 @@
       projHead,
       addingProject ? newProjectRow() : null,
       projectRows(isOn),
-      // The statuses themselves, the person's to define (statuses.js).
-      window.StatusEditor ? el("div", { class: "item statuses-link", title: "Statuses", onclick: editStatuses }, el("span", {}, "Statuses")) : null,
     ].flat().filter((x) => x != null));
   }
 

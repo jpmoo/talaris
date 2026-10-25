@@ -381,7 +381,14 @@ export interface StatusDef {
   color?: string;
   /** Counts as complete: done, and won't do, as Hermes has them. */
   complete?: boolean;
+  /**
+   * What it means to other apps (pkm-interchange: the task profile's `states`):
+   * one of the five shared states — a finished status done or cancelled, an
+   * open one not started, in progress or waiting. Unsaid, a sync holds it.
+   */
+  state?: string;
 }
+const OPEN_STATES = ["not-started", "in-progress", "waiting"], DONE_STATES = ["done", "cancelled"];
 
 /**
  * The task type's statuses, as a person sets them: their order, words,
@@ -410,7 +417,11 @@ export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Rec
     const value = d.value || slug(label);
     taken.add(value);
     if (d.color && !/^#[0-9a-fA-F]{6}$/.test(d.color)) throw new Conflict(`${label}: a color like #8aa878`);
-    return { value, label, color: d.color, complete: Boolean(d.complete) };
+    const state = d.state ? String(d.state) : undefined;
+    if (state && !(d.complete ? DONE_STATES : OPEN_STATES).includes(state)) {
+      throw new Conflict(`${label}: ${d.complete ? "a finished status means done or cancelled" : "an open status means not started, in progress or waiting"}`);
+    }
+    return { value, label, color: d.color, complete: Boolean(d.complete), ...(state ? { state } : {}) };
   });
   if (new Set(statuses.map((s) => s.value)).size !== statuses.length) throw new Conflict("two statuses with one name");
   if (!statuses.some((s) => s.complete)) throw new Conflict("at least one status counts as done");
@@ -441,7 +452,12 @@ export function setStatuses(defs: StatusDef[], defaultValue: string, moveTo: Rec
       // Set by a person: a newer built-in task type keeps these as they are.
       "talaris:edited": true,
     }),
-    profiles: { ...type.profiles, task: { ...type.profiles!.task, completeValues: statuses.filter((s) => s.complete).map((s) => s.value) } },
+    // Finished, and what each means, rebuilt from the statuses as they are: nothing of one taken away is left behind.
+    profiles: { ...type.profiles, task: (() => {
+      const { states: _was, ...task } = type.profiles!.task as Record<string, unknown>;
+      const states = Object.fromEntries(statuses.filter((s) => s.state).map((s) => [s.value, s.state!]));
+      return { ...task, completeValues: statuses.filter((s) => s.complete).map((s) => s.value), ...(Object.keys(states).length ? { states } : {}) };
+    })() },
   };
   putType(next);
   if (gone.length) {

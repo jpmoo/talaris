@@ -24,7 +24,14 @@ type Obj = { properties?: Record<string, unknown>; content?: string | null };
 
 const V0 = ["task", "event", "contact", "note", "journal", "project"];
 const blank = (v: unknown) => (v === "" ? undefined : v);
+const STATES = ["not-started", "in-progress", "waiting", "done", "cancelled"];
 function read(type: Type, object: Obj, key: string, profile = "task"): unknown {
+  // A task's state: its status, through the type's own `states`; a status given none reads as none.
+  if (profile === "task" && key === "state") {
+    const status = read(type, object, "status", "task");
+    const state = typeof status === "string" ? (type?.profiles?.task?.states as Record<string, unknown> | undefined)?.[status] : undefined;
+    return STATES.includes(state as string) ? state : undefined;
+  }
   const spec = type?.profiles?.[profile]?.[key];
   if (spec === undefined || spec === null) return undefined;
   if (spec === "content") return blank(object?.content);

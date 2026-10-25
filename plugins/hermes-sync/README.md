@@ -1,6 +1,6 @@
 # Hermes Notes sync
 
-A Talaris plugin keeping **tasks, projects and people** in step with
+A Talaris plugin keeping **tasks, projects, people and notes** in step with
 Hermes Notes, through pkm-interchange alone: it reads and writes both apps
 through their profiles, and knows neither one's field names. Install it from
 this folder (Settings, Plugins), give it Hermes Notes' address and an access
@@ -75,6 +75,19 @@ taken off there too, and each side frees a file nothing names any more.
 taken off one by one, so a tag one side never knew about is never wiped by
 the other's whole list. A Talaris page keeps its tags on the entity that
 stands for it, so an undated note's tags are its object's.
+
+**Statuses**, by what they mean. Each app says what each of its statuses
+means in the format's five words — not started, in progress, waiting, done,
+cancelled (the task profile's `states`): Talaris in Settings, Types; Hermes
+Notes in its type editor. Once every status on both sides has a meaning, a
+task's status goes across as its meaning, into the other side's status that
+means the same. A meaning one side has and the other lacks goes to the
+nearest both share — waiting as in progress, cancelled as done — so the two
+compare equal rather than trading it back and forth. Until then statuses are
+held: only whether a task is done goes across, and the plugin's status line
+names the statuses still without a meaning. The first time statuses go by
+meaning, a pair that differs only because one side could not say more
+before keeps the more particular one.
 
 **Not yet:** a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a

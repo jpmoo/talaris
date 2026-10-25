@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 //
-// The task statuses, the person's to define (Tasks panel → Statuses): their
-// order, their words, their colors, which count as done, and which a new task
-// starts in. The list editor's sheet (listeditor.css) is borrowed for the look.
+// The task statuses, the person's to define (Settings → Types): their
+// order, their words, their colors, which count as done, which a new task
+// starts in, and what each means to other apps — one of the five shared states
+// (pkm-interchange's task profile `states`), so a sync knows "Blocked" here is
+// "waiting" there. The list editor's sheet (listeditor.css) is borrowed for the look.
 //
 // A status keeps its name when its words change — tasks, board columns and a
 // sync point at the name — and one taken away asks where its tasks go. The
@@ -34,11 +36,16 @@
     const labels = field["talaris:labels"] || {};
     const colors = field["talaris:colors"] || {};
     const complete = new Set(p.completeValues || []);
+    const states = p.states || {};
     return {
-      rows: (field.options || []).map((v) => ({ value: v, label: labels[v] || v, color: colors[v] || "", complete: complete.has(v) })),
+      rows: (field.options || []).map((v) => ({ value: v, label: labels[v] || v, color: colors[v] || "", complete: complete.has(v), state: states[v] || "" })),
       def: type["talaris:defaultStatus"] || (field.options || [])[0],
     };
   }
+
+  // What a status can mean: a finished one done or cancelled, an open one the other three.
+  const MEANINGS = { "not-started": "not started", "in-progress": "in progress", waiting: "waiting", done: "done", cancelled: "cancelled" };
+  const fits = (complete) => (complete ? ["done", "cancelled"] : ["not-started", "in-progress", "waiting"]);
 
   function open(ctx) {
     return new Promise((resolve) => {
@@ -66,7 +73,10 @@
             el("span", { class: "st-dot", style: `background:${r.color || "var(--muted)"}` }),
             el("input", { type: "text", class: "st-label", value: r.label, spellcheck: "false", oninput: (e) => { r.label = e.target.value; drawGone(); } }),
             swatches,
-            el("button", { type: "button", class: "t-btn st-flag" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
+            el("select", { class: "st-means" + (r.state ? "" : " unset"), title: "What it means to other apps", onchange: (e) => { r.state = e.target.value; draw(); } },
+              el("option", { value: "", ...(r.state ? {} : { selected: "" }) }, "Means…"),
+              fits(r.complete).map((m) => el("option", { value: m, ...(r.state === m ? { selected: "" } : {}) }, MEANINGS[m]))),
+            el("button", { type: "button", class: "t-btn st-flag" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.state && !fits(r.complete).includes(r.state)) r.state = r.complete ? "done" : "not-started"; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
             el("button", { type: "button", class: "t-btn st-flag" + (def === r.value && r.value ? " on" : ""), title: "New tasks start here",
               disabled: r.complete || !r.value ? "" : null, onclick: () => { def = r.value; draw(); } }, "Start"),
             el("button", { type: "button", class: "icon-btn", title: "Remove", onclick: () => { rows.splice(i, 1); if (def === r.value) def = (rows.find((x) => !x.complete && x.value) || {}).value; draw(); } }, "×"));
@@ -96,7 +106,7 @@
         err.className = "le-err";
         sheet.classList.add("busy");
         try {
-          const statuses = rows.map((r) => ({ ...(r.value ? { value: r.value } : {}), label: r.label, ...(r.color ? { color: r.color } : {}), complete: r.complete }));
+          const statuses = rows.map((r) => ({ ...(r.value ? { value: r.value } : {}), label: r.label, ...(r.color ? { color: r.color } : {}), complete: r.complete, ...(r.state ? { state: r.state } : {}) }));
           const kept = new Set(rows.map((r) => r.value).filter(Boolean));
           const moves = {};
           for (const s of start) if (!kept.has(s.value)) moves[s.value] = moveTo[s.value] && kept.has(moveTo[s.value]) ? moveTo[s.value] : fallback(s);
@@ -110,9 +120,10 @@
 
       sheet.append(
         el("div", { class: "title le-title" }, "Statuses"),
+        el("div", { class: "le-muted st-hint" }, "“Means” is what a status is to other apps — a sync with Hermes Notes carries statuses only once every one has a meaning."),
         list,
         el("div", {}, el("button", { type: "button", class: "t-btn", onclick: () => {
-          rows.push({ label: "New status", color: PALETTE[rows.length % PALETTE.length], complete: false });
+          rows.push({ label: "New status", color: PALETTE[rows.length % PALETTE.length], complete: false, state: "" });
           draw();
           const inputs = list.querySelectorAll(".st-label");
           inputs[inputs.length - 1]?.select();
@@ -144,6 +155,9 @@
     .st-sw.on { box-shadow: 0 0 0 2px var(--text); }
     .st-flag { font-size: 11.5px !important; padding: 2px 9px !important; }
     .st-flag.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
+    .st-means { font-size: 11.5px; padding: 2px 4px; max-width: 110px; }
+    .st-means.unset { color: var(--danger); }
+    .st-hint { margin: -2px 0 8px; font-size: 11.5px; }
     .st-gone:empty { display: none; }
     .st-gone-head { margin: 6px 0 4px; }
     .st-gone .le-label { text-decoration: line-through; }

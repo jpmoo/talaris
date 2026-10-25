@@ -12,7 +12,7 @@
 export const KINDS = {
   project: ["title", "body", "files", "tags"],
   contact: ["title", "email", "phone", "organization", "role", "body", "files", "tags"],
-  task: ["title", "complete", "start", "due", "project", "files", "tags"],
+  task: ["title", "status", "complete", "start", "due", "project", "files", "tags"],
   note: ["title", "body", "files", "tags"],
 };
 /** The slots that point at other things, and what they point at. */
@@ -20,6 +20,27 @@ export const REFS = { task: { project: "project" } };
 /** In order: what is pointed at is made before what points at it. */
 export const ORDER = ["project", "contact", "task", "note"];
 const DATES = new Set(["start", "end", "due"]);
+
+/**
+ * What a status means, in the format's five words (the task profile's
+ * `states`), and which of them are finished. A side whose every status has
+ * one can carry a task's status as its meaning; until both can, only whether
+ * it is done goes across (`complete`), and the statuses wait.
+ */
+export const STATES = ["not-started", "in-progress", "waiting", "done", "cancelled"];
+const FINISHED = new Set(["done", "cancelled"]);
+/** A state one side has and the other does not, as the nearest the two share: the same finished-ness always. */
+const NEAREST = { "not-started": ["in-progress", "waiting"], "in-progress": ["waiting", "not-started"], waiting: ["in-progress", "not-started"], done: ["cancelled"], cancelled: ["done"] };
+/** The states both sides can say, and a state put into them; where they share none of its finished-ness, just that. */
+export function collapser(a, b) {
+  const shared = new Set([...a].filter((x) => b.has(x)));
+  return (state) => {
+    if (!state) return null;
+    if (shared.has(state)) return state;
+    const near = (NEAREST[state] ?? []).find((x) => shared.has(x));
+    return near ?? (FINISHED.has(state) ? "finished" : "open");
+  };
+}
 
 const field = (type, key) => (type.fields ?? []).find((f) => f.key === key);
 /** The mark on a copy that came from Hermes Notes into Talaris (Talaris's links.ts reads it). */
@@ -52,6 +73,28 @@ export class Side {
     this.name = name;
     this.types = new Map((env.types ?? []).map((t) => [t.id, t]));
     this.objects = new Map((env.objects ?? []).map((o) => [o.id, o]));
+    /** States as both sides can say them (`collapser`); set by the plan once it has read both. */
+    this.collapse = (x) => x;
+  }
+
+  /** A kind's status options and what each means: `{ options, states, unmapped }`, or null when it has no status. */
+  statuses(kind) {
+    const t = this.typeFor(kind);
+    const map = t?.profiles?.[kind];
+    if (!map?.status) return null;
+    const f = field(t, map.status);
+    const options = f?.options ?? [];
+    const states = map.states ?? {};
+    const labels = f?.["talaris:labels"] ?? {};
+    return { options, states, unmapped: options.filter((o) => !STATES.includes(states[o])).map((o) => labels[o] ?? o) };
+  }
+
+  /** What a task's status means, by its type's own `states`; null where it says nothing. */
+  stateOf(o, kind) {
+    const map = this.types.get(o.type)?.profiles?.[kind];
+    if (!map?.status) return null;
+    const s = map.states?.[o.properties?.[map.status]];
+    return STATES.includes(s) ? s : null;
   }
 
   /** The kind an object is (of those that sync), by its type's profiles. */
@@ -74,6 +117,7 @@ export class Side {
     if (slot === "files") return Boolean(filesField(t));
     // Tags are every object's in the format, not a profile slot.
     if (slot === "tags") return true;
+    if (slot === "status") { const st = this.statuses(kind); return Boolean(st && st.options.length && !st.unmapped.length); }
     return slot === "complete" ? Boolean(map.status) : map[slot] !== undefined && map[slot] !== null;
   }
 
@@ -94,6 +138,7 @@ export class Side {
       if (!map.status) return null;
       return (map.completeValues ?? []).includes(o.properties?.[map.status]);
     }
+    if (slot === "status") return map.status ? blank(o.properties?.[map.status]) : null;
     const spec = map[slot];
     if (spec === undefined || spec === null) return null;
     if (spec === "content") return blank(o.content);
@@ -115,6 +160,8 @@ export class Side {
     const v = this.raw(o, kind, slot);
     if (v === null) return null;
     if (slot === "complete") return v;
+    // A status as what it means, put into the states both sides can say.
+    if (slot === "status") return this.collapse(this.stateOf(o, kind));
     // Files compare as which files, by hash: a file renamed on one side is the same file.
     if (slot === "files") return [...new Set(v.map((a) => a.sha256))].sort();
     // Tags as a set: the order a side keeps them in is not a difference.
@@ -138,6 +185,12 @@ export class Side {
     const v = this.raw(o, kind, slot);
     if (v === null) return "—";
     if (slot === "complete") return v ? "done" : "not done";
+    if (slot === "status") {
+      const map = this.types.get(o.type)?.profiles?.[kind];
+      const label = field(this.types.get(o.type), map?.status)?.["talaris:labels"]?.[v] ?? v;
+      const st = this.stateOf(o, kind);
+      return st && st !== label ? `${label} (${st.replace("-", " ")})` : String(label);
+    }
     if (slot === "files") return v.map((a) => a.filename ?? a.sha256.slice(0, 8)).join(", ");
     if (slot === "tags") return v.map((t) => `#${t}`).join(" ");
     if (Array.isArray(v)) return v.join(", ");
@@ -190,6 +243,15 @@ export class Side {
       if (now === value) return null;
       const options = field(type, map.status)?.options ?? [];
       const next = value ? (map.completeValues ?? [])[0] : options.find((x) => !(map.completeValues ?? []).includes(x));
+      return next === undefined ? null : { set: { [map.status]: next } };
+    }
+    if (slot === "status") {
+      // This side's own status meaning the same — the one it has, if it already does; else the first that does.
+      if (!map.status || value === null) return null;
+      const options = field(type, map.status)?.options ?? [];
+      const means = (x) => this.collapse(STATES.includes(map.states?.[x]) ? map.states[x] : null);
+      if (o && means(o.properties?.[map.status]) === value) return null;
+      const next = options.find((x) => means(x) === value);
       return next === undefined ? null : { set: { [map.status]: next } };
     }
     const spec = map[slot];

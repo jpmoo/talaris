@@ -21,7 +21,7 @@ import os
 import sys
 
 from PySide6.QtCore import QStandardPaths, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence, QShortcut
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication
@@ -104,6 +104,10 @@ def main() -> int:
     view.titleChanged.connect(lambda t: view.setWindowTitle(f"{a.name} — {t}" if t and t != a.name else a.name))
     if not (a.icon and os.path.exists(a.icon)):
         view.iconChanged.connect(lambda icon: app.setWindowIcon(icon) if not icon.isNull() else None)
+    # A browser's reload keys: Ctrl+R (and F5) again, Ctrl+Shift+R past the cache.
+    for keys, action in (("Ctrl+R", QWebEnginePage.WebAction.Reload), ("F5", QWebEnginePage.WebAction.Reload),
+                         ("Ctrl+Shift+R", QWebEnginePage.WebAction.ReloadAndBypassCache)):
+        QShortcut(QKeySequence(keys), view, activated=lambda action=action: view.triggerPageAction(action))
     view.resize(1280, 860)
     view.setUrl(home)
     view.show()

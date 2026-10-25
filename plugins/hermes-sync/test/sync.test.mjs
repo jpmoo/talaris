@@ -241,3 +241,45 @@ test("files into Talaris from Hermes Notes are marked as having come from there;
   assert.equal(bySha[SHA("c")]["hermes-sync:origin"], "hermes");
   assert.equal(bySha[SHA("b")]["hermes-sync:origin"], undefined, "a file Talaris already had is not given the mark");
 });
+
+// Statuses with meanings: Talaris's four, Hermes Notes' three, with "blocked" meaning waiting there and nothing here meaning waiting.
+const mapped = (types, kind, states) => types.map((t) => (t.profiles?.[kind] ? { ...t, profiles: { ...t.profiles, [kind]: { ...t.profiles[kind], states } } } : t));
+const T_MAPPED = mapped(T_TYPES, "task", { not_started: "not-started", in_progress: "in-progress", done: "done", wont_do: "cancelled" });
+const H_STATUS = H_TYPES.map((t) => (t.id !== "h-task" ? t : { ...t, fields: t.fields.map((f) => (f.key === "status" ? { ...f, options: ["not done", "doing", "blocked", "done"] } : f)) }));
+const H_MAPPED = mapped(H_STATUS, "task", { "not done": "not-started", doing: "in-progress", blocked: "waiting", done: "done" });
+
+test("statuses held until every one on both sides has a meaning; done-or-not still goes across meanwhile", () => {
+  const links = [{ kind: "task", t: "tt1", h: "ht1", base: { title: '"Plan"', complete: "false" } }];
+  const T = env(T_TYPES, [{ id: "tt1", type: "t_task", properties: { title: "Plan", status: "in_progress" }, version: 1 }]);
+  const H = env(mapped(H_STATUS, "task", { "not done": "not-started", doing: "in-progress", done: "done" }), [{ id: "ht1", type: "h-task", properties: { title: "Plan", status: "done" }, version: 1 }]);
+  const p = plan({ started: true, links }, T, H, S, newId);
+  assert.deepEqual(p.held, { talaris: ["not_started", "in_progress", "done", "wont_do"], hermes: ["blocked"] }, "what still needs a meaning, each side");
+  const w = p.writes.find((x) => x.side === "talaris");
+  assert.deepEqual(w.patch.set, { status: "done" }, "done in Hermes Notes: done in Talaris, as before");
+});
+
+test("statuses by meaning: carried as what they mean, a meaning one side lacks put to the nearest both share", () => {
+  const links = [{ kind: "task", t: "tt1", h: "ht1", base: { title: '"Plan"', status: '"not-started"' } }];
+  const T = env(T_MAPPED, [{ id: "tt1", type: "t_task", properties: { title: "Plan", status: "not_started" }, version: 1 }]);
+  const H = env(H_MAPPED, [{ id: "ht1", type: "h-task", properties: { title: "Plan", status: "blocked" }, version: 1 }]);
+  const p = plan({ started: true, links }, T, H, S, newId);
+  assert.equal(p.held, null);
+  assert.deepEqual(p.writes.find((x) => x.side === "talaris").patch.set, { status: "in_progress" }, "waiting, which Talaris cannot say, as in progress");
+  // Once there, the two agree: nothing goes back.
+  const T2 = env(T_MAPPED, [{ ...T.objects[0], properties: { title: "Plan", status: "in_progress" } }]);
+  assert.equal(plan({ started: true, links }, T2, H, S, newId).writes.length, 0, "blocked and in progress compare equal");
+  // Cancelled, which Hermes Notes cannot say, as done.
+  const T3 = env(T_MAPPED, [{ ...T.objects[0], properties: { title: "Plan", status: "wont_do" } }]);
+  const links3 = [{ kind: "task", t: "tt1", h: "ht1", base: { title: '"Plan"', status: '"in-progress"' } }];
+  assert.deepEqual(plan({ started: true, links: links3 }, T3, H, S, newId).writes.find((x) => x.side === "hermes").patch.set, { status: "done" });
+});
+
+test("the first time statuses go by meaning: the more particular one is kept, not asked", () => {
+  // Agreed before only as not done; Hermes Notes said doing, which Talaris could not, so held not started.
+  const links = [{ kind: "task", t: "tt1", h: "ht1", base: { title: '"Plan"', complete: "false" } }];
+  const T = env(T_MAPPED, [{ id: "tt1", type: "t_task", properties: { title: "Plan", status: "not_started" }, version: 1 }]);
+  const H = env(H_MAPPED, [{ id: "ht1", type: "h-task", properties: { title: "Plan", status: "doing" }, version: 1 }]);
+  const p = plan({ started: true, links }, T, H, S, newId);
+  assert.equal(p.ask.length, 0);
+  assert.deepEqual(p.writes.find((x) => x.side === "talaris").patch.set, { status: "in_progress" });
+});

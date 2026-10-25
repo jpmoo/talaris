@@ -29,6 +29,7 @@ id = "hermes"
 name = "Hermes Notes"
 url = "{server}"
 key = "SUPER SHIFT, H"
+icon = "icon.png"
 
 [permissions]
 read = ["task", "project", "person", "note"]
