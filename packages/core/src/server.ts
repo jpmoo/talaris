@@ -290,6 +290,9 @@ route("GET", "/entities/:id/place", (_r, [id]) => {
 });
 // People (DESIGN, People): each as a row, and their ties to contact cards.
 route("GET", "/people", () => entities.listPeople());
+// The organizations marked as one's own, for People's "My organizations".
+route("GET", "/people/my-organizations", () => entities.myOrganizations());
+route("PUT", "/people/my-organizations", async (req) => entities.setMyOrganizations((await json<{ names?: string[] }>(req)).names ?? []));
 // Address-book cards as people (People: everyone in your address books).
 route("POST", "/people/from-cards", async (req) => {
   const b = await json<{ cards?: entities.Card[] }>(req);
@@ -376,7 +379,7 @@ route("GET", "/plugins/apps", () => plugins.pluginApps());
 route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? ""));
 route("POST", "/plugins/:id/actions/:action", async (req, [id, action]) => {
   const b = await json<{ entity?: string; kind?: string }>(req);
-  if (!b.entity || !b.kind) throw new BadRequest("pressed on what?");
+  if (!b.kind) throw new BadRequest("pressed on what?");
   return plugins.runAction(id!, action!, b.entity, b.kind);
 });
 route("POST", "/plugins/install", async (req) => {

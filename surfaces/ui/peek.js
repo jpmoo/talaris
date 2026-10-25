@@ -64,12 +64,14 @@ window.Peek = (() => {
    * sheet drawn again meanwhile still says so.
    */
   const pressing = new Map(); // plugin/action/entity → what its button says while it runs, and a moment after
+  // Or on a whole list (People's, Tasks'): with no thing, only the list's name for `kind`.
+  const LISTS = ["people", "tasks"];
   function actionButtons(kind, entityId, api, cls = "t-btn") {
     const holder = el("span", { class: "plugin-actions" });
-    if (!entityId || !api) return holder;
+    if ((!entityId && !LISTS.includes(kind)) || !api) return holder;
     api("GET", `/plugins/actions?kind=${encodeURIComponent(kind)}`).then((actions) => {
       holder.replaceChildren(...(actions || []).map((a) => {
-        const key = `${a.plugin}/${a.id}/${entityId}`;
+        const key = `${a.plugin}/${a.id}/${entityId || kind}`;
         const b = el("button", { class: cls, title: `${a.label} (${a.pluginName})` }, pressing.get(key) || a.label);
         const say = (text, title, ms) => {
           pressing.set(key, text);
@@ -81,8 +83,8 @@ window.Peek = (() => {
         b.addEventListener("click", () => {
           if (b.disabled) return;
           b.disabled = true;
-          say(a.label === "Sync now" ? "Syncing…" : `${a.label}…`);
-          api("POST", `/plugins/${encodeURIComponent(a.plugin)}/actions/${encodeURIComponent(a.id)}`, { entity: entityId, kind })
+          say(a.label.startsWith("Sync") ? "Syncing…" : `${a.label}…`);
+          api("POST", `/plugins/${encodeURIComponent(a.plugin)}/actions/${encodeURIComponent(a.id)}`, { ...(entityId ? { entity: entityId } : {}), kind })
             .then((r) => {
               b.disabled = false;
               // What came of it, in a word; the whole of what the plugin said on hover.

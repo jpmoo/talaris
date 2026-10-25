@@ -47,6 +47,8 @@ const STATE = () => join(CONFIG_DIR, "plugins.json");
 /** The kinds a plugin may name, as the format's profiles; "person" is a contact. */
 const KINDS = ["task", "project", "event", "contact", "note"];
 const kindOf = (k: string) => (k === "person" ? "contact" : k);
+/** The lists an action may be on as a whole: People's, and Tasks' (its tasks and projects). */
+const LISTS = ["people", "tasks"];
 
 export interface SettingDef {
   key: string;
@@ -77,13 +79,15 @@ export interface AppDecl {
 /**
  * A button a plugin offers on Talaris's own sheets (`[[actions]]`): on a
  * person, a task or a project, running one of its tools with the thing it
- * was pressed on (`{entity, kind}`). Shown while the plugin runs — and,
- * naming one of its yes-or-no settings (`when`), only while that is on.
+ * was pressed on (`{entity, kind}`) — or over a whole list, People's
+ * (`people`) or Tasks' (`tasks`: its tasks and projects), with only the
+ * `kind`. Shown while the plugin runs — and, naming one of its yes-or-no
+ * settings (`when`), only while that is on.
  */
 export interface ActionDecl {
   id: string;
   label: string;
-  /** Which sheets: task, project, contact (a person). */
+  /** Which sheets: task, project, contact (a person); or which lists: people, tasks. */
   on: string[];
   tool: string;
   when?: string;
@@ -166,8 +170,8 @@ export function readManifest(dir: string): Manifest {
     if (typeof a.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,30}$/.test(a.id)) throw new Conflict(`actions ${n + 1} needs an id of lowercase letters, digits and dashes`);
     if (typeof a.label !== "string" || !a.label.trim()) throw new Conflict(`action ${a.id} needs a label`);
     const on = strs(a.on).map(kindOf);
-    const sheets = ["task", "project", "contact"];
-    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project or person sheets`);
+    const sheets = ["task", "project", "contact", ...LISTS];
+    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project or person sheets, or the people or tasks lists`);
     if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
     if (a.when !== undefined && !settings.some((s) => s.key === a.when && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names one of its yes-or-no settings`);
     return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}) };
@@ -705,12 +709,13 @@ export function pluginActions(kind: string): { plugin: string; pluginName: strin
  * the tool said, and how many decisions the plugin is waiting on now, so the
  * button can say "2 to decide" rather than "done".
  */
-export async function runAction(id: string, action: string, entity: string, kind: string): Promise<{ text: string; error: boolean; decisions: number }> {
+export async function runAction(id: string, action: string, entity: string | undefined, kind: string): Promise<{ text: string; error: boolean; decisions: number }> {
+  if (!entity && !LISTS.includes(kind)) throw new Conflict("pressed on what?");
   const r = running.get(id);
   if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
   const a = (r.manifest.actions ?? []).find((x) => x.id === action);
   if (!a) throw new NotFound(`${r.manifest.name} offers no ${action}`);
-  const res = await callPluginTool(id, a.tool, { entity, kind: kindOf(kind) }) as { content?: { type: string; text?: string }[]; isError?: boolean };
+  const res = await callPluginTool(id, a.tool, { ...(entity ? { entity } : {}), kind: kindOf(kind) }) as { content?: { type: string; text?: string }[]; isError?: boolean };
   const text = (res?.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n").trim();
   return { text, error: Boolean(res?.isError), decisions: running.get(id)?.decisions.length ?? 0 };
 }

@@ -1234,6 +1234,8 @@
   function onState(s) {
     const was = surface;
     surface = s;
+    // What plugins put on the whole list (Sync all …), asked again each time it is out: a setting may have changed.
+    if ((s.up && !was.up) || (WINDOW && !was.theme)) $("list-actions").replaceChildren(window.Peek ? Peek.actionButtons("tasks", null, api) : "");
     if (WINDOW) return;
     if (s.up && !was.up) {
       Motion.arrive(document.body, how());

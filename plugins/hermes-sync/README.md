@@ -46,8 +46,9 @@ address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
 "Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.
 
 **Sync now, from where you are.** With "Sync now buttons" on (the default), a
-person's entry, Tasks' editor and a project's sheet have a Sync now button (an
-`[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
+person's entry, Tasks' editor and a project's sheet have a Sync now button, and
+the tops of People and Tasks have Sync all people and Sync all tasks and
+projects (each an `[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
 changed, not only that one thing: a sync of one alone would move the cursor past
 what it did not look at. It says Done, what went wrong, or how many decisions
 wait in Settings, Plugins.

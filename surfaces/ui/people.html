@@ -54,6 +54,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .ghead:hover { color: var(--text); }
 .ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
 .ghead.folded .caret { transform: rotate(-90deg); }
+/* One of my organizations: said on its heading. */
+.ghead .own-mark { color: var(--accent); letter-spacing: 1px; }
 .ghead .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ghead .n { letter-spacing: 0; flex: none; }
 .letter { padding: 10px 14px 2px; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
@@ -169,8 +171,10 @@ input.field.bad { border-color: var(--danger) !important; }
   <input type="text" id="q" placeholder="Find" spellcheck="false">
   <span class="seg" id="mode"></span>
   <span class="seg" id="named" title="Known by a name, or only by an address"></span>
+  <span class="seg" id="orgd" title="With an organization, or with none"></span>
   <span id="msg"></span>
   <span class="spacer"></span>
+  <span id="list-actions"></span>
   <button class="t-btn" id="add">+ Person</button>
   <button class="icon-btn" id="grow"></button>
   <button class="icon-btn" id="close"></button>

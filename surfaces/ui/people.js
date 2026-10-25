@@ -234,9 +234,20 @@
   // Known by a name, or only by an address (a name is what the person has unless it is just their address).
   const unnamed = (p) => /^[^\s@]+@[^\s@]+$/.test(String(p.title || "").trim()) || !String(p.title || "").trim();
   let named = store.get("talaris.people.named", "all");
+  // Has an organization, is in one of mine (marked on a group's heading, kept by the core), or has none —
+  // apart from how the list is grouped and the other filters. None chosen: everyone.
+  let orgd = store.get("talaris.people.orgd", "all");
+  let myOrgs = [];
+  const hasOrg = (p) => Boolean(String(p.organization || "").trim());
+  const isMine = (org) => myOrgs.some((m) => m.toLowerCase() === String(org || "").trim().toLowerCase());
+  const ORGD = { all: () => true, has: hasOrg, mine: (p) => isMine(p.organization), none: (p) => !hasOrg(p) };
   function shown() {
     const q = $("q").value.trim().toLowerCase();
-    return people.filter((p) => matches(p, q) && (named === "all" || (named === "named") !== unnamed(p)));
+    return people.filter((p) => matches(p, q) && (named === "all" || (named === "named") !== unnamed(p)) && (ORGD[orgd] || ORGD.all)(p));
+  }
+  function markMine(org, on) {
+    const next = on ? [...myOrgs, org] : myOrgs.filter((m) => m.toLowerCase() !== org.toLowerCase());
+    api("PUT", "/people/my-organizations", { names: next }).then((kept) => { myOrgs = kept || []; drawList(); }).catch((e) => say(e.message, true));
   }
 
   function personRow(p) {
@@ -269,8 +280,14 @@
       for (const g of names) {
         const mine = groups.get(g);
         const folded = !searching && shut.has(g);
-        out.push(el("div", { class: "ghead" + (folded ? " folded" : ""), title: g, onclick: () => toggleGroup(g) },
-          el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), el("span", { class: "n" }, String(mine.length))));
+        const own = g !== NO_ORG && isMine(g);
+        out.push(el("div", { class: "ghead" + (folded ? " folded" : "") + (own ? " own" : ""), title: own ? `${g} — one of my organizations` : g, onclick: () => toggleGroup(g),
+          oncontextmenu: (e) => {
+            if (g === NO_ORG) return;
+            e.preventDefault();
+            menuAt(e.clientX, e.clientY, [{ label: own ? "Not one of my organizations" : "One of my organizations", act: () => markMine(g, !own) }]);
+          } },
+          el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), own ? el("span", { class: "own-mark" }, "Mine") : null, el("span", { class: "n" }, String(mine.length))));
         out.push(...mine.filter((p) => !folded || p.id === chosen).map(personRow));
       }
     } else {
@@ -290,10 +307,14 @@
   function drawMode() {
     seg("mode", [["org", "Organization"], ["az", "A–Z"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
     seg("named", [["all", "All"], ["named", "Named"], ["unnamed", "No name"]], named, (n) => { named = n; store.set("talaris.people.named", n); drawMode(); drawList(); });
+    // Pressed again, the one chosen lets go: everyone.
+    seg("orgd", [["has", "Has organization"], ["mine", "My organizations"], ["none", "No organization"]], orgd, (o) => {
+      orgd = o === orgd ? "all" : o; store.set("talaris.people.orgd", orgd); drawMode(); drawList();
+    });
   }
 
   async function loadPeople() {
-    people = (await api("GET", "/people")) || [];
+    [people, myOrgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/my-organizations").catch(() => [])]);
     drawList();
   }
 
@@ -936,6 +957,8 @@
   function onState(s) {
     const was = surface;
     surface = s;
+    // What plugins put on the whole list (Sync all …), asked again each time it is out: a setting may have changed.
+    if ((s.up && !was.up) || (WINDOW && !was.theme)) $("list-actions").replaceChildren(window.Peek ? Peek.actionButtons("people", null, api) : "");
     if (WINDOW) return;
     if (s.up && !was.up) {
       Motion.arrive(document.body, how());

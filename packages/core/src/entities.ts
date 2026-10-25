@@ -886,6 +886,20 @@ export interface PersonRow {
 }
 
 /** Every person, as People lists them: enough to group, sort and show a row. */
+/**
+ * The organizations that are the person's own — work, a board they sit on —
+ * marked in People, for its "My organizations" filter. Names, as people's
+ * organization fields have them; matched without regard to case.
+ */
+export function myOrganizations(): string[] {
+  return sealedList<{ id?: string; names?: string[] }>("people-prefs").find((x) => x.id === "mine")?.names ?? [];
+}
+export function setMyOrganizations(names: string[]): string[] {
+  const kept = [...new Set(names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim()))];
+  sealedPut("people-prefs", "mine", { id: "mine", names: kept });
+  return kept;
+}
+
 export function listPeople(): PersonRow[] {
   const type = typeFor("person");
   const c = type.profiles?.contact ?? {};
