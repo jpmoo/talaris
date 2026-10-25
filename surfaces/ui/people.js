@@ -836,13 +836,23 @@
       const id = chosen;
       chosen = null;
       if (id) choose(id); else drawPerson();
+      honour();
     } catch (e) { failed(e); }
+  }
+  // A person asked for from elsewhere while the list was loading: chosen once it is in.
+  let wanted = null;
+  function honour() {
+    if (!wanted || !people.some((p) => p.id === wanted)) return;
+    const id = wanted;
+    wanted = null;
+    if (chosen !== id) { chosen = null; choose(id); }
   }
   // Up again: the list read fresh; the one chosen, too, unless it is being typed in.
   async function refresh() {
     try {
       await loadPeople();
       if (!$("person").contains(document.activeElement)) await loadPerson();
+      honour();
     } catch (e) { failed(e); }
   }
 
@@ -952,12 +962,16 @@
   // whatever the list was narrowed to.
   window.People = {
     async show(id) {
+      // Kept until the page's own loading is done with: it would otherwise choose the one it remembered.
+      wanted = id;
+      store.set("talaris.people.chosen", id);
       if (!people.some((p) => p.id === id)) await loadPeople().catch(() => {});
       $("q").value = "";
       if (named !== "all") { named = "all"; store.set("talaris.people.named", named); drawMode(); }
       drawList();
       chosen = null;
       choose(id);
+      if (ptype) wanted = null;
     },
   };
 })();
