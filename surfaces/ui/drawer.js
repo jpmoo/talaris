@@ -483,10 +483,15 @@ function renameCanvas(node) {
 }
 
 function deleteCanvas(node, parent) {
-  confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. It can be brought back from its versions.", async () => {
-    await core("DELETE", `/projects/${state.project.id}/canvases/${node.id}`);
-    viewing = parent ? parent.id : null;
-    loadCanvas();
+  const pid = state.project.id;
+  const gone = () => { viewing = parent ? parent.id : null; loadCanvas(); };
+  confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. A copy is kept in its versions.", async () => {
+    const { count } = await core("GET", `/projects/${pid}/canvases/${node.id}/below`);
+    if (!count) { await core("DELETE", `/projects/${pid}/canvases/${node.id}`); gone(); return; }
+    // Something inside it: asked again, saying what else goes.
+    return () => confirmDelete(`Delete everything inside “${node.title}” too?`,
+      `${count === 1 ? "1 canvas is" : `${count} canvases are`} inside it, and ${count === 1 ? "it goes" : "they all go"} with it. A copy of each is kept in its versions.`,
+      async () => { await core("DELETE", `/projects/${pid}/canvases/${node.id}?all=1`); gone(); }, `Delete all ${count + 1}`);
   });
 }
 
@@ -829,13 +834,24 @@ function renamePage(n) {
 function deletePage() {
   if (!open) return;
   const title = open.split("/").pop();
-  confirmDelete(`Delete “${title}”?`, "It can be brought back from its versions.", async () => {
+  const path = open;
+  const pid = state.project.id;
+  const gone = async (all) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
-    await core("DELETE", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`);
+    await core("DELETE", `/projects/${pid}/page?path=${encodeURIComponent(path)}${all ? "&all=1" : ""}`);
     if (editor) { editor.destroy(); editor = null; }
     open = null;
     text = "";
     loadWriting();
+  };
+  confirmDelete(`Delete “${title}”?`, "A copy is kept in its versions.", async () => {
+    const { pages } = await core("GET", `/projects/${pid}/page/below?path=${encodeURIComponent(path)}`);
+    if (!pages.length) { await gone(false); return; }
+    // Pages beneath it: asked again, saying what else goes.
+    const n = pages.length;
+    return () => confirmDelete(`Delete everything beneath “${title}” too?`,
+      `${n === 1 ? "1 page is" : `${n} pages are`} beneath it, and ${n === 1 ? "it goes" : "they all go"} with it. A copy of each is kept in its versions.`,
+      () => gone(true), `Delete all ${n + 1}`);
   });
 }
 
@@ -843,14 +859,14 @@ function deletePage() {
 
 /*
  * A confirmation inside the drawer, in the theme — never the browser's own
- * dialog. The core has the last word: what it refuses (a canvas with others
- * below it, a page with pages inside) is said here in its words, and nothing
- * is deleted.
+ * dialog. Deleting something with more beneath it is asked twice, the second
+ * time saying how much goes with it. The core has the last word: what it
+ * refuses is said here in its words, and nothing is deleted.
  */
-function confirmDelete(title, detail, act) {
+function confirmDelete(title, detail, act, label = "Delete") {
   const said = el("p", { class: "said" });
   const close = () => sheet.remove();
-  const yes = el("button", { class: "danger" }, "Delete");
+  const yes = el("button", { class: "danger" }, label);
   const sheet = el("div", { class: "confirm", role: "dialog" },
     el("div", { class: "box" },
       el("div", { class: "title" }, title),
@@ -859,8 +875,10 @@ function confirmDelete(title, detail, act) {
       el("div", { class: "buttons" }, el("button", { onclick: close }, "Cancel"), " ", yes)));
   yes.addEventListener("click", async () => {
     try {
-      await act();
+      // An act may answer with a second question (there is more beneath it): asked once this one is gone.
+      const next = await act();
       close();
+      if (typeof next === "function") next();
     } catch (e) {
       said.textContent = e.message;
       yes.remove();

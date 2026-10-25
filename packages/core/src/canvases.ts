@@ -268,15 +268,17 @@ export function createChild(
 
 /**
  * Delete a canvas. Its own act, never a side effect of removing a card. The
- * top canvas cannot go, and nor can one with children — move or delete them
- * first, so nothing is lost by accident. It stays in its versions.
+ * top canvas cannot go. One with canvases inside it goes only when the
+ * caller says so (`withChildren`, asked twice in the drawer): then they all
+ * go, deepest first. Each stays in its versions.
  */
-export function deleteCanvas(projectId: string, id: string): void {
+export function deleteCanvas(projectId: string, id: string, options: { withChildren?: boolean } = {}): void {
   const { folder } = writableProject(projectId);
   const doc = readCanvas(projectId, id);
   if (doc.parent === null) throw new Conflict("a project's top canvas cannot be deleted");
   const children = allCanvases(folder).filter((c) => c.parent === id);
-  if (children.length) throw new Conflict(`"${doc.title}" still has ${children.length} canvas(es) below it`);
+  if (children.length && !options.withChildren) throw new Conflict(`"${doc.title}" still has ${children.length} canvas(es) below it`);
+  for (const child of children) deleteCanvas(projectId, child.id, options);
   saveVersion(versionDir(machinery(folder), "canvas", id), JSON.stringify(doc, null, 2) + "\n", "json");
   const parent = readCanvas(projectId, doc.parent);
   persist(folder, { ...parent, items: parent.items.filter((i) => !(i.kind === "canvas" && i.canvas === id)) });
@@ -288,6 +290,14 @@ export function deleteCanvas(projectId: string, id: string): void {
  * like everything else; at the size a person's projects reach, that is
  * quicker than keeping an index honest.
  */
+/** How many canvases are inside this one, at any depth: what deleting it with them would take. */
+export function canvasesBelow(projectId: string, id: string): number {
+  const { folder } = findProject(projectId);
+  const all = allCanvases(folder);
+  const count = (parent: string): number => all.filter((c) => c.parent === parent).reduce((n, c) => n + 1 + count(c.id), 0);
+  return count(id);
+}
+
 export function backlinks(projectId: string, id: string): Backlink[] {
   const found: Backlink[] = [];
   for (const p of listProjects()) {

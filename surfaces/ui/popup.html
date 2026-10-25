@@ -61,6 +61,8 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 .list .menu-item.current .nm { color: var(--accent); }
 .list .menu-item.busy { opacity: .6; cursor: progress; }
 .list .label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 8px 10px 2px; }
+#project-list .label.group { padding: 12px 10px 2px 14px; }
+#project-list .sep-line { height: 1px; background: var(--line); margin: 8px 10px; }
 .list .none { font-size: 12px; color: var(--muted); padding: 4px 10px 8px; }
 /* What a chosen row opens: a password, or what can be done to it. */
 .detail { display: flex; gap: 6px; align-items: center; padding: 2px 10px 8px 34px; flex-wrap: wrap; }
@@ -123,10 +125,11 @@ input[type="range"]::-webkit-slider-thumb {
   <button class="menu-item" data-verb="shutdown" data-ask="Shut down — again to confirm">Shut down</button>
 </div>
 <div class="panel menu" id="projects">
+  <button class="menu-item" id="glance-here">Glance at current project</button>
+  <div class="menu-sep"></div>
   <div class="hint"><span>Projects</span></div>
   <div id="project-list"></div>
   <div class="menu-sep"></div>
-  <button class="menu-item" id="glance-here">Glance at this project</button>
   <button class="menu-item" id="archive-open">Archive…</button>
 </div>
 <div class="panel menu" id="notifications">

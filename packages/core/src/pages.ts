@@ -290,15 +290,20 @@ export function reorderPage(projectId: string, path: string, index: number): voi
 }
 
 /**
- * Delete a page. Refused while it has pages beneath it — they would go with
- * it, which is too much for one keystroke. Its text stays in its versions.
+ * Delete a page. With pages beneath it, only when the caller says so
+ * (`withChildren`, asked twice in the drawer) — they go with it, which is too
+ * much for one keystroke. Each page's text stays in its versions.
  */
-export function deletePage(projectId: string, path: string): void {
+export function deletePage(projectId: string, path: string, options: { withChildren?: boolean } = {}): void {
   const { folder } = writableProject(projectId);
   const p = safe(path);
   const dir = childDir(folder, p);
-  if (existsSync(dir) && readdirSync(dir).some((n) => !n.startsWith("."))) {
-    throw new Conflict(`"${p}" still has pages beneath it`);
+  const below = pagesBelow(projectId, p);
+  if (below.length && !options.withChildren) throw new Conflict(`"${p}" still has pages beneath it`);
+  // Each kept in its versions before the folder goes, deepest first.
+  for (const sub of below.reverse()) {
+    const f = pageFile(folder, sub);
+    if (existsSync(f)) saveVersion(versionDir(join(folder, MACHINERY), "page", sub), readText(f), "md");
   }
   const file = pageFile(folder, p);
   if (existsSync(file)) {
@@ -306,6 +311,27 @@ export function deletePage(projectId: string, path: string): void {
     rmSync(file);
   }
   if (existsSync(dir)) rmSync(dir, { recursive: true });
+}
+
+/** Every page beneath this one, at any depth, by path: what deleting it with them would take. */
+export function pagesBelow(projectId: string, path: string): string[] {
+  const { folder } = findProject(projectId);
+  const out: string[] = [];
+  const walk = (at: string) => {
+    const dir = childDir(folder, at);
+    if (!existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      if (name.startsWith(".")) continue;
+      const sub = `${at}/${name.replace(/\.md$/, "")}`;
+      if (name.endsWith(".md")) { out.push(sub); continue; }
+      if (statSync(join(dir, name)).isDirectory()) {
+        // A folder with no page of its own is still pages beneath: walked, not counted.
+        walk(sub);
+      }
+    }
+  };
+  walk(safe(path));
+  return [...new Set(out)];
 }
 
 export function pageVersions(projectId: string, path: string) {

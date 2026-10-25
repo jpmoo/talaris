@@ -155,6 +155,32 @@ test("the top canvas cannot be deleted, nor one with children", () => {
   assert.throws(() => canvases.deleteCanvas(p.id, a.id), /below it/);
 });
 
+test("a canvas goes with everything inside it when asked to, each kept in its versions", () => {
+  const p = projects.createProject("Deletes all");
+  const top = projects.readProject(p.folder).topCanvas;
+  const { canvas: a } = canvases.createChild(p.id, top, "A");
+  const { canvas: a1 } = canvases.createChild(p.id, a.id, "A1");
+  canvases.createChild(p.id, a1.id, "A1x");
+  assert.equal(canvases.canvasesBelow(p.id, a.id), 2);
+  canvases.deleteCanvas(p.id, a.id, { withChildren: true });
+  assert.deepEqual(canvases.canvasTree(p.id).children, []);
+  assert.equal(canvases.readCanvas(p.id, top).items.filter((i) => i.kind === "canvas").length, 0);
+  assert.ok(canvases.canvasVersions(p.id, a1.id).length >= 1);
+});
+
+test("a page goes with the pages beneath it when asked to, each kept in its versions", () => {
+  const p = projects.createProject("Pages all");
+  const top = pages.createPage(p.id, null, "Trip");
+  const day = pages.createPage(p.id, top.path, "Day one");
+  pages.createPage(p.id, day.path, "Morning");
+  assert.deepEqual(pages.pagesBelow(p.id, top.path).sort(), ["Trip/Day one", "Trip/Day one/Morning"]);
+  assert.throws(() => pages.deletePage(p.id, top.path), /beneath it/);
+  pages.deletePage(p.id, top.path, { withChildren: true });
+  assert.ok(!existsSync(join(p.folder, "Writing", "Trip.md")));
+  assert.ok(!existsSync(join(p.folder, "Writing", "Trip")));
+  assert.ok(pages.pageVersions(p.id, "Trip/Day one/Morning").length >= 1);
+});
+
 test("pages nest on disk as a file and a folder of its name, in Talaris's order", () => {
   const p = projects.createProject("Pages");
   pages.createPage(p.id, null, "Zebra");

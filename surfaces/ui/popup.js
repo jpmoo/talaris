@@ -66,7 +66,9 @@ function drawProjects() {
   bridge.projects((text) => {
     const list = JSON.parse(text);
     $("project-list").replaceChildren(...(list.length ? list.map((p) => {
-      const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " current" : "") });
+      // A group's name over its projects, as Tasks groups them (an empty one: the projects Tasks does not show).
+      if ("group" in p) return Object.assign(document.createElement("div"), { className: p.group ? "label group" : "sep-line" , textContent: p.group });
+      const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " current" : "") + (p.inGroup ? " in-group" : "") });
       // Its desktop as last seen (thumbs.py), or its wallpaper: a project known by its look too.
       const thumb = Object.assign(document.createElement("img"), { className: "thumb", alt: "", src: `talaris-ui://thumb/?project=${encodeURIComponent(p.id)}&t=${Date.now()}` });
       b.append(thumb, Object.assign(document.createElement("span"), { className: "pname", textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
@@ -139,6 +141,8 @@ function onState(s) {
   if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); }
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
+  // Two frames on, said: a page that is not being drawn never gets there, and the process mends it (bar.py, _check_drawn).
+  if (s.popup && bridge && bridge.shownDrawn) { const shown = s.shown; requestAnimationFrame(() => requestAnimationFrame(() => bridge.shownDrawn(shown))); }
   disarm();
   if (opening && (s.popup === "network" || s.popup === "bluetooth")) {
     open = { key: "", busy: "", armed: "", scanning: false };

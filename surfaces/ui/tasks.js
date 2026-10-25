@@ -48,7 +48,7 @@
   let shape = null;    // how it is a task: titleKey, statusKey, complete, defaultStatus, spanKey, doneKey
   let projects = [];
   let lists = [];
-  let groupOrder = []; // the groups, in the order dragged into (the core keeps it)
+  let column = []; // the projects as the column shows them: groups and projects in none, in one order (the core's)
   let current = null;  // {kind: "list" | "project", id}
   let shown = null;    // the core's Shown for it
   let editing = null;  // the task open in the sheet
@@ -246,83 +246,90 @@
   }
 
   /*
-   * A project dragged above or below another goes there — into that one's
-   * group, if it is in another — and the whole column's order is kept by the
-   * core. Dropped on a group's heading it joins the group; on "Projects", it
-   * leaves its group.
+   * The column is one list (the core's /tasks/column): groups and projects
+   * in no group side by side, each group holding its own. Every drag takes
+   * a copy of it, moves one thing, and gives the whole back.
+   *
+   * A project dropped above or below another goes there, into that one's
+   * group or none. On a group's heading: its top edge, above the group; its
+   * bottom edge when the group is folded, below it; anywhere else, into it.
+   * On the column's end, last, in no group. A group's heading dragged goes
+   * above or below a group or a project in none.
    */
-  function movable(item, id) {
-    item.draggable = true;
-    item.addEventListener("dragstart", (e) => { dragging = { id, scope: "project" }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); item.classList.add("dragging"); });
-    item.addEventListener("dragend", () => { item.classList.remove("dragging"); clearMarks(); dragging = null; });
-    item.addEventListener("dragover", (e) => {
-      if (!dragging || dragging.scope !== "project" || dragging.id === id) return;
+  const plain = () => column.map((x) => x.kind === "group" ? { kind: "group", name: x.name, projects: x.projects.map((p) => p.id) } : { kind: "project", id: x.project.id });
+  function without(entries, id) {
+    return entries.filter((x) => !(x.kind === "project" && x.id === id)).map((x) => x.kind === "group" ? { ...x, projects: x.projects.filter((p) => p !== id) } : x);
+  }
+  const arrange = (entries) => api("PUT", "/tasks/column", { entries }).then(loadSide).catch(failed);
+  const topAt = (entries, key) => entries.findIndex((x) => (x.kind === "group" ? `g:${x.name}` : `p:${x.id}`) === key);
+  /** Where a drop lands on this row: above or below by the half, or (a group's heading) in it. */
+  function zone(node, e, isGroup, folded) {
+    const b = node.getBoundingClientRect();
+    const f = (e.clientY - b.top) / b.height;
+    if (!isGroup || dragging.scope === "group") return f < .5 ? "above" : "below";
+    return f < .3 ? "above" : folded && f > .7 ? "below" : "in";
+  }
+  const MARK = { above: "drop-above", below: "drop-below", in: "drop-in" };
+
+  /** One row of the column as a drop target. `at`: what it is — a project (and its group, if any), a group's heading, or the column's end. */
+  function dropOn(node, at) {
+    node.addEventListener("dragover", (e) => {
+      if (!dragging || (dragging.scope !== "project" && dragging.scope !== "group")) return;
+      if (dragging.id === at.id || (dragging.scope === "group" && at.kind === "group" && dragging.id === at.name)) return;
       e.preventDefault();
-      const b = item.getBoundingClientRect();
-      const above = e.clientY < b.top + b.height / 2;
-      if (!item.classList.contains(above ? "drop-above" : "drop-below")) { clearMarks(); item.classList.add(above ? "drop-above" : "drop-below"); }
+      const mark = MARK[at.kind === "end" ? "above" : zone(node, e, at.kind === "group", at.folded)];
+      if (!node.classList.contains(mark)) { clearMarks(); node.classList.add(mark); }
     });
-    item.addEventListener("drop", (e) => {
-      if (!dragging || dragging.scope !== "project" || dragging.id === id) return;
+    node.addEventListener("dragleave", (e) => { if (!node.contains(e.relatedTarget)) node.classList.remove("drop-above", "drop-below", "drop-in"); });
+    node.addEventListener("drop", (e) => {
+      if (!dragging || (dragging.scope !== "project" && dragging.scope !== "group")) return;
       e.preventDefault();
-      const above = item.classList.contains("drop-above");
+      const where = node.classList.contains("drop-in") ? "in" : node.classList.contains("drop-below") ? "below" : "above";
       clearMarks();
-      const target = projects.find((p) => p.id === id);
-      const order = columnOrder().filter((p) => p.id !== dragging.id);
-      order.splice(order.indexOf(target) + (above ? 0 : 1), 0, { ...projects.find((p) => p.id === dragging.id), group: target.group || null });
-      api("PUT", "/tasks/projects/order", { order: order.map((p) => ({ id: p.id, group: p.group || null })) }).then(loadSide).catch(failed);
+      if (dragging.scope === "project") moveProject(dragging.id, at, where);
+      else moveGroup(dragging.id, at, where);
     });
   }
-  /** The projects as the column shows them: each group in its order, then those in none. */
-  function columnOrder() {
-    const live = projects.filter((p) => !p.archived);
-    return [...groupNames().flatMap((g) => live.filter((p) => p.group === g)), ...live.filter((p) => !p.group)];
+  function moveProject(id, at, where) {
+    if (id === at.id) return;
+    let entries = without(plain(), id);
+    if (at.kind === "end") entries.push({ kind: "project", id });
+    else if (at.kind === "group") {
+      const i = topAt(entries, `g:${at.name}`);
+      if (where === "in") entries[i].projects.push(id);
+      else entries.splice(i + (where === "below" ? 1 : 0), 0, { kind: "project", id });
+    } else if (at.group) {
+      const g = entries[topAt(entries, `g:${at.group}`)];
+      g.projects.splice(g.projects.indexOf(at.id) + (where === "below" ? 1 : 0), 0, id);
+    } else {
+      entries.splice(topAt(entries, `p:${at.id}`) + (where === "below" ? 1 : 0), 0, { kind: "project", id });
+    }
+    arrange(entries);
   }
-  /** A group's heading dragged above or below another's: the groups' order, kept by the core. */
-  function groupMovable(node, g) {
+  function moveGroup(name, at, where) {
+    const entries = plain();
+    const moving = entries[topAt(entries, `g:${name}`)];
+    const rest = entries.filter((x) => x !== moving);
+    // A project in a group stands for its group's place.
+    const key = at.kind === "end" ? null : at.kind === "group" ? `g:${at.name}` : at.group ? `g:${at.group}` : `p:${at.id}`;
+    if (key === `g:${name}`) return;
+    const i = key ? topAt(rest, key) : rest.length;
+    rest.splice(key ? i + (where === "below" ? 1 : 0) : i, 0, moving);
+    arrange(rest);
+  }
+  function draggable(node, id, scope) {
     node.draggable = true;
-    node.addEventListener("dragstart", (e) => { dragging = { id: g, scope: "group" }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", g); node.classList.add("dragging"); });
+    node.addEventListener("dragstart", (e) => { dragging = { id, scope }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); node.classList.add("dragging"); });
     node.addEventListener("dragend", () => { node.classList.remove("dragging"); clearMarks(); dragging = null; });
-    node.addEventListener("dragover", (e) => {
-      if (!dragging || dragging.scope !== "group" || dragging.id === g) return;
-      e.preventDefault();
-      const b = node.getBoundingClientRect();
-      const above = e.clientY < b.top + b.height / 2;
-      if (!node.classList.contains(above ? "drop-above" : "drop-below")) { clearMarks(); node.classList.add(above ? "drop-above" : "drop-below"); }
-    });
-    node.addEventListener("drop", (e) => {
-      if (!dragging || dragging.scope !== "group" || dragging.id === g) return;
-      e.preventDefault();
-      const above = node.classList.contains("drop-above");
-      clearMarks();
-      const names = groupNames().filter((x) => x !== dragging.id);
-      names.splice(names.indexOf(g) + (above ? 0 : 1), 0, dragging.id);
-      api("PUT", "/tasks/groups/order", { names }).then(loadSide).catch(failed);
-    });
-  }
-  function groupTarget(node, group) {
-    node.addEventListener("dragover", (e) => {
-      if (!dragging || dragging.scope !== "project") return;
-      e.preventDefault();
-      node.classList.add("drop-in");
-    });
-    node.addEventListener("dragleave", (e) => { if (!node.contains(e.relatedTarget)) node.classList.remove("drop-in"); });
-    node.addEventListener("drop", (e) => {
-      if (!dragging || dragging.scope !== "project") return;
-      e.preventDefault();
-      clearMarks();
-      const p = projects.find((x) => x.id === dragging.id);
-      if (p && (p.group || null) !== group) setGroup(p, group);
-    });
   }
 
   // ---------------------------------------------------------------- loading
 
   async function loadSide() {
-    const [l, p, g] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/groups/order").catch(() => [])]);
+    const [l, p, c] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => [])]);
     lists = l || [];
     projects = p || [];
-    groupOrder = g || [];
+    column = c || [];
     drawSide();
   }
   // What was shown last, if it is still there; else the starter Today; else the first list.
@@ -380,9 +387,7 @@
   // Groups are Tasks' own arrangement (`talaris:group` on the project): a
   // group is only its name, there while some project has it.
   const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
-  // In the order they were dragged into; one not placed yet, after those, by name.
-  const groupRank = (g) => { const i = groupOrder.indexOf(g); return i < 0 ? Infinity : i; };
-  const groupNames = () => [...new Set(projects.filter((p) => !p.archived && p.group).map((p) => p.group))].sort((a, b) => groupRank(a) - groupRank(b) || byName(a, b));
+  const groupNames = () => column.filter((x) => x.kind === "group").map((x) => x.name);
   let shutGroups = new Set(store.get("talaris.tasks.groupsShut", []));
   function toggleGroup(g) {
     if (shutGroups.has(g)) shutGroups.delete(g); else shutGroups.add(g);
@@ -402,24 +407,29 @@
       ].filter(Boolean)); } },
       el("span", { class: "name" }, p.title),
       el("button", { class: "more", title: "Properties", onclick: (e) => { e.stopPropagation(); editProject(p); } }, "…"));
-    movable(row, p.id);
+    draggable(row, p.id, "project");
+    dropOn(row, { kind: "project", id: p.id, group: p.group || null });
     return row;
   }
-  // Groups first, by name, each folding; then the projects in none. A shut
-  // group still shows the one chosen, so what is on the right has a row.
+  // The column in its one order: each group folding, and the projects in
+  // none among them. A shut group still shows the one chosen, so what is on
+  // the right has a row.
   function projectRows(isOn) {
-    const live = projects.filter((p) => !p.archived);
     const out = [];
-    for (const g of groupNames()) {
-      const mine = live.filter((p) => p.group === g);
+    for (const x of column) {
+      if (x.kind === "project") { out.push(projectRow(x.project, false, isOn("project", x.project.id))); continue; }
+      const g = x.name;
       const shut = shutGroups.has(g);
       const head = el("div", { class: "item grp" + (shut ? " folded" : ""), title: g, onclick: () => toggleGroup(g) },
-        el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), el("span", { class: "n" }, String(mine.length)));
-      groupTarget(head, g);
-      groupMovable(head, g);
-      out.push(head, ...mine.filter((p) => !shut || isOn("project", p.id)).map((p) => projectRow(p, true, isOn("project", p.id))));
+        el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), el("span", { class: "n" }, String(x.projects.length)));
+      draggable(head, g, "group");
+      dropOn(head, { kind: "group", name: g, folded: shut || !x.projects.length });
+      out.push(head, ...x.projects.filter((p) => !shut || isOn("project", p.id)).map((p) => projectRow(p, true, isOn("project", p.id))));
     }
-    out.push(...live.filter((p) => !p.group).map((p) => projectRow(p, false, isOn("project", p.id))));
+    // The column's end: somewhere to drop below the last group.
+    const end = el("div", { class: "col-end" });
+    dropOn(end, { kind: "end" });
+    out.push(end);
     return out;
   }
 
@@ -427,7 +437,6 @@
     const side = $("side");
     const isOn = (kind, id) => current && current.kind === kind && current.id === id;
     const projHead = el("h3", {}, el("span", {}, "Projects"), el("button", { class: "add", title: "New project", onclick: () => { addingProject = true; drawSide(); } }, "+"));
-    groupTarget(projHead, null);
     // Lists of rows flattened in: replaceChildren takes nodes, and would write an array out as text.
     side.replaceChildren(...[
       el("h3", {}, el("span", {}, "Lists"), el("button", { class: "add", title: "New list", onclick: newList }, "+")),

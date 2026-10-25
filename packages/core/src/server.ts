@@ -22,6 +22,7 @@ import {
   canvasVersions,
   createChild,
   deleteCanvas,
+  canvasesBelow,
   readCanvas,
   restoreCanvas,
   writeCanvas,
@@ -31,6 +32,7 @@ import {
   dailyEnabled,
   dailyMonth,
   deletePage,
+  pagesBelow,
   movePage,
   pageTree,
   pageVersion,
@@ -159,10 +161,12 @@ route("PUT", "/projects/:id/canvases/:cid/title", async (req, [id, cid]) => {
   const b = await json<{ title?: string }>(req);
   return renameCanvas(id!, cid!, b.title ?? "");
 });
-route("DELETE", "/projects/:id/canvases/:cid", (_r, [id, cid]) => {
-  deleteCanvas(id!, cid!);
+route("DELETE", "/projects/:id/canvases/:cid", (_r, [id, cid], q) => {
+  deleteCanvas(id!, cid!, { withChildren: q.get("all") === "1" });
   return { ok: true };
 });
+// How many are inside: the drawer's second question before deleting them all.
+route("GET", "/projects/:id/canvases/:cid/below", (_r, [id, cid]) => ({ count: canvasesBelow(id!, cid!) }));
 route("POST", "/projects/:id/canvases/:cid/children", async (req, [id, cid]) => {
   const b = await json<{ title?: string; x?: number; y?: number }>(req);
   return createChild(id!, cid!, b.title ?? "", { x: b.x ?? 0, y: b.y ?? 0 });
@@ -228,9 +232,10 @@ route("PUT", "/projects/:id/page", async (req, [id], q) => {
   return { ok: true };
 });
 route("DELETE", "/projects/:id/page", (_r, [id], q) => {
-  deletePage(id!, need(q, "path"));
+  deletePage(id!, need(q, "path"), { withChildren: q.get("all") === "1" });
   return { ok: true };
 });
+route("GET", "/projects/:id/page/below", (_r, [id], q) => ({ pages: pagesBelow(id!, need(q, "path")) }));
 route("POST", "/projects/:id/page/move", async (req, [id]) => {
   const b = await json<{ path?: string; parent?: string | null; title?: string; index?: number }>(req);
   if (!b.path) throw new BadRequest("path is required");
@@ -414,6 +419,9 @@ route("PUT", "/tasks/projects/order", async (req) => {
   tasks.orderProjects((await json<{ order?: { id: string; group?: string | null }[] }>(req)).order ?? []);
   return { ok: true };
 });
+// The column as one list — groups and ungrouped projects in one order — read and arranged whole.
+route("GET", "/tasks/column", () => tasks.projectColumn());
+route("PUT", "/tasks/column", async (req) => tasks.arrangeColumn((await json<{ entries?: Parameters<typeof tasks.arrangeColumn>[0] }>(req)).entries ?? []));
 route("GET", "/tasks/groups/order", () => tasks.groupOrder());
 route("PUT", "/tasks/groups/order", async (req) => tasks.setGroupOrder((await json<{ names?: string[] }>(req)).names ?? []));
 route("POST", "/tasks/projects", async (req) => {

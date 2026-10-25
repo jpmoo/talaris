@@ -298,6 +298,51 @@ export function setGroupOrder(names: string[]): string[] {
   return order;
 }
 
+/*
+ * The column as Tasks shows it — and the bar's project menu with it: groups
+ * and projects in no group, side by side in one order, each group holding
+ * its projects in theirs. The order of the top is kept beside the groups'
+ * (`groups`, a group by its name, a project as `project:<id>`); a group or
+ * a project never placed comes after those that were, groups first, groups
+ * by name and projects in their own order.
+ */
+type ProjectRow = ReturnType<typeof taskProjects>[number];
+export type ColumnEntry = { kind: "group"; name: string; projects: ProjectRow[] } | { kind: "project"; project: ProjectRow };
+const topKey = (x: ColumnEntry) => (x.kind === "group" ? x.name : `project:${x.project.id}`);
+
+export function projectColumn(): ColumnEntry[] {
+  const live = taskProjects().filter((p) => !p.archived);
+  const groups = [...new Set(live.filter((p) => p.group).map((p) => p.group!))];
+  const entries: ColumnEntry[] = [
+    ...groups.map((name) => ({ kind: "group" as const, name, projects: live.filter((p) => p.group === name) })),
+    ...live.filter((p) => !p.group).map((project) => ({ kind: "project" as const, project })),
+  ];
+  const order = groupOrder();
+  const rank = (x: ColumnEntry) => { const i = order.indexOf(topKey(x)); return i < 0 ? Infinity : i; };
+  return entries.map((x, i) => ({ x, i })).sort((a, b) =>
+    rank(a.x) - rank(b.x)
+    || (a.x.kind === b.x.kind ? (a.x.kind === "group" && b.x.kind === "group" ? a.x.name.localeCompare(b.x.name, undefined, { sensitivity: "base" }) : a.i - b.i) : a.x.kind === "group" ? -1 : 1),
+  ).map(({ x }) => x);
+}
+
+/** The column, arranged: each project's place and group, and the top's order, from one list. */
+export function arrangeColumn(entries: ({ kind: "group"; name: string; projects: string[] } | { kind: "project"; id: string })[]): ColumnEntry[] {
+  const flat: { id: string; group: string | null }[] = [];
+  const top: string[] = [];
+  for (const x of entries) {
+    if (x.kind === "group" && typeof x.name === "string" && x.name.trim()) {
+      top.push(x.name);
+      for (const id of x.projects ?? []) flat.push({ id, group: x.name });
+    } else if (x.kind === "project" && typeof x.id === "string") {
+      top.push(`project:${x.id}`);
+      flat.push({ id: x.id, group: null });
+    }
+  }
+  orderProjects(flat);
+  setGroupOrder(top);
+  return projectColumn();
+}
+
 /**
  * A new project, made from Tasks (or by Morgan): a Talaris project — its
  * folder under the projects root, its canvas and its writing, its place in

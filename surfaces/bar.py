@@ -124,6 +124,12 @@ class BarBridge(Bridge):
     def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.machine.panel_read(kind, deep)
 
+    @Slot(float)
+    def shownDrawn(self, shown: float) -> None:  # noqa: N802 — called from the page by this name
+        """The popup's page drew this showing (two frames after it): not lost."""
+        if hasattr(self.owner, "drawn_ok"):
+            self.owner.drawn_ok(shown)
+
     @Slot(str)
     def network(self, request: str) -> None:
         self.owner.desktop.machine.network(json.loads(request))
@@ -134,15 +140,46 @@ class BarBridge(Bridge):
 
     @Slot(result=str)
     def projects(self) -> str:
-        """Every project, and which is the current one: for the bar's list to switch between."""
+        """
+        Every project, and which is the current one: for the bar's list to
+        switch between — grouped and ordered as Tasks' column is (the core's
+        /tasks/column), Home first, and any project Tasks does not show last,
+        by name. A group's name comes as `{"group": name}` before its projects.
+        """
         status, text = call("GET", "/projects")
         try:
-            listed = json.loads(text) if status == 200 else []
+            listed = [p for p in json.loads(text) if not p.get("archived")] if status == 200 else []
         except ValueError:
             listed = []
+        status, text = call("GET", "/tasks/column")
+        try:
+            column = json.loads(text) if status == 200 else []
+        except ValueError:
+            column = []
         here = self.owner.desktop.project.get("id")
-        return json.dumps([{"id": p.get("id"), "name": p.get("name", ""), "code": p.get("code", ""), "current": p.get("id") == here}
-                           for p in listed])
+        by_id = {p.get("id"): p for p in listed}
+        row = lambda p: {"id": p.get("id"), "name": p.get("name", ""), "code": p.get("code", ""), "current": p.get("id") == here}  # noqa: E731
+        out, seen = [], set()
+        for p in listed:
+            if p.get("home"):
+                out.append(row(p))
+                seen.add(p.get("id"))
+        for x in column:
+            members = x.get("projects", []) if x.get("kind") == "group" else [x.get("project", {})]
+            # A task project is a desktop by its workspace (`talaris-project`): the folder's id.
+            desks = [by_id[m["workspace"]] for m in members if m.get("workspace") in by_id and m["workspace"] not in seen]
+            if not desks:
+                continue
+            if x.get("kind") == "group":
+                out.append({"group": x.get("name", "")})
+            for p in desks:
+                out.append({**row(p), **({"inGroup": True} if x.get("kind") == "group" else {})})
+                seen.add(p.get("id"))
+        rest = sorted((p for p in listed if p.get("id") not in seen), key=lambda p: p.get("name", "").lower())
+        if rest and any("group" in x for x in out):
+            out.append({"group": ""})
+        out.extend(row(p) for p in rest)
+        return json.dumps(out)
 
     #: Pushed to the popup: the notifications, newest first (the bell's list).
     notices = Signal(str)
@@ -173,7 +210,7 @@ class BarBridge(Bridge):
 
     @Slot()
     def glance(self) -> None:
-        """The project menu's "Glance at this project"."""
+        """The project menu's "Glance at current project"."""
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.glance.open()
 
@@ -286,8 +323,12 @@ class Popup(QObject):
         self.at = -1
         self.closed, self.closed_at, self.closed_item = "", 0.0, ""
         self.bridge = BarBridge(self, self)
+        self.profile = profile
         self.view = make_view(profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-popup")
+        # Which showing the page has said it drew (`shownDrawn`); one not said is a page not drawing.
+        self.drawn_for = 0.0
+        self.remade = False
         # A press anywhere off the dropdown puts it away: heard by a clear layer
         # under it, which keeps off the bar so its other buttons still answer.
         self.catcher = Catcher(profile, self.close, self, name="popup-catcher")
@@ -318,6 +359,41 @@ class Popup(QObject):
         if kind in ("network", "bluetooth", "battery"):
             self.desktop.machine.panel_read(kind)
         self.touched()
+        shown = self.shown_at
+        QTimer.singleShot(1200, lambda: self._check_drawn(kind, shown))
+
+    def drawn_ok(self, shown: float) -> None:
+        self.drawn_for = shown
+
+    def _check_drawn(self, kind: str, shown: float) -> None:
+        """
+        Shown, but never drawn: the engine lost the popup's picture ("Compositor
+        returned null texture") and its surface sits there empty, see-through,
+        not even going when closed. Twice it came after a while of ordinary use
+        and could not be made to come back on demand. So it is noticed and
+        mended: the view made anew, and shown again — once, and logged with what
+        was out, to learn what brings it on.
+        """
+        if self.kind != kind or self.shown_at != shown or self.drawn_for == shown:
+            self.remade = False
+            return
+        out = [p.NAME for p in self.desktop.overlays() if getattr(p, "up", False)]
+        log(f"popup: {kind} shown but not drawn (out: {', '.join(out) or 'nothing'}); {'made again' if not self.remade else 'still not drawn'}")
+        if self.remade:
+            return
+        self.remade = True
+        old = self.view
+        self.surface.placement = None
+        old.hide()
+        self.view = make_view(self.profile, "popup", "talaris-ui://ui/popup.html", self.bridge, self)
+        self.surface = LayerSurface(self.view, "talaris-popup")
+        old.deleteLater()
+        self.kind = ""
+
+        def again(_ok: bool) -> None:
+            self.view.page().loadFinished.disconnect(again)
+            self.show(kind)
+        self.view.page().loadFinished.connect(again)
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.

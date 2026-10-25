@@ -111,7 +111,7 @@ def _checked(c: dict) -> str:
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
         return "Not a calendar"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "glance", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "glance", "archive", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"
     backups = c.get("data", {})
     if backups.get("schedule", "off") not in ("off", "daily", "weekly") or not 1 <= int(backups.get("keep", 7)) <= 60 \
