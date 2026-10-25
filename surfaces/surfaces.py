@@ -55,6 +55,7 @@ from archive_panel import Archive
 from webapps import WebApps
 from desk import Desk
 from notifications import Notifications
+import docs
 import thumbs
 from osd import Osd
 from tip import Tip
@@ -123,6 +124,15 @@ class Files(QWebEngineUrlSchemeHandler):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                 return
             self._reply(job, data, "image/png")
+            return
+        # `talaris-ui://docicon/?n=<file>`: a pinned page's icon, saved by docs.py
+        # when it was pinned — by its file name in that folder, never a path.
+        if url.host() == "docicon":
+            got = docs.saved_icon(QUrlQuery(url).queryItemValue("n"))
+            if not got:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+            self._reply(job, got[0], got[1])
             return
         # `talaris-ui://thumb/?project=<id>`: what the project's desktop last
         # looked like (thumbs.py), or its wallpaper if it has not been seen.

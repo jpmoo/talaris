@@ -19,6 +19,19 @@ or hide, pin or unpin, a new window, close. Hyprland has no minimizing, so a
 hidden window waits on a special workspace nobody summons
 (`hypr.HIDDEN`), and its item stays on the dock, dimmed.
 
+**A document** can be pinned too — a spreadsheet, a page in the browser — as
+an item of its own beside its application: right-click a window showing it,
+"Pin this document…", or drop a file or a link on the dock. It wears its
+application's icon with the page's own icon (or a sheet of paper) at its
+corner, a press brings forward the window showing it or opens it there, and
+its tip says what it is and what it opens in. Which document a window shows is
+looked for, not guessed (docs.py); where it cannot be told, nothing is offered.
+
+**Kept in a project**: anything pinned can be (its menu, "Keep in this
+project"). Pressed in another project, its project is gone to and it is shown
+or opened there, never brought to where you are; the launcher and an app's
+own key keep to that as well.
+
 **Order** is yours: items are dragged along the dock, and the order is kept in
 the settings with the pins.
 
@@ -30,11 +43,14 @@ window is an open, a focus and a title — so it waits a moment and asks once.
 from __future__ import annotations
 
 import json
+import os
+import shlex
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
+import docs
 import hypr
 from apps import Apps
 from config import save_config
@@ -58,7 +74,7 @@ from views import make_view, zoom
 #: At the 24px icons it starts with, 50.
 DOCK_ROOM = 26
 #: The item menu's size.
-MENU = (200, 190)
+MENU = (220, 310)
 
 
 def _key(app: dict, wm_class: str) -> str:
@@ -95,6 +111,11 @@ class DockBridge(Bridge):
     def act(self, verb: str, key: str) -> None:
         self.owner.act(verb, key)
 
+    @Slot(str)
+    def dropped(self, uris: str) -> None:
+        """Files or links let go on the dock: each pinned, to this project."""
+        self.owner.dropped(uris)
+
     @Slot(result=str)
     def listing(self) -> str:
         return self.owner.last
@@ -108,6 +129,7 @@ class DockMenu(QObject):
         self.dock = dock
         self.desktop = dock.desktop
         self.key = ""
+        self.found: dict | None = None
         self.bridge = DockBridge(self, self)
         self.view = make_view(profile, "dock-menu", "talaris-ui://ui/dockmenu.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-dock-menu")
@@ -121,12 +143,18 @@ class DockMenu(QObject):
 
     def describe(self) -> dict:
         item = self.dock.items.get(self.key, {})
-        return {"up": bool(self.key), "item": item, "theme": self.desktop.config["theme"]}
+        return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"]}
 
     def open(self, key: str, x: int) -> None:
         if key not in self.dock.items:
             return
         self.key = key
+        # The document its last-used window shows, if one can be told: offered to pin.
+        item = self.dock.items[key]
+        self.found = None
+        if not item.get("doc") and item["windows"]:
+            w = item["windows"][0]
+            self.found = docs.document_of(w, self.dock.apps.lookup(w["class"]))
         screen = QApplication.primaryScreen().geometry()
         w, h = zoom(MENU[0]), zoom(MENU[1])
         x = int(x)
@@ -152,7 +180,12 @@ class DockMenu(QObject):
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def act(self, verb: str, key: str) -> None:
+        found = self.found
         self.file_away()
+        if verb in ("doc-here", "doc-all") and found:
+            item = self.dock.items.get(key, {})
+            self.dock.pin_doc(found, item.get("id", ""), "here" if verb == "doc-here" else "all")
+            return
         self.dock.act(verb, key)
 
     # What a page's bridge may call on its owner.
@@ -170,6 +203,9 @@ class DockMenu(QObject):
         pass
 
     def reorder(self, keys: list) -> None:
+        pass
+
+    def dropped(self, uris: str) -> None:
         pass
 
 
@@ -252,6 +288,16 @@ class Dock(QObject):
         everywhere = cfg.get("scope") == "all"
         now = hypr.windows()
         items: dict[str, dict] = {}
+        # Documents pinned everywhere, then here: items of their own, before the applications.
+        pinned_docs = [d for d in cfg.get("docs", []) if d.get("where") in ("all", here)]
+        pinned_docs.sort(key=lambda d: d.get("where") != "all")
+        for d in pinned_docs:
+            app = self.apps.by_id(d.get("app", "")) or {"name": d.get("app") or "", "icon": ""}
+            key = f"doc:{d['id']}"
+            items[key] = {"key": key, "id": d.get("app", ""), "name": d["name"], "appName": app["name"], "icon": app["icon"],
+                          "doc": {"kind": d["kind"], "target": d["target"], "badge": d.get("icon", ""),
+                                  "missing": d["kind"] == "file" and not os.path.exists(d["target"])},
+                          "pinned": True, "pinnedWhere": "all" if d.get("where") == "all" else "here", "windows": []}
         for key in pinned:
             app = self.apps.by_id(key)
             if app:
@@ -264,13 +310,30 @@ class Dock(QObject):
                 continue
             app = self.apps.lookup(w["class"])
             key = _key(app, w["class"])
+            # A window showing a pinned document is that document's.
+            for d in pinned_docs:
+                if (d.get("app") == app.get("id") or (d["kind"] == "url" and docs.is_browser(app, w["class"]))) and docs.shows(d, w, app):
+                    key = f"doc:{d['id']}"
+                    break
             item = items.setdefault(key, {"key": key, "id": app.get("id", ""), "name": app["name"], "icon": app["icon"],
                                           "pinned": False, "windows": []})
             # Most recently focused first, so a press goes to the one you were in.
             item["windows"].append({"address": w["address"], "title": w["title"], "hidden": w["hidden"],
-                                    "focused": w["address"] == now["focused"]})
+                                    "focused": w["address"] == now["focused"], "class": w["class"], "pid": w["pid"]})
         # Your order first; anything never placed goes after, by name, so an
         # icon does not jump about as focus moves.
+        # Its exception to the general rule: kept in a project where the rule brings, always brought where it goes.
+        going = self.desktop.config["launcher"].get("singleWindow", "bring") == "go"
+        stays, brings = cfg.get("stays", {}), cfg.get("brings", [])
+        for item in items.values():
+            if not item["pinned"]:
+                continue
+            item["rule"] = "go" if going else "bring"
+            if not going and stays.get(item["key"]):
+                item["keptIn"] = stays[item["key"]]
+                item["keptHere"] = stays[item["key"]] == here
+            if going and item["key"] in brings:
+                item["brought"] = True
         rank = {key: i for i, key in enumerate(order)}
         def place(item):
             return (rank.get(item["key"], len(rank)), item["name"].lower())
@@ -292,9 +355,15 @@ class Dock(QObject):
         if not item:
             return
         windows = item["windows"]
+        if not windows and item.get("keptIn") and not item.get("keptHere"):
+            self.go_kept(item)
+            return
         if not windows:
-            if item["id"] and self.apps.is_launchable(item["id"]):
-                hypr.ask(f"/dispatch exec gtk-launch {item['id']}")
+            if item.get("doc"):
+                self.call_doc(item)
+            elif item["id"] and self.apps.is_launchable(item["id"]):
+                # Brought, gone to or started, as the launcher would.
+                self.desktop.launcher.call_app(item["id"])
             return
         at = next((i for i, w in enumerate(windows) if w["focused"]), -1)
         target = windows[0] if at < 0 else windows[(at + 1) % len(windows)]
@@ -308,7 +377,35 @@ class Dock(QObject):
         if not item:
             return
         cfg = self.desktop.config["dock"]
-        if verb in ("pin-all", "pin-here", "unpin"):
+        if item.get("doc") and verb in ("pin-all", "pin-here", "unpin"):
+            # A document: moved between every project and this one, or taken off.
+            ident = item["key"][4:]
+            here = self.desktop.project.get("id", "") or "all"
+            kept = []
+            for d in cfg.get("docs", []):
+                if d["id"] == ident:
+                    if verb == "unpin":
+                        continue
+                    d = {**d, "where": "all" if verb == "pin-all" else here}
+                kept.append(d)
+            cfg["docs"] = kept
+            save_config(self.desktop.config)
+        elif verb in ("bring-here", "unbring") and item["pinned"]:
+            brings = [k for k in cfg.get("brings", []) if k != key]
+            if verb == "bring-here":
+                brings.append(key)
+            cfg["brings"] = brings
+            save_config(self.desktop.config)
+        elif verb in ("keep-here", "unkeep") and item["pinned"]:
+            here = self.desktop.project.get("id", "")
+            stays = {k: v for k, v in cfg.get("stays", {}).items() if k != key}
+            if verb == "keep-here" and here:
+                stays[key] = here
+            cfg["stays"] = stays
+            save_config(self.desktop.config)
+        elif verb == "open" and item.get("doc"):
+            self.open_doc(item)
+        elif verb in ("pin-all", "pin-here", "unpin"):
             if not item["id"]:
                 return  # nothing to start it by again, so nothing to pin
             # Taken from wherever it was pinned, then put where it was asked: every
@@ -339,7 +436,103 @@ class Dock(QObject):
                 hypr.close(w["address"])
         elif verb == "new" and item["id"] and self.apps.is_launchable(item["id"]):
             hypr.ask(f"/dispatch exec gtk-launch {item['id']}")
+        if verb == "unpin":
+            # Unpinned, its exception goes with it.
+            cfg["stays"] = {k: v for k, v in cfg.get("stays", {}).items() if k != key}
+            cfg["brings"] = [k for k in cfg.get("brings", []) if k != key]
+            save_config(self.desktop.config)
         self._soon.start(80)
+
+    def go_kept(self, item: dict) -> None:
+        """A pinned thing kept in another project: shown where it is, or that project gone to and it opened there."""
+        if item.get("doc"):
+            now = hypr.windows()
+            d = {"kind": item["doc"]["kind"], "target": item["doc"]["target"]}
+            showing = [w for w in sorted(now["windows"], key=lambda w: w["recent"])
+                       if not w["hidden"] and docs.shows(d, w, self.apps.lookup(w["class"]))]
+            if showing:
+                hypr.focus(showing[0]["address"])
+                return
+            self.desktop.go_to_project(item["keptIn"], announce=True)
+            self.open_doc(item)
+            return
+        if item["id"] and self.desktop.launcher.kept(item["id"]):
+            return
+        self.desktop.go_to_project(item["keptIn"], announce=True)
+        if item["id"] and self.apps.is_launchable(item["id"]):
+            hypr.ask(f"/dispatch exec gtk-launch {item['id']}")
+
+    def call_doc(self, item: dict) -> None:
+        """
+        A pinned document with no window here: where the rule is to go, the
+        window showing it, wherever it is; where it is to bring (or its
+        exception says so), that window brought here; else opened.
+        """
+        going = self.desktop.config["launcher"].get("singleWindow", "bring") == "go"
+        now = hypr.windows()
+        d = {"kind": item["doc"]["kind"], "target": item["doc"]["target"]}
+        showing = [w for w in sorted(now["windows"], key=lambda w: w["recent"]) if docs.shows(d, w, self.apps.lookup(w["class"]))]
+        if showing:
+            w = showing[0]
+            if going and not item.get("brought") and not w["hidden"]:
+                hypr.focus(w["address"])
+            else:
+                hypr.show(w["address"], now["activeTarget"])
+            return
+        self.open_doc(item)
+
+    # ------------------------------------------------------------ documents
+
+    def open_doc(self, item: dict) -> None:
+        """A pinned document, opened in its application — or by whatever opens it, if that is gone."""
+        target = item["doc"]["target"]
+        if item["doc"]["kind"] == "file" and not os.path.exists(target):
+            mid = QApplication.primaryScreen().geometry().width() / 2
+            self.desktop.tip.show(f"{item['name']} is not where it was pinned", mid, self.edge, self.thickness(), area="dock")
+            QTimer.singleShot(3000, self.desktop.tip.hide)
+            return
+        if item["id"] and self.apps.is_launchable(item["id"]):
+            hypr.ask(f"/dispatch exec gtk-launch {shlex.quote(item['id'])} {shlex.quote(target)}")
+        else:
+            hypr.ask(f"/dispatch exec xdg-open {shlex.quote(target)}")
+
+    def pin_doc(self, found: dict, app_id: str, where: str) -> None:
+        """A document kept on the dock: here (this project) or everywhere; the page's icon saved to wear."""
+        here = self.desktop.project.get("id", "")
+        if not app_id or not self.apps.is_launchable(app_id):
+            app_id = self.app_for(found["target"])
+        ident = docs.doc_id(found["target"])
+        icon = ""
+        if found["kind"] == "url":
+            icon = os.path.basename(docs.page_icon(found["target"]))
+        cfg = self.desktop.config["dock"]
+        entry = {"id": ident, "kind": found["kind"], "target": found["target"], "name": found["name"],
+                 "app": app_id, "icon": icon, "where": "all" if where == "all" or not here else here}
+        cfg["docs"] = [d for d in cfg.get("docs", []) if d["id"] != ident] + [entry]
+        save_config(self.desktop.config)
+        self._soon.start(80)
+
+    def app_for(self, target: str) -> str:
+        """What opens a file or a link by default, as a launchable desktop id; empty if none is."""
+        wanted = docs.default_app(target)
+        if self.apps.is_launchable(wanted):
+            return wanted
+        # A browser set as default by a made-up entry ("userapp-Firefox-XXXX"): found by its name.
+        name = wanted.removeprefix("userapp-").rsplit("-", 1)[0].lower()
+        return next((a["id"] for a in self.apps.launchable() if name and a["name"].lower() == name), "")
+
+    def dropped(self, uris: str) -> None:
+        from urllib.parse import unquote
+        for line in uris.splitlines():
+            u = line.strip()
+            if not u or u.startswith("#"):
+                continue
+            if u.startswith("file://"):
+                path = unquote(u[7:])
+                if os.path.exists(path):
+                    self.pin_doc({"kind": "file", "target": path, "name": os.path.basename(path.rstrip("/")) or path}, "", "here")
+            elif u.startswith(("http://", "https://")):
+                self.pin_doc({"kind": "url", "target": u, "name": docs.page_name(u)}, "", "here")
 
     def reorder(self, keys: list) -> None:
         """The order the items were dragged into, kept."""

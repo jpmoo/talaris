@@ -85,7 +85,7 @@ def windows() -> dict:
             {"address": c["address"], "class": c.get("class") or c.get("initialClass") or "",
              "title": c.get("title", ""), "workspace": c["workspace"]["id"],
              "hidden": c["workspace"].get("name") == HIDDEN,
-             "recent": c.get("focusHistoryID", 999)}
+             "recent": c.get("focusHistoryID", 999), "pid": c.get("pid", 0)}
             for c in regular
         ],
         "workspaces": [{"id": w["id"], "name": w.get("name", str(w["id"]))} for w in spaces if ordinary(w)],

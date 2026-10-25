@@ -21,7 +21,12 @@ function item(app, pinned) {
   b.dataset.key = app.key;
   b.dataset.pinned = pinned ? "1" : "";
   const titles = app.windows.map((w) => w.title).filter(Boolean);
-  b.title = titles.length ? `${app.name} — ${titles.join(" · ")}` : app.name;
+  // A document says what it is and what it opens in; an application, its windows.
+  if (app.doc) b.title = `${app.name} — ${app.appName || "opens by default"}${app.doc.missing ? " (not found)" : ""}`;
+  else b.title = titles.length ? `${app.name} — ${titles.join(" · ")}` : app.name;
+  if (app.keptIn && !app.keptHere) b.title += " — kept in another project";
+  b.classList.toggle("doc", !!app.doc);
+  b.classList.toggle("missing", !!(app.doc && app.doc.missing));
   // Every window hidden: the item stays, dimmed, until shown again.
   b.classList.toggle("hidden", app.windows.length > 0 && app.windows.every((w) => w.hidden));
 
@@ -32,6 +37,19 @@ function item(app, pinned) {
   // No icon anywhere: the application's initial, so it is still a thing to press.
   img.addEventListener("error", () => img.replaceWith(el("span", "letter", (app.name[0] || "?").toUpperCase())));
   b.append(img);
+  // A document wears its application's icon, with its page's own at the corner — or a sheet of paper.
+  if (app.doc) {
+    const badge = el("span", "badge");
+    if (app.doc.badge) {
+      const fav = el("img");
+      fav.alt = "";
+      fav.draggable = false;
+      fav.src = `talaris-ui://docicon/?n=${encodeURIComponent(app.doc.badge)}`;
+      fav.addEventListener("error", () => { fav.remove(); badge.classList.add("sheet"); });
+      badge.append(fav);
+    } else badge.classList.add(app.doc.kind === "url" ? "link" : "sheet");
+    b.append(badge);
+  }
 
   // A dot per window, three at most; the focused one a longer bar. The focused
   // window is shown by its bar alone, not a box round the icon.
@@ -114,6 +132,25 @@ function startDrag(e, button) {
   addEventListener("pointermove", move);
   addEventListener("pointerup", up);
 }
+
+// ---------------------------------------------------------------- dropping
+//
+// A file or a link let go on the dock: pinned, to this project, as a document.
+addEventListener("dragover", (e) => {
+  const types = [...(e.dataTransfer?.types || [])];
+  if (!types.includes("text/uri-list") && !types.includes("Files")) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "link";
+  document.body.classList.add("dropping");
+});
+addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("dropping"); });
+addEventListener("drop", (e) => {
+  document.body.classList.remove("dropping");
+  const uris = e.dataTransfer?.getData("text/uri-list") || "";
+  if (!uris.trim()) return;
+  e.preventDefault();
+  if (bridge) bridge.dropped(uris);
+});
 
 // ---------------------------------------------------------------- magnifying
 //

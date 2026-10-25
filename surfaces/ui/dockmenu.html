@@ -15,6 +15,7 @@ html, body { height: 100%; }
 .menu { position: absolute; left: 4px; right: 4px; bottom: 6px; }
 body[data-edge="top"] .menu { bottom: auto; top: 6px; }
 .menu-item[hidden] { display: none !important; }
+.menu-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
@@ -22,10 +23,17 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <div class="hint" id="name"></div>
   <button class="menu-item" data-verb="show">Show</button>
   <button class="menu-item" data-verb="hide">Hide</button>
+  <button class="menu-item" data-verb="open">Open</button>
   <button class="menu-item" data-verb="new">New window</button>
   <button class="menu-item" data-verb="pin-here">Pin to this project</button>
   <button class="menu-item" data-verb="pin-all">Pin to all projects</button>
   <button class="menu-item" data-verb="unpin">Unpin</button>
+  <button class="menu-item" data-verb="keep-here">Keep in this project</button>
+  <button class="menu-item" data-verb="unkeep">Stop keeping it here</button>
+  <button class="menu-item" data-verb="bring-here">Always bring here</button>
+  <button class="menu-item" data-verb="unbring">Stop always bringing here</button>
+  <button class="menu-item" data-verb="doc-here">Pin this document to this project</button>
+  <button class="menu-item" data-verb="doc-all">Pin this document to all projects</button>
   <div class="menu-sep" id="sep"></div>
   <button class="menu-item" data-verb="close">Close window</button>
   <button class="menu-item" data-verb="close-all">Close all windows</button>
@@ -43,15 +51,38 @@ function onState(s) {
   if (!s.up) return;
   const it = s.item || {};
   key = it.key || "";
-  document.getElementById("name").textContent = it.name || "";
+  const doc = !!it.doc;
+  // Its name, and how it stands: pinned where, and its exception to the general rule.
+  const where = it.pinned ? (it.pinnedWhere === "all" ? "pinned to all projects" : "pinned to this project") : "not pinned";
+  const rule = it.keptHere ? ", kept here" : it.keptIn ? ", kept in another project" : it.brought ? ", always brought here" : "";
+  document.getElementById("name").textContent = `${doc ? `${it.name} · ${it.appName || "opens by default"}` : it.name || ""} — ${where}${rule}`;
   const wins = it.windows || [];
   show("show", wins.some((w) => w.hidden));
   show("hide", wins.some((w) => !w.hidden));
-  show("new", !!it.id);
+  // A document opens; an application starts a new window.
+  show("open", doc && !it.doc.missing);
+  show("new", !doc && !!it.id);
   // Pinned in one way, it can be moved to the other.
-  show("pin-here", !!it.id && it.pinnedWhere !== "here");
-  show("pin-all", !!it.id && it.pinnedWhere !== "all");
+  show("pin-here", (doc || !!it.id) && it.pinnedWhere !== "here");
+  show("pin-all", (doc || !!it.id) && it.pinnedWhere !== "all");
+  // The document a window of this application shows, where it can be told.
+  const found = s.found;
+  show("doc-here", !doc && !!found);
+  show("doc-all", !doc && !!found);
+  if (found) {
+    const short = found.name.length > 22 ? found.name.slice(0, 21) + "…" : found.name;
+    document.querySelector('[data-verb="doc-here"]').textContent = `Pin “${short}” to this project`;
+    document.querySelector('[data-verb="doc-all"]').textContent = `Pin “${short}” to all projects`;
+  }
   show("unpin", !!it.pinned);
+  // Kept in a project: gone to there when called, not brought.
+  // Its exception to the general rule (Settings, Keys): kept where the rule brings, brought where it goes.
+  show("keep-here", !!it.pinned && it.rule === "bring" && !it.keptHere);
+  show("unkeep", !!it.pinned && it.rule === "bring" && !!it.keptIn);
+  show("bring-here", !!it.pinned && it.rule === "go" && !it.brought);
+  show("unbring", !!it.pinned && it.rule === "go" && !!it.brought);
+  if (it.keptIn && !it.keptHere) document.querySelector('[data-verb="unkeep"]').textContent = "Stop keeping it in its project";
+  else document.querySelector('[data-verb="unkeep"]').textContent = "Stop keeping it here";
   show("close", wins.length === 1);
   show("close-all", wins.length > 1);
   document.getElementById("sep").hidden = !wins.length;

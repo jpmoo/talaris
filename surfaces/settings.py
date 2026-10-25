@@ -163,10 +163,20 @@ def _checked(c: dict) -> str:
         return "Not one of the launcher's keys"
     if c["launcher"].get("singleWindow", "bring") not in ("bring", "go"):
         return "Bring it here, or go to it"
+    stays = c["dock"].get("stays", {})
+    if not isinstance(stays, dict) or not all(isinstance(k, str) and isinstance(v, str) and v.startswith("prj_") for k, v in stays.items()):
+        return "Something kept in a project names the project"
+    if not isinstance(c["dock"].get("brings", []), list):
+        return "Not a list of things brought"
     return ""
 
 
 class SettingsBridge(Bridge):
+    @Slot(result=str)
+    def applications(self) -> str:
+        """Every application a menu would show: for choosing one to keep in a project."""
+        return json.dumps([{"id": a["id"], "name": a["name"]} for a in self.owner.desktop.apps.launchable()])
+
     @Slot(result=str)
     def config(self) -> str:
         return json.dumps({"config": self.owner.desktop.config, "fonts": FONTS,

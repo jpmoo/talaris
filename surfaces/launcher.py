@@ -280,23 +280,7 @@ class Launcher(QObject):
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
                 return "No such application"
-            mine = self._app_windows(r["id"])
-            # One that keeps a single window, open elsewhere: brought here, or gone to —
-            # as Settings says (Keys, Launcher); Shift+Enter the other.
-            go = (self.desktop.config["launcher"].get("singleWindow", "bring") == "go") != bool(r.get("there"))
-            now = hypr.windows()
-            before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
-            # One that says it keeps a single window is brought here, not started again.
-            if mine and keeps_one_window(r["id"]):
-                self._bring(r["id"], here, go)
-                return ""
-            # Through the compositor, so it starts with the session's environment
-            # and on the workspace in front of you.
-            hypr.ask(f"/dispatch exec gtk-launch {r['id']}")
-            # Watched: brought here the moment it raises the window it has (urgent), or
-            # once it has shown no new window in the time given.
-            self._pending[r["id"]] = (before, here, go)
-            self._look(r["id"], FOLLOW_MS)
+            self.call_app(r["id"], there=bool(r.get("there")))
         elif kind == "window":
             if r["address"] not in self._windows:
                 return "That window has gone"
@@ -326,6 +310,66 @@ class Launcher(QObject):
         else:
             return "That cannot be done"
         return ""
+
+    def brings(self, key: str) -> bool:
+        """
+        Whether something is brought where you are when called: the general
+        rule (Settings, Keys: single-window apps), or its exception for that
+        pinned thing (the dock's menu) — kept in a project when the rule
+        brings, always brought when the rule goes.
+        """
+        cfg = self.desktop.config
+        if cfg["launcher"].get("singleWindow", "bring") == "go":
+            return key in cfg["dock"].get("brings", [])
+        return key not in cfg["dock"].get("stays", {})
+
+    def call_app(self, app_id: str, there: bool = False) -> None:
+        """An application called — from the launcher, the dock or its key: brought here, gone to, or started, as the rules say."""
+        if self.kept(app_id):
+            return
+        mine = self._app_windows(app_id)
+        # One that keeps a single window, open elsewhere: brought here, or gone to —
+        # as Settings says (Keys, Launcher), or its exception; Shift+Enter the other.
+        go = (not self.brings(app_id)) != there
+        now = hypr.windows()
+        before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
+        # One that says it keeps a single window is brought here, not started again.
+        if mine and keeps_one_window(app_id):
+            self._bring(app_id, here, go)
+            return
+        # Through the compositor, so it starts with the session's environment
+        # and on the workspace in front of you.
+        hypr.ask(f"/dispatch exec gtk-launch {app_id}")
+        # Watched: brought here the moment it raises the window it has (urgent), or
+        # once it has shown no new window in the time given.
+        self._pending[app_id] = (before, here, go)
+        self._look(app_id, FOLLOW_MS)
+
+    def kept(self, app_id: str) -> bool:
+        """
+        An application whose dock pin is kept in a project (the dock's menu,
+        "Keep in this project"): called from anywhere, it is gone to rather than brought —
+        its window where it is, or, with none, its project and then started
+        there. Answers whether it was one; the general rule does the rest.
+        """
+        cfg = self.desktop.config
+        home = cfg["dock"].get("stays", {}).get(app_id)
+        # Kept only means something where the rule is to bring.
+        if not home or cfg["launcher"].get("singleWindow", "bring") == "go":
+            return False
+        mine = self._app_windows(app_id)
+        visible = [w for w in mine if not w["hidden"]]
+        if visible:
+            hypr.focus(visible[0]["address"])
+            log(f"launcher: gone to {app_id}, kept where it is")
+            return True
+        self.desktop.go_to_project(home, announce=True)
+        if mine:
+            hypr.show(mine[0]["address"])
+        else:
+            hypr.ask(f"/dispatch exec gtk-launch {app_id}")
+        log(f"launcher: {app_id} opened in its own project")
+        return True
 
     def _app_windows(self, app_id: str) -> list:
         """An application's windows, most recently used first."""

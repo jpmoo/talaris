@@ -62,8 +62,12 @@ DEFAULTS = {
     "calendar": {"hidden": []},
     # pinned: launcher ids pinned in every project; pinnedIn: {project id: ids}
     # pinned in that project only; order: every item's place, as dragged;
-    # scope: the windows of "desktop" (this one) or "all".
-    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "order": [], "scope": "desktop", "groups": "one",
+    # scope: the windows of "desktop" (this one) or "all"; docs: documents pinned
+    # ({id, kind, target, name, app, icon, where: "all" or a project id}); stays:
+    # {item key: project id}, a pinned thing kept in a project — gone to there
+    # when called, never brought (where the rule is to bring); brings: item keys
+    # always brought where you are (where the rule is to go).
+    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "docs": [], "stays": {}, "brings": [], "order": [], "scope": "desktop", "groups": "one",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off. iconSize: the icons at rest, in px.

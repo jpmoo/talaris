@@ -124,6 +124,11 @@ class WebApps(QObject):
         if mine:
             hypr.focus(sorted(mine, key=lambda c: c.get("focusHistoryID", 999))[0]["address"])
             return
+        # Its dock pin kept in a project (where the rule is to bring): started there, not here.
+        cfg = self.desktop.config
+        home = cfg["dock"].get("stays", {}).get(f"{PREFIX}{k}") if cfg["launcher"].get("singleWindow", "bring") != "go" else None
+        if home:
+            self.desktop.go_to_project(home, announce=True)
         args = [sys.executable, os.path.join(HERE, "webapp.py"), "--id", k, "--name", a["name"], "--url", a["url"]]
         if a.get("icon"):
             args += ["--icon", a["icon"]]
