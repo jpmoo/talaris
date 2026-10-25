@@ -1608,13 +1608,17 @@ async function loadPlugins() {
           fields[def.key] = () => (n.value === "" ? null : Number(n.value));
         } else input = pel("input", { type: "text", spellcheck: "false", autocomplete: "off", value: now ?? "" });
         if (def.kind === "text" || def.kind === "secret") fields[def.key] = () => (def.kind === "secret" ? (input.value ? input.value : undefined) : input.value);
+        // Enter in a field saves, as it would anywhere: a key typed and left unsaved is a key lost.
+        const typed = def.kind === "number" ? input.querySelector("input") : input;
+        if (typed && typed.tagName === "INPUT") typed.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveBtn.click(); } });
         body.append(mgRow(def.label, def.help || "", input));
       }
-      body.append(pel("div", { class: "row" }, pel("span", { class: "name" }), pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: async () => {
+      const saveBtn = pel("button", { class: "t-btn", onclick: async () => {
         const values = {};
         for (const [k, get] of Object.entries(fields)) { const v = get(); if (v !== undefined) values[k] = v; }
         try { await core("PUT", `/plugins/${encodeURIComponent(r.id)}/settings`, { values }); say("Saved"); redraw(); } catch (e) { say(e.message, true); }
-      } }, "Save"))));
+      } }, "Save");
+      body.append(pel("div", { class: "row" }, pel("span", { class: "name" }), pel("span", { class: "what" }, saveBtn)));
     }
     const logBox = pel("div", { class: "pl-log", hidden: plLogShown.has(r.id) ? null : "" });
     if (plLogShown.has(r.id)) core("GET", `/plugins/${encodeURIComponent(r.id)}/log`).then((lines) => { logBox.textContent = lines.slice(-60).join("\n") || "Nothing logged yet."; logBox.scrollTop = logBox.scrollHeight; }, () => undefined);
