@@ -70,6 +70,8 @@ class FilesBridge(Bridge):
         full = _in_home(path)
         if full and os.path.exists(full):
             _launch("xdg-open", full)
+            # Out of the way of what opens: the panel goes (a window stays, as windows do).
+            self.owner.file_away()
 
     @Slot(str)
     def reveal(self, path: str) -> None:
@@ -77,6 +79,7 @@ class FilesBridge(Bridge):
         full = _in_home(path)
         if not full:
             return
+        self.owner.file_away()
         if os.path.isdir(full):
             _launch("xdg-open", full)
             return
