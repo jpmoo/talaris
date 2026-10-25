@@ -61,6 +61,8 @@ document.getElementById("archive-open").addEventListener("click", () => bridge &
 // The projects, from the bar's project name: the current one marked, another gone to.
 let projectsShown = null;
 function drawProjects() {
+  // Many projects scroll inside the menu rather than run off the screen: most of its height, at most.
+  $("project-list").style.maxHeight = `${Math.round(screen.availHeight * 0.7)}px`;
   bridge.projects((text) => {
     const list = JSON.parse(text);
     $("project-list").replaceChildren(...(list.length ? list.map((p) => {

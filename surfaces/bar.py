@@ -327,6 +327,10 @@ class Popup(QObject):
         if self.kind not in self.FITTED or height <= 0:
             return
         want = math.ceil(height * zoom_of("interface"))
+        # Never taller than the screen below the bar: what is longer scrolls inside it.
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            want = min(want, screen.availableGeometry().height() - 60)
         placed = self.surface.placement
         if placed and abs(placed.height - want) > 1:
             self.surface.placement = None
