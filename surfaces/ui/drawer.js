@@ -39,7 +39,8 @@ function el(tag, attrs = {}, ...kids) {
     else if (k === "class") e.className = v;
     else e.setAttribute(k, v);
   }
-  for (const k of kids) e.append(k);
+  // Nothing (a top canvas's star, say) is left out, not written as "null".
+  for (const k of kids) if (k != null && k !== false) e.append(k);
   return e;
 }
 function status(text) { $("status").textContent = text; }
@@ -122,7 +123,9 @@ function update(next) {
   // A window is always out, and fills itself.
   if (WINDOW) state = { ...state, mode: "expanded", insets: { top: 0, right: 0, bottom: 0, left: 0 } };
   document.body.dataset.mode = state.mode;
-  if (leaving) { leaving.cancel(); leaving = null; }
+  // Called back while still going: everything its leaving touched undone — the
+  // contents' fades too, which outlast the frame's and would keep it empty.
+  if (leaving) { Motion.reset($("panel")); leaving = null; }
   document.body.dataset.edge = state.edge;
   for (const [side, px] of Object.entries(state.insets || {})) document.body.style.setProperty(`--in-${side}`, `${px}px`);
   // A panel's one button makes it a window (the expand corners); a window's closes it.
