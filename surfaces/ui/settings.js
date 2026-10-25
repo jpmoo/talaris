@@ -413,6 +413,68 @@ function mgInput(value, attrs = {}) {
   input.value = value ?? "";
   return input;
 }
+/**
+ * A number, in the theme: − and + either side of the figure, never the
+ * engine's own spinner (which wears the system's look, not Talaris's). Wraps
+ * an input so a form reads `.value` from it as from any other.
+ */
+function stepper(input, { min = -Infinity, max = Infinity, step = 1 } = {}) {
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.classList.add("step-n");
+  const nudge = (by) => {
+    const n = Number(input.value === "" ? (Number.isFinite(min) ? min : 0) : input.value) + by;
+    if (Number.isNaN(n)) return;
+    input.value = String(Math.min(max, Math.max(min, n)));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") { e.preventDefault(); nudge(step); }
+    if (e.key === "ArrowDown") { e.preventDefault(); nudge(-step); }
+  });
+  const b = (label, by, title) => { const x = el("button", { class: "step-b", type: "button", title }, label); x.addEventListener("click", () => nudge(by)); return x; };
+  return el("span", { class: "stepper" }, b("−", -step, "Less"), input, b("+", step, "More"));
+}
+
+/**
+ * One of several, in the theme: a button showing the choice, opening a menu
+ * of the rest — never the engine's own dropdown. `pick(value)` on choosing.
+ */
+function dropdown(choices, current, pick) {
+  let now = current;
+  const btn = el("button", { class: "t-btn drop-b", type: "button" });
+  const label = () => { btn.textContent = `${(choices.find(([v]) => v === now) || [now, now ?? "—"])[1]} ▾`; };
+  label();
+  let menu = null;
+  const close = () => { if (menu) { menu.remove(); menu = null; removeEventListener("pointerdown", away, true); } };
+  const away = (e) => { if (menu && !menu.contains(e.target) && e.target !== btn) close(); };
+  btn.addEventListener("click", () => {
+    if (menu) { close(); return; }
+    menu = el("div", { class: "menu drop-menu" }, ...choices.map(([v, l]) => {
+      const item = el("button", { class: "menu-item" + (v === now ? " on" : ""), type: "button" }, l);
+      item.addEventListener("click", () => { now = v; label(); close(); pick(v); });
+      return item;
+    }));
+    const r = btn.getBoundingClientRect();
+    menu.style.left = `${r.left}px`;
+    menu.style.top = `${r.bottom + 4}px`;
+    document.body.append(menu);
+    addEventListener("pointerdown", away, true);
+  });
+  return btn;
+}
+
+/** A choice among a few, as the rest of Settings has them: in a row; many, as a menu. */
+function choiceOf(choices, current, pick) {
+  const short = choices.length <= 4 && choices.reduce((n, [, l]) => n + String(l).length, 0) <= 60;
+  if (!short) return dropdown(choices, current, pick);
+  const host = el("span", {});
+  let now = current;
+  const draw = () => host.replaceChildren(segOf(choices, now, (v) => { now = v; draw(); pick(v); }));
+  draw();
+  return host;
+}
+
 function mgSwitch(on, flip, title = "") {
   const sw = el("button", { class: "switch" + (on ? " on" : ""), title });
   sw.addEventListener("click", () => flip(!sw.classList.contains("on"), sw));
@@ -501,7 +563,7 @@ async function mgAssistant() {
   const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const inputs = {
     name: mgInput(m.name), userName: mgInput(m.userName), wakeWord: mgInput(m.wakeWord), interruptWord: mgInput(m.interruptWord),
-    followUpSeconds: el("input", { type: "number", min: "0", max: "30", step: "1" }), timeZone: mgInput(m.timeZone, { placeholder: here }),
+    followUpSeconds: el("input", {}), timeZone: mgInput(m.timeZone, { placeholder: here }),
   };
   inputs.followUpSeconds.value = m.followUpSeconds ?? "";
   const known = mgSwitch(!!m.knownVoicesOnly, (on, sw) => sw.classList.toggle("on", on));
@@ -525,7 +587,7 @@ async function mgAssistant() {
     mgRow("Your name", "What it calls you; empty, nothing", inputs.userName),
     mgRow("Wake word", "Empty turns it off", inputs.wakeWord),
     mgRow("Interrupt word", "Said while it speaks, stops it; empty turns it off", inputs.interruptWord),
-    mgRow("Follow-up", "Seconds it listens after answering", inputs.followUpSeconds),
+    mgRow("Follow-up", "Seconds it listens after answering", stepper(inputs.followUpSeconds, { min: 0, max: 30 })),
     mgRow("Time zone", `Where you are; empty is this computer's, ${here}`, inputs.timeZone,
       el("button", { class: "t-btn", onclick: () => { inputs.timeZone.value = here; } }, "This computer's")),
     mgRow("Known voices only", "Answer only voices it has been taught", known),
@@ -1532,10 +1594,18 @@ async function loadPlugins() {
         const now = r.settings[def.key];
         let input;
         if (def.kind === "boolean") input = mgSwitch(Boolean(now), (on, s) => { s.classList.toggle("on", on); fields[def.key] = () => on; });
-        else if (def.kind === "choice") input = pel("select", {}, ...(def.choices || []).map((c) => pel("option", { value: c, selected: c === now ? "" : null }, c)));
+        else if (def.kind === "choice") {
+          let picked = now;
+          input = choiceOf((def.choices || []).map((c) => [c, c]), now, (v) => { picked = v; });
+          fields[def.key] = () => picked;
+        }
         else if (def.kind === "secret") input = pel("input", { type: "password", autocomplete: "off", placeholder: now && now.set ? "Set — type to replace" : "Not set" });
-        else input = pel("input", { type: def.kind === "number" ? "number" : "text", spellcheck: "false", autocomplete: "off", value: now ?? "" });
-        if (def.kind !== "boolean") fields[def.key] = () => (def.kind === "number" ? (input.value === "" ? null : Number(input.value)) : def.kind === "secret" ? (input.value ? input.value : undefined) : input.value);
+        else if (def.kind === "number") {
+          const n = pel("input", { spellcheck: "false", autocomplete: "off", value: now ?? "" });
+          input = stepper(n, { min: 0 });
+          fields[def.key] = () => (n.value === "" ? null : Number(n.value));
+        } else input = pel("input", { type: "text", spellcheck: "false", autocomplete: "off", value: now ?? "" });
+        if (def.kind === "text" || def.kind === "secret") fields[def.key] = () => (def.kind === "secret" ? (input.value ? input.value : undefined) : input.value);
         body.append(mgRow(def.label, def.help || "", input));
       }
       body.append(pel("div", { class: "row" }, pel("span", { class: "name" }), pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: async () => {
