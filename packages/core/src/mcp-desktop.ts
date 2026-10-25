@@ -334,6 +334,7 @@ export function desktopTools(core: Core): DesktopTool[] {
         "Change a Talaris canvas: a list of operations, done in order and saved together. No canvas given: the one the canvas drawer shows. Read it first with talaris_canvas_read for ids and positions.",
         "Operations: {op:\"note\", text, x?, y?, w?, h?, fill?} a note (Markdown; fill a #rrggbb color) — without x,y it goes to the right of what is there;",
         "{op:\"card\", entity, x?, y?} a card showing an entity (a person, task or event id from talaris_find);",
+        "{op:\"tasks\", project?, all?} a card for each of a project's open tasks (all: done ones too), in a grid right of what is there, skipping those already on it — use this rather than a card each;",
         "{op:\"update\", item, text?, x?, y?, w?, h?, fill?}; {op:\"remove\", item} (also takes its links);",
         "{op:\"link\", from, to} an arrow between two items; {op:\"unlink\", link};",
         "{op:\"canvas\", title, x?, y?} a new canvas inside this one, as a card.",
@@ -370,6 +371,18 @@ export function desktopTools(core: Core): DesktopTool[] {
           return at;
         };
         const done: string[] = [];
+        const skipped: string[] = [];
+        const card = async (entity: string, at: (h: number) => { x: number; y: number }): Promise<string | null> => {
+          let e: { title: string; kinds: string[] };
+          try { e = await core<{ title: string; kinds: string[] }>("GET", `/entities/${encodeURIComponent(entity)}`); }
+          catch { skipped.push(entity); return null; }
+          const kind = ["task", "event", "contact", "note"].find((k) => e.kinds.includes(k)) ?? "note";
+          const h = kind === "task" ? 72 : kind === "event" ? 96 : kind === "contact" ? 76 : 110;
+          const item: CanvasItem = { id: id(), kind: "card", entity, ...at(h), w: 240, h, seen: { title: e.title, kind } };
+          doc.items.push(item);
+          made.push(item.id);
+          return `${item.id} (${e.title})`;
+        };
         for (const op of ops) {
           switch (op.op) {
             case "note": {
@@ -381,13 +394,27 @@ export function desktopTools(core: Core): DesktopTool[] {
               break;
             }
             case "card": {
-              const e = await core<{ title: string; kinds: string[] }>("GET", `/entities/${encodeURIComponent(str(op.entity))}`);
-              const kind = ["task", "event", "contact", "note"].find((k) => e.kinds.includes(k)) ?? "note";
-              const h = kind === "task" ? 72 : kind === "event" ? 96 : kind === "contact" ? 76 : 110;
-              const item: CanvasItem = { id: id(), kind: "card", entity: str(op.entity), ...spot(op, h), w: 240, h, seen: { title: e.title, kind } };
-              doc.items.push(item);
-              made.push(item.id);
-              done.push(`card ${item.id} (${e.title})`);
+              // One that is not there is passed over and said, rather than losing the rest of the call.
+              const c = await card(str(op.entity), (h) => spot(op, h));
+              if (c) done.push(`card ${c}`);
+              break;
+            }
+            case "tasks": {
+              const tp = await core<{ id: string; workspace?: string }[]>("GET", "/tasks/projects");
+              // Its task project: by either id, or the desktop it names (this canvas's, given none).
+              const want = str(op.project);
+              const desk = want ? (tp.some((x) => x.id === want || x.workspace === want) ? want : (await project(want)).id) : p.id;
+              const of = tp.find((x) => x.id === desk || x.workspace === desk);
+              if (!of) throw new Error(`${p.name} has no tasks of its own`);
+              const rows = await core<{ id: string }[]>("GET", `/tasks/find?project=${encodeURIComponent(of.id)}${op.all ? "" : "&status=open"}&limit=500`);
+              const there = new Set(doc.items.map((i) => i.entity).filter(Boolean));
+              const x0 = right(), y0 = doc.items.length ? Math.min(...doc.items.map((i) => i.y)) : 0;
+              let n = 0;
+              for (const t of rows.filter((t) => !there.has(t.id))) {
+                const k = n++;
+                await card(t.id, () => ({ x: x0 + Math.floor(k / 6) * 280, y: y0 + (k % 6) * 100 }));
+              }
+              done.push(`${n} task card(s)`);
               break;
             }
             case "update": {
@@ -424,12 +451,13 @@ export function desktopTools(core: Core): DesktopTool[] {
             case "canvas":
               break;
             default:
-              throw new Error(`no operation ${String(op.op)}: note, card, update, remove, link, unlink or canvas`);
+              throw new Error(`no operation ${String(op.op)}: note, card, tasks, update, remove, link, unlink or canvas`);
           }
         }
         await core("PUT", path, doc);
         await told("canvas", p.id, node.id);
-        return [`${doc.title}: ${[...madeCanvases.map((c) => `canvas ${c}`), ...done].join("; ")}.`].join("\n");
+        return [`${doc.title}: ${[...madeCanvases.map((c) => `canvas ${c}`), ...done].join("; ")}.`,
+          ...(skipped.length ? [`Not found, so not placed: ${skipped.join(", ")}.`] : [])].join("\n");
       },
     },
   ];
