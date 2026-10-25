@@ -49,7 +49,8 @@ import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
 import "./mentions.js";
-import { exportEnvelope } from "./interchange.js";
+import { liveManifest, createObject, exportEnvelope, patchObject, readEnvelope, type WritePatch } from "./interchange.js";
+import { Gone } from "./feed.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
 import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
@@ -103,6 +104,11 @@ function send(res: ServerResponse, status: number, value: unknown): void {
 }
 
 type Handler = (req: IncomingMessage, params: string[], query: URLSearchParams) => Promise<unknown> | unknown;
+/** An answer with its own status: a create that made something is 201, a refused write 409. */
+class Answer {
+  constructor(readonly status: number, readonly body: unknown) {}
+}
+
 const routes: Array<[string, RegExp, Handler]> = [];
 function route(method: string, pattern: string, handler: Handler): void {
   const re = new RegExp("^" + pattern.replace(/:[a-z]+/g, "([^/]+)") + "$");
@@ -356,6 +362,18 @@ route("POST", "/entities/:id/files", async (req, [id]) => {
 });
 route("GET", "/entity-types", () => entities.types());
 route("GET", "/interchange/export", () => exportEnvelope());
+// The live binding (pkm-interchange): what this answers, the store as an envelope to follow, and the two writes.
+route("GET", "/conformance", () => ({ format: "pkm-interchange/0", ...liveManifest() }));
+route("GET", "/interchange", (_r, _p, q) =>
+  readEnvelope({ since: q.get("since") ?? undefined, profile: q.get("profile") ?? undefined, q: q.get("q") ?? undefined }));
+route("PUT", "/interchange/objects/:id", async (req, [id]) => {
+  const answer = createObject(id!, await json<{ id?: string; type?: string; properties?: Record<string, unknown> }>(req));
+  return new Answer(!answer.ok ? (answer.reports.includes("create.unknown-type") ? 422 : 400) : answer.created ? 201 : 200, answer);
+});
+route("PATCH", "/interchange/objects/:id", async (req, [id]) => {
+  const answer = patchObject(id!, await json<WritePatch>(req));
+  return new Answer(answer.ok ? 200 : answer.conflict ? 409 : 400, answer);
+});
 
 // ------------------------------------------------------------ tasks and lists (DESIGN, Tasks)
 
@@ -475,13 +493,14 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       if (!m || method !== req.method) continue;
       const params = m.slice(1).map(decodeURIComponent);
       const out = await handler(req, params, url.searchParams);
-      send(res, 200, out ?? { ok: true });
+      if (out instanceof Answer) send(res, out.status, out.body);
+      else send(res, 200, out ?? { ok: true });
       return;
     }
     send(res, 404, { error: `no route ${req.method} ${path}` });
   } catch (e) {
     // Locked is its own answer: the store is there, and needs its key.
-    const status = e instanceof NotFound ? 404 : e instanceof Conflict ? 409 : e instanceof BadRequest || e instanceof SealError ? 400
+    const status = e instanceof NotFound ? 404 : e instanceof Conflict ? 409 : e instanceof Gone ? 410 : e instanceof BadRequest || e instanceof SealError ? 400
       : e instanceof Locked ? 423 : 500;
     if (status === 500) console.error("talaris-core:", e);
     send(res, status, { error: e instanceof Error ? e.message : String(e) });

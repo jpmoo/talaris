@@ -1409,7 +1409,19 @@ of it and comes out at the end.
 11. Bookmark cards with three adapters; snapshots; opening out of the card;
     export.
 12. Floating, *place*, Recent.
-13. The plugin surface, and the Hermes plugin on it.
+13. The plugin surface, and the Hermes plugin on it. **Begun 2026-10-25,
+    around the Hermes sync** (tasks, projects, events and people, kept in step,
+    merged with conflicts put to the person or replaced wholesale one way).
+    Done so far: the format says what a person, an event and a project are
+    (`pkm-interchange`, *Profiles*; both Hermes and Talaris declare them), and
+    **Talaris speaks the live binding** on its socket — `GET /conformance`,
+    `GET /interchange` with a cursor (`?since=`, deletions in `changes`, 410
+    when the feed cannot answer), `?profile=` and `?q=`, `PUT` and `PATCH
+    /interchange/objects/:id` — measured at operate 4 by the format's own
+    fixtures (`pnpm --filter @talaris/core measure`) and clean under
+    `pkm-check --url`. The change feed is `feed.ts`. Its lists stay in the file
+    export; the live binding carries objects. Next: the plugin host, then the
+    plugin.
 14. Pruning.
 15. Tasks — Hermes' system, feature for feature — and the plugin that syncs
     projects and tasks through the spec.

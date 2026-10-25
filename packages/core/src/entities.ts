@@ -8,6 +8,7 @@ import { Conflict, NotFound } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { newId, writeAtomic } from "./store.js";
 import { ENTITIES_DIR, storeKey } from "./vault.js";
+import { record, reloadFeed } from "./feed.js";
 
 /**
  * Entities: people, notes, projects, tasks and events — the things with
@@ -304,6 +305,7 @@ function load(): Index {
 /** Read again from disk (after a revival, or under test). */
 export function reloadEntities(): void {
   index = null;
+  reloadFeed();
 }
 
 // ------------------------------------------------------------ what else is kept
@@ -344,9 +346,12 @@ function changed(before: Entity | null, after: Entity): Entity {
 
 function put(rec: Record_): Entity {
   const ix = load();
+  const existed = ix.records.has(rec.object.id);
   indexOut(ix, rec.object.id);
   writeSealed(join(dir("objects"), safe(rec.object.id)), rec);
   indexIn(ix, rec);
+  // Every write, in order, for a follower (feed.ts): one row about the object.
+  record(rec.object.id, existed ? "update" : "create");
   return rec.object;
 }
 
@@ -619,6 +624,7 @@ export function deleteEntity(id: string): void {
   if (!ix.records.has(id)) throw new NotFound(`no entity ${id}`);
   indexOut(ix, id);
   rmSync(join(dir("objects"), safe(id)), { force: true });
+  record(id, "delete");
 }
 
 const sameEdge = (a: Relation, b: Relation) => a.to === b.to && a.type === b.type && (a.via ?? "") === (b.via ?? "") && (a.field ?? "") === (b.field ?? "");

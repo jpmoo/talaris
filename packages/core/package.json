@@ -5,12 +5,20 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "main": "dist/src/index.js",
-  "bin": { "talaris-core": "dist/src/index.js" },
+  "bin": {
+    "talaris-core": "dist/src/index.js"
+  },
   "scripts": {
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "tsc -p . && node --test dist/test/*.test.js"
+    "test": "tsc -p . && node --test dist/test/*.test.js",
+    "measure": "tsc -p . && node dist/src/measure.js"
   },
-  "dependencies": { "@talaris/model": "workspace:*" },
-  "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.10.0" }
+  "dependencies": {
+    "@talaris/model": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.10.0"
+  }
 }

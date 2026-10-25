@@ -442,6 +442,41 @@ test("an archived project leaves every list, is read and not written, and comes 
   assert.throws(() => projects.findProject(p.id), /no project/, "and the archived one is gone, folded in");
 });
 
+test("the live binding: a cursor to follow, deletions in the feed, creates that never edit, and writes that do what a write does", async () => {
+  const live = await import("../src/interchange.js");
+  const feed = await import("../src/feed.js");
+  const tasks = await import("../src/tasks.js");
+  const start = live.readEnvelope();
+  assert.match(start.cursor, /^[0-9a-f]+\.\d+$/);
+  // A create at the client's id, twice: one object, and the second does not edit it.
+  const made = live.createObject("e_client_1", { type: "t_note", properties: { title: "Chosen id", "acme:x": 1 } });
+  assert.ok(made.ok && made.created && made.object?.properties?.["acme:x"] === 1);
+  const again = live.createObject("e_client_1", { type: "t_note", properties: { title: "Changed?" } });
+  assert.ok(again.ok && !again.created && again.object?.properties?.title === "Chosen id");
+  assert.equal(live.createObject("e_client_2", { id: "e_other", type: "t_note" }).ok, false, "two ids is a refusal");
+  assert.deepEqual(live.createObject("e_client_3", { type: "t_nope" }).reports, ["create.unknown-type"]);
+  // A partial write: what it names, and nothing else; tags one by one; a stale version refused.
+  const v = entities.getEntity("e_client_1").version;
+  const patched = live.patchObject("e_client_1", { set: { title: "Renamed" }, addTags: ["urgent"], version: v });
+  assert.ok(patched.ok && patched.object?.properties?.["acme:x"] === 1 && patched.object?.tags?.includes("urgent"));
+  const stale = live.patchObject("e_client_1", { set: { title: "Late" }, version: v });
+  assert.ok(!stale.ok && stale.conflict);
+  // What changed since the start: these, and a deletion as a deletion.
+  entities.deleteEntity("e_client_1");
+  const delta = live.readEnvelope({ since: start.cursor });
+  assert.ok(delta.changes?.some((c) => c.object === "e_client_1" && c.op === "delete"));
+  assert.ok(!delta.objects?.some((o) => o.id === "e_client_1"), "a deleted object is not sent");
+  assert.throws(() => live.readEnvelope({ since: "nope.1" }), feed.Gone, "a cursor this feed cannot answer is Gone");
+  // A task finished through the binding is finished as anywhere else: the store stamps its time.
+  const t = tasks.createTask({ title: "Through the binding" });
+  const done = live.patchObject(t.id, { set: { status: "done" } });
+  assert.ok(done.ok && done.object?.properties?.done_at, "completing stamped its time, the store's doing");
+  // Narrowed reads are whole envelopes: one profile, or what matches words, most relevant first.
+  const onlyTasks = live.readEnvelope({ profile: "task" });
+  assert.ok(onlyTasks.objects!.length > 0 && onlyTasks.objects!.every((o) => o.type === "t_task"));
+  assert.equal(live.readEnvelope({ q: "Through the binding" }).objects?.[0]?.id, t.id);
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");
