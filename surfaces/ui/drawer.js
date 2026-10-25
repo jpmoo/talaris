@@ -671,7 +671,8 @@ function pageHeading() {
   if (!open) return "";
   if (isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+    // Said for what it is, the day's own note: "Daily note for Sunday, October 25, 2026".
+    return `Daily note for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`.toUpperCase();
   }
   return open.split("/").join(" / ").toUpperCase();
 }
