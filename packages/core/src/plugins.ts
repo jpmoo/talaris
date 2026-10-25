@@ -49,7 +49,7 @@ const STATE = () => join(CONFIG_DIR, "plugins.json");
 const KINDS = ["task", "project", "event", "contact", "note"];
 const kindOf = (k: string) => (k === "person" ? "contact" : k);
 /** The lists an action may be on as a whole: People's, and Tasks' (its tasks and projects). */
-const LISTS = ["people", "tasks", "notes"];
+const LISTS = ["people", "tasks", "notes", "daily"];
 
 export interface SettingDef {
   key: string;
@@ -82,16 +82,17 @@ export interface AppDecl {
  * person, a task or a project, running one of its tools with the thing it
  * was pressed on (`{entity, kind}`) — or over a whole list, People's
  * (`people`) or Tasks' (`tasks`: its tasks and projects), with only the
- * `kind`. Shown while the plugin runs — and, naming one of its yes-or-no
- * settings (`when`), only while that is on.
+ * `kind`. Shown while the plugin runs — and, naming some of its yes-or-no
+ * settings (`when`, one or several), only while every one is on.
  */
 export interface ActionDecl {
   id: string;
   label: string;
-  /** Which sheets: task, project, contact (a person), note (an undated one); or which lists: people, tasks, notes (the undated ones). */
+  /** Which sheets: task, project, contact (a person), note (an unaffiliated one); or which lists: people, tasks, notes (the unaffiliated ones), daily (Home's daily notes). */
   on: string[];
   tool: string;
-  when?: string;
+  /** The yes-or-no settings it is shown under — every one of them on. */
+  when?: string[];
   /** Shown only on a thing in this state: `missing-files` — a linked file gone from disk (links.ts). */
   only?: string;
 }
@@ -180,11 +181,13 @@ export function readManifest(dir: string): Manifest {
     if (typeof a.label !== "string" || !a.label.trim()) throw new Conflict(`action ${a.id} needs a label`);
     const on = strs(a.on).map(kindOf);
     const sheets = ["task", "project", "contact", "note", ...LISTS];
-    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or undated note sheets, or the people, tasks or notes lists`);
+    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or unaffiliated note sheets, or the people, tasks, notes or daily lists`);
     if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
-    if (a.when !== undefined && !settings.some((s) => s.key === a.when && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names one of its yes-or-no settings`);
+    // One setting, or several, each to be on.
+    const when = a.when === undefined ? [] : typeof a.when === "string" ? [a.when] : strs(a.when);
+    for (const w of when) if (!settings.some((s) => s.key === w && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names its yes-or-no settings`);
     if (a.only !== undefined && a.only !== "missing-files") throw new Conflict(`action ${a.id}'s only is missing-files`);
-    return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}), ...(a.only ? { only: a.only as string } : {}) };
+    return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(when.length ? { when } : {}), ...(a.only ? { only: a.only as string } : {}) };
   });
   const b = (t.backup ?? {}) as Record<string, unknown>;
   const state = strs(b.state);
@@ -823,7 +826,7 @@ export function pluginActions(kind: string, entity?: string): { plugin: string; 
   const missing = entity ? unbacked().some((u) => u.id === entity && u.missing.length) : false;
   return [...running.values()].filter((r) => r.state === "running").flatMap((r) => {
     const mine = settingsShown(r.manifest);
-    return (r.manifest.actions ?? []).filter((a) => a.on.includes(k) && (!a.when || mine[a.when] === true) && (a.only !== "missing-files" || missing))
+    return (r.manifest.actions ?? []).filter((a) => a.on.includes(k) && (a.when ?? []).every((w) => mine[w] === true) && (a.only !== "missing-files" || missing))
       .map((a) => ({ plugin: r.manifest.id, pluginName: r.manifest.name, id: a.id, label: a.label }));
   });
 }

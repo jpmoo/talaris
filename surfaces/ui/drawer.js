@@ -850,6 +850,8 @@ async function loadWriting() {
     actions.push(" ", Peek.actionButtons("notes", null, core, ""));
     if (open) actions.push(" ", Peek.actionButtons("note", `notes/${open}`, core, ""));
   }
+  // And on the daily notes as a whole (Sync all with Hermes Notes).
+  if (scope === "daily" && window.Peek) actions.push(" ", Peek.actionButtons("daily", null, core, ""));
   if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
     // Across: from this project to the undated notes, or from them into this project.

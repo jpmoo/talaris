@@ -149,6 +149,13 @@ tool = "sync_now"
 when = "buttons"
 
 [[actions]]
+id = "sync-daily"
+label = "Sync all with Hermes Notes"
+on = ["daily"]
+tool = "sync_now"
+when = ["buttons", "dailyNotes"]
+
+[[actions]]
 id = "restore"
 label = "Restore missing files"
 on = ["person", "task", "project"]

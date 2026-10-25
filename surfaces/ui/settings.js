@@ -1704,15 +1704,16 @@ async function loadPlugins() {
     if (m.settings.length) {
       body.append(pel("h3", {}, "Its settings"));
       const fields = {};
+      // A switch or a choice is kept the moment it is set, as everywhere else in Settings; words wait for Save, or Enter.
+      const keep = async (key, value) => {
+        try { await core("PUT", `/plugins/${encodeURIComponent(r.id)}/settings`, { values: { [key]: value } }); say("Saved"); r.settings[key] = value; }
+        catch (e) { say(e.message, true); redraw(); }
+      };
       for (const def of m.settings) {
         const now = r.settings[def.key];
         let input;
-        if (def.kind === "boolean") input = mgSwitch(Boolean(now), (on, s) => { s.classList.toggle("on", on); fields[def.key] = () => on; });
-        else if (def.kind === "choice") {
-          let picked = now;
-          input = choiceOf((def.choices || []).map((c) => [c, c]), now, (v) => { picked = v; });
-          fields[def.key] = () => picked;
-        }
+        if (def.kind === "boolean") input = mgSwitch(Boolean(now), (on, s) => { s.classList.toggle("on", on); keep(def.key, on); });
+        else if (def.kind === "choice") input = choiceOf((def.choices || []).map((c) => [c, c]), now, (v) => keep(def.key, v));
         else if (def.kind === "secret") input = pel("input", { type: "password", autocomplete: "off", placeholder: now && now.set ? "Set — type to replace" : "Not set" });
         else if (def.kind === "number") {
           const n = pel("input", { spellcheck: "false", autocomplete: "off", value: now ?? "" });

@@ -65,7 +65,7 @@ window.Peek = (() => {
    */
   const pressing = new Map(); // plugin/action/entity → what its button says while it runs, and a moment after
   // Or on a whole list (People's, Tasks'): with no thing, only the list's name for `kind`.
-  const LISTS = ["people", "tasks", "notes"];
+  const LISTS = ["people", "tasks", "notes", "daily"];
   function actionButtons(kind, entityId, api, cls = "t-btn", onDone = null) {
     const holder = el("span", { class: "plugin-actions" });
     if ((!entityId && !LISTS.includes(kind)) || !api) return holder;
