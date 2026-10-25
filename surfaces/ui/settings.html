@@ -18,9 +18,13 @@ html, body { height: 100%; }
   position: absolute; inset: 6px 8px 10px; display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 1fr auto;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow); overflow: hidden;
 }
-nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 14px 8px; display: flex; flex-direction: column; gap: 2px; }
+nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 0; }
 nav .label { padding: 0 10px 10px; }
-nav button { border: 0 !important; text-align: left; border-radius: var(--radius-row) !important; padding: 6px 10px !important; color: var(--text); }
+nav .group { padding: 9px 10px 2px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+nav .label + .group { padding-top: 0; }
+/* Many pages: the list scrolls rather than pushing the window taller. */
+nav { overflow-y: auto; }
+nav button { border: 0 !important; text-align: left; border-radius: var(--radius-row) !important; padding: 4px 10px !important; color: var(--text); }
 nav button:hover { background: var(--accent-wash); }
 nav button.on { background: var(--accent-wash); color: var(--accent); }
 main { overflow: auto; padding: 18px 22px; }
@@ -215,20 +219,26 @@ footer #msg.err, .note.err { color: var(--danger); }
 <div id="win">
   <nav>
     <span class="label">SETTINGS</span>
+    <!-- The pages in a few groups: how the desktop looks and works, what it connects to, the machine, what is kept, and what adds to it. -->
+    <span class="group">Desktop</span>
     <button data-page="look">Look</button>
     <button data-page="bar-page">Bar</button>
     <button data-page="dock-page">Dock</button>
     <button data-page="drawers">Panels</button>
     <button data-page="windows">Windows</button>
-    <button data-page="accounts">Accounts</button>
+    <button data-page="keys">Keys</button>
+    <span class="group">Connections</span>
     <button data-page="wifi">Wi-Fi</button>
     <button data-page="bluetooth">Bluetooth</button>
+    <button data-page="accounts">Accounts</button>
+    <span class="group">System</span>
     <button data-page="power">Power</button>
     <button data-page="notifications">Notifications</button>
+    <span class="group">Your data</span>
     <button data-page="data">Data</button>
-    <button data-page="keys">Keys</button>
-    <button data-page="morgan">Morgan</button>
     <button data-page="types">Types</button>
+    <span class="group">Add-ons</span>
+    <button data-page="morgan">Morgan</button>
     <button data-page="plugins">Plugins</button>
   </nav>
   <main>
