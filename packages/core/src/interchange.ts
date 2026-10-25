@@ -4,7 +4,8 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, renameSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { allRecords, createEntity, findEntities, getEntity, getFile, putFile, reloadEntities, sealedList, sealedPut, types, updateEntity, type Entity, type EntityType, type Relation } from "./entities.js";
+import { allRecords, createEntity, findEntities, forgetFiles, getEntity, getFile, putFile, reloadEntities, sealedList, sealedPut, types, updateEntity, type Entity, type EntityType, type Relation } from "./entities.js";
+import { createNote, isUndated, reconcileNotes, writeNote } from "./notes.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
 import { allSeries } from "./tasks.js";
@@ -241,7 +242,7 @@ export function onDisk(): number {
  * backup), not over the live binding, whose writes are objects: so the live
  * answer carries no collections, and claims none of what they would need.
  */
-export const LIVE_MANIFEST = { ...MANIFEST, operate: 4, bindings: ["file", "http"] };
+export const LIVE_MANIFEST = { ...MANIFEST, operate: 4, bindings: ["file", "http"], features: [...MANIFEST.features, "attachment-files"] };
 
 /** The live manifest as the data bears it out: a feature declared because it is there (series, when tasks repeat). */
 export function liveManifest(): typeof LIVE_MANIFEST {
@@ -254,6 +255,8 @@ export function liveManifest(): typeof LIVE_MANIFEST {
  * an object points at travelling with it (all of them: there are few).
  */
 export function readEnvelope(q: { since?: string; profile?: string; q?: string } = {}): Envelope & { cursor: string; changes?: Change[] } {
+  // The undated notes' entities as their files are now (notes.ts): edited in another editor, moved, deleted.
+  reconcileNotes();
   const at = cursor();
   const whole = exportEnvelope();
   let objects = whole.objects ?? [];
@@ -297,6 +300,15 @@ export interface WritePatch {
   addTags?: string[];
   removeTags?: string[];
   version?: number | string;
+  /** The body (*The body*): beside `set`, replaced whole; `unset: ["content"]` removes it. */
+  content?: string;
+}
+
+/** What a patch asks of the body: replaced, removed, or — named by neither — kept. */
+export function bodyOf(p: WritePatch): { body: "keep" } | { body: "set"; content: string } | { body: "clear" } {
+  if ((p.unset ?? []).includes("content")) return { body: "clear" };
+  if (typeof p.content === "string") return { body: "set", content: p.content };
+  return { body: "keep" };
 }
 export interface WriteAnswer {
   ok: boolean;
@@ -316,7 +328,7 @@ export interface WriteAnswer {
  * refused rather than merged. Pure, so the fixtures measure the rule the
  * route applies (measure.ts).
  */
-export function applyPatch(object: { properties?: Record<string, unknown>; tags?: string[]; version?: number | string }, p: WritePatch): WriteAnswer {
+export function applyPatch(object: { properties?: Record<string, unknown>; tags?: string[]; version?: number | string; content?: string | null }, p: WritePatch): WriteAnswer {
   const add = p.addTags ?? [];
   const drop = p.removeTags ?? [];
   if (add.some((t) => drop.includes(t))) return { ok: false, object, fidelity: "full", reports: ["tags.added-and-removed"] };
@@ -325,35 +337,125 @@ export function applyPatch(object: { properties?: Record<string, unknown>; tags?
   }
   const properties = { ...(object.properties ?? {}) };
   for (const [k, v] of Object.entries(p.set ?? {})) properties[k] = v;
-  for (const k of p.unset ?? []) delete properties[k];
+  // `content` in `unset` is the body, never a property of that name.
+  for (const k of p.unset ?? []) if (k !== "content") delete properties[k];
+  const body = bodyOf(p);
+  const { content: was, ...rest } = object;
+  const content = body.body === "set" ? body.content : body.body === "clear" ? undefined : (was ?? undefined);
   let tags = object.tags;
   if (add.length || drop.length) {
     const next = (object.tags ?? []).filter((t) => !drop.includes(t));
     for (const t of add) if (!next.includes(t)) next.push(t);
     tags = next;
   }
-  return { ok: true, object: { ...object, properties, ...(tags !== undefined ? { tags } : {}) }, fidelity: "full", reports: [] };
+  return { ok: true, object: { ...rest, properties, ...(content !== undefined && content !== null ? { content } : {}), ...(tags !== undefined ? { tags } : {}) }, fidelity: "full", reports: [] };
+}
+
+/**
+ * A file over the live binding, by its hash (*Files*), as a rule: the address
+ * must be the bytes' own hash; a put of one held changes nothing; a get of one
+ * not held is said. Pure, so the fixtures measure what the routes do.
+ */
+export function fileRule(held: (sha: string) => boolean, op: string, sha256: string, bytes?: Buffer): { ok: boolean; created?: boolean; reports: string[] } {
+  if (op === "put") {
+    if (!/^[0-9a-f]{64}$/.test(sha256) || createHash("sha256").update(bytes ?? Buffer.alloc(0)).digest("hex") !== sha256) return { ok: false, reports: ["file.hash-mismatch"] };
+    return { ok: true, created: !held(sha256), reports: [] };
+  }
+  if (op === "get") return held(sha256) ? { ok: true, reports: [] } : { ok: false, reports: ["file.not-held"] };
+  return { ok: false, reports: ["file.op"] };
+}
+const holds = (sha: string) => { try { return getFile(sha) !== null; } catch { return false; } };
+
+/** A file handed over at /interchange/files/<sha256>: kept, by the rule above. */
+export function putInterchangeFile(sha256: string, bytes: Buffer): { ok: boolean; created?: boolean; reports: string[] } {
+  const ruled = fileRule(holds, "put", sha256, bytes);
+  if (ruled.ok && ruled.created) putFile(bytes, sha256);
+  return ruled;
+}
+/** A file asked for by its hash: its bytes, or why not. */
+export function getInterchangeFile(sha256: string): { ok: boolean; bytes?: Buffer; reports: string[] } {
+  const ruled = fileRule(holds, "get", sha256);
+  return ruled.ok ? { ...ruled, bytes: getFile(sha256)! } : ruled;
+}
+
+/**
+ * Attachment values in a write, taken in: bytes handed inline are kept as a
+ * file (and dropped from the value — the hash says which); a value naming a
+ * hash not held is kept as a known-missing file, and said.
+ */
+function absorbFiles(props: Record<string, unknown> | undefined, reports: string[]): Record<string, unknown> | undefined {
+  if (!props) return props;
+  const one = (v: unknown): unknown => {
+    if (!v || typeof v !== "object" || (v as { kind?: string }).kind !== "attachment") return v;
+    const a = { ...(v as Record<string, unknown>) };
+    if (typeof a.bytes === "string" && a.bytes) {
+      const bytes = Buffer.from(a.bytes, "base64");
+      const sha = createHash("sha256").update(bytes).digest("hex");
+      if (typeof a.sha256 === "string" && a.sha256 !== sha) { reports.push("attachment.hash-mismatch"); return undefined; }
+      putFile(bytes, String(a.filename ?? "attachment"), typeof a.mediaType === "string" ? a.mediaType : undefined);
+      a.sha256 = sha;
+      delete a.bytes;
+    } else if (typeof a.sha256 === "string" && !holds(a.sha256)) {
+      reports.push("attachment.known-missing");
+    }
+    return a;
+  };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) out[k] = Array.isArray(v) ? v.map(one).filter((x) => x !== undefined) : one(v);
+  return out;
+}
+/** The hashes of every attachment a property bag names. */
+function hashesIn(props: Record<string, unknown> | undefined, keys?: string[]): string[] {
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(props ?? {})) {
+    if (keys && !keys.includes(k)) continue;
+    for (const x of Array.isArray(v) ? v : [v]) if (x && typeof x === "object" && (x as { kind?: string }).kind === "attachment" && typeof (x as { sha256?: unknown }).sha256 === "string") out.push((x as { sha256: string }).sha256);
+  }
+  return out;
 }
 
 /** A partial write to the store: the rule above, then the store's own update, which does what a write does. */
 export function patchObject(id: string, p: WritePatch): WriteAnswer {
+  reconcileNotes();
   const now = getEntity(id);
   const ruled = applyPatch(now, p);
   if (!ruled.ok) return { ...ruled, object: now as unknown as WriteAnswer["object"] };
+  const reports: string[] = [];
+  const set = absorbFiles(p.set, reports);
+  const body = bodyOf(p);
+  const propUnset = (p.unset ?? []).filter((k) => k !== "content");
+  // The files the touched fields named before, and what they name now: the rest are let go, and freed if nothing else names them.
+  const touched = [...Object.keys(p.set ?? {}), ...propUnset];
+  const before = hashesIn(now.properties, touched);
+  const release = () => { const after = new Set(hashesIn(set, touched)); forgetFiles(before.filter((h) => !after.has(h))); };
+  // An undated note is its file: a title renames it, words are written to it (notes.ts); anything else is the entity's.
+  if (isUndated(id)) {
+    const e = writeNote(id, set ?? {}, body.body === "set" ? body.content : body.body === "clear" ? "" : undefined);
+    const own = new Set([types().find((t) => t.id === e.type)?.profiles?.note?.title, types().find((t) => t.id === e.type)?.profiles?.note?.body].filter((x): x is string => typeof x === "string"));
+    const rest: Record<string, unknown> = Object.fromEntries(Object.entries(set ?? {}).filter(([k]) => !own.has(k)));
+    for (const k of propUnset) if (!own.has(k)) rest[k] = null;
+    if (Object.keys(rest).length || p.addTags?.length || p.removeTags?.length) {
+      updateEntity(id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}) });
+    }
+    release();
+    return { ok: true, object: getEntity(id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
+  }
   // A project's name is its project's (the bar, the switcher, Tasks): renamed there, as Tasks' own sheet does,
   // or the store would put the old one back the next time it reads the projects.
   const ws = ((now["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project")?.key;
   const titleKey = types().find((t) => t.id === now.type)?.profiles?.project?.title;
   if (ws && typeof titleKey === "string" && typeof p.set?.[titleKey] === "string" && (p.set[titleKey] as string).trim()) renameProject(ws, p.set[titleKey] as string);
-  const properties: Record<string, unknown> = { ...(p.set ?? {}) };
-  for (const k of p.unset ?? []) properties[k] = null;
+  const properties: Record<string, unknown> = { ...(set ?? {}) };
+  for (const k of propUnset) properties[k] = null;
   const written = updateEntity(id, {
     properties,
+    ...(body.body === "set" ? { content: body.content } : body.body === "clear" ? { content: null } : {}),
     ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}),
     version: now.version,
   });
+  release();
   // As it stands now — the store's doing included (a time stamped, a next occurrence made).
-  return { ok: true, object: getEntity(written.id) as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
+  return { ok: true, object: getEntity(written.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
 }
 
 /**
@@ -389,8 +491,21 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, sources: [{ kind: "talaris-project", key: folder.id }] });
     return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
   }
-  const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, ...(body.content ? { content: body.content } : {}), ...(body.tags ? { tags: body.tags } : {}) });
-  return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
+  const reports: string[] = [];
+  const properties = absorbFiles(body.properties, reports) ?? {};
+  // A note made through the binding is an undated note: a page in ~/Projects/Notes, at the id asked for (notes.ts).
+  const noteTitle = types().find((t) => t.id === body.type)?.profiles?.note?.title;
+  if (typeof noteTitle === "string" && !types().find((t) => t.id === body.type)?.profiles?.task) {
+    const bodyField = types().find((t) => t.id === body.type)?.profiles?.note?.body;
+    const words = bodyField === "content" || typeof bodyField !== "string" ? body.content ?? "" : String(properties[bodyField] ?? "");
+    const made = createNote(at, String(properties[noteTitle] ?? "").trim(), words);
+    // Everything else it came with stays on it, known or not: the file holds the title and the words, the entity the rest.
+    const rest = Object.fromEntries(Object.entries(properties).filter(([k]) => k !== noteTitle && k !== bodyField));
+    if (Object.keys(rest).length || body.tags?.length) updateEntity(made.id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(body.tags?.length ? { tags: body.tags } : {}) });
+    return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
+  }
+  const made = createEntity({ id: at, type: body.type, properties, ...(body.content ? { content: body.content } : {}), ...(body.tags ? { tags: body.tags } : {}) });
+  return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
 }
 
 /** What a follower concludes from a feed: the last word about each object is the one that counts. */

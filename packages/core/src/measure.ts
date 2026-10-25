@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { LIVE_MANIFEST, applyPatch, createRule, follow, type WritePatch } from "./interchange.js";
+import { LIVE_MANIFEST, applyPatch, createRule, fileRule, follow, type WritePatch } from "./interchange.js";
 
 /**
  * `pnpm --filter @talaris/core measure`: the format's fixtures against
@@ -48,12 +48,18 @@ const adapter = {
     return (map.completeValues ?? []).includes(read(t, o, "status", "task"));
   },
   patch: (object: Record<string, unknown>, p: WritePatch) => applyPatch(object as never, p ?? {}),
+  // A file by its hash, by the rule /interchange/files applies; `held` stands in for the store's files.
+  file: (held: Record<string, string>, args: { op?: string; sha256?: string; bytes?: string }) => {
+    const sha = args.sha256 ?? "";
+    const ruled = fileRule((h) => h in held, args.op ?? "", sha, args.bytes !== undefined ? Buffer.from(args.bytes, "base64") : undefined);
+    return args.op === "get" && ruled.ok ? { ...ruled, bytes: held[sha] } : ruled;
+  },
   create: (body: Record<string, unknown>, how: { at: string; existing: Record<string, unknown> | null; types: { id: string }[] }) =>
     createRule(body as never, how.at, how.existing, (id) => how.types.some((t) => t.id === id))
       ?? { ok: true, created: true, object: { ...body, id: how.at }, fidelity: "full" as const, reports: [] },
   follow,
 };
-const MEASURED = new Set(["profilesOf", "read", "isComplete", "patch", "create", "follow"]);
+const MEASURED = new Set(["profilesOf", "read", "isComplete", "patch", "create", "follow", "file"]);
 
 const spec = process.env.PKM_SPEC ?? join(homedir(), "Documents/Scripts/hermesnotes/pkm-interchange");
 if (!existsSync(join(spec, "fixtures"))) {

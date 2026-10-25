@@ -52,7 +52,7 @@ import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
 import "./mentions.js";
-import { liveManifest, createObject, exportEnvelope, patchObject, readEnvelope, type WritePatch } from "./interchange.js";
+import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
 import * as plugins from "./plugins.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
@@ -73,6 +73,23 @@ export const VERSION = "0.0.0";
 const MAX_BODY = 64 * 1024 * 1024;
 
 class BadRequest extends Error {}
+
+/** A request's body as bytes, as they came: a file handed over (*Files*). */
+function bodyBytes(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((ok, fail) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_BODY) {
+        fail(new BadRequest("request too large"));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on("end", () => ok(Buffer.concat(chunks)));
+    req.on("error", fail);
+  });
+}
 
 function body(req: IncomingMessage): Promise<string> {
   return new Promise((ok, fail) => {
@@ -111,6 +128,10 @@ type Handler = (req: IncomingMessage, params: string[], query: URLSearchParams) 
 /** An answer with its own status: a create that made something is 201, a refused write 409. */
 class Answer {
   constructor(readonly status: number, readonly body: unknown) {}
+}
+/** Bytes answered as they are — a file — rather than as JSON; for HEAD, the status alone. */
+class Bytes {
+  constructor(readonly data: Buffer, readonly type = "application/octet-stream") {}
 }
 
 const routes: Array<[string, RegExp, Handler]> = [];
@@ -427,6 +448,17 @@ route("PATCH", "/interchange/objects/:id", async (req, [id]) => {
   const answer = patchObject(id!, await json<WritePatch>(req));
   return new Answer(answer.ok ? 200 : answer.conflict ? 409 : 400, answer);
 });
+// Files by their hash (*Files*): raw bytes in and out; no DELETE — a file goes when nothing names it.
+route("PUT", "/interchange/files/:sha", async (req, [sha]) => {
+  const answer = putInterchangeFile(sha!, await bodyBytes(req));
+  return new Answer(!answer.ok ? 422 : answer.created ? 201 : 200, answer);
+});
+for (const verb of ["GET", "HEAD"]) {
+  route(verb, "/interchange/files/:sha", (_r, [sha]) => {
+    const got = getInterchangeFile(sha!);
+    return got.ok ? new Bytes(got.bytes!) : new Answer(404, got);
+  });
+}
 
 // ------------------------------------------------------------ tasks and lists (DESIGN, Tasks)
 
@@ -561,7 +593,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       if (!m || method !== req.method) continue;
       const params = m.slice(1).map(decodeURIComponent);
       const out = await handler(req, params, url.searchParams);
-      if (out instanceof Answer) send(res, out.status, out.body);
+      if (out instanceof Bytes) {
+        res.writeHead(200, { "content-type": out.type, "content-length": String(out.data.length) });
+        res.end(req.method === "HEAD" ? undefined : out.data);
+      } else if (out instanceof Answer) send(res, out.status, out.body);
       else send(res, 200, out ?? { ok: true });
       return;
     }

@@ -832,6 +832,30 @@ export function allRecords(): Record_[] {
   return [...load().records.values()];
 }
 
+/**
+ * Files no entity names any more, freed (*Files*: a file nothing names is the
+ * producer's to free). Only the hashes given are looked at — those an
+ * attachment was just taken away from — and one still named anywhere stays.
+ */
+export function forgetFiles(hashes: string[]): string[] {
+  const named = new Set<string>();
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (v && typeof v === "object") {
+      const a = v as { kind?: string; sha256?: unknown };
+      if (a.kind === "attachment" && typeof a.sha256 === "string") named.add(a.sha256);
+    }
+  };
+  for (const r of load().records.values()) for (const v of Object.values(r.object.properties ?? {})) walk(v);
+  const freed: string[] = [];
+  for (const h of new Set(hashes)) {
+    if (!/^[0-9a-f]{64}$/.test(h) || named.has(h)) continue;
+    rmSync(join(dir("blobs"), h), { force: true });
+    freed.push(h);
+  }
+  return freed;
+}
+
 export function fileHashes(): string[] {
   load();
   return readdirSync(dir("blobs")).filter((n) => /^[0-9a-f]{64}$/.test(n));

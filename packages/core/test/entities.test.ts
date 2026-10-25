@@ -442,6 +442,73 @@ test("an archived project leaves every list, is read and not written, and comes 
   assert.throws(() => projects.findProject(p.id), /no project/, "and the archived one is gone, folded in");
 });
 
+test("the live binding writes bodies and hands files over by hash; a file goes when nothing names it", async () => {
+  const live = await import("../src/interchange.js");
+  const { createHash } = await import("node:crypto");
+  // The body: written beside `set`, removed by `unset`.
+  live.createObject("e_body_1", { type: "t_event", properties: { title: "Body test" } });
+  const wrote = live.patchObject("e_body_1", { content: "The words." });
+  assert.equal(wrote.object?.content, "The words.");
+  assert.equal(live.patchObject("e_body_1", { unset: ["content"] }).object?.content ?? null, null);
+  // A file by its hash: the wrong hash refused, the right one kept once, fetched back.
+  const bytes = Buffer.from("a file for the binding\n");
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  assert.deepEqual(live.putInterchangeFile("0".repeat(64), bytes).reports, ["file.hash-mismatch"]);
+  assert.equal(live.putInterchangeFile(sha, bytes).created, true);
+  assert.equal(live.putInterchangeFile(sha, bytes).created, false, "a repeat is a success that changes nothing");
+  assert.equal(live.getInterchangeFile(sha).bytes?.toString(), bytes.toString());
+  assert.deepEqual(live.getInterchangeFile("1".repeat(64)).reports, ["file.not-held"]);
+  // Attached by its hash; a hash not held is kept and said.
+  const tasks = await import("../src/tasks.js");
+  const t = tasks.createTask({ title: "Has a file" });
+  const key = Object.keys(entities.typeFor("task").fields.reduce((o, f) => (f.kind === "attachment" ? { ...o, [f.key]: 1 } : o), {} as Record<string, number>))[0] ?? "files";
+  const value = { kind: "attachment", filename: "f.txt", mediaType: "text/plain", sha256: sha };
+  assert.equal(live.patchObject(t.id, { set: { [key]: [value] } }).fidelity, "full");
+  const missing = live.patchObject(t.id, { set: { [key]: [value, { kind: "attachment", filename: "gone.pdf", sha256: "2".repeat(64) }] } });
+  assert.deepEqual(missing.reports, ["attachment.known-missing"]);
+  // Named by another thing too, it stays when one lets go; named by nothing, it goes.
+  const u = tasks.createTask({ title: "Also has it" });
+  live.patchObject(u.id, { set: { [key]: [value] } });
+  live.patchObject(t.id, { set: { [key]: [] } });
+  assert.ok(entities.getFile(sha), "still named by the other task");
+  live.patchObject(u.id, { unset: [key] });
+  assert.equal(entities.getFile(sha), null, "named by nothing, freed");
+});
+
+test("undated notes through the live binding: their file is the truth, renamed and rewritten by a write, made by a create, gone when deleted", async () => {
+  const live = await import("../src/interchange.js");
+  const pagesM = await import("../src/pages.js");
+  const projectsM = await import("../src/projects.js");
+  const notes = await import("../src/notes.js");
+  pagesM.createPage(projectsM.UNDATED, null, "Shared plan");
+  pagesM.writePage(projectsM.UNDATED, "Shared plan", "first words");
+  const read = live.readEnvelope();
+  const note = (read.objects ?? []).find((o) => o[notes.MARK] === true && o.properties.title === "Shared plan");
+  assert.ok(note, "an undated note is in the envelope, marked");
+  assert.equal(note!.properties.body, "first words", "its words where the note profile puts them");
+  // A write goes to the file: renamed where it is, its words replaced.
+  live.patchObject(note!.id, { set: { title: "Shared plan, revised", body: "second words" }, version: note!.version });
+  assert.equal(pagesM.readPage(projectsM.UNDATED, "Shared plan, revised"), "second words");
+  // Edited outside Talaris, seen on the next read.
+  pagesM.writePage(projectsM.UNDATED, "Shared plan, revised", "third words");
+  assert.equal(entities.getEntity(note!.id).properties.body, "second words");
+  live.readEnvelope();
+  assert.equal(entities.getEntity(note!.id).properties.body, "third words");
+  // Made through the binding: a page in the undated notes, at the id asked for.
+  const made = live.createObject("e_made_note", { type: "t_note", properties: { title: "From elsewhere", body: "its words", "acme:kept": true } });
+  assert.ok(made.created);
+  assert.equal(pagesM.readPage(projectsM.UNDATED, "From elsewhere"), "its words");
+  assert.equal(entities.getEntity("e_made_note").properties["acme:kept"], true, "what it came with stays");
+  // Moved into a project, no longer undated; deleted, gone.
+  const p = projectsM.createProject("Takes a note");
+  pagesM.transferPage(projectsM.UNDATED, "From elsewhere", p.id, null, false);
+  live.readEnvelope();
+  assert.equal(entities.getEntity("e_made_note")[notes.MARK] ?? null, null);
+  pagesM.deletePage(projectsM.UNDATED, "Shared plan, revised");
+  live.readEnvelope();
+  assert.throws(() => entities.getEntity(note!.id));
+});
+
 test("the live binding: a cursor to follow, deletions in the feed, creates that never edit, and writes that do what a write does", async () => {
   const live = await import("../src/interchange.js");
   const feed = await import("../src/feed.js");

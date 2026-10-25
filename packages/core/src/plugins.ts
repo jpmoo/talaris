@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { getEntity, types } from "./entities.js";
-import { createObject, liveManifest, patchObject, readEnvelope, type WritePatch } from "./interchange.js";
+import { createObject, getInterchangeFile, liveManifest, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { CONFIG_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
@@ -601,6 +601,20 @@ function interchangeFor(m: Manifest, p: Record<string, unknown>): unknown {
     const ids = new Set(objects.map((o) => o.id));
     // Deletions are said by id alone: a follower must hear of them, and an id says nothing else.
     return { ...env, objects, relations: (env.relations ?? []).filter((r) => ids.has(r.from)) };
+  }
+  // Files by their hash (*Files*), as base64 inside the request — the one place a plugin's words are JSON.
+  const file = /^\/interchange\/files\/([0-9a-f]{64})$/.exec(url.pathname);
+  if (file) {
+    const sha = file[1]!;
+    if (verb === "PUT") {
+      if (!m.permissions.write.length) throw new Error("its manifest does not ask to write anything");
+      return putInterchangeFile(sha, Buffer.from(String((p.body as { bytes?: string } | undefined)?.bytes ?? ""), "base64"));
+    }
+    if (verb === "GET" || verb === "HEAD") {
+      if (!m.permissions.read.length) throw new Error("its manifest does not ask to read anything");
+      const got = getInterchangeFile(sha);
+      return got.ok ? { ok: true, ...(verb === "GET" ? { bytes: got.bytes!.toString("base64") } : {}), reports: [] } : got;
+    }
   }
   const object = /^\/interchange\/objects\/([^/]+)$/.exec(url.pathname);
   if (object) {
