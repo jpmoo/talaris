@@ -196,13 +196,28 @@ export function translateRegions(regions, H, T) {
  * has nothing like.
  */
 export function kindFor(hc, H, T) {
-  if (["list", "table", "calendar"].includes(hc.kind)) return hc.kind;
+  if (["list", "table"].includes(hc.kind)) return hc.kind;
   if (hc.kind !== "matrix") return null;
   const bind = hc.properties?.["hermes:matrix_bind_property"];
   if (!bind || hc.membership?.mode !== "query") return "matrix";
   if (String(bind).startsWith("@")) return null;
   return boardField(bind, H, T) ? "board" : null;
 }
+/**
+ * Whether a collection is one of tasks, which is what Tasks shows: its rule
+ * asks for a type that declares the task profile (and does not take it away),
+ * or, kept by hand, its members are tasks. Notes, projects, days: not offered.
+ */
+export function ofTasks(hc, H) {
+  const tasky = new Set((H.types ?? []).filter((t) => t.profiles?.task).map((t) => t.id));
+  const asks = (c) => c?.kind === "group" ? (c.match === "any" ? (c.items ?? []).length > 0 && c.items.every(asks) : (c.items ?? []).some(asks))
+    : c?.kind === "blockType" && c.op !== "isNot" && tasky.has(c.typeId);
+  if (hc.membership?.mode === "query") return asks(hc.membership.query);
+  const types = new Map((H.objects ?? []).map((o) => [o.id, o.type]));
+  const members = (hc.members ?? []).map((m) => types.get(m.object)).filter(Boolean);
+  return members.length > 0 && members.every((t) => tasky.has(t));
+}
+
 /** The Talaris field a Hermes Notes field is, through the profile slot naming both; null when none does. */
 function boardField(key, H, T) {
   const hs = slotsOf(H.types), ts = slotsOf(T.types);
@@ -348,7 +363,7 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
     const taken = new Set(pairs.map((p) => p.t));
     for (const hc of hCols.values()) {
       const kind = kindFor(hc, H, T);
-      if (!kind || paired.has(hc.id) || (cs.declined ?? []).includes(hc.id)) continue;
+      if (!kind || !ofTasks(hc, H) || paired.has(hc.id) || (cs.declined ?? []).includes(hc.id)) continue;
       const mates = [...tCols.values()].filter((c) => c.kind === kind && !taken.has(c.id) && !c.archived && !c["talaris:syncedPlugin"]).slice(0, 9);
       ask.push({ id: `coll:${hc.id}`, on: "tasks", group: "eligible collections", prompt: "Choose which to sync.",
         title: `${hc.name} · ${kind}`,

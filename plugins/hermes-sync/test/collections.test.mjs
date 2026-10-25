@@ -74,10 +74,12 @@ const links = [{ kind: "task", t: "t1", h: "h1" }, { kind: "task", t: "t2", h: "
 
 test("asked about once; brought down, it is made with its rule runnable in Talaris", () => {
   const cs = { pairs: [], declined: [] };
-  const Hw = { ...H, whole: true, collections: [matrix([]), { id: "hc", name: "Canvas", kind: "canvas" }] };
+  const Hw = { ...H, whole: true, collections: [matrix([]), { id: "hc", name: "Canvas", kind: "canvas" },
+    { id: "hn", name: "Recent notes", kind: "list", membership: { mode: "query", query: { kind: "blockType", typeId: "h-org" } } },
+    { id: "hk", name: "Calendar", kind: "calendar", membership: { mode: "query", query: { kind: "blockType", typeId: "h-task" } } }] };
   const Tw = { ...T, collections: [{ id: "c_mine", name: "Mine", kind: "matrix", members: [] }, { id: "c_list", name: "A list", kind: "list", members: [] }] };
   const { ask } = planCollections(cs, Tw, Hw, links);
-  assert.equal(ask.length, 1, "only kinds both keep");
+  assert.equal(ask.length, 1, "only kinds both keep, of tasks: not a canvas, not notes, not a calendar");
   assert.deepEqual(ask[0].choices.map((c) => c.key), ["bring", "t=c_mine", "no"], "matched only to one of its kind");
   const b = bringDown(matrix([]), H, T);
   assert.deepEqual(b.body.membership, { mode: "query", query: { kind: "profile", profile: "task" } });

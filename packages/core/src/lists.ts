@@ -494,6 +494,25 @@ function rowOf(o: Entity, position: string, region: string | undefined, today: s
   };
 }
 
+/**
+ * Tasks on the days from `from` to `to` (dates; `to` not included), for the
+ * calendar: each whose span — available to due, or the one of them it has —
+ * touches them. Open and done alike; put away, not.
+ */
+export function tasksOnDays(from: string, to: string): Row[] {
+  const today = resolveDate("today"), now = resolveDate("now");
+  return allRecords().map((r) => r.object).flatMap((o) => {
+    if (o.stub || o.archived) return [];
+    const shape = shapeOf(o);
+    if (!shape) return [];
+    const s = spanOf(o, shape);
+    const a = (s.start ?? s.due)?.slice(0, 10), b = (s.due ?? s.start)?.slice(0, 10);
+    if (!a || !b) return [];
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    return lo < to && hi >= from ? [rowOf(o, "", undefined, today, now)] : [];
+  }).sort((x, y) => String(x.start ?? x.due).localeCompare(String(y.start ?? y.due)) || x.title.localeCompare(y.title));
+}
+
 export interface Shown {
   list: List;
   rows: Row[];

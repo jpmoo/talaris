@@ -104,6 +104,40 @@ export function isComplete(o: Entity, shape = shapeOf(o)): boolean {
   return Boolean(shape && shape.complete.includes(String(o.properties[shape.statusKey] ?? "")));
 }
 
+/**
+ * A task ticked done, or opened again, as its type says: done is the first of
+ * its complete values; open again, its default status (or the first that is
+ * not complete). What completing does besides (a stamp, the next of a
+ * series) follows as it does for any change of status.
+ */
+export function setDone(id: string, done: boolean): Entity {
+  const o = getEntity(id);
+  const shape = shapeOf(o);
+  if (!shape) throw new Conflict("not a task");
+  const options = shape.type.fields.find((f) => f.key === shape.statusKey)?.options ?? [];
+  const value = done ? shape.complete.find((v) => options.length === 0 || options.includes(v)) ?? shape.complete[0]
+    : shape.complete.includes(shape.defaultStatus) ? options.find((v) => !shape.complete.includes(v)) : shape.defaultStatus;
+  if (!value) throw new Conflict(done ? "its type says no status is done" : "its type has no open status");
+  return updateEntity(id, { properties: { [shape.statusKey]: value } });
+}
+
+/** A task's dates moved by whole days, available and due together, each keeping its time of day. */
+export function shiftTask(id: string, days: number): Entity {
+  const o = getEntity(id);
+  const shape = shapeOf(o);
+  if (!shape?.spanKey) throw new Conflict("not a task with dates");
+  if (!Number.isInteger(days) || Math.abs(days) > 3660) throw new Conflict("a whole number of days");
+  const move = (v?: string) => {
+    if (!v || !/^\d{4}-\d\d-\d\d/.test(v)) return v;
+    const d = new Date(`${v.slice(0, 10)}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}${v.slice(10)}`;
+  };
+  const was = (o.properties[shape.spanKey] ?? {}) as { start?: string; end?: string };
+  return updateEntity(id, { properties: { [shape.spanKey]: { ...was, ...(was.start ? { start: move(was.start) } : {}), ...(was.end ? { end: move(was.end) } : {}) } } });
+}
+
 export function spanOf(o: Entity, shape = shapeOf(o)): Span {
   const v = shape?.spanKey ? (o.properties[shape.spanKey] as { start?: string; end?: string } | undefined) : undefined;
   return { start: v?.start || undefined, due: v?.end || undefined };

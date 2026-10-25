@@ -78,6 +78,23 @@ main { flex: 1; min-height: 0; display: flex; }
 .dayhead { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; }
 .dayhead div { padding: 6px 8px; font-size: 12px; color: var(--muted); }
 .dayhead .today { color: var(--accent); }
+/* Tasks, above the day's events (calendar.js, taskRow): a bar from available to due. */
+.taskrow { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); row-gap: 3px; padding: 4px 0; border-bottom: 1px solid var(--line); flex: none; max-height: 30vh; overflow-y: auto; }
+.taskrow .lbl { grid-column: 1; font-size: 10px; color: var(--muted); padding: 2px 6px; }
+.tbar { margin: 0 3px; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 3px; border-radius: 11px; font-size: 11.5px; cursor: grab; touch-action: none; user-select: none;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.tbar:hover { background: color-mix(in srgb, var(--accent) 26%, var(--surface)); }
+.tbar .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbar .tick { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; color: transparent; font-size: 10px; line-height: 1; cursor: pointer; }
+.tbar .tick:hover { border-color: var(--accent); color: var(--accent); }
+.tbar .tick.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.tbar.done { opacity: .55; }
+.tbar.done .tt { text-decoration: line-through; }
+.tbar.late { background: color-mix(in srgb, #d0564b 16%, var(--surface)); border-color: color-mix(in srgb, #d0564b 45%, var(--line)); }
+/* Begun before the days on show, or going on after them: open at that end. */
+.tbar.from-before { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-style: dashed; }
+.tbar.goes-on { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-style: dashed; }
+.tbar.dragging { cursor: grabbing; z-index: 2; box-shadow: var(--menu-shadow); }
 .allday { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; min-height: 22px; }
 .allday > div { padding: 2px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line); }
 .allday > div:first-child { border-left: 0; font-size: 10px; color: var(--muted); padding: 4px 6px; }

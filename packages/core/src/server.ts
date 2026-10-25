@@ -574,6 +574,13 @@ route("POST", "/tasks", async (req) => {
   }
   return entities.getEntity(t.id);
 });
+route("GET", "/tasks/days", (_r, _p, q) => {
+  const from = q.get("from") ?? "", to = q.get("to") ?? "";
+  if (!/^\d{4}-\d\d-\d\d$/.test(from) || !/^\d{4}-\d\d-\d\d$/.test(to)) throw new BadRequest("from and to, as dates");
+  return lists.tasksOnDays(from, to);
+});
+route("POST", "/tasks/:id/done", async (req, [id]) => tasks.setDone(id!, (await json<{ done?: boolean }>(req)).done !== false));
+route("POST", "/tasks/:id/shift", async (req, [id]) => tasks.shiftTask(id!, Number((await json<{ days?: number }>(req)).days)));
 route("GET", "/tasks/find", (_r, _p, q) => lists.findTasks({
   status: q.get("status") ?? undefined, when: q.get("when") ?? undefined, project: q.get("project") ?? undefined,
   tag: q.get("tag") ?? undefined, text: q.get("text") ?? undefined, list: q.get("list") ?? undefined,

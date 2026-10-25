@@ -81,6 +81,7 @@ function span() {
   return [s, addDays(s, 42)];
 }
 function fetchRange() {
+  fetchTasks();
   if (!bridge || !status.ready) return;
   const [a, b] = span();
   wanted = ++req;
@@ -101,6 +102,94 @@ function shown() {
 function onDay(day) {
   const a = startOfDay(day).getTime(), b = a + DAY_MS;
   return shown().filter((e) => e.start < b && (e.end > a || e.start === e.end && e.start >= a));
+}
+
+// ---------------------------------------------------------------- tasks, above the day's events
+//
+// The tasks on the days on show, from the core (through the bridge's narrow
+// line to it, calendar_panel.py): each one bar from the day it is available
+// to the day it is due — a day, if it has only one of them. Ticked done here,
+// opened in Tasks with a press, dragged to other days, its dates going along.
+
+let tasks = [];
+let coreAsked = 0;
+const coreWaiting = new Map();
+function core(method, path, body) {
+  return new Promise((ok, fail) => {
+    const id = `t${++coreAsked}`;
+    coreWaiting.set(id, { ok, fail });
+    bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
+  });
+}
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function fetchTasks() {
+  if (!bridge || typeof bridge.core !== "function" || mode === "month") return;
+  const [a, b] = span();
+  const asked = `${iso(a)}/${iso(b)}`;
+  core("GET", `/tasks/days?from=${iso(a)}&to=${iso(b)}`).then((rows) => {
+    const [x, y] = span();
+    if (asked !== `${iso(x)}/${iso(y)}`) return; // moved on meanwhile
+    tasks = rows || [];
+    draw();
+  }).catch(() => {});
+}
+const dayWord = (s) => new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+/** The tasks' row: bars packed into as few lines as they fit, each spanning its days. */
+function taskRow(days) {
+  const first = iso(days[0]), last = iso(days[days.length - 1]);
+  const lanes = [];
+  const bars = [];
+  for (const t of tasks) {
+    const a = (t.start || t.due).slice(0, 10), b = (t.due || t.start).slice(0, 10);
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    if (hi < first || lo > last) continue;
+    const s = Math.max(0, days.findIndex((d) => iso(d) >= lo));
+    let e = days.length - 1;
+    while (e > 0 && iso(days[e]) > hi) e--;
+    let lane = lanes.findIndex((end) => end < s);
+    if (lane < 0) { lane = lanes.length; lanes.push(-1); }
+    lanes[lane] = e;
+    bars.push(taskBar(t, s, e, lane, lo < first, hi > last, days.length));
+  }
+  if (!bars.length) return null;
+  return el("div", { class: "taskrow", style: `--cols:${days.length};grid-template-rows:repeat(${lanes.length}, 22px)` },
+    el("div", { class: "lbl", style: `grid-row:1 / ${lanes.length + 1}` }, "tasks"), ...bars);
+}
+
+function taskBar(t, s, e, lane, fromBefore, goesOn, cols) {
+  const when = t.start && t.due && t.start.slice(0, 10) !== t.due.slice(0, 10) ? `available ${dayWord(t.start)}, due ${dayWord(t.due)}`
+    : t.due ? `due ${dayWord(t.due)}` : `available ${dayWord(t.start)}`;
+  const tick = el("button", { class: "tick" + (t.complete ? " on" : ""), title: t.complete ? "Not done" : "Done", onclick: (ev) => {
+    ev.stopPropagation();
+    core("POST", `/tasks/${encodeURIComponent(t.id)}/done`, { done: !t.complete }).then(fetchTasks).catch((x) => say(x.message, true));
+  } }, "✓");
+  const bar = el("div", { class: "tbar" + (t.complete ? " done" : "") + (t.overdue ? " late" : "") + (fromBefore ? " from-before" : "") + (goesOn ? " goes-on" : ""),
+    style: `grid-column:${s + 2} / ${e + 3};grid-row:${lane + 1}`, title: `${t.title} · ${when}` },
+    tick, el("span", { class: "tt" }, t.title || "(untitled)"));
+  // A press opens it in Tasks; a drag along the days moves its dates by as many.
+  bar.addEventListener("pointerdown", (down) => {
+    if (down.button !== 0 || tick.contains(down.target)) return;
+    const row = bar.parentElement.getBoundingClientRect();
+    const width = (row.width - 52) / cols;
+    let dx = 0;
+    bar.setPointerCapture(down.pointerId);
+    const move = (ev) => { dx = ev.clientX - down.clientX; if (Math.abs(dx) > 4) { bar.classList.add("dragging"); bar.style.transform = `translateX(${dx}px)`; } };
+    const up = () => {
+      bar.removeEventListener("pointermove", move);
+      bar.removeEventListener("pointerup", up);
+      bar.removeEventListener("pointercancel", up);
+      const n = Math.round(dx / width);
+      if (Math.abs(dx) <= 4) { bridge.openTask(t.id); return; }
+      bar.classList.remove("dragging");
+      bar.style.transform = "";
+      if (n) core("POST", `/tasks/${encodeURIComponent(t.id)}/shift`, { days: n }).then(fetchTasks).catch((x) => say(x.message, true));
+    };
+    bar.addEventListener("pointermove", move);
+    bar.addEventListener("pointerup", up);
+    bar.addEventListener("pointercancel", up);
+  });
+  return bar;
 }
 
 // ---------------------------------------------------------------- drawing
@@ -181,6 +270,8 @@ function drawDays(view, cols) {
   const wrap = el("div", { class: "days", style: `--cols:${cols}` });
   wrap.append(el("div", { class: "dayhead" }, el("div"), ...days.map((d) => el("div", { class: sameDay(d, today) ? "today" : "" },
     d.toLocaleDateString("en-US", { weekday: "short", month: cols === 1 ? "long" : undefined, day: "numeric" })))));
+  const taskBars = taskRow(days);
+  if (taskBars) wrap.append(taskBars);
   wrap.append(el("div", { class: "allday" }, el("div", {}, "all day"), ...days.map((d) =>
     el("div", { ondblclick: () => create(d, true) }, ...onDay(d).filter((e) => e.allDay).map((e) => chip(e, false))))));
   const grid = el("div", { class: "grid" });
@@ -608,6 +699,15 @@ Surface.connect({ onState }).then((b) => {
   b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
   b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); seek(); });
   b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
+  if (b.coreReply) b.coreReply.connect((text) => {
+    const r = JSON.parse(text);
+    const w = coreWaiting.get(r.id);
+    if (!w) return;
+    coreWaiting.delete(r.id);
+    if (r.status >= 400) w.fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`)); else w.ok(r.data);
+  });
+  // Tasks change elsewhere (Tasks, a sync): read again now and then while on show.
+  setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) fetchTasks(); }, 60000);
   b.people.connect((text) => showPeople(JSON.parse(text)));
   b.done.connect((text) => {
     const d = JSON.parse(text);

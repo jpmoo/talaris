@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -27,7 +28,7 @@ from datetime import datetime
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, call as core_call
+from core import Bridge, call as core_call, local_call, route_ok
 from overlay import Overlay
 from views import log
 
@@ -352,7 +353,13 @@ class CalendarService(QObject):
             self.process.waitForFinished(1000)
 
 
+#: What the page may ask the core for: the tasks on the days on show, ticking one done, moving its dates.
+TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
+
+
 class CalendarBridge(Bridge):
+    #: The core's answer to `core`: {id, status, data}.
+    coreReply = Signal(str)
     calendars = Signal(str)
     events = Signal(str)
     done = Signal(str)
@@ -374,6 +381,28 @@ class CalendarBridge(Bridge):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)
+
+    @Slot(str, str, str, str)
+    def core(self, ident: str, method: str, path: str, body: str) -> None:
+        """Tasks, above the day's events: only the routes for them (TASK_ROUTES)."""
+        if not route_ok(TASK_ROUTES, path):
+            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the calendar uses"}}))
+            return
+
+        def run() -> None:
+            status, text = local_call(method, path, body or None, timeout=30)
+            try:
+                data = json.loads(text) if text else None
+            except ValueError:
+                data = {"error": text}
+            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
+        threading.Thread(target=run, daemon=True).start()
+
+    @Slot(str)
+    def openTask(self, entity: str) -> None:
+        """A task, open in Tasks' editor (the panel goes, out of its way)."""
+        self.owner.file_away()
+        self.owner.desktop.show_task(entity)
 
     @Slot()
     def accounts(self) -> None:
