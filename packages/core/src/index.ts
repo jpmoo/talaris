@@ -15,6 +15,7 @@ import { ensureHome } from "./projects.js";
 import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
 import { startSchedule } from "./backup.js";
+import { startWatching } from "./files.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
 
@@ -22,6 +23,8 @@ async function main(): Promise<void> {
   const home = ensureHome();
   startSealing();
   startSchedule();
+  // Files: every project's folder read once, then followed (files.ts).
+  try { startWatching(); } catch (e) { console.log(`talaris-core: files not watched yet: ${(e as Error).message}`); }
   // People once made from calendars' own addresses, put right (entities.ts).
   try {
     const n = forgetNonPeople();

@@ -87,8 +87,8 @@ export interface Attachment {
 }
 
 /** The roles Talaris itself needs a type for, each found by what the type declares. */
-export type Role = "person" | "event" | "task" | "note" | "project";
-const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null };
+export type Role = "person" | "event" | "task" | "note" | "project" | "file";
+const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null, file: null };
 
 /**
  * The types Talaris starts with. Their names are only names — the user's to
@@ -185,6 +185,18 @@ export const BUILT_IN: EntityType[] = [
       { key: "description", kind: "richtext" },
     ],
     profiles: { project: { title: "title", body: "description" } },
+  },
+  {
+    // A file in Files (files.ts): one in a project's folder, given an entity
+    // when it is first tagged (a `file` source, `<project>/<path>`), or a
+    // shortcut to a file elsewhere (`talaris:shortcut`, its project), whose
+    // `file` is a link. No profile: the format has no kind for a file, and a
+    // sync carries none.
+    id: "t_file", name: "File", "talaris:role": "file",
+    fields: [
+      { key: "title", kind: "text", required: true, "talaris:label": "Name" },
+      { key: "file", kind: "attachment" },
+    ],
   },
 ];
 

@@ -53,6 +53,7 @@ import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
 import * as tagsM from "./tags.js";
 import * as links from "./links.js";
+import * as files from "./files.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -227,6 +228,59 @@ route("GET", "/projects/:id/file", (_r, [id], q) => {
   return { path: need(q, "path"), abs: at.abs, sealed: at.sealed };
 });
 route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFile(id!, need(q, "path")).toString("base64") }));
+// Files (files.ts): every project's files, and what Talaris holds for each project that is not a file there.
+route("GET", "/files", (_r, _p, q) => files.listFiles({ project: q.get("project") ?? "", q: q.get("q") ?? "", type: q.get("type") ?? "",
+  status: q.get("status") ?? "", tags: q.getAll("tag"), days: Number(q.get("days") ?? 0) || undefined,
+  sort: q.get("sort") === "date" ? "date" : "name", limit: Number(q.get("limit") ?? 2000) }));
+route("GET", "/files/version", () => ({ version: files.filesVersion() }));
+route("GET", "/files/ignored", (_r, _p, q) => files.ignoredIn(need(q, "project")));
+route("POST", "/files/rename", async (req) => {
+  const b = await json<{ project?: string; path?: string; name?: string }>(req);
+  if (!b.project || !b.path || !b.name) throw new BadRequest("the project, the file's path, and its new name");
+  files.renameFile(b.project, b.path, b.name);
+  return { ok: true };
+});
+route("POST", "/files/move", async (req) => {
+  const b = await json<{ project?: string; path?: string; toProject?: string; toDir?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("the project and the file's path");
+  return files.moveWithin(b.project, b.path, b.toProject || b.project, b.toDir ?? "");
+});
+route("POST", "/files/trash", async (req) => {
+  const b = await json<{ project?: string; path?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("the project and the file's path");
+  files.trashFile(b.project, b.path);
+  return { ok: true };
+});
+route("PUT", "/files/tags", async (req) => {
+  const b = await json<{ project?: string; path?: string; entity?: string; tags?: string[] }>(req);
+  if (b.entity) return { tags: entities.updateEntity(b.entity, { tags: tagsM.cleanTags(b.tags ?? []) }).tags ?? [] };
+  if (!b.project || !b.path) throw new BadRequest("the project and the file's path, or its entity");
+  return { tags: files.setFileTags(b.project, b.path, b.tags ?? []) };
+});
+route("POST", "/files/shortcut", async (req) => {
+  const b = await json<{ project?: string; path?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("the project and the file");
+  return files.makeShortcut(b.project, b.path);
+});
+route("DELETE", "/files/shortcut/:id", (_r, [id]) => { files.removeShortcut(id!); return { ok: true }; });
+route("POST", "/files/bring-in/check", async (req) => {
+  const b = await json<{ project?: string; path?: string; dir?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("the project and the file");
+  return files.checkBringIn(b.path, b.project, b.dir ?? "");
+});
+route("POST", "/files/bring-in", async (req) => {
+  const b = await json<{ project?: string; path?: string; dir?: string; name?: string; confirmed?: boolean }>(req);
+  if (!b.project || !b.path) throw new BadRequest("the project and the file");
+  // Moving a file in is asked first, always: what it would disturb was shown (`/files/bring-in/check`).
+  if (b.confirmed !== true) throw new Conflict("moving a file in is confirmed first");
+  return files.bringIn(b.path, b.project, b.dir ?? "", b.name);
+});
+route("POST", "/files/snapshot/save", async (req) => {
+  const b = await json<{ holder?: string; sha256?: string; project?: string; dir?: string }>(req);
+  if (!b.holder || !b.sha256 || !b.project) throw new BadRequest("the thing it is on, which copy, and the project");
+  return files.saveSnapshot(b.holder, b.sha256, b.project, b.dir || undefined);
+});
+route("POST", "/files/open-copy", async (req) => ({ path: files.openableCopy(await json<{ sha256?: string; project?: string; path?: string; name?: string }>(req)) }));
 // A project at a glance (glance.ts): its own things, one step out, and how they are tied.
 route("GET", "/projects/:id/glance", (_r, [id], q) => glance(id!, Number(q.get("steps") ?? 1), q.get("from") ?? ""));
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));

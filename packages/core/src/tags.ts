@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, summary, titleOf, typeFor, updateEntity, type Entity, type Summary } from "./entities.js";
 import { UNDATED, findProject, notesFolder } from "./projects.js";
 import { pageLocation } from "./pages.js";
+import { fileOf } from "./files.js";
 
 const pageSource = (projectId: string, path: string) => ({ kind: "page", key: `${projectId}/${path}` });
 
@@ -79,6 +80,8 @@ export interface Tagged extends Summary {
   tags: string[];
   /** For a page: where it is, so it opens there. `project` is `notes` for an undated note. */
   page?: { project: string; path: string };
+  /** For a file (Files): its project, its place there, and where it is on disk. */
+  file?: { project: string; path?: string; abs?: string };
 }
 
 /** Everything carrying a tag (any of several, or all of them), pages with where they are; pages gone are left out. */
@@ -93,9 +96,12 @@ export function tagged(tags: string[], options: { all?: boolean; kind?: string }
     if (!hit) continue;
     const page = pageOf(o);
     if (page && !pageExists(page)) continue;
+    const file = page ? null : fileOf(o);
+    if (file && !(file.abs && existsSync(file.abs))) continue;
     if (options.kind === "page" && !page) continue;
-    if (options.kind && options.kind !== "page" && !summary(o).kinds.includes(options.kind)) continue;
-    out.push({ ...summary(o), title: page ? page.path.split("/").pop()! : titleOf(o), tags: has, ...(page ? { page } : {}) });
+    if (options.kind === "file" && !file) continue;
+    if (options.kind && options.kind !== "page" && options.kind !== "file" && !summary(o).kinds.includes(options.kind)) continue;
+    out.push({ ...summary(o), title: page ? page.path.split("/").pop()! : titleOf(o), tags: has, ...(page ? { page } : {}), ...(file ? { file } : {}) });
   }
   return out.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
 }
