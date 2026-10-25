@@ -577,7 +577,7 @@
           return el("label", { class: "drow" }, el("span", { class: "dl" }, label), r, n);
         }),
         el("div", { class: "drow" }, el("span", { class: "dl" }, "Labels"),
-          el("span", { class: "seg dseg" }, ...[["all", "All"], ["hubs", "Busier"], ["hover", "On hover"]].map(([k, l]) =>
+          el("span", { class: "seg dseg" }, ...[["all", "All"], ["hubs", "Main"], ["hover", "Hover"]].map(([k, l]) =>
             el("button", { class: gs.labels === k ? "on" : "", onclick: () => { setDisplay("labels", k); drawDisplay(); } }, l)))),
         el("div", { class: "drow dacts" },
           el("button", { class: "t-btn", title: "Lay it all out again from the start", onclick: () => { for (const p of nodes) if (!isRoot(p)) { p.x = (Math.random() - 0.5) * 300; p.y = (Math.random() - 0.5) * 300; } heat(1); } }, "Lay out again"),
