@@ -296,6 +296,8 @@ class Launcher(QObject):
             self.desktop.show_in_drawer("writing", {"page": str(r["path"])})
         elif kind == "file":
             return self._open_file(str(r["path"]))
+        elif kind == "verb" and r.get("name") == "archive":
+            self.desktop.archive.show(str(r.get("query") or ""))
         elif kind == "verb":
             return self.desktop.verb(str(r["name"]))
         elif kind == "conversation":

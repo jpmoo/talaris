@@ -202,7 +202,31 @@ export function desktopTools(core: Core): DesktopTool[] {
         return describeCanvas(await core<CanvasDocument>("GET", `/projects/${p.id}/canvases/${node.id}`), node);
       },
     },
+    {
+      name: "talaris_archive_search",
+      description: "Search the archive: the pages, canvases and files of projects the user has archived — which are in no other result, nor in talaris_now. Use it only when the user asks about old or archived work (\"what did I write about the retreat last year?\"). Read talaris_page_read with the project's id for a whole page.",
+      inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+      annotations: { readOnlyHint: true, title: "Search the archive" },
+      run: async (a) => {
+        const hits = await core<{ project: string; projectName: string; kind: string; where: string; title: string; snippet?: string }[]>("GET", `/archive/search?q=${encodeURIComponent(str(a.query))}`);
+        return hits.length ? hits.map((h) => `- ${h.kind} "${h.title}" in archived project ${h.projectName} [${h.project}] (${h.kind === "page" ? `path: ${h.where}` : h.where})${h.snippet ? `: …${h.snippet}…` : ""}`).join("\n")
+          : "Nothing in the archive says that.";
+      },
+    },
     // ------------------------------------------------------------ verbs
+    {
+      name: "talaris_archive_project",
+      description: "Archive a Talaris project: its folder goes to the archive, and it leaves every list, search and context until it is brought back (from the archive browser). Home cannot be archived.",
+      inputSchema: { type: "object", properties: { project: { type: "string", description: "Name or id." } }, required: ["project"] },
+      annotations: { readOnlyHint: false, title: "Archive a project" },
+      run: async (a) => {
+        const p = await project(a.project);
+        if (p.home) throw new Error("Home cannot be archived");
+        // Through the desktop, which leaves the project first if it is the current one.
+        await surfaces({ do: "archive", project: p.id });
+        return `Archived ${p.name}.`;
+      },
+    },
     {
       name: "talaris_go",
       description: "Go to a Talaris project: its desktop comes up, and its canvas and writing drawers become current.",

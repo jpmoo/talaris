@@ -391,6 +391,57 @@ test("pages and canvases: named for when they were made, starred, and in an orde
   assert.ok(kids[0]?.created);
 });
 
+test("an archived project leaves every list, is read and not written, and comes back — beside one of its name, or merged into it", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const tasks = await import("../src/tasks.js");
+  const archive = await import("../src/archive.js");
+  const p = projects.createProject("Retreat");
+  pages.createPage(p.id, null, "Agenda");
+  pages.writePage(p.id, "Agenda", "Day one");
+  projects.putProjectFile(p.id, "map.pdf", Buffer.from("pdf"));
+  const pe = tasks.taskProjects().find((x) => x.workspace === p.id)!;
+  const task = tasks.createTask({ title: "Book the room", projects: [pe.id] });
+  const page = entities.bySource({ kind: "page", key: `${p.id}/Agenda` });
+
+  const gone = archive.archiveProject(p.id);
+  assert.match(gone.folder, new RegExp(`Archived/${new Date().getFullYear()}/Retreat$`));
+  assert.ok(!projects.listProjects().some((x) => x.id === p.id), "out of the lists");
+  assert.equal(projects.findProject(p.id).archived, gone.archived, "still found by its id");
+  assert.equal(pages.readPage(p.id, "Agenda"), "Day one", "read");
+  assert.throws(() => pages.writePage(p.id, "Agenda", "changed"), /archived/, "not written");
+  assert.ok(entities.getEntity(task.id).archived, "its task goes quiet with it");
+  if (page) assert.ok(entities.getEntity(page.id).archived);
+  assert.ok(!entities.findEntities({ q: "Book the room" }).length, "and is out of searches");
+  assert.equal(archive.listArchive()[0]?.name, "Retreat");
+  assert.equal(archive.searchArchive("day one")[0]?.where, "Agenda", "searched on purpose");
+
+  // Back, with nothing in its way.
+  const back = archive.restoreProject(p.id);
+  assert.ok(back.done && back.project.folder.endsWith("/Projects/Retreat"));
+  assert.ok(!entities.getEntity(task.id).archived);
+
+  // Archived again, and a new Retreat made meanwhile: the choice is asked for.
+  archive.archiveProject(p.id);
+  const other = projects.createProject("Retreat");
+  pages.createPage(other.id, null, "Agenda");
+  pages.writePage(other.id, "Agenda", "Day two");
+  const asked = archive.restoreProject(p.id);
+  assert.ok(!asked.done && asked.clash.id === other.id);
+  // Merging: the page both have is asked about; the file only it has just comes.
+  const merging = archive.restoreProject(p.id, { mode: "merge" });
+  assert.ok(!merging.done && merging.conflicts?.includes("Writing/Agenda.md"));
+  const merged = archive.restoreProject(p.id, { mode: "merge", decisions: { "Writing/Agenda.md": "both" } });
+  assert.ok(merged.done);
+  assert.equal(pages.readPage(other.id, "Agenda"), "Day two", "the one in use kept its page");
+  assert.equal(pages.readPage(other.id, "Agenda (restored)"), "Day one", "and the archived one sits beside it");
+  assert.ok(existsSync(join(other.folder, "Files", "map.pdf")), "its files came");
+  const otherEntity = tasks.taskProjects().find((x) => x.workspace === other.id)!;
+  assert.ok(JSON.stringify(entities.getEntity(task.id).properties).includes(otherEntity.id), "its task is filed under the one in use");
+  assert.ok(!entities.getEntity(task.id).archived);
+  assert.throws(() => projects.findProject(p.id), /no project/, "and the archived one is gone, folded in");
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

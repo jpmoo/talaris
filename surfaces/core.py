@@ -187,6 +187,12 @@ class Bridge(QObject):
             self.owner.file_away()
         return desktop
 
+    @Slot(str, result=str)
+    def archiveProject(self, project: str) -> str:  # noqa: N802 — called from the page by this name
+        """A project archived, from Tasks' project sheet: its folder to the archive, out of every list."""
+        desktop = getattr(self.owner, "desktop", None)
+        return desktop.archive_project(project) if desktop else "Not connected"
+
     @Slot(str)
     def openTask(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
         """A task clicked anywhere: open in Tasks."""

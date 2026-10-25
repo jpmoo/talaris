@@ -709,6 +709,34 @@ else to do).
   age — close together recently, sparser further back. Plain copies, not git,
   so they are easy to see and restore.
 
+### Archiving a project
+
+Decided and built 2026-10-25. **Archived is out of every context**, and
+browsed on purpose. Its folder moves to `<projects>/Archived/<year>/<folder>`
+(one adopted from elsewhere stays put, marked), so a file manager can browse
+it; nothing points at a folder, so nothing breaks. It leaves the switcher, the
+bar, the launcher's results, `@`, Bring in, Glance, Tasks' lists and pickers,
+and Morgan's "what is current": the project's entity, the entities standing
+for its pages, canvases and notes, and the tasks filed only under it are
+archived *with* it (`talaris:archivedWith`), so every search that leaves out
+the archived leaves them out too, and bringing it back brings back exactly
+those. A person's or an event's links into it are kept, folded under "In
+archived projects". It is read, never written, until it is brought back.
+
+**The archive browser** (`archive_panel.py`), from the bar's project menu or
+the launcher ("Archive", or `archive <words>` to search it), lists archived
+projects by year and month; one opens to read its pages, its canvases' words,
+its files in their applications. Morgan searches it only when asked about old
+work (`talaris_archive_search`). Archiving is Tasks' project sheet, or
+`talaris_archive_project`.
+
+**Bringing one back** puts the folder where it was. When a project in use has
+its name, the person chooses: keep both (it comes back "Name (2)"), or merge —
+its pages, canvases, files and tasks folded into the one in use, every page or
+file both have decided one by one (keep the one in use, the archived one, or
+both), and whatever is not kept set aside in `.talaris/merged-away/`, never
+deleted.
+
 ### Writing pages nest
 
 **Pages are Markdown files in `Writing/`, and they nest** — shown in the drawer

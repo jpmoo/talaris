@@ -11,7 +11,7 @@ import {
   type CanvasNode,
 } from "@talaris/model";
 import { MACHINERY, stamp } from "./paths.js";
-import { Conflict, NotFound, findProject, listProjects, readProject } from "./projects.js";
+import { Conflict, NotFound, findProject, listProjects, readProject, writableProject } from "./projects.js";
 import { newId, readJson, writeJson } from "./store.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 import { syncText } from "./mentions.js";
@@ -140,7 +140,7 @@ function persist(folder: string, doc: CanvasDocument): void {
  * tree, and that is a decision, not an accident of a stale page.
  */
 export function writeCanvas(projectId: string, doc: CanvasDocument, options: { detach?: boolean } = {}): CanvasDocument {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const current = readCanvas(projectId, doc.id);
   if (typeof doc[REV] === "number" && doc[REV] !== revOf(current)) {
     throw new Conflict("stale: this canvas has changed since it was read");
@@ -184,7 +184,7 @@ export function writeCanvas(projectId: string, doc: CanvasDocument, options: { d
 export function renameCanvas(projectId: string, id: string, title: string): CanvasDocument {
   const name = title.trim();
   if (!name) throw new Conflict("a canvas needs a name");
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const doc = readCanvas(projectId, id);
   const old = doc.title;
   const renamed = { ...doc, title: name };
@@ -208,7 +208,7 @@ export function renameCanvas(projectId: string, id: string, title: string): Canv
 
 /** Star a canvas, or not: a starred one is kept at the top of its list. */
 export function starCanvas(projectId: string, id: string, starred: boolean): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   readCanvas(projectId, id);
   listed(folder, id, (l) => {
     if (starred) l.starred = true;
@@ -218,7 +218,7 @@ export function starCanvas(projectId: string, id: string, starred: boolean): voi
 
 /** A canvas's children in an order given whole, as its list was dragged into. */
 export function orderCanvases(projectId: string, id: string, children: string[]): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   readCanvas(projectId, id);
   const mine = new Set(allCanvases(folder).filter((c) => c.parent === id).map((c) => c.id));
   listed(folder, id, (l) => {
@@ -232,7 +232,7 @@ export function createChild(
   title: string,
   at: { x: number; y: number } = { x: 0, y: 0 },
 ): { canvas: CanvasDocument; parent: CanvasDocument } {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const parent = readCanvas(projectId, parentId);
   const child: CanvasDocument = {
     format: FORMAT_VERSION,
@@ -272,7 +272,7 @@ export function createChild(
  * first, so nothing is lost by accident. It stays in its versions.
  */
 export function deleteCanvas(projectId: string, id: string): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const doc = readCanvas(projectId, id);
   if (doc.parent === null) throw new Conflict("a project's top canvas cannot be deleted");
   const children = allCanvases(folder).filter((c) => c.parent === id);
@@ -314,7 +314,7 @@ export function canvasVersion(projectId: string, id: string, name: string): Canv
 
 /** Restoring is a save of the old state — so it is itself a version, and can be undone the same way. */
 export function restoreCanvas(projectId: string, id: string, name: string): CanvasDocument {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const old = canvasVersion(projectId, id, name);
   const current = readCanvas(projectId, id);
   const restored = { ...old, parent: current.parent, project: current.project };

@@ -8,6 +8,7 @@ import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
 import { glance, nearProject } from "./glance.js";
+import { archiveProject, archivedContents, listArchive, restoreProject, searchArchive, type Restore } from "./archive.js";
 import { setStarredOrder, starredOrder } from "./starred.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
 import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
@@ -117,6 +118,12 @@ function need(query: URLSearchParams, key: string): string {
 route("GET", "/health", (): Health => ({ ok: true, name: "talaris-core", version: VERSION, projectsRoot: projectsRoot() }));
 
 route("GET", "/projects", () => listProjects());
+// The archive: a project out of every context, browsed and brought back here (archive.ts).
+route("GET", "/archive", () => listArchive());
+route("GET", "/archive/search", (_r, _p, q) => searchArchive(q.get("q") ?? "", Number(q.get("limit") ?? 40)));
+route("GET", "/archive/:id", (_r, [id]) => archivedContents(id!));
+route("POST", "/projects/:id/archive", (_r, [id]) => archiveProject(id!));
+route("POST", "/projects/:id/restore", async (req, [id]) => restoreProject(id!, await json<Restore>(req).catch(() => ({}))));
 route("POST", "/projects", async (req) => {
   const b = await json<{ name?: string; adopt?: string }>(req);
   if (b.adopt) return adoptFolder(b.adopt, b.name);
@@ -302,7 +309,22 @@ route("GET", "/entities/:id", (_r, [id]) => {
   const { entity, out, in: incoming } = entities.connections(id!);
   return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming };
 });
-route("PATCH", "/entities/:id", async (req, [id]) => entities.updateEntity(id!, await json<entities.Patch>(req)));
+route("PATCH", "/entities/:id", async (req, [id]) => {
+  const patch = await json<entities.Patch>(req);
+  // A project's entity archived (Tasks' Archive): the project itself is, folder and all.
+  const project = entities.getEntity(id!)["talaris:sources"] as { kind: string; key: string }[] | undefined;
+  const ws = project?.find((s) => s.kind === "talaris-project")?.key;
+  if (ws && patch.archived !== undefined) {
+    if (patch.archived) archiveProject(ws);
+    else {
+      const back = restoreProject(ws);
+      if (!back.done) throw new Conflict(`a project called ${back.clash.name} is in use: bring this one back from the archive, to keep both or merge them`);
+    }
+    const { archived: _a, ...rest } = patch;
+    return Object.keys(rest).length ? entities.updateEntity(id!, rest) : entities.getEntity(id!);
+  }
+  return entities.updateEntity(id!, patch);
+});
 route("DELETE", "/entities/:id", (_r, [id]) => {
   // A person who came from a contact card is not made again from it.
   entities.forgetCardsOf(id!);

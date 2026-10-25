@@ -35,30 +35,64 @@ export function projectFile(folder: string): string {
 function summary(folder: string): ProjectSummary | null {
   try {
     const p = readJson<Project>(projectFile(folder));
-    return { id: p.id, code: p.code, name: p.name, folder, home: p.home === true };
+    return { id: p.id, code: p.code, name: p.name, folder, home: p.home === true, ...(typeof p.archived === "string" ? { archived: p.archived } : {}) };
   } catch {
     return null;
   }
 }
 
-export function listProjects(): ProjectSummary[] {
+/**
+ * The archive: `<projects>/Archived/<year>/<folder>`, where a project goes
+ * when it is archived (archive.ts) — out of every list a project is chosen
+ * from or searched in, and still a folder a file manager can browse.
+ */
+export const ARCHIVED = "Archived";
+export const archiveRoot = () => join(projectsRoot(), ARCHIVED);
+
+const dirsIn = (dir: string) => {
+  try {
+    return readdirSync(dir).filter((n) => !n.startsWith(".")).map((n) => join(dir, n)).filter((f) => statSync(f).isDirectory());
+  } catch {
+    return [];
+  }
+};
+
+/** Every project, in use and archived. */
+export function allProjects(): ProjectSummary[] {
   const root = projectsRoot();
   const folders = new Set<string>();
-  if (existsSync(root)) {
-    for (const name of readdirSync(root)) {
-      const folder = join(root, name);
-      if (!name.startsWith(".") && statSync(folder).isDirectory()) folders.add(folder);
-    }
-  }
+  for (const folder of dirsIn(root)) if (folder !== archiveRoot()) folders.add(folder);
+  for (const year of dirsIn(archiveRoot())) for (const folder of dirsIn(year)) folders.add(folder);
   for (const folder of adoptedFolders()) folders.add(folder);
   const found = [...folders].map(summary).filter((p): p is ProjectSummary => p !== null);
   // Home first, then by code — the order projects were made in.
   return found.sort((a, b) => Number(b.home) - Number(a.home) || a.code.localeCompare(b.code));
 }
 
+/**
+ * The projects in use. An archived one is in none of the lists this feeds —
+ * the switcher, the bar, the launcher, `@`, Glance, Tasks' pickers — and is
+ * still found by its id (`findProject`), for the archive's browser and for
+ * bringing it back.
+ */
+export function listProjects(): ProjectSummary[] {
+  return allProjects().filter((p) => !p.archived);
+}
+
+export function archivedProjects(): ProjectSummary[] {
+  return allProjects().filter((p) => p.archived);
+}
+
 export function findProject(id: string): ProjectSummary {
-  const p = listProjects().find((x) => x.id === id);
+  const p = allProjects().find((x) => x.id === id);
   if (!p) throw new NotFound(`no project ${id}`);
+  return p;
+}
+
+/** A project to change: one in use. An archived one is read, not written, until it is brought back. */
+export function writableProject(id: string): ProjectSummary {
+  const p = findProject(id);
+  if (p.archived) throw new Conflict(`${p.name} is archived: bring it back to change it`);
   return p;
 }
 
@@ -77,7 +111,8 @@ function nextCode(): string {
 export function folderName(name: string): string {
   const cleaned = name.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim();
   if (!cleaned) throw new Conflict("a project needs a name");
-  return cleaned;
+  // The archive's own folder is not a project's to take.
+  return cleaned.toLowerCase() === ARCHIVED.toLowerCase() ? `${cleaned} project` : cleaned;
 }
 
 function topCanvas(projectId: string, title: string): CanvasDocument {
@@ -173,7 +208,7 @@ export const EXPORTS = "Exports";
 
 export function writeExport(projectId: string, base: string, ext: string, data: Buffer): string {
   if (!/^(png|pdf)$/.test(ext)) throw new Conflict("an export is a png or a pdf");
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const dir = join(folder, EXPORTS);
   mkdirSync(dir, { recursive: true });
   const stem = (base.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim() || "Canvas").slice(0, 120);
@@ -192,7 +227,7 @@ export function writeExport(projectId: string, base: string, ext: string, data: 
  * a page or a note links it by.
  */
 export function putProjectFile(projectId: string, filename: string, data: Buffer): { path: string; name: string } {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const dir = join(folder, FILES);
   mkdirSync(dir, { recursive: true });
   const clean = (filename.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim() || "file").slice(0, 160);
@@ -232,7 +267,7 @@ export function readProjectFile(projectId: string, rel: string): Buffer {
 export function renameProject(projectId: string, name: string): ProjectSummary {
   const clean = name.trim().slice(0, 120);
   if (!clean) throw new Conflict("a project needs a name");
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   writeJson(projectFile(folder), { ...readProject(folder), name: clean });
   return findProject(projectId);
 }

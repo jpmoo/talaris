@@ -28,6 +28,7 @@ const VERBS = [
   { name: "writing", title: "Writing", sub: "Pull out the writing drawer" },
   { name: "file-all", title: "Put the drawers away" },
   { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a graph of how it is tied" },
+  { name: "archive", title: "Archive", sub: "Archived projects: browse them, search them, bring one back" },
   { name: "settings", title: "Settings", sub: "Appearance, layout, keys, Morgan" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },
   { name: "bluetooth", title: "Bluetooth", sub: "Devices" },
@@ -220,6 +221,10 @@ function figure(v) {
 function draw() {
   const query = $("q").value;
   shown = rank(query);
+  // "archive <words>": the archive searched on purpose — it is in no other result.
+  const inArchive = /^archive\s+(\S.*)$/i.exec(query.trim());
+  if (inArchive) shown.unshift({ kind: "verb", key: "archive-search", title: `Search the archive for “${inArchive[1]}”`, sub: "Archived projects' pages, canvases and files",
+    act: { kind: "verb", name: "archive", query: inArchive[1] } });
   const worked = sum(query);
   if (worked !== null) {
     const plain = String(Math.round(worked * 1e10) / 1e10);

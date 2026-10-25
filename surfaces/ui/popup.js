@@ -55,6 +55,8 @@ if (window.ResizeObserver) {
 
 // The current project at a glance (Super+Shift+G): everything in it, as a list or a graph.
 document.getElementById("glance-here").addEventListener("click", () => bridge && bridge.glance());
+// The archive's browser: archived projects, out of every list but this one.
+document.getElementById("archive-open").addEventListener("click", () => bridge && bridge.archive());
 
 // The projects, from the bar's project name: the current one marked, another gone to.
 let projectsShown = null;

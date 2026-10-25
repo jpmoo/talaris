@@ -10,7 +10,7 @@ import { placeOf, placeSource } from "./mentionables.js";
 import { mentionsIn } from "./mentions.js";
 import { pageModified, pageTree, readPage } from "./pages.js";
 import { MACHINERY, WRITING } from "./paths.js";
-import { findProject } from "./projects.js";
+import { archivedProjects, findProject } from "./projects.js";
 import { taskProjects } from "./tasks.js";
 
 /**
@@ -106,6 +106,8 @@ class Walk {
   private seen = new Set<string>();
   private texts = new Map<string, string>();
   private projectEntities = new Map<string, string>();
+  /** Archived projects: out of every glance, and so is everything of theirs. */
+  private archived = new Set(archivedProjects().map((p) => p.id));
 
   constructor(readonly here: string) {
     for (const p of taskProjects()) if (p.workspace) this.projectEntities.set(p.id, p.workspace);
@@ -134,6 +136,8 @@ class Walk {
     const had = this.nodes.get(key);
     if (had) return had;
     let n: GlanceNode | null = null;
+    // A project's own things — itself, its pages, canvases and files — are gone from view while it is archived.
+    if (!key.startsWith("e:") && this.archived.has(key.startsWith("project:") ? key.slice(8) : split(key)[0])) return null;
     try {
       if (key.startsWith("project:")) {
         const id = key.slice(8);

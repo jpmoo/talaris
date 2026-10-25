@@ -52,6 +52,7 @@ from new_panel import New
 from jump_panel import Jump
 from people_panel import People
 from glance_panel import Glance
+from archive_panel import Archive
 from desk import Desk
 from notifications import Notifications
 import thumbs
@@ -216,6 +217,7 @@ class Desktop(QObject):
         self.people = People(profile, self)
         # Glance: the current project, all of it, as a list or a graph (Super+Shift+G).
         self.glance = Glance(profile, self)
+        self.archive = Archive(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
         # Project jump: Super+Alt+a letter.
@@ -272,7 +274,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "glance", None), getattr(self, "new", None), getattr(self, "jump", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -598,6 +600,21 @@ class Desktop(QObject):
             self.go_to_project(project)
         self.show_in_drawer("writing" if kind == "page" else "canvas", {"page": where} if kind == "page" else {"canvas": where})
 
+    def archive_project(self, project_id: str) -> str:
+        """A project archived (archive.ts): out of every list, its folder in the archive. Gone from, if it is the current one."""
+        if not project_id:
+            return "No project"
+        status, text = call("POST", f"/projects/{project_id}/archive")
+        if status != 200:
+            try:
+                return json.loads(text).get("error", "It could not be archived")
+            except ValueError:
+                return "It could not be archived"
+        if self.project.get("id") == project_id:
+            self.go_to_project(self._home().get("id", ""), announce=True)
+        self.bar.changed()
+        return ""
+
     def _ask_page(self, panel, ask: str) -> None:
         """A panel out (or its window forward) and its page asked something — again a moment on,
         as the page may still be loading the first time."""
@@ -636,6 +653,8 @@ class Desktop(QObject):
             self.settings.open()
         elif name == "glance":
             self.glance.open()
+        elif name == "archive":
+            self.archive.show("")
         else:
             return "No such thing to do"
         return ""
@@ -683,6 +702,8 @@ class Desktop(QObject):
                 self.people.toggle()
             elif verb == "glance":
                 self.glance.toggle()
+            elif verb == "archive":
+                self.archive.toggle()
             elif verb == "new":
                 self.new.toggle()
             elif verb == "jump" and len(arg) == 1 and arg.isalpha():
@@ -748,6 +769,8 @@ def main() -> int:
         return send("people")
     if args[:1] == ["--glance"]:
         return send("glance")
+    if args[:1] == ["--archive"]:
+        return send("archive")
     if args[:1] == ["--new"]:
         return send("new")
     if args[:1] == ["--jump-open"]:

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING, stamp } from "./paths.js";
-import { Conflict, NotFound, findProject } from "./projects.js";
+import { Conflict, NotFound, findProject, writableProject } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { starredPageMoved } from "./starred.js";
@@ -50,7 +50,7 @@ export function pageLook(projectId: string, path: string): { paper: string | nul
 }
 
 export function setPageLook(projectId: string, path: string, look: { paper?: string | null }): { paper: string | null } {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const p = safe(path);
   const paper = look.paper ?? null;
   if (paper !== null && !/^#[0-9a-fA-F]{6}$/.test(paper)) throw new Conflict("a paper color is #rrggbb");
@@ -144,7 +144,7 @@ export function pageTree(projectId: string): PageNode[] {
 
 /** Star a page, or not: a starred one is kept at the top of its list. */
 export function starPage(projectId: string, path: string, starred: boolean): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const p = safe(path);
   const all = readLook(folder);
   const next = { ...(all[p] ?? {}) };
@@ -157,7 +157,7 @@ export function starPage(projectId: string, path: string, starred: boolean): voi
 
 /** The pages inside `parent` ("" for the top) in an order given whole, as a list dragged into it. */
 export function orderPages(projectId: string, parent: string, names: string[]): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const under = parent ? safe(parent) : "";
   const order = readOrder(folder);
   const have = siblings(folder, under, order);
@@ -175,7 +175,7 @@ export function readPage(projectId: string, path: string): string {
 }
 
 export function writePage(projectId: string, path: string, text: string): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const file = pageFile(folder, path);
   writeAtomic(file, text);
   saveVersion(versionDir(join(folder, MACHINERY), "page", safe(path)), text, "md");
@@ -193,7 +193,7 @@ function freeTitle(folder: string, parent: string, title: string): string {
 }
 
 export function createPage(projectId: string, parent: string | null, title: string): PageNode {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const under = parent ? safe(parent) : "";
   if (under && !existsSync(pageFile(folder, under)) && !existsSync(childDir(folder, under))) {
     throw new NotFound(`no page ${under}`);
@@ -216,7 +216,7 @@ export function createPage(projectId: string, parent: string | null, title: stri
  * order of everything beneath it.
  */
 export function movePage(projectId: string, path: string, newParent: string | null, newTitle?: string): PageNode {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const from = safe(path);
   const fromParent = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
   const oldTitle = from.slice(fromParent ? fromParent.length + 1 : 0);
@@ -278,7 +278,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
 
 /** Put a page at a position among its siblings. */
 export function reorderPage(projectId: string, path: string, index: number): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const p = safe(path);
   const parent = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
   const title = p.slice(parent ? parent.length + 1 : 0);
@@ -294,7 +294,7 @@ export function reorderPage(projectId: string, path: string, index: number): voi
  * it, which is too much for one keystroke. Its text stays in its versions.
  */
 export function deletePage(projectId: string, path: string): void {
-  const { folder } = findProject(projectId);
+  const { folder } = writableProject(projectId);
   const p = safe(path);
   const dir = childDir(folder, p);
   if (existsSync(dir) && readdirSync(dir).some((n) => !n.startsWith("."))) {

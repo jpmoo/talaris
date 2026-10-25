@@ -731,8 +731,10 @@
     peek(id);
   }
 
+  const ARCHIVED = "In archived projects";
   function linkGroup(name, rows) {
-    let count = FIRST;
+    // What lives in an archived project starts folded: its label opens it.
+    let count = name === ARCHIVED ? 0 : FIRST;
     const list = el("div", {});
     const more = el("div", { class: "c-more" });
     const draw = () => {
@@ -745,7 +747,9 @@
       ] : []).filter(Boolean));
     };
     draw();
-    return el("div", { class: "c-group" }, el("div", { class: "c-label" }, `${name} · ${rows.length}`), list, more);
+    const label = el("div", { class: "c-label", style: name === ARCHIVED ? "cursor:pointer" : null }, `${name} · ${rows.length}`);
+    if (name === ARCHIVED) label.addEventListener("click", () => { count = count ? 0 : FIRST; draw(); });
+    return el("div", { class: "c-group" }, label, list, more);
   }
 
   function connectedPart() {
@@ -761,11 +765,11 @@
     for (const c of got.in || []) touch(c.entity, BACK[c.name] || `${lower(c.name)} of`);
     const groups = new Map();
     for (const r of byId.values()) {
-      const g = GROUP[(r.e.kinds || []).find((k) => GROUP[k])] || "Other";
+      const g = r.e.archived ? ARCHIVED : GROUP[(r.e.kinds || []).find((k) => GROUP[k])] || "Other";
       groups.set(g, [...(groups.get(g) || []), r]);
     }
     for (const rows of groups.values()) rows.sort((a, b) => String(b.e.updated || "").localeCompare(String(a.e.updated || "")));
-    const order = [...Object.values(GROUP), "Other"].filter((g) => groups.has(g));
+    const order = [...Object.values(GROUP), "Other", ARCHIVED].filter((g) => groups.has(g));
     return el("section", { class: "part" },
       el("h3", {}, el("span", {}, "Connected")),
       order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, "Nothing connected yet"));

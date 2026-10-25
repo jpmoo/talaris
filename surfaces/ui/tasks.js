@@ -558,7 +558,22 @@
       row("Description", el("span", { class: "le-val" }, descHost)),
       hasWall ? row("Wallpaper", wall) : null,
       err,
-      el("div", { class: "le-acts" }, el("span", { class: "spacer" }),
+      el("div", { class: "le-acts" },
+        // Archived: its folder to the archive, and out of every list — browsed and brought back from the archive.
+        ws && bridge && typeof bridge.archiveProject === "function" ? (() => {
+          const b = el("button", { type: "button", class: "t-btn danger" }, "Archive");
+          b.addEventListener("click", () => {
+            if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Archive it?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Archive"; }, 4000); return; }
+            sheet.classList.add("busy");
+            bridge.archiveProject(ws, (error) => {
+              if (error) { err.textContent = error; sheet.classList.remove("busy"); return; }
+              close();
+              refresh();
+            });
+          });
+          return b;
+        })() : null,
+        el("span", { class: "spacer" }),
         el("button", { type: "button", class: "t-btn", onclick: close }, "Cancel"),
         el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Done")));
     dim.append(sheet);

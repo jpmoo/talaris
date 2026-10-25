@@ -177,6 +177,12 @@ class BarBridge(Bridge):
         self.owner.desktop.bar.close_popup()
         self.owner.desktop.glance.open()
 
+    @Slot()
+    def archive(self) -> None:
+        """The project menu's "Archive…": the archive's browser."""
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.archive.show("")
+
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.bar.close_popup()

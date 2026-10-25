@@ -39,6 +39,8 @@ export interface ProjectSummary {
   name: string;
   folder: string;
   home: boolean;
+  /** ISO time it was archived; absent while it is in use. */
+  archived?: string;
 }
 
 /**

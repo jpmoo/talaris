@@ -45,10 +45,12 @@ window.Peek = (() => {
   const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   const FIRST = 20;
+  const ARCHIVED = "In archived projects";
 
   /** One kind's rows: the newest twenty, then twenty more at a time, or all. */
   function group(name, rows, api, opts) {
-    let shown = FIRST;
+    // The archived group starts folded: a press on its label opens it.
+    let shown = name === ARCHIVED ? 0 : FIRST;
     const list = el("div", {});
     const more = el("div", { class: "peek-more" });
     const draw = () => {
@@ -61,7 +63,9 @@ window.Peek = (() => {
       ] : []).filter(Boolean));
     };
     draw();
-    return el("div", { class: "peek-group" }, el("div", { class: "peek-label" }, `${name} · ${rows.length}`), list, more);
+    const label = el("div", { class: "peek-label" + (name === ARCHIVED ? " peek-fold" : "") }, `${name} · ${rows.length}`);
+    if (name === ARCHIVED) label.addEventListener("click", () => { shown = shown ? 0 : FIRST; draw(); });
+    return el("div", { class: "peek-group" }, label, list, more);
   }
 
   async function show(id, api, opts = {}) {
@@ -108,12 +112,13 @@ window.Peek = (() => {
     for (const c of got.out || []) touch(c.entity, OUT[c.name] || words(c.name));
     for (const c of got.in || []) touch(c.entity, BACK[c.name] || `${words(c.name)} of`);
     const groups = new Map();
+    // What lives in an archived project is kept apart, folded: still true, not current.
     for (const row of byId.values()) {
-      const g = GROUP[(row.e.kinds || []).find((k) => GROUP[k])] || "Other";
+      const g = row.e.archived ? ARCHIVED : GROUP[(row.e.kinds || []).find((k) => GROUP[k])] || "Other";
       groups.set(g, [...(groups.get(g) || []), row]);
     }
     for (const rows of groups.values()) rows.sort((a, b) => String(b.e.updated || "").localeCompare(String(a.e.updated || "")));
-    const order = [...new Set(Object.values(GROUP)), "Other"].filter((g) => groups.has(g));
+    const order = [...new Set(Object.values(GROUP)), "Other", ARCHIVED].filter((g) => groups.has(g));
     const props = got.entity.properties || {};
     const note = typeof props.notes === "string" ? props.notes : typeof props.description === "string" ? props.description : "";
     // Flattened: replaceChildren takes nodes, and would write an array of groups out as text.
@@ -148,6 +153,8 @@ window.Peek = (() => {
     .peek-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
     .peek-item:hover .peek-how { color: inherit; }
     .peek-more { display: flex; gap: 6px; margin-top: 4px; }
+    .peek-fold { cursor: pointer; }
+    .peek-fold:hover { color: var(--accent); }
     .peek-more:empty { display: none; }
     .peek-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
   `;

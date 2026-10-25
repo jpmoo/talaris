@@ -49,6 +49,8 @@ def answer(desktop, req: dict) -> dict:
                 return {"ok": False, "error": "That window has gone"}
             hypr.close(address)
             return {"ok": True}
+        if do == "archive":
+            return said(desktop.archive_project(str(req.get("project", ""))))
         if do == "changed":
             # A page or a canvas changed outside its drawer: the drawer showing it reads it again.
             changed(desktop, str(req.get("kind", "")), str(req.get("project", "")), str(req.get("where", "")))
