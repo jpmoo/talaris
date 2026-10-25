@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 
@@ -346,6 +347,27 @@ class Desktop(QObject):
         hypr.keyword("animation", f"fadeIn,{int(moving)},{ds(2.5)},talarisIn")
         hypr.keyword("animation", f"fadeOut,{int(moving)},{ds(2)},talarisOut")
 
+    def solid_windows(self, before: list | None = None) -> None:
+        """
+        Applications whose windows are always drawn solid (Settings, Windows:
+        Always solid) — whatever hyprland.conf says of windows not in use. A
+        sharing bar that never takes focus would otherwise stay see-through.
+        Runtime rules, so hyprland.conf is untouched; one taken away cannot be
+        taken back while Hyprland runs, so Hyprland reads its own file again,
+        and `_bind` puts Talaris's back.
+        """
+        now = [c for c in self.config["windows"].get("solid", []) if isinstance(c, str) and c]
+        if before is not None and set(before) - set(now):
+            hypr.ask("/reload")
+            return
+        added = [cls for cls in now if before is None or cls not in before]
+        for cls in added:
+            hypr.keyword("windowrule", f"match:class ^({re.escape(cls)})$, opaque on")
+        # A rule is read as a window opens: those open already are told directly.
+        for w in hypr.windows()["windows"]:
+            if w["class"] in added:
+                hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
+
     def style_compositor(self) -> None:
         """
         What Hyprland draws round the windows, made to match Talaris: the
@@ -386,6 +408,7 @@ class Desktop(QObject):
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
         self.style_compositor()
+        self.solid_windows()
         for name, keys in (("canvas", "SUPER SHIFT, C"), ("writing", "SUPER SHIFT, W")):
             hypr.bind(keys, f"{LAUNCHER} --toggle {name}")
         # The forms these were bound as before, gone if a crash left them.
@@ -466,6 +489,8 @@ class Desktop(QObject):
                 self.settings.up = False
                 self.settings.open()
         self.style_compositor()
+        if after["windows"].get("solid", []) != before["windows"].get("solid", []):
+            self.solid_windows(before["windows"].get("solid", []))
         if after["panels"] != before["panels"] or changed & {"interface", "writing", "canvas"}:
             # How the canvas and the writing surface look, and their text: told again.
             for w in self.workspaces.values():

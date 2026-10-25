@@ -150,6 +150,8 @@ def _checked(c: dict) -> str:
         return "The space between windows is 0 to 40 pixels"
     if c["windows"].get("outline", "focus") not in ("focus", "accent", "line", "none") or not 1 <= int(c["windows"].get("border", 2)) <= 6:
         return "A window's outline is the accent, a line or none, 1 to 6 pixels wide"
+    if not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9._ -]{1,120}", x) for x in c["windows"].get("solid", [])):
+        return "Not an application's window class"
     if c["windows"].get("motion", "pop") not in ("slide", "pop", "fade", "draw", "none") or c["windows"].get("speed", "normal") not in speeds:
         return "Windows slide, pop, fade or neither"
     if not 15 <= int(c["idleSeconds"]) <= 600:
@@ -172,6 +174,15 @@ def _checked(c: dict) -> str:
 
 
 class SettingsBridge(Bridge):
+    @Slot(result=str)
+    def openWindows(self) -> str:  # noqa: N802 — called from the page by this name
+        """The applications with a window open now, by class and name: for choosing which are always solid."""
+        seen = {}
+        for w in hypr.windows()["windows"]:
+            if w["class"] and w["class"] not in seen:
+                seen[w["class"]] = self.owner.desktop.apps.lookup(w["class"])["name"]
+        return json.dumps([{"class": k, "name": v} for k, v in sorted(seen.items(), key=lambda x: x[1].lower())])
+
     @Slot(result=str)
     def applications(self) -> str:
         """Every application a menu would show: for choosing one to keep in a project."""

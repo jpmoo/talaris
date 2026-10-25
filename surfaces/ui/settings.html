@@ -105,6 +105,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 h3.with-btn { display: flex; align-items: center; justify-content: space-between; }
 h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12px; padding: 3px 10px !important; }
 .net .what { gap: 6px; }
+.solid-add { gap: 6px !important; }
 .net .what .t-btn { padding: 3px 10px !important; font-size: 12px; }
 .net .what input { width: 150px; }
 .net.current .name { color: var(--accent); }
@@ -348,6 +349,9 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">Width</span><span class="what"><input type="range" id="win-border" min="1" max="6" step="1"><span class="n" id="win-border-n"></span></span></div>
       <div class="row"><span class="name">Motion<small>How they open and close</small></span><span class="what"><span class="seg" id="win-motion"></span></span></div>
       <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="win-speed"></span></span></div>
+      <h3>Always solid</h3>
+      <p class="note">Windows you are not using are drawn see-through. These apps are always drawn solid, such as a sharing toolbar that never becomes the window in use.</p>
+      <div id="solid"></div>
     </section>
     <section id="accounts">
       <h2>Accounts</h2>

@@ -189,6 +189,7 @@ function draw() {
   // Keys.
   seg("single-window", [["bring", "Bring here"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));
   drawStays();
+  drawSolid();
 }
 
 $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));
@@ -1609,6 +1610,23 @@ async function loadTypes() {
     block.append(body);
     return block;
   }));
+}
+
+// Windows → Always solid: apps whose windows are never see-through, by window class.
+function drawSolid() {
+  bridge.openWindows((text) => {
+    const open = JSON.parse(text);
+    const solid = (cfg.windows.solid || []);
+    const nameOf = (cls) => (open.find((o) => o.class === cls) || {}).name || cls;
+    const put = (next) => save({ windows: { ...cfg.windows, solid: next } });
+    const rows = solid.map((cls) => pel("div", { class: "row" }, pel("span", { class: "name" }, nameOf(cls), nameOf(cls) !== cls ? pel("small", {}, cls) : null),
+      pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: () => put(solid.filter((c) => c !== cls)) }, "Remove"))));
+    const addable = open.filter((o) => !solid.includes(o.class));
+    $("solid").replaceChildren(...rows,
+      pel("div", { class: "row" }, pel("span", { class: "name" }, "Add", pel("small", {}, "From the apps with a window open now")),
+        pel("span", { class: "what solid-add" }, ...(addable.length ? addable.map((o) => pel("button", { class: "t-btn", title: o.class, onclick: () => put([...solid, o.class]) }, o.name))
+          : [pel("small", {}, "Every open app is already here")]))));
+  });
 }
 
 // Dock → Kept in a project: pinned things gone to in their own project rather than brought.
