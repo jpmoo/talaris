@@ -311,7 +311,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ writing and canvases
     {
       name: "talaris_page_write",
-      description: "Write a Talaris writing page, in Markdown: replace its words, or append to them. A page that does not exist is made (a path's folders are its parent pages). No path: the page the writing drawer shows. The drawer showing it reads it again.",
+      description: "Write a Talaris writing page — a project's notes are its writing pages, so this is how to make or add to \"a note in this project\" — in Markdown: replace its words, or append to them. A page that does not exist is made (a path's folders are its parent pages). No path: the page the writing drawer shows. The drawer showing it reads it again. A checklist is Markdown task items: \"- [ ] Call the bank\".",
       inputSchema: { type: "object", properties: {
         project: { type: "string" }, path: { type: "string" }, text: { type: "string" },
         mode: { type: "string", enum: ["replace", "append"], description: "Default append." },

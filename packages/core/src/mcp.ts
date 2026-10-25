@@ -115,11 +115,11 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_create",
-    description: "Make a new person, event, note, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email.",
+    description: "Make a new person, event, note, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email. A note made here belongs to no project: a note in a project (\"a note in this project\") is one of its writing pages — talaris_page_write.",
     inputSchema: { type: "object", properties: {
       kind: { type: "string", enum: ["person", "event", "note", "task", "project"] },
       title: { type: "string" },
-      body: { type: "string", description: "A note's text." },
+      body: { type: "string", description: "A note's text, in Markdown." },
       email: { type: "string", description: "A person's email." },
     }, required: ["kind", "title"] },
     annotations: { readOnlyHint: false, title: "Create in Talaris" },
