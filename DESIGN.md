@@ -829,11 +829,12 @@ note only once something is written, so opening an empty day makes no file.
 **Only Home keeps daily notes.**
 
 **Three sets of notes, a tab each** at the top of the writing drawer (decided
-2026-10-25): **Project** — this project's own pages; **Undated** — notes of no
+2026-10-25): **Project** — this project's own pages; **Unaffiliated** (called
+Undated at first, and still `undated` in the code) — notes of no
 project, the same from every project, kept in `~/Projects/Notes` (the core's
 `notes`, so every page call works on them unchanged); **Daily** — Home's daily
 notes, editable from any project and said plainly to be Home's there. A page
-(with everything beneath it) moves or is copied between Project and Undated,
+(with everything beneath it) moves or is copied between Project and Unaffiliated,
 either way; a daily note is never moved or copied.
 
 ### Starting a file in a project

@@ -92,7 +92,8 @@ body[data-edge="top"] #panel { border-top: 0; border-radius: 0 0 12px 12px; }
 body[data-edge="bottom"] #panel { border-bottom: 0; border-radius: 12px 12px 0 0; }
 header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 10px; }
 main { flex: 1; min-height: 0; display: flex; gap: 12px; }
-.tree { overflow: auto; min-width: 180px; }
+/* One width whatever it holds — a calendar, a long name — so switching what it shows does not move the page beside it. */
+.tree { overflow: auto; flex: 0 0 232px; width: 232px; min-width: 0; }
 .row { padding: 4px 8px; margin: 2px 0; border-radius: var(--radius-row); display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
 .row:hover { background: var(--accent-wash); }
 .row.on { background: var(--accent-wash); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-row) var(--radius-row) 0; }
@@ -176,7 +177,7 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .calendar { padding: 0 4px 6px; border-bottom: 1px solid var(--line); }
 /* Plugins' buttons (peek.js) stand in the footer's row as if put there one by one. */
 .plugin-actions { display: contents; }
-/* Writing's three sets — Project, Undated, Daily — as a segmented choice the width of the list:
+/* Writing's three sets — Project, Unaffiliated (the core's undated notes), Daily — as a segmented choice the width of the list:
    the project's own across the top (its name is the long one), the two shared sets beneath. */
 .wtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; margin: 0 2px 10px; border: 1px solid var(--line); border-radius: 14px; }
 .wtabs button:first-child { grid-column: 1 / -1; }

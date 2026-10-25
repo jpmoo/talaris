@@ -46,21 +46,21 @@ address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
 "Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.
 
 **Sync now, from where you are.** With "Sync now buttons" on (the default), a
-person's entry, Tasks' editor, a project's sheet and an undated note have a
-Sync with Hermes Notes button, and the tops of People, Tasks and the undated
+person's entry, Tasks' editor, a project's sheet and an unaffiliated note have a
+Sync with Hermes Notes button, and the tops of People, Tasks and the unaffiliated
 notes have Sync all with Hermes Notes (each an `[[actions]]` in `plugin.toml`). It runs the ordinary sync — everything that
 changed, not only that one thing: a sync of one alone would move the cursor past
 what it did not look at. It says Done, what went wrong, or how many decisions
 wait in Settings, Plugins.
 
-**Notes**, when the Notes setting says so: Talaris's undated notes (the
+**Notes**, when the Notes setting says so: Talaris's unaffiliated notes (the
 Writing drawer's Undated tab, `~/Projects/Notes`) and Hermes Notes' notes —
 all of them, or, on either side, only those wearing a tag named in Note tags
 (tag a Talaris note in the writing drawer to share it); never a day's
 page (a type that declares the format's `journal`, and carries its day). A
 note's words travel as its body: Hermes Notes keeps them in the body slot,
 Talaris in its Note type's `body` field, and the profiles say which. Where a
-note sits among the undated notes is Talaris's alone: Hermes Notes' are flat,
+note sits among the unaffiliated notes is Talaris's alone: Hermes Notes' are flat,
 and one made there arrives at the top. A note made in Hermes Notes from
 Talaris, in tagged mode, wears the first tag named.
 
@@ -82,7 +82,7 @@ taken off there too, and each side frees a file nothing names any more.
 **Tags**, on everything that syncs, as the format writes them: added and
 taken off one by one, so a tag one side never knew about is never wiped by
 the other's whole list. A Talaris page keeps its tags on the entity that
-stands for it, so an undated note's tags are its object's.
+stands for it, so an unaffiliated note's tags are its object's.
 
 **Statuses**, by what they mean. Each app says what each of its statuses
 means in the format's five words — not started, in progress, waiting, done,

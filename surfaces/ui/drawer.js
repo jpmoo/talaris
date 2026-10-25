@@ -776,7 +776,7 @@ function pageHeading() {
     // Said for what it is, the day's own note: "Daily note for Sunday, October 25, 2026" — and, away from Home, whose.
     return `Daily note for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
-  return `${scope === "undated" ? "Undated · " : ""}${open.split("/").join(" / ")}`.toUpperCase();
+  return `${scope === "undated" ? "Unaffiliated · " : ""}${open.split("/").join(" / ")}`.toUpperCase();
 }
 
 async function loadWriting() {
@@ -817,7 +817,7 @@ async function loadWriting() {
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const tabs = el("div", { class: "wtabs", role: "tablist" },
     tab("project", inHome() ? "Home" : state.project.name, "This project's own notes"),
-    tab("undated", "Undated", "Notes of no project — the same from every project"),
+    tab("undated", "Unaffiliated", "Notes that belong to no project — the same from every project"),
     tab("daily", "Daily", "Home's daily notes"));
   // Away from its own project's notes, the drawer says so, at the top of the list.
   const whose = scope === "undated" ? el("div", { class: "whose" }, "Shared by every project — not ", el("b", {}, inHome() ? "Home" : state.project.name), "'s own")
@@ -830,7 +830,7 @@ async function loadWriting() {
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
-      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No undated notes yet" : "No pages yet"));
+      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No unaffiliated notes yet" : "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
@@ -843,7 +843,7 @@ async function loadWriting() {
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
   $("body").replaceChildren(tree, pane);
-  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNDATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
+  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNAFFILIATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
   if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(null) }, "New page"));
   // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
@@ -854,7 +854,7 @@ async function loadWriting() {
   if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
     // Across: from this project to the undated notes, or from them into this project.
-    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Undated";
+    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Unaffiliated";
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
       " ", el("button", { onclick: () => transfer(false) }, `Move to ${other}`),

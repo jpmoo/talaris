@@ -311,7 +311,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ tags
     {
       name: "talaris_tags",
-      description: "Every tag in use in Talaris — on pages, undated notes, tasks and people — with how many things carry each, the most used first.",
+      description: "Every tag in use in Talaris — on pages, unaffiliated notes (of no project), tasks and people — with how many things carry each, the most used first.",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true, title: "Tags in use" },
       run: async () => {
@@ -321,7 +321,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     },
     {
       name: "talaris_tagged",
-      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), undated notes, files, tasks, people. Optionally only one kind: page, file, task, contact.",
+      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), unaffiliated notes (of no project), files, tasks, people. Optionally only one kind: page, file, task, contact.",
       inputSchema: { type: "object", properties: {
         tags: { type: "array", items: { type: "string" } }, all: { type: "boolean" }, kind: { type: "string", enum: ["page", "file", "task", "contact", "event"] },
       }, required: ["tags"] },
@@ -332,12 +332,12 @@ export function desktopTools(core: Core): DesktopTool[] {
         if (a.kind) q.set("kind", str(a.kind));
         const rows = await core<{ id: string; title: string; kinds: string[]; tags: string[]; page?: { project: string; path: string }; file?: { project: string; path?: string; abs?: string } }[]>("GET", `/tags/things?${q}`);
         if (!rows.length) return "Nothing carries that.";
-        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `undated note (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.file ? `file in project ${r.file.project} (${r.file.path ? `path: ${r.file.path}` : `a shortcut to ${r.file.abs}`})` : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
+        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `unaffiliated note (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.file ? `file in project ${r.file.project} (${r.file.path ? `path: ${r.file.path}` : `a shortcut to ${r.file.abs}`})` : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
       },
     },
     {
       name: "talaris_page_tags",
-      description: "Change a writing page's tags — add some, take some off, or (set) replace them all. No project: the current one; project \"notes\": an undated note. No path: the page the writing drawer shows.",
+      description: "Change a writing page's tags — add some, take some off, or (set) replace them all. No project: the current one; project \"notes\": an unaffiliated note (one of no project). No path: the page the writing drawer shows.",
       inputSchema: { type: "object", properties: {
         project: { type: "string" }, path: { type: "string" },
         add: { type: "array", items: { type: "string" } }, remove: { type: "array", items: { type: "string" } }, set: { type: "array", items: { type: "string" } },
@@ -448,7 +448,7 @@ export function desktopTools(core: Core): DesktopTool[] {
         "Operations: {op:\"note\", text, x?, y?, w?, h?, fill?} a note (Markdown; fill a #rrggbb color) — without x,y it goes to the right of what is there;",
         "{op:\"card\", entity, x?, y?} a card showing an entity (a person, task or event id from talaris_find);",
         "{op:\"tasks\", project?, all?} a card for each of a project's open tasks (all: done ones too), in a grid right of what is there, skipping those already on it — use this rather than a card each;",
-        "{op:\"tagged\", tags, all?} a card for everything carrying one of the tags (all: every one of them) — pages, undated notes, tasks, people — the same way;",
+        "{op:\"tagged\", tags, all?} a card for everything carrying one of the tags (all: every one of them) — pages, unaffiliated notes, tasks, people — the same way;",
         "{op:\"update\", item, text?, x?, y?, w?, h?, fill?}; {op:\"remove\", item} (also takes its links);",
         "{op:\"link\", from, to} an arrow between two items; {op:\"unlink\", link};",
         "{op:\"canvas\", title, x?, y?} a new canvas inside this one, as a card.",

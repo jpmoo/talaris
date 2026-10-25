@@ -235,7 +235,7 @@ function draw() {
       if (!tagCache.has(t)) bridge.tagged(t, (text) => { tagCache.set(t, JSON.parse(text || "[]")); draw(); });
       const AS = { task: "task", contact: "person", event: "event" };
       shown = (tagCache.get(t) || []).map((x) => x.page
-        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Undated note" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
+        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Unaffiliated note" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
           act: { kind: "page", project: x.page.project, path: x.page.path } }
         : { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${(x.kinds || [])[0] || "thing"}`,
           act: { kind: "entity", id: x.id, as: AS[(x.kinds || []).find((k) => AS[k])] || "" } });

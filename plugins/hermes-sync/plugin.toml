@@ -6,7 +6,7 @@
 id = "hermes-sync"
 name = "Hermes Notes sync"
 version = "0.1.0"
-description = "Keeps tasks, projects, people and undated notes, with their attachments, in step with Hermes Notes."
+description = "Keeps tasks, projects, people, unaffiliated notes and daily notes, with their attachments, in step with Hermes Notes."
 author = "Jeff Moore"
 license = "GPL-3.0-only"
 command = ["node", "main.mjs"]
@@ -89,7 +89,7 @@ label = "Notes"
 kind = "choice"
 choices = ["Off", "All notes", "Only those with these tags"]
 default = "Off"
-help = "Talaris's undated notes and Hermes Notes' notes (not its daily pages). Where a note sits among Talaris's undated notes stays in Talaris."
+help = "Talaris's unaffiliated notes (those of no project) and Hermes Notes' notes (not its daily pages). Where a note sits among Talaris's unaffiliated notes stays in Talaris."
 
 [[settings]]
 key = "noteTags"
