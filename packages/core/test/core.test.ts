@@ -168,6 +168,33 @@ test("a canvas goes with everything inside it when asked to, each kept in its ve
   assert.ok(canvases.canvasVersions(p.id, a1.id).length >= 1);
 });
 
+test("undated notes: their own folder, the same pages; moved and copied to and from a project; daily notes Home's only", () => {
+  const p = projects.createProject("Notes test");
+  assert.equal(projects.folderName("Notes"), "Notes project", "the undated notes' folder is not a project's to take");
+  const plan = pages.createPage(projects.UNDATED, null, "Plan");
+  pages.writePage(projects.UNDATED, plan.path, "the plan");
+  pages.createPage(projects.UNDATED, plan.path, "Step");
+  assert.ok(existsSync(join(projects.notesFolder(), "Plan.md")), "straight in Notes, no Writing folder");
+  assert.ok(!projects.listProjects().some((x) => x.folder === projects.notesFolder()), "Notes is not a project");
+  // Copied into the project: both have it, the copy with its child.
+  pages.transferPage(projects.UNDATED, "Plan", p.id, null, true);
+  assert.equal(pages.readPage(p.id, "Plan"), "the plan");
+  assert.ok(pages.pagesBelow(p.id, "Plan").includes("Plan/Step"));
+  assert.equal(pages.readPage(projects.UNDATED, "Plan"), "the plan");
+  // Moved back out: a fresh name beside the original, and gone from the project.
+  const back = pages.transferPage(p.id, "Plan", projects.UNDATED, null, false);
+  assert.equal(back.title, "Plan 2");
+  assert.ok(!existsSync(join(p.folder, "Writing", "Plan.md")));
+  assert.ok(pages.pageTree(projects.UNDATED).some((n) => n.title === "Plan 2"));
+  // Daily notes: Home's alone, and going nowhere.
+  assert.equal(pages.dailyEnabled(p.id), false);
+  assert.equal(pages.dailyEnabled(projects.UNDATED), false);
+  const home = projects.listProjects().find((x) => x.home)!;
+  assert.equal(pages.dailyEnabled(home.id), true);
+  pages.writePage(home.id, "Daily/2027-01-05", "a day");
+  assert.throws(() => pages.transferPage(home.id, "Daily/2027-01-05", projects.UNDATED, null, true), /daily note stays/);
+});
+
 test("a page goes with the pages beneath it when asked to, each kept in its versions", () => {
   const p = projects.createProject("Pages all");
   const top = pages.createPage(p.id, null, "Trip");

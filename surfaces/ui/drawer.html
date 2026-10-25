@@ -163,6 +163,18 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .file-chip:hover { border-color: var(--accent); color: var(--accent); }
 .section { margin: 12px 8px 4px; }
 .calendar { padding: 0 4px 6px; border-bottom: 1px solid var(--line); }
+/* Writing's three sets — Project, Undated, Daily — as the segmented choice used everywhere else
+   (controls.css's .seg, which this page does not load), the width of the list. */
+.wtabs { display: flex; gap: 2px; padding: 2px; margin: 0 2px 10px; border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.wtabs button { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border: 0 !important; border-radius: 12px !important; padding: 2px 8px !important; background: transparent !important;
+  font: inherit; font-size: 11px; letter-spacing: 1px; color: var(--muted) !important; cursor: pointer; text-transform: none; }
+.wtabs button:hover { color: var(--text) !important; }
+.wtabs button.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+/* Not this project's own notes: said, so a note written here is not taken for one of them. */
+.whose { margin: 0 2px 8px; padding: 6px 8px; border-radius: 6px; background: var(--accent-wash); color: var(--text); font-size: 11.5px; line-height: 1.35; }
+.whose b { font-weight: 600; color: var(--accent); }
+.tree.away + .pane #heading { color: var(--accent); }
 .cal-bar, .cal-month { display: flex; justify-content: space-between; align-items: center; margin: 2px 4px 6px; }
 .cal-nav { display: flex; gap: 4px; }
 .cal-nav button { padding: 0 8px; font-size: 11px; letter-spacing: 1px; }

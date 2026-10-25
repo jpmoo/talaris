@@ -33,6 +33,7 @@ import {
   dailyMonth,
   deletePage,
   pagesBelow,
+  transferPage,
   movePage,
   pageTree,
   pageVersion,
@@ -236,6 +237,12 @@ route("DELETE", "/projects/:id/page", (_r, [id], q) => {
   return { ok: true };
 });
 route("GET", "/projects/:id/page/below", (_r, [id], q) => ({ pages: pagesBelow(id!, need(q, "path")) }));
+// Moved or copied between a project and the undated notes (`notes`), either way.
+route("POST", "/projects/:id/page/transfer", async (req, [id]) => {
+  const b = await json<{ path?: string; to?: string; parent?: string | null; copy?: boolean }>(req);
+  if (!b.path || !b.to) throw new BadRequest("which page, and to where?");
+  return transferPage(id!, b.path, b.to, b.parent ?? null, b.copy === true);
+});
 route("POST", "/projects/:id/page/move", async (req, [id]) => {
   const b = await json<{ path?: string; parent?: string | null; title?: string; index?: number }>(req);
   if (!b.path) throw new BadRequest("path is required");

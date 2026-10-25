@@ -3,7 +3,7 @@
 
 import { join } from "node:path";
 import { MACHINERY } from "./paths.js";
-import { findProject } from "./projects.js";
+import { pagesPlace } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
 
 /**
@@ -20,7 +20,7 @@ export interface StarredOrder {
 }
 
 export function starredOrder(projectId: string): StarredOrder {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   try {
     const o = readJson<Partial<StarredOrder>>(join(folder, MACHINERY, FILE));
     return { pages: o.pages ?? [], canvases: o.canvases ?? [] };
@@ -30,7 +30,7 @@ export function starredOrder(projectId: string): StarredOrder {
 }
 
 export function setStarredOrder(projectId: string, kind: "pages" | "canvases", keys: string[]): StarredOrder {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   const next = { ...starredOrder(projectId), [kind]: [...new Set(keys.filter((k) => typeof k === "string"))] };
   writeJson(join(folder, MACHINERY, FILE), next);
   return next;

@@ -49,6 +49,26 @@ function summary(folder: string): ProjectSummary | null {
 export const ARCHIVED = "Archived";
 export const archiveRoot = () => join(projectsRoot(), ARCHIVED);
 
+/*
+ * Undated notes: pages of no project, seen from every one, kept in
+ * `<projects>/Notes` — the pages straight in it, its order and versions in
+ * its `.talaris`, as a project's are. Asked for as the project `notes`, so
+ * every page call works on them unchanged (`pagesPlace`).
+ */
+export const NOTES = "Notes";
+export const UNDATED = "notes";
+export const notesFolder = () => join(projectsRoot(), NOTES);
+
+/** Where a project's pages are — or, for `notes`, the undated ones. */
+export function pagesPlace(projectId: string, write = false): { folder: string; id: string } {
+  if (projectId === UNDATED) {
+    mkdirSync(join(notesFolder(), MACHINERY), { recursive: true });
+    return { folder: notesFolder(), id: UNDATED };
+  }
+  const p = write ? writableProject(projectId) : findProject(projectId);
+  return { folder: p.folder, id: p.id };
+}
+
 const dirsIn = (dir: string) => {
   try {
     return readdirSync(dir).filter((n) => !n.startsWith(".")).map((n) => join(dir, n)).filter((f) => statSync(f).isDirectory());
@@ -111,8 +131,8 @@ function nextCode(): string {
 export function folderName(name: string): string {
   const cleaned = name.replace(/[/\\\0]/g, "-").replace(/^\.+/, "").trim();
   if (!cleaned) throw new Conflict("a project needs a name");
-  // The archive's own folder is not a project's to take.
-  return cleaned.toLowerCase() === ARCHIVED.toLowerCase() ? `${cleaned} project` : cleaned;
+  // The archive's own folder, and the undated notes', are not a project's to take.
+  return [ARCHIVED, NOTES].some((x) => cleaned.toLowerCase() === x.toLowerCase()) ? `${cleaned} project` : cleaned;
 }
 
 function topCanvas(projectId: string, title: string): CanvasDocument {

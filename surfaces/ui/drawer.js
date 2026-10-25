@@ -616,6 +616,36 @@ function setMode(next) {
  * because a number says something.
  */
 const DAILY = "Daily";
+
+/*
+ * Three sets of notes, a tab each (DESIGN, Writing):
+ *   Project — this project's own pages (Home's own, in Home);
+ *   Undated — notes of no project, the same from every project (the core's
+ *             `notes`, kept in ~/Projects/Notes);
+ *   Daily   — Home's daily notes, the only ones there are: from any other
+ *             project they are said to be Home's, plainly, so a day written
+ *             there is not mistaken for this project's.
+ * A note moves or is copied between Project and Undated, either way; a daily
+ * note stays where it is. Which tab was last chosen is this page's to keep.
+ */
+const SCOPE_KEY = "talaris.writing.scope";
+let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) || "project"; } catch { return "project"; } })();
+let homeId = "";
+const openIn = { project: new Map(), undated: null }; // the page last open in each, per project for Project
+const wpid = () => (scope === "undated" ? "notes" : scope === "daily" ? homeId : state.project.id);
+const inHome = () => Boolean(state.project.home);
+async function setScope(next) {
+  if (next === scope) return;
+  if (saveTimer) { clearTimeout(saveTimer); await save(); }
+  if (editor) { editor.destroy(); editor = null; }
+  if (scope === "project") openIn.project.set(state.project.id, open);
+  if (scope === "undated") openIn.undated = open;
+  scope = next;
+  try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
+  open = scope === "daily" ? `${DAILY}/${today()}` : scope === "undated" ? openIn.undated : openIn.project.get(state.project.id) ?? null;
+  if (scope === "daily") shownMonth = today().slice(0, 7);
+  loadWriting();
+}
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => iso(new Date());
@@ -631,7 +661,7 @@ function step(date, days) {
 async function drawCalendar() {
   const host = $("calendar");
   if (!host) return;
-  const { enabled, days } = await core("GET", `/projects/${state.project.id}/daily?month=${shownMonth}`);
+  const { enabled, days } = await core("GET", `/projects/${wpid()}/daily?month=${shownMonth}`);
   dailyOn = enabled;
   const words = new Map(days.map((d) => [d.date, d.words]));
   const [y, m] = shownMonth.split("-").map(Number);
@@ -669,24 +699,24 @@ async function drawCalendar() {
 
 function pageHeading() {
   if (!open) return "";
-  if (isDaily(open)) {
+  if (scope === "daily" && isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
-    // Said for what it is, the day's own note: "Daily note for Sunday, October 25, 2026".
-    return `Daily note for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`.toUpperCase();
+    // Said for what it is, the day's own note: "Daily note for Sunday, October 25, 2026" — and, away from Home, whose.
+    return `Daily note for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
-  return open.split("/").join(" / ").toUpperCase();
+  return `${scope === "undated" ? "Undated · " : ""}${open.split("/").join(" / ")}`.toUpperCase();
 }
 
 async function loadWriting() {
-  const daily = await core("GET", `/projects/${state.project.id}/daily?month=${shownMonth}`);
-  dailyOn = daily.enabled;
-  // Home opens on today.
-  if (!open && dailyOn) open = `${DAILY}/${today()}`;
-  if (isDaily(open)) shownMonth = open.slice(DAILY.length + 1, DAILY.length + 8);
-  const pages = (await core("GET", `/projects/${state.project.id}/pages`)).filter((n) => !(dailyOn && n.path === DAILY));
+  if (!homeId) homeId = ((await core("GET", "/projects")).find((p) => p.home) || {}).id || "";
+  dailyOn = scope === "daily";
+  if (dailyOn && !isDaily(open)) open = `${DAILY}/${today()}`;
+  if (dailyOn && isDaily(open)) shownMonth = open.slice(DAILY.length + 1, DAILY.length + 8);
+  // Home's own pages hold its daily notes too: shown on their own tab, not among its pages.
+  const pages = dailyOn ? [] : (await core("GET", `/projects/${wpid()}/pages`)).filter((n) => !(scope === "project" && inHome() && n.path === DAILY));
   const shut = shutSet(WRITING_SHUT);
   let count = 0;
-  const pid = state.project.id;
+  const pid = wpid();
   const star = (n) => starButton(n.starred, async (on) => { await core("PUT", `/projects/${pid}/page/star?path=${encodeURIComponent(n.path)}`, { starred: on }); loadWriting(); });
   const kept = await core("GET", `/projects/${pid}/starred-order`).catch(() => ({ pages: [] }));
   const starredRow = (n, where) => el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
@@ -707,34 +737,49 @@ async function loadWriting() {
     }
     return wrap;
   };
-  const tree = el("div", { class: "tree" },
+  const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
+  const tabs = el("div", { class: "wtabs", role: "tablist" },
+    tab("project", inHome() ? "Home" : state.project.name, "This project's own notes"),
+    tab("undated", "Undated", "Notes of no project — the same from every project"),
+    tab("daily", "Daily", "Home's daily notes"));
+  // Away from its own project's notes, the drawer says so, at the top of the list.
+  const whose = scope === "undated" ? el("div", { class: "whose" }, "Shared by every project — not ", el("b", {}, inHome() ? "Home" : state.project.name), "'s own")
+    : scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily notes — not ", el("b", {}, state.project.name), "'s")
+    : "";
+  const tree = el("div", { class: "tree" + (scope !== "project" && !(scope === "daily" && inHome()) ? " away" : "") },
+    tabs, whose,
     dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
-    dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
-    pages.length ? sortButton("writing", loadWriting) : "",
-    starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
+    !dailyOn && pages.length ? sortButton("writing", loadWriting) : "",
+    dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
-    pages.length ? branch(pages, "") : el("div", { class: "empty" }, "No pages yet"));
+    dailyOn ? "" : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No undated notes yet" : "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
   // a thing done to the page, so apart from the ways of seeing it.
-  const attach = el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(state.project.id); } }, "ATTACH");
+  // Undated notes belong to no project's folder, so have none to keep files in (yet).
+  const attach = scope === "undated" ? "" : el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "ATTACH");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }));
   $("body").replaceChildren(tree, pane);
-  $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
-  const actions = [sideToggle(tree, LIST_KEY, "list"), " ", el("button", { onclick: () => newPage(null) }, "New page")];
-  if (open && !isDaily(open)) {
+  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNDATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
+  const actions = [sideToggle(tree, LIST_KEY, "list")];
+  if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(null) }, "New page"));
+  if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
+    // Across: from this project to the undated notes, or from them into this project.
+    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Undated";
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
+      " ", el("button", { onclick: () => transfer(false) }, `Move to ${other}`),
+      " ", el("button", { onclick: () => transfer(true) }, `Copy to ${other}`),
       " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
   }
   $("actions").replaceChildren(...actions);
   // A day with no note yet reads as empty; the file appears when you write.
-  if (open) text = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`).catch(() => "");
+  if (open) text = await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "");
   if (bridge) bridge.seen(JSON.stringify({ page: open ? { path: open } : null }));
   drawEditor();
   drawCalendar();
@@ -748,9 +793,10 @@ async function loadWriting() {
  * itself back.
  */
 window.talarisChanged = (c) => {
-  if (!c || c.project !== state.project.id) return;
-  if (c.kind === "canvas" && state.drawer === "canvas" && c.where === viewing) loadCanvas();
-  if (c.kind === "page" && state.drawer === "writing" && c.where === open) {
+  if (!c) return;
+  if (c.kind === "canvas" && c.project === state.project.id && state.drawer === "canvas" && c.where === viewing) loadCanvas();
+  // A page is the set shown's: this project's, the undated notes', or Home's daily.
+  if (c.kind === "page" && c.project === wpid() && state.drawer === "writing" && c.where === open) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (editor) { editor.destroy(); editor = null; }
     loadWriting();
@@ -783,14 +829,14 @@ async function paperFor(path) {
   if (!path || state.drawer !== "writing") return;
   paperOf = path;
   try {
-    const look = await core("GET", `/projects/${state.project.id}/page/look?path=${encodeURIComponent(path)}`);
+    const look = await core("GET", `/projects/${wpid()}/page/look?path=${encodeURIComponent(path)}`);
     if (paperOf === path) wearPaper(look.paper);
   } catch { wearPaper(null); }
 }
 async function setPaper(color) {
   if (!open) return;
   wearPaper(color);
-  try { await core("PUT", `/projects/${state.project.id}/page/look?path=${encodeURIComponent(open)}`, { paper: color }); }
+  try { await core("PUT", `/projects/${wpid()}/page/look?path=${encodeURIComponent(open)}`, { paper: color }); }
   catch (e) { status(String(e.message || e).toUpperCase().slice(0, 60)); }
 }
 
@@ -798,7 +844,7 @@ async function save() {
   saveTimer = null;
   if (!open) return;
   try {
-    await core("PUT", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`, text);
+    await core("PUT", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`, text);
     status("SAVED");
     if (isDaily(open)) drawCalendar();
   } catch (e) {
@@ -809,7 +855,7 @@ async function save() {
 
 async function newPage(parent) {
   // Named for when it was made, until it is renamed.
-  const made = await core("POST", `/projects/${state.project.id}/pages`, { parent, title: "" });
+  const made = await core("POST", `/projects/${wpid()}/pages`, { parent, title: "" });
   if (parent) {
     const shut = shutSet(WRITING_SHUT);
     shut.delete(parent);
@@ -823,7 +869,7 @@ function renamePage(n) {
   askName(`Rename “${n.title}”`, n.title, async (title) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
     const parent = n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : null;
-    const moved = await core("POST", `/projects/${state.project.id}/page/move`, { path: n.path, parent, title });
+    const moved = await core("POST", `/projects/${wpid()}/page/move`, { path: n.path, parent, title });
     if (open && (open === n.path || open.startsWith(`${n.path}/`))) {
       if (editor) { editor.destroy(); editor = null; }
       open = moved.path + open.slice(n.path.length);
@@ -832,11 +878,30 @@ function renamePage(n) {
   });
 }
 
+/** The open page, and all beneath it, moved or copied across: to the undated notes, or into this project. */
+async function transfer(copy) {
+  if (!open) return;
+  if (saveTimer) { clearTimeout(saveTimer); await save(); }
+  const from = wpid(), to = scope === "undated" ? state.project.id : "notes";
+  try {
+    const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, copy });
+    status(`${copy ? "COPIED" : "MOVED"} TO ${(scope === "undated" ? (inHome() ? "HOME" : state.project.name) : "UNDATED").toUpperCase()}`);
+    // Moved, it is followed there; copied, this one stays open.
+    if (!copy) {
+      if (editor) { editor.destroy(); editor = null; }
+      if (scope === "undated") { openIn.undated = null; scope = "project"; } else { openIn.project.set(state.project.id, null); scope = "undated"; }
+      try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
+      open = landed.path;
+    }
+    loadWriting();
+  } catch (e) { status(String(e.message || e).toUpperCase().slice(0, 70)); }
+}
+
 function deletePage() {
   if (!open) return;
   const title = open.split("/").pop();
   const path = open;
-  const pid = state.project.id;
+  const pid = wpid();
   const gone = async (all) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
     await core("DELETE", `/projects/${pid}/page?path=${encodeURIComponent(path)}${all ? "&all=1" : ""}`);
@@ -1029,7 +1094,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge.projectFiles.connect((json) => {
     const r = JSON.parse(json);
     if (r.error) status(r.error.toUpperCase().slice(0, 80));
-    if (editor && r.files && r.files.length && r.project === state.project.id) {
+    if (editor && r.files && r.files.length && r.project === wpid()) {
       editor.insert(r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ") + " ");
     }
   });

@@ -820,7 +820,15 @@ writing drawer shows a **Daily** section above the pages, with a month
 calendar: each day that has a note shows how many words it holds (a number, not
 a dot), today is outlined, and ◂ TODAY ▸ step through days. A day becomes a
 note only once something is written, so opening an empty day makes no file.
-**On by default in Home**, off elsewhere; a project's `daily` setting turns it on.
+**Only Home keeps daily notes.**
+
+**Three sets of notes, a tab each** at the top of the writing drawer (decided
+2026-10-25): **Project** — this project's own pages; **Undated** — notes of no
+project, the same from every project, kept in `~/Projects/Notes` (the core's
+`notes`, so every page call works on them unchanged); **Daily** — Home's daily
+notes, editable from any project and said plainly to be Home's there. A page
+(with everything beneath it) moves or is copied between Project and Undated,
+either way; a daily note is never moved or copied.
 
 ### Starting a file in a project
 

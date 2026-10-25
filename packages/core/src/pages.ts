@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING, stamp } from "./paths.js";
-import { Conflict, NotFound, findProject, writableProject } from "./projects.js";
+import { Conflict, NotFound, UNDATED, findProject, notesFolder, pagesPlace } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { starredPageMoved } from "./starred.js";
@@ -45,12 +45,12 @@ function readLook(folder: string): Look {
 
 /** A page's look: `{ paper }`, a `#rrggbb` or null for the theme's paper. */
 export function pageLook(projectId: string, path: string): { paper: string | null } {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   return { paper: readLook(folder)[safe(path)]?.paper ?? null };
 }
 
 export function setPageLook(projectId: string, path: string, look: { paper?: string | null }): { paper: string | null } {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const p = safe(path);
   const paper = look.paper ?? null;
   if (paper !== null && !/^#[0-9a-fA-F]{6}$/.test(paper)) throw new Conflict("a paper color is #rrggbb");
@@ -62,7 +62,8 @@ export function setPageLook(projectId: string, path: string, look: { paper?: str
 }
 
 function writingDir(folder: string): string {
-  return join(folder, WRITING);
+  // The undated notes are the folder itself; a project keeps its pages in `Writing/`.
+  return folder === notesFolder() ? folder : join(folder, WRITING);
 }
 
 /** A page path, checked: no escaping `Writing/`, no hidden names. */
@@ -117,7 +118,7 @@ function siblings(folder: string, parent: string, order: Order): string[] {
 }
 
 export function pageTree(projectId: string): PageNode[] {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   const order = readOrder(folder);
   const look = readLook(folder);
   const times = (path: string) => {
@@ -144,7 +145,7 @@ export function pageTree(projectId: string): PageNode[] {
 
 /** Star a page, or not: a starred one is kept at the top of its list. */
 export function starPage(projectId: string, path: string, starred: boolean): void {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const p = safe(path);
   const all = readLook(folder);
   const next = { ...(all[p] ?? {}) };
@@ -157,7 +158,7 @@ export function starPage(projectId: string, path: string, starred: boolean): voi
 
 /** The pages inside `parent` ("" for the top) in an order given whole, as a list dragged into it. */
 export function orderPages(projectId: string, parent: string, names: string[]): void {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const under = parent ? safe(parent) : "";
   const order = readOrder(folder);
   const have = siblings(folder, under, order);
@@ -167,7 +168,7 @@ export function orderPages(projectId: string, parent: string, names: string[]): 
 }
 
 export function readPage(projectId: string, path: string): string {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   const file = pageFile(folder, path);
   if (existsSync(file)) return readText(file);
   if (existsSync(childDir(folder, path))) return "";
@@ -175,7 +176,7 @@ export function readPage(projectId: string, path: string): string {
 }
 
 export function writePage(projectId: string, path: string, text: string): void {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const file = pageFile(folder, path);
   writeAtomic(file, text);
   saveVersion(versionDir(join(folder, MACHINERY), "page", safe(path)), text, "md");
@@ -193,7 +194,7 @@ function freeTitle(folder: string, parent: string, title: string): string {
 }
 
 export function createPage(projectId: string, parent: string | null, title: string): PageNode {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const under = parent ? safe(parent) : "";
   if (under && !existsSync(pageFile(folder, under)) && !existsSync(childDir(folder, under))) {
     throw new NotFound(`no page ${under}`);
@@ -216,7 +217,7 @@ export function createPage(projectId: string, parent: string | null, title: stri
  * order of everything beneath it.
  */
 export function movePage(projectId: string, path: string, newParent: string | null, newTitle?: string): PageNode {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const from = safe(path);
   const fromParent = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
   const oldTitle = from.slice(fromParent ? fromParent.length + 1 : 0);
@@ -278,7 +279,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
 
 /** Put a page at a position among its siblings. */
 export function reorderPage(projectId: string, path: string, index: number): void {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const p = safe(path);
   const parent = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
   const title = p.slice(parent ? parent.length + 1 : 0);
@@ -295,7 +296,7 @@ export function reorderPage(projectId: string, path: string, index: number): voi
  * much for one keystroke. Each page's text stays in its versions.
  */
 export function deletePage(projectId: string, path: string, options: { withChildren?: boolean } = {}): void {
-  const { folder } = writableProject(projectId);
+  const { folder } = pagesPlace(projectId, true);
   const p = safe(path);
   const dir = childDir(folder, p);
   const below = pagesBelow(projectId, p);
@@ -315,7 +316,7 @@ export function deletePage(projectId: string, path: string, options: { withChild
 
 /** Every page beneath this one, at any depth, by path: what deleting it with them would take. */
 export function pagesBelow(projectId: string, path: string): string[] {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   const out: string[] = [];
   const walk = (at: string) => {
     const dir = childDir(folder, at);
@@ -335,12 +336,12 @@ export function pagesBelow(projectId: string, path: string): string[] {
 }
 
 export function pageVersions(projectId: string, path: string) {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   return listVersions(versionDir(join(folder, MACHINERY), "page", safe(path)));
 }
 
 export function pageVersion(projectId: string, path: string, name: string): string {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   return readVersion(versionDir(join(folder, MACHINERY), "page", safe(path)), name);
 }
 
@@ -352,7 +353,7 @@ export function restorePage(projectId: string, path: string, name: string): stri
 
 /** Where a page lives on disk, for opening it in another application. */
 export function pageLocation(projectId: string, path: string): string {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   return relative(folder, pageFile(folder, path));
 }
 
@@ -362,21 +363,101 @@ export function pageLocation(projectId: string, path: string): string {
  * second kind of document. A day has a note only once something is written:
  * opening an empty day makes no file.
  *
- * A project keeps daily notes when its `daily` is true; Home does unless told
- * otherwise.
+ * **Only Home keeps them.** Every other project's writing drawer shows Home's,
+ * said to be Home's, rather than a calendar of its own; and a day's note is
+ * never moved or copied anywhere (`transferPage`).
  */
 export const DAILY = "Daily";
 
 export function dailyEnabled(projectId: string): boolean {
-  const { folder, home } = findProject(projectId);
-  const project = readJson<Record<string, unknown>>(join(folder, MACHINERY, "project.json"));
-  return typeof project.daily === "boolean" ? project.daily : home;
+  if (projectId === UNDATED) return false;
+  return findProject(projectId).home;
+}
+const isDaily = (projectId: string, path: string) => projectId !== UNDATED && findProject(projectId).home && (path === DAILY || path.startsWith(`${DAILY}/`));
+
+/**
+ * A page — and everything beneath it — moved or copied between a project and
+ * the undated notes (`notes`), either way. It lands at the top of the other
+ * side (or under `toParent`), named freshly if its name is taken there; its
+ * place among its new siblings is last. Moved, it takes its look, its stars
+ * and its versions, and stays the same thing to anything that mentions it;
+ * copied, it is a new page, and the original is untouched. A daily note goes
+ * nowhere.
+ */
+export function transferPage(fromProject: string, path: string, toProject: string, toParent: string | null, copy: boolean): PageNode {
+  const from = safe(path);
+  if (isDaily(fromProject, from)) throw new Conflict("a daily note stays where it is: it is not moved or copied");
+  const under = toParent ? safe(toParent) : "";
+  if (under && isDaily(toProject, under)) throw new Conflict("nothing goes in among the daily notes");
+  const src = pagesPlace(fromProject, !copy);
+  const dst = pagesPlace(toProject, true);
+  if (src.folder === dst.folder) {
+    if (copy) throw new Conflict("a copy goes to the other side: into a project, or into the undated notes");
+    return movePage(fromProject, from, under || null);
+  }
+  const fromParent = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
+  const oldTitle = from.slice(fromParent ? fromParent.length + 1 : 0);
+  const title = freeTitle(dst.folder, under, oldTitle);
+  const to = under ? `${under}/${title}` : title;
+  const pairs: Array<[string, string]> = [];
+  if (existsSync(pageFile(src.folder, from))) pairs.push([pageFile(src.folder, from), pageFile(dst.folder, to)]);
+  if (existsSync(childDir(src.folder, from))) pairs.push([childDir(src.folder, from), childDir(dst.folder, to)]);
+  if (!pairs.length) throw new NotFound(`no page ${from}`);
+  // Everything beneath it, by path, for its look and its versions to follow.
+  const below = [from, ...pagesBelow(fromProject, from)];
+  for (const [a, b] of pairs) {
+    mkdirSync(dirname(b), { recursive: true });
+    if (copy) cpSync(a, b, { recursive: true });
+    else {
+      try { renameSync(a, b); } catch { cpSync(a, b, { recursive: true }); rmSync(a, { recursive: true, force: true }); }
+    }
+  }
+  const moved = (p: string) => to + p.slice(from.length);
+  // Its place: last on the other side; gone from this one if it went.
+  const dOrder = readOrder(dst.folder);
+  dOrder[under] = [...siblings(dst.folder, under, dOrder).filter((n) => n !== title), title];
+  const sOrder = readOrder(src.folder);
+  for (const [key, names] of Object.entries(sOrder)) if (key === from || key.startsWith(`${from}/`)) dOrder[moved(key)] = names;
+  writeOrder(dst.folder, dOrder);
+  // Its look (stars, when it was made): with it, and the copy's own.
+  const sLook = readLook(src.folder);
+  const dLook = readLook(dst.folder);
+  for (const p of below) if (sLook[p]) dLook[moved(p)] = { ...sLook[p] };
+  if (copy) for (const p of below) dLook[moved(p)] = { ...(dLook[moved(p)] ?? {}), created: new Date().toISOString() };
+  writeJson(join(dst.folder, MACHINERY, LOOK), dLook);
+  if (!copy) {
+    sOrder[fromParent] = (sOrder[fromParent] ?? []).filter((n) => n !== oldTitle);
+    for (const key of Object.keys(sOrder)) if (key === from || key.startsWith(`${from}/`)) delete sOrder[key];
+    writeOrder(src.folder, sOrder);
+    for (const p of below) delete sLook[p];
+    writeJson(join(src.folder, MACHINERY, LOOK), sLook);
+    // Its versions go with it; and to whatever mentions it, it is the same thing in its new place.
+    const versionsRoot = join(src.folder, MACHINERY, "versions", "page");
+    if (existsSync(versionsRoot)) {
+      for (const key of readdirSync(versionsRoot)) {
+        const p = decodeURIComponent(key);
+        if (p !== from && !p.startsWith(`${from}/`)) continue;
+        const target = versionDir(join(dst.folder, MACHINERY), "page", moved(p));
+        if (existsSync(target)) continue;
+        mkdirSync(dirname(target), { recursive: true });
+        try { renameSync(join(versionsRoot, key), target); } catch { cpSync(join(versionsRoot, key), target, { recursive: true }); rmSync(join(versionsRoot, key), { recursive: true, force: true }); }
+      }
+    }
+    for (const p of below) movedText({ kind: "page", key: `${src.id}/${p}` }, { kind: "page", key: `${dst.id}/${moved(p)}` });
+  } else {
+    // A copy is its own page to anything that mentions it, from the start.
+    for (const p of below) {
+      const f = pageFile(dst.folder, moved(p));
+      if (existsSync(f)) syncText({ kind: "page", key: `${dst.id}/${moved(p)}` }, moved(p).split("/").pop() ?? p, readText(f));
+    }
+  }
+  return { path: to, title, children: [] };
 }
 
 /** The days of `month` (`YYYY-MM`) that have a note, and how many words each holds. */
 export function dailyMonth(projectId: string, month: string): Array<{ date: string; words: number }> {
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Conflict("a month is YYYY-MM");
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   const dir = join(writingDir(folder), DAILY);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
@@ -391,7 +472,7 @@ export function dailyMonth(projectId: string, month: string): Array<{ date: stri
 
 /** When a page was last written, as ISO: what a glance orders it by. */
 export function pageModified(projectId: string, path: string): string {
-  const { folder } = findProject(projectId);
+  const { folder } = pagesPlace(projectId);
   try {
     return statSync(pageFile(folder, safe(path))).mtime.toISOString();
   } catch {
