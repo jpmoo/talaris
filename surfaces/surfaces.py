@@ -595,6 +595,22 @@ class Desktop(QObject):
             self.go_to_project(project)
         self.show_in_drawer("writing" if kind == "page" else "canvas", {"page": where} if kind == "page" else {"canvas": where})
 
+    def _ask_page(self, panel, ask: str) -> None:
+        """A panel out (or its window forward) and its page asked something — again a moment on,
+        as the page may still be loading the first time."""
+        panel.open()
+        view = panel.window if getattr(panel, "windowed", False) and getattr(panel, "window", None) else panel.view
+        view.page().runJavaScript(ask)
+        QTimer.singleShot(900, lambda: view.page().runJavaScript(ask))
+
+    def show_task(self, entity: str) -> None:
+        """A task, open in Tasks' editor."""
+        self._ask_page(self.tasks, f"window.Tasks && Tasks.openTask({json.dumps(entity)})")
+
+    def show_event(self, calendar: str, uid: str, start: str) -> None:
+        """An event, open in the calendar: its day, and its editor."""
+        self._ask_page(self.calendar, f"window.Calendar && Calendar.show({json.dumps({'calendar': calendar, 'uid': uid, 'start': start})})")
+
     def show_in_drawer(self, name: str, target: dict) -> None:
         """The canvas or the writing surface, open on one canvas or one page."""
         w = self.workspaces.get(name)

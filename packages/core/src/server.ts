@@ -262,7 +262,13 @@ route("POST", "/entities/place", async (req) => {
   return placeEntity(b.kind, b.project, b.where, b.title ?? "");
 });
 // Where an entity standing for a page or a canvas points, to open it there; null for any other.
-route("GET", "/entities/:id/place", (_r, [id]) => placeOf(entities.getEntity(id!)));
+// Not a page's or a canvas's entity: a 404, not an empty answer — a null here
+// was answered {ok: true}, which every page took for a place.
+route("GET", "/entities/:id/place", (_r, [id]) => {
+  const place = placeOf(entities.getEntity(id!));
+  if (!place) throw new NotFound(`${id} is not a page or a canvas`);
+  return place;
+});
 // People (DESIGN, People): each as a row, and their ties to contact cards.
 route("GET", "/people", () => entities.listPeople());
 // Address-book cards as people (People: everyone in your address books).

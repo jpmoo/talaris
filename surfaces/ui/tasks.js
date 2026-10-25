@@ -891,7 +891,8 @@
       const place = await api("GET", `/entities/${enc(id)}/place`);
       if (place) { openPlace(place); return; }
     } catch { /* gone: peek says so */ }
-    if (window.Peek) Peek.show(id, api, { onTask: openTask, openPlace, openPerson: (pid) => bridge && bridge.openPerson(pid) });
+    if (window.Peek) Peek.show(id, api, { onTask: openTask, openTask, openPlace, openPerson: (pid) => bridge && bridge.openPerson(pid),
+      openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s) });
   }
   function saveTitle() {
     if (!entity || !shape || !titleEd) return;

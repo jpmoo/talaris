@@ -17,7 +17,7 @@ import json
 import re
 import threading
 
-from PySide6.QtCore import QTimer, Signal, Slot
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge, local_call
@@ -52,11 +52,6 @@ class GlanceBridge(Bridge):
         self.owner.file_away()
         self.owner.desktop.go_to_project(project, announce=True)
 
-    @Slot(str)
-    def openTask(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
-        """A task, open in Tasks."""
-        self.owner.open_task(entity)
-
 
 class Glance(Overlay):
     NAME = "glance"
@@ -72,16 +67,6 @@ class Glance(Overlay):
         # Which project it is a glance of: the current one, as it is opened.
         here = self.desktop.project
         return {**super().describe(), "project": {"id": here.get("id", ""), "name": here.get("name", ""), "code": here.get("code", "")}}
-
-    def open_task(self, entity: str) -> None:
-        if not self.windowed:
-            self.file_away()
-        tasks = self.desktop.tasks
-        tasks.open()
-        ask = f"window.Tasks && Tasks.openTask({json.dumps(entity)})"
-        tasks.view.page().runJavaScript(ask)
-        # The page may still be loading the first time: asked again a moment on.
-        QTimer.singleShot(900, lambda: tasks.view.page().runJavaScript(ask))
 
     def opened(self) -> None:
         self.desktop.bar.changed()

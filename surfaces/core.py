@@ -172,6 +172,27 @@ class Bridge(QObject):
             self.owner.file_away()
         desktop.people.show_person(entity)
 
+    def _going(self, *stay: str) -> object:
+        """The desktop, with this panel put away first when what opens is elsewhere."""
+        desktop = getattr(self.owner, "desktop", None)
+        if desktop and getattr(self.owner, "NAME", "") not in ("canvas", "writing", *stay) and hasattr(self.owner, "file_away"):
+            self.owner.file_away()
+        return desktop
+
+    @Slot(str)
+    def openTask(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
+        """A task clicked anywhere: open in Tasks."""
+        desktop = self._going("tasks")
+        if desktop and entity:
+            desktop.show_task(entity)
+
+    @Slot(str, str, str)
+    def openEvent(self, calendar: str, uid: str, start: str) -> None:  # noqa: N802 — called from the page by this name
+        """A calendar's event clicked anywhere: the calendar, on it."""
+        desktop = self._going("calendar")
+        if desktop and uid:
+            desktop.show_event(calendar, uid, start)
+
     @Slot(str, str)
     def openProjectFile(self, project: str, path: str) -> None:  # noqa: N802 — called from the page by this name
         """A file a page or a note links (`Files/…`), opened in its application."""

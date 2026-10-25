@@ -79,9 +79,11 @@ export function EntityCard({ entity, seen }: { entity: string; seen?: { title?: 
  * A task: its status as a circle, its title, and when it is due.
  *
  * The circle is the one control on any card. It takes its press for itself, so
- * pressing it does not also pick the card up, and the statuses it offers are
- * the type's own — options, labels and colors — rather than a done/not-done
- * this file would have to invent.
+ * pressing it does not also pick the card up. A click moves the task on to the
+ * next of its type's statuses, round to the first after the last; a
+ * right-click lists them all, to jump. The statuses are the type's own —
+ * options, labels and colors — rather than a done/not-done this file would
+ * have to invent.
  */
 function TaskFace({ id, title, props, shape }: { id: string; title: string; props: Record<string, unknown>; shape: TaskShape | null }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -91,17 +93,30 @@ function TaskFace({ id, title, props, shape }: { id: string; title: string; prop
   const span = (shape?.spanKey ? props[shape.spanKey] : props.schedule) as { end?: string } | undefined;
   const due = str(span?.end);
   const options = shape?.status?.options ?? [];
+  const pick = (v: string) => {
+    if (!shape || v === value) return;
+    setStatus(id, shape, v).catch((err) => {
+      const host = window.parent as unknown as { talarisStatus?: (s: string) => void };
+      host.talarisStatus?.(String((err as Error).message || err));
+    });
+  };
+  const next = options.length ? options[(options.indexOf(value) + 1) % options.length]! : value;
   return (
     <div className={`cv-card cv-card-task${done ? " cv-card-done" : ""}`}>
       <div className="cv-card-row">
         <button
           className="cv-card-status"
-          title={look.label}
+          title={shape && options.length ? `${look.label} — click for ${statusLook(shape, next).label}` : look.label}
           disabled={!shape || options.length === 0}
           style={{ borderColor: look.color, background: done ? look.color : "transparent" }}
           onPointerDown={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
           onClick={(e) => {
+            e.stopPropagation();
+            pick(next);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setMenu({ x: e.clientX, y: e.clientY });
           }}
@@ -116,11 +131,7 @@ function TaskFace({ id, title, props, shape }: { id: string; title: string; prop
           items={options.map((v) => ({ value: v, on: v === value, ...statusLook(shape, v) }))}
           onPick={(v) => {
             setMenu(null);
-            if (v === value) return;
-            setStatus(id, shape, v).catch((err) => {
-              const host = window.parent as unknown as { talarisStatus?: (s: string) => void };
-              host.talarisStatus?.(String((err as Error).message || err));
-            });
+            pick(v);
           }}
         />
       )}

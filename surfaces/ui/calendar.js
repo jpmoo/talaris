@@ -568,10 +568,37 @@ function onState(s) {
   if (WINDOW) return;
   if (s.up && !was.up) {
     Motion.arrive(document.body, how());
-    focus = startOfDay(new Date());
+    // Out to show one event: on its day; otherwise on today.
+    focus = startOfDay(sought ? sought.at : new Date());
     draw(); fetchRange();
   }
 }
+
+/*
+ * One event, asked for from elsewhere (a card on a canvas, a mention): the
+ * calendar on its day, and its editor open once that range has arrived. A
+ * repeating event is the occurrence nearest the time it was asked for at.
+ */
+let sought = null; // { calendar, uid, at }
+function seek() {
+  if (!sought) return;
+  const mine = events.filter((e) => e.uid === sought.uid && (!sought.calendar || e.calendar === sought.calendar));
+  if (!mine.length) return;
+  const at = sought.at.getTime();
+  const best = mine.reduce((a, b) => (Math.abs(b.start - at) < Math.abs(a.start - at) ? b : a));
+  sought = null;
+  edit(best);
+}
+window.Calendar = {
+  show({ calendar, uid, start }) {
+    const at = start ? new Date(start) : new Date();
+    sought = { calendar, uid, at: Number.isNaN(at.getTime()) ? new Date() : at };
+    focus = startOfDay(sought.at);
+    draw(); fetchRange();
+    // Not found in a while (gone, or on a calendar not shown): left, so the next opening is not hijacked.
+    setTimeout(() => { if (sought && sought.uid === uid) { sought = null; say("That event is not on a calendar on show", true); } }, 8000);
+  },
+};
 
 Surface.connect({ onState }).then((b) => {
   bridge = b;
@@ -579,7 +606,7 @@ Surface.connect({ onState }).then((b) => {
   b.hello(hello);
   b.status.connect((text) => { status = JSON.parse(text); draw(); fetchRange(); });
   b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
-  b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); });
+  b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); seek(); });
   b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
   b.people.connect((text) => showPeople(JSON.parse(text)));
   b.done.connect((text) => {

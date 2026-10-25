@@ -18,7 +18,7 @@ import os
 import re
 import threading
 
-from PySide6.QtCore import QTimer, Signal, Slot
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
@@ -148,12 +148,7 @@ class New(Overlay):
     def show_thing(self, kind: str, ident: str) -> None:
         self.file_away()
         if kind == "task":
-            tasks = self.desktop.tasks
-            tasks.open()
-            # The page may still be loading the first time: asked again a moment on.
-            ask = f"window.Tasks && Tasks.openTask({json.dumps(ident)})"
-            tasks.view.page().runJavaScript(ask)
-            QTimer.singleShot(900, lambda: tasks.view.page().runJavaScript(ask))
+            self.desktop.show_task(ident)
         elif kind == "event":
             self.desktop.calendar.open()
         elif kind == "page":

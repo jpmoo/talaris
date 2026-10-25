@@ -5,6 +5,10 @@
 // ways: the people at an event, the notes and tasks a person turns up in.
 // Each one there peeks in turn. A card over the page, gone on Escape or a
 // press outside it. `onTask`, where the page has it, opens a task in place.
+//
+// Where the page can open a thing where it lives, it is not peeked at but
+// opened: a person in People (`openPerson`), a task in Tasks (`openTask`), a
+// calendar's event in the calendar (`openEvent`).
 
 "use strict";
 
@@ -73,6 +77,21 @@ window.Peek = (() => {
     if (opts.openPerson && (got.kinds || []).includes("contact")) {
       close();
       opts.openPerson(id);
+      return;
+    }
+    // Nor a task, in Tasks.
+    if (opts.openTask && (got.kinds || []).includes("task")) {
+      close();
+      opts.openTask(id);
+      return;
+    }
+    // Nor an event that is on a calendar, in the calendar on its day. One made
+    // only here is on none, and is a card.
+    const onCalendar = (got.entity["talaris:sources"] || []).find((s) => s.kind === "eds-event");
+    if (opts.openEvent && onCalendar && (got.kinds || []).includes("event")) {
+      const at = onCalendar.key.indexOf("/");
+      close();
+      opts.openEvent(onCalendar.key.slice(0, at), onCalendar.key.slice(at + 1), String((got.entity.properties || {}).start || ""));
       return;
     }
     const isTask = (got.kinds || []).includes("task");
