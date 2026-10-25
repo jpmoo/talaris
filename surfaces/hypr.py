@@ -156,6 +156,17 @@ def restore(address: str, workspace: int) -> None:
         ask(f"/dispatch movetoworkspacesilent {int(workspace)},address:{address}")
 
 
+def toggle_pin(address: str) -> None:
+    if _address(address):
+        ask(f"/dispatch pin address:{address}")
+
+
+def carry(address: str, to: str) -> None:
+    """A window to a workspace (as a dispatcher names it), without going there or taking focus."""
+    if _address(address):
+        ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
+
+
 def focus(address: str) -> None:
     """Bring a window forward, going to its workspace if it is on another."""
     if address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower()):
@@ -245,6 +256,8 @@ class Events(QObject):
     #: A window opened, or closed: its address (as `j/clients` writes it, 0x…).
     opened = Signal(str)
     closed = Signal(str)
+    #: A window pinned (shown on every workspace) or unpinned: its address, and whether it now is.
+    pinned = Signal(str, bool)
 
     WATCH = ("workspace", "openwindow", "closewindow", "movewindow", "focusedmon", "activespecial")
     WINDOWS = WATCH + ("activewindow", "windowtitle", "renameworkspace", "createworkspace", "destroyworkspace")
@@ -268,6 +281,9 @@ class Events(QObject):
                 self.urgent.emit("0x" + line.split(b">>", 1)[1].decode("ascii", "replace").strip())
             if name == "workspace":
                 self.workspace.emit(line.split(b">>", 1)[1].decode("utf-8", "replace"))
+            if name == "pin":
+                addr, _, state = line.split(b">>", 1)[1].decode("ascii", "replace").partition(",")
+                self.pinned.emit("0x" + addr.strip(), state.strip() == "1")
             if name in ("openwindow", "closewindow"):
                 address = "0x" + line.split(b">>", 1)[1].split(b",", 1)[0].decode("ascii", "replace")
                 (self.opened if name == "openwindow" else self.closed).emit(address)

@@ -60,6 +60,7 @@ from notifications import Notifications
 import docs
 import thumbs
 from osd import Osd
+from pins import Pins
 from tip import Tip
 import desktop_api
 from tray import Tray
@@ -263,6 +264,8 @@ class Desktop(QObject):
         # Home's desktop is the ordinary workspaces: the last one of them, to go back to.
         self._ordinary = "1"
         self.events.workspace.connect(self._workspace_changed)
+        # Pinned windows carried from desktop to desktop instead, so they take clicks (pins.py).
+        self.pins = Pins(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
         try:
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
