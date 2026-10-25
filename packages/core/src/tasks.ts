@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import {
+import { forgetFiles,
   allRecords,
   bySource,
   putType,
@@ -481,5 +481,9 @@ export function detachFile(taskId: string, sha256: string): void {
   const key = filesKey(o);
   const now = Array.isArray(o.properties[key]) ? (o.properties[key] as Attachment[]) : [];
   const rest = now.filter((a) => a.sha256 !== sha256);
-  if (rest.length !== now.length) updateEntity(taskId, { properties: { [key]: rest.length ? rest : null } });
+  if (rest.length !== now.length) {
+    updateEntity(taskId, { properties: { [key]: rest.length ? rest : null } });
+    // Taken off, and named by nothing else: the file goes too.
+    forgetFiles([sha256]);
+  }
 }

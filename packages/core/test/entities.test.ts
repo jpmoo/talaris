@@ -475,6 +475,22 @@ test("the live binding writes bodies and hands files over by hash; a file goes w
   assert.equal(entities.getFile(sha), null, "named by nothing, freed");
 });
 
+test("a task's file goes when the task is deleted or the file taken off — unless something else still has it", async () => {
+  const tasks = await import("../src/tasks.js");
+  const a = tasks.createTask({ title: "Holds a file" });
+  const b = tasks.createTask({ title: "Holds the same file" });
+  const one = tasks.attachFile(a.id, Buffer.from("shared file\n"), "s.txt", "text/plain");
+  tasks.attachFile(b.id, Buffer.from("shared file\n"), "s.txt", "text/plain");
+  entities.deleteEntity(a.id);
+  assert.ok(entities.getFile(one.sha256), "the other task still has it");
+  tasks.detachFile(b.id, one.sha256);
+  assert.equal(entities.getFile(one.sha256), null, "taken off the last thing naming it: gone");
+  const c = tasks.createTask({ title: "Deleted with its file" });
+  const own = tasks.attachFile(c.id, Buffer.from("only mine\n"), "m.txt", "text/plain");
+  entities.deleteEntity(c.id);
+  assert.equal(entities.getFile(own.sha256), null);
+});
+
 test("undated notes through the live binding: their file is the truth, renamed and rewritten by a write, made by a create, gone when deleted", async () => {
   const live = await import("../src/interchange.js");
   const pagesM = await import("../src/pages.js");

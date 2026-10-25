@@ -622,9 +622,23 @@ export function updateEntity(id: string, patch: Patch): Entity {
 export function deleteEntity(id: string): void {
   const ix = load();
   if (!ix.records.has(id)) throw new NotFound(`no entity ${id}`);
+  // Its files go with it, unless something else still names them (`forgetFiles`).
+  const files = hashesNamed(ix.records.get(id)!.object.properties);
   indexOut(ix, id);
   rmSync(join(dir("objects"), safe(id)), { force: true });
   record(id, "delete");
+  if (files.length) forgetFiles(files);
+}
+
+/** The hashes of the files a property bag names. */
+function hashesNamed(props: Record<string, unknown> | undefined): string[] {
+  const out: string[] = [];
+  for (const v of Object.values(props ?? {})) {
+    for (const x of Array.isArray(v) ? v : [v]) {
+      if (x && typeof x === "object" && (x as { kind?: string }).kind === "attachment" && typeof (x as { sha256?: unknown }).sha256 === "string") out.push((x as { sha256: string }).sha256);
+    }
+  }
+  return out;
 }
 
 const sameEdge = (a: Relation, b: Relation) => a.to === b.to && a.type === b.type && (a.via ?? "") === (b.via ?? "") && (a.field ?? "") === (b.field ?? "");
