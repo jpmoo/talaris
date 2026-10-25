@@ -4231,7 +4231,7 @@ export function CanvasView({
       <ConfirmDialog
         open={confirmClear}
         title="Clear the whole canvas?"
-        message="Every block is removed from the canvas (not deleted); ephemeral notes, connections, and regions are discarded."
+        message="Every block is removed from the canvas (not deleted); ephemeral notes, connections, and regions are discarded. Canvases inside this one stay — they are deleted from the drawer."
         confirmLabel="Clear"
         onCancel={() => setConfirmClear(false)}
         onConfirm={() => {

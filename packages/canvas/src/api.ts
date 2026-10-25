@@ -226,6 +226,8 @@ export function setBackground(color: string | null) {
  * panel closed a tenth of a second after a move still saves it.
  */
 let pending: number | null = null;
+/** The component was shown something other than what is being saved (a child canvas kept): read back once it is. */
+let rereadAfterSave = false;
 let writing: Promise<unknown> = Promise.resolve();
 
 function save() {
@@ -235,7 +237,11 @@ function save() {
     // Chained rather than parallel: two whole-document writes racing is exactly
     // the problem the single-document design exists to avoid.
     writing = writing.then(() => putDocument(held)).then(
-      (kept) => { adoptRev(kept); onWritten?.(); },
+      (kept) => {
+        adoptRev(kept);
+        if (rereadAfterSave) { rereadAfterSave = false; location.reload(); return; }
+        onWritten?.();
+      },
       (err) => {
         // Changed elsewhere since it was read (Morgan, through the MCP): read again.
         if (String((err as Error).message || err).includes("stale")) { location.reload(); return; }
@@ -248,7 +254,8 @@ function save() {
         const host = window.parent as unknown as { talarisStatus?: (s: string) => void };
         host.talarisStatus?.(String((err as Error).message || err));
         console.error("canvas: could not save —", err);
-        onWritten?.();
+        // Not saved, so not shown: what is on screen is read back from what was kept.
+        location.reload();
       },
     );
   }, 250);
@@ -421,7 +428,16 @@ function patchProperties(props: Record<string, unknown>) {
     const notes = (props.canvas_notes as Record<string, unknown>[]).map((note) =>
       itemFromNote(note, was.get(noteIdOf(String(note.id)))),
     );
-    held.items = [...blocks, ...notes];
+    /*
+     * A child canvas's card stays, whatever the component left out: a child
+     * leaves its parent only by being deleted in the drawer, and the core
+     * refuses a save that drops one. Clear sent them all away, the save was
+     * refused, and the canvas looked cleared until it was opened again.
+     */
+    const listed = new Set(notes.map((i) => i.id));
+    const children = held.items.filter((i) => !i.blockId && i.kind === "canvas" && !listed.has(i.id));
+    if (children.length) rereadAfterSave = true;
+    held.items = [...blocks, ...notes, ...children];
   }
   if (Array.isArray(props.canvas_edges)) {
     held.links = (props.canvas_edges as Record<string, unknown>[]).map(linkFromEdge);
