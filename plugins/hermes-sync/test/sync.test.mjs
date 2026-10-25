@@ -365,3 +365,17 @@ test("a conflict in writing can be merged: the person's words go to both sides, 
   const H2 = env([...H_TYPES, H_TEXT], [{ ...H.objects[0], content: "Mine.\nTheirs." }]);
   assert.equal(plan({ started: true, links: p.links }, T2, H2, DAYS, newId).writes.length, 0, "agreed: nothing more to carry");
 });
+
+test("a note with no title is known by its first line: made so in Talaris, and nothing written back to name it", () => {
+  const T_NOTE = { id: "t_note", fields: [{ key: "title", kind: "text" }, { key: "body", kind: "richtext" }], profiles: { note: { title: "title", body: "body" } } };
+  const H_NOTE = { id: "h-note", fields: [{ key: "title", kind: "text" }], profiles: { note: { title: "title", body: "content" } } };
+  const H = env([...H_TYPES, H_NOTE], [{ id: "hn9", type: "h-note", properties: {}, content: "## Prove Mastery to *Yourself*\n\nEducation means…", version: 1 }]);
+  const T = env([...T_TYPES, T_NOTE], []);
+  const NOTES = { ...S, kinds: { note: true }, notes: "all" };
+  const p = plan({ started: true, links: [] }, T, H, NOTES, newId);
+  const made = p.writes.find((w) => w.side === "talaris" && w.op === "put");
+  assert.equal(made.body.properties.title, "Prove Mastery to Yourself");
+  const T2 = env([...T_TYPES, T_NOTE], [{ id: "hn9", type: "t_note", properties: { title: "Prove Mastery to Yourself", body: "## Prove Mastery to *Yourself*\n\nEducation means…" }, "talaris:undated": true, version: 1 }]);
+  agreed(made.link, Object.keys(made.values), made.values);
+  assert.equal(plan({ started: true, links: p.links }, T2, H, NOTES, newId).writes.length, 0, "no title written into Hermes Notes");
+});

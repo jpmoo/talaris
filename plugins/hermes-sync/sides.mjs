@@ -65,6 +65,11 @@ const filesField = (type) => (type?.fields ?? []).find((f) => f.kind === "attach
 /** One attachment value, as it travels in a write: which file, and its label — never the bytes, which go by hash. */
 const fileValue = (a) => ({ kind: "attachment", filename: a.filename ?? "attachment", ...(a.mediaType ? { mediaType: a.mediaType } : {}), sha256: a.sha256 });
 const blank = (v) => (v === "" || v === undefined ? null : v);
+/** A note's first line, as a name: heading and list marks dropped, at most 120 characters. */
+export function firstLine(text) {
+  const line = String(text ?? "").split("\n").map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+>]\s+)/, "").replace(/[*_`]/g, "").trim()).find(Boolean);
+  return line ? line.slice(0, 120) : null;
+}
 
 /** A date or time as one string to compare: to the minute, in UTC, where it can be read; as written where not. */
 function sameTime(v) {
@@ -153,6 +158,12 @@ export class Side {
       return (map.completeValues ?? []).includes(o.properties?.[map.status]);
     }
     if (slot === "status") return map.status ? blank(o.properties?.[map.status]) : null;
+    // A note with no title of its own is known by its first line (Hermes Notes' notes often are): so it arrives named, and compares as named.
+    if (slot === "title" && kind === "note") {
+      const own = typeof map.title === "string" ? blank(o.properties?.[map.title]) : null;
+      if (own !== null && String(own).trim()) return own;
+      return firstLine(this.raw(o, kind, "body"));
+    }
     const spec = map[slot];
     if (spec === undefined || spec === null) return null;
     // A day's page holding only what it was opened with — Hermes Notes' daily template, kept as its `seed` — has no words yet.
