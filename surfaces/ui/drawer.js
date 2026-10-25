@@ -817,11 +817,10 @@ async function loadWriting() {
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const tabs = el("div", { class: "wtabs", role: "tablist" },
     tab("project", inHome() ? "Home" : state.project.name, "This project's own notes"),
-    tab("undated", "Unaffiliated", "Notes that belong to no project — the same from every project"),
-    tab("daily", "Daily", "Home's daily notes"));
-  // Away from its own project's notes, the drawer says so, at the top of the list.
-  const whose = scope === "undated" ? el("div", { class: "whose" }, "Shared by every project — not ", el("b", {}, inHome() ? "Home" : state.project.name), "'s own")
-    : scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily notes — not ", el("b", {}, state.project.name), "'s")
+    tab("daily", "Daily", "Home's daily notes"),
+    tab("undated", "Unaffiliated", "Notes that belong to no project — the same from every project"));
+  // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
+  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily notes — not ", el("b", {}, state.project.name), "'s")
     : "";
   const tree = el("div", { class: "tree" + (scope !== "project" && !(scope === "daily" && inHome()) ? " away" : "") },
     tabs, whose,
