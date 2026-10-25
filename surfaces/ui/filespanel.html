@@ -1,0 +1,157 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The Files panel (files_panel.py, DESIGN *Files*): every file in the projects,
+and what Talaris holds for them, each saying what it is. Projects, tags and
+kept views down the left; the files, by folder, type or date, in the middle;
+the one chosen, and what can be done with it, on the right. Up over a dimmed
+screen from the bar's Files button; a window by its grow button.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris files</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+/* As People's: a panel over the dimmed screen; a window, the whole surface. */
+html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; }
+html:not([data-window]) { cursor: pointer; }
+body { cursor: default; position: relative; }
+body {
+  width: min(1180px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+html[data-window] { background: var(--surface); }
+html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
+
+header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
+header .spacer { flex: 1; }
+header .t-btn { white-space: nowrap; flex: none; }
+header .seg { flex: none; }
+header .seg button { padding: 2px 10px !important; font-size: 12px; }
+header select { font-size: 12px; padding: 2px 4px; flex: none; }
+#count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg.err { color: var(--danger); }
+#q { width: 180px; flex: 0 1 180px; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
+
+main { flex: 1; min-height: 0; display: flex; position: relative; }
+.empty { color: var(--muted); padding: 24px; font-size: 13px; }
+
+/* The left: projects, tags, kept views. */
+#side { width: 200px; flex: none; border-right: 1px solid var(--line); overflow: auto; padding: 6px 0 10px; }
+.s-head { padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.s-item { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 14px; color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.s-item:hover { background: var(--accent-wash); }
+.s-item.on { color: var(--accent); background: var(--accent-wash); }
+.s-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-item .here { font-size: 10px; color: var(--muted); }
+.s-item .x { color: var(--muted); padding: 0 2px; visibility: hidden; }
+.s-item:hover .x { visibility: visible; }
+.s-keep { margin: 6px 14px 0; font-size: 11.5px !important; padding: 1px 8px !important; }
+
+/* The middle: the files, in groups. */
+#rows { flex: 1; min-width: 0; overflow: auto; outline: none; padding-bottom: 12px; }
+.g-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; gap: 6px; align-items: baseline; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.g-head .n { letter-spacing: 0; }
+.row { display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
+.row:hover { background: var(--accent-wash); }
+.row.on { background: var(--accent-wash); box-shadow: inset 2px 0 0 var(--accent); }
+.row .ic { width: 16px; height: 16px; border-radius: 3px; font-size: 9px; display: grid; place-items: center; color: var(--surface); font-weight: 600; }
+.row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .nm .where { color: var(--muted); font-size: 11.5px; margin-left: 6px; }
+.row .date, .row .size { color: var(--muted); font-size: 11.5px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row.gone .nm { color: var(--muted); text-decoration: line-through; }
+.marks { display: flex; gap: 4px; justify-content: flex-end; white-space: nowrap; max-width: 46ch; min-width: 0; overflow: hidden; }
+.marks .mk { flex: none; }
+.marks .mk.on { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* What a row is: said in words, each in its own color. */
+.mk { font-size: 10px; letter-spacing: .5px; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; line-height: 15px; }
+.mk.folder { display: none; }
+.mk.page { color: var(--muted); }
+.mk.shortcut, .mk.linked { color: var(--accent); }
+.mk.snapshot { color: #c7a55a; }
+.mk.missing { color: var(--danger); }
+.mk.on, .mk.tag { color: var(--muted); border-color: transparent; padding: 0 2px; }
+
+/* The right: the one chosen. */
+#detail { width: 300px; flex: none; border-left: 1px solid var(--line); overflow: auto; padding: 14px 16px; font-size: 12.5px; }
+#detail h2 { font-size: 14px; font-weight: 500; margin: 0 0 4px; overflow-wrap: anywhere; }
+.d-status { color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+.d-status b { font-weight: 500; color: var(--text); }
+.d-status .bad { color: var(--danger); }
+.d-line { display: flex; gap: 8px; margin: 3px 0; }
+.d-line .k { color: var(--muted); width: 64px; flex: none; }
+.d-line .v { min-width: 0; overflow-wrap: anywhere; }
+.d-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.d-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.d-acts .t-btn { font-size: 12px; padding: 2px 10px; }
+.d-acts .t-btn.danger { color: var(--danger) !important; }
+.d-acts .t-btn.armed { border-color: var(--danger) !important; background: color-mix(in srgb, var(--danger) 12%, transparent) !important; }
+.on-item { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 3px 6px; border-radius: var(--radius-row); color: var(--text); font: inherit; cursor: pointer; }
+.on-item:hover { background: var(--accent-wash); color: var(--accent); }
+.on-item .kind { color: var(--muted); font-size: 11px; margin-left: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 2px 1px 8px; border-radius: 10px; background: var(--accent-wash); }
+.chip button { border: 0 !important; padding: 0 5px !important; color: var(--muted) !important; background: transparent !important; }
+.tag-in { width: 120px; padding: 2px 6px; font-size: 12px; }
+.inline { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.inline input[type="text"] { flex: 1; min-width: 120px; padding: 3px 6px; font-size: 12.5px; }
+.inline select { font-size: 12px; }
+
+/* Bringing files in: the sheet that asks, with what moving would disturb. */
+#sheet { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0, 0, 0, .25); }
+#sheet[hidden] { display: none; }
+.sheet { width: min(560px, calc(100% - 40px)); max-height: 80%; overflow: auto; background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; padding: 16px 18px; box-shadow: var(--menu-shadow); font-size: 13px; }
+.sheet h3 { margin: 0 0 10px; font-size: 14px; font-weight: 500; }
+.sheet .file { margin: 10px 0; }
+.sheet .file .fn { font-weight: 500; }
+.sheet .file .from { color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.sheet ul { margin: 6px 0 0; padding-left: 18px; color: var(--danger); font-size: 12px; }
+.sheet ul.fine { color: var(--muted); }
+.sheet .acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+/* Something dragged over: it will be taken, as a shortcut. */
+body.dropping::after { content: "Drop to bring in, as shortcuts"; position: absolute; inset: 52px 0 0; display: grid; place-items: center; font-size: 13px; letter-spacing: 1px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border: 2px dashed var(--accent); border-radius: 0 0 12px 12px; pointer-events: none; }
+
+@media (max-width: 860px) { #detail { width: 240px; } #side { width: 160px; } .row { grid-template-columns: 18px minmax(0, 1fr) auto 90px; } .row .size { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Files</h1>
+  <span id="count"></span>
+  <input type="text" id="q" placeholder="Find by name" spellcheck="false">
+  <span class="seg" id="view"></span>
+  <select id="status" title="What it is"></select>
+  <select id="type" title="Its type"></select>
+  <select id="days" title="When it changed"></select>
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <button class="t-btn" id="bring" title="Files from elsewhere: a shortcut, or moved in">Bring in…</button>
+  <button class="t-btn" id="reveal" title="This project's folder in the file manager">Open in Files</button>
+  <button class="icon-btn" id="grow"></button>
+  <button class="icon-btn" id="close"></button>
+</header>
+<main>
+  <aside id="side"></aside>
+  <section id="rows" tabindex="0"></section>
+  <section id="detail"></section>
+</main>
+<div id="sheet" hidden></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="pagetips.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script src="filespanel.js"></script>
+</body>
+</html>

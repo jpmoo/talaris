@@ -258,8 +258,8 @@ class BarBridge(Bridge):
     @Slot(str)
     def openPanel(self, name: str) -> None:  # noqa: N802 — called from the page by this name (`panel` is the popups' signal)
         """The canvas, the writing surface or Tasks, from its button."""
-        if name in ("tasks", "new", "people"):
-            getattr(self.owner.desktop, name).toggle()
+        if name in ("tasks", "new", "people", "files"):
+            getattr(self.owner.desktop, "files_panel" if name == "files" else name).toggle()
             return
         w = self.owner.desktop.workspaces.get(name)
         if w:
@@ -540,7 +540,8 @@ class Bar(QObject):
             "panelsOpen": {**{n: w.up for n, w in getattr(self.desktop, "workspaces", {}).items()},
                            "tasks": bool(getattr(self.desktop, "tasks", None) and (self.desktop.tasks.up or self.desktop.tasks.windowed)),
                            "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
-                           "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed))},
+                           "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed)),
+                           "files": bool(getattr(self.desktop, "files_panel", None) and (self.desktop.files_panel.up or self.desktop.files_panel.windowed))},
             # The bell's dot: how many notifications have not been seen in its list.
             "unread": self.desktop.notifications.unread() if getattr(self.desktop, "notifications", None) else 0,
         }

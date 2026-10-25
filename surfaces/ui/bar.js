@@ -17,7 +17,7 @@ $("power").innerHTML = Icons.power();
 $("bell-ic").innerHTML = Icons.bell();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power"];
+const BAR_ITEMS = ["ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -28,7 +28,7 @@ function onState(s) {
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
-  for (const name of ["canvas", "writing", "tasks", "new", "people"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  for (const name of ["canvas", "writing", "tasks", "new", "people", "files"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -164,10 +164,12 @@ $("theme").addEventListener("click", () => bridge && bridge.themeMode());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 // The canvas, the writing surface, People, Tasks and New: panels from the bar like the rest.
 $("people").innerHTML = Icons.people();
+$("files").innerHTML = Icons.folder();
 $("tasks").innerHTML = Icons.tasks();
 $("new").innerHTML = Icons.plus();
 $("new").addEventListener("click", () => bridge && bridge.openPanel("new"));
 $("people").addEventListener("click", () => bridge && bridge.openPanel("people"));
+$("files").addEventListener("click", () => bridge && bridge.openPanel("files"));
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
@@ -230,7 +232,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#where, #vol, #power, #bell, #bat, #net, #bt, #ask, #new, #morgan, #people, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bell, #bat, #net, #bt, #ask, #new, #morgan, #people, #files, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

@@ -852,7 +852,7 @@ has no single "default save folder" every application obeys:
    it gets a quiet offer to move it in, read from the system's recently-used
    list.
 
-### Files (designed 2026-10-25, not built)
+### Files (designed and built 2026-10-25)
 
 **A panel for the files of projects**, opened from the bar's left side like the
 canvas and writing, with the panels' motion, and a window by its expand corners
@@ -925,12 +925,15 @@ the canvas, the launcher, Morgan, `tagged`.
 - **Filters:** by tag, status, type and date, combined. A filter can be kept
   as a list in the sidebar, as Tasks keeps its lists.
 
-**Open questions:**
-- **Keeping it current:** watching every project folder (inotify), against
-  reading a folder when it is shown. Watching is what "changed today" needs
-  across projects. Its cost on a large adopted repository is not measured.
-- **Morgan's tools:** finding files, tagging, bringing in. Moving in surely
-  asks the person every time, however it is set.
+**Decided as it was built:**
+- **Watched** (`files.ts`): a watcher per listed folder, never into what is
+  not listed (`.talaris/`, dot-folders, what git ignores), so a
+  `node_modules` costs nothing. A project with more than 4,000 folders is read
+  when asked instead, and the panel says which.
+- **Morgan** finds files (`talaris_files`), tags them, and makes shortcuts.
+  Moving a file in is never Morgan's: it is done in the panel, which shows
+  what it would disturb first.
+- **Kept views** are the page's own, in its local storage, for now.
 
 ## Tasks
 

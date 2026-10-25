@@ -50,6 +50,7 @@ from tasks_panel import Tasks
 from new_panel import New
 from jump_panel import Jump
 from people_panel import People
+from files_panel import FilesPanel
 from glance_panel import Glance
 from archive_panel import Archive
 from webapps import WebApps
@@ -227,6 +228,8 @@ class Desktop(QObject):
         self.tasks = Tasks(profile, self)
         # People: everyone, grouped by organization, up from the bar's People button.
         self.people = People(profile, self)
+        # Files: every project's files, and what Talaris holds for them, up from the bar's Files button.
+        self.files_panel = FilesPanel(profile, self)
         # Glance: the current project, all of it, as a list or a graph (Super+Shift+G).
         self.glance = Glance(profile, self)
         # Plugins' windows: a desktop entry, a key, one window each (webapps.py).
@@ -288,7 +291,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "files_panel", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -720,6 +723,8 @@ class Desktop(QObject):
                 self.tasks.toggle()
             elif verb == "people":
                 self.people.toggle()
+            elif verb == "files":
+                self.files_panel.toggle()
             elif verb == "glance":
                 self.glance.toggle()
             elif verb == "app":
@@ -781,6 +786,8 @@ def main() -> int:
         return send("tasks")
     if args[:1] == ["--people"]:
         return send("people")
+    if args[:1] == ["--files"]:
+        return send("files")
     if args[:1] == ["--glance"]:
         return send("glance")
     if args[:1] == ["--app"] and len(args) == 2:

@@ -100,7 +100,7 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power")
+    BAR_ITEMS = ("ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:
@@ -111,7 +111,7 @@ def _checked(c: dict) -> str:
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
         return "Not a calendar"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "glance", "archive", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "files", "glance", "archive", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"
     backups = c.get("data", {})
     if backups.get("schedule", "off") not in ("off", "daily", "weekly") or not 1 <= int(backups.get("keep", 7)) <= 60 \

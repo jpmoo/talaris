@@ -321,18 +321,18 @@ export function desktopTools(core: Core): DesktopTool[] {
     },
     {
       name: "talaris_tagged",
-      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), undated notes, tasks, people. Optionally only one kind: page, task, contact.",
+      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), undated notes, files, tasks, people. Optionally only one kind: page, file, task, contact.",
       inputSchema: { type: "object", properties: {
-        tags: { type: "array", items: { type: "string" } }, all: { type: "boolean" }, kind: { type: "string", enum: ["page", "task", "contact", "event"] },
+        tags: { type: "array", items: { type: "string" } }, all: { type: "boolean" }, kind: { type: "string", enum: ["page", "file", "task", "contact", "event"] },
       }, required: ["tags"] },
       annotations: { readOnlyHint: true, title: "Things with a tag" },
       run: async (a) => {
         const q = new URLSearchParams((Array.isArray(a.tags) ? a.tags : [a.tags]).map((t) => ["tag", str(t)]));
         if (a.all) q.set("all", "1");
         if (a.kind) q.set("kind", str(a.kind));
-        const rows = await core<{ id: string; title: string; kinds: string[]; tags: string[]; page?: { project: string; path: string } }[]>("GET", `/tags/things?${q}`);
+        const rows = await core<{ id: string; title: string; kinds: string[]; tags: string[]; page?: { project: string; path: string }; file?: { project: string; path?: string; abs?: string } }[]>("GET", `/tags/things?${q}`);
         if (!rows.length) return "Nothing carries that.";
-        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `undated note (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
+        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `undated note (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.file ? `file in project ${r.file.project} (${r.file.path ? `path: ${r.file.path}` : `a shortcut to ${r.file.abs}`})` : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
       },
     },
     {
@@ -355,6 +355,62 @@ export function desktopTools(core: Core): DesktopTool[] {
         const kept = await core<string[]>("PUT", `/projects/${pid}/page/tags?${q}`, { tags: next });
         await told("page", pid, path);
         return `${path}: ${kept.length ? kept.map((t) => `#${t}`).join(" ") : "no tags"}`;
+      },
+    },
+    // ------------------------------------------------------------ files
+    {
+      name: "talaris_files",
+      description: "Find files in the projects (Files): every file in a project's folder, and what Talaris holds for it that is not a file there — shortcuts to files elsewhere, task attachments linked from outside every project, snapshots (copies kept on a task or from Hermes Notes), missing ones. Each says which. By name words, type (document, spreadsheet, presentation, pdf, image, audio, video, code, archive, other), status (folder, page, shortcut, linked, snapshot, missing), tags, changed within days. No project: every project; \"here\": the current one.",
+      inputSchema: { type: "object", properties: {
+        project: { type: "string" }, q: { type: "string" }, type: { type: "string" }, status: { type: "string" },
+        tags: { type: "array", items: { type: "string" } }, days: { type: "number" }, limit: { type: "number", description: "Default 40." },
+      } },
+      annotations: { readOnlyHint: true, title: "Find files" },
+      run: async (a) => {
+        const q = new URLSearchParams();
+        if (str(a.project)) q.set("project", (await project(str(a.project) === "here" ? undefined : a.project)).id);
+        for (const k of ["q", "type", "status"]) if (str(a[k])) q.set(k, str(a[k]));
+        for (const t of Array.isArray(a.tags) ? a.tags : []) q.append("tag", str(t));
+        if (typeof a.days === "number" && a.days > 0) q.set("days", String(a.days));
+        q.set("limit", String(typeof a.limit === "number" ? a.limit : 40));
+        q.set("sort", "date");
+        const got = await core<{ rows: { project: string; name: string; path?: string; abs?: string; status: string[]; on: { title: string; kind: string }[]; tags: string[]; mtime?: string }[]; total: number }>("GET", `/files?${q}`);
+        if (!got.rows.length) return "No files like that.";
+        const names = new Map((await core<ProjectRow[]>("GET", "/projects")).map((p) => [p.id, p.name]));
+        const lines = got.rows.map((r) => `- ${r.name} — ${r.status.join(", ")}; project ${names.get(r.project) ?? r.project}${r.path ? ` (path: ${r.path})` : r.abs ? ` (lives at ${r.abs})` : ""}`
+          + `${r.on.length ? `; on ${r.on.map((o) => `${o.kind} "${o.title}"`).join(", ")}` : ""}${r.tags.length ? ` ${r.tags.map((t) => `#${t}`).join(" ")}` : ""}${r.mtime ? `; changed ${r.mtime.slice(0, 16)}` : ""}`);
+        return `${got.total > got.rows.length ? `${got.rows.length} of ${got.total}, newest first:\n` : ""}${lines.join("\n")}`;
+      },
+    },
+    {
+      name: "talaris_file_tags",
+      description: "Change a file's tags in Files — a file in a project's folder (project and its path there): add some, take some off, or (set) replace them all.",
+      inputSchema: { type: "object", properties: {
+        project: { type: "string" }, path: { type: "string" },
+        add: { type: "array", items: { type: "string" } }, remove: { type: "array", items: { type: "string" } }, set: { type: "array", items: { type: "string" } },
+      }, required: ["path"] },
+      annotations: { readOnlyHint: false, title: "Tag a file" },
+      run: async (a) => {
+        const pid = (await project(a.project)).id;
+        const path = str(a.path);
+        const got = await core<{ rows: { path?: string; tags: string[] }[] }>("GET", `/files?project=${pid}&q=${encodeURIComponent(path.split("/").pop() ?? path)}`);
+        const row = got.rows.find((r) => r.path === path);
+        if (!row) throw new Error(`no file ${path} in that project's folder`);
+        const drop = new Set((Array.isArray(a.remove) ? a.remove : []).map(str));
+        const next = Array.isArray(a.set) ? a.set.map(str) : [...row.tags.filter((t) => !drop.has(t)), ...(Array.isArray(a.add) ? a.add.map(str) : [])];
+        const kept = await core<{ tags: string[] }>("PUT", "/files/tags", { project: pid, path, tags: next });
+        return `${path}: ${kept.tags.length ? kept.tags.map((t) => `#${t}`).join(" ") : "no tags"}`;
+      },
+    },
+    {
+      name: "talaris_file_shortcut",
+      description: "Bring a file from elsewhere in the home folder into a project as a shortcut: a record shown in the project's Files, the file left where it is and nothing made on disk. Moving a file into a project is not done from here: the person does that in the Files panel, which says first what moving it would disturb.",
+      inputSchema: { type: "object", properties: { project: { type: "string" }, path: { type: "string", description: "The file, absolute or ~/…" } }, required: ["path"] },
+      annotations: { readOnlyHint: false, title: "Shortcut to a file" },
+      run: async (a) => {
+        const pid = (await project(a.project)).id;
+        const row = await core<{ name: string }>("POST", "/files/shortcut", { project: pid, path: str(a.path) });
+        return `A shortcut to ${row.name} is in the project's Files.`;
       },
     },
     // ------------------------------------------------------------ writing and canvases
