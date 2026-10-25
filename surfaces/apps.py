@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
@@ -71,6 +72,30 @@ def keeps_one_window(app_id: str) -> bool:
                 return False
             return bool(re.search(r"^SingleMainWindow\s*=\s*true", main, re.M | re.I))
     return False
+
+
+def new_window_command(app_id: str) -> list[str] | None:
+    """
+    The command an application's own "new window" action runs (a browser's
+    `firefox --new-window %u`), with its field codes left in; None where its
+    desktop file has no such action.
+    """
+    for d in _data_dirs():
+        path = os.path.join(d, "applications", f"{app_id}.desktop")
+        if not os.path.isfile(path):
+            continue
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            return None
+        for section in text.split("\n[")[1:]:
+            head = section.split("]", 1)[0]
+            if not re.match(r"Desktop Action\s+new[-_ ]?window$", head, re.I):
+                continue
+            found = re.search(r"^Exec\s*=(.*)$", section, re.M)
+            return shlex.split(found.group(1)) if found else None
+        return None
+    return None
 
 
 def opens_new_windows(app_id: str) -> bool:

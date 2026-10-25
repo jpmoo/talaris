@@ -52,7 +52,7 @@ from PySide6.QtWidgets import QApplication
 
 import docs
 import hypr
-from apps import Apps
+from apps import Apps, new_window_command
 from config import save_config
 from core import Bridge
 from layershell import (
@@ -476,9 +476,11 @@ class Dock(QObject):
             w = showing[0]
             if going and not item.get("brought") and not w["hidden"]:
                 hypr.focus(w["address"])
-            else:
+                return
+            # A browser's window holds other pages too: never carried off for one of them; the page opens here instead.
+            if item["doc"]["kind"] != "url":
                 hypr.show(w["address"], now["activeTarget"])
-            return
+                return
         self.open_doc(item)
 
     # ------------------------------------------------------------ documents
@@ -491,7 +493,18 @@ class Dock(QObject):
             self.desktop.tip.show(f"{item['name']} is not where it was pinned", mid, self.edge, self.thickness(), area="dock")
             QTimer.singleShot(3000, self.desktop.tip.hide)
             return
-        if item["id"] and self.apps.is_launchable(item["id"]):
+        # A page in a browser: a new window of its own, here — handed to the browser as it is, it would
+        # open as a tab in whichever window the browser already has, in whatever project that is.
+        fresh = new_window_command(item["id"]) if item["id"] and item["doc"]["kind"] == "url" else None
+        if fresh:
+            args = [target if a in ("%u", "%U", "%f", "%F") else a for a in fresh if not (a.startswith("%") and len(a) == 2 and a not in ("%u", "%U", "%f", "%F"))]
+            if target not in args:
+                # An action that takes no address (Chrome's): told to make a new window, and given it.
+                if "--new-window" not in args:
+                    args.append("--new-window")
+                args.append(target)
+            hypr.ask(f"/dispatch exec {' '.join(shlex.quote(a) for a in args)}")
+        elif item["id"] and self.apps.is_launchable(item["id"]):
             hypr.ask(f"/dispatch exec gtk-launch {shlex.quote(item['id'])} {shlex.quote(target)}")
         else:
             hypr.ask(f"/dispatch exec xdg-open {shlex.quote(target)}")
