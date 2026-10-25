@@ -9,7 +9,7 @@ import { createInterface } from "node:readline";
 import { getEntity, types } from "./entities.js";
 import { onRecord } from "./feed.js";
 import { restoreLinks, unbacked } from "./links.js";
-import { createObject, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
+import { createObject, defineCollection, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
@@ -761,7 +761,13 @@ function interchangeFor(m: Manifest, p: Record<string, unknown>): unknown {
   const made = /^\/interchange\/collections\/([^/]+)$/.exec(url.pathname);
   if (made && verb === "PUT") {
     if (!m.permissions.write.includes("task")) throw new Error("its manifest does not ask to change tasks, or the collections they are in");
-    return makeCollection(decodeURIComponent(made[1]!), (p.body ?? {}) as Record<string, unknown>);
+    return makeCollection(decodeURIComponent(made[1]!), (p.body ?? {}) as Record<string, unknown>, { id: m.id, name: m.name });
+  }
+  // A synced collection's definition, kept in step (interchange.ts, defineCollection).
+  const defined = /^\/interchange\/collections\/([^/]+)\/definition$/.exec(url.pathname);
+  if (defined && verb === "PUT") {
+    if (!m.permissions.write.includes("task")) throw new Error("its manifest does not ask to change tasks, or the collections they are in");
+    return defineCollection(decodeURIComponent(defined[1]!), (p.body ?? {}) as Parameters<typeof defineCollection>[1], { id: m.id, name: m.name });
   }
   const object = /^\/interchange\/objects\/([^/]+)$/.exec(url.pathname);
   if (object) {

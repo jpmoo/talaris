@@ -189,6 +189,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .find { width: 100%; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
 /* Projects in groups (Tasks' own, talaris:group): a folding heading, its projects under it. */
 #side .item .name { flex: 1; min-width: 0; }
+#side .item .synced { flex: none; color: var(--muted); font-size: 12px; }
+#side .item.on .synced { color: var(--accent); }
 #side .item .more { border: 0 !important; background: transparent !important; padding: 0 4px !important; line-height: 1; color: var(--muted); visibility: hidden; flex: none; }
 #side .item:hover .more, #side .item.on .more { visibility: visible; }
 #side .item .more:hover { color: var(--accent); }
@@ -222,7 +224,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <span class="spacer"></span>
   <button class="t-btn warn" id="unbacked" hidden title="Files with no file of yours behind them"></button>
   <span id="list-actions"></span>
-  <button class="t-btn" id="edit-list" hidden>Edit list</button>
+  <button class="t-btn" id="edit-list" hidden>Edit collection</button>
   <button class="icon-btn" id="grow"></button>
   <button class="icon-btn" id="close"></button>
 </header>

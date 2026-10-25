@@ -71,3 +71,37 @@ test("a collection is made at the id asked for; asked again, it answers as it st
   assert.equal(lists.getList("c_from_hermes").name, "Eisenhower");
   assert.equal(interchange.makeCollection("c_canvas", { kind: "canvas" }).ok, false, "a kind Talaris does not keep");
 });
+
+test("a synced collection's definition is kept in step, and marked as synced, by what", () => {
+  const by = { id: "hermes-sync", name: "Hermes Notes sync" };
+  const made = interchange.makeCollection("c_synced", { name: "Eisenhower", kind: "matrix",
+    membership: { mode: "query", query: { kind: "profile", profile: "task" } },
+    placement: { semantic: true, regions: [{ name: "do", label: "Do" }] } }, by);
+  assert.equal(made.ok, true);
+  assert.equal(lists.getList("c_synced")["talaris:syncedBy"], "Hermes Notes sync");
+  assert.equal(lists.getList("c_synced").membership.mode, "query");
+  const regions = [{ name: "do", label: "Do now", "talaris:enter": { tag: "urgent", untagOnLeave: true } }, { name: "later", label: "Later" }];
+  assert.equal(interchange.defineCollection("c_synced", { name: "Priorities", placement: { semantic: true, regions },
+    membership: { mode: "query", query: { kind: "state", value: "open" } } }, by).ok, true);
+  const l = lists.getList("c_synced");
+  assert.equal(l.name, "Priorities");
+  assert.deepEqual(l.placement?.regions, regions);
+  assert.deepEqual(l.membership.mode === "query" && l.membership.query, { kind: "state", value: "open" });
+  // A rule in another app's words is refused, never stored.
+  const foreign = interchange.defineCollection("c_synced", { membership: { mode: "query", query: { kind: "semantic", value: "x", floor: 0.5 } } }, by);
+  assert.equal(foreign.ok, false);
+  assert.match(foreign.reports[0]!, /rule-not-runnable/);
+  // No rule: its members kept by hand, by whoever keeps it in step.
+  interchange.defineCollection("c_synced", { membership: { mode: "explicit" } }, by);
+  assert.equal(lists.getList("c_synced").membership.mode, "explicit");
+  assert.equal(interchange.defineCollection("c_nowhere", { name: "x" }, by).ok, false);
+});
+
+test("a list is deleted without archiving it first; its members stay", () => {
+  const t = tasks.createTask({ title: "Stays" });
+  const l = lists.createList({ name: "Brief" });
+  lists.addMember(l.id, t.id, {});
+  lists.deleteList(l.id);
+  assert.throws(() => lists.getList(l.id));
+  assert.ok(entities.getEntity(t.id));
+});

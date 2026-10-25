@@ -10,7 +10,7 @@ import { keepLinks, linkedBytes, refreshLinks } from "./links.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
 import { allSeries } from "./tasks.js";
-import { addMember, createList, getList, removeMember, show, type List } from "./lists.js";
+import { addMember, createList, getList, isCondition, putList, removeMember, show, updateList, type Condition, type List } from "./lists.js";
 import { ENTITIES_DIR } from "./vault.js";
 import { seal } from "./seal.js";
 import { storeKey } from "./vault.js";
@@ -185,18 +185,54 @@ export function writeMember(verb: "PUT" | "PATCH" | "DELETE", collectionId: stri
  * A collection made through the binding (*Making a collection*): at the id
  * asked for; one already there answers as it stands, unchanged.
  */
-export function makeCollection(id: string, body: Record<string, unknown>): MemberAnswer & { created?: boolean } {
+export function makeCollection(id: string, body: Record<string, unknown>, by?: { id: string; name: string }): MemberAnswer & { created?: boolean } {
   if (typeof body.id === "string" && body.id !== id) return { ok: false, reports: ["create.id-mismatch"] };
   try { return { ok: true, created: false, reports: [], collection: collectionOf(getList(id)) }; } catch { /* not there: made */ }
   const kind = String(body.kind ?? "list");
   if (!["list", "table", "board", "matrix", "calendar"].includes(kind)) return { ok: false, reports: [`collection.kind-not-kept: Talaris keeps list, table, board, matrix and calendar, not ${kind}`] };
-  // Its members are added one by one, as any client adds them: a rule in another app's words is not one Talaris can run,
-  // so one made from another app's smart collection is kept in step by whoever made it.
+  // A rule comes only in Talaris's own words (lists.ts, isCondition): one in another app's is not one it can run,
+  // so a smart collection whose rule could not be put into them is kept in step by whoever made it, member by member.
+  const m = body.membership as { mode?: string; query?: unknown } | undefined;
+  if (m?.mode === "query" && !isCondition(m.query)) return { ok: false, reports: ["collection.rule-not-runnable: a rule in Talaris's own conditions"] };
   const made = createList({ id, name: String(body.name ?? "Untitled"), kind: kind as List["kind"],
+    ...(m?.mode === "query" ? { query: m.query as Condition } : {}),
     ...(body.placement ? { placement: body.placement as List["placement"] } : {}),
     ...(body.order ? { order: body.order as List["order"] } : {}),
-    extra: Object.fromEntries(Object.entries(body).filter(([k]) => k.includes(":"))) });
+    extra: { ...Object.fromEntries(Object.entries(body).filter(([k]) => k.includes(":") && !k.startsWith("talaris:"))),
+      ...(by ? { "talaris:syncedBy": by.name, "talaris:syncedPlugin": by.id } : {}) } });
   return { ok: true, created: true, reports: [], collection: collectionOf(made) };
+}
+
+/**
+ * A synced collection's definition, kept in step with the app it is paired
+ * with (Talaris's own route, not the format's: the format writes only a
+ * collection's prefixed keys): its name, its regions, its order, its rule —
+ * a rule only in Talaris's words, or none (its members then kept by hand, by
+ * whoever keeps it in step). Marked as synced, and by what, so the Tasks
+ * panel can say so.
+ */
+export function defineCollection(id: string, d: { name?: string; placement?: unknown; order?: unknown; membership?: { mode?: string; query?: unknown }; synced?: boolean }, by: { id: string; name: string }): MemberAnswer {
+  try { getList(id); } catch { return { ok: false, reports: ["collection.not-found"] }; }
+  // No longer synced (its other side gone): the mark taken off, the collection kept as it stands.
+  if (d.synced === false) {
+    const l = getList(id);
+    delete l["talaris:syncedBy"];
+    delete l["talaris:syncedPlugin"];
+    putList(l);
+    return { ok: true, reports: [], collection: collectionOf(getList(id)) };
+  }
+  if (d.membership?.mode === "query" && !isCondition(d.membership.query)) return { ok: false, reports: ["collection.rule-not-runnable: a rule in Talaris's own conditions"] };
+  updateList(id, {
+    ...(typeof d.name === "string" && d.name.trim() ? { name: d.name } : {}),
+    ...(d.placement ? { placement: d.placement as List["placement"] } : {}),
+    ...(d.order !== undefined ? { order: (d.order as List["order"]) ?? null } : {}),
+    ...(d.membership ? { query: d.membership.mode === "query" ? (d.membership.query as Condition) : null } : {}),
+  });
+  const now = getList(id);
+  now["talaris:syncedBy"] = by.name;
+  now["talaris:syncedPlugin"] = by.id;
+  putList(now);
+  return { ok: true, reports: [], collection: collectionOf(getList(id)) };
 }
 
 /**

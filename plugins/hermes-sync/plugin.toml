@@ -6,7 +6,7 @@
 id = "hermes-sync"
 name = "Hermes Notes sync"
 version = "0.1.0"
-description = "Keeps tasks, projects, people, unaffiliated notes and daily notes, with their attachments, in step with Hermes Notes."
+description = "Keeps tasks, projects, people, unaffiliated notes, daily notes and collections, with their attachments, in step with Hermes Notes."
 author = "Jeff Moore"
 license = "GPL-3.0-only"
 command = ["node", "main.mjs"]
@@ -18,6 +18,10 @@ description = "Sync with Hermes Notes now, rather than at the next interval"
 [[tools]]
 name = "restore_files"
 description = "Put back linked files deleted from disk, from the copies Hermes Notes holds"
+
+[[tools]]
+name = "choose_collections"
+description = "Ask again about Hermes Notes' collections that were not synced"
 
 [[tools]]
 name = "sync_status"
@@ -106,6 +110,13 @@ default = false
 help = "Talaris's daily notes (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
 
 [[settings]]
+key = "collections"
+label = "Collections"
+kind = "boolean"
+default = true
+help = "Hermes Notes' lists, tables, matrices and calendars: each asked about once — brought down, matched to one of Talaris's, or not synced. Hermes Notes' says what one is (name, regions, order, rule); Talaris runs the rule itself. Which region a card is in goes both ways. Deleting one in Talaris leaves Hermes Notes' alone."
+
+[[settings]]
 key = "seconds"
 label = "Look every (seconds)"
 kind = "number"
@@ -154,6 +165,13 @@ label = "Sync all with Hermes Notes"
 on = ["daily"]
 tool = "sync_now"
 when = ["buttons", "dailyNotes"]
+
+[[actions]]
+id = "choose-collections"
+label = "Choose collections to sync"
+on = ["tasks"]
+tool = "choose_collections"
+when = ["buttons", "collections"]
 
 [[actions]]
 id = "restore"

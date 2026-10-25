@@ -453,7 +453,7 @@
     const projHead = el("h3", {}, el("span", {}, "Projects"), el("button", { class: "add", title: "New project", onclick: () => { addingProject = true; drawSide(); } }, "+"));
     // Lists of rows flattened in: replaceChildren takes nodes, and would write an array out as text.
     side.replaceChildren(...[
-      el("h3", {}, el("span", {}, "Lists"), el("button", { class: "add", title: "New list", onclick: newList }, "+")),
+      el("h3", {}, el("span", {}, "Collections"), el("button", { class: "add", title: "New collection", onclick: newList }, "+")),
       lists.filter((l) => !l.archived).map((l) => {
         if (renaming === l.id) return renameRow(l);
         const row = el("div", { class: "item" + (isOn("list", l.id) ? " on" : ""), "data-id": l.id, title: l.name,
@@ -461,7 +461,11 @@
           oncontextmenu: (e) => { e.preventDefault(); menuAt(e.clientX, e.clientY, [
             { label: "Rename", act: () => { renaming = l.id; drawSide(); } },
             { label: "Archive", act: () => archiveList(l) },
-          ]); } }, el("span", {}, l.name));
+            { label: "Delete…", act: () => menuAt(e.clientX, e.clientY, [
+              { label: `Delete “${l.name}”`, act: () => deleteList(l) }, { label: "Keep it", act: () => {} }]) },
+          ]); } }, el("span", { class: "name" }, l.name),
+          // Kept in step with another app by a plugin (its definition is that app's), rather than Talaris's own.
+          l["talaris:syncedBy"] ? el("span", { class: "synced", title: `Synced by ${l["talaris:syncedBy"]}` }, "⇄") : null);
         sortable(row, l.id, "lists", (id, after, before) =>
           api("PATCH", `/lists/${enc(id)}`, { position: { after, before } }).then(loadSide).catch(failed));
         return row;
@@ -668,6 +672,14 @@
     setTimeout(() => { if (!ws) return; name.focus(); name.select(); }, 0);
   }
 
+  // Gone for good: the list only, never what is in it — nor, for a synced one, the collection on the other side.
+  function deleteList(l) {
+    api("DELETE", `/lists/${enc(l.id)}`).then(() => {
+      if (current && current.kind === "list" && current.id === l.id) current = null;
+      return refresh();
+    }).catch(failed);
+  }
+
   function archiveList(l) {
     api("PATCH", `/lists/${enc(l.id)}`, { archived: true }).then(() => {
       if (current && current.kind === "list" && current.id === l.id) current = null;
@@ -688,7 +700,7 @@
   // Without the editor a new list is a kept one, named where it stands.
   function newList() {
     if (window.ListEditor) { editList(null); return; }
-    api("POST", "/lists", { name: "New list" }).then(async (l) => {
+    api("POST", "/lists", { name: "New collection" }).then(async (l) => {
       await loadSide();
       renaming = l.id;
       showThing("list", l.id);
@@ -705,9 +717,9 @@
     $("count").textContent = shown ? String(shown.rows.length) : "";
     const proj = current && current.kind === "project" && projects.find((p) => p.id === current.id);
     $("edit-list").hidden = !(shown && (kept ? window.ListEditor : proj));
-    $("edit-list").textContent = proj ? "Edit project" : "Edit list";
+    $("edit-list").textContent = proj ? "Edit project" : "Edit collection";
     const host = $("rows");
-    if (!shown) { host.replaceChildren(current ? "" : el("div", { class: "empty" }, "No lists")); return; }
+    if (!shown) { host.replaceChildren(current ? "" : el("div", { class: "empty" }, "No collections")); return; }
     const kind = shown.list.kind || "list";
     if (kind !== "list" && window.TaskViews && typeof TaskViews.render === "function") {
       host.replaceChildren();
@@ -1245,7 +1257,7 @@
   function sideShown(on) {
     document.body.classList.toggle("no-side", !on);
     $("side-toggle").classList.toggle("on", on);
-    $("side-toggle").title = on ? "Hide lists" : "Show lists";
+    $("side-toggle").title = on ? "Hide the sidebar" : "Show the sidebar";
     store.set("talaris.tasks.side", on);
   }
   let sideOn = store.get("talaris.tasks.side", true) !== false;

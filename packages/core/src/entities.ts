@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jeff Moore
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Conflict, NotFound } from "./projects.js";
 import { seal, unseal } from "./seal.js";
@@ -350,6 +350,14 @@ export function sealedPut(folder: string, id: string, value: unknown): void {
 }
 export function sealedDrop(folder: string, id: string): void {
   rmSync(join(dir(folder), safe(id)), { force: true });
+}
+/** Whether a store has been through something once (a dotfile, so never read as one of its records); marked when asked. */
+export function sealedOnce(folder: string, what: string): boolean {
+  const mark = join(dir(folder), "." + safe(what));
+  if (existsSync(mark)) return true;
+  mkdirSync(dir(folder), { recursive: true });
+  writeFileSync(mark, "");
+  return false;
 }
 
 /**

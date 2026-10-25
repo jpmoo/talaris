@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { allRecords, getEntity, profilesOf, sealedDrop, sealedList, sealedPut, titleOf, typeFor, types, updateEntity, type Entity, type EntityType } from "./entities.js";
+import { allRecords, getEntity, profilesOf, sealedDrop, sealedList, sealedOnce, sealedPut, titleOf, typeFor, types, updateEntity, type Entity, type EntityType } from "./entities.js";
 import { Conflict, NotFound } from "./projects.js";
 import { newId } from "./store.js";
 import { isComplete, shapeOf, spanOf } from "./tasks.js";
@@ -44,6 +44,25 @@ export type Condition =
   | { kind: "hasAttachment"; has: boolean };
 
 export type SortKey = { field: string; part?: "start" | "end" } | { meta: "type" | "created" | "updated" };
+
+/** Whether a rule is one Talaris can run: its own conditions, with their own operators, all the way down. */
+export function isCondition(c: unknown, depth = 0): c is Condition {
+  if (!c || typeof c !== "object" || depth > 12) return false;
+  const x = c as Record<string, unknown>;
+  const str = (v: unknown) => typeof v === "string";
+  switch (x.kind) {
+    case "group": return (x.match === "all" || x.match === "any") && Array.isArray(x.items) && x.items.every((i) => isCondition(i, depth + 1));
+    case "profile": return str(x.profile) && (x.op === undefined || x.op === "is" || x.op === "isNot");
+    case "type": return str(x.typeId) && (x.op === undefined || x.op === "is" || x.op === "isNot");
+    case "created": case "edited": return (x.op === "before" || x.op === "after") && str(x.date);
+    case "tag": return str(x.tag) && (x.op === undefined || x.op === "include" || x.op === "exclude");
+    case "property": return str(x.key) && ["eq", "neq", "contains", "lt", "gt", "empty", "notEmpty"].includes(String(x.op)) && (x.value === undefined || str(x.value));
+    case "state": return x.value === "open" || x.value === "complete";
+    case "text": return str(x.value);
+    case "hasAttachment": return typeof x.has === "boolean";
+    default: return false;
+  }
+}
 
 export interface Region {
   name: string;
@@ -246,7 +265,7 @@ export function getList(id: string): List {
   return l;
 }
 
-function putList(l: List): List {
+export function putList(l: List): List {
   sealedPut(LISTS, l.id, l);
   return l;
 }
@@ -351,9 +370,9 @@ export function updateList(id: string, p: ListPatch): List {
   return putList(l);
 }
 
+/** A list gone, archived or not (the panel asks first). Only the list: its members are untouched, and a synced one's other side too. */
 export function deleteList(id: string): void {
-  const l = getList(id);
-  if (!l.archived) throw new Conflict("a list is archived before it is deleted");
+  getList(id);
   sealedDrop(LISTS, id);
 }
 
@@ -624,8 +643,9 @@ let started = false;
 function ensureStarters(): void {
   if (started) return;
   started = true;
+  // Once only: a store emptied by hand stays empty. (One that already had lists before the mark counts as started.)
   const lists = sealedList<List>(LISTS);
-  if (lists.some((l) => l["talaris:starter"]) || lists.length) return;
+  if (sealedOnce(LISTS, "starters") || lists.length) return;
   let at: string | null = null;
   for (const s of STARTERS) {
     putList({

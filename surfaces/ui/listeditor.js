@@ -534,7 +534,6 @@
       }
       function paintDanger() {
         if (!list) { dangerBox.replaceChildren(); return; }
-        if (!list.archived) { dangerBox.replaceChildren(el("button", { type: "button", class: "t-btn danger", onclick: archive }, "Archive")); return; }
         // Deleting cannot be undone, so it asks twice: the button arms, then acts.
         const del = el("button", { type: "button", class: "t-btn danger" }, "Delete");
         let armed = 0;
@@ -543,7 +542,8 @@
           del.textContent = "Delete?";
           armed = setTimeout(() => { armed = 0; del.textContent = "Delete"; }, 3000);
         });
-        dangerBox.replaceChildren(el("button", { type: "button", class: "t-btn", onclick: unarchive }, "Restore"), del);
+        dangerBox.replaceChildren(list.archived ? el("button", { type: "button", class: "t-btn", onclick: unarchive }, "Restore")
+          : el("button", { type: "button", class: "t-btn danger", onclick: archive }, "Archive"), del);
       }
 
       // ---- talking to the core: one thing at a time, its words shown as they are.
@@ -611,7 +611,9 @@
       function remove() { act(async () => { await api("DELETE", `/lists/${list.id}`); finish({ ...list, deleted: true }); }); }
 
       sheet.append(
-        el("div", { class: "le-title label" }, list ? "List" : "New list"),
+        el("div", { class: "le-title label" }, list ? "Collection" : "New collection"),
+        // A synced one is defined by the app it is synced with: changes here are put back at the next sync.
+        ...(list?.["talaris:syncedBy"] ? [el("div", { class: "le-muted" }, `Synced by ${list["talaris:syncedBy"]} — its name, regions, order and rule follow the other app`)] : []),
         row("Name", name), viewBox, memberBox, queryHost, orderBox, kindBox, err,
         el("div", { class: "le-acts" }, dangerBox, el("span", { class: "spacer" }),
           el("button", { type: "button", class: "t-btn", onclick: () => finish(null) }, "Cancel"),

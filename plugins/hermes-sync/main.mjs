@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { agreed, plan } from "./sync.mjs";
+import { bringDown, planCollections } from "./collections.mjs";
 
 const log = (...a) => process.stderr.write(`${a.join(" ")}\n`);
 
@@ -132,8 +133,9 @@ async function handOver(w) {
 // The state folder Talaris hands it (and backs up what [backup] names of it); the same place, run by hand.
 const STATE_DIR = (process.env.TALARIS_PLUGIN_STATE || "").trim() || join((process.env.XDG_STATE_HOME || "").trim() || join(homedir(), ".local/state"), "talaris", "plugins", "hermes-sync");
 const STATE = join(STATE_DIR, "state.json");
-const fresh = () => ({ started: false, links: [], apart: [], only: [], mode: null, cursors: null, last: null });
+const fresh = () => ({ started: false, links: [], apart: [], only: [], mode: null, cursors: null, last: null, collections: { pairs: [], declined: [], bring: [] } });
 let state = (() => { try { return { ...fresh(), ...JSON.parse(readFileSync(STATE, "utf8")) }; } catch { return fresh(); } })();
+state.collections = { pairs: [], declined: [], bring: [], ...(state.collections ?? {}) };
 // What it keeps holds copies of synced titles and words: the person's alone to read.
 function save() {
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
@@ -154,6 +156,7 @@ function words() {
     // Undated notes: all of Hermes Notes' (daily pages aside), or only those wearing one of the tags named.
     notes: settings.notes === "Only those with these tags" ? "tagged" : "all",
     noteTags: String(settings.noteTags ?? "").split(",").map((x) => x.trim().replace(/^#/, "")).filter(Boolean),
+    collections: settings.collections !== false,
     now: Date.now(),
   };
 }
@@ -161,6 +164,9 @@ function words() {
 // ------------------------------------------------------------ one sync
 
 let asked = [];
+// What waits to be decided, by part: the objects' (the plan's) and the collections'; put to the person together.
+const asking = { objects: [], collections: [] };
+const askAll = () => decideAgain([...asking.objects, ...asking.collections]);
 let running = null;
 let last = { at: null, summary: null, error: null };
 
@@ -194,14 +200,19 @@ async function once(force) {
   const s = words();
 
   // Nothing new on either side since last time: nothing to do. (An answer to a question starts a sync of its own.)
-  if (!force && state.started && state.cursors) {
+  // Collections: read whole once after starting, so Hermes Notes' are known (and asked about) before anything changes.
+  if (!force && state.started && state.cursors && !(s.collections && !lastH)) {
     try {
       const [dt, dh] = await Promise.all([tal("GET", `/interchange?since=${encodeURIComponent(state.cursors.t)}`), hermes("GET", `/interchange?since=${encodeURIComponent(state.cursors.h)}`)]);
-      if (!(dt.changes ?? []).length && !(dh.changes ?? []).length) { last = { ...last, at: new Date().toISOString() }; await say(); return; }
+      if (!(dt.changes ?? []).length && !(dh.changes ?? []).length) {
+        // Collections are looked at anyway, now and then and on a change in Talaris: a card moved is not always a change to an object.
+        if (s.collections && state.collections.pairs.length && (collectionsDue || ++quiet % 3 === 0)) await collectionsQuietly(s);
+        last = { ...last, at: new Date().toISOString() }; await say(); return;
+      }
     } catch (e) { if (!e.gone && !/cursor/.test(e.message)) throw e; }
   }
 
-  const [T, H, cT, cH] = await Promise.all([tal("GET", "/interchange"), hermes("GET", "/interchange"),
+  const [T, H, cT, cH] = await Promise.all([tal("GET", s.collections ? "/interchange?collections=1" : "/interchange"), hermes("GET", "/interchange"),
     tal("GET", "/conformance").catch(() => ({})), hermes("GET", "/conformance").catch(() => ({}))]);
   // Attachments travel only between two sides that both hand files over by their hash.
   s.files = [cT, cH].every((c) => (c.features ?? []).includes("attachment-files"));
@@ -222,7 +233,8 @@ async function once(force) {
   state.links = p.links;
   if (!state.started) {
     save();
-    await decideAgain(p.ask);
+    asking.objects = p.ask;
+    await askAll();
     await status([p.ask.some((d) => d.id === "start") ? "Ready for its first sync: start it in Settings, Plugins" : `${p.ask.length} to decide before the first sync`,
       ...(unmarked.length ? [`Hermes Notes has no type marked as ${unmarked.join(", ")}`] : [])].join(" · "));
     return;
@@ -251,8 +263,87 @@ async function once(force) {
   state.cursors = { t: T.cursor, h: H.cursor };
   save();
   last = { at: new Date().toISOString(), summary: { ...p.summary, written: done, failed }, error: failed ? `${failed} could not be written (its log says which)` : null, held: heldSaid(p.held) };
-  await decideAgain(p.ask);
+  asking.objects = p.ask;
+  if (s.collections) {
+    lastH = { types: H.types };
+    await collectionsPass(T, { ...H, whole: true }, titlesOf(H));
+  } else asking.collections = [];
+  await askAll();
   await say();
+}
+
+// ------------------------------------------------------------ collections (collections.mjs)
+
+let lastH = null;
+let quiet = 0;
+let collectionsDue = false;
+
+/** Hermes Notes' things' titles, for a question that names one: each by its type's profile's title slot. */
+function titlesOf(H) {
+  const types = new Map((H.types ?? []).map((t) => [t.id, t]));
+  const out = new Map();
+  for (const o of H.objects ?? []) {
+    const p = Object.values(types.get(o.type)?.profiles ?? {}).find((x) => typeof x?.title === "string");
+    const v = p ? o.properties?.[p.title] : null;
+    if (typeof v === "string" && v.trim()) out.set(o.id, v.trim());
+  }
+  return out;
+}
+
+/** Between full reads: Talaris's collections, and each paired one of Hermes Notes' alone. */
+async function collectionsQuietly(s) {
+  collectionsDue = false;
+  if (!lastH) return;
+  const T = await tal("GET", "/interchange?collections=1");
+  const got = await Promise.all(state.collections.pairs.map((p) => hermes("GET", `/interchange/collections/${encodeURIComponent(p.h)}`).then((e) => e?.collections?.[0] ?? null).catch(() => null)));
+  await collectionsPass(T, { types: lastH.types, collections: got.filter(Boolean), whole: false }, new Map());
+  if (asking.collections.length) await askAll();
+}
+
+/** One pass: what was chosen made, then the plan written. */
+async function collectionsPass(T, H, titles) {
+  const cs = state.collections;
+  // Brought down, as chosen: made in Talaris at its own id (marked as synced by the core), then paired.
+  for (const h of cs.bring ?? []) {
+    const hc = (H.collections ?? []).find((c) => c.id === h);
+    if (!hc) continue;
+    const b = bringDown(hc, H, T);
+    const made = await tal("PUT", `/interchange/collections/${encodeURIComponent(b.id)}`, b.body).catch((e) => ({ ok: false, reports: [e.message] }));
+    if (made.ok === false) { log(`collection ${hc.name}: ${(made.reports ?? []).join(", ")}`); continue; }
+    cs.pairs = [...cs.pairs.filter((p) => p.h !== h), { h, t: b.id, name: hc.name, base: {} }];
+    cs.bring = cs.bring.filter((x) => x !== h);
+    if (made.collection) T = { ...T, collections: [...(T.collections ?? []).filter((c) => c.id !== b.id), made.collection] };
+  }
+  const c = planCollections(cs, T, H, state.links, true, titles);
+  if (H.whole) log(`collections: ${(H.collections ?? []).length} in Hermes Notes, ${(T.collections ?? []).length} in Talaris, ${cs.pairs.length} paired, ${c.writes.length} to write, ${c.ask.length} to ask`);
+  let failed = 0;
+  for (const w of c.writes) {
+    try { await collectionWrite(w); } catch (e) { failed++; log(`collection ${w.side} ${w.op} ${w.coll ?? w.id}: ${e.message}`); }
+  }
+  save();
+  asking.collections = c.ask;
+  last.collections = [...c.said, ...(failed ? [`${failed} collection changes could not be written`] : [])];
+}
+
+async function collectionWrite(w) {
+  const member = (coll, obj) => `/interchange/collections/${encodeURIComponent(coll)}/members/${encodeURIComponent(obj)}`;
+  const check = (a) => { if (a && a.ok === false) throw new Error((a.reports ?? []).join(", ") || "refused"); return a; };
+  if (w.op === "define") return check(await tal("PUT", `/interchange/collections/${encodeURIComponent(w.id)}/definition`, w.body));
+  if (w.op === "member") return check(w.side === "talaris" ? await tal(w.verb, member(w.coll, w.obj), w.body) : await hermes(w.verb, member(w.coll, w.obj), w.body));
+  // A card put in a region, or taken out of every one.
+  const ask = w.side === "talaris" ? tal : hermes;
+  if (w.region === null) {
+    if (w.ruled) return check(await ask("DELETE", member(w.coll, w.obj), {}));
+    const a = await ask("PATCH", member(w.coll, w.obj), { region: null });
+    return a?.ok === false && /not-a-member/.test((a.reports ?? []).join()) ? a : check(a);
+  }
+  if (w.side === "talaris") {
+    const moved = await tal("PATCH", member(w.coll, w.obj), { region: w.region });
+    return moved?.ok === false ? check(await tal("PUT", member(w.coll, w.obj), { region: w.region })) : moved;
+  }
+  // Hermes Notes: made a member there with its region; one already a member is moved.
+  const put = check(await hermes("PUT", member(w.coll, w.obj), { region: w.region }));
+  return put?.created === false ? check(await hermes("PATCH", member(w.coll, w.obj), { region: w.region })) : put;
 }
 
 /** Statuses held: which still need a meaning, and where — Talaris's in Settings, Types; Hermes Notes' in its type editor. */
@@ -270,6 +361,7 @@ async function say() {
   if (asked.length) bits.push(`${asked.length} to decide`);
   if (last.error) bits.push(last.error);
   if (last.held) bits.push(last.held);
+  for (const x of last.collections ?? []) bits.push(x);
   if (last.unmarked?.length) bits.push(`Hermes Notes has no type marked as ${last.unmarked.join(", ")} — mark one in its type editor`);
   await status(bits.join(" · "));
 }
@@ -294,12 +386,25 @@ async function decided(item, choice, value) {
     // gone:<kind>:<the id still there>. Again: unlinked, so it is made anew. Here: unlinked and never carried.
     state.links = state.links.filter((l) => l.t !== b && l.h !== b);
     if (choice === "here") state.only = [...new Set([...(state.only ?? []), b])];
+  } else if (what === "coll") {
+    // coll:<hermes id>: brought down, matched to a Talaris collection (t=<id>), or not synced.
+    const cs = state.collections;
+    if (choice === "bring") cs.bring = [...new Set([...(cs.bring ?? []), a])];
+    else if (choice.startsWith("t=")) cs.pairs = [...cs.pairs.filter((p) => p.h !== a), { h: a, t: choice.slice(2), base: {} }];
+    else cs.declined = [...new Set([...(cs.declined ?? []), a])];
+    asking.collections = asking.collections.filter((x) => x.id !== item);
+  } else if (what === "place") {
+    // place:<hermes collection>:<hermes object>: which side's region stands.
+    const p = state.collections.pairs.find((x) => x.h === a);
+    if (p) p.pick = { ...(p.pick ?? {}), [b]: choice };
+    asking.collections = asking.collections.filter((x) => x.id !== item);
   } else if (what === "mode") {
     // Yes: it decides that way from now on. No: it keeps merging while the setting says otherwise.
     if (choice === "go") { state.mode = a; delete state.notMode; } else state.notMode = a;
   }
   save();
   asked = asked.filter((x) => x.id !== item);
+  asking.objects = asking.objects.filter((x) => x.id !== item);
   await sync(true);
   return { ok: true };
 }
@@ -309,6 +414,7 @@ async function decided(item, choice, value) {
 const TOOLS = [
   { name: "sync_now", description: "Sync Talaris with Hermes Notes now.", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: false, title: "Sync with Hermes Notes now" } },
   { name: "restore_files", description: "Linked files deleted from disk on a Talaris task, person or project, put back from the last copy Hermes Notes holds.", inputSchema: { type: "object", properties: { entity: { type: "string" } }, required: ["entity"] }, annotations: { readOnlyHint: false, title: "Restore missing files from Hermes Notes" } },
+  { name: "choose_collections", description: "Ask again about Hermes Notes' collections that were not synced.", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: false, title: "Choose collections to sync" } },
   { name: "sync_status", description: "How the sync with Hermes Notes stands: when it last ran, what it wrote, what waits to be decided.", inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true, title: "Sync status" } },
 ];
 
@@ -339,6 +445,7 @@ function schedule() {
 }
 let soon = null;
 function changedHere() {
+  collectionsDue = true;
   clearTimeout(soon);
   soon = setTimeout(() => void sync(), 2000);
 }
@@ -369,6 +476,12 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
       // Pressed from a sheet too (a Sync now button: {entity, kind}), and it is the same sync: everything that changed.
       if (m.params?.name === "sync_now") { await sync(true); return reply({ content: [{ type: "text", text: statusText() }], ...(last.error ? { isError: true } : {}) }); }
       if (m.params?.name === "restore_files") { const r = await restoreFiles(String(m.params?.arguments?.entity ?? "")); return reply({ content: [{ type: "text", text: r.text }], ...(r.error ? { isError: true } : {}) }); }
+      if (m.params?.name === "choose_collections") {
+        state.collections.declined = [];
+        save();
+        await sync(true);
+        return reply({ content: [{ type: "text", text: asking.collections.length ? `${asking.collections.length} collections to choose about, in Settings, Plugins.` : "No collection of Hermes Notes' waits to be chosen." }] });
+      }
       if (m.params?.name === "sync_status") return reply({ content: [{ type: "text", text: statusText() }] });
       return reply({ content: [{ type: "text", text: `no tool ${m.params?.name}` }], isError: true });
     }
