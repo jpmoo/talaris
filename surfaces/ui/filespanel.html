@@ -123,8 +123,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .sheet ul.fine { color: var(--muted); }
 .sheet .acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 
-/* Something dragged over: it will be taken, as a shortcut. */
-body.dropping::after { content: "Drop to bring in, as shortcuts"; position: absolute; inset: 52px 0 0; display: grid; place-items: center; font-size: 13px; letter-spacing: 1px;
+/* Something dragged over: it will be taken (asked as a shortcut or moved in). */
+body.dropping::after { content: "Drop to add them here"; position: absolute; inset: 52px 0 0; display: grid; place-items: center; font-size: 13px; letter-spacing: 1px;
   color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border: 2px dashed var(--accent); border-radius: 0 0 12px 12px; pointer-events: none; }
 
 @media (max-width: 1000px) { header .seg#days { display: none; } }

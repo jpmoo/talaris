@@ -204,7 +204,7 @@
   function drawRows() {
     if (!rows.length) {
       $("rows").replaceChildren(el("div", { class: "empty" }, filters.q || filters.status || filters.type || filters.days || filters.tags.length
-        ? "Nothing like that." : "No files here yet. Bring some in, or drop them on this panel."));
+        ? "Nothing like that." : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
     $("rows").replaceChildren(...groupsOf(rows).flatMap(([name, list]) => [
