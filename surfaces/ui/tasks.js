@@ -347,8 +347,49 @@
     };
   }
 
+  /*
+   * What plugins ask here rather than in Settings (which of Hermes Notes'
+   * collections to sync, where a card moved on both sides goes): a button in
+   * the header while any wait, and a chooser under it — grouped, each group
+   * under the plugin's own words for it.
+   */
+  let asks = [];
+  async function drawAsks() {
+    const b = $("asks");
+    if (!b) return;
+    asks = (await api("GET", "/plugins/decisions?on=tasks").catch(() => [])) || [];
+    const groups = new Set(asks.map((d) => d.group || ""));
+    b.hidden = !asks.length;
+    b.textContent = groups.size === 1 && asks[0].group ? `${asks.length} ${asks[0].group}` : `${asks.length} to choose`;
+    b.onclick = () => chooseAsks(b);
+  }
+  function chooseAsks(anchor, said) {
+    const box = el("div", { class: "asks" });
+    const draw = () => {
+      if (!asks.length) { box.replaceChildren(el("div", { class: "asks-head" }, said || "Nothing to choose")); return; }
+      const groups = [...new Set(asks.map((d) => d.group || ""))];
+      box.replaceChildren(...groups.map((g) => {
+        const these = asks.filter((d) => (d.group || "") === g);
+        const head = g ? `${these.length} ${g}.${these[0].prompt ? ` ${these[0].prompt}` : ""}` : these[0].pluginName;
+        return el("div", { class: "asks-group" }, el("div", { class: "asks-head" }, head), ...these.map((d) => el("div", { class: "ask" },
+          el("div", { class: "ask-q" }, d.title),
+          d.detail ? el("div", { class: "ask-d" }, d.detail) : null,
+          el("div", { class: "ask-acts" }, ...d.choices.filter((c) => !c.edit).map((c) => el("button", { class: "t-btn", onclick: async (e) => {
+            for (const x of e.currentTarget.parentElement.querySelectorAll("button")) x.disabled = true;
+            try { await api("POST", `/plugins/${enc(d.plugin)}/decide?on=tasks`, { item: d.id, choice: c.key }); } catch (err) { failed(err); }
+            await drawAsks();
+            draw();
+            refresh();
+          } }, c.label))))));
+      }));
+    };
+    draw();
+    popUnder(anchor, box);
+  }
+
   async function loadSide() {
     drawUnbacked();
+    drawAsks();
     const [l, p, c] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => [])]);
     lists = l || [];
     projects = p || [];
@@ -1293,7 +1334,7 @@
     const was = surface;
     surface = s;
     // What plugins put on the whole list (Sync all …), asked again each time it is out: a setting may have changed.
-    if ((s.up && !was.up) || (WINDOW && !was.theme)) $("list-actions").replaceChildren(window.Peek ? Peek.actionButtons("tasks", null, api) : "");
+    if ((s.up && !was.up) || (WINDOW && !was.theme)) $("list-actions").replaceChildren(window.Peek ? Peek.actionButtons("tasks", null, api, "t-btn", null, (b, said) => drawAsks().then(() => chooseAsks(b, said))) : "");
     if (WINDOW) return;
     if (s.up && !was.up) {
       Motion.arrive(document.body, how());

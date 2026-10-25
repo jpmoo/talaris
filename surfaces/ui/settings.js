@@ -1857,7 +1857,8 @@ function mergeSheet(plugin, d, field, done) {
 }
 
 function plDecisions(r, redraw) {
-  const items = r.decisions || [];
+  // Those a plugin asks in a place of their own (Tasks…) are asked there, not here.
+  const items = (r.decisions || []).filter((d) => !d.on);
   if (!items.length) return null;
   return pel("div", { class: "pl-decide" },
     pel("h3", {}, `To decide · ${items.length}`),

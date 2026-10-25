@@ -174,9 +174,12 @@ async function decideAgain(items) {
   const before = new Set(asked.map((d) => d.id));
   asked = items;
   await talaris("talaris/decide", { items }).catch(() => undefined);
+  // Said once, where they are asked: Tasks for what is asked there, Settings for the rest.
   const fresh = items.filter((d) => !before.has(d.id));
-  if (fresh.length) {
-    await talaris("talaris/notify", { title: "Hermes Notes sync", body: fresh.length === 1 ? `${fresh[0].title} — in Settings, Plugins` : `${fresh.length} things to decide — in Settings, Plugins` }).catch(() => undefined);
+  for (const [where, these] of [["Tasks", fresh.filter((d) => d.on === "tasks")], ["Settings, Plugins", fresh.filter((d) => !d.on)]]) {
+    if (!these.length) continue;
+    const body = these.length === 1 ? `${these[0].title} — in ${where}` : these[0].group && these.every((d) => d.group === these[0].group) ? `${these.length} ${these[0].group} — in ${where}` : `${these.length} things to decide — in ${where}`;
+    await talaris("talaris/notify", { title: "Hermes Notes sync", body }).catch(() => undefined);
   }
 }
 
@@ -358,7 +361,9 @@ async function say() {
   const when = last.at ? new Date(last.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
   const bits = [`Synced ${when}`];
   if (sm?.written) bits.push(`${sm.written} written`);
-  if (asked.length) bits.push(`${asked.length} to decide`);
+  const inTasks = asked.filter((d) => d.on === "tasks").length, here = asked.length - inTasks;
+  if (here) bits.push(`${here} to decide`);
+  if (inTasks) bits.push(`${inTasks} to choose in Tasks`);
   if (last.error) bits.push(last.error);
   if (last.held) bits.push(last.held);
   for (const x of last.collections ?? []) bits.push(x);
@@ -480,7 +485,8 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
         state.collections.declined = [];
         save();
         await sync(true);
-        return reply({ content: [{ type: "text", text: asking.collections.length ? `${asking.collections.length} collections to choose about, in Settings, Plugins.` : "No collection of Hermes Notes' waits to be chosen." }] });
+        const n = asking.collections.filter((d) => d.id.startsWith("coll:")).length;
+        return reply({ content: [{ type: "text", text: n ? `${n} eligible collection${n === 1 ? "" : "s"}. Choose which to sync.` : "Every eligible collection in Hermes Notes is synced or declined." }] });
       }
       if (m.params?.name === "sync_status") return reply({ content: [{ type: "text", text: statusText() }] });
       return reply({ content: [{ type: "text", text: `no tool ${m.params?.name}` }], isError: true });

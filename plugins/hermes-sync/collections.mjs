@@ -294,8 +294,8 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
         else {
           const title = titles.get(h);
           const label = (r) => (d.body.placement?.regions ?? []).find((x) => x.name === r)?.label ?? (r || "no region");
-          ask.push({ id: `place:${p.h}:${h}`, title: `Where does ${title ? `“${title}”` : "a card"} go in “${hc.name}”?`,
-            detail: "It was moved on both sides since they last agreed.",
+          ask.push({ id: `place:${p.h}:${h}`, on: "tasks", group: "cards moved on both sides", prompt: "Choose where each goes.",
+            title: `${title ? `“${title}”` : "A card"} in ${hc.name}`,
             choices: [{ key: "hermes", label: `${label(hr)} (Hermes Notes)` }, { key: "talaris", label: `${label(tr)} (Talaris)` }] });
           continue;
         }
@@ -318,9 +318,9 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
     for (const hc of hCols.values()) {
       if (!KINDS.includes(hc.kind) || paired.has(hc.id) || (cs.declined ?? []).includes(hc.id)) continue;
       const mates = [...tCols.values()].filter((c) => c.kind === hc.kind && !taken.has(c.id) && !c.archived && !c["talaris:syncedPlugin"]).slice(0, 9);
-      ask.push({ id: `coll:${hc.id}`, title: `Sync Hermes Notes' “${hc.name}” (${hc.kind})?`,
-        detail: "Brought down, its rule runs in Talaris, live; its name, regions and order follow Hermes Notes'. Deleting it in Talaris later leaves Hermes Notes' as it is.",
-        choices: [{ key: "bring", label: "Bring it down" }, ...mates.map((c) => ({ key: `t=${c.id}`, label: `Match Talaris's “${c.name}”` })), { key: "no", label: "Don't sync" }] });
+      ask.push({ id: `coll:${hc.id}`, on: "tasks", group: "eligible collections", prompt: "Choose which to sync.",
+        title: `${hc.name} · ${hc.kind}`,
+        choices: [{ key: "bring", label: "Bring it down" }, ...mates.map((c) => ({ key: `t=${c.id}`, label: `Match “${c.name}”` })), { key: "no", label: "Don't sync" }] });
     }
   }
   return { writes, ask, said };

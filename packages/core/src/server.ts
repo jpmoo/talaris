@@ -483,6 +483,7 @@ route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
 // Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
+route("GET", "/plugins/decisions", (_r, _p, q) => plugins.decisionsOn(q.get("on") ?? ""));
 route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? "", q.get("entity") ?? undefined));
 route("POST", "/plugins/:id/actions/:action", async (req, [id, action]) => {
   const b = await json<{ entity?: string; kind?: string }>(req);
@@ -504,10 +505,10 @@ route("PUT", "/plugins/:id/settings", async (req, [id]) => {
   return { ok: true };
 });
 route("GET", "/plugins/:id/log", (_r, [id]) => plugins.pluginLog(id!));
-route("POST", "/plugins/:id/decide", async (req, [id]) => {
+route("POST", "/plugins/:id/decide", async (req, [id], q) => {
   const b = await json<{ item?: string; choice?: string; value?: string }>(req);
   if (!b.item || !b.choice) throw new BadRequest("which, and what was chosen");
-  return plugins.decide(id!, b.item, b.choice, typeof b.value === "string" ? b.value : undefined);
+  return plugins.decide(id!, b.item, b.choice, typeof b.value === "string" ? b.value : undefined, q.get("on") ?? undefined);
 });
 route("POST", "/plugins/:id/call", async (req, [id]) => {
   const b = await json<{ tool?: string; arguments?: Record<string, unknown> }>(req);

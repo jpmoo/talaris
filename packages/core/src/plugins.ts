@@ -620,6 +620,11 @@ export interface Decision {
   sides?: [string, string];
   /** The answers. One that is `edit` is written by the person (a merge of the two), and its words go back with it. */
   choices: { key: string; label: string; edit?: boolean }[];
+  /** Asked where it belongs rather than in Settings: a place a plugin's actions go ("tasks", "people"…). */
+  on?: string;
+  /** Asked with others like it, under the plugin's words for them: what they are ("eligible collections"), and what to do ("Choose which to sync."). */
+  group?: string;
+  prompt?: string;
 }
 /** The most a field's value, or a written answer, may hold: a long note, whole. */
 const MOST_TEXT = 200_000;
@@ -634,16 +639,21 @@ function checkedDecisions(v: unknown): Decision[] {
       ...(Array.isArray(d.fields) ? { fields: (d.fields as Record<string, unknown>[]).slice(0, 40).map((f) => ({ label: String(f.label ?? ""), here: words(f.here, f.text === true), there: words(f.there, f.text === true), ...(f.text === true ? { text: true } : {}) })) } : {}),
       ...(Array.isArray(d.sides) && d.sides.length === 2 ? { sides: [String(d.sides[0]), String(d.sides[1])] as [string, string] } : {}),
       choices: (d.choices as Record<string, unknown>[]).slice(0, 12).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? ""), ...(c.edit === true ? { edit: true } : {}) })),
+      ...(typeof d.on === "string" && LISTS.includes(d.on) ? { on: d.on } : {}),
+      ...(typeof d.group === "string" ? { group: d.group.slice(0, 100) } : {}),
+      ...(typeof d.prompt === "string" ? { prompt: d.prompt.slice(0, 200) } : {}),
     }];
   });
 }
 
 /** An answer, given in Settings: sent to the plugin, which acts on it and says its list again. */
-export async function decide(id: string, item: string, choice: string, value?: string): Promise<unknown> {
+export async function decide(id: string, item: string, choice: string, value?: string, on?: string): Promise<unknown> {
   const r = running.get(id);
   if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
   const d = r.decisions.find((x) => x.id === item);
   if (!d) throw new NotFound("that has been decided already, or is no longer asked");
+  // Answered from a place (Tasks): only what is asked there.
+  if (on !== undefined && d.on !== on) throw new Conflict("that is not asked here");
   const c = d.choices.find((x) => x.key === choice);
   if (!c) throw new Conflict("not one of its answers");
   // Words go back only with an answer that asks for them, and no more than a field may hold.
@@ -878,7 +888,7 @@ export function pluginActions(kind: string, entity?: string): { plugin: string; 
  * the tool said, and how many decisions the plugin is waiting on now, so the
  * button can say "2 to decide" rather than "done".
  */
-export async function runAction(id: string, action: string, entity: string | undefined, kind: string): Promise<{ text: string; error: boolean; decisions: number }> {
+export async function runAction(id: string, action: string, entity: string | undefined, kind: string): Promise<{ text: string; error: boolean; decisions: number; here: number }> {
   if (!entity && !LISTS.includes(kind)) throw new Conflict("pressed on what?");
   const r = running.get(id);
   if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
@@ -886,7 +896,15 @@ export async function runAction(id: string, action: string, entity: string | und
   if (!a) throw new NotFound(`${r.manifest.name} offers no ${action}`);
   const res = await callPluginTool(id, a.tool, { ...(entity ? { entity } : {}), kind: kindOf(kind) }) as { content?: { type: string; text?: string }[]; isError?: boolean };
   const text = (res?.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n").trim();
-  return { text, error: Boolean(res?.isError), decisions: running.get(id)?.decisions.length ?? 0 };
+  const asked = running.get(id)?.decisions ?? [];
+  // Those asked in Settings, and those asked right where it was pressed (`on`).
+  return { text, error: Boolean(res?.isError), decisions: asked.filter((d) => !d.on).length, here: asked.filter((d) => d.on === kind).length };
+}
+
+/** What plugins ask in one place (Tasks, People…), there rather than in Settings: each with whose question it is. */
+export function decisionsOn(place: string): (Decision & { plugin: string; pluginName: string })[] {
+  return [...running.values()].filter((r) => r.state === "running")
+    .flatMap((r) => r.decisions.filter((d) => d.on === place).map((d) => ({ ...d, plugin: r.manifest.id, pluginName: r.manifest.name })));
 }
 
 /** Every running plugin's tools, for Talaris's MCP to pass to Morgan. */

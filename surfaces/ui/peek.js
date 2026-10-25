@@ -66,7 +66,8 @@ window.Peek = (() => {
   const pressing = new Map(); // plugin/action/entity → what its button says while it runs, and a moment after
   // Or on a whole list (People's, Tasks'): with no thing, only the list's name for `kind`.
   const LISTS = ["people", "tasks", "notes", "daily"];
-  function actionButtons(kind, entityId, api, cls = "t-btn", onDone = null) {
+  /** `onChoose(button, said)`: the page's chooser, for what a press leaves to decide right there (a decision `on` this place). */
+  function actionButtons(kind, entityId, api, cls = "t-btn", onDone = null, onChoose = null) {
     const holder = el("span", { class: "plugin-actions" });
     if ((!entityId && !LISTS.includes(kind)) || !api) return holder;
     api("GET", `/plugins/actions?kind=${encodeURIComponent(kind)}${entityId ? `&entity=${encodeURIComponent(entityId)}` : ""}`).then((actions) => {
@@ -89,6 +90,8 @@ window.Peek = (() => {
               b.disabled = false;
               // What came of it, in a word; the whole of what the plugin said on hover.
               if (r.error) say("Didn't work", r.text, 8000);
+              // Asked right here: the page's chooser, under the button, in the plugin's words.
+              else if (r.here && onChoose) { say(a.label, r.text, 1); onChoose(b, r.text); }
               else if (r.decisions) say(`${r.decisions} to decide`, `${r.text} Decide in Settings, Plugins.`, 8000);
               else say("Done", r.text, 2500);
               if (!r.error && onDone) onDone(r);

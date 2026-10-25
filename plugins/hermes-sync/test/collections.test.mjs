@@ -100,6 +100,7 @@ test("cards keep their regions both ways; moved on both sides, it asks", () => {
   const cs2 = { pairs: [{ h: "hm", t: "c_e", base: { regions: { h3: "" } } }], declined: [] };
   const asked = planCollections(cs2, Tc, Hc, links, true, new Map([["h3", "Call the bank"]])).ask;
   assert.equal(asked[0].id, "place:hm:h3");
+  assert.equal(asked[0].on, "tasks");
   assert.match(asked[0].title, /Call the bank/);
   cs2.pairs[0].pick = { h3: "talaris" };
   assert.deepEqual(planCollections(cs2, Tc, Hc, links).writes.filter((w) => w.op === "place").map((w) => [w.side, w.region]), [["hermes", "do"]]);
