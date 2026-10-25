@@ -64,6 +64,14 @@ note sits among the undated notes is Talaris's alone: Hermes Notes' are flat,
 and one made there arrives at the top. A note made in Hermes Notes from
 Talaris, in tagged mode, wears the first tag named.
 
+**Daily notes**, when the Daily notes setting is on: Talaris's (Home's, one a
+day) and Hermes Notes' daily pages, as the format's `journal` — the page for a
+day, its date its identity. Two pages for the same day are paired, never made
+twice; a day with no words is not made on the other side (both apps make an
+empty page on opening a day). Their words travel as a note's do; a day made in
+Hermes Notes is titled as it titles its own ("Sunday, October 25, 2026").
+Hermes Notes says it has days only once it has one, so open Today there once.
+
 **Attachments**, on anything whose type keeps files on both sides — the first
 field of the format's `attachment` kind, found by its kind and never its name.
 They compare as which files (by hash), so a file renamed is the same file. A

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, renameSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, createEntity, findEntities, forgetFiles, getEntity, getFile, putFile, reloadEntities, sealedList, sealedPut, types, updateEntity, type Entity, type EntityType, type Relation } from "./entities.js";
-import { createNote, isUndated, reconcileNotes, writeNote } from "./notes.js";
+import { createDay, createNote, isDay, isUndated, reconcileNotes, writeDay, writeNote } from "./notes.js";
 import { keepLinks, linkedBytes, refreshLinks } from "./links.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
@@ -433,6 +433,17 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
   const touched = [...Object.keys(p.set ?? {}), ...propUnset];
   const before = hashesIn(now.properties, touched);
   const release = () => { const after = new Set(hashesIn(set, touched)); forgetFiles(before.filter((h) => !after.has(h))); };
+  // A daily note is its day's page: words to it (notes.ts); the date is its identity; anything else is the entity's.
+  if (isDay(id)) {
+    writeDay(id, set ?? {}, body.body === "set" ? body.content : body.body === "clear" ? "" : undefined);
+    const rest: Record<string, unknown> = Object.fromEntries(Object.entries(set ?? {}).filter(([k]) => !["title", "date", "body"].includes(k)));
+    for (const k of propUnset) if (!["title", "date", "body"].includes(k)) rest[k] = null;
+    if (Object.keys(rest).length || p.addTags?.length || p.removeTags?.length) {
+      updateEntity(id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}) });
+    }
+    release();
+    return { ok: true, created: false, object: getEntity(id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
+  }
   // An undated note is its file: a title renames it, words are written to it (notes.ts); anything else is the entity's.
   if (isUndated(id)) {
     const e = writeNote(id, set ?? {}, body.body === "set" ? body.content : body.body === "clear" ? "" : undefined);
@@ -498,6 +509,17 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
   }
   const reports: string[] = [];
   const properties = absorbFiles(body.properties, reports) ?? {};
+  // A page for a day made through the binding is that day's daily note (notes.ts), the date its identity; never a second one for the day.
+  const dayField = types().find((t) => t.id === body.type)?.profiles?.journal?.date;
+  if (typeof dayField === "string" && typeof properties[dayField] === "string") {
+    const bodyField = types().find((t) => t.id === body.type)?.profiles?.note?.body;
+    const words = bodyField === "content" || typeof bodyField !== "string" ? body.content ?? "" : String(properties[bodyField] ?? "");
+    let made;
+    try { made = createDay(at, String(properties[dayField]), words); }
+    catch (e) { return { ok: false, created: false, fidelity: "full", reports: [(e as Error).message], cursor: cursor() }; }
+    if (body.tags?.length) updateEntity(made.id, { tags: body.tags });
+    return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
+  }
   // A note made through the binding is an undated note: a page in ~/Projects/Notes, at the id asked for (notes.ts).
   const noteTitle = types().find((t) => t.id === body.type)?.profiles?.note?.title;
   if (typeof noteTitle === "string" && !types().find((t) => t.id === body.type)?.profiles?.task) {

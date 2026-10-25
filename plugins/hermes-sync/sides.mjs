@@ -14,11 +14,13 @@ export const KINDS = {
   contact: ["title", "email", "phone", "organization", "role", "body", "files", "tags"],
   task: ["title", "status", "complete", "start", "due", "project", "files", "tags"],
   note: ["title", "body", "files", "tags"],
+  // The page for a day: known by its date, which is its identity on both sides; its words are the note's.
+  journal: ["date", "body", "files", "tags"],
 };
 /** The slots that point at other things, and what they point at. */
 export const REFS = { task: { project: "project" } };
 /** In order: what is pointed at is made before what points at it. */
-export const ORDER = ["project", "contact", "task", "note"];
+export const ORDER = ["project", "contact", "task", "journal", "note"];
 const DATES = new Set(["start", "end", "due"]);
 
 /**
@@ -43,6 +45,15 @@ export function collapser(a, b) {
 }
 
 const field = (type, key) => (type.fields ?? []).find((f) => f.key === key);
+/**
+ * A type's map for a kind. A day's page is a note too, and its type says so
+ * in two profiles — `journal` (its date) and `note` (its words): read as one.
+ */
+const profileOf = (type, kind) => {
+  const p = type?.profiles;
+  if (!p?.[kind]) return null;
+  return kind === "journal" ? { ...(p.note ?? {}), ...p.journal } : p[kind];
+};
 /** The mark on a copy that came from Hermes Notes into Talaris (Talaris's links.ts reads it). */
 export const ORIGIN = "hermes-sync:origin";
 /**
@@ -80,7 +91,7 @@ export class Side {
   /** A kind's status options and what each means: `{ options, states, unmapped }`, or null when it has no status. */
   statuses(kind) {
     const t = this.typeFor(kind);
-    const map = t?.profiles?.[kind];
+    const map = profileOf(t, kind);
     if (!map?.status) return null;
     const f = field(t, map.status);
     const options = f?.options ?? [];
@@ -91,7 +102,7 @@ export class Side {
 
   /** What a task's status means, by its type's own `states`; null where it says nothing. */
   stateOf(o, kind) {
-    const map = this.types.get(o.type)?.profiles?.[kind];
+    const map = profileOf(this.types.get(o.type), kind);
     if (!map?.status) return null;
     const s = map.states?.[o.properties?.[map.status]];
     return STATES.includes(s) ? s : null;
@@ -100,6 +111,9 @@ export class Side {
   /** The kind an object is (of those that sync), by its type's profiles. */
   kindOf(o) {
     const profiles = this.types.get(o?.type)?.profiles ?? {};
+    // One type may hold notes and days alike (Hermes Notes' text type): a day is one carrying its date.
+    const day = profiles.journal?.date;
+    if (typeof day === "string") return o?.properties?.[day] ? "journal" : ORDER.filter((k) => k !== "journal").find((k) => k in profiles) ?? null;
     return ORDER.find((k) => k in profiles) ?? null;
   }
 
@@ -113,7 +127,7 @@ export class Side {
   has(kind, slot) {
     const t = this.typeFor(kind);
     if (!t) return false;
-    const map = t.profiles[kind];
+    const map = profileOf(t, kind);
     if (slot === "files") return Boolean(filesField(t));
     // Tags are every object's in the format, not a profile slot.
     if (slot === "tags") return true;
@@ -124,7 +138,7 @@ export class Side {
   /** One slot's raw value, through the profile. */
   raw(o, kind, slot) {
     const type = this.types.get(o.type);
-    const map = type?.profiles?.[kind];
+    const map = profileOf(type, kind);
     if (!map) return null;
     if (slot === "tags") return o.tags?.length ? o.tags : null;
     if (slot === "files") {
@@ -170,13 +184,13 @@ export class Side {
       const ids = (Array.isArray(v) ? v : [v]).map(String).map(key).filter(Boolean).sort();
       return ids.length ? ids : null;
     }
-    if (DATES.has(slot)) return sameTime(v);
+    if (DATES.has(slot) || slot === "date") return sameTime(v);
     if (slot === "email" || slot === "phone") {
       const list = (Array.isArray(v) ? v : [v]).map((x) => String(x).trim()).filter(Boolean);
       return list.length ? (slot === "email" ? list.map((x) => x.toLowerCase()) : list) : null;
     }
     // An organization kept as a thing of its own is not words to copy: left alone.
-    if (slot === "organization" && field(this.types.get(o.type), this.types.get(o.type)?.profiles?.[kind]?.organization)?.kind === "reference") return null;
+    if (slot === "organization" && field(this.types.get(o.type), profileOf(this.types.get(o.type), kind)?.organization)?.kind === "reference") return null;
     return typeof v === "string" ? v : JSON.stringify(v);
   }
 
@@ -186,7 +200,7 @@ export class Side {
     if (v === null) return "—";
     if (slot === "complete") return v ? "done" : "not done";
     if (slot === "status") {
-      const map = this.types.get(o.type)?.profiles?.[kind];
+      const map = profileOf(this.types.get(o.type), kind);
       const label = field(this.types.get(o.type), map?.status)?.["talaris:labels"]?.[v] ?? v;
       const st = this.stateOf(o, kind);
       return st && st !== label ? `${label} (${st.replace("-", " ")})` : String(label);
@@ -207,7 +221,7 @@ export class Side {
    */
   write(o, kind, slot, value, rawFrom, id) {
     const type = o ? this.types.get(o.type) : this.typeFor(kind);
-    const map = type?.profiles?.[kind];
+    const map = profileOf(type, kind);
     if (!map) return null;
     if (slot === "tags") {
       // Named moves, as the format writes tags: a tag this side holds and the other never said is not removed by a whole list.

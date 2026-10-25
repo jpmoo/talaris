@@ -136,7 +136,7 @@ function words() {
   return {
     // A side winning that was declined goes on merging, until the setting is changed.
     mode: asked === state.notMode ? "merge" : asked,
-    kinds: { task: settings.tasks !== false, project: settings.projects !== false, contact: settings.people !== "Off", note: (settings.notes ?? "Off") !== "Off" },
+    kinds: { task: settings.tasks !== false, project: settings.projects !== false, contact: settings.people !== "Off", note: (settings.notes ?? "Off") !== "Off", journal: settings.dailyNotes === true },
     people: settings.people === "Everyone" ? "everyone" : "known",
     // Undated notes: all of Hermes Notes' (daily pages aside), or only those wearing one of the tags named.
     notes: settings.notes === "Only those with these tags" ? "tagged" : "all",
@@ -200,7 +200,8 @@ async function once(force) {
   }
   // A kind wanted that one side has no type for: said, so the person knows where to mark one.
   const declares = (env, kind) => (env.types ?? []).some((t) => t.profiles && kind in t.profiles);
-  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && !declares(H, k)).map(([k]) => ({ contact: "person", project: "project", task: "task", note: "note" })[k]);
+  // Hermes Notes declares a type for days only once it has one (it says so from its data): no day there yet is not a missing mark.
+  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && k !== "journal" && !declares(H, k)).map(([k]) => ({ contact: "person", project: "project", task: "task", note: "note" })[k]);
   const p = plan(state, T, H, s, randomUUID);
   last.unmarked = unmarked;
   state.links = p.links;

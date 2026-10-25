@@ -26,8 +26,10 @@ const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
   start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", status: "Status", project: "Project",
-  files: "Attachments", tags: "Tags" };
-const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note" };
+  files: "Attachments", tags: "Tags", date: "Day" };
+const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note", journal: "daily note" };
+/** A day as Hermes Notes titles its own daily notes: "Sunday, October 25, 2026". */
+const dayTitle = (date) => new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 /** The mark Talaris puts on its undated notes (notes.ts): the only notes of Talaris's this sync carries. */
 const UNDATED = "talaris:undated";
 /**
@@ -115,6 +117,11 @@ export function plan(state, T, H, s, newId) {
   const make = (toSide, kind, fromSide, fromObj, id) => {
     const type = toSide.typeFor(kind);
     const p = carry(toSide, null, kind, fromSide, fromObj, slotsOf(kind));
+    // A day made in Hermes Notes is titled as it titles its own; Talaris's is named by its date alone.
+    if (kind === "journal" && toSide === h) {
+      const titleKey = type.profiles?.note?.title, day = fromSide.raw(fromObj, kind, "date");
+      if (typeof titleKey === "string" && day) p.set = { ...(p.set ?? {}), [titleKey]: dayTitle(String(day).slice(0, 10)) };
+    }
     // A note made in Hermes Notes, in tagged mode, wears the first tag named — or it would not come back next time.
     const tags = [...new Set([...(p.tags ?? []), ...(kind === "note" && toSide === h && s.notes === "tagged" && s.noteTags?.length ? [s.noteTags[0]] : [])])];
     return { side: toSide === t ? "talaris" : "hermes", op: "put", id,
@@ -133,7 +140,7 @@ export function plan(state, T, H, s, newId) {
       for (const a of ts) {
         // Certain: the same address, or the same name where names are how the thing is known.
         const sure = hs.filter((b) => !taken.has(b.id) && !apart.has(`${a.id}|${b.id}`) && same(kind, a, b));
-        const maybe = hs.filter((b) => !taken.has(b.id) && !apart.has(`${a.id}|${b.id}`) && !sure.includes(b) && kind !== "project" && norm(t.raw(a, kind, "title")) === norm(h.raw(b, kind, "title")));
+        const maybe = hs.filter((b) => !taken.has(b.id) && !apart.has(`${a.id}|${b.id}`) && !sure.includes(b) && kind !== "project" && kind !== "journal" && norm(t.raw(a, kind, "title")) === norm(h.raw(b, kind, "title")));
         if (sure.length === 1) {
           taken.add(sure[0].id);
           const l = { kind, t: a.id, h: sure[0].id, base: {} };
@@ -251,6 +258,7 @@ export function plan(state, T, H, s, newId) {
     if (winner !== "hermes") {
       for (const a of t.objects.values()) {
         if (t.kindOf(a) !== kind || !carriesT(a, kind) || byT.has(a.id) || !toHermesAllowed(kind, s)) continue;
+        if (kind === "journal" && twin(a, t, h)) continue;
         const id = newId();
         const l = { kind, t: a.id, h: id, base: {}, made: "hermes" };
         links.push(l); byT.set(l.t, l); byH.set(l.h, l);
@@ -261,6 +269,7 @@ export function plan(state, T, H, s, newId) {
     if (winner !== "talaris") {
       for (const b of h.objects.values()) {
         if (h.kindOf(b) !== kind || !carriesH(b, kind) || byH.has(b.id)) continue;
+        if (kind === "journal" && twin(b, h, t)) continue;
         // Made in Talaris at Hermes' own id: the same id on both sides, for anyone reading either.
         const l = { kind, t: b.id, h: b.id, base: {}, made: "talaris" };
         links.push(l); byT.set(l.t, l); byH.set(l.h, l);
@@ -298,8 +307,28 @@ export function plan(state, T, H, s, newId) {
     return false;
   }
 
+  /**
+   * A day with no pair yet: paired with the other side's page for the same day,
+   * if it has one — never a second page for a day (the format's
+   * journal.duplicate); and with none, made there only if it holds words — a
+   * day's page made empty, as both apps make them on opening a day, is no news.
+   */
+  function twin(o, side, other) {
+    const day = side.value(o, "journal", "date");
+    const match = [...other.objects.values()].find((x) => other.kindOf(x) === "journal" && !(other === t ? byT : byH).has(x.id)
+      && !x.archived && other.value(x, "journal", "date") === day);
+    if (match) {
+      const l = side === t ? { kind: "journal", t: o.id, h: match.id, base: {} } : { kind: "journal", t: match.id, h: o.id, base: {} };
+      links.push(l); byT.set(l.t, l); byH.set(l.h, l);
+      summary.matched++;
+      return true;
+    }
+    return !String(side.raw(o, "journal", "body") ?? "").trim();
+  }
+
   /** Certain enough to match without asking. */
   function same(kind, a, b) {
+    if (kind === "journal") return json(t.value(a, kind, "date", keyT)) === json(h.value(b, kind, "date", keyH));
     if (kind === "contact") {
       const ea = t.value(a, kind, "email", keyT) ?? [], eb = h.value(b, kind, "email", keyH) ?? [];
       return ea.some((x) => eb.includes(x));

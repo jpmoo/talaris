@@ -87,8 +87,8 @@ export interface Attachment {
 }
 
 /** The roles Talaris itself needs a type for, each found by what the type declares. */
-export type Role = "person" | "event" | "task" | "note" | "project" | "file";
-const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null, file: null };
+export type Role = "person" | "event" | "task" | "note" | "project" | "file" | "daily";
+const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null, file: null, daily: "journal" };
 
 /**
  * The types Talaris starts with. Their names are only names — the user's to
@@ -185,6 +185,18 @@ export const BUILT_IN: EntityType[] = [
       { key: "description", kind: "richtext" },
     ],
     profiles: { project: { title: "title", body: "description" } },
+  },
+  {
+    // A daily note (pages.ts, Home's `Daily/<date>`), as the live binding hands
+    // it out (notes.ts): a note that is the page for a day — the format's
+    // `journal` profile, its date the day's identity.
+    id: "t_daily", name: "Daily note", "talaris:role": "daily",
+    fields: [
+      { key: "title", kind: "text" },
+      { key: "date", kind: "date", required: true },
+      { key: "body", kind: "richtext" },
+    ],
+    profiles: { note: { title: "title", body: "body" }, journal: { date: "date" } },
   },
   {
     // A file in Files (files.ts): one in a project's folder, given an entity

@@ -26,9 +26,12 @@
  * binding is made at the top of the undated notes, at the id asked for.
  */
 
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, typeFor, types, updateEntity, type Entity } from "./entities.js";
-import { UNDATED } from "./projects.js";
-import { createPage, movePage, pageTree, readPage, writePage } from "./pages.js";
+import { Conflict, UNDATED, listProjects, pagesPlace } from "./projects.js";
+import { DAILY, createPage, movePage, pageTree, readPage, writePage } from "./pages.js";
+import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
 
 export const MARK = "talaris:undated";
@@ -77,8 +80,78 @@ function mirror(path: string, id?: string): Entity {
   return updateEntity(e.id, { properties: { [key]: title, ...(words.properties ?? {}) }, ...(words.content !== undefined ? { content: words.content } : {}), [MARK]: true });
 }
 
+// ------------------------------------------------------------ daily notes
+
+/*
+ * Daily notes, for the binding too: Home's `Daily/<date>` pages (pages.ts),
+ * each handed out as its page's entity, typed a Daily note — the format's
+ * `journal`, its date the day's identity, and a `note` with its words — and
+ * marked `talaris:daily`. The file is the truth, as for an undated note: a
+ * write puts the words in it; the date never changes; a day made through the
+ * binding is written as that day's page, and one already there is refused
+ * (`journal.duplicate`), never a second page for the day.
+ */
+export const DAY_MARK = "talaris:daily";
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const homeId = () => listProjects().find((p) => p.home)?.id ?? "";
+const daySource = (date: string) => ({ kind: "page", key: `${homeId()}/${DAILY}/${date}` });
+
+function dayDates(): string[] {
+  const home = homeId();
+  if (!home) return [];
+  const dir = join(pagesPlace(home).folder, WRITING, DAILY);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((n) => /^\d{4}-\d{2}-\d{2}\.md$/.test(n)).map((n) => n.slice(0, 10));
+}
+
+/** A day's entity brought up to date with its page — made, if it has none; `id` only when it is made. */
+function mirrorDay(date: string, id?: string): Entity {
+  let text = "";
+  try { text = readPage(homeId(), `${DAILY}/${date}`); } catch { /* none yet */ }
+  const type = typeFor("daily");
+  const e = bySource(daySource(date));
+  const props = { title: date, date, body: text };
+  if (!e) return createEntity({ ...(id ? { id } : {}), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date });
+  if (e.type === type.id && e.properties.date === date && e.properties.body === text && e.properties.title === date && e[DAY_MARK] === date) return e;
+  // The page's entity (its mentions' holder, made as a plain note) becomes the day's.
+  return updateEntity(e.id, { type: type.id, properties: props, [DAY_MARK]: date });
+}
+
+/** Every daily note's entity as its page is; one whose page is gone, gone. */
+export function reconcileDays(): void {
+  const dates = new Set(dayDates());
+  for (const d of dates) mirrorDay(d);
+  for (const r of allRecords()) {
+    const d = r.object[DAY_MARK];
+    if (typeof d === "string" && !dates.has(d)) deleteEntity(r.object.id);
+  }
+}
+
+export function isDay(id: string): boolean {
+  try { return typeof getEntity(id)[DAY_MARK] === "string"; } catch { return false; }
+}
+
+/** A write through the binding to a day: its words, to its page. The date is its identity, and stays. */
+export function writeDay(id: string, set: Record<string, unknown>, content: string | undefined): Entity {
+  const date = getEntity(id)[DAY_MARK] as string;
+  const words = typeof set.body === "string" ? set.body : "body" in set && set.body === null ? "" : content;
+  if (words !== undefined) writePage(homeId(), `${DAILY}/${date}`, words);
+  return mirrorDay(date);
+}
+
+/** A day made through the binding: written as that day's page, at the id asked for — unless the day has one already. */
+export function createDay(id: string, date: string, words: string): Entity {
+  if (!DATE.test(date)) throw new Conflict("journal.date: a day is YYYY-MM-DD");
+  if (dayDates().includes(date)) throw new Conflict(`journal.duplicate: ${date} has a daily note already`);
+  writePage(homeId(), `${DAILY}/${date}`, words);
+  const made = bySource(daySource(date));
+  if (made && made.id !== id) deleteEntity(made.id);
+  return mirrorDay(date, id);
+}
+
 /** Every undated note's entity as its file is; any that stood for one gone or moved into a project, said so. */
 export function reconcileNotes(): void {
+  reconcileDays();
   const paths = new Set(allPaths());
   for (const p of paths) mirror(p);
   for (const r of allRecords()) {

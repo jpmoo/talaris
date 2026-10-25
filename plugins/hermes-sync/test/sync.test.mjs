@@ -283,3 +283,39 @@ test("the first time statuses go by meaning: the more particular one is kept, no
   assert.equal(p.ask.length, 0);
   assert.deepEqual(p.writes.find((x) => x.side === "talaris").patch.set, { status: "in_progress" });
 });
+
+// Daily notes: Talaris's own type for days; Hermes Notes' one text type for notes and days alike, a day being one carrying its date.
+const T_DAY = { id: "t_daily", fields: [{ key: "title", kind: "text" }, { key: "date", kind: "date" }, { key: "body", kind: "richtext" }],
+  profiles: { note: { title: "title", body: "body" }, journal: { date: "date" } } };
+const H_TEXT = { id: "h-text", fields: [{ key: "title", kind: "text" }, { key: "today_note", kind: "date" }],
+  profiles: { note: { title: "title", body: "content" }, journal: { date: "today_note" } } };
+const DAYS = { ...S, kinds: { journal: true, note: false } };
+
+test("daily notes: paired by their day, made on the other side only with words, titled there as it titles its own", () => {
+  const T = env([...T_TYPES, T_DAY], [
+    { id: "td1", type: "t_daily", properties: { title: "2026-10-24", date: "2026-10-24", body: "Met with the board." }, "talaris:daily": "2026-10-24", version: 1 },
+    { id: "td2", type: "t_daily", properties: { title: "2026-10-25", date: "2026-10-25", body: "Sunday plans." }, "talaris:daily": "2026-10-25", version: 1 },
+    { id: "td3", type: "t_daily", properties: { title: "2026-10-26", date: "2026-10-26", body: "" }, "talaris:daily": "2026-10-26", version: 1 },
+  ]);
+  const H = env([...H_TYPES, H_TEXT], [
+    { id: "hd2", type: "h-text", properties: { title: "Sunday, October 25, 2026", today_note: "2026-10-25" }, content: "Sunday plans.", version: 1 },
+    { id: "hd9", type: "h-text", properties: { title: "Friday, October 23, 2026", today_note: "2026-10-23" }, content: "Called the bank.", version: 1 },
+    { id: "hn1", type: "h-text", properties: { title: "A plain note" }, content: "Not a day.", version: 1 },
+  ]);
+  const p = plan({ started: true, links: [] }, T, H, DAYS, newId);
+  const pairs = p.links.filter((l) => l.kind === "journal").map((l) => [l.t, l.h]);
+  assert.ok(pairs.some(([a, b]) => a === "td2" && b === "hd2"), "the same day on both sides: paired, not made twice");
+  const toH = p.writes.filter((w) => w.side === "hermes" && w.op === "put");
+  assert.equal(toH.length, 1, "the empty day is not made");
+  assert.deepEqual(toH[0].body, { type: "h-text", properties: { today_note: "2026-10-24", title: "Saturday, October 24, 2026" }, content: "Met with the board." });
+  const toT = p.writes.filter((w) => w.side === "talaris" && w.op === "put");
+  assert.deepEqual(toT.map((w) => w.body.properties.date), ["2026-10-23"], "Hermes Notes' day comes over; its plain note does not, notes being off");
+  assert.equal(toT[0].body.properties.body, "Called the bank.");
+});
+
+test("daily notes stay off unless the setting turns them on", () => {
+  const T = env([...T_TYPES, T_DAY], [{ id: "td1", type: "t_daily", properties: { title: "2026-10-24", date: "2026-10-24", body: "Words." }, "talaris:daily": "2026-10-24", version: 1 }]);
+  const H = env([...H_TYPES, H_TEXT], [{ id: "hd9", type: "h-text", properties: { today_note: "2026-10-23" }, content: "Words.", version: 1 }]);
+  const p = plan({ started: true, links: [] }, T, H, { ...S, kinds: { journal: false } }, newId);
+  assert.equal(p.writes.length, 0);
+});
