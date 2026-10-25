@@ -6,8 +6,9 @@ for the bar's project menu and the project carousel — so a project is found by
 its look as well as its name.
 
 A small picture of the screen (grim), taken a moment after a project becomes
-the current one, after a window is brought to it, and every twenty seconds
-while it stays — only what is in view can be pictured, so a desktop a window
+the current one, after a window is brought to it, and once a minute while it
+stays if anything on it has moved (a picture costs a capture and an encoding;
+the same windows in the same places are the same likeness) — only what is in view can be pictured, so a desktop a window
 left keeps its old likeness until it is next seen — but never while a
 Talaris panel or menu is out — a dimmed screen is no likeness. Kept in the
 runtime directory, which only the user reads and which is cleared at logout:
@@ -32,7 +33,7 @@ from views import log
 DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-thumbs")
 #: Width of a thumbnail, in pixels: enough for a 128-wide tile on a dense screen.
 WIDTH = 384
-EVERY_MS = 20 * 1000
+EVERY_MS = 60 * 1000
 #: Surfaces of Talaris that are always there; any other one out means a panel or menu is.
 RESIDENT = ("talaris-bar", "talaris-dock", "talaris-edge-dock", "talaris-desk", "talaris-edge")
 
@@ -45,8 +46,10 @@ class Thumbs(QObject):
     def __init__(self, desktop) -> None:
         super().__init__(desktop)
         self.desktop = desktop
+        #: What the desktop looked like at each project's last picture: its windows, where, and what they said.
+        self._seen: dict[str, str] = {}
         self._every = QTimer(self)
-        self._every.timeout.connect(self.take)
+        self._every.timeout.connect(lambda: self.take(only_if_changed=True))
         self._every.start(EVERY_MS)
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)
@@ -69,10 +72,27 @@ class Thumbs(QObject):
                         return False
         return True
 
-    def take(self) -> None:
+    def _looks(self) -> str:
+        """The desktop in view, as words: its windows, where they are, what they say."""
+        try:
+            now = hypr.windows()
+        except Exception:  # noqa: BLE001 — no likeness to compare: taken
+            return ""
+        shown = sorted((w["address"], w["title"], w.get("focused", False)) for w in now["windows"] if w["workspace"] == now["active"] and not w["hidden"])
+        try:
+            places = {c["address"]: (c["at"], c["size"]) for c in json.loads(hypr.ask("j/clients"))}
+        except (ValueError, OSError):
+            places = {}
+        return json.dumps([now["active"], now["focused"], [(a, t, places.get(a)) for a, t, _f in shown]])
+
+    def take(self, only_if_changed: bool = False) -> None:
         project = self.desktop.project.get("id", "")
         if not project or not self._clear():
             return
+        looks = self._looks()
+        if only_if_changed and looks and self._seen.get(project) == looks and os.path.exists(path_for(project)):
+            return
+        self._seen[project] = looks
 
         def run() -> None:
             try:

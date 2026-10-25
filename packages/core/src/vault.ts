@@ -217,21 +217,34 @@ export function forgetKeyForTests(): void {
 const heldHere = new Map<string, string>();
 
 /** A secret, or null when the keyring has none. Locked or not running is an error to try again, never "none". */
+/*
+ * A plugin's secrets, asked of the login keyring once and then remembered by
+ * this process: each asking starts a program and waits for it, and Settings,
+ * the plugins' buttons and every plugin start ask often. Setting or forgetting
+ * one goes through here, so what is remembered stays true; one changed in the
+ * keyring by another program is seen at the core's next start.
+ */
+const asked = new Map<string, string | null>();
+
 export function getSecret(name: string): string | null {
   if (testing()) return heldHere.get(name) ?? null;
+  if (asked.has(name)) return asked.get(name)!;
   const got = keyring("get", name);
-  if (got.code === 1) return null;
+  if (got.code === 1) { asked.set(name, null); return null; }
   if (got.code !== 0) throw new Locked(got.err || "the login keyring is not available yet");
+  asked.set(name, got.out);
   return got.out;
 }
 
 export function setSecret(name: string, value: string): void {
   if (testing()) { heldHere.set(name, value); return; }
   const done = keyring("set", name, value + "\n");
-  if (done.code !== 0) throw new Locked(done.err || "the login keyring is not available yet");
+  if (done.code !== 0) { asked.delete(name); throw new Locked(done.err || "the login keyring is not available yet"); }
+  asked.set(name, value);
 }
 
 export function forgetSecret(name: string): void {
   if (testing()) { heldHere.delete(name); return; }
   keyring("forget", name);
+  asked.delete(name);
 }

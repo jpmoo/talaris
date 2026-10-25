@@ -472,7 +472,9 @@ class Bar(QObject):
         self.popup = Popup(profile, self)
         self.hider = Autohide(profile, "bar", self.view, self._show, self._hide,
                               busy=lambda: bool(self.popup.kind), parent=self)
-        desktop.machine.read.connect(self._reading)
+        desktop.machine.changed.connect(self._reading)
+        # Read every few seconds while a popup shows the readings; every so often otherwise (machine.py).
+        desktop.machine.watched = lambda: bool(self.popup.kind)
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
         desktop.tray.items.connect(lambda _text: self._tray_changed())
         desktop.tray.menu.connect(self._tray_menu)
@@ -639,6 +641,8 @@ class Bar(QObject):
         # Under its button when the page says where that is; else at the bar's end.
         self.popup.at = int(x * zoom_of("bar")) if x is not None else -1
         self.popup.show(kind)
+        # Fresh as it opens, not as of the last idle reading.
+        self.desktop.machine.refresh()
         self.bridge.state.emit(json.dumps(self.describe()))
         log(f"popup: {kind}")
 

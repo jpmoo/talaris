@@ -18,6 +18,8 @@ if [ "$#" -eq 0 ]; then
   export QT_QPA_PLATFORM=wayland
   # Chromium animates every scroll step; a trackpad sends a stream of small
   # ones, and animated, the page lags behind the fingers and jumps to catch up.
-  export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:-} --disable-smooth-scrolling"
+  # And every page of Talaris's is one site (talaris-ui://), so it shares its
+  # renderers rather than taking one each — some twenty pages, 100–150 MB apiece.
+  export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:-} --disable-smooth-scrolling --process-per-site"
 fi
 exec python3 "$HERE/surfaces.py" "$@"

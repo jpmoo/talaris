@@ -21,6 +21,7 @@ import glob
 import json
 import os
 import re
+import time
 import shutil
 import subprocess
 
@@ -28,8 +29,10 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
 from power import charging, on_mains
 
-#: How often the bar's readings are refreshed, when nothing has asked sooner.
+#: How often the bar's readings are refreshed while one of its popups is open (Wi-Fi, sound, battery…)…
 POLL_MS = 3000
+#: …and while none is: each reading starts several small programs, and the bar's icons can be a few seconds behind.
+IDLE_S = 15
 
 
 def _run(*cmd: str, timeout: float = 2.0) -> str:
@@ -311,6 +314,8 @@ class Machine(QObject):
 
     #: The latest reading, as JSON — emitted from a worker, delivered on the GUI thread.
     read = Signal(str)
+    #: A reading that differs from the one before: what the pages are told, so an unchanged one wakes nothing.
+    changed = Signal(str)
     #: A panel's state after it was read or acted on: `{kind, state, error}`.
     panel = Signal(str)
 
@@ -322,17 +327,28 @@ class Machine(QObject):
         self._pool.setMaxThreadCount(1)
         self._panels = QThreadPool(self)
         self._panels.setMaxThreadCount(2)
+        #: Whether something is showing the readings closely (a bar popup): set by the desktop.
+        self.watched = lambda: False
+        self._read_at = 0.0
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self.refresh)
+        self._timer.timeout.connect(self._tick)
         self._timer.start(POLL_MS)
         self.refresh()
 
+    def _tick(self) -> None:
+        if self.watched() or time.monotonic() - self._read_at >= IDLE_S:
+            self.refresh()
+
     def _keep(self, text: str) -> None:
+        if text == self.last:
+            return
         self.last = text
+        self.changed.emit(text)
 
     def refresh(self) -> None:
         # One reading at a time: a slow nmcli must not pile up readers behind it.
         if self._pool.activeThreadCount() == 0:
+            self._read_at = time.monotonic()
             self._pool.start(_Read(self))
 
     def volume(self, change: str) -> None:
