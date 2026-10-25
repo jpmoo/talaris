@@ -208,8 +208,11 @@
     let hover = null, frame = 0;
     let pal = {};
 
-    // Tuned for a rest length of 70: at that distance the spring and the push nearly cancel.
-    const REST = 70, REPEL = 300, SPRING = 0.08, CENTER = 0.012, DAMP = 0.6, CUT2 = 520 * 520;
+    // The graph's look and pull, as the Display panel sets them (kept): tuned for a link
+    // distance of 70, where the spring and the push nearly cancel.
+    const DISPLAY = { size: 1, distance: 70, repel: 300, gravity: 12, labels: "hubs", text: 11, line: 1 };
+    let gs = { ...DISPLAY, ...store.get("talaris.glance.display", {}) };
+    const SPRING = 0.08, DAMP = 0.6, CUT2 = 520 * 520;
     const DECAY = 0.015, ALPHA_MIN = 0.002, WARM_TICKS = 300;
 
     // The canvas cannot read var(), so each color is resolved once per theme on a hidden element.
@@ -222,7 +225,7 @@
       need();
     }
 
-    const radius = (n) => (isRoot(n) ? 11 : Math.min(14, 3.5 + Math.sqrt(n.deg) * 1.8));
+    const radius = (n) => (isRoot(n) ? 11 : Math.min(14, 3.5 + Math.sqrt(n.deg) * 1.8)) * gs.size;
 
     /** A new glance: the nodes kept where they were by key, so a refresh does not throw the picture. */
     function load(d) {
@@ -282,7 +285,7 @@
           let dx = q.x - p.x, dy = q.y - p.y, d2 = dx * dx + dy * dy;
           if (d2 > CUT2) continue;
           if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1; }
-          const f = (REPEL * a) / d2;
+          const f = (gs.repel * a) / d2;
           p.vx -= dx * f; p.vy -= dy * f;
           q.vx += dx * f; q.vy += dy * f;
         }
@@ -291,14 +294,15 @@
         const dx = e.t.x - e.s.x, dy = e.t.y - e.s.y;
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
         // The busier end moves less, so hubs hold still and their leaves come to them.
-        const l = ((d - REST) / d) * a * SPRING;
+        const l = ((d - gs.distance) / d) * a * SPRING;
         const ws = e.t.deg / (e.s.deg + e.t.deg || 1);
         e.t.vx -= dx * l * (1 - ws); e.t.vy -= dy * l * (1 - ws);
         e.s.vx += dx * l * ws; e.s.vy += dy * l * ws;
       }
       for (const p of vis) {
         if (p.fx != null) { p.x = p.fx; p.y = p.fy; p.vx = p.vy = 0; continue; }
-        p.vx -= p.x * CENTER * a; p.vy -= p.y * CENTER * a;
+        // Gravity, set as a whole number for the slider: 12 is a pull of 0.012.
+        p.vx -= p.x * gs.gravity * 0.001 * a; p.vy -= p.y * gs.gravity * 0.001 * a;
         p.vx *= DAMP; p.vy *= DAMP;
         p.x += p.vx; p.y += p.vy;
       }
@@ -407,7 +411,7 @@
       ctx.translate(cam.x, cam.y);
       ctx.scale(cam.s, cam.s);
       // Ties: the quiet ones in one stroke, the lit ones over them.
-      ctx.lineWidth = 1 / cam.s;
+      ctx.lineWidth = gs.line / cam.s;
       ctx.strokeStyle = pal.line;
       ctx.globalAlpha = dim ? 0.25 : 1;
       ctx.beginPath();
@@ -421,7 +425,7 @@
       if (bright.length) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = hover ? pal.accent : pal.muted;
-        ctx.lineWidth = (hover ? 1.4 : 1) / cam.s;
+        ctx.lineWidth = (hover ? 1.4 : 1) * gs.line / cam.s;
         ctx.beginPath();
         for (const e of bright) { ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y); }
         ctx.stroke();
@@ -448,13 +452,14 @@
       ctx.restore();
 
       // Labels in screen space, so they stay crisp; their size follows the zoom within bounds.
-      const size = 11 * Math.max(0.85, Math.min(1.5, cam.s));
+      const size = gs.text * Math.max(0.85, Math.min(1.5, cam.s));
       ctx.font = `${size}px ${pal.font}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = pal.text;
       for (const n of vis) {
-        const always = isRoot(n) || n.deg >= 3 || cam.s > 1.4;
+        // Labels: on every thing, on the busier ones (and all when zoomed in), or only as pointed at.
+        const always = gs.labels === "all" || (gs.labels === "hubs" && (isRoot(n) || n.deg >= 3 || cam.s > 1.4)) || (gs.labels === "hover" && isRoot(n));
         const wanted = hover ? lit(n) && (always || n === hover || near.has(n.key)) : q ? matches(n, q) : always;
         if (!wanted) continue;
         const sx = n.x * cam.s + cam.x, sy = n.y * cam.s + cam.y + radius(n) * cam.s + 3;
@@ -545,6 +550,45 @@
       need();
     }, { passive: false });
     $("fit").addEventListener("click", fit);
+
+    // The Display panel: each change drawn at once, the layout stirred where it moves things, and kept.
+    const ROWS = [
+      ["size", "Node size", 0.5, 2.5, 0.1, (v) => `${Math.round(v * 100)}%`],
+      ["distance", "Link distance", 30, 200, 5, (v) => `${v}`],
+      ["repel", "Repulsion", 50, 1500, 50, (v) => `${v}`],
+      ["gravity", "Gravity", 0, 60, 1, (v) => `${v}`],
+      ["text", "Text size", 8, 18, 1, (v) => `${v}px`],
+      ["line", "Line thickness", 0.5, 4, 0.25, (v) => `${v}`],
+    ];
+    const MOVES = new Set(["size", "distance", "repel", "gravity"]);
+    function setDisplay(key, value) {
+      gs = { ...gs, [key]: value };
+      store.set("talaris.glance.display", gs);
+      if (MOVES.has(key)) heat(0.35);
+      need();
+    }
+    function drawDisplay() {
+      const box = $("display");
+      box.replaceChildren(
+        ...ROWS.map(([key, label, min, max, step, show]) => {
+          const n = el("span", { class: "dv" }, show(gs[key]));
+          const r = el("input", { type: "range", min, max, step, value: gs[key] });
+          r.addEventListener("input", () => { setDisplay(key, Number(r.value)); n.textContent = show(gs[key]); });
+          return el("label", { class: "drow" }, el("span", { class: "dl" }, label), r, n);
+        }),
+        el("div", { class: "drow" }, el("span", { class: "dl" }, "Labels"),
+          el("span", { class: "seg dseg" }, ...[["all", "All"], ["hubs", "Busier"], ["hover", "On hover"]].map(([k, l]) =>
+            el("button", { class: gs.labels === k ? "on" : "", onclick: () => { setDisplay("labels", k); drawDisplay(); } }, l)))),
+        el("div", { class: "drow dacts" },
+          el("button", { class: "t-btn", title: "Lay it all out again from the start", onclick: () => { for (const p of nodes) if (!isRoot(p)) { p.x = (Math.random() - 0.5) * 300; p.y = (Math.random() - 0.5) * 300; } heat(1); } }, "Lay out again"),
+          el("button", { class: "t-btn", title: "Back to how it came", onclick: () => { gs = { ...DISPLAY }; store.set("talaris.glance.display", gs); heat(0.35); drawDisplay(); need(); } }, "Reset")));
+    }
+    $("display-btn").addEventListener("click", () => {
+      const box = $("display");
+      box.hidden = !box.hidden;
+      $("display-btn").classList.toggle("on", !box.hidden);
+      if (!box.hidden) drawDisplay();
+    });
 
     return { load, show, filtered, palette, need, clear: () => { warmSeq++; warm = false; nodes = []; edges = []; vis = []; visEdges = []; byKey = new Map(); laid = false; pick(); need(); } };
   })();
