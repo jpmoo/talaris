@@ -202,6 +202,7 @@ let lastOpened = { id: "", at: 0 };
 window.talarisMentionDefaults = {
   project: () => state.project.id,
   openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where),
+  openPerson: (id) => bridge && bridge.openPerson(id),
 };
 window.talarisStatus = (text) => status(text.toUpperCase().slice(0, 80));
 

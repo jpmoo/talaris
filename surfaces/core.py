@@ -162,6 +162,16 @@ class Bridge(QObject):
                 self.owner.file_away()
             desktop.open_place(kind, project, where)
 
+    @Slot(str)
+    def openPerson(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
+        """A person clicked anywhere: their entry in People. Asked from another panel, that one goes."""
+        desktop = getattr(self.owner, "desktop", None)
+        if not desktop or not entity:
+            return
+        if getattr(self.owner, "NAME", "") not in ("canvas", "writing", "people") and hasattr(self.owner, "file_away"):
+            self.owner.file_away()
+        desktop.people.show_person(entity)
+
     @Slot(str, str)
     def openProjectFile(self, project: str, path: str) -> None:  # noqa: N802 — called from the page by this name
         """A file a page or a note links (`Files/…`), opened in its application."""

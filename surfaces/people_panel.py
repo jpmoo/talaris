@@ -19,7 +19,7 @@ import json
 import re
 import threading
 
-from PySide6.QtCore import Signal, Slot
+from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge, local_call
@@ -84,6 +84,16 @@ class People(Overlay):
                 self.bridge.attached.emit(json.dumps({"id": person, "field": field, "added": added, "error": "; ".join(errors)}))
             threading.Thread(target=run, daemon=True).start()
         choose_files(self, "A picture" if field == "image" else "Files for them", chosen)
+
+    def show_person(self, entity: str) -> None:
+        """One person's entry: the panel out (or its window forward), on them."""
+        self.open()
+        # Its window, if it is one: that page is the one in view.
+        view = self.window if self.windowed and self.window else self.view
+        ask = f"window.People && People.show({json.dumps(entity)})"
+        view.page().runJavaScript(ask)
+        # The page may still be loading the first time: asked again a moment on.
+        QTimer.singleShot(900, lambda: view.page().runJavaScript(ask))
 
     def opened(self) -> None:
         self.desktop.bar.changed()

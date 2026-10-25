@@ -722,7 +722,8 @@
   const FIRST = 20;
   const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
   const mentionOpts = { project: () => "", openPlace };
-  const peek = (id) => window.Peek && Peek.show(id, api, { openPlace });
+  // A person among the links is chosen here, in the list; anything else is its card.
+  const peek = (id) => window.Peek && Peek.show(id, api, { openPlace, openPerson: (pid) => window.People.show(pid) });
   // A mention in the description: one of these people is chosen here; anything else peeks.
   function openMention(id) {
     if (people.some((p) => p.id === id)) { choose(id); return; }
@@ -946,4 +947,17 @@
     });
     start();
   });
+
+  // Asked from elsewhere (a person clicked in a page, a card, Glance): that person, shown,
+  // whatever the list was narrowed to.
+  window.People = {
+    async show(id) {
+      if (!people.some((p) => p.id === id)) await loadPeople().catch(() => {});
+      $("q").value = "";
+      if (named !== "all") { named = "all"; store.set("talaris.people.named", named); drawMode(); }
+      drawList();
+      chosen = null;
+      choose(id);
+    },
+  };
 })();

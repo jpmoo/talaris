@@ -185,7 +185,7 @@
   }
 
   // A page or a canvas a mention points at opens where it lives (the sheet goes).
-  const mentionOpts = { project: () => "", openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where) };
+  const mentionOpts = { project: () => "", openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where), openPerson: (id) => bridge && bridge.openPerson(id) };
 
   /** An editor line, or box, that takes @ — kept in v[key]. */
   function writing(key, placeholder, { body = false, big = false, files = null } = {}) {

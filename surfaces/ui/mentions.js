@@ -17,7 +17,7 @@
 // (`openPlace`) — or else its card (peek.js), unless the page has its own way
 // to open a thing (the Tasks panel opens a task in its editor).
 //
-// `opts`: {project: () => id, openPlace: ({kind, project, where}) => …}. A
+// `opts`: {project: () => id, openPlace: ({kind, project, where}) => …, openPerson: (id) => …}. A
 // page sets them once as `window.talarisMentionDefaults`, so a picker made
 // without them (a canvas note, inside the drawer) still has them.
 
@@ -77,7 +77,7 @@ window.TalarisMentions = (api, open, opts) => {
       const openPlace = o().openPlace;
       const place = openPlace ? await api("GET", `/entities/${encodeURIComponent(id)}/place`).catch(() => null) : null;
       if (place) openPlace(place);
-      else if (window.Peek) Peek.show(id, api, { openPlace });
+      else if (window.Peek) Peek.show(id, api, { openPlace, openPerson: o().openPerson });
     },
   };
 };

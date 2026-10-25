@@ -719,7 +719,7 @@ let draft = null;
 let hintText = "Type here. Enter sends; Shift+Enter starts a new line.";
 function hint(text) { hintText = text; for (const node of document.querySelectorAll("#draft .cm-placeholder .hint")) node.textContent = text; }
 window.focusDraft = () => draft?.focus();
-const peek = (id) => Peek.show(id, api, {});
+const peek = (id) => Peek.show(id, api, { openPerson: (pid) => bridge.openPerson(pid), openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where) });
 import("../editor.js").then((m) => {
   draft = m.createEditor($("draft"), "", {
     live: true, compact: true, singleLine: true, onEnter: () => { send(); },

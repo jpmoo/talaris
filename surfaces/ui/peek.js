@@ -69,6 +69,12 @@ window.Peek = (() => {
       addEventListener("keydown", esc, true);
       setTimeout(() => addEventListener("pointerdown", outside, true), 0);
     }
+    // A person is not a card here but their entry in People, where the page can open it.
+    if (opts.openPerson && (got.kinds || []).includes("contact")) {
+      close();
+      opts.openPerson(id);
+      return;
+    }
     const isTask = (got.kinds || []).includes("task");
     // A page's or a canvas's entity: opened where it is, when the page can say where.
     const place = opts.openPlace ? await api("GET", `/entities/${encodeURIComponent(id)}/place`).catch(() => null) : null;

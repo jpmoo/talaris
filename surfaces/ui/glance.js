@@ -151,7 +151,7 @@
     if (n.place && (n.place.kind === "page" || n.place.kind === "canvas")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
     if (n.path && data) { bridge.openProjectFile(data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
-    if (n.id) Peek.show(n.id, api, { openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), onTask: (id) => bridge.openTask(id) });
+    if (n.id) Peek.show(n.id, api, { openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), onTask: (id) => bridge.openTask(id), openPerson: (id) => bridge.openPerson(id) });
   }
 
   // ---------------------------------------------------------------- the list
