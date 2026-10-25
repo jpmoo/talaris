@@ -218,7 +218,10 @@ test("a project's files: kept in Files/ by name, made unique, sealed in an encry
   assert.equal(readFileSync(join(p.folder, "Files", "to Chuck.pdf"), "utf8"), "%PDF one", "plain where the project is");
   assert.equal(projects.attachedFile(p.id, a.path).sealed, false);
   assert.throws(() => projects.attachedFile(p.id, "Files/../.talaris/project.json"), /not a file/);
-  assert.throws(() => projects.attachedFile(p.id, "Writing/x.md"), /not a file/);
+  assert.throws(() => projects.attachedFile(p.id, ".talaris/project.json"), /not a file/, "never Talaris's own");
+  assert.throws(() => projects.attachedFile(p.id, "Files/../../elsewhere.txt"), /not a file/, "never above the folder");
+  const exported = projects.writeExport(p.id, "Board", "png", Buffer.from("png"));
+  assert.equal(projects.attachedFile(p.id, exported).sealed, false, "an export opens too");
   sealed.setProjectEncrypted(p.id, true);
   assert.ok(seal.isSealed(readFileSync(join(p.folder, "Files", "to Chuck.pdf"))), "sealed once the project is encrypted");
   assert.equal(projects.attachedFile(p.id, a.path).sealed, true);

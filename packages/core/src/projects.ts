@@ -204,11 +204,15 @@ export function putProjectFile(projectId: string, filename: string, data: Buffer
   return { path: `${FILES}/${name}`, name };
 }
 
-/** Where a project's file is on disk, if it is one: only within `Files/`, never above it. */
+/**
+ * Where a file in a project's folder is on disk: an attachment in `Files/`,
+ * an export, anything saved there — what Glance lists and opens. Never above
+ * the folder, and never Talaris's own machinery (`.talaris/`).
+ */
 export function attachedFile(projectId: string, rel: string): { abs: string; sealed: boolean } {
   const { folder } = findProject(projectId);
   const parts = rel.split("/");
-  if (parts[0] !== FILES || parts.length < 2 || parts.some((p) => !p || p === "." || p === ".." || p.includes("\\") || p.includes("\0"))) {
+  if (parts[0] === MACHINERY || parts.some((p) => !p || p === "." || p === ".." || p.includes("\\") || p.includes("\0"))) {
     throw new Conflict("not a file of this project's");
   }
   const abs = join(folder, ...parts);
