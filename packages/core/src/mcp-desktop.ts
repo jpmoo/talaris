@@ -308,6 +308,55 @@ export function desktopTools(core: Core): DesktopTool[] {
       annotations: { readOnlyHint: false, title: "Close a window" },
       run: async (a) => { await surfaces({ do: "close-window", address: str(a.address) }); return "Asked it to close."; },
     },
+    // ------------------------------------------------------------ tags
+    {
+      name: "talaris_tags",
+      description: "Every tag in use in Talaris — on pages, undated notes, tasks and people — with how many things carry each, the most used first.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true, title: "Tags in use" },
+      run: async () => {
+        const all = await core<{ tag: string; count: number }[]>("GET", "/tags");
+        return all.length ? all.map((t) => `#${t.tag} (${t.count})`).join(", ") : "Nothing is tagged yet.";
+      },
+    },
+    {
+      name: "talaris_tagged",
+      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), undated notes, tasks, people. Optionally only one kind: page, task, contact.",
+      inputSchema: { type: "object", properties: {
+        tags: { type: "array", items: { type: "string" } }, all: { type: "boolean" }, kind: { type: "string", enum: ["page", "task", "contact", "event"] },
+      }, required: ["tags"] },
+      annotations: { readOnlyHint: true, title: "Things with a tag" },
+      run: async (a) => {
+        const q = new URLSearchParams((Array.isArray(a.tags) ? a.tags : [a.tags]).map((t) => ["tag", str(t)]));
+        if (a.all) q.set("all", "1");
+        if (a.kind) q.set("kind", str(a.kind));
+        const rows = await core<{ id: string; title: string; kinds: string[]; tags: string[]; page?: { project: string; path: string } }[]>("GET", `/tags/things?${q}`);
+        if (!rows.length) return "Nothing carries that.";
+        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `undated note (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
+      },
+    },
+    {
+      name: "talaris_page_tags",
+      description: "Change a writing page's tags — add some, take some off, or (set) replace them all. No project: the current one; project \"notes\": an undated note. No path: the page the writing drawer shows.",
+      inputSchema: { type: "object", properties: {
+        project: { type: "string" }, path: { type: "string" },
+        add: { type: "array", items: { type: "string" } }, remove: { type: "array", items: { type: "string" } }, set: { type: "array", items: { type: "string" } },
+      } },
+      annotations: { readOnlyHint: false, title: "Tag a page" },
+      run: async (a) => {
+        const pid = str(a.project) === "notes" ? "notes" : (await project(a.project)).id;
+        const n = pid === "notes" ? null : await now();
+        const path = str(a.path) || (n && n.project.id === pid ? n.drawers.writing?.page?.path ?? "" : "");
+        if (!path) throw new Error("which page? give its path");
+        const q = `path=${encodeURIComponent(path)}`;
+        const was = await core<string[]>("GET", `/projects/${pid}/page/tags?${q}`);
+        const drop = new Set((Array.isArray(a.remove) ? a.remove : []).map(str));
+        const next = Array.isArray(a.set) ? a.set.map(str) : [...was.filter((t) => !drop.has(t)), ...(Array.isArray(a.add) ? a.add.map(str) : [])];
+        const kept = await core<string[]>("PUT", `/projects/${pid}/page/tags?${q}`, { tags: next });
+        await told("page", pid, path);
+        return `${path}: ${kept.length ? kept.map((t) => `#${t}`).join(" ") : "no tags"}`;
+      },
+    },
     // ------------------------------------------------------------ writing and canvases
     {
       name: "talaris_page_write",
@@ -343,6 +392,7 @@ export function desktopTools(core: Core): DesktopTool[] {
         "Operations: {op:\"note\", text, x?, y?, w?, h?, fill?} a note (Markdown; fill a #rrggbb color) — without x,y it goes to the right of what is there;",
         "{op:\"card\", entity, x?, y?} a card showing an entity (a person, task or event id from talaris_find);",
         "{op:\"tasks\", project?, all?} a card for each of a project's open tasks (all: done ones too), in a grid right of what is there, skipping those already on it — use this rather than a card each;",
+        "{op:\"tagged\", tags, all?} a card for everything carrying one of the tags (all: every one of them) — pages, undated notes, tasks, people — the same way;",
         "{op:\"update\", item, text?, x?, y?, w?, h?, fill?}; {op:\"remove\", item} (also takes its links);",
         "{op:\"link\", from, to} an arrow between two items; {op:\"unlink\", link};",
         "{op:\"canvas\", title, x?, y?} a new canvas inside this one, as a card.",
@@ -423,6 +473,23 @@ export function desktopTools(core: Core): DesktopTool[] {
                 await card(t.id, () => ({ x: x0 + Math.floor(k / 6) * 280, y: y0 + (k % 6) * 100 }));
               }
               done.push(`${n} task card(s)`);
+              break;
+            }
+            case "tagged": {
+              // Everything carrying the tags (tags.ts): pages and undated notes by the entities that hold their tags.
+              const want = (Array.isArray(op.tags) ? op.tags : [op.tags ?? op.tag]).map(str).filter(Boolean);
+              if (!want.length) throw new Error("tagged needs tags");
+              const q = new URLSearchParams(want.map((t) => ["tag", t]));
+              if (op.all) q.set("all", "1");
+              const rows = await core<{ id: string }[]>("GET", `/tags/things?${q}`);
+              const there = new Set(doc.items.map((i) => i.entity).filter(Boolean));
+              const x0 = right(), y0 = doc.items.length ? Math.min(...doc.items.map((i) => i.y)) : 0;
+              let n = 0;
+              for (const t of rows.filter((t) => !there.has(t.id))) {
+                const k = n++;
+                await card(t.id, () => ({ x: x0 + Math.floor(k / 6) * 280, y: y0 + (k % 6) * 130 }));
+              }
+              done.push(`${n} card(s) tagged ${want.map((t) => `#${t}`).join(op.all ? " and " : " or ")}`);
               break;
             }
             case "update": {

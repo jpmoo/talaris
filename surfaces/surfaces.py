@@ -598,7 +598,14 @@ class Desktop(QObject):
         log(f"morgan: reminder shown: {body}")
 
     def open_place(self, kind: str, project: str, where: str) -> None:
-        """A page or a canvas, opened in its project: that project the current one first, if it is not."""
+        """
+        A page or a canvas, opened in its project: that project the current one
+        first, if it is not. An undated note (the core's `notes`) belongs to
+        none, so it opens where you are, on the writing drawer's Undated tab.
+        """
+        if kind == "page" and project == "notes":
+            self.show_in_drawer("writing", {"page": where, "scope": "undated"})
+            return
         if project and project != self.project.get("id"):
             self.go_to_project(project)
         self.show_in_drawer("writing" if kind == "page" else "canvas", {"page": where} if kind == "page" else {"canvas": where})

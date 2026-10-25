@@ -260,6 +260,78 @@ function sortButton(list, reload) {
   return el("div", { class: "list-head" }, b);
 }
 
+// ---------------------------------------------------------------- tags
+
+/*
+ * A page's tags (tags.ts: kept on the page's entity, so a rename carries them
+ * and an undated note's travel to Hermes Notes): chips under the page, × to
+ * take one off, and a field to add one, offered the tags already in use. And
+ * the list filtered to one tag — the pages of this set carrying it, flat.
+ */
+const tagFilter = new Map((() => { try { return JSON.parse(localStorage.getItem("talaris.writing.tagFilter") || "[]"); } catch { return []; } })());
+function setTagFilter(tag) {
+  if (tag) tagFilter.set(wpid(), tag); else tagFilter.delete(wpid());
+  try { localStorage.setItem("talaris.writing.tagFilter", JSON.stringify([...tagFilter])); } catch { /* fine */ }
+  loadWriting();
+}
+function tagFilterButton() {
+  const on = tagFilter.get(wpid());
+  const b = el("button", { class: "sort-btn tag-filter" + (on ? " on" : ""), title: "Show only pages with a tag" }, on ? `#${on} ▾` : "TAG ▾");
+  b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    closeMenu();
+    const all = await core("GET", "/tags").catch(() => []);
+    menu = el("div", { class: "context" },
+      el("button", { class: "menu-item" + (on ? "" : " on"), onclick: () => { closeMenu(); setTagFilter(null); } }, "All pages"),
+      all.length ? el("div", { class: "menu-sep" }) : "",
+      ...all.slice(0, 40).map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), onclick: () => { closeMenu(); setTagFilter(tag); } }, `#${tag}`, el("span", { class: "n" }, String(count)))));
+    const r = b.getBoundingClientRect();
+    menu.style.left = `${r.left}px`;
+    menu.style.top = `${r.bottom + 4}px`;
+    document.body.append(menu);
+  });
+  return b;
+}
+/** The pages carrying the filter's tag, flat, each with where it sits. */
+function taggedList(pages, paths) {
+  const flat = [];
+  const walk = (nodes) => { for (const n of nodes) { if (paths.has(n.path)) flat.push(n); walk(n.children); } };
+  walk(pages);
+  if (!flat.length) return el("div", { class: "empty" }, "No page here has that tag");
+  return el("div", {}, ...flat.map((n) => el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path) },
+    el("span", { class: "starred-t" }, n.title, n.path.includes("/") ? el("span", { class: "where" }, n.path.slice(0, n.path.lastIndexOf("/"))) : ""))));
+}
+async function drawPageTags() {
+  const box = $("pageTags");
+  if (!box) return;
+  if (!open) { box.replaceChildren(); return; }
+  const path = open, pid = wpid();
+  const tags = await core("GET", `/projects/${pid}/page/tags?path=${encodeURIComponent(path)}`).catch(() => []);
+  if (open !== path) return;
+  const save = async (next) => {
+    try { await core("PUT", `/projects/${pid}/page/tags?path=${encodeURIComponent(path)}`, { tags: next }); }
+    catch (e) { status(String(e.message || e).toUpperCase().slice(0, 60)); }
+    drawPageTags();
+    if (tagFilter.get(pid)) loadWriting();
+  };
+  const input = el("input", { type: "text", class: "tag-add", placeholder: tags.length ? "+ tag" : "Add a tag", spellcheck: "false", list: "tagSuggestions" });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const t = input.value.trim().replace(/^#+/, "").trim();
+      if (t && !tags.includes(t)) save([...tags, t]);
+      else input.value = "";
+    } else if (e.key === "Backspace" && !input.value && tags.length) save(tags.slice(0, -1));
+    else if (e.key === "Escape") { input.value = ""; input.blur(); e.stopPropagation(); }
+  });
+  // The tags already in use, offered as it is typed.
+  const suggestions = el("datalist", { id: "tagSuggestions" });
+  core("GET", "/tags").then((all) => suggestions.replaceChildren(...all.map(({ tag }) => el("option", { value: tag })))).catch(() => {});
+  box.replaceChildren(
+    ...tags.map((t) => el("span", { class: "tag-chip" }, `#${t}`, el("button", { title: `Take off #${t}`, onclick: () => save(tags.filter((x) => x !== t)) }, "×"))),
+    input, suggestions);
+}
+
 /** A row's star: on, it is kept at the top of its list. */
 function starButton(starred, set) {
   return el("button", { class: "star" + (starred ? " on" : ""), title: starred ? "Unstar" : "Star: keep it at the top", draggable: "false",
@@ -712,6 +784,11 @@ async function loadWriting() {
   dailyOn = scope === "daily";
   if (dailyOn && !isDaily(open)) open = `${DAILY}/${today()}`;
   if (dailyOn && isDaily(open)) shownMonth = open.slice(DAILY.length + 1, DAILY.length + 8);
+  // A tag chosen to filter by (this set of pages'): the pages carrying it, by path.
+  const filterTag = dailyOn ? null : tagFilter.get(wpid()) ?? null;
+  const filterPaths = filterTag
+    ? new Set((await core("GET", `/tags/things?tag=${encodeURIComponent(filterTag)}&kind=page`).catch(() => [])).filter((x) => x.page && x.page.project === wpid()).map((x) => x.page.path))
+    : null;
   // Home's own pages hold its daily notes too: shown on their own tab, not among its pages.
   const pages = dailyOn ? [] : (await core("GET", `/projects/${wpid()}/pages`)).filter((n) => !(scope === "project" && inHome() && n.path === DAILY));
   const shut = shutSet(WRITING_SHUT);
@@ -749,10 +826,11 @@ async function loadWriting() {
   const tree = el("div", { class: "tree" + (scope !== "project" && !(scope === "daily" && inHome()) ? " away" : "") },
     tabs, whose,
     dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
-    !dailyOn && pages.length ? sortButton("writing", loadWriting) : "",
+    !dailyOn && (pages.length || filterTag) ? (() => { const head = sortButton("writing", loadWriting); head.append(tagFilterButton()); return head; })() : "",
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
-    dailyOn ? "" : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No undated notes yet" : "No pages yet"));
+    dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
+      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No undated notes yet" : "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
@@ -762,7 +840,8 @@ async function loadWriting() {
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
-    el("div", { class: "page-files", id: "pageFiles" }));
+    el("div", { class: "page-files", id: "pageFiles" }),
+    el("div", { class: "page-tags", id: "pageTags" }));
   $("body").replaceChildren(tree, pane);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNDATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
@@ -788,6 +867,7 @@ async function loadWriting() {
   if (bridge) bridge.seen(JSON.stringify({ page: open ? { path: open } : null }));
   drawEditor();
   drawCalendar();
+  drawPageTags();
 }
 
 /*
@@ -1109,6 +1189,15 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
       viewing = target.canvas;
       if (state.mode !== "filed") loadCanvas();
     } else if (state.drawer === "writing" && target.page) {
+      // Told which set it is in (an undated note: `undated`), the drawer turns to that tab first.
+      const into = target.scope || (scope === "undated" ? "project" : scope === "daily" && !target.page.startsWith(`${DAILY}/`) ? "project" : scope);
+      if (into !== scope) {
+        if (scope === "project") openIn.project.set(state.project.id, open);
+        if (scope === "undated") openIn.undated = open;
+        scope = into;
+        try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
+        if (editor) { editor.destroy(); editor = null; }
+      }
       if (state.mode !== "filed") edit(target.page);
       else open = target.page;
     }

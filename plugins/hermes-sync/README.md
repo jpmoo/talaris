@@ -55,7 +55,8 @@ wait in Settings, Plugins.
 
 **Notes**, when the Notes setting says so: Talaris's undated notes (the
 Writing drawer's Undated tab, `~/Projects/Notes`) and Hermes Notes' notes —
-all of them, or only those wearing a tag named in Note tags; never a day's
+all of them, or, on either side, only those wearing a tag named in Note tags
+(tag a Talaris note in the writing drawer to share it); never a day's
 page (a type that declares the format's `journal`, and carries its day). A
 note's words travel as its body: Hermes Notes keeps them in the body slot,
 Talaris in its Note type's `body` field, and the profiles say which. Where a
@@ -69,6 +70,11 @@ They compare as which files (by hash), so a file renamed is the same file. A
 file added on one side is handed to the other by its hash first
 (`/interchange/files/<sha256>`), then named in the field; a file taken off is
 taken off there too, and each side frees a file nothing names any more.
+
+**Tags**, on everything that syncs, as the format writes them: added and
+taken off one by one, so a tag one side never knew about is never wiped by
+the other's whole list. A Talaris page keeps its tags on the entity that
+stands for it, so an undated note's tags are its object's.
 
 **Not yet:** a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a

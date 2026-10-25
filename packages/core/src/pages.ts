@@ -9,6 +9,7 @@ import { Conflict, NotFound, UNDATED, findProject, notesFolder, pagesPlace } fro
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { starredPageMoved } from "./starred.js";
+import { forgetPages, pageTags, setPageTags } from "./tags.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 
 /**
@@ -301,7 +302,8 @@ export function deletePage(projectId: string, path: string, options: { withChild
   const dir = childDir(folder, p);
   const below = pagesBelow(projectId, p);
   if (below.length && !options.withChildren) throw new Conflict(`"${p}" still has pages beneath it`);
-  // Each kept in its versions before the folder goes, deepest first.
+  // Their entities — tags, mentions — go with them (tags.ts); then each kept in its versions before the folder goes, deepest first.
+  forgetPages(projectId, [p, ...below]);
   for (const sub of below.reverse()) {
     const f = pageFile(folder, sub);
     if (existsSync(f)) saveVersion(versionDir(join(folder, MACHINERY), "page", sub), readText(f), "md");
@@ -445,10 +447,12 @@ export function transferPage(fromProject: string, path: string, toProject: strin
     }
     for (const p of below) movedText({ kind: "page", key: `${src.id}/${p}` }, { kind: "page", key: `${dst.id}/${moved(p)}` });
   } else {
-    // A copy is its own page to anything that mentions it, from the start.
+    // A copy is its own page to anything that mentions it, from the start — and wears the same tags.
     for (const p of below) {
       const f = pageFile(dst.folder, moved(p));
       if (existsSync(f)) syncText({ kind: "page", key: `${dst.id}/${moved(p)}` }, moved(p).split("/").pop() ?? p, readText(f));
+      const tags = pageTags(src.id, p);
+      if (tags.length) setPageTags(dst.id, moved(p), tags);
     }
   }
   return { path: to, title, children: [] };

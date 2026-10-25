@@ -158,6 +158,17 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 /* What the page links, to open: under the writing. */
 .page-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 2px 0; }
 .page-files:empty { display: none; }
+/* A page's tags: chips, and a field to add one, under the page. */
+.page-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 2px 0; }
+.page-tags:empty { display: none; }
+.tag-chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 9px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font-size: 12px; }
+.tag-chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 4px; font-size: 13px; opacity: .7; }
+.tag-chip button:hover { opacity: 1; }
+.tag-add { border: 0; border-bottom: 1px dashed var(--line); background: transparent; color: var(--text); font: inherit; font-size: 12px; padding: 2px 2px; width: 9em; outline: none; }
+.tag-add:focus { border-bottom-color: var(--accent); }
+.sort-btn.tag-filter { margin-left: 8px; }
+.sort-btn.tag-filter.on { color: var(--accent); }
+.context .menu-item .n { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 11px; }
 .page-files .label { margin-right: 4px; }
 .file-chip { border: 1px solid var(--line); border-radius: 12px; padding: 2px 10px; font-size: 12px; color: var(--text); background: var(--accent-wash); cursor: pointer; }
 .file-chip:hover { border-color: var(--accent); color: var(--accent); }

@@ -26,7 +26,7 @@ const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
   start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project",
-  files: "Attachments" };
+  files: "Attachments", tags: "Tags" };
 const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note" };
 /** The mark Talaris puts on its undated notes (notes.ts): the only notes of Talaris's this sync carries. */
 const UNDATED = "talaris:undated";
@@ -65,6 +65,8 @@ export function plan(state, T, H, s, newId) {
   /** Whether a Talaris thing is one this sync carries at all: a note, only an undated one. */
   const carriesT = (o, kind) => {
     if (kind === "note" && o[UNDATED] !== true) return false;
+    // Tagged mode is the same on both sides: a note takes part by wearing one of the tags.
+    if (kind === "note" && s.notes === "tagged" && !(o.tags ?? []).some((tag) => (s.noteTags ?? []).includes(tag))) return false;
     return !(o.archived || o.stub || only.has(o.id));
   };
   /**
@@ -99,9 +101,9 @@ export function plan(state, T, H, s, newId) {
     const type = toSide.typeFor(kind);
     const p = carry(toSide, null, kind, fromSide, fromObj, slotsOf(kind));
     // A note made in Hermes Notes, in tagged mode, wears the first tag named — or it would not come back next time.
-    const tags = kind === "note" && toSide === h && s.notes === "tagged" && s.noteTags?.length ? [s.noteTags[0]] : null;
+    const tags = [...new Set([...(p.tags ?? []), ...(kind === "note" && toSide === h && s.notes === "tagged" && s.noteTags?.length ? [s.noteTags[0]] : [])])];
     return { side: toSide === t ? "talaris" : "hermes", op: "put", id,
-      body: { type: type.id, properties: p.set ?? {}, ...(p.content !== undefined ? { content: p.content } : {}), ...(tags ? { tags } : {}) },
+      body: { type: type.id, properties: p.set ?? {}, ...(p.content !== undefined ? { content: p.content } : {}), ...(tags.length ? { tags } : {}) },
       ...(p.files ? { files: p.files } : {}) };
   };
 
@@ -209,7 +211,7 @@ export function plan(state, T, H, s, newId) {
       }
       if (toH.length) {
         const { files, ...patch } = carry(h, b, kind, t, a, toH);
-        if (patch.set || patch.unset || patch.content !== undefined) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, ...(files ? { files } : {}), link: l, slots: toH, values: tv });
+        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, ...(files ? { files } : {}), link: l, slots: toH, values: tv });
         summary.carried += toH.length;
       }
       // Its way back to Hermes Notes, written with whatever else goes to it, or alone.
@@ -218,7 +220,7 @@ export function plan(state, T, H, s, newId) {
       if (toT.length || backChanged) {
         const { files, ...patch } = carry(t, a, kind, h, b, toT);
         if (backChanged) patch.set = { ...(patch.set ?? {}), [LINK]: back };
-        if (patch.set || patch.unset || patch.content !== undefined) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, ...(files ? { files } : {}), link: l, slots: toT, values: hv });
+        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, ...(files ? { files } : {}), link: l, slots: toT, values: hv });
         summary.carried += toT.length;
       }
     }

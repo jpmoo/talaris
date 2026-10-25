@@ -85,7 +85,7 @@ key = "noteTags"
 label = "Note tags"
 kind = "text"
 default = "talaris"
-help = "For Only those with these tags: the Hermes Notes tags, comma-separated. A note made in Hermes Notes from Talaris wears the first."
+help = "For Only those with these tags: comma-separated. A note on either side takes part by wearing one — in Talaris, tag it in the writing drawer."
 
 [[settings]]
 key = "minutes"

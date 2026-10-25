@@ -48,6 +48,8 @@ const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS",
 // after what the launcher found itself, before the question to Morgan.
 const TALKED = 3;
 let talked = { query: "", results: [] };
+// `#tag`: what carries it, asked of the core as it is typed (launcher.py, tagged).
+let tagCache = new Map();
 let talkSoon = null;
 
 $("glass").innerHTML = Icons.search();
@@ -221,6 +223,24 @@ function figure(v) {
 function draw() {
   const query = $("q").value;
   shown = rank(query);
+  // "#tag": everything carrying it — pages (opened where they are), tasks, people; "#" alone, the tags in use.
+  const tagAsked = /^#(\S*)$/.exec(query.trim());
+  if (tagAsked && bridge) {
+    const t = tagAsked[1];
+    if (!t) {
+      if (!tagCache.has("")) bridge.tags((text) => { tagCache.set("", JSON.parse(text || "[]")); draw(); });
+      shown = (tagCache.get("") || []).slice(0, 30).map((x) => ({ kind: "verb", key: `tag:${x.tag}`, title: `#${x.tag}`, sub: `${x.count} tagged`,
+        act: { kind: "fill", text: `#${x.tag}` } }));
+    } else {
+      if (!tagCache.has(t)) bridge.tagged(t, (text) => { tagCache.set(t, JSON.parse(text || "[]")); draw(); });
+      const AS = { task: "task", contact: "person", event: "event" };
+      shown = (tagCache.get(t) || []).map((x) => x.page
+        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Undated note" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
+          act: { kind: "page", project: x.page.project, path: x.page.path } }
+        : { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${(x.kinds || [])[0] || "thing"}`,
+          act: { kind: "entity", id: x.id, as: AS[(x.kinds || []).find((k) => AS[k])] || "" } });
+    }
+  }
   // "archive <words>": the archive searched on purpose — it is in no other result.
   const inArchive = /^archive\s+(\S.*)$/i.exec(query.trim());
   if (inArchive) shown.unshift({ kind: "verb", key: "archive-search", title: `Search the archive for “${inArchive[1]}”`, sub: "Archived projects' pages, canvases and files",
@@ -230,7 +250,8 @@ function draw() {
     const plain = String(Math.round(worked * 1e10) / 1e10);
     shown.unshift({ kind: "sum", title: figure(worked), sub: "Enter copies it", act: { kind: "copy", text: plain } });
   }
-  if (query.trim() && talked.query === query.trim().replace(/\s+/g, " ")) {
+  // A tag search is a question about tags: past conversations that happen to hold the word are not an answer to it.
+  if (query.trim() && !tagAsked && talked.query === query.trim().replace(/\s+/g, " ")) {
     for (const r of talked.results.slice(0, TALKED)) {
       shown.push({ kind: "conversation", key: `conversation:${r.id}`, title: r.title, sub: `${r.when}${r.said ? ` · “${r.said.slice(0, 80)}”` : ""}`,
         act: { kind: "conversation", id: r.id } });
@@ -280,6 +301,8 @@ function choose(i, there = false) {
   if (!x || !bridge) return;
   if (x.ask && armed !== x.key) { armed = x.key; draw(); return; }
   armed = null;
+  // A tag chosen from "#": typed in, so what carries it shows.
+  if (x.act.kind === "fill") { $("q").value = x.act.text; $("q").dispatchEvent(new Event("input")); return; }
   if (x.key) remember(x.key);
   if (x.kind === "morgan") say("Asking Morgan…");
   bridge.act(JSON.stringify(there && x.act.kind === "app" ? { ...x.act, there: true } : x.act), (error) => { if (error) say(error, true); });
@@ -324,8 +347,9 @@ function onState(s) {
   state = s;
   if (!s.up) return;
   if (!was) Motion.arrive($("box"), how());
-  // Each opening starts clean, with a fresh look at what there is.
+  // Each opening starts clean, with a fresh look at what there is — the tags too.
   $("q").value = "";
+  tagCache = new Map();
   at = 0;
   armed = null;
   say("");

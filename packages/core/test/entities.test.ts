@@ -491,6 +491,28 @@ test("a task's file goes when the task is deleted or the file taken off — unle
   assert.equal(entities.getFile(own.sha256), null);
 });
 
+test("tags: a page tagged gets an entity; renames and copies keep its tags; a tag finds pages and tasks alike; a deleted page drops out", async () => {
+  const pagesM = await import("../src/pages.js");
+  const projectsM = await import("../src/projects.js");
+  const tags = await import("../src/tags.js");
+  const tasks = await import("../src/tasks.js");
+  const p = projectsM.createProject("Tagging");
+  pagesM.createPage(p.id, null, "Budget notes");
+  assert.deepEqual(tags.setPageTags(p.id, "Budget notes", ["#finance", " board ", "finance"]), ["finance", "board"], "trimmed, # dropped, once each");
+  pagesM.movePage(p.id, "Budget notes", null, "Budget, FY27");
+  assert.deepEqual(tags.pageTags(p.id, "Budget, FY27"), ["finance", "board"], "renamed, its tags go with it");
+  pagesM.transferPage(p.id, "Budget, FY27", projectsM.UNDATED, null, true);
+  assert.deepEqual(tags.pageTags(projectsM.UNDATED, "Budget, FY27"), ["finance", "board"], "a copy wears them too");
+  tasks.createTask({ title: "Pay the auditors", tags: ["finance"] });
+  const found = tags.tagged(["finance"]);
+  assert.deepEqual(found.map((x) => x.title).sort(), ["Budget, FY27", "Budget, FY27", "Pay the auditors"]);
+  assert.ok(found.some((x) => x.page?.project === projectsM.UNDATED), "an undated note says where it is");
+  assert.equal(tags.tagged(["finance", "board"], { all: true }).length, 2, "every tag asked for: the two pages");
+  assert.ok(tags.allTags().some((t) => t.tag === "finance" && t.count >= 3));
+  pagesM.deletePage(p.id, "Budget, FY27");
+  assert.equal(tags.tagged(["board"]).length, 1, "the deleted page's tags went with it");
+});
+
 test("undated notes through the live binding: their file is the truth, renamed and rewritten by a write, made by a create, gone when deleted", async () => {
   const live = await import("../src/interchange.js");
   const pagesM = await import("../src/pages.js");

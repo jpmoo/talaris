@@ -137,6 +137,19 @@ class LauncherBridge(Bridge):
         return json.dumps(self.owner.catalog())
 
     @Slot(str, result=str)
+    def tagged(self, tag: str) -> str:
+        """`#tag` typed: everything carrying it (the core's tags.ts) — pages with where they are, tasks and people by id."""
+        from urllib.parse import quote
+        status, text = call("GET", f"/tags/things?tag={quote(tag.strip().lstrip('#'))}")
+        return text if status == 200 else "[]"
+
+    @Slot(result=str)
+    def tags(self) -> str:
+        """Every tag in use, for `#` typed alone."""
+        status, text = call("GET", "/tags")
+        return text if status == 200 else "[]"
+
+    @Slot(str, result=str)
     def act(self, request: str) -> str:
         """Do what was chosen. Answers an error to show, or empty when it was done."""
         try:
@@ -292,8 +305,16 @@ class Launcher(QObject):
             self.desktop.go_to_project(str(r["id"]))
         elif kind == "canvas":
             self.desktop.show_in_drawer("canvas", {"canvas": str(r["id"])})
+        elif kind == "page" and r.get("project"):
+            # A page wherever it is — another project's, or an undated note — opened there.
+            self.desktop.open_place("page", str(r["project"]), str(r["path"]))
         elif kind == "page":
             self.desktop.show_in_drawer("writing", {"page": str(r["path"])})
+        elif kind == "entity":
+            from desktop_api import opened
+            said = opened(self.desktop, {"kind": str(r.get("as", "")), "id": str(r["id"])})
+            if not said.get("ok"):
+                return said.get("error", "That cannot be opened")
         elif kind == "file":
             return self._open_file(str(r["path"]))
         elif kind == "verb" and r.get("name") == "archive":

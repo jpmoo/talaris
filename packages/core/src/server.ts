@@ -51,6 +51,7 @@ import {
 import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
+import * as tagsM from "./tags.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -320,6 +321,12 @@ route("GET", "/entities/:id/place", (_r, [id]) => {
 route("GET", "/people", () => entities.listPeople());
 // The organizations marked as one's own, for People's "My organizations".
 route("GET", "/people/my-organizations", () => entities.myOrganizations());
+// Tags across everything (tags.ts): every tag with its count; what carries one (or several: ?tag=a&tag=b, &all=1 for every one);
+// a page's own, read and set whole.
+route("GET", "/tags", () => tagsM.allTags());
+route("GET", "/tags/things", (_r, _p, q) => tagsM.tagged(q.getAll("tag"), { all: q.get("all") === "1", ...(q.get("kind") ? { kind: q.get("kind")! } : {}) }));
+route("GET", "/projects/:id/page/tags", (_r, [id], q) => tagsM.pageTags(id!, need(q, "path")));
+route("PUT", "/projects/:id/page/tags", async (req, [id], q) => tagsM.setPageTags(id!, need(q, "path"), (await json<{ tags?: string[] }>(req)).tags ?? []));
 route("PUT", "/people/my-organizations", async (req) => entities.setMyOrganizations((await json<{ names?: string[] }>(req)).names ?? []));
 // Address-book cards as people (People: everyone in your address books).
 route("POST", "/people/from-cards", async (req) => {

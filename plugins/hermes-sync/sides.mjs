@@ -10,10 +10,10 @@
 
 /** What syncs, by kind: the slots compared and carried, in the format's words. */
 export const KINDS = {
-  project: ["title", "body", "files"],
-  contact: ["title", "email", "phone", "organization", "role", "body", "files"],
-  task: ["title", "complete", "start", "due", "project", "files"],
-  note: ["title", "body", "files"],
+  project: ["title", "body", "files", "tags"],
+  contact: ["title", "email", "phone", "organization", "role", "body", "files", "tags"],
+  task: ["title", "complete", "start", "due", "project", "files", "tags"],
+  note: ["title", "body", "files", "tags"],
 };
 /** The slots that point at other things, and what they point at. */
 export const REFS = { task: { project: "project" } };
@@ -70,6 +70,8 @@ export class Side {
     if (!t) return false;
     const map = t.profiles[kind];
     if (slot === "files") return Boolean(filesField(t));
+    // Tags are every object's in the format, not a profile slot.
+    if (slot === "tags") return true;
     return slot === "complete" ? Boolean(map.status) : map[slot] !== undefined && map[slot] !== null;
   }
 
@@ -78,6 +80,7 @@ export class Side {
     const type = this.types.get(o.type);
     const map = type?.profiles?.[kind];
     if (!map) return null;
+    if (slot === "tags") return o.tags?.length ? o.tags : null;
     if (slot === "files") {
       const f = filesField(type);
       if (!f) return null;
@@ -112,6 +115,8 @@ export class Side {
     if (slot === "complete") return v;
     // Files compare as which files, by hash: a file renamed on one side is the same file.
     if (slot === "files") return [...new Set(v.map((a) => a.sha256))].sort();
+    // Tags as a set: the order a side keeps them in is not a difference.
+    if (slot === "tags") return [...new Set(v)].sort();
     if (REFS[kind]?.[slot]) {
       const ids = (Array.isArray(v) ? v : [v]).map(String).map(key).filter(Boolean).sort();
       return ids.length ? ids : null;
@@ -132,6 +137,7 @@ export class Side {
     if (v === null) return "—";
     if (slot === "complete") return v ? "done" : "not done";
     if (slot === "files") return v.map((a) => a.filename ?? a.sha256.slice(0, 8)).join(", ");
+    if (slot === "tags") return v.map((t) => `#${t}`).join(" ");
     if (Array.isArray(v)) return v.join(", ");
     return typeof v === "string" ? v : JSON.stringify(v);
   }
@@ -148,6 +154,14 @@ export class Side {
     const type = o ? this.types.get(o.type) : this.typeFor(kind);
     const map = type?.profiles?.[kind];
     if (!map) return null;
+    if (slot === "tags") {
+      // Named moves, as the format writes tags: a tag this side holds and the other never said is not removed by a whole list.
+      const want = [...new Set(rawFrom ?? [])];
+      if (!o) return want.length ? { tags: want } : null;
+      const have = o.tags ?? [];
+      const add = want.filter((t) => !have.includes(t)), remove = have.filter((t) => !want.includes(t));
+      return add.length || remove.length ? { ...(add.length ? { addTags: add } : {}), ...(remove.length ? { removeTags: remove } : {}) } : null;
+    }
     if (slot === "files") {
       // The field written whole — a file not named goes from this side too — and each file to be handed over first (`files`).
       const f = filesField(type);
@@ -193,13 +207,16 @@ export class Side {
 export function merge(patches) {
   const set = {}, unset = [];
   const spans = {};
-  let content, files = [];
+  let content, files = [], tags, addTags = [], removeTags = [];
   for (const p of patches) {
     if (!p) continue;
     Object.assign(set, p.set ?? {});
     for (const k of p.unset ?? []) unset.push(k);
     if (p.content !== undefined) content = p.content;
     if (p.files) files = files.concat(p.files);
+    if (p.tags) tags = p.tags;
+    if (p.addTags) addTags = addTags.concat(p.addTags);
+    if (p.removeTags) removeTags = removeTags.concat(p.removeTags);
     // Halves of a span: each onto the span as it stands, together.
     for (const [k, { base, changes }] of Object.entries(p.parts ?? {})) {
       spans[k] ??= { ...(base ?? {}) };
@@ -215,5 +232,6 @@ export function merge(patches) {
   }
   const gone = [...new Set(unset)].filter((k) => !(k in set) && !(k === "content" && content !== undefined));
   return { ...(Object.keys(set).length ? { set } : {}), ...(gone.length ? { unset: gone } : {}),
-    ...(content !== undefined ? { content } : {}), ...(files.length ? { files } : {}) };
+    ...(content !== undefined ? { content } : {}), ...(files.length ? { files } : {}),
+    ...(tags ? { tags } : {}), ...(addTags.length ? { addTags } : {}), ...(removeTags.length ? { removeTags } : {}) };
 }

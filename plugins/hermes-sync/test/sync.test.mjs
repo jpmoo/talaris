@@ -167,8 +167,11 @@ test("notes: only Talaris's undated ones and Hermes Notes' that are not a day's 
   assert.equal(toT.body.properties.body, "from Hermes", "and back");
 });
 
-test("notes, tagged: only Hermes Notes' wearing a tag named come across, and Talaris's go out wearing the first", () => {
-  const T = env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Out" }, version: 1 }]);
+test("notes, tagged: on either side, only notes wearing a tag named take part", () => {
+  const T = env(NOTE_T, [
+    { id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Out" }, tags: ["talaris"], version: 1 },
+    { id: "tn2", type: "t_note", "talaris:undated": true, properties: { title: "Stays in Talaris" }, version: 1 },
+  ]);
   const H = env(NOTE_H, [
     { id: "hn1", type: "h-text", properties: { title: "Tagged" }, tags: ["talaris"], version: 1 },
     { id: "hn2", type: "h-text", properties: { title: "Not tagged" }, tags: ["work"], version: 1 },
@@ -213,4 +216,15 @@ test("a body changed in Talaris goes to Hermes Notes in the patch's body, not as
   const w = p.writes.find((x) => x.side === "hermes");
   assert.equal(w.patch.content, "new");
   assert.equal(w.patch.set, undefined);
+});
+
+test("tags travel as moves: added and taken off on one side, the same on the other, and a tag the other never said is left", () => {
+  const links = [{ kind: "note", t: "tn1", h: "hn1", base: { title: '"Plan"', body: null, files: null, tags: '["budget"]' } }];
+  const T = env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Plan" }, tags: ["board"], version: 2 }]);
+  const H = env(NOTE_H, [{ id: "hn1", type: "h-text", properties: { title: "Plan" }, tags: ["budget"], version: 4 }]);
+  const p = plan({ started: true, links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  const w = p.writes.find((x) => x.side === "hermes");
+  assert.deepEqual(w.patch.addTags, ["board"]);
+  assert.deepEqual(w.patch.removeTags, ["budget"]);
+  assert.equal(w.patch.set, undefined, "tags are not properties");
 });

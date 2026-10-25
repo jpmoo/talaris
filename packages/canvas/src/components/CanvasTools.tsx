@@ -16,12 +16,13 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Calendar, CheckSquare, FileText, Image as ImageIcon, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
+import { Calendar, CheckSquare, FileText, Hash, Image as ImageIcon, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
 import { createPortal } from "react-dom";
 import { BringIn, type BringKind } from "./BringIn.tsx";
+import { TagPicker } from "./TagPicker.tsx";
 import { cardKind } from "../cards.ts";
 import type { Summary } from "../entities.ts";
 
@@ -422,6 +423,34 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
     else if (DROPS[key]) setBringing({ x: clientX, y: clientY, kind: DROPS[key] });
   };
   /** A click rather than a drag: the search opens in the middle of the canvas. */
+  /*
+   * Everything carrying a tag, put on the canvas at once: pages (a project's
+   * and the undated notes), tasks, people — a card each, in a grid around the
+   * middle of the view, leaving out what this canvas already shows. One write.
+   */
+  const [tagging, setTagging] = useState<{ x: number; y: number } | null>(null);
+  async function placeTagged(tag: string) {
+    setTagging(null);
+    const things = await ask<{ id: string; title: string; kinds: string[] }[]>("GET", `/tags/things?tag=${encodeURIComponent(tag)}`).catch(() => []);
+    const doc = document_();
+    const there = new Set(doc.items.map((i) => (i as { entity?: string }).entity).filter(Boolean));
+    const fresh = (things ?? []).filter((t) => !there.has(t.id));
+    if (!fresh.length) return;
+    const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
+    const mid = atPoint((box?.left ?? 0) + (box?.width ?? 800) / 2, (box?.top ?? 0) + (box?.height ?? 600) / 2);
+    const cols = Math.min(4, Math.ceil(Math.sqrt(fresh.length)));
+    const rows = Math.ceil(fresh.length / cols);
+    const W = 240, H = 110, GAP = 30;
+    const left = mid.x - (cols * W + (cols - 1) * GAP) / 2, top = mid.y - (rows * H + (rows - 1) * GAP) / 2;
+    doc.items = [...doc.items, ...fresh.map((t, i) => {
+      const kind = cardKind(t.kinds ?? []);
+      const h = kind === "task" ? 72 : kind === "event" ? 96 : kind === "contact" ? 76 : H;
+      return { id: id(), kind: "card", entity: t.id, x: left + (i % cols) * (W + GAP), y: top + Math.floor(i / cols) * (H + GAP), w: W, h, seen: { title: t.title, kind } } as CanvasItem;
+    })];
+    await putDocument(doc);
+    await onPlaced();
+  }
+
   const searchMiddle = (kind: BringKind) => {
     const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
     setBringing({ x: (box?.left ?? 0) + (box?.width ?? 800) / 2, y: (box?.top ?? 0) + (box?.height ?? 600) / 2, kind });
@@ -531,6 +560,10 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       {tool("event", "Drag onto the canvas — an event", <Calendar size={15} />, () => searchMiddle("event"))}
       {tool("task", "Drag onto the canvas — a task", <CheckSquare size={15} />, () => searchMiddle("task"))}
       {tool("note", "Drag onto the canvas — a note or page", <StickyNote size={15} />, () => searchMiddle("note"))}
+      {tool("tag", "Everything with a tag, onto the canvas", <Hash size={15} />, () => {
+        const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
+        setTagging({ x: (box?.left ?? 0) + (box?.width ?? 800) / 2, y: (box?.top ?? 0) + (box?.height ?? 600) / 2 });
+      })}
 
       <button
         className={`tool${selecting ? " armed" : ""}`}
@@ -578,6 +611,11 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
           if (file) void load(file);
         }}
       />
+      {tagging &&
+        createPortal(
+          <TagPicker x={tagging.x} y={tagging.y} onClose={() => setTagging(null)} onPick={(t) => void placeTagged(t)} />,
+          window.document.body,
+        )}
       {bringing &&
         createPortal(
           <BringIn
