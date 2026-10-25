@@ -7,8 +7,9 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { getEntity, types } from "./entities.js";
+import { onRecord } from "./feed.js";
 import { restoreLinks, unbacked } from "./links.js";
-import { createObject, getInterchangeFile, liveManifest, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
+import { createObject, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
@@ -632,7 +633,7 @@ function checkedDecisions(v: unknown): Decision[] {
       id: d.id.slice(0, 200), title: d.title.slice(0, 300), ...(typeof d.detail === "string" ? { detail: d.detail.slice(0, 2000) } : {}),
       ...(Array.isArray(d.fields) ? { fields: (d.fields as Record<string, unknown>[]).slice(0, 40).map((f) => ({ label: String(f.label ?? ""), here: words(f.here, f.text === true), there: words(f.there, f.text === true), ...(f.text === true ? { text: true } : {}) })) } : {}),
       ...(Array.isArray(d.sides) && d.sides.length === 2 ? { sides: [String(d.sides[0]), String(d.sides[1])] as [string, string] } : {}),
-      choices: (d.choices as Record<string, unknown>[]).slice(0, 6).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? ""), ...(c.edit === true ? { edit: true } : {}) })),
+      choices: (d.choices as Record<string, unknown>[]).slice(0, 12).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? ""), ...(c.edit === true ? { edit: true } : {}) })),
     }];
   });
 }
@@ -653,6 +654,23 @@ export async function decide(id: string, item: string, choice: string, value?: s
 }
 
 const running = new Map<string, Running>();
+
+/*
+ * Something in the store changed: each running plugin that reads anything is
+ * told (`notifications/talaris/changed`), a moment later and once for a burst,
+ * so a sync carries a change at once rather than at its next look. Only that
+ * something changed — what changed it asks for, through the binding, under
+ * its permissions.
+ */
+let changedSoon: NodeJS.Timeout | null = null;
+onRecord(() => {
+  if (changedSoon) return;
+  changedSoon = setTimeout(() => {
+    changedSoon = null;
+    for (const r of running.values()) if (r.state === "running" && r.manifest.permissions.read.length) r.notify("notifications/talaris/changed", {});
+  }, 1500);
+  changedSoon.unref();
+});
 
 function start(id: string): void {
   const p = installed().find((x) => x.manifest.id === id);
@@ -707,11 +725,14 @@ function interchangeFor(m: Manifest, p: Record<string, unknown>): unknown {
   if (verb === "GET" && url.pathname === "/conformance") return { format: "pkm-interchange/0", ...liveManifest() };
   if (verb === "GET" && url.pathname === "/interchange") {
     if (!m.permissions.read.length) throw new Error("its manifest does not ask to read anything");
-    const env = readEnvelope({ since: url.searchParams.get("since") ?? undefined, profile: url.searchParams.get("profile") ?? undefined, q: url.searchParams.get("q") ?? undefined });
+    // Collections (Tasks' boards, matrices, smart lists) to a plugin that reads tasks, and asks for them.
+    const wantsLists = url.searchParams.get("collections") === "1" && m.permissions.read.includes("task");
+    const env = readEnvelope({ since: url.searchParams.get("since") ?? undefined, profile: url.searchParams.get("profile") ?? undefined, q: url.searchParams.get("q") ?? undefined, collections: wantsLists });
     const objects = (env.objects ?? []).filter((o) => may(m.permissions.read, o.type));
     const ids = new Set(objects.map((o) => o.id));
     // Deletions are said by id alone: a follower must hear of them, and an id says nothing else.
-    return { ...env, objects, relations: (env.relations ?? []).filter((r) => ids.has(r.from)) };
+    const collections = ((env as { collections?: { members?: { object: string }[] }[] }).collections ?? []).map((c) => ({ ...c, members: (c.members ?? []).filter((x) => ids.has(x.object)) }));
+    return { ...env, objects, relations: (env.relations ?? []).filter((r) => ids.has(r.from)), ...(wantsLists ? { collections } : {}) };
   }
   // Files by their hash (*Files*), as base64 inside the request — the one place a plugin's words are JSON.
   const file = /^\/interchange\/files\/([0-9a-f]{64})$/.exec(url.pathname);
@@ -726,6 +747,21 @@ function interchangeFor(m: Manifest, p: Record<string, unknown>): unknown {
       const got = getInterchangeFile(sha);
       return got.ok ? { ok: true, ...(verb === "GET" ? { bytes: got.bytes!.toString("base64") } : {}), reports: [] } : got;
     }
+  }
+  // A collection's members, and a collection made (*Collections and placement*): a plugin that may change tasks.
+  const member = /^\/interchange\/collections\/([^/]+)\/members\/([^/]+)$/.exec(url.pathname);
+  if (member && (verb === "PUT" || verb === "PATCH" || verb === "DELETE")) {
+    if (!m.permissions.write.includes("task")) throw new Error("its manifest does not ask to change tasks, or the collections they are in");
+    const object = decodeURIComponent(member[2]!);
+    let typeId: string | undefined;
+    try { typeId = getEntity(object).type; } catch { return { ok: false, reports: ["member.object-not-found"] }; }
+    if (!may(m.permissions.write, typeId)) throw new Error(`its manifest does not ask to change ${kindsOfType(typeId).join(" or ") || "that kind of thing"}`);
+    return writeMember(verb, decodeURIComponent(member[1]!), object, (p.body ?? {}) as { region?: string | null });
+  }
+  const made = /^\/interchange\/collections\/([^/]+)$/.exec(url.pathname);
+  if (made && verb === "PUT") {
+    if (!m.permissions.write.includes("task")) throw new Error("its manifest does not ask to change tasks, or the collections they are in");
+    return makeCollection(decodeURIComponent(made[1]!), (p.body ?? {}) as Record<string, unknown>);
   }
   const object = /^\/interchange\/objects\/([^/]+)$/.exec(url.pathname);
   if (object) {

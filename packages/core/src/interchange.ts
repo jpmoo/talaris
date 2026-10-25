@@ -10,7 +10,7 @@ import { keepLinks, linkedBytes, refreshLinks } from "./links.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
 import { allSeries } from "./tasks.js";
-import { show, type List } from "./lists.js";
+import { addMember, createList, getList, removeMember, show, type List } from "./lists.js";
 import { ENTITIES_DIR } from "./vault.js";
 import { seal } from "./seal.js";
 import { storeKey } from "./vault.js";
@@ -140,6 +140,65 @@ function collectionOf(l: List): Record<string, unknown> {
   return { ...rest, members };
 }
 
+// ------------------------------------------------------------ collections: membership and placement, written
+
+/*
+ * The format's writes on a collection's members (*Adding and removing a
+ * member*, *Moving a card*): `PUT` makes a membership (with its region) and
+ * changes nothing if it is there; `PATCH` moves it (`region`, null for no
+ * region in particular); `DELETE` unmakes it, the object untouched, and is a
+ * success if it was not there. A region the collection does not declare is
+ * refused, never stored; a smart list's membership is its rule's, so it is
+ * not written (a matrix's placements are, its rule only filling its drawer).
+ * Entering a region does what the region says (a tag, a status), as a drag
+ * in the Tasks panel does (lists.ts).
+ */
+export interface MemberAnswer { ok: boolean; reports: string[]; collection?: Record<string, unknown> }
+function regionNames(l: List): string[] {
+  const shown = show(l).list;
+  return (shown.placement?.regions ?? []).map((r) => (typeof r === "string" ? r : r.name));
+}
+export function writeMember(verb: "PUT" | "PATCH" | "DELETE", collectionId: string, objectId: string, body: { region?: string | null; context?: unknown }): MemberAnswer {
+  let l: List;
+  try { l = getList(collectionId); } catch { return { ok: false, reports: ["collection.not-found"] }; }
+  try { getEntity(objectId); } catch { return { ok: false, reports: ["member.object-not-found"] }; }
+  if (body.context !== undefined) return { ok: false, reports: ["placement.context-on-semantic: this collection's placement is a judgment, not furniture"] };
+  const queried = l.membership.mode === "query" && l.kind !== "matrix";
+  const has = l.members.some((m) => m.object === objectId) || (queried && show(l).rows.some((r) => r.id === objectId));
+  if (verb === "DELETE") {
+    if (!has) return { ok: true, reports: [] };
+    if (queried) return { ok: false, reports: ["collection.membership-is-a-rule: what it holds is its rule's"] };
+    removeMember(collectionId, objectId);
+    return { ok: true, reports: [], collection: collectionOf(getList(collectionId)) };
+  }
+  if (body.region !== undefined && body.region !== null && !regionNames(l).includes(body.region)) {
+    return { ok: false, reports: [`placement.unknown-region: ${body.region} is not one of this collection's regions`] };
+  }
+  if (verb === "PUT" && has) return { ok: true, reports: [], collection: collectionOf(l) };
+  if (verb === "PATCH" && !has) return { ok: false, reports: ["member.not-a-member: put it in first"] };
+  if (queried && verb === "PUT") return { ok: false, reports: ["collection.membership-is-a-rule: what it holds is its rule's"] };
+  addMember(collectionId, objectId, body.region === undefined ? {} : { region: body.region === null ? "" : body.region });
+  return { ok: true, reports: [], collection: collectionOf(getList(collectionId)) };
+}
+
+/**
+ * A collection made through the binding (*Making a collection*): at the id
+ * asked for; one already there answers as it stands, unchanged.
+ */
+export function makeCollection(id: string, body: Record<string, unknown>): MemberAnswer & { created?: boolean } {
+  if (typeof body.id === "string" && body.id !== id) return { ok: false, reports: ["create.id-mismatch"] };
+  try { return { ok: true, created: false, reports: [], collection: collectionOf(getList(id)) }; } catch { /* not there: made */ }
+  const kind = String(body.kind ?? "list");
+  if (!["list", "table", "board", "matrix", "calendar"].includes(kind)) return { ok: false, reports: [`collection.kind-not-kept: Talaris keeps list, table, board, matrix and calendar, not ${kind}`] };
+  // Its members are added one by one, as any client adds them: a rule in another app's words is not one Talaris can run,
+  // so one made from another app's smart collection is kept in step by whoever made it.
+  const made = createList({ id, name: String(body.name ?? "Untitled"), kind: kind as List["kind"],
+    ...(body.placement ? { placement: body.placement as List["placement"] } : {}),
+    ...(body.order ? { order: body.order as List["order"] } : {}),
+    extra: Object.fromEntries(Object.entries(body).filter(([k]) => k.includes(":"))) });
+  return { ok: true, created: true, reports: [], collection: collectionOf(made) };
+}
+
 /**
  * An envelope into the store, **replacing what is there** — a revival. The
  * store as it was is moved aside first and put back if anything goes wrong.
@@ -255,7 +314,7 @@ export function liveManifest(): typeof LIVE_MANIFEST {
  * objects, or what matches some words — always a whole envelope, every type
  * an object points at travelling with it (all of them: there are few).
  */
-export function readEnvelope(q: { since?: string; profile?: string; q?: string } = {}): Envelope & { cursor: string; changes?: Change[] } {
+export function readEnvelope(q: { since?: string; profile?: string; q?: string; collections?: boolean } = {}): Envelope & { cursor: string; changes?: Change[] } {
   // The undated notes' entities as their files are now (notes.ts): edited in another editor, moved, deleted;
   // and linked files looked at again (links.ts): changed, a new hash; gone, marked missing.
   reconcileNotes();
@@ -285,9 +344,12 @@ export function readEnvelope(q: { since?: string; profile?: string; q?: string }
   }
   const ids = new Set(objects.map((o) => o.id));
   const narrowed = Boolean(q.since || q.profile || q.q);
-  const { collections: _lists, ...rest } = whole;
+  // Collections (Tasks' boards, matrices, smart lists) only when asked for (`?collections=1`): a sync pairing them with
+  // another app's. Each with its members as they are now — what a smart one's rule matches, what a matrix has placed where.
+  const { collections: lists, ...rest } = whole;
   return {
     ...rest,
+    ...(q.collections && lists ? { collections: lists } : {}),
     conformance: liveManifest(),
     cursor: at,
     objects,

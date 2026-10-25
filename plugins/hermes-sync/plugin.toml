@@ -106,11 +106,11 @@ default = false
 help = "Talaris's daily notes (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
 
 [[settings]]
-key = "minutes"
-label = "Every (minutes)"
+key = "seconds"
+label = "Look every (seconds)"
 kind = "number"
-default = 5
-help = "When nothing has changed, a sync is two small questions; it reads everything only when something has."
+default = 20
+help = "How often it asks Hermes Notes whether anything changed (one small question; everything is read only when something has). A change in Talaris goes across within a couple of seconds either way."
 
 [[settings]]
 key = "buttons"

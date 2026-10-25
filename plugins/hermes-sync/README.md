@@ -15,7 +15,7 @@ by its name within a matched project — and
 where it is not (two people of one name, no address), you are asked. Then the
 plan is put to you: how many matched, how many to make on each side.
 
-**After that**, every few minutes (and on "sync now", from Morgan too):
+**After that**, within seconds of a change on either side (and on "sync now", from Morgan too):
 
 - **Merge** (the default): a change on one side is carried to the other; a
   change on both, differently, is put to you, side by side, to keep one. A gap
@@ -38,7 +38,7 @@ weigh, was more trouble than it was worth.
 "Hermes Notes" in the launcher) opens Hermes Notes in a window of its own,
 signed in once and kept; pressed again, it brings that window forward.
 
-**Every five minutes** by default: when nothing has changed, a sync is two
+**Every twenty seconds** by default, and within a couple of seconds of a change in Talaris (Talaris says when): when nothing has changed, a sync is two
 small questions; it reads both libraries only when something has.
 
 **A way back.** Every Talaris thing linked to a Hermes Notes one carries its

@@ -193,8 +193,8 @@ async function once(force) {
   if (!hermesBase() || !settings.key) { await status("Needs the Hermes Notes address and access key"); return; }
   const s = words();
 
-  // Nothing new on either side since last time, and nothing asked: nothing to do.
-  if (!force && state.started && state.cursors && !asked.length) {
+  // Nothing new on either side since last time: nothing to do. (An answer to a question starts a sync of its own.)
+  if (!force && state.started && state.cursors) {
     try {
       const [dt, dh] = await Promise.all([tal("GET", `/interchange?since=${encodeURIComponent(state.cursors.t)}`), hermes("GET", `/interchange?since=${encodeURIComponent(state.cursors.h)}`)]);
       if (!(dt.changes ?? []).length && !(dh.changes ?? []).length) { last = { ...last, at: new Date().toISOString() }; await say(); return; }
@@ -325,10 +325,22 @@ function statusText() {
 }
 
 let timer = null;
+/*
+ * How soon a change arrives. Every few seconds the two sides are asked only
+ * whether anything changed since last time (two small requests); everything
+ * is read only when something has. And Talaris says when something changed
+ * on its side (`talaris/changed`), so a change made there goes across within
+ * a couple of seconds rather than at the next look.
+ */
 function schedule() {
   clearInterval(timer);
-  const minutes = Math.max(1, Number(settings.minutes) || 5);
-  timer = setInterval(() => void sync(), minutes * 60_000);
+  const seconds = Math.max(10, Number(settings.seconds) || 20);
+  timer = setInterval(() => void sync(), seconds * 1000);
+}
+let soon = null;
+function changedHere() {
+  clearTimeout(soon);
+  soon = setTimeout(() => void sync(), 2000);
 }
 
 createInterface({ input: process.stdin }).on("line", async (line) => {
@@ -342,6 +354,7 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     return;
   }
   if (m.method === "notifications/initialized") { schedule(); setTimeout(() => void sync(), 2000); return; }
+  if (m.method === "notifications/talaris/changed") { changedHere(); return; }
   if (m.method === "notifications/talaris/settings_changed") { settings = m.params?.settings ?? settings; schedule(); void sync(true); return; }
   if (m.id === undefined) return;
   const reply = (result) => send({ jsonrpc: "2.0", id: m.id, result });

@@ -260,6 +260,10 @@ export interface NewList {
   placement?: List["placement"];
   bind?: string;
   view?: Record<string, unknown>;
+  /** Made at an id asked for (the live binding: a client names what it makes). */
+  id?: string;
+  /** A maker's own keys, prefixed, kept as they came (the round-trip rule). */
+  extra?: Record<string, unknown>;
 }
 
 export function createList(n: NewList): List {
@@ -268,7 +272,8 @@ export function createList(n: NewList): List {
   const lists = sealedList<List>(LISTS);
   const last = lists.map((l) => String(l["talaris:position"] ?? "")).sort().pop() ?? null;
   const l: List = {
-    id: newId("c"),
+    ...Object.fromEntries(Object.entries(n.extra ?? {}).filter(([k]) => k.includes(":"))),
+    id: n.id ?? newId("c"),
     name,
     kind: n.kind ?? "list",
     membership: n.query ? { mode: "query", materialized: Boolean(n.materialized), query: n.query } : { mode: "explicit" },

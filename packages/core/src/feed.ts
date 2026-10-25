@@ -59,10 +59,15 @@ function load(): { rows: Change[]; meta: Meta } {
 const last = () => { const { rows: r, meta: m } = load(); return r.length ? r[r.length - 1]!.seq : m.floor; };
 
 /** A change happened to an object. */
+/** Who wants to hear that something changed (plugins.ts: a sync, told at once rather than at its next look). */
+const listeners: (() => void)[] = [];
+export function onRecord(f: () => void): void { listeners.push(f); }
+
 export function record(object: string, op: Change["op"]): void {
   const { rows: r, meta: m } = load();
   const row = { seq: last() + 1, object, op };
   r.push(row);
+  for (const f of listeners) { try { f(); } catch { /* a listener's trouble is its own */ } }
   appendFileSync(FILE(), JSON.stringify(row) + "\n");
   // Long: the oldest go, and a cursor from before them is answered Gone.
   if (r.length > KEEP * 1.2) {
