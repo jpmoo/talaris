@@ -97,8 +97,9 @@ export const BUILT_IN: EntityType[] = [
   {
     // A contact card's fields (vCard's, by and large), so a person can be tied
     // to cards in contacts accounts and say what they say. Version 2 added role
-    // and the rest; `notes` is shown as the description.
-    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 2,
+    // and the rest; `notes` is shown as the description. Version 3: the
+    // `contact` profile's slots, as the format now names them.
+    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 3,
     fields: [
       { key: "title", kind: "text", required: true, "talaris:label": "Name" },
       { key: "emails", kind: "text", many: true },
@@ -113,11 +114,12 @@ export const BUILT_IN: EntityType[] = [
       { key: "birthday", kind: "date" },
       { key: "websites", kind: "text", many: true },
     ],
-    profiles: { contact: { title: "title", email: "emails", phone: "phones" } },
+    profiles: { contact: { title: "title", email: "emails", phone: "phones", organization: "organization", role: "role", body: "notes" } },
   },
   {
-    // Version 2: files kept with an event (an agenda, the slides).
-    id: "t_event", name: "Event", "talaris:role": "event", "talaris:version": 2,
+    // Version 2: files kept with an event (an agenda, the slides). Version 3:
+    // the `event` profile's slots, its people among them.
+    id: "t_event", name: "Event", "talaris:role": "event", "talaris:version": 3,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "start", kind: "datetime" },
@@ -129,11 +131,12 @@ export const BUILT_IN: EntityType[] = [
       { key: "notes", kind: "richtext" },
       { key: "files", kind: "attachment", many: true },
     ],
-    profiles: { event: { title: "title", start: "start", end: "end", location: "location" } },
+    profiles: { event: { title: "title", start: "start", end: "end", location: "location", attendees: "attendees", organizer: "organizer", body: "notes" } },
   },
   {
     // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
-    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 4,
+    // Version 5: the task profile says which field is its project.
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 5,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
@@ -155,7 +158,7 @@ export const BUILT_IN: EntityType[] = [
     profiles: {
       task: {
         title: "title", start: { field: "schedule", part: "start" }, due: { field: "schedule", part: "end" },
-        status: "status", completeValues: ["done", "archived", "wont_do"],
+        status: "status", completeValues: ["done", "archived", "wont_do"], project: "project",
       },
     },
   },
@@ -174,11 +177,13 @@ export const BUILT_IN: EntityType[] = [
     profiles: { note: { title: "title", body: "body" } },
   },
   {
-    id: "t_project", name: "Project", "talaris:role": "project",
+    // Version 2: it says it is a project (the format's `project` profile).
+    id: "t_project", name: "Project", "talaris:role": "project", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
     ],
+    profiles: { project: { title: "title", body: "description" } },
   },
 ];
 
