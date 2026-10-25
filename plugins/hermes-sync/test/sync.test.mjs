@@ -186,7 +186,9 @@ test("files: added on one side, the field written whole on the other and the fil
   ];
   // Added in Talaris: Hermes Notes' attachment field set, the file listed to hand over first.
   let [T, H] = base([file("a", "brief.pdf")], null);
-  let p = plan({ started: true, links: structuredClone(links) }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  // Neither side offering files by hash: nothing about them is carried.
+  assert.equal(plan({ started: true, links: structuredClone(links) }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId).writes.length, 0);
+  let p = plan({ started: true, links: structuredClone(links) }, T, H, { ...S, kinds: { note: true }, notes: "all", files: true }, newId);
   const w = p.writes.find((x) => x.side === "hermes");
   assert.deepEqual(w.patch.set.attach.map((a) => a.sha256), [SHA("a")]);
   assert.equal(w.patch.set.attach[0].bytes, undefined, "never the bytes in a write: they go by hash");
@@ -194,11 +196,11 @@ test("files: added on one side, the field written whole on the other and the fil
   agreed(p.links[0], w.slots, w.values);
   // Renamed on the other side, it is the same file: nothing to carry.
   [T, H] = base([file("a", "brief.pdf")], [file("a", "Brief (final).pdf")]);
-  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all", files: true }, newId);
   assert.equal(p.writes.length, 0);
   // Taken off in Hermes Notes: taken off in Talaris.
   [T, H] = base([file("a", "brief.pdf")], null);
-  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all", files: true }, newId);
   const off = p.writes.find((x) => x.side === "talaris");
   assert.deepEqual(off.patch.unset, ["files"]);
 });

@@ -159,7 +159,10 @@ async function once(force) {
     } catch (e) { if (!e.gone && !/cursor/.test(e.message)) throw e; }
   }
 
-  const [T, H] = await Promise.all([tal("GET", "/interchange"), hermes("GET", "/interchange")]);
+  const [T, H, cT, cH] = await Promise.all([tal("GET", "/interchange"), hermes("GET", "/interchange"),
+    tal("GET", "/conformance").catch(() => ({})), hermes("GET", "/conformance").catch(() => ({}))]);
+  // Attachments travel only between two sides that both hand files over by their hash.
+  s.files = [cT, cH].every((c) => (c.features ?? []).includes("attachment-files"));
   // A side that has changed how it decides since it started: asked before anything is written that way.
   if (state.started && state.mode && state.mode !== s.mode && s.mode !== "merge") {
     await decideAgain([{ id: `mode:${s.mode}`, title: s.mode === "hermes" ? "Hermes Notes wins, from now on?" : "Talaris wins, from now on?",

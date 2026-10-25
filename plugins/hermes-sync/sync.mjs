@@ -81,7 +81,8 @@ export function plan(state, T, H, s, newId) {
     return true;
   };
 
-  const slotsOf = (kind) => KINDS[kind].filter((slot) => t.has(kind, slot) && h.has(kind, slot));
+  // Files only when both sides offer them by hash (`attachment-files` in each one's manifest): otherwise they cannot be handed over.
+  const slotsOf = (kind) => KINDS[kind].filter((slot) => (slot !== "files" || s.files) && t.has(kind, slot) && h.has(kind, slot));
   const valuesT = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(t.value(o, kind, slot, keyT))]));
   const valuesH = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(h.value(o, kind, slot, keyH))]));
 
