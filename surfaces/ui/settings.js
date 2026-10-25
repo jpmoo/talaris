@@ -1624,22 +1624,23 @@ async function drawStays() {
   const put = (next) => save({ dock: { stays: next } });
   // The exceptions to the general rule (Keys, single-window apps): kept where it brings, brought where it goes.
   const going = (cfg.launcher.singleWindow || "bring") === "go";
-  $("stays-head").textContent = going ? "Always brought here" : "Kept in a project";
+  $("stays-head").textContent = going ? "Always brought to you" : "Kept in their project";
+  // What the exception is, against the rule it is the exception to, and how one is added.
   $("stays-note").textContent = going
-    ? "Things are gone to where they are when called (Keys: Go to it). These are brought to where you are instead. Right-click one on the dock: Always bring here."
-    : "Things are brought to where you are when called (Keys: Bring here). These are gone to in their own project instead. Right-click one on the dock: Keep in this project.";
+    ? "Usually, opening an app takes you to the project where it already is. These come to the project you are in instead. To add one, right-click it on the dock and choose Always bring here."
+    : "Usually, opening an app brings it to the project you are in. These stay in their own project, and opening one takes you there. To add one, right-click it on the dock and choose Keep in this project.";
   if (going) {
     const brings = cfg.dock.brings || [];
     $("stays").replaceChildren(...(brings.length ? brings.map((key) => pel("div", { class: "row" }, pel("span", { class: "name" }, appName(key)),
       pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: () => save({ dock: { brings: brings.filter((k) => k !== key) } }) }, "Remove"))))
-      : [pel("p", { class: "note" }, "None: everything is gone to where it is.")]));
+      : [pel("p", { class: "note" }, "None yet.")]));
     return;
   }
   const rows = Object.entries(stays).sort((a, b) => appName(a[0]).localeCompare(appName(b[0]))).map(([app, proj]) =>
     pel("div", { class: "row" }, pel("span", { class: "name" }, appName(app)),
-      pel("span", { class: "what" }, `in ${projName(proj)}`,
-        pel("button", { class: "t-btn", title: "Brought like any other again", onclick: () => { const n = { ...stays }; delete n[app]; put(n); } }, "Remove"))));
-  $("stays").replaceChildren(...(rows.length ? rows : [pel("p", { class: "note" }, "Nothing kept: everything pinned comes to where you are.")]));
+      pel("span", { class: "what" }, `stays in ${projName(proj)}`,
+        pel("button", { class: "t-btn", title: "Brought to you like everything else", onclick: () => { const n = { ...stays }; delete n[app]; put(n); } }, "Remove"))));
+  $("stays").replaceChildren(...(rows.length ? rows : [pel("p", { class: "note" }, "None yet.")]));
 }
 
 async function loadPlugins() {
