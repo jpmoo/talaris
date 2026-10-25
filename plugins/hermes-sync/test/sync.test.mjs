@@ -319,3 +319,29 @@ test("daily notes stay off unless the setting turns them on", () => {
   const p = plan({ started: true, links: [] }, T, H, { ...S, kinds: { journal: false } }, newId);
   assert.equal(p.writes.length, 0);
 });
+
+test("a Hermes Notes day holding only its template has no words: not made in Talaris, and filled from Talaris's", () => {
+  const seed = "#### Carried Forward\n\n#### Today's Ephemera\n";
+  const T = env([...T_TYPES, T_DAY], [{ id: "td5", type: "t_daily", properties: { title: "2026-10-25", date: "2026-10-25", body: "Test" }, "talaris:daily": "2026-10-25", version: 1 }]);
+  const H = env([...H_TYPES, H_TEXT], [
+    { id: "hd5", type: "h-text", properties: { today_note: "2026-10-25", seed }, content: seed, version: 1 },
+    { id: "hd6", type: "h-text", properties: { today_note: "2026-10-26", seed }, content: seed, version: 1 },
+  ]);
+  const p = plan({ started: true, links: [] }, T, H, DAYS, newId);
+  assert.equal(p.writes.filter((w) => w.op === "put").length, 0, "the template-only day is not made in Talaris");
+  const l = p.links.find((x) => x.t === "td5");
+  assert.equal(l.h, "hd5");
+  const p2 = plan({ started: true, links: p.links }, T, H, DAYS, newId);
+  assert.equal(p2.ask.length, 0, "not a difference to ask about");
+  assert.equal(p2.writes.find((w) => w.side === "hermes").patch.content, "Test");
+});
+
+test("a day cleared on one side and made again there is paired with the new page, not asked about", () => {
+  const T = env([...T_TYPES, T_DAY], [{ id: "td7", type: "t_daily", properties: { title: "2026-10-27", date: "2026-10-27", body: "Words" }, "talaris:daily": "2026-10-27", version: 1 }]);
+  const H = env([...H_TYPES, H_TEXT], [{ id: "hd-new", type: "h-text", properties: { today_note: "2026-10-27" }, content: "Words", version: 1 }]);
+  const links = [{ kind: "journal", t: "td7", h: "hd-old", base: { date: '"2026-10-27"', body: '"Words"' } }];
+  const p = plan({ started: true, links }, T, H, DAYS, newId);
+  assert.equal(p.ask.length, 0);
+  assert.equal(p.links.find((l) => l.t === "td7").h, "hd-new");
+  assert.equal(p.writes.length, 0);
+});

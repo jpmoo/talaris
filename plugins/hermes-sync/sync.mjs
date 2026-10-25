@@ -192,6 +192,17 @@ export function plan(state, T, H, s, newId) {
       if (!a || !b) {
         // Gone from one side, deleted there: never made again without asking, and never deleted here.
         if (!a && !b) { l.gone = true; continue; }
+        // A day's page gone from one side and made again there (Hermes Notes clears an untouched day and makes a fresh one on opening it): paired with the new one.
+        if (kind === "journal") {
+          const left = a ? t : h, other = a ? h : t, o = a ?? b;
+          const day = left.value(o, kind, "date");
+          const fresh = [...other.objects.values()].find((x) => other.kindOf(x) === "journal" && !(a ? byH : byT).has(x.id) && !x.archived && other.value(x, kind, "date") === day);
+          if (fresh) {
+            if (a) { byH.delete(l.h); l.h = fresh.id; byH.set(l.h, l); } else { byT.delete(l.t); l.t = fresh.id; byT.set(l.t, l); }
+            l.base = {};
+            continue;
+          }
+        }
         summary.gone++;
         const left = a ? t : h, there = a ? "Hermes Notes" : "Talaris", here = a ? "Talaris" : "Hermes Notes", o = a ?? b;
         ask.push({

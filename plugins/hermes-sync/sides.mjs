@@ -155,6 +155,12 @@ export class Side {
     if (slot === "status") return map.status ? blank(o.properties?.[map.status]) : null;
     const spec = map[slot];
     if (spec === undefined || spec === null) return null;
+    // A day's page holding only what it was opened with — Hermes Notes' daily template, kept as its `seed` — has no words yet.
+    if (slot === "body" && kind === "journal") {
+      const words = spec === "content" ? o.content : typeof spec === "string" ? o.properties?.[spec] : null;
+      const seed = o.properties?.seed;
+      if (typeof seed === "string" && typeof words === "string" && words.trim() === seed.trim()) return null;
+    }
     if (spec === "content") return blank(o.content);
     if (typeof spec === "string") return blank(o.properties?.[spec]);
     if (spec.field) {
