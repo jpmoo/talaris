@@ -160,10 +160,10 @@ const Motion = (() => {
     const length = P(820);
     // Emptied first: contents, fill and frame, leaving only the lines.
     for (const child of panel.children) {
-      if (!child.classList.contains("xh")) child.animate([{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: length, fill: "forwards" });
+      if (!child.classList.contains("xh")) hold(panel, child.animate([{ opacity: 1 }, { opacity: 0, offset: .25 }, { opacity: 0 }], { duration: length, fill: "forwards" }));
     }
-    const done = panel.animate([{}, { background: "transparent", borderColor: "transparent", boxShadow: "none", offset: .25 },
-      { background: "transparent", borderColor: "transparent", boxShadow: "none" }], { duration: length, fill: "forwards" });
+    const done = hold(panel, panel.animate([{}, { background: "transparent", borderColor: "transparent", boxShadow: "none", offset: .25 },
+      { background: "transparent", borderColor: "transparent", boxShadow: "none" }], { duration: length, fill: "forwards" }));
     const shrink = ([s, axis], delay, duration) => s.animate([
       { transform: `${axis}(1)`, opacity: 0 }, { transform: `${axis}(1)`, opacity: 1, offset: .2 }, { transform: `${axis}(0)`, opacity: 1 },
     ], { duration: P(duration), delay: P(delay), easing: "ease-in", fill: "both" });
@@ -181,7 +181,38 @@ const Motion = (() => {
   // ------------------------------------------------------------ in and out
 
   /** Whatever a last leaving left held (it fills forwards) let go, before anything arrives. */
+  /*
+   * A leaving ends held where it ends — and is then written into the
+   * elements' own style, and the animation let go. An animation left held
+   * (fill: forwards) can outlive being found: Chromium stopped listing one
+   * in getAnimations() while it still applied, and a Tasks panel came back
+   * empty with nothing left to cancel. A style can always be put back: the
+   * next arrival (`reset`) restores what was written as it was.
+   */
+  const css = (k) => k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+  function hold(panel, anim) {
+    const el = anim.effect && anim.effect.target;
+    // Only what it animates, as it was: the rest of an element's style (a theme's colors on <html>) is not its to put back.
+    const kept = (panel._kept ||= []);
+    if (el) {
+      const props = new Set(anim.effect.getKeyframes().flatMap((f) => Object.keys(f)).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k)).map(css));
+      for (const prop of props) kept.push([el, prop, el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)]);
+    }
+    (panel._held ||= []).push(anim);
+    anim.addEventListener("finish", () => {
+      try { anim.commitStyles(); anim.cancel(); } catch { /* not rendered: left held, and cancelled by reset */ }
+    });
+    return anim;
+  }
+
   function reset(panel, o = {}) {
+    for (const a of panel._held || []) a.cancel();
+    panel._held = [];
+    // Back to front, so the first value kept for a property is the one left.
+    for (const [el, prop, value, priority] of (panel._kept || []).reverse()) {
+      if (value) el.style.setProperty(prop, value, priority); else el.style.removeProperty(prop);
+    }
+    panel._kept = [];
     for (const a of panel.getAnimations({ subtree: true })) a.cancel();
     if (o.backdrop) for (const a of o.backdrop.getAnimations()) a.cancel();
     if (panel._fx) panel._fx.remove();
@@ -252,11 +283,11 @@ const Motion = (() => {
     panel.style.visibility = "";
     if (still(o)) return null;
     use(o);
-    if (o.backdrop) o.backdrop.animate([{}, { backgroundColor: "rgba(0, 0, 0, 0)" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" });
+    if (o.backdrop) hold(panel, o.backdrop.animate([{}, { backgroundColor: "rgba(0, 0, 0, 0)" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" }));
     if (kindOf(o) === "chaos") return untrace(panel, o);
     const from = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } }[kindOf(o)] || { translate: "0 0" };
     const to = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } }[kindOf(o)] || { translate: off(panel, o.edge) };
-    return panel.animate([from, to], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+    return hold(panel, panel.animate([from, to], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" }));
   }
 
   return { arrive, leave, reset, still };
