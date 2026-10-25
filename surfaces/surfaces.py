@@ -51,6 +51,7 @@ from tasks_panel import Tasks
 from new_panel import New
 from jump_panel import Jump
 from people_panel import People
+from glance_panel import Glance
 from desk import Desk
 from notifications import Notifications
 import thumbs
@@ -210,6 +211,8 @@ class Desktop(QObject):
         self.tasks = Tasks(profile, self)
         # People: everyone, grouped by organization, up from the bar's People button.
         self.people = People(profile, self)
+        # Glance: the current project, all of it, as a list or a graph (Super+Shift+G).
+        self.glance = Glance(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
         # Project jump: Super+Alt+a letter.
@@ -266,7 +269,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "new", None), getattr(self, "jump", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "glance", None), getattr(self, "new", None), getattr(self, "jump", None),
                             *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -378,13 +381,14 @@ class Desktop(QObject):
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
+        hypr.bind("SUPER SHIFT, G", f"{LAUNCHER} --glance")
         # The lid, for when Talaris holds it (power.py); on the lock screen too.
         hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
         hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
         self.osd.bind(LAUNCHER)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), *JUMP_OPEN, "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), *JUMP_OPEN, "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -468,6 +472,7 @@ class Desktop(QObject):
             {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
             {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
             {"keys": "Super + Shift + N", "does": "New: a task, an event, a person, a note, a project"},
+            {"keys": "Super + Shift + G", "does": "Glance: this project, all of it"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
             {"keys": "Super + Shift + W", "does": "The writing surface"},
             {"keys": "Super + Alt", "does": "The projects, to go to one (type to find it)"},
@@ -610,6 +615,8 @@ class Desktop(QObject):
             self.bar.toggle_popup(name)
         elif name == "settings":
             self.settings.open()
+        elif name == "glance":
+            self.glance.open()
         else:
             return "No such thing to do"
         return ""
@@ -644,6 +651,8 @@ class Desktop(QObject):
                 self.tasks.toggle()
             elif verb == "people":
                 self.people.toggle()
+            elif verb == "glance":
+                self.glance.toggle()
             elif verb == "new":
                 self.new.toggle()
             elif verb == "jump" and len(arg) == 1 and arg.isalpha():
@@ -707,6 +716,8 @@ def main() -> int:
         return send("tasks")
     if args[:1] == ["--people"]:
         return send("people")
+    if args[:1] == ["--glance"]:
+        return send("glance")
     if args[:1] == ["--new"]:
         return send("new")
     if args[:1] == ["--jump-open"]:

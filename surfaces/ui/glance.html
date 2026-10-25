@@ -1,0 +1,158 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+Glance (glance_panel.py): the current project at a glance — everything that
+belongs to it and what that touches, as a list grouped by kind or as a graph
+of how it is tied, the project at its middle. Up over a dimmed screen like
+Tasks and People; a window by its grow button.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris glance</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+/* As Tasks' and People's: a panel over the dimmed screen; a window, the whole surface. */
+html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; }
+/* The dim is a button: a press there closes it — the bar's button under it included. */
+html:not([data-window]) { cursor: pointer; }
+body { cursor: default; position: relative; }
+body {
+  width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+/* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
+html[data-window] { background: var(--surface); }
+html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
+
+/* The kinds' colors, for the graph's dots and the legend. Pages wear the
+   accent; the rest fixed, muted hues, a shade darker on a light ground so
+   they hold against it. The canvas reads them resolved (glance.js, palette). */
+:root {
+  --k-page: var(--accent); --k-canvas: #6f93ad; --k-task: #7d9c6c; --k-file: #b39b5f;
+  --k-contact: #9c82b4; --k-event: #c27a8f; --k-note: #5fa3a0; --k-project: #8a95c9; --k-other: var(--muted);
+}
+:root[data-mode="light"] {
+  --k-canvas: #4f7590; --k-task: #5c7d4c; --k-file: #8f7739;
+  --k-contact: #7a5f94; --k-event: #a45670; --k-note: #3d817e; --k-project: #5f6aa6;
+}
+
+header { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+header .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; white-space: nowrap; }
+#proj { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+#proj .code { margin-left: 6px; letter-spacing: 1px; }
+header .t-btn { white-space: nowrap; flex: none; }
+header .spacer { flex: 1; }
+header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
+header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
+header .seg { flex: none; }
+header .seg button { padding: 2px 10px !important; font-size: 12px; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg.err { color: var(--danger); }
+#q { width: 200px; flex: 0 1 200px; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
+.tog.on { background: var(--accent-wash) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+
+/* The kinds, each a toggle with its count. */
+#kinds { flex-wrap: wrap; gap: 4px; }
+.kchip { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 11.5px; padding: 1px 9px; border-radius: 10px; cursor: pointer;
+         border: 1px solid var(--line); background: transparent; color: var(--muted); }
+.kchip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.kchip .n { font-variant-numeric: tabular-nums; opacity: .8; }
+.kchip.on { color: var(--text); border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: var(--accent-wash); }
+.kchip:not(.on) .dot { opacity: .35; }
+.kchip:hover { color: var(--accent); }
+.kchip.none { opacity: .45; }
+
+main { flex: 1; min-height: 0; display: flex; position: relative; }
+main > [hidden] { display: none !important; }
+.empty { color: var(--muted); padding: 24px; font-size: 13px; }
+
+/* The list: grouped by kind. */
+#list { flex: 1; overflow: auto; padding-bottom: 10px; }
+.ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
+.ghead:hover { color: var(--text); }
+.ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
+.ghead.folded .caret { transform: rotate(-90deg); }
+.ghead .n { letter-spacing: 0; }
+.grow-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row);
+            padding: 4px 14px; color: color-mix(in srgb, var(--text) 72%, var(--muted)); cursor: pointer; font: inherit; font-size: 13px; }
+.grow-row.own { color: var(--text); }
+.grow-row:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); color: var(--accent); }
+.grow-row .ki { flex: none; width: 14px; height: 14px; color: var(--muted); display: inline-flex; }
+.grow-row .ki svg { width: 14px; height: 14px; display: block; }
+.grow-row:hover .ki { color: inherit; }
+/* Its own, by a dot; one step out, by its absence and a quieter line. */
+.grow-row .mine { width: 5px; height: 5px; border-radius: 50%; flex: none; background: transparent; }
+.grow-row.own .mine { background: var(--accent); }
+.grow-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow-row .how { color: var(--muted); font-size: 11px; white-space: nowrap; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.grow-row:hover .how { color: inherit; }
+.more { display: flex; gap: 6px; margin: 4px 14px 0 36px; }
+.more:empty { display: none; }
+.more .t-btn { font-size: 11.5px; padding: 1px 9px; }
+
+/* The graph: a canvas over the whole of main. */
+#graph { flex: 1; position: relative; overflow: hidden; }
+#graph canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#graph canvas.panning, #graph canvas.dragging { cursor: grabbing; }
+#graph canvas.over { cursor: pointer; }
+#fit { position: absolute; top: 10px; right: 12px; font-size: 11.5px; padding: 1px 10px; }
+#gtip { position: absolute; z-index: 5; pointer-events: none; max-width: 300px; padding: 4px 9px; border-radius: 5px;
+        background: var(--surface); color: var(--text); border: 1px solid var(--frame); font-size: 12.5px; line-height: 1.3; }
+#gtip[hidden] { display: none; }
+#gtip .how { color: var(--muted); font-size: 11.5px; }
+#legend { position: absolute; left: 12px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--muted); pointer-events: none; max-width: calc(100% - 24px); }
+#legend span { display: inline-flex; align-items: center; gap: 5px; }
+#legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+#gempty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+#gempty[hidden] { display: none; }
+
+/* Out of sight, read for its resolved colors. */
+#probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
+
+@media (max-width: 760px) { #q { width: 120px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>Glance</h1>
+    <span id="proj"></span>
+    <span class="seg" id="view"></span>
+    <input type="text" id="q" placeholder="Find" spellcheck="false">
+    <button class="t-btn tog" id="mine" title="Only the project's own things, not what they touch">Mine only</button>
+    <span id="msg"></span>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="refresh" title="Read it again"></button>
+    <button class="icon-btn" id="grow"></button>
+    <button class="icon-btn" id="close"></button>
+  </div>
+  <div class="row" id="kinds"></div>
+</header>
+<main>
+  <section id="list"></section>
+  <section id="graph" hidden>
+    <canvas id="cv"></canvas>
+    <button class="t-btn" id="fit" title="Everything in view">Fit</button>
+    <div id="legend"></div>
+    <div id="gtip" hidden></div>
+    <div id="gempty" class="empty" hidden></div>
+  </section>
+</main>
+<div id="probe"></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="pagetips.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="motion.js"></script>
+<script src="peek.js"></script>
+<script src="glance.js"></script>
+</body>
+</html>

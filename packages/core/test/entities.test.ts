@@ -303,6 +303,31 @@ test("a contact card becomes a person, or ties the one with its address; filled 
   assert.equal(entities.personFromCard({ key: "book/u1", name: "Gina Linetti", emails: ["gina@nine-nine.example"] }), null);
 });
 
+test("a project at a glance: its pages, canvases, filed things and files, and one step out", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const { glance } = await import("../src/glance.js");
+  const tasks = await import("../src/tasks.js");
+  const p = projects.createProject("Theater");
+  const amy = entities.createEntity({ role: "person", properties: { title: "Amy Santiago" } });
+  const show = entities.createEntity({ role: "event", properties: { title: "Opening night", attendees: [amy.id] } });
+  const page = pages.createPage(p.id, null, "Program");
+  const file = projects.putProjectFile(p.id, "poster.png", Buffer.from("png"));
+  pages.writePage(p.id, page.path, `For [@Opening night](talaris:${show.id}), see [poster.png](talaris-file:${encodeURI(file.path)}).`);
+  const projectEntity = tasks.taskProjects().find((x) => x.workspace === p.id)!;
+  const task = tasks.createTask({ title: "Print programs", projects: [projectEntity.id] });
+  const g = glance(p.id);
+  const by = (k: string) => g.nodes.find((n) => n.key === k);
+  assert.equal(by(`page:${p.id}/Program`)?.own, true);
+  assert.ok(g.nodes.some((n) => n.kind === "canvas" && n.own), "its top canvas");
+  assert.equal(by(`e:${task.id}`)?.how, "filed here");
+  assert.equal(by(`file:${file.path}`)?.own, true, "the file, in its folder");
+  assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `file:${file.path}` && e.how === "links"), "the page links the file");
+  assert.equal(by(`e:${show.id}`)?.own, false, "the event the page mentions, one step out");
+  assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `e:${show.id}`));
+  assert.equal(by(`e:${amy.id}`), undefined, "and not two steps: the event's people stay out");
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

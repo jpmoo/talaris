@@ -49,11 +49,24 @@ function item(app, pinned) {
   return b;
 }
 
+let pills = false;
 function draw(next) {
   listing = next;
-  const parts = listing.pinned.map((a) => item(a, true));
+  // Pinned in every project, pinned in this one only, then what is open: as one dock
+  // with rules between (dotted, then solid), or as a pill each (Settings, Dock, Groups).
+  const everywhere = listing.pinned.filter((a) => a.pinnedWhere !== "here");
+  const here = listing.pinned.filter((a) => a.pinnedWhere === "here");
+  const groups = [everywhere.map((a) => item(a, true)), here.map((a) => item(a, true)), listing.open.map((a) => item(a, false))];
+  if (pills) {
+    const made = groups.filter((g) => g.length).map((g) => { const p = el("div", "pill"); p.append(...g); return p; });
+    document.getElementById("dock").replaceChildren(...made);
+    return;
+  }
+  const parts = [...groups[0]];
+  if (groups[0].length && groups[1].length) parts.push(el("span", "rule here"));
+  parts.push(...groups[1]);
   if (listing.pinned.length && listing.open.length) parts.push(el("span", "rule"));
-  parts.push(...listing.open.map((a) => item(a, false)));
+  parts.push(...groups[2]);
   document.getElementById("dock").replaceChildren(...parts);
 }
 
@@ -130,6 +143,10 @@ Surface.connect({
     document.body.style.setProperty("--icon", `${Number(look.iconSize ?? 24)}px`);
     document.body.style.setProperty("--alpha", `${look.opacity ?? 100}%`);
     document.body.dataset.outline = look.outline || "line";
+    const wasPills = pills;
+    pills = look.groups === "pills";
+    document.body.dataset.groups = pills ? "pills" : "one";
+    if (pills !== wasPills && listing) draw(listing);
     if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;
     // Out from hiding, in the dock's own motion: slide, or none.
     const motion = look.motion || "slide";

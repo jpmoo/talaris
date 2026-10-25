@@ -93,7 +93,7 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "new", "jump", "people", "morgan", "settings", "calendar", "tasks", "canvas", "writing"]) {
+  for (const who of ["launcher", "new", "jump", "people", "glance", "morgan", "settings", "calendar", "tasks", "canvas", "writing"]) {
     seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
@@ -113,6 +113,7 @@ function draw() {
   slider("dock-icon", cfg.dock.iconSize ?? 24, (v) => `${v}px`, (v) => save({ dock: { iconSize: v } }));
   slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
   seg("dock-scope", [["desktop", "This project"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
+  seg("dock-groups", [["one", "One dock"], ["pills", "Pills"]], cfg.dock.groups || "one", (groups) => save({ dock: { groups } }));
   // Four margins, each its own slider; saved as the whole set, as the bar reads them.
   const inset = cfg.bar.inset ?? 8;
   const m = { top: inset, right: inset, bottom: inset, left: inset, ...(cfg.bar.margins || {}) };
@@ -133,9 +134,7 @@ function draw() {
   $("faces").replaceChildren(...fonts.map((f) => el("button", { class: "face" + (f === t.font ? " on" : ""), style: `font-family:'${f}'`,
     onclick: () => save({ theme: { font: f } }) }, el("b", {}, f), el("small", {}, "CANVAS · WRITING · 0123"))));
 
-  // Layout. An edge already taken is offered greyed, not hidden: it says why it is not a choice.
-  seg("bar", [["top", "Top"], ["bottom", "Bottom"]], cfg.bar.edge,
-    (edge) => save({ bar: { edge }, dock: { edge: edge === "top" ? "bottom" : "top" } }));
+  // The bar along the top and the dock along the bottom: not a choice any more.
   $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
   drawBarShown();
   slider("bar-spacing", cfg.bar.spacing ?? 4, (v) => `${v} px`, (spacing) => save({ bar: { spacing } }));
@@ -172,7 +171,7 @@ function draw() {
   // Settings that only matter when another is on, dimmed while it is off.
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
   needs(["bar-m-top"], cfg.bar.shape === "floating");
-  needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
+  needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-groups", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));

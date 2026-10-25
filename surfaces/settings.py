@@ -90,6 +90,8 @@ def _checked(c: dict) -> str:
         return "Not a clock setting"
     if c["bar"]["edge"] not in ("top", "bottom") or c["dock"]["edge"] not in ("top", "bottom"):
         return "The bar and the dock go on the top or the bottom"
+    if c["dock"].get("groups", "one") not in ("one", "pills"):
+        return "One dock, or pills"
     if c["bar"]["edge"] == c["dock"]["edge"]:
         return "The bar and the dock need an edge each"
     p, b, d = c["panels"], c["bar"], c["dock"]
@@ -107,7 +109,7 @@ def _checked(c: dict) -> str:
         return "Not a tray setting"
     if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
         return "Not a calendar"
-    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
+    if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "glance", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"
     backups = c.get("data", {})
     if backups.get("schedule", "off") not in ("off", "daily", "weekly") or not 1 <= int(backups.get("keep", 7)) <= 60 \

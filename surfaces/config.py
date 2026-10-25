@@ -46,7 +46,7 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER ALT, SPACE", "singleWindow": "bring"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "new": "windows", "jump": "windows",
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "glance": "windows", "new": "windows", "jump": "windows",
                  "canvas": "drawers", "writing": "drawers"},
     # Wallpapers of their own, by project id ({path, fit}); a project without
     # one shows the default, which is hyprpaper's own file (wallpaper.py).
@@ -63,7 +63,7 @@ DEFAULTS = {
     # pinned: launcher ids pinned in every project; pinnedIn: {project id: ids}
     # pinned in that project only; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all".
-    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "order": [], "scope": "desktop",
+    "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "order": [], "scope": "desktop", "groups": "one",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
              # percent of their own; 100 is off. iconSize: the icons at rest, in px.

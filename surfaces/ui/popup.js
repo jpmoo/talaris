@@ -53,6 +53,9 @@ if (window.ResizeObserver) {
   for (const id of ["power", "volume"]) { const el = document.getElementById(id); if (el) for (const child of el.children) watch.observe(child); }
 }
 
+// The current project at a glance (Super+Shift+G): everything in it, as a list or a graph.
+document.getElementById("glance-here").addEventListener("click", () => bridge && bridge.glance());
+
 // The projects, from the bar's project name: the current one marked, another gone to.
 let projectsShown = null;
 function drawProjects() {

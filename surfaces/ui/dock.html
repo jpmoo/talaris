@@ -25,10 +25,20 @@ body[data-edge="top"] #dock { margin: 3px 0 0; }
 body[data-outline="none"] #dock { border-color: transparent; }
 body[data-outline="accent"] #dock { border-color: var(--accent); }
 body[data-shadow] #dock { box-shadow: 0 -2px 10px rgba(0, 0, 0, .45), 0 0 2px rgba(0, 0, 0, .3); }
+/* Pills: a dock each for the pinned everywhere, the pinned here, and the open — the
+   dock itself only a row of them, each drawn as the dock is. */
+body[data-groups="pills"] #dock { background: none; border-color: transparent !important; box-shadow: none !important; padding: 0; gap: 8px; align-items: flex-end; }
+.pill { display: flex; align-items: flex-end; gap: 2px; height: 100%; padding: 0 8px; box-sizing: border-box;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: 12px; }
+body[data-outline="none"] .pill { border-color: transparent; }
+body[data-outline="accent"] .pill { border-color: var(--accent); }
+body[data-shadow] .pill { box-shadow: 0 -2px 10px rgba(0, 0, 0, .45), 0 0 2px rgba(0, 0, 0, .3); }
 #dock:empty::after { content: "NOTHING OPEN"; font-size: 10px; letter-spacing: 3px; color: var(--muted); padding: 0 10px; }
 /* Between the pinned and the rest. */
 /* Pinned, then open: a rule a reader can find (the line color was lost on the dock's own). */
 .rule { width: 2px; height: 60%; min-height: 18px; border-radius: 1px; background: var(--muted); opacity: .7; margin: 0 8px; align-self: center; }
+/* Between what is pinned everywhere and what is pinned to this project only: lighter, dotted. */
+.rule.here { width: 0; background: none; border-left: 2px dotted var(--muted); border-radius: 0; opacity: .6; margin: 0 6px; }
 .app.hidden img, .app.hidden .letter { opacity: .4; }
 /* No box on hover or focus: the icon's swell and its dots say which it is. */
 .app, .app:hover, .app:focus, .app:focus-visible { border-color: transparent !important; background: transparent !important; outline: none !important; }

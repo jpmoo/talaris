@@ -7,6 +7,7 @@ import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs"
 import { dirname } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
+import { glance } from "./glance.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
 import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
@@ -171,6 +172,8 @@ route("GET", "/projects/:id/file", (_r, [id], q) => {
   return { path: need(q, "path"), abs: at.abs, sealed: at.sealed };
 });
 route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFile(id!, need(q, "path")).toString("base64") }));
+// A project at a glance (glance.ts): its own things, one step out, and how they are tied.
+route("GET", "/projects/:id/glance", (_r, [id]) => glance(id!));
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
 route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {

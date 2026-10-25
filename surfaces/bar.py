@@ -171,6 +171,12 @@ class BarBridge(Bridge):
     def actNotice(self, nid: int, key: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.notifications.act(nid, key)
 
+    @Slot()
+    def glance(self) -> None:
+        """The project menu's "Glance at this project"."""
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.glance.open()
+
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.bar.close_popup()

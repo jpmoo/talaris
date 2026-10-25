@@ -239,3 +239,9 @@ export function restoreCanvas(projectId: string, id: string, name: string): Canv
   persist(folder, restored);
   return restored;
 }
+
+/** A project's canvases, whole: what is on them, for a glance. */
+export function projectCanvases(projectId: string): CanvasDocument[] {
+  return allCanvases(findProject(projectId).folder);
+}
+

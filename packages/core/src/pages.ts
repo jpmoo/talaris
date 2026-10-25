@@ -309,3 +309,14 @@ export function dailyMonth(projectId: string, month: string): Array<{ date: stri
     })
     .filter((d) => d.words > 0);
 }
+
+/** When a page was last written, as ISO: what a glance orders it by. */
+export function pageModified(projectId: string, path: string): string {
+  const { folder } = findProject(projectId);
+  try {
+    return statSync(pageFile(folder, safe(path))).mtime.toISOString();
+  } catch {
+    return "";
+  }
+}
+
