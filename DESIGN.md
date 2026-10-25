@@ -852,6 +852,86 @@ has no single "default save folder" every application obeys:
    it gets a quiet offer to move it in, read from the system's recently-used
    list.
 
+### Files (designed 2026-10-25, not built)
+
+**A panel for the files of projects**, opened from the bar's left side like the
+canvas and writing, with the panels' motion, and a window by its expand corners
+like them. It is not a file manager. Copying folders around, previews, mounting
+drives and the rest are the system's file manager's, one press away ("Open in
+Files", the default for folders, at the folder in view). What it does that a
+file manager cannot is know projects, tags, tasks and what Talaris holds.
+
+**Limited to projects, listing everything in them.** Every file in every
+project's folder, Home's included; never the rest of the home folder.
+Talaris's own `.talaris/` and dot-files are left out, and in a git repository
+what `.gitignore` ignores is left out too (a `node_modules` would bury the
+rest), with "Show ignored" to see it. Beside the files on disk, it lists what
+Talaris holds for a project that is not a file in its folder: shortcuts,
+task attachments linked from elsewhere, and snapshots.
+
+**Every row says what it is.** One file can be several of these at once, and
+the row says all of them ("In the folder · on 2 tasks"):
+
+| Status | What it is | On disk in the project? |
+|---|---|---|
+| **In the folder** | A real file in the project's folder or below it. | Yes |
+| **Shortcut** | A file elsewhere in the home folder, brought in by a Talaris record and nothing else. No symlink is made, so other applications, backups, sync and git never see it. It shows ↗ and where it lives. | No |
+| **Linked on a task** | A task's linked attachment whose file is outside the project. It shows ↗, the task, and where the file lives. A linked file *inside* the folder is just In the folder, on that task. | No |
+| **Snapshot** | A copy Talaris keeps in its store, on a task or arrived from Hermes Notes (marked as from there, `hermes-sync:origin`). No file anywhere, until saved into the folder. | No |
+| **Missing** | A shortcut or a link whose file has gone. Restored from a snapshot where one is held (`restoreLinks`); otherwise said, and kept until removed. | No |
+
+A task's attachments belong to its project, or to Home's when it has none.
+
+**What a row can do follows from what it is.**
+
+- **In the folder:** open, rename, move to another folder or another project,
+  tag, pin to the dock, attach to a task, delete. Delete goes to the trash
+  (`gio trash`), never removes the file outright.
+- **Shortcut:** open where it lives, tag, pin, attach to a task, "Move it in"
+  (below), remove the shortcut (never the file).
+- **Linked on a task:** open, show the task, make a snapshot of it (`toSnapshot`).
+- **Snapshot:** open a read-only copy, "Save into the project" (written into
+  the folder and linked, `toLink`), show the task, export elsewhere.
+
+Renaming and moving inside Talaris keeps Talaris's own references in step:
+task links, page entities, tags, dock pins. Nothing outside Talaris (an
+application's recent files) follows, and the confirmation says so.
+
+**Bringing a file in from elsewhere** is by dropping it on the panel or
+"Bring in…", and is a **shortcut** unless asked otherwise. **Moving** it in
+asks first, with the actual warnings rather than one "are you sure":
+
+- **Open in an application now** (read from its open files, as the dock does).
+- **Synced or in a repository** (Nextcloud, git): moving it out looks like a
+  delete there.
+- **Another drive:** really a copy then a delete. The copy is checked by its
+  hash before the original goes.
+- **A file of that name already in the folder:** offered a new name, never
+  written over.
+- **Referred to elsewhere:** other shortcuts or links to it are moved with it.
+  Anything outside Talaris is not.
+
+**Tags** on a file are kept on an entity that stands for it, as a page's are
+(`tags.ts`), known by a `file` source of `<project>/<path>` and carried along
+when Talaris renames or moves it. Tagged files then join everything tags reach:
+the canvas, the launcher, Morgan, `tagged`.
+
+**Ways of looking:**
+- **By project:** the folder tree, the current project's first; or all projects.
+- **By type:** documents, spreadsheets, presentations, PDFs, images, audio and
+  video, code, other. Read from the file's type, not its extension alone.
+- **By date:** changed today, this week, this month, earlier.
+- **By name:** search as you type, across projects.
+- **Filters:** by tag, status, type and date, combined. A filter can be kept
+  as a list in the sidebar, as Tasks keeps its lists.
+
+**Open questions:**
+- **Keeping it current:** watching every project folder (inotify), against
+  reading a folder when it is shown. Watching is what "changed today" needs
+  across projects. Its cost on a large adopted repository is not measured.
+- **Morgan's tools:** finding files, tagging, bringing in. Moving in surely
+  asks the person every time, however it is set.
+
 ## Tasks
 
 Decided 2026-10-23. **Talaris gets its own task system, copying Hermes Notes'
