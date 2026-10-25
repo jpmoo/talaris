@@ -610,36 +610,43 @@ export interface Decision {
   id: string;
   title: string;
   detail?: string;
-  /** What it is about, side by side: a label, and each side's value as words. */
-  fields?: { label: string; here?: string; there?: string }[];
+  /** What it is about, side by side: a label, and each side's value as words — `text`, writing to compare line by line. */
+  fields?: { label: string; here?: string; there?: string; text?: boolean }[];
   /** What the two sides are called, for the columns ("Talaris", "Hermes"). */
   sides?: [string, string];
-  choices: { key: string; label: string }[];
+  /** The answers. One that is `edit` is written by the person (a merge of the two), and its words go back with it. */
+  choices: { key: string; label: string; edit?: boolean }[];
 }
+/** The most a field's value, or a written answer, may hold: a long note, whole. */
+const MOST_TEXT = 200_000;
 function checkedDecisions(v: unknown): Decision[] {
   const items = Array.isArray(v) ? v : [];
   return items.slice(0, 500).flatMap((x) => {
     const d = x as Record<string, unknown>;
     if (typeof d.id !== "string" || typeof d.title !== "string" || !Array.isArray(d.choices) || !d.choices.length) return [];
-    const words = (w: unknown) => (w === undefined || w === null ? undefined : String(w).slice(0, 2000));
+    const words = (w: unknown, text = false) => (w === undefined || w === null ? undefined : String(w).slice(0, text ? MOST_TEXT : 2000));
     return [{
       id: d.id.slice(0, 200), title: d.title.slice(0, 300), ...(typeof d.detail === "string" ? { detail: d.detail.slice(0, 2000) } : {}),
-      ...(Array.isArray(d.fields) ? { fields: (d.fields as Record<string, unknown>[]).slice(0, 40).map((f) => ({ label: String(f.label ?? ""), here: words(f.here), there: words(f.there) })) } : {}),
+      ...(Array.isArray(d.fields) ? { fields: (d.fields as Record<string, unknown>[]).slice(0, 40).map((f) => ({ label: String(f.label ?? ""), here: words(f.here, f.text === true), there: words(f.there, f.text === true), ...(f.text === true ? { text: true } : {}) })) } : {}),
       ...(Array.isArray(d.sides) && d.sides.length === 2 ? { sides: [String(d.sides[0]), String(d.sides[1])] as [string, string] } : {}),
-      choices: (d.choices as Record<string, unknown>[]).slice(0, 6).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? "") })),
+      choices: (d.choices as Record<string, unknown>[]).slice(0, 6).map((c) => ({ key: String(c.key ?? ""), label: String(c.label ?? c.key ?? ""), ...(c.edit === true ? { edit: true } : {}) })),
     }];
   });
 }
 
 /** An answer, given in Settings: sent to the plugin, which acts on it and says its list again. */
-export async function decide(id: string, item: string, choice: string): Promise<unknown> {
+export async function decide(id: string, item: string, choice: string, value?: string): Promise<unknown> {
   const r = running.get(id);
   if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
   const d = r.decisions.find((x) => x.id === item);
   if (!d) throw new NotFound("that has been decided already, or is no longer asked");
-  if (!d.choices.some((c) => c.key === choice)) throw new Conflict("not one of its answers");
+  const c = d.choices.find((x) => x.key === choice);
+  if (!c) throw new Conflict("not one of its answers");
+  // Words go back only with an answer that asks for them, and no more than a field may hold.
+  if (c.edit && typeof value !== "string") throw new Conflict("that answer is written: send the words");
+  if (value !== undefined && (!c.edit || value.length > MOST_TEXT)) throw new Conflict("words go only with a written answer, and no more than 200,000 characters");
   r.decisions = r.decisions.filter((x) => x.id !== item);
-  return r.request("talaris/decided", { item, choice }, 120_000);
+  return r.request("talaris/decided", { item, choice, ...(c.edit ? { value } : {}) }, 120_000);
 }
 
 const running = new Map<string, Running>();

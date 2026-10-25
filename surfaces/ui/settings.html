@@ -191,6 +191,19 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .pl-fields th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; padding: 2px 8px 2px 0; }
 .pl-fields td { padding: 2px 8px 2px 0; vertical-align: top; overflow-wrap: anywhere; }
 .pl-fields .pl-label { color: var(--muted); width: 110px; }
+/* Writing compared: its lines, marked by where each is — in both (plain), only here, only there. */
+.pl-diff { max-height: 260px; overflow: auto; font-size: 12px; line-height: 1.45; border: 1px solid var(--line); border-radius: var(--radius-row); padding: 4px 0; margin: 4px 0 8px; background: var(--paper); user-select: text; -webkit-user-select: text; }
+.pl-diff .dl { display: flex; gap: 6px; padding: 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pl-diff .dl.same { color: var(--muted); }
+.pl-diff .dm { flex: none; width: 10px; color: var(--muted); }
+.dl.here { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.dl.there { background: color-mix(in srgb, #c7a55a 18%, transparent); }
+.pl-legend { display: flex; gap: 8px; align-items: center; font-size: 11px; margin-top: 4px; }
+.pl-legend .dl { padding: 0 6px; border-radius: 4px; }
+.pl-merge { width: min(860px, 90vw) !important; }
+.pl-merge .pl-diff { max-height: 32vh; }
+.pl-merge-text { min-height: 28vh; resize: vertical; font: inherit; font-size: 13px; padding: 8px 10px; line-height: 1.45; }
+.pl-merge .acts { display: flex; justify-content: flex-end; }
 .pl-ask { border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; font-size: 12.5px; }
 .mg-log { max-height: 60vh; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 11.5px; user-select: text; -webkit-user-select: text; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 6px 8px; }
 /* A connection: its name and long address take the room there is, and wrap; its buttons keep to the right. */

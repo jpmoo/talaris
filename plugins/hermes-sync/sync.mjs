@@ -27,6 +27,8 @@ const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
   start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", status: "Status", project: "Project",
   files: "Attachments", tags: "Tags", date: "Day" };
+/** The slot that is writing, whole: compared line by line in a question, and mergeable (a name is not merged, it is chosen). */
+const TEXT = new Set(["body"]);
 const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note", journal: "daily note" };
 /** A day as Hermes Notes titles its own daily notes: "Sunday, October 25, 2026". */
 const dayTitle = (date) => new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -216,6 +218,7 @@ export function plan(state, T, H, s, newId) {
       if (a.archived || b.archived || a.stub) continue;
       const tv = valuesT(a, kind), hv = valuesH(b, kind);
       const toH = [], toT = [];
+      const merged = {};
       for (const slot of slots) {
         const x = tv[slot], y = hv[slot], base = l.base[slot];
         if (x === y) {
@@ -225,8 +228,9 @@ export function plan(state, T, H, s, newId) {
           if (l.pick) delete l.pick[slot];
           continue;
         }
-        // The person chose, for this one: that side's value is carried, once.
+        // The person chose, for this one: that side's value is carried, once — or words of their own, merged from both, written to each.
         const picked = l.pick?.[slot];
+        if (picked && typeof picked === "object" && typeof picked.merge === "string") { merged[slot] = picked.merge; delete l.pick[slot]; continue; }
         if (picked) { (picked === "talaris" ? toH : toT).push(slot); delete l.pick[slot]; continue; }
         const side = winner;
         if (side === "talaris") { toH.push(slot); continue; }
@@ -244,23 +248,31 @@ export function plan(state, T, H, s, newId) {
             title: `${KIND_WORDS[kind][0].toUpperCase()}${KIND_WORDS[kind].slice(1)} “${t.raw(a, kind, "title") ?? h.raw(b, kind, "title") ?? "Untitled"}” — ${SLOT_WORDS[slot]}`,
             detail: base === undefined ? "Matched on the first sync, and different on each side." : "Changed on both sides since they last agreed.",
             sides: ["Talaris", "Hermes Notes"],
-            fields: [{ label: SLOT_WORDS[slot], here: t.shown(a, kind, slot), there: h.shown(b, kind, slot) }],
-            choices: [{ key: "talaris", label: "Keep Talaris's" }, { key: "hermes", label: "Keep Hermes Notes'" }],
+            // Writing is compared line by line, whole, and can be merged: the person writes the one both sides then hold.
+            fields: [TEXT.has(slot)
+              ? { label: SLOT_WORDS[slot], here: String(t.raw(a, kind, slot) ?? ""), there: String(h.raw(b, kind, slot) ?? ""), text: true }
+              : { label: SLOT_WORDS[slot], here: t.shown(a, kind, slot), there: h.shown(b, kind, slot) }],
+            choices: [{ key: "talaris", label: "Keep Talaris's" }, { key: "hermes", label: "Keep Hermes Notes'" }, ...(TEXT.has(slot) ? [{ key: "merge", label: "Merge…", edit: true }] : [])],
           });
         }
       }
-      if (toH.length) {
-        const { files, ...patch } = carry(h, b, kind, t, a, toH);
-        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, ...(files ? { files } : {}), link: l, slots: toH, values: tv });
-        summary.carried += toH.length;
+      // Merged words, to both sides, with whatever else goes there; agreed on as they are.
+      const mergedSlots = Object.keys(merged);
+      const mergedValues = Object.fromEntries(mergedSlots.map((slot) => [slot, json(merged[slot])]));
+      const withMerged = (side, obj, patch) => mergedSlots.length
+        ? merge([patch, ...mergedSlots.map((slot) => side.write(obj, kind, slot, merged[slot], merged[slot], side === t ? idT : idH))]) : patch;
+      if (toH.length || mergedSlots.length) {
+        const { files, ...patch } = withMerged(h, b, carry(h, b, kind, t, a, toH));
+        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, ...(files ? { files } : {}), link: l, slots: [...toH, ...mergedSlots], values: { ...tv, ...mergedValues } });
+        summary.carried += toH.length + mergedSlots.length;
       }
       // Its way back to Hermes Notes, written with whatever else goes to it, or alone.
       const back = linkOf(b);
       const backChanged = back && json(a.properties?.[LINK]) !== json(back);
-      if (toT.length || backChanged) {
-        const { files, ...patch } = carry(t, a, kind, h, b, toT);
+      if (toT.length || backChanged || mergedSlots.length) {
+        const { files, ...patch } = withMerged(t, a, carry(t, a, kind, h, b, toT));
         if (backChanged) patch.set = { ...(patch.set ?? {}), [LINK]: back };
-        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, ...(files ? { files } : {}), link: l, slots: toT, values: hv });
+        if (patch.set || patch.unset || patch.content !== undefined || patch.addTags || patch.removeTags) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, ...(files ? { files } : {}), link: l, slots: [...toT, ...mergedSlots], values: { ...hv, ...mergedValues } });
         summary.carried += toT.length;
       }
     }

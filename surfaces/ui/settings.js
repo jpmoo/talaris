@@ -1749,6 +1749,70 @@ async function loadPlugins() {
  * whether or not the plugin is opened, each with what it is about side by
  * side and its answers as buttons; an answer goes back to the plugin.
  */
+// ---------------------------------------------------------------- comparing writing
+
+/** Two texts line by line (the longest run they share): each line kept, only here, or only there. */
+function diffLines(a, b) {
+  const x = a.split("\n"), y = b.split("\n");
+  // Too long to compare in the page: each whole, one after the other.
+  if (x.length * y.length > 4_000_000) return [...x.map((line) => ({ t: "here", line })), ...y.map((line) => ({ t: "there", line }))];
+  const n = x.length, m = y.length;
+  const L = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (x[i] === y[j]) { out.push({ t: "same", line: x[i] }); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) out.push({ t: "here", line: x[i++] });
+    else out.push({ t: "there", line: y[j++] });
+  }
+  while (i < n) out.push({ t: "here", line: x[i++] });
+  while (j < m) out.push({ t: "there", line: y[j++] });
+  return out;
+}
+
+/** The two as one, to start a merge from: what they share once, and where they differ, this side's lines then the other's. */
+function mergeDraft(ops) {
+  const out = [];
+  let here = [], there = [];
+  const flush = () => { out.push(...here, ...there); here = []; there = []; };
+  for (const o of ops) {
+    if (o.t === "same") { flush(); out.push(o.line); } else (o.t === "here" ? here : there).push(o.line);
+  }
+  flush();
+  return out.join("\n");
+}
+
+/** The lines, marked by where they are: in both, only on this side, only on the other. */
+function diffView(ops, sides) {
+  return pel("div", { class: "pl-diff" }, ...ops.map((o) => pel("div", { class: `dl ${o.t}`, title: o.t === "same" ? "In both" : `Only in ${o.t === "here" ? sides[0] : sides[1]}` },
+    pel("span", { class: "dm" }, o.t === "same" ? "" : o.t === "here" ? "◀" : "▶"), pel("span", { class: "dt" }, o.line || " "))));
+}
+
+/** The merge, written: the differences above, the draft to change below; saved, it is what both sides hold. */
+function mergeSheet(plugin, d, field, done) {
+  const sides = d.sides || ["This side", "The other"];
+  const ops = diffLines(field.here || "", field.there || "");
+  const box = pel("textarea", { class: "pl-merge-text", spellcheck: "true" });
+  box.value = mergeDraft(ops);
+  const err = pel("p", { class: "note err" });
+  const sheet = pel("div", { class: "mg-sheet" });
+  const close = () => sheet.remove();
+  sheet.append(pel("div", { class: "mg-sheet-box pl-merge" },
+    pel("div", { class: "mg-sheet-head" }, pel("b", {}, `Merge · ${d.title}`), pel("button", { class: "t-btn", onclick: close }, "Cancel")),
+    pel("div", { class: "pl-legend" }, pel("span", { class: "dl here" }, `◀ only in ${sides[0]}`), pel("span", { class: "dl there" }, `▶ only in ${sides[1]}`)),
+    diffView(ops, sides),
+    pel("p", { class: "note", style: "margin:4px 0 2px" }, "The merged words, starting from both — what you save here is what both sides will hold."),
+    box, err,
+    pel("div", { class: "acts" }, pel("button", { class: "t-btn", onclick: async (e) => {
+      e.target.disabled = true;
+      try { await core("POST", `/plugins/${encodeURIComponent(plugin)}/decide`, { item: d.id, choice: "merge", value: box.value }); say("Merged"); close(); done(); }
+      catch (x) { err.textContent = x.message; e.target.disabled = false; }
+    } }, "Save to both"))));
+  document.body.append(sheet);
+  box.focus();
+}
+
 function plDecisions(r, redraw) {
   const items = r.decisions || [];
   if (!items.length) return null;
@@ -1756,15 +1820,19 @@ function plDecisions(r, redraw) {
     pel("h3", {}, `To decide · ${items.length}`),
     ...items.slice(0, 50).map((d) => {
       const [here, there] = d.sides || ["", ""];
-      const table = d.fields && d.fields.length ? pel("table", { class: "pl-fields" },
+      // Writing is shown as its lines, marked by where each is; anything else as each side's value.
+      const plain = (d.fields || []).filter((f) => !f.text), texts = (d.fields || []).filter((f) => f.text);
+      const table = plain.length ? pel("table", { class: "pl-fields" },
         here || there ? pel("tr", {}, pel("th", {}), pel("th", {}, here), pel("th", {}, there)) : null,
-        ...d.fields.map((f) => pel("tr", {}, pel("td", { class: "pl-label" }, f.label), pel("td", {}, f.here ?? "—"), pel("td", {}, f.there ?? "—")))) : null;
-      const buttons = d.choices.map((c) => pel("button", { class: "t-btn", onclick: async (e) => {
+        ...plain.map((f) => pel("tr", {}, pel("td", { class: "pl-label" }, f.label), pel("td", {}, f.here ?? "—"), pel("td", {}, f.there ?? "—")))) : null;
+      const diffs = texts.map((f) => pel("div", {}, pel("div", { class: "pl-legend" }, pel("span", { class: "pl-label" }, f.label),
+        pel("span", { class: "dl here" }, `◀ only in ${here}`), pel("span", { class: "dl there" }, `▶ only in ${there}`)), diffView(diffLines(f.here || "", f.there || ""), [here, there])));
+      const buttons = d.choices.map((c) => c.edit ? pel("button", { class: "t-btn", onclick: () => mergeSheet(r.id, d, texts[0] || { here: "", there: "" }, () => setTimeout(redraw, 600)) }, c.label) : pel("button", { class: "t-btn", onclick: async (e) => {
         for (const b of e.target.parentElement.querySelectorAll("button")) b.disabled = true;
         try { await core("POST", `/plugins/${encodeURIComponent(r.id)}/decide`, { item: d.id, choice: c.key }); say("Done"); } catch (err) { say(err.message, true); }
         setTimeout(redraw, 600);
       } }, c.label));
-      return pel("div", { class: "pl-item" }, pel("div", { class: "pl-q" }, d.title), d.detail ? pel("p", { class: "note", style: "margin:2px 0 6px" }, d.detail) : null, table,
+      return pel("div", { class: "pl-item" }, pel("div", { class: "pl-q" }, d.title), d.detail ? pel("p", { class: "note", style: "margin:2px 0 6px" }, d.detail) : null, table, ...diffs,
         pel("div", { class: "acts" }, ...buttons));
     }),
     items.length > 50 ? pel("p", { class: "note" }, `And ${items.length - 50} more, after these.`) : null);

@@ -260,7 +260,7 @@ async function say() {
 }
 
 /** An answer from the person (Settings, Plugins): applied, then the sync runs again to act on it. */
-async function decided(item, choice) {
+async function decided(item, choice, value) {
   const [what, a, b, c] = item.split(":");
   if (what === "start") {
     if (choice === "start") { state.started = true; state.mode = words().mode; }
@@ -272,8 +272,9 @@ async function decided(item, choice) {
     } else state.apart.push([b, c]);
   } else if (what === "conflict") {
     // Keep one side's: the other side's value becomes what they last agreed on, so the plan carries the kept one over.
+    // Merge: the words the person wrote, for both sides.
     const l = state.links.find((x) => x.t === a);
-    if (l) l.pick = { ...(l.pick ?? {}), [b]: choice };
+    if (l) l.pick = { ...(l.pick ?? {}), [b]: choice === "merge" && typeof value === "string" ? { merge: value } : choice };
   } else if (what === "gone") {
     // gone:<kind>:<the id still there>. Again: unlinked, so it is made anew. Here: unlinked and never carried.
     state.links = state.links.filter((l) => l.t !== b && l.h !== b);
@@ -343,7 +344,7 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
       if (m.params?.name === "sync_status") return reply({ content: [{ type: "text", text: statusText() }] });
       return reply({ content: [{ type: "text", text: `no tool ${m.params?.name}` }], isError: true });
     }
-    if (m.method === "talaris/decided") return reply(await decided(String(m.params?.item ?? ""), String(m.params?.choice ?? "")));
+    if (m.method === "talaris/decided") return reply(await decided(String(m.params?.item ?? ""), String(m.params?.choice ?? ""), typeof m.params?.value === "string" ? m.params.value : undefined));
     send({ jsonrpc: "2.0", id: m.id, error: { code: -32601, message: `no method ${m.method}` } });
   } catch (e) {
     send({ jsonrpc: "2.0", id: m.id, error: { code: -32000, message: e.message } });

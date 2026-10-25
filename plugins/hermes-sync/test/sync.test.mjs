@@ -345,3 +345,23 @@ test("a day cleared on one side and made again there is paired with the new page
   assert.equal(p.links.find((l) => l.t === "td7").h, "hd-new");
   assert.equal(p.writes.length, 0);
 });
+
+test("a conflict in writing can be merged: the person's words go to both sides, and the two then agree", () => {
+  const T = env([...T_TYPES, T_DAY], [{ id: "td8", type: "t_daily", properties: { title: "2026-10-23", date: "2026-10-23", body: "Mine." }, "talaris:daily": "2026-10-23", version: 4 }]);
+  const H = env([...H_TYPES, H_TEXT], [{ id: "hd8", type: "h-text", properties: { today_note: "2026-10-23" }, content: "Theirs.", version: 7 }]);
+  const links = [{ kind: "journal", t: "td8", h: "hd8", base: { date: '"2026-10-23"' } }];
+  const asked = plan({ started: true, links }, T, H, DAYS, newId).ask[0];
+  assert.deepEqual(asked.choices.map((c) => c.key), ["talaris", "hermes", "merge"]);
+  assert.deepEqual(asked.fields[0], { label: "Description", here: "Mine.", there: "Theirs.", text: true });
+  links[0].pick = { body: { merge: "Mine.\nTheirs." } };
+  const p = plan({ started: true, links }, T, H, DAYS, newId);
+  assert.equal(p.ask.length, 0);
+  const toH = p.writes.find((w) => w.side === "hermes"), toT = p.writes.find((w) => w.side === "talaris");
+  assert.equal(toH.patch.content, "Mine.\nTheirs.");
+  assert.equal(toH.patch.version, 7);
+  assert.deepEqual(toT.patch.set, { body: "Mine.\nTheirs." });
+  agreed(toH.link, toH.slots, toH.values);
+  const T2 = env([...T_TYPES, T_DAY], [{ ...T.objects[0], properties: { ...T.objects[0].properties, body: "Mine.\nTheirs." } }]);
+  const H2 = env([...H_TYPES, H_TEXT], [{ ...H.objects[0], content: "Mine.\nTheirs." }]);
+  assert.equal(plan({ started: true, links: p.links }, T2, H2, DAYS, newId).writes.length, 0, "agreed: nothing more to carry");
+});
