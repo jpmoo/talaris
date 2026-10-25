@@ -249,7 +249,7 @@
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Attach to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
-    if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; store.set("talaris.files.project", project); reload(); });
+    if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
     if (s.includes("shortcut")) act(armed === r.key ? "Yes, take the shortcut away" : "Remove the shortcut", () => {
       if (armed !== r.key) { armed = r.key; drawDetail(); return; }
       armed = "";
@@ -424,7 +424,6 @@
 
   function setProject(id) {
     project = id;
-    store.set("talaris.files.project", id);
     chosen = null;
     reload();
   }
@@ -505,10 +504,11 @@
   function onState(s) {
     const was = surface;
     surface = s;
-    // The first time, the project you are in; after, where it was left.
-    if (project === null) project = store.get("talaris.files.project", s.project || "");
+    // Opened on the project you are in, each time; All projects is a press away.
+    if (project === null) project = s.project || "";
     if (WINDOW) return;
     if (s.up && !was.up) {
+      if (s.project) { project = s.project; chosen = null; }
       Motion.arrive(document.body, how());
       if (bridge) loadProjects().then(load).catch(failed);
     }
@@ -526,7 +526,7 @@
       const going = Motion.leave(document.body, how());
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
-    if (project === null) project = store.get("talaris.files.project", "");
+    if (project === null) project = surface.project || "";
     loadProjects().then(load).catch(failed);
   });
 })();
