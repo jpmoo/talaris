@@ -89,6 +89,9 @@ class Overlay(QObject):
     TITLE = ""
     #: Put away after this long untouched; 0 is never.
     IDLE_MS = 0
+    #: Its page made the first time it is wanted, not at start: a page is a renderer's worth of memory,
+    #: kept for one opened now and then. False: made at start, for one wanted at once (Morgan, Tasks).
+    LAZY = False
 
     def __init__(self, profile: QWebEngineProfile, desktop, url: str, bridge: Bridge, area: str = "interface") -> None:
         super().__init__(desktop)
@@ -97,9 +100,10 @@ class Overlay(QObject):
         self.up = False
         self.leaving = False
         self.bridge = bridge
-        self.view = make_view(profile, self.NAME, url, bridge, self, area=area)
-        self.surface = LayerSurface(self.view, f"talaris-{self.NAME}", nudge=False)
-        Presses(self.view, dead=self._dead)
+        self._view = None
+        self._surface = None
+        if not self.LAZY:
+            self._make()
         # The same page as an ordinary window, made the first time it is wanted.
         self.window = None
         self.windowed = False
@@ -107,12 +111,30 @@ class Overlay(QObject):
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._idle)
 
+    def _make(self) -> None:
+        self._view = make_view(self.profile, self.NAME, self.url, self.bridge, self, area=self.area)
+        self._surface = LayerSurface(self._view, f"talaris-{self.NAME}", nudge=False)
+        Presses(self._view, dead=self._dead)
+
+    @property
+    def view(self):
+        """Its page: made now, if it never has been."""
+        if self._view is None:
+            self._make()
+        return self._view
+
+    @property
+    def surface(self):
+        if self._surface is None:
+            self._make()
+        return self._surface
+
     def pointer_back(self) -> None:
         pointer_back(self.view)
 
     def describe(self) -> dict:
         return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,
-                "motion": self.desktop.motion(self.NAME), "viewport": viewport(self.view)}
+                "motion": self.desktop.motion(self.NAME), "viewport": viewport(self._view) if self._view is not None else None}
 
     def _place(self) -> None:
         screen = QApplication.primaryScreen().geometry()

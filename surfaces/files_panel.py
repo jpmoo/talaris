@@ -123,6 +123,7 @@ class FilesBridge(Bridge):
 
 class FilesPanel(Overlay):
     NAME = "files"
+    LAZY = True
     TITLE = "Files"
     IDLE_MS = 10 * 60 * 1000
 

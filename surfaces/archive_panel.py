@@ -62,6 +62,7 @@ class ArchiveBridge(Bridge):
 
 class Archive(Overlay):
     NAME = "archive"
+    LAZY = True
     TITLE = "Archive"
     IDLE_MS = 10 * 60 * 1000
 

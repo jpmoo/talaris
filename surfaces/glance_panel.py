@@ -55,6 +55,7 @@ class GlanceBridge(Bridge):
 
 class Glance(Overlay):
     NAME = "glance"
+    LAZY = True
     TITLE = "Glance"
     IDLE_MS = 10 * 60 * 1000
 

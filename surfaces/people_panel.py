@@ -64,6 +64,7 @@ class PeopleBridge(Bridge):
 
 class People(Overlay):
     NAME = "people"
+    LAZY = True
     TITLE = "People"
     IDLE_MS = 10 * 60 * 1000
 

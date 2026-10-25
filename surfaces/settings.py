@@ -420,20 +420,44 @@ class Settings(QObject):
         self.bridge = SettingsBridge(self, self)
         # Its windows, keys and launcher entries follow a plugin's change, once it has started or stopped.
         self.bridge.pluginsTouched.connect(lambda: QTimer.singleShot(1500, self.desktop.webapps.refresh))
-        self.view = make_view(profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
-        self.surface = LayerSurface(self.view, "talaris-settings")
-        # A clear layer behind it, over the windows: a click off Settings closes it.
-        self.catcher = Catcher(profile, self.file_away, self, name="settings-catcher")
+        # Its page, and the clear layer behind it, made the first time Settings opens: kept for a page opened now and then.
+        self.profile = profile
+        self._view = self._surface = self._catcher = None
         # Wi-Fi and Bluetooth: the same readings and changes as the bar's panels.
         desktop.machine.panel.connect(self.bridge.panel.emit)
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.file_away)
 
+    def _make(self) -> None:
+        self._view = make_view(self.profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
+        self._surface = LayerSurface(self._view, "talaris-settings")
+        # A clear layer behind it, over the windows: a click off Settings closes it.
+        self._catcher = Catcher(self.profile, self.file_away, self, name="settings-catcher")
+
+    @property
+    def view(self):
+        if self._view is None:
+            self._make()
+        return self._view
+
+    @property
+    def surface(self):
+        if self._surface is None:
+            self._make()
+        return self._surface
+
+    @property
+    def catcher(self):
+        if self._catcher is None:
+            self._make()
+        return self._catcher
+
     def describe(self) -> dict:
-        # Its size in its page's pixels, for arriving to wait for.
+        # Its size in its page's pixels, for arriving to wait for — once it has a page.
+        z = (self._view.zoomFactor() or 1) if self._view is not None else 1
         return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion("settings"),
-                "viewport": [round(zoom(SIZE[0]) / (self.view.zoomFactor() or 1)), round(zoom(SIZE[1]) / (self.view.zoomFactor() or 1))]}
+                "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)]}
 
     def open(self, page: str = "") -> None:
         self.page = page

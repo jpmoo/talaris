@@ -39,6 +39,7 @@ class JumpBridge(Bridge):
 
 class Jump(Overlay):
     NAME = "jump"
+    LAZY = True
     TITLE = "Projects"
     IDLE_MS = 60 * 1000
 

@@ -106,6 +106,7 @@ class NewBridge(Bridge):
 
 class New(Overlay):
     NAME = "new"
+    LAZY = True
     TITLE = "New"
     IDLE_MS = 5 * 60 * 1000
 
