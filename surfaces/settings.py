@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import copy
 import json
+import base64
 import os
 import shutil
 import re
@@ -55,7 +56,21 @@ LAUNCHER_KEYS = ("SUPER ALT, SPACE", "SUPER, SPACE")
 DATE_STYLES = ("weekday-month-day", "weekday-day-month", "month-day", "day-month", "iso", "off")
 
 #: The Morgan calls this page may make, and nothing else.
-MORGAN_OPS = {"config.get", "config.set", "voice.list", "voice.preview"}
+#: What the Morgan page may ask of Morgan (heymorgan's `admin`; docs/protocol.md): on a client,
+#: Morgan answers the voice and "where it lives" ones itself and hands the rest to its server.
+MORGAN_OPS = {
+    "config.get", "config.set", "client.get", "client.set", "log.recent",
+    "voice.list", "voice.preview", "voices.status", "voices.enroll", "voices.forget",
+    "ollama.models", "oracle.account",
+    "memory.list", "memory.note.add", "memory.note.set", "memory.note.delete", "memory.note.move",
+    "memory.topic.add", "memory.topic.rename", "memory.topic.delete",
+    "memory.document.get", "memory.document.delete", "memory.picture.view", "memory.picture.delete",
+    "memory.garden.report", "memory.garden.run", "memory.garden.undo",
+    "reminders.list", "reminders.cancel",
+    "mcp.list", "mcp.add", "mcp.remove", "mcp.allow", "mcp.tool", "mcp.reconnect",
+}
+#: Ops that may take Morgan a long while (tidying its memory, a server's restart): waited for longer.
+MORGAN_SLOW = {"memory.garden.run", "client.set", "config.set", "ollama.models", "mcp.add", "mcp.reconnect"}
 
 
 def _checked(c: dict) -> str:
@@ -164,6 +179,43 @@ class SettingsBridge(Bridge):
         if r.get("op") not in MORGAN_OPS:
             return json.dumps({"ok": False, "error": "Not a setting this page changes"})
         return command("admin " + json.dumps({"op": r["op"], "args": r.get("args", {})}))
+
+    #: Morgan's answer to `morganAsk`: {id, reply}.
+    morganReply = Signal(str)
+
+    @Slot(str, str)
+    def morganAsk(self, ident: str, request: str) -> None:  # noqa: N802 — called from the page by this name
+        """One of Morgan's `admin` ops, answered later (`morganReply`): some take minutes, and the page must not wait on them."""
+        try:
+            r = json.loads(request)
+        except ValueError:
+            r = {}
+        op = r.get("op")
+
+        def run() -> None:
+            if op not in MORGAN_OPS:
+                reply = {"ok": False, "error": "Not something this page asks of Morgan"}
+            else:
+                text = command("admin " + json.dumps({"op": op, "args": r.get("args", {})}), timeout=300 if op in MORGAN_SLOW else 45)
+                try:
+                    reply = json.loads(text)
+                except ValueError:
+                    reply = {"ok": False, "error": text.strip() or "No answer"}
+                # A picture from memory: the page cannot read a file, so it is given the picture itself.
+                if op == "memory.picture.view" and reply.get("ok") and reply.get("path") and not reply.get("data"):
+                    try:
+                        with open(reply["path"], "rb") as f:
+                            reply["data"] = base64.b64encode(f.read()).decode()
+                    except OSError:
+                        pass
+            self.morganReply.emit(json.dumps({"id": ident, "reply": reply}))
+        threading.Thread(target=run, daemon=True).start()
+
+    @Slot(str)
+    def morganAccount(self, verb: str) -> None:  # noqa: N802 — called from the page by this name
+        """Signing the Oracle's Claude account in or out: `heymorgan login` / `logout`, in a terminal, where it asks."""
+        if verb in ("login", "logout"):
+            self.owner.desktop.machine.open_tool(f"morgan-{verb}")
 
     #: Pushed to the page: the wallpaper changed — `{path, fit, error}`.
     wallpaperChanged = Signal(str)

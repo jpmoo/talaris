@@ -99,6 +99,72 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .recovery-key { font-family: ui-monospace, monospace; font-size: 15px; letter-spacing: 1px; padding: 10px 12px; margin: 8px 0; background: var(--desk); border: 1px solid var(--accent); border-radius: var(--radius-row); user-select: all; word-break: break-all; }
 .data-buttons { display: flex; gap: 8px; margin-top: 6px; }
 #revive .preview { margin: 8px 0; }
+/* Morgan: its sub-pages, and the lists that scroll inside the page rather than lengthen it. */
+#morgan [hidden] { display: none !important; }
+#morgan .row input[type="password"] { padding: 4px 8px; min-width: 220px; }
+.mg-tabs { margin: 0 0 12px; }
+.mg-tabs .seg { flex-wrap: wrap; }
+.mg-down { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--danger); border-radius: var(--radius-control); color: var(--danger); font-size: 13px; }
+.mg-down span { flex: 1; }
+.mg-scroll { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.mg-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 4px; }
+.mg-card { text-align: left; border-radius: var(--radius-control) !important; padding: 14px 16px !important; display: flex; flex-direction: column; gap: 4px; }
+.mg-card b { font-weight: 500; font-size: 16px; }
+.mg-card small { color: var(--muted); font-size: 12px; }
+.mg-card.on { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
+.mg-card.now b::after { content: " · now"; color: var(--muted); font-size: 12px; font-weight: 400; }
+.mg-confirm { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--radius-control); background: var(--accent-wash); }
+.mg-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.mg-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 2px 10px !important; }
+.mg-chip small { color: var(--muted); font-size: 11px; }
+.mg-chip.on { border-color: var(--accent) !important; color: var(--accent) !important; }
+.mg-chip.picked { background: var(--accent-wash) !important; }
+.mg-chips.mg-scroll { max-height: 200px; }
+.mg-topics { max-height: 420px; }
+.mg-topic { border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+.mg-topic-head { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; border: 0 !important; border-radius: var(--radius-row) !important; padding: 7px 6px !important; }
+.mg-topic-head:hover { background: var(--accent-wash); }
+.mg-topic-head b { font-weight: 500; }
+.mg-topic-head small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mg-topic-head.open b { color: var(--accent); }
+.mg-caret { color: var(--muted); width: 10px; flex: none; }
+.mg-topic-body { padding: 0 0 10px 24px; display: flex; flex-direction: column; gap: 4px; }
+.mg-topic-body input, .mg-tools input { padding: 4px 8px; }
+.mg-topic-body .data-buttons input { min-width: 0; width: 180px; }
+.mg-note-row { display: flex; align-items: flex-start; gap: 6px; }
+.mg-note-text { flex: 1; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--radius-row); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.mg-note-text[contenteditable] { user-select: text; -webkit-user-select: text; cursor: text; }
+.mg-note-text[contenteditable]:hover { border-color: var(--line); }
+.mg-note-text[contenteditable]:focus { border-color: var(--accent); background: var(--desk); outline: none; }
+.mg-note-row .t-btn { font-size: 12px !important; padding: 1px 9px !important; flex: none; }
+.mg-note.locked { opacity: .5; }
+.mg-menu { margin: 2px 0 6px auto; width: 220px; max-height: 200px; overflow-y: auto; }
+.mg-pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 260px; }
+.mg-pic { text-align: left; border-radius: var(--radius-control) !important; padding: 8px 10px !important; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mg-pic b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-pic small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-day { font-size: 12px; color: var(--text); font-weight: 500; margin: 10px 0 2px; }
+.mg-change .mg-said { flex: 1; font-size: 13px; }
+.mg-change .mg-said small { display: block; color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+.mg-change .mg-end { flex: none; }
+.mg-change.undone .mg-said { color: var(--muted); }
+.mg-server .row.mg-bad .name small { color: var(--danger); }
+.mg-tools { padding: 0 0 10px 18px; }
+.mg-log { max-height: 60vh; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 11.5px; user-select: text; -webkit-user-select: text; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 6px 8px; }
+.mg-line { display: flex; gap: 10px; padding: 1px 0; }
+.mg-line .mg-at { flex: none; width: 82px; color: var(--muted); }
+.mg-line span:last-child { white-space: pre-wrap; word-break: break-word; }
+.mg-line.warn span:last-child { color: var(--accent); }
+.mg-line.error span:last-child { color: var(--danger); }
+/* A sheet over the page: a document's text, a picture. */
+.mg-sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--desk) 60%, transparent); }
+.mg-sheet-box { width: min(720px, 86vw); max-height: 82vh; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); }
+.mg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mg-sheet-head b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-sheet-text { overflow-y: auto; flex: 1; min-height: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; user-select: text; -webkit-user-select: text; padding: 8px 10px; background: var(--paper); border-radius: var(--radius-row); }
+.mg-sheet-text.err { color: var(--danger); }
+.mg-sheet-pic { display: flex; justify-content: center; min-height: 0; overflow: auto; }
+.mg-sheet-pic img { max-width: 100%; max-height: 64vh; border-radius: var(--radius-row); }
 footer { grid-column: 2; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); }
 footer #msg { flex: 1; font-size: 12px; color: var(--muted); }
 footer #msg.err, .note.err { color: var(--danger); }
@@ -314,6 +380,8 @@ footer #msg.err, .note.err { color: var(--danger); }
     </section>
     <section id="morgan">
       <h2>Morgan</h2>
+      <div class="mg-down" id="mg-down" hidden><span id="mg-down-why"></span><button class="t-btn" id="mg-again">Try again</button></div>
+      <div class="mg-tabs"><span class="seg" id="mg-tabs"></span></div>
       <div id="morgan-body"></div>
     </section>
   </main>

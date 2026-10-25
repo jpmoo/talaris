@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import subprocess
 import time
 import sys
 
@@ -189,6 +190,8 @@ class Desktop(QObject):
         self.tray = Tray(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
+        # A timer or reminder of Morgan's come due: on screen too, not only said.
+        self.morgan_link.event.connect(self._morgan_reminder)
         # The bar first: its reserved space is what the drawers keep clear of.
         self.bar = Bar(self.config["bar"], profile, self)
         self.bar.place()
@@ -554,6 +557,24 @@ class Desktop(QObject):
             wallpaper.show(self.config, here)
         self.desk.changed()
         return ""
+
+    def _morgan_reminder(self, text: str) -> None:
+        """
+        A `reminder` event without `set` is one come due (heymorgan, `fire`):
+        a desktop notification, as well as Morgan's saying it — heard or not,
+        it is there when you look. Urgent, so it stays until it is seen.
+        """
+        try:
+            e = json.loads(text)
+        except ValueError:
+            return
+        if e.get("type") != "reminder" or e.get("set"):
+            return
+        said = str(e.get("text") or "")
+        title, body = ("Reminder", said) if said and said != "Your timer is up" else ("Timer", "Your timer is up.")
+        subprocess.Popen(["notify-send", "--app-name=Morgan", "--urgency=critical", "--icon=alarm-symbolic", f"Morgan — {title}", body],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        log(f"morgan: reminder shown: {body}")
 
     def open_place(self, kind: str, project: str, where: str) -> None:
         """A page or a canvas, opened in its project: that project the current one first, if it is not."""

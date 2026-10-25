@@ -177,6 +177,20 @@
   .peek .icon-btn { padding: 0 7px; }
   #mic.on { background: var(--accent); color: #0c0d0e; }
   body.dropping main { outline: 2px dashed var(--accent); outline-offset: -8px; }
+/* What Morgan is keeping time for: a row each, across the top while there is any. */
+#timers { display: flex; flex-direction: column; gap: 4px; padding: 6px 16px 8px; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); }
+#timers[hidden] { display: none; }
+.timer { display: grid; grid-template-columns: auto 1fr auto auto; grid-template-rows: auto 3px; column-gap: 8px; row-gap: 3px; align-items: center; font-size: 13px; }
+.timer .ti { opacity: .7; }
+.timer .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timer .when { font-variant-numeric: tabular-nums; opacity: .8; }
+.timer.soon .when { opacity: 1; font-weight: 600; }
+.timer button { border: 0; background: none; color: inherit; opacity: .55; cursor: pointer; font-size: 15px; padding: 0 4px; }
+.timer button:hover { opacity: 1; }
+/* The time left, as a bar that empties. */
+.timer .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: color-mix(in srgb, currentColor 12%, transparent); position: relative; overflow: hidden; }
+.timer .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--left, 0) * 100%); background: var(--accent, currentColor); transition: width 1s linear; }
+.timer:not(.soon) .bar { display: none; }
 </style>
 </head>
 <body>
@@ -194,6 +208,7 @@
     <button id="close" class="frame" title="Close"></button>
   </div>
 </div></header>
+<div id="timers" hidden></div>
 <main id="scroll"><div class="column" id="log"></div></main>
 <div id="calendar" hidden>
   <div class="month"><button id="prev" title="The month before"><i class="ti" data-icon="chevron-left"></i></button>
@@ -501,12 +516,73 @@ async function linked(text) {
   });
 }
 
+// ---------------------------------------------------------------- timers and reminders
+//
+// What Morgan is keeping time for, across the top while there is any: a timer
+// counting down with a bar that empties, a reminder further off by its day
+// and time; × cancels. Read from Morgan (`reminders`) when the page starts,
+// when one is set, changed or comes due (the `reminder` event), and each
+// minute — one cancelled by voice says nothing; counted down here each second.
+
+let timers = [];
+function loadTimers() {
+  bridge.call("reminders", (answer) => {
+    try { const r = JSON.parse(answer); timers = r.ok ? r.reminders || [] : []; } catch { timers = []; }
+    drawTimers();
+  });
+}
+setInterval(loadTimers, 60_000);
+const two = (n) => String(n).padStart(2, "0");
+function left(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`;
+}
+function at(ms) {
+  const d = new Date(ms), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (d.toDateString() === now.toDateString()) return time;
+  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow ${time}`;
+  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
+}
+function drawTimers() {
+  const box = $("timers");
+  box.hidden = !timers.length;
+  box.replaceChildren(...timers.map((t) => {
+    const row = el("div", "timer");
+    row.dataset.at = t.at;
+    row.dataset.made = t.made || "";
+    const cancel = el("button", "", "×");
+    cancel.title = "Cancel it";
+    cancel.onclick = () => bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers);
+    row.append(el("i", "ti", glyph(t.text ? "bell" : "hourglass")), el("span", "what", t.text || "Timer"), el("span", "when"), el("span", "bar"), cancel);
+    return row;
+  }));
+  tick();
+}
+// Within the hour, counted down; further off, when.
+function tick() {
+  const now = Date.now();
+  for (const row of document.querySelectorAll("#timers .timer")) {
+    const due = Number(row.dataset.at), made = Number(row.dataset.made) || now;
+    const soon = due - now < 3_600_000;
+    row.querySelector(".when").textContent = due <= now ? "now" : soon ? left(due - now) : at(due);
+    const share = due > made ? Math.min(1, Math.max(0, (due - now) / (due - made))) : 0;
+    row.querySelector(".bar").style.setProperty("--left", soon ? share : 0);
+    row.classList.toggle("soon", soon);
+  }
+}
+setInterval(tick, 1000);
+
 // ---------------------------------------------------------------- the daemon's news
 
 function hear(line) {
   let e;
   try { e = JSON.parse(line); } catch { return; }
   switch (e.type) {
+    // One set, changed, or come due: the strip read again.
+    case "reminder": loadTimers(); break;
     case "state":
       if (e.name && e.name !== name) { name = e.name; $("name").textContent = name; bridge.title(name); hint(`Type to ${name}. Enter sends; Shift+Enter starts a new line.`); }
       state = e.state;
@@ -873,6 +949,7 @@ function start() {
   // The conversation so far, and earlier ones, to scroll back through.
   recent(() => {
     bridge.event.connect(hear);
+    loadTimers();
     // The stream's opening line, which says who this is and what it is doing, may have gone by already.
     bridge.call("status", (status) => { try { const now = JSON.parse(status); hear(JSON.stringify({ type: "state", state: now.state, name: now.name })); } catch { /* not up */ } });
   });

@@ -160,7 +160,10 @@ POWER = {
 }
 
 #: The settings the bar hands off rather than rebuilds.
-TOOLS = {"network": ("nmtui",), "bluetooth": ("bluetoothctl",)}
+#: Morgan's command, for signing the Oracle in and out where it can ask in a terminal.
+_HEYMORGAN = shutil.which("heymorgan") or os.path.expanduser("~/.local/bin/heymorgan")
+TOOLS = {"network": ("nmtui",), "bluetooth": ("bluetoothctl",),
+         "morgan-login": (_HEYMORGAN, "login"), "morgan-logout": (_HEYMORGAN, "logout")}
 
 
 # ---------------------------------------------------------------- Wi-Fi and Bluetooth

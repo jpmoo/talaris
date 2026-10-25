@@ -288,83 +288,622 @@ $("hex").addEventListener("keydown", (e) => {
 
 // ---------------------------------------------------------------- Morgan
 //
-// Read from Morgan when the page is shown, saved to Morgan together. Which of
-// them restart Morgan is Morgan's to say; the reply says so.
+// Morgan's own settings, read from Morgan and changed there (heymorgan's admin
+// ops). Every question is answered later (morganReply): tidying memory or a
+// restart can take minutes, and the page must not wait on them. Nothing here
+// opens a popup of the engine's own — no select, date or file inputs — since a
+// layer surface cannot hold those windows; choices are chips, segs and menus
+// built in the page.
 
-let morgan = null;
-let voices = null;
-
-function morganCall(op, args, done) {
-  bridge.morgan(JSON.stringify({ op, args }), (text) => { let r; try { r = JSON.parse(text); } catch { r = { ok: false, error: "No answer" }; } done(r); });
-}
-
-function loadMorgan() {
-  $("morgan-body").replaceChildren(el("p", { class: "note" }, "Reading…"));
-  morganCall("config.get", {}, (c) => {
-    if (!c.ok) { $("morgan-body").replaceChildren(el("p", { class: "note" }, c.error || "Morgan is not running")); return; }
-    morgan = c;
-    morganCall("voice.list", {}, (v) => { voices = v.ok ? v : null; drawMorgan(); });
+const morganWaiting = new Map();
+let morganNext = 0;
+/** One admin op; resolves with its reply, ok or not. */
+function morgan(op, args = {}) {
+  return new Promise((done) => {
+    const id = `m${++morganNext}`;
+    morganWaiting.set(id, done);
+    bridge.morganAsk(id, JSON.stringify({ op, args }));
   });
 }
+function onMorganReply(text) {
+  let r;
+  try { r = JSON.parse(text); } catch { return; }
+  const done = morganWaiting.get(r.id);
+  morganWaiting.delete(r.id);
+  if (done) done(r.reply || { ok: false, error: "No answer" });
+}
 
-function field(label, key, value, hint = "", type = "text") {
-  const input = el("input", { type, "data-key": key, spellcheck: "false" });
+const MG_TABS = [["where", "Where"], ["assistant", "Assistant"], ["models", "Models"], ["voice", "Voice"], ["memory", "Memory"],
+  ["reminders", "Reminders"], ["connections", "Connections"], ["log", "Log"]];
+let mgTab = "where";
+// Which drawing is current: an answer to an older one (another sub-page since) is dropped.
+let mgTurn = 0;
+let mgLive = () => false;
+
+// Not running is said once, at the top, with a way to ask again — not on every row.
+const isDown = (r) => !r.ok && /^Morgan is not running/.test(r.error || "");
+function mgDown(why) {
+  $("mg-down").hidden = !why;
+  $("mg-down-why").textContent = why || "";
+  if (why) $("morgan-body").replaceChildren();
+}
+$("mg-again").addEventListener("click", () => loadMorgan());
+
+async function ask(op, args) {
+  const r = await morgan(op, args);
+  if (isDown(r)) mgDown(r.error);
+  return r;
+}
+
+/** A first read that failed: said in the page (or in the banner, when Morgan is down). */
+function failed(r) {
+  if (r.ok) return false;
+  if (!isDown(r)) mgBody(el("p", { class: "note err" }, r.error || "Morgan did not answer"));
+  return true;
+}
+const mgBody = (...kids) => $("morgan-body").replaceChildren(...kids);
+
+/** A change: said when it fails, its reply handed on when not. */
+async function change(op, args, said) {
+  const r = await ask(op, args);
+  if (!r.ok) { if (!isDown(r)) say(r.error || "Morgan did not take it", true); return null; }
+  if (said) say(said);
+  return r;
+}
+
+/** A config.set; a restart is Morgan's to say, and the page is read again after it. */
+async function setConfig(values) {
+  const r = await change("config.set", { values });
+  if (!r) return;
+  say(r.restart ? "Saved — Morgan is restarting" : "Saved");
+  setTimeout(() => loadMorgan(true), r.restart ? 3000 : 0);
+}
+
+function loadMorgan(keep = false) {
+  mgDown("");
+  seg("mg-tabs", MG_TABS, mgTab, (t) => { mgTab = t; loadMorgan(); });
+  const turn = ++mgTurn;
+  mgLive = () => turn === mgTurn && $("morgan").classList.contains("on");
+  if (!keep) mgBody(el("p", { class: "note" }, "Reading…"));
+  MG_PAGES[mgTab]();
+}
+
+// The file's seg() fills a host already in the page; these are built before they are.
+function segOf(choices, current, pick) {
+  return el("span", { class: "seg" }, ...choices.map(([value, label]) =>
+    el("button", { class: value === current ? "on" : "", onclick: () => value !== current && pick(value) }, label)));
+}
+function mgRow(name, hint, ...controls) {
+  return el("div", { class: "row" }, el("span", { class: "name" }, name, ...(hint ? [el("small", {}, hint)] : [])), el("span", { class: "what" }, ...controls));
+}
+function mgInput(value, attrs = {}) {
+  const input = el("input", { type: "text", spellcheck: "false", autocomplete: "off", ...attrs });
   input.value = value ?? "";
-  return el("div", { class: "row" }, el("span", { class: "name" }, label, ...(hint ? [el("small", {}, hint)] : [])), el("span", { class: "what" }, input));
+  return input;
+}
+function mgSwitch(on, flip, title = "") {
+  const sw = el("button", { class: "switch" + (on ? " on" : ""), title });
+  sw.addEventListener("click", () => flip(!sw.classList.contains("on"), sw));
+  return sw;
+}
+const mgWhen = (t) => (t ? when(typeof t === "number" ? t : String(t)) : "");
+
+// ---------------------------------------------------------------- Morgan: where it lives
+
+let mgPlace = null; // client.get, for the Models page's word on whose models they are
+
+async function mgWhere() {
+  const c = await ask("client.get");
+  if (!mgLive() || failed(c)) return;
+  mgPlace = c;
+  if (c.role === "server") {
+    mgBody(el("p", { class: "note" }, "This computer is the server: other computers reach Morgan through it, and its memories and models are the ones they use."));
+    return;
+  }
+  let pick = c.role === "client" ? "client" : "local";
+  const server = mgInput(c.server, { placeholder: "home-server:8790" });
+  const key = mgInput("", { type: "password", placeholder: c.hasKey ? "keep the current one" : "hc_… from heymorgan access add" });
+  const device = mgInput(c.device, { placeholder: "laptop" });
+  const card = (value, title, what) => el("button", { class: "mg-card" + (value === pick ? " on" : "") + (value === (c.role === "client" ? "client" : "local") ? " now" : ""),
+    onclick: () => { pick = value; draw(); } }, el("b", {}, title), el("small", {}, what));
+  const confirmBox = el("div", { class: "mg-confirm", hidden: "" });
+
+  const draw = () => {
+    const same = pick === (c.role === "client" ? "client" : "local");
+    const status = c.role === "client"
+      ? el("p", { class: "note" + (c.connected ? "" : " err") }, `Through ${c.server}, as ${c.device}: ${c.connected ? "connected" : "can't reach it"}`)
+      : el("p", { class: "note" }, "Wholly on this computer.");
+    const go = el("button", { class: "t-btn", onclick: () => ready() }, same ? "Save" : "Switch");
+    const parts = [
+      el("div", { class: "mg-cards" },
+        card("local", "Only this computer", "Morgan's voice, memories, models and Claude sign-in all here"),
+        card("client", "One of several, through a server", "This computer is its ears and voice; memories and models live on the server")),
+      status,
+    ];
+    if (pick === "client") {
+      parts.push(mgRow("Server", "Its address, host:port", server), mgRow("Access key", c.hasKey ? "One is kept; paste a new one to replace it" : "From heymorgan access add on the server", key),
+        mgRow("This device", "Its name to the server", device));
+    }
+    // Switching to where it is already is nothing to do; changing a client's server is.
+    if (!same || pick === "client") parts.push(el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" }, go)));
+    parts.push(confirmBox,
+      el("p", { class: "note" }, "On only this computer, the Models and Claude settings are this computer's; through a server, they are the server's, changed there from here."));
+    mgBody(...parts);
+  };
+
+  const ready = () => {
+    const args = pick === "local" ? { server: "" } : { server: server.value.trim(), device: device.value.trim() };
+    if (pick === "client") {
+      if (!args.server) { say("A server needs its address", true); return; }
+      const k = key.value.trim();
+      if (k && !k.startsWith("hc_")) { say("That is not a key the server issued (they start hc_)", true); return; }
+      if (!k && !c.hasKey) { say("A server needs a key: run heymorgan access add <device> on the server", true); return; }
+      if (k) args.key = k;
+    }
+    // A restart, and for "only this computer" a different set of memories: said first, done on a second press.
+    const what = pick === "local"
+      ? "Morgan will use the memories this computer had before it used a server; what it has learned on the server since stays there."
+      : c.role === "client" ? "Morgan will restart and reach the server with these." : "Morgan will restart as one of the server's computers; it will use the server's memories and models.";
+    confirmBox.hidden = false;
+    confirmBox.replaceChildren(el("p", { class: "note", style: "margin:0" }, what),
+      el("div", { class: "data-buttons" },
+        el("button", { class: "t-btn", onclick: () => { confirmBox.hidden = true; } }, "Cancel"),
+        el("button", { class: "t-btn", onclick: () => doSwitch(args) }, pick === "local" ? "Use only this computer" : "Use the server")));
+  };
+
+  const doSwitch = async (args) => {
+    const r = await change("client.set", args);
+    if (!r) return;
+    say("Morgan is restarting…");
+    mgBody(el("p", { class: "note" }, "Morgan is restarting…"));
+    setTimeout(() => loadMorgan(), 4000);
+  };
+  draw();
 }
 
-function drawMorgan() {
-  const m = morgan;
-  const body = [
-    field("Name", "name", m.name, "What it answers to"),
-    field("Your name", "userName", m.userName),
-    field("Wake word", "wakeWord", m.wakeWord, "Empty turns it off"),
-    field("Interrupt word", "interruptWord", m.interruptWord, "Said while it speaks, stops it"),
-    field("Follow-up", "followUpSeconds", m.followUpSeconds, "Seconds it listens after answering", "number"),
-    field("Time zone", "timeZone", m.timeZone, `Where you are, like ${Intl.DateTimeFormat().resolvedOptions().timeZone}`),
-  ];
-  const known = el("button", { class: "switch" + (m.knownVoicesOnly ? " on" : ""), "data-key": "knownVoicesOnly" });
-  known.addEventListener("click", () => known.classList.toggle("on"));
-  body.push(el("div", { class: "row" }, el("span", { class: "name" }, "Known voices only", el("small", {}, "Answer only voices it has been taught")), el("span", { class: "what" }, known)));
-  if (voices) {
-    const choose = el("select", { "data-key": "kokoroVoice" }, ...voices.kokoro.map((v) => {
-      const o = el("option", { value: v }, v);
-      if (v === voices.kokoroVoice) o.selected = true;
-      return o;
-    }));
-    const hear = el("button", { class: "t-btn", onclick: () => morganCall("voice.preview", { engine: "kokoro", voice: choose.value }, (r) => !r.ok && say(r.error, true)) }, "Hear it");
-    body.push(el("div", { class: "row" }, el("span", { class: "name" }, "Voice", el("small", {}, "Kokoro")), el("span", { class: "what" }, choose, hear)));
-  }
-  body.push(el("h3", {}, "Models"));
-  body.push(field("Chat model", "ollama.model", (m.ollama || {}).model, "On the Ollama server"));
-  body.push(field("Ollama server", "ollama.url", (m.ollama || {}).url));
-  body.push(field("Oracle", "oracleModel", m.oracleModel, "Claude, when the chat model is not enough"));
-  // Which Claude account it asks as: read where the Oracle runs. An older Morgan does not say.
-  if (m.oracleAccount) {
-    body.push(el("div", { class: "row" }, el("span", { class: "name" }, "Oracle account", el("small", {}, "Its own Claude login, where Morgan runs")),
-      el("span", { class: "what" }, el("span", { class: "n", style: "width:auto" }, m.oracleAccount))));
-  }
-  body.push(el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" },
-    el("button", { class: "t-btn", onclick: saveMorgan }, "Save to Morgan"), el("span", { class: "note", style: "margin:0" }, "Some changes restart Morgan for a moment"))));
-  $("morgan-body").replaceChildren(...body);
+// ---------------------------------------------------------------- Morgan: the assistant
+
+async function mgAssistant() {
+  const m = await ask("config.get");
+  if (!mgLive() || failed(m)) return;
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const inputs = {
+    name: mgInput(m.name), userName: mgInput(m.userName), wakeWord: mgInput(m.wakeWord), interruptWord: mgInput(m.interruptWord),
+    followUpSeconds: el("input", { type: "number", min: "0", max: "30", step: "1" }), timeZone: mgInput(m.timeZone, { placeholder: here }),
+  };
+  inputs.followUpSeconds.value = m.followUpSeconds ?? "";
+  const known = mgSwitch(!!m.knownVoicesOnly, (on, sw) => sw.classList.toggle("on", on));
+  const save = async () => {
+    const values = {};
+    for (const [k, input] of Object.entries(inputs)) {
+      let v = input.value.trim();
+      if (String(m[k] ?? "") === v) continue;
+      // For these an empty box turns it off (Morgan reads "" so); for the rest, empty is the default.
+      if (v === "" && !["wakeWord", "interruptWord", "userName"].includes(k)) v = null;
+      else if (k === "followUpSeconds") v = Number(v);
+      values[k] = v;
+    }
+    const kv = known.classList.contains("on");
+    if (kv !== !!m.knownVoicesOnly) values.knownVoicesOnly = kv;
+    if (!Object.keys(values).length) { say("Nothing changed"); return; }
+    setConfig(values);
+  };
+  mgBody(
+    mgRow("Name", "What it answers to", inputs.name),
+    mgRow("Your name", "What it calls you; empty, nothing", inputs.userName),
+    mgRow("Wake word", "Empty turns it off", inputs.wakeWord),
+    mgRow("Interrupt word", "Said while it speaks, stops it; empty turns it off", inputs.interruptWord),
+    mgRow("Follow-up", "Seconds it listens after answering", inputs.followUpSeconds),
+    mgRow("Time zone", `Where you are; empty is this computer's, ${here}`, inputs.timeZone,
+      el("button", { class: "t-btn", onclick: () => { inputs.timeZone.value = here; } }, "This computer's")),
+    mgRow("Known voices only", "Answer only voices it has been taught", known),
+    el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" },
+      el("button", { class: "t-btn", onclick: save }, "Save to Morgan"), el("span", { class: "note", style: "margin:0" }, "Some changes restart Morgan for a moment"))));
 }
 
-function saveMorgan() {
-  const values = {};
-  for (const input of $("morgan-body").querySelectorAll("[data-key]")) {
-    const key = input.dataset.key;
-    let value = input.classList.contains("switch") ? input.classList.contains("on") : input.value;
-    if (key === "followUpSeconds") value = Number(value);
-    const was = key.includes(".") ? key.split(".").reduce((o, k) => (o || {})[k], morgan) : key === "kokoroVoice" ? voices?.kokoroVoice : morgan[key];
-    if (value !== was && !(value === "" && was == null)) values[key] = value;
+// ---------------------------------------------------------------- Morgan: models
+
+async function mgModels() {
+  const [m, account, place] = await Promise.all([ask("config.get"), ask("oracle.account"), mgPlace ? Promise.resolve(mgPlace) : ask("client.get")]);
+  if (!mgLive() || failed(m)) return;
+  if (place.ok) mgPlace = place;
+  const savedUrl = (m.ollama || {}).url || "";
+  const url = mgInput(savedUrl, { placeholder: "http://host:11434" });
+  const models = el("div", {});
+  let listedFrom = savedUrl;
+
+  // The chat and embedding models the server has, as chips; picking one saves it
+  // (with the address it came from, when that is not the one saved).
+  const chips = (list, current, key, strip) => el("div", { class: "mg-chips" }, ...list.map((x) => {
+    const name = strip ? x.name.replace(/:latest$/, "") : x.name;
+    return el("button", { class: "mg-chip" + (name === current ? " on" : ""), onclick: () => name !== current || listedFrom !== savedUrl
+      ? setConfig({ [key]: name, ...(listedFrom !== savedUrl ? { "ollama.url": listedFrom } : {}) }) : null },
+    name, el("small", {}, `${x.gb} GB`));
+  }));
+  const look = async () => {
+    listedFrom = url.value.trim() || savedUrl;
+    models.replaceChildren(el("p", { class: "note" }, "Looking…"));
+    const r = await ask("ollama.models", { url: listedFrom });
+    if (!mgLive()) return;
+    if (!r.ok) { models.replaceChildren(el("p", { class: "note err" }, `Could not reach it: ${r.error}`)); return; }
+    const chat = (m.ollama || {}).model, embed = m.embedModel;
+    const missing = (list, name, strip) => name && !list.some((x) => (strip ? x.name.replace(/:latest$/, "") : x.name) === name)
+      ? [el("p", { class: "note" }, `Set: ${name}, which this server does not have`)] : [];
+    models.replaceChildren(
+      el("h3", {}, "Chat model"), chips(r.chat || [], chat, "ollama.model", false), ...missing(r.chat || [], chat, false),
+      el("h3", {}, "Embedding model"), el("p", { class: "note", style: "margin:0 0 6px" }, "For finding earlier conversations. Changing it re-reads the whole transcript."),
+      chips(r.embedding || [], embed, "embedModel", true), ...missing(r.embedding || [], embed, true));
+  };
+  url.addEventListener("keydown", (e) => { if (e.key === "Enter") look(); });
+
+  const oracle = m.oracleModel || "";
+  const plans = [["haiku", "Haiku"], ["sonnet", "Sonnet"], ["opus", "Opus"]];
+  if (oracle && !plans.some(([v]) => v === oracle)) plans.push([oracle, oracle]);
+
+  const accountRow = el("div", {});
+  const drawAccount = (a) => {
+    const said = !a.ok ? (a.error || "Morgan did not say") : a.loggedIn ? `${a.email || "Signed in"}${a.plan ? ` · ${a.plan}` : ""}` : a.error || "Not signed in";
+    const sign = a.ok && a.loggedIn
+      ? el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("logout"); say("Sign out in the terminal, then Check again"); } }, "Sign out")
+      : el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("login"); say("Sign in in the terminal and your browser, then Check again"); } }, "Sign in");
+    accountRow.replaceChildren(mgRow("Claude account", said, sign,
+      el("button", { class: "t-btn", onclick: async () => { say("Checking…"); const r = await ask("oracle.account"); if (mgLive()) { drawAccount(r); say(""); } } }, "Check again")));
+  };
+  drawAccount(account);
+
+  const whose = mgPlace && mgPlace.role === "client"
+    ? `These are the server's (${mgPlace.server}), changed there from here.` : "These are this computer's.";
+  mgBody(
+    el("p", { class: "note", style: "margin:0 0 6px" }, whose),
+    el("h3", {}, "Ollama"),
+    mgRow("Address", "The Ollama server that does the talking", url,
+      el("button", { class: "t-btn", onclick: look }, "Look"),
+      el("button", { class: "t-btn", onclick: () => { const u = url.value.trim(); if (u && u !== savedUrl) setConfig({ "ollama.url": u }); else say("Nothing changed"); } }, "Use it")),
+    models,
+    el("h3", {}, "The Oracle"),
+    el("p", { class: "note", style: "margin:0 0 6px" }, "Claude, for what the local model cannot do. Its sign-in is its own, apart from any other Claude login here."),
+    mgRow("Model", "", segOf(plans, oracle, (v) => setConfig({ "oracle.model": v }))),
+    accountRow);
+  look();
+}
+
+// ---------------------------------------------------------------- Morgan: voice
+
+async function mgVoice() {
+  const [v, heard] = await Promise.all([ask("voice.list"), ask("voices.status")]);
+  if (!mgLive() || failed(v)) return;
+  let chosen = v.kokoroVoice;
+  const grid = el("div", { class: "mg-chips mg-scroll" });
+  const drawGrid = () => grid.replaceChildren(...(v.kokoro || []).map((name) =>
+    el("button", { class: "mg-chip" + (name === v.kokoroVoice && v.engine === "kokoro" ? " on" : "") + (name === chosen ? " picked" : ""),
+      onclick: () => { chosen = name; drawGrid(); chosenName.textContent = name; } }, name)));
+  const chosenName = el("span", { class: "n", style: "width:auto" }, chosen || "");
+  drawGrid();
+  const parts = [el("h3", {}, "Morgan's voice")];
+  if (!v.kokoroInstalled) parts.push(el("p", { class: "note err" }, "Kokoro is not installed here."));
+  if (v.engine !== "kokoro") parts.push(el("p", { class: "note" }, `Morgan speaks with Piper now (${v.piperVoice || "its voice"}); using a voice here moves it to Kokoro.`));
+  parts.push(grid, mgRow("Chosen", "Hear it before using it", chosenName,
+    el("button", { class: "t-btn", onclick: async () => { if (chosen) await change("voice.preview", { engine: "kokoro", voice: chosen }, "Playing…"); } }, "Hear it"),
+    el("button", { class: "t-btn", onclick: () => {
+      if (!chosen) return;
+      const values = {};
+      if (chosen !== v.kokoroVoice) values.kokoroVoice = chosen;
+      if (v.engine !== "kokoro") values.engine = "kokoro";
+      if (Object.keys(values).length) setConfig(values); else say("Already its voice");
+    } }, "Use it")));
+
+  // Voices it knows, by whom; teaching one is done by speaking, when Morgan asks.
+  parts.push(el("h3", {}, "Voices it knows"));
+  const known = el("div", {});
+  const drawKnown = (s) => {
+    if (!s.ok) { known.replaceChildren(el("p", { class: "note err" }, s.error || "Morgan did not say")); return; }
+    if (!s.installed) { known.replaceChildren(el("p", { class: "note" }, "Telling voices apart is not installed here.")); return; }
+    const who = el("input", { type: "text", spellcheck: "false", placeholder: "Whose voice?" });
+    const teach = async () => {
+      const name = who.value.trim();
+      if (!name) { say("Whose voice is it? Type a name first", true); return; }
+      if (await change("voices.enroll", { name })) {
+        say("Speak when Morgan asks");
+        known.append(el("p", { class: "note" }, `Speak when Morgan asks: ${name}, six short lines, about a minute.`),
+          el("div", { class: "data-buttons" }, el("button", { class: "t-btn", onclick: async () => drawKnown(await ask("voices.status")) }, "Look again")));
+      }
+    };
+    who.addEventListener("keydown", (e) => { if (e.key === "Enter") teach(); });
+    known.replaceChildren(
+      ...(s.enrolled || []).map((name) => mgRow(name, "", twiceBtn("Forget", "Forget it?", async () => {
+        const r = await change("voices.forget", { name }, `${name} forgotten`);
+        if (r) drawKnown(r);
+      }))),
+      ...((s.enrolled || []).length ? [] : [el("p", { class: "note" }, "None taught yet.")]),
+      mgRow("Teach a voice", "Its person speaks six short lines", who, el("button", { class: "t-btn", onclick: teach }, "Enroll")));
+  };
+  drawKnown(heard);
+  parts.push(known);
+  mgBody(...parts);
+}
+
+// ---------------------------------------------------------------- Morgan: memory
+
+const mgOpen = new Set(); // topics shown open, kept across readings
+let mgFilter = "";
+
+async function mgMemory() {
+  const [mem, garden] = await Promise.all([ask("memory.list"), ask("memory.garden.report")]);
+  if (!mgLive() || failed(mem)) return;
+  const topics = mem.topics || [];
+  // Notes are addressed by their place in the topic: one changed, the topic is
+  // read again before another of its notes may be.
+  const busy = new Set();
+  const again = () => loadMorgan(true);
+  const noteChange = async (topic, op, args, said) => {
+    busy.add(topic);
+    drawTopics();
+    await change(op, { topic, ...args }, said);
+    again();
+  };
+
+  const filter = el("input", { type: "text", spellcheck: "false", placeholder: "Filter topics and notes" });
+  filter.value = mgFilter;
+  filter.addEventListener("input", () => { mgFilter = filter.value; drawTopics(); });
+  const list = el("div", { class: "mg-scroll mg-topics" });
+
+  const topicBlock = (t, notesShown, open) => {
+    const head = el("button", { class: "mg-topic-head" + (open ? " open" : ""), onclick: () => { if (mgOpen.has(t.name)) mgOpen.delete(t.name); else mgOpen.add(t.name); drawTopics(); } },
+      el("span", { class: "mg-caret" }, open ? "▾" : "▸"), el("b", {}, t.name), el("small", {}, `${t.notes.length} · ${t.description || "no description"}`));
+    const block = el("div", { class: "mg-topic" }, head);
+    if (!open) return block;
+    const locked = busy.has(t.name);
+    const others = topics.filter((o) => o.name !== t.name);
+    const notes = notesShown.map(({ text, index }) => {
+      const body = el("div", { class: "mg-note-text", ...(locked ? {} : { contenteditable: "plaintext-only" }), spellcheck: "false" }, text);
+      const done = () => {
+        const now = body.textContent.replace(/\s+/g, " ").trim();
+        if (busy.has(t.name) || now === text) return;
+        if (!now) { body.textContent = text; say("An empty note is deleted with ×", true); return; }
+        noteChange(t.name, "memory.note.set", { index, text: now }, "Note changed");
+      };
+      body.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); body.blur(); }
+        if (e.key === "Escape") { e.stopImmediatePropagation(); body.textContent = text; body.blur(); }
+      });
+      body.addEventListener("blur", done);
+      const menu = el("div", { class: "menu mg-menu", hidden: "" },
+        el("div", { class: "hint" }, "Move it to"),
+        ...others.map((o) => el("button", { class: "menu-item", onclick: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) }, o.name)));
+      const moveBtn = el("button", { class: "t-btn", onclick: () => { menu.hidden = !menu.hidden; } }, "Move to…");
+      return el("div", { class: "mg-note" + (locked ? " locked" : "") },
+        el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
+          ...(locked ? [] : [twiceBtn("×", "Delete?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])), menu);
+    });
+    if (!t.notes.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "Nothing here yet."));
+    else if (!notesShown.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "No note here matches."));
+
+    const add = el("input", { type: "text", spellcheck: "false", placeholder: "+ Note: type it and press Enter" });
+    add.addEventListener("keydown", (e) => { if (e.key === "Enter" && add.value.trim() && !busy.has(t.name)) noteChange(t.name, "memory.note.add", { text: add.value.trim() }, "Note added"); });
+
+    // Its name and description, changed together.
+    const tools = el("div", { class: "data-buttons" });
+    const drawTools = () => tools.replaceChildren(
+      el("button", { class: "t-btn", onclick: renaming }, "Rename"),
+      twiceBtn("Delete topic", "Delete it and its notes?", async () => { mgOpen.delete(t.name); await change("memory.topic.delete", { topic: t.name }, "Topic deleted"); again(); }));
+    const renaming = () => {
+      const name = mgInput(t.name, { placeholder: "Its name" });
+      const description = mgInput(t.description, { placeholder: "What belongs here" });
+      tools.replaceChildren(name, description,
+        el("button", { class: "t-btn", onclick: drawTools }, "Cancel"),
+        el("button", { class: "t-btn", onclick: async () => {
+          const n = name.value.trim() || t.name;
+          if (await change("memory.topic.rename", { topic: t.name, name: n, description: description.value.trim() }, "Topic changed")) {
+            if (mgOpen.delete(t.name)) mgOpen.add(n);
+            again();
+          }
+        } }, "Save"));
+      name.focus();
+    };
+    drawTools();
+    block.append(el("div", { class: "mg-topic-body" }, ...notes, ...(locked ? [] : [add]), tools));
+    return block;
+  };
+
+  function drawTopics() {
+    const q = mgFilter.trim().toLowerCase();
+    const has = (s) => String(s || "").toLowerCase().includes(q);
+    const blocks = [];
+    for (const t of topics) {
+      const all = t.notes.map((text, index) => ({ text, index }));
+      if (!q) { blocks.push(topicBlock(t, all, mgOpen.has(t.name))); continue; }
+      const byName = has(t.name) || has(t.description);
+      const matching = all.filter((n) => has(n.text));
+      if (!byName && !matching.length) continue;
+      // A topic found by its notes opens on them; found by its name, on all of them.
+      blocks.push(topicBlock(t, byName ? all : matching, mgOpen.has(t.name) || (!byName && matching.length > 0)));
+    }
+    list.replaceChildren(...(blocks.length ? blocks : [el("p", { class: "note" }, q ? "Nothing matches." : "No topics yet.")]));
   }
-  if (!Object.keys(values).length) { say("Nothing changed"); return; }
-  morganCall("config.set", { values }, (r) => {
-    if (!r.ok) { say(r.error || "Morgan did not take it", true); return; }
-    say(r.restart ? "Saved — Morgan is restarting" : "Saved");
-    setTimeout(loadMorgan, r.restart ? 2500 : 0);
+  drawTopics();
+
+  const newName = el("input", { type: "text", spellcheck: "false", placeholder: "Its name" });
+  const newWhat = el("input", { type: "text", spellcheck: "false", placeholder: "What belongs here" });
+  const addTopic = async () => {
+    const name = newName.value.trim();
+    if (!name) { say("A topic needs a name", true); return; }
+    if (await change("memory.topic.add", { name, description: newWhat.value.trim() }, "Topic added")) { mgOpen.add(name); again(); }
+  };
+  newWhat.addEventListener("keydown", (e) => { if (e.key === "Enter") addTopic(); });
+
+  // Documents kept in full, and pictures, each opened in a sheet in the page.
+  const docs = (mem.documents || []).map((d) => mgRow(d.title, [d.source, mgWhen(d.t), `${Number(d.size).toLocaleString()} characters`].filter(Boolean).join(" · "),
+    el("button", { class: "t-btn", onclick: () => mgReadDoc(d.title) }, "Read"),
+    twiceBtn("Delete", "Delete it?", async () => { if (await change("memory.document.delete", { title: d.title }, "Deleted from memory; the original is untouched")) again(); })));
+  const pics = (mem.pictures || []).map((p) => el("button", { class: "mg-pic", title: p.note || p.label, onclick: () => mgViewPicture(p) },
+    el("b", {}, p.label), el("small", {}, p.note || mgWhen(p.t))));
+
+  mgBody(
+    el("div", { class: "row" }, el("span", { class: "name" }, "Topics", el("small", {}, `${topics.length}`)), el("span", { class: "what" }, filter)),
+    list,
+    mgRow("+ Topic", "", newName, newWhat, el("button", { class: "t-btn", onclick: addTopic }, "Add")),
+    el("h3", {}, "Documents kept in full"),
+    el("div", { class: "mg-scroll" }, ...(docs.length ? docs : [el("p", { class: "note" }, "None.")])),
+    el("h3", {}, "Pictures"),
+    pics.length ? el("div", { class: "mg-pics mg-scroll" }, ...pics) : el("p", { class: "note" }, "None. Say “remember what I look like” or “this is my dog” while the camera can see."),
+    mgGarden(garden, again));
+}
+
+// The gardener: what it changed, day by day, each change undone on its own.
+function mgGarden(g, again) {
+  const now = el("button", { class: "t-btn" }, "Tidy now");
+  now.addEventListener("click", async () => {
+    now.disabled = true;
+    now.textContent = "Tidying…";
+    say("Tidying… this can take minutes");
+    const r = await change("memory.garden.run", {});
+    if (r) say(r.changes ? `Tidied: ${r.changes} change${r.changes === 1 ? "" : "s"}` : "Tidied: nothing to change");
+    if (mgLive()) again();
   });
+  const days = (g && g.ok ? g.days : null) || [];
+  const report = days.flatMap((day) => [
+    el("div", { class: "mg-day" }, day.when || day.day),
+    ...(day.changes || []).map((c) => el("div", { class: "row mg-change" + (c.undone ? " undone" : "") },
+      el("span", { class: "mg-said" }, c.said || c.kind, ...(c.detail ? [el("small", {}, c.detail)] : [])),
+      el("span", { class: "what mg-end" }, c.undone ? el("span", { class: "note", style: "margin:0" }, "Undone")
+        : el("button", { class: "t-btn", onclick: async () => { if (await change("memory.garden.undo", { id: c.id }, "Undone")) again(); } }, "Undo")))),
+  ]);
+  return el("div", {},
+    el("h3", { class: "with-btn" }, "Kept tidy", now),
+    ...(g && !g.ok ? [el("p", { class: "note err" }, g.error || "")] : []),
+    report.length ? el("div", { class: "mg-scroll" }, ...report)
+      : el("p", { class: "note" }, "Nothing tidied yet. Once a day, when nothing is going on, Morgan merges notes that say the same thing, folds small topics it made into the others, and splits topics grown too big. Topics you made are never folded away."));
 }
+
+// A sheet over the page: a document's text or a picture. Escape puts it away, not Settings.
+function mgSheet(title, ...kids) {
+  mgCloseSheet();
+  const sheet = el("div", { class: "mg-sheet", id: "mg-sheet", onclick: (e) => { if (e.target === sheet) mgCloseSheet(); } },
+    el("div", { class: "mg-sheet-box" },
+      el("div", { class: "mg-sheet-head" }, el("b", {}, title), el("button", { class: "t-btn", onclick: mgCloseSheet }, "Close")),
+      ...kids));
+  document.body.append(sheet);
+  return sheet;
+}
+function mgCloseSheet() { const s = $("mg-sheet"); if (s) s.remove(); }
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("mg-sheet")) { e.stopImmediatePropagation(); mgCloseSheet(); }
+}, { capture: true });
+
+async function mgReadDoc(title) {
+  const text = el("div", { class: "mg-sheet-text" }, "Reading…");
+  mgSheet(title, text);
+  const r = await ask("memory.document.get", { title });
+  if (!r.ok) { text.textContent = r.error || "Morgan did not answer"; text.classList.add("err"); return; }
+  text.textContent = r.text || "";
+  const meta = [r.source, mgWhen(r.t)].filter(Boolean).join(" · ");
+  if (meta) text.before(el("p", { class: "note", style: "margin:0 0 8px" }, meta));
+  if (r.more) text.after(el("p", { class: "note" }, `…and ${Number(r.more).toLocaleString()} more characters, not shown here.`));
+}
+
+async function mgViewPicture(p) {
+  const box = el("div", { class: "mg-sheet-pic" }, el("p", { class: "note" }, "Opening…"));
+  mgSheet(p.label, box, ...(p.note ? [el("p", { class: "note" }, p.note)] : []),
+    el("div", { class: "data-buttons" }, twiceBtn("Delete", "Delete this picture?", async () => {
+      if (await change("memory.picture.delete", { label: p.label }, "Picture deleted")) { mgCloseSheet(); if (mgLive()) loadMorgan(true); }
+    })));
+  const r = await ask("memory.picture.view", { label: p.label });
+  if (!r.ok || !r.data) { box.replaceChildren(el("p", { class: "note err" }, r.error || "Morgan did not send the picture")); return; }
+  // Morgan keeps JPEGs mostly; a PNG says so in its first bytes.
+  const type = r.data.startsWith("iVBOR") ? "image/png" : "image/jpeg";
+  box.replaceChildren(el("img", { alt: p.label, src: `data:${type};base64,${r.data}` }));
+}
+
+// ---------------------------------------------------------------- Morgan: reminders
+
+async function mgReminders() {
+  const r = await ask("reminders.list");
+  if (!mgLive() || failed(r)) return;
+  const draw = (list) => mgBody(...(list.length ? list.map((x) => mgRow(x.text || "A timer", x.when || mgWhen(x.at),
+    twiceBtn("Cancel", "Cancel it?", async () => { const now = await change("reminders.cancel", { id: x.id }, "Cancelled"); if (now && mgLive()) draw(now.reminders || []); })))
+    : [el("p", { class: "note" }, "None. Say “remind me to…” or “set a timer for…”, and Morgan speaks up when it is due.")]));
+  draw(r.reminders || []);
+}
+
+// ---------------------------------------------------------------- Morgan: connections
+
+const mgToolsOpen = new Set();
+
+async function mgConnections() {
+  const r = await ask("mcp.list");
+  if (!mgLive() || failed(r)) return;
+  const draw = (servers) => {
+    const redraw = (x) => { if (x && mgLive()) draw(x.servers || []); };
+    const rows = servers.map((s) => {
+      const device = s.allow === "device";
+      const state = s.connected ? "Connected" : `Can't reach it${s.error ? `: ${s.error}` : ""}`;
+      const meta = [s.target, s.hasKey ? "key saved" : "", device ? "" : state].filter(Boolean).join(" · ");
+      const open = mgToolsOpen.has(s.name);
+      const head = el("div", { class: "row net" + (s.connected ? "" : " mg-bad") }, el("span", { class: "name" }, s.name, el("small", {}, meta)),
+        el("span", { class: "what" },
+          el("button", { class: "t-btn", onclick: () => { if (open) mgToolsOpen.delete(s.name); else mgToolsOpen.add(s.name); draw(servers); } }, open ? "Hide tools" : `Tools (${(s.tools || []).length})`),
+          ...(device ? [] : [twiceBtn("Remove", "Remove it?", async () => redraw(await change("mcp.remove", { name: s.name }, "Server removed")))])));
+      const block = el("div", { class: "mg-server" }, head);
+      if (!open) return block;
+      const body = el("div", { class: "mg-tools" });
+      // One a client keeps for itself is changed on that client, not here.
+      if (device) body.append(el("p", { class: "note", style: "margin:0 0 4px" }, `Kept on ${s.device}; changed there.`));
+      else {
+        body.append(mgRow("Allowed", "A tool that changes something always waits for your yes", segOf([["read", "Tools that read"], ["all", "Every tool"]], s.allow,
+          async (allow) => redraw(await change("mcp.allow", { name: s.name, allow }, "Saved")))));
+      }
+      for (const t of s.tools || []) {
+        body.append(mgRow(t.name, t.readOnly ? "Reads" : "Changes things", ...(device ? [] : [mgSwitch(t.on, async (on, sw) => {
+          sw.disabled = true;
+          redraw(await change("mcp.tool", { name: s.name, tool: t.name, on }, `${t.name} ${on ? "on" : "off"}`));
+          sw.disabled = false;
+        }, "Given to Morgan")])));
+      }
+      if (!(s.tools || []).length) body.append(el("p", { class: "note", style: "margin:4px 0" }, "No tools read."));
+      block.append(body);
+      return block;
+    });
+    const reconnect = el("button", { class: "t-btn" }, "Reconnect all");
+    reconnect.addEventListener("click", async () => { reconnect.disabled = true; say("Connecting…"); redraw(await change("mcp.reconnect", {}, "Connected again")); reconnect.disabled = false; });
+
+    const name = el("input", { type: "text", spellcheck: "false", placeholder: "Short name" });
+    const target = el("input", { type: "text", spellcheck: "false", placeholder: "https://… or a command to run" });
+    const key = el("input", { type: "password", placeholder: "Access key, if it needs one" });
+    const add = async () => {
+      const t = target.value.trim();
+      if (!name.value.trim() || !t) { say("A server needs a name, and a URL or a command", true); return; }
+      const args = /^https?:\/\//.test(t) ? { name: name.value.trim(), url: t, ...(key.value.trim() ? { key: key.value.trim() } : {}) } : { name: name.value.trim(), command: t };
+      say("Connecting…");
+      redraw(await change("mcp.add", args, "Server added"));
+    };
+    mgBody(
+      el("h3", { class: "with-btn" }, "MCP servers", reconnect),
+      el("div", { class: "mg-scroll" }, ...(rows.length ? rows : [el("p", { class: "note" }, "None yet.")])),
+      el("h3", {}, "Add a server"),
+      mgRow("Name", "Letters and digits", name),
+      mgRow("Where", "A URL, or a command to run here", target),
+      mgRow("Access key", "For a URL that needs one", key),
+      el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" }, el("button", { class: "t-btn", onclick: add }, "Add"))),
+      el("p", { class: "note" }, "Servers that need a browser sign-in cannot be added here; those are reached through the Oracle."));
+  };
+  draw(r.servers || []);
+}
+
+// ---------------------------------------------------------------- Morgan: log
+
+async function mgLog() {
+  const r = await ask("log.recent", { count: 200 });
+  if (!mgLive() || failed(r)) return;
+  const lines = r.lines || [];
+  const box = el("div", { class: "mg-log" }, ...(lines.length ? lines.map((l) =>
+    el("div", { class: `mg-line ${l.level || "info"}` }, el("span", { class: "mg-at" }, l.at || ""), el("span", {}, l.text || "")))
+    : [el("p", { class: "note" }, "Nothing logged since it started.")]));
+  mgBody(el("h3", { class: "with-btn" }, "The latest 200 lines", el("button", { class: "t-btn", onclick: () => loadMorgan(true) }, "Refresh")), box);
+  box.scrollTop = box.scrollHeight;
+}
+
+const MG_PAGES = { where: mgWhere, assistant: mgAssistant, models: mgModels, voice: mgVoice, memory: mgMemory,
+  reminders: mgReminders, connections: mgConnections, log: mgLog };
 
 // ---------------------------------------------------------------- pages and ways back
 
@@ -844,6 +1383,7 @@ Surface.connect({
   b.wallpaperChanged.connect((text) => { const w = JSON.parse(text); if ((w.scope || "") === (wallScope || "")) drawWallpaper({ ...w, changed: !w.error }); });
   b.panel.connect((text) => onRadio(JSON.parse(text)));
   b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
+  b.morganReply.connect(onMorganReply);
   b.coreReply.connect((text) => { const r = JSON.parse(text); const done = coreWaiting.get(r.id); coreWaiting.delete(r.id); if (done) done(r); });
   b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
