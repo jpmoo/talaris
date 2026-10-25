@@ -326,21 +326,22 @@
   // ---------------------------------------------------------------- loading
 
   /*
-   * Files with no file of yours behind them, across every task: linked files
-   * gone from disk, and copies from Hermes Notes never saved as a file. Said
-   * in the header, so they are found without opening each task.
+   * Files that are in no folder, across every task: linked files missing from
+   * their folders, and files from Hermes Notes stored only in Talaris. Said in
+   * the header, so they are found without opening each task.
    */
   async function drawUnbacked() {
     const b = $("unbacked");
     if (!b) return;
     const rows = await api("GET", "/files/unbacked").catch(() => []);
-    const n = rows.reduce((k, r) => k + r.missing.length + r.onlyHere.length, 0);
-    b.hidden = !n;
-    b.textContent = `⚠ ${n} file${n === 1 ? "" : "s"} with no local copy`;
+    const gone = rows.reduce((k, r) => k + r.missing.length, 0), stored = rows.reduce((k, r) => k + r.onlyHere.length, 0);
+    const files = (n) => `${n} file${n === 1 ? "" : "s"}`;
+    b.hidden = !(gone + stored);
+    b.textContent = `⚠ ${[gone ? `${files(gone)} missing from ${gone === 1 ? "its folder" : "their folders"}` : "", stored ? `${files(stored)} from Hermes Notes not in a folder` : ""].filter(Boolean).join(" · ")}`;
     b.onclick = (e) => {
       const r = e.currentTarget.getBoundingClientRect();
       menuAt(r.left, r.bottom + 4, rows.map((x) => ({
-        label: `${x.title} — ${[x.missing.length ? `${x.missing.length} missing` : "", x.onlyHere.length ? `${x.onlyHere.length} only in the apps` : ""].filter(Boolean).join(", ")}`,
+        label: `${x.title} — ${[x.missing.length ? `${x.missing.length} missing from ${x.missing.length === 1 ? "its folder" : "their folders"}` : "", x.onlyHere.length ? `${x.onlyHere.length} not in a folder` : ""].filter(Boolean).join(", ")}`,
         act: () => openTask(x.id),
       })));
     };
@@ -991,21 +992,21 @@
         e.stopPropagation();
         const link = a["talaris:link"];
         menuAt(e.clientX, e.clientY, link ? [
-          { label: "Make a copy instead", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) },
+          { label: "Store it in Talaris instead", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) },
           { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
         ] : [
-          { label: "Save to the project and link it", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
+          { label: "Save to the project folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
         ]);
       };
       $("s-files").replaceChildren(
         ...files.map((a) => {
           const link = a["talaris:link"], missing = a["talaris:missing"];
-          // A copy that came from Hermes Notes with no file of yours behind it: warned about, and one right-click from being saved and linked.
+          // From Hermes Notes, stored only in Talaris (in no folder): warned about, and one right-click from being saved to the project folder.
           const onlyHere = !link && a["hermes-sync:origin"];
           return el("span", { class: "chip-p" + (link ? " linked" : "") + (missing ? " missing" : "") + (onlyHere ? " only-here" : ""),
-            title: link ? (missing ? `${a.filename} is not at ${link.path} any more — Hermes Notes has the last copy: Restore missing files` : `Open ${link.path}`)
-              : onlyHere ? `${a.filename}: only kept inside Talaris and Hermes Notes, no file of yours — right-click to save it to the project and link it`
-              : `Open ${a.filename} (a copy kept with the task)`,
+            title: link ? (missing ? `${a.filename} is missing from its folder (${link.path}). Restore missing files puts it back from Hermes Notes` : `Open ${link.path}`)
+              : onlyHere ? `${a.filename} came from Hermes Notes and is stored in Talaris, not in a folder. Right-click to save it to the project folder`
+              : `Open ${a.filename} (stored in Talaris)`,
             onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
             oncontextmenu: (e) => fileMenu(e, a) },
             missing || onlyHere ? el("span", { class: "warn-mark" }, "⚠") : null,
@@ -1016,8 +1017,8 @@
               api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
             } }, "×"));
         }),
-        el("button", { class: "add", title: "Attach files: a copy kept with the task", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
-        el("button", { class: "add link-add", title: "Link files: opened where they are, no copy", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
+        el("button", { class: "add", title: "Attach files (stored in Talaris)", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
+        el("button", { class: "add link-add", title: "Link files (opened from their folders)", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
         el("span", { id: "s-files-note" }));
     }
     if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");

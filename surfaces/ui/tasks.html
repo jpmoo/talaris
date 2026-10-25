@@ -141,7 +141,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 /* A linked file (↗): the file itself, where it is; one gone from there, said. */
 .chip-p.linked .link-mark { color: var(--accent); margin-right: 3px; }
 .chip-p.missing .fname { text-decoration: line-through; opacity: .6; }
-/* No file of yours behind it: a red mark for a link whose file is gone, an amber one for a copy only the apps hold. */
+/* In no folder: a red mark for a linked file missing from its folder, an amber one for a file from Hermes Notes stored only in Talaris. */
 .chip-p .warn-mark { margin-right: 3px; font-weight: 600; }
 .chip-p.missing .warn-mark { color: var(--danger, #e06c6c); }
 .chip-p.only-here { box-shadow: inset 0 0 0 1px #d9a13b; }
@@ -222,7 +222,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <span id="count"></span>
   <span id="msg"></span>
   <span class="spacer"></span>
-  <button class="t-btn warn" id="unbacked" hidden title="Files with no file of yours behind them"></button>
+  <button class="t-btn warn" id="unbacked" hidden title="Files missing from their folders, or from Hermes Notes and stored only in Talaris"></button>
   <span id="list-actions"></span>
   <button class="t-btn" id="edit-list" hidden>Edit collection</button>
   <button class="icon-btn" id="grow"></button>

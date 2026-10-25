@@ -265,11 +265,11 @@ export function restoreLinks(entityId: string): { restored: number; still: strin
   return { restored, still };
 }
 
-/** The plugin's mark on a copy that came from Hermes Notes, with no file of yours behind it. */
+/** The plugin's mark on a copy that came from Hermes Notes, stored only in Talaris, in no folder. */
 export const FROM_HERMES = "hermes-sync:origin";
 
 /**
- * Files with no file of yours behind them: links whose file is gone, and
+ * Files in no folder: links whose file is gone, and
  * copies that came in from elsewhere (a sync's mark) and were never saved as
  * a file. For Tasks' header and its warnings.
  */

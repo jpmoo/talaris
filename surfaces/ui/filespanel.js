@@ -68,8 +68,8 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Snapshot", missing: "Missing" };
-  const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "snapshot", missing: "missing" };
+  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored in Talaris", missing: "Missing from its folder" };
+  const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "in Talaris", missing: "missing" };
   const TYPES = [["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
@@ -224,8 +224,8 @@
     if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
     if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", by a shortcut there" : ""}.`));
     if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked on a task"), " from where it lives, outside every project."));
-    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "A snapshot"), ` — a copy Talaris keeps${r.fromHermes ? ", that came from Hermes Notes" : ""}. No file of it exists anywhere until it is saved into the project.`));
-    if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing:"), " the file is no longer where it was."));
+    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored in Talaris"), `${r.fromHermes ? ", from Hermes Notes" : ""} — not in any folder until it is saved to the project folder.`));
+    if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing from its folder:"), " moved or deleted."));
     if (r.sealed) said.push(el("span", {}, "Sealed: it opens as a copy, since only Talaris can read it."));
     const lines = [
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
@@ -245,7 +245,7 @@
     }
     if (s.includes("shortcut") && !s.includes("missing")) act("Move it in…", () => bringIn([r.abs], "move", r.project));
     if (s.includes("linked") && !s.includes("missing")) act("Make it a shortcut here", () => api("POST", "/files/shortcut", { project: r.project, path: r.abs }).then(reload, failed));
-    if (s.includes("snapshot")) act("Save into the project", () => api("POST", "/files/snapshot/save", { holder: r.holder, sha256: r.sha256, project: r.project })
+    if (s.includes("snapshot")) act("Save to the project folder", () => api("POST", "/files/snapshot/save", { holder: r.holder, sha256: r.sha256, project: r.project })
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Attach to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
@@ -340,7 +340,7 @@
 
   function open(r) {
     if (r.status.includes("page")) { bridge.page(r.project, r.path); return; }
-    if (r.status.includes("missing")) { say(`${r.name} is not where it was`, true); return; }
+    if (r.status.includes("missing")) { say(`${r.name} is missing from its folder`, true); return; }
     if (r.status.includes("snapshot") || r.sealed) {
       api("POST", "/files/open-copy", r.sha256 ? { sha256: r.sha256, name: r.name } : { project: r.project, path: r.path })
         .then((x) => bridge.open(x.path)).catch(failed);

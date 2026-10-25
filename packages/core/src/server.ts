@@ -599,7 +599,7 @@ route("POST", "/entities/:id/attachments/:sha/link", async (req, [id, sha]) => {
   const b = await json<{ folder?: string }>(req);
   return links.toLink(id!, sha!, b.folder || filesFolderFor(id!));
 });
-// Missing linked files put back from held copies (links.ts, restoreLinks); and what has no file of yours behind it.
+// Missing linked files put back from held copies (links.ts, restoreLinks); and what is in no folder.
 route("POST", "/entities/:id/links/restore", (_r, [id]) => links.restoreLinks(id!));
 route("GET", "/files/unbacked", () => links.unbacked());
 links.setFallbackFolder(filesFolderFor);
