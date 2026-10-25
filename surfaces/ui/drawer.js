@@ -183,6 +183,114 @@ function twisty(key, hasKids, kids, shut, store) {
   return t;
 }
 
+// ---------------------------------------------------------------- list order
+
+/*
+ * Both lists — the writing pages, the canvases — in the viewer's chosen order
+ * (kept in this page's storage, per list): as dragged (Manual), by when last
+ * edited or made, newest first, or by name. Starred ones, however deep, are
+ * also gathered at the top of the list, in the same order. Dragging a row
+ * among its siblings sets the order by hand, which the core keeps for
+ * everyone, and turns the list to Manual to show it.
+ */
+const SORTS = [["manual", "Manual"], ["edited", "Date edited"], ["created", "Date created"], ["name", "Name"]];
+const sortStore = (list) => `talaris.${list}.sort`;
+function sortOf(list) { try { return localStorage.getItem(sortStore(list)) || "manual"; } catch { return "manual"; } }
+function setSort(list, value) { try { localStorage.setItem(sortStore(list), value); } catch { /* fine */ } }
+const newest = (k) => (a, b) => String(b.n[k] || "").localeCompare(String(a.n[k] || ""));
+const ORDERS = {
+  manual: (a, b) => a.i - b.i,
+  edited: newest("modified"),
+  created: newest("created"),
+  name: (a, b) => a.n.title.localeCompare(b.n.title, undefined, { numeric: true, sensitivity: "base" }),
+};
+function sorted(nodes, list) {
+  const by = ORDERS[sortOf(list)] || ORDERS.manual;
+  return nodes.map((n, i) => ({ n, i })).sort((a, b) => by(a, b) || a.i - b.i).map((x) => x.n);
+}
+
+/**
+ * The starred, from anywhere in the tree, as a section of their own at the top:
+ * each a row that opens it, with where it lives beneath its name.
+ */
+function starredSection(roots, list, row) {
+  const found = [];
+  const walk = (nodes, trail) => {
+    for (const n of nodes) {
+      if (n.starred) found.push({ n, trail });
+      walk(n.children || [], [...trail, n.title]);
+    }
+  };
+  walk(roots, []);
+  if (!found.length) return "";
+  const order = sorted(found.map((f) => f.n), list);
+  return el("div", { class: "starred" },
+    el("div", { class: "label section" }, "STARRED"),
+    ...order.map((n) => row(n, found.find((f) => f.n === n).trail.join(" / "))));
+}
+
+/** The list's order, chosen from a small menu under its button. */
+function sortButton(list, reload) {
+  const name = (SORTS.find(([k]) => k === sortOf(list)) || SORTS[0])[1];
+  const b = el("button", { class: "sort-btn", title: "Order the list" }, `${name.toUpperCase()} ▾`);
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeMenu();
+    menu = el("div", { class: "context" },
+      ...SORTS.map(([k, l]) => el("button", { class: "menu-item" + (k === sortOf(list) ? " on" : ""), onclick: () => { closeMenu(); setSort(list, k); reload(); } }, l)),
+      el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Drag to order by hand"));
+    const r = b.getBoundingClientRect();
+    menu.style.left = `${r.left}px`;
+    menu.style.top = `${r.bottom + 4}px`;
+    document.body.append(menu);
+  });
+  return el("div", { class: "list-head" }, b);
+}
+
+/** A row's star: on, it is kept at the top of its list. */
+function starButton(starred, set) {
+  return el("button", { class: "star" + (starred ? " on" : ""), title: starred ? "Unstar" : "Star: keep it at the top", draggable: "false",
+    onclick: (e) => { e.stopPropagation(); set(!starred); } }, starred ? "★" : "☆");
+}
+
+/*
+ * A row dragged among its siblings: a line shows where it will land, and the
+ * siblings' new order, as shown, is handed to `commit`. Only within the same
+ * parent — moving a page or a canvas to another parent is its own act.
+ */
+let lifted = null; // { list, parent, key }
+const unmark = () => document.querySelectorAll(".drop-before, .drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+function dragRow(row, list, parent, key, keys, commit) {
+  row.draggable = true;
+  const mine = () => lifted && lifted.list === list && lifted.parent === parent && lifted.key !== key;
+  row.addEventListener("dragstart", (e) => {
+    e.stopPropagation();
+    lifted = { list, parent, key };
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", key);
+    row.classList.add("lifted");
+  });
+  row.addEventListener("dragend", () => { lifted = null; row.classList.remove("lifted"); unmark(); });
+  row.addEventListener("dragover", (e) => {
+    if (!mine()) return;
+    e.preventDefault();
+    const r = row.getBoundingClientRect();
+    unmark();
+    row.classList.add(e.clientY > r.top + r.height / 2 ? "drop-after" : "drop-before");
+  });
+  row.addEventListener("drop", (e) => {
+    if (!mine()) return;
+    e.preventDefault();
+    const after = row.classList.contains("drop-after");
+    const moving = lifted.key;
+    unmark();
+    const next = keys.filter((k) => k !== moving);
+    next.splice(next.indexOf(key) + (after ? 1 : 0), 0, moving);
+    setSort(list, "manual");
+    commit(next);
+  });
+}
+
 // ---------------------------------------------------------------- canvas
 
 const CANVAS_SHUT = "talaris.canvas.shut";
@@ -222,14 +330,18 @@ async function loadCanvas() {
   const trail = pathTo(tree, viewing);
   const shut = shutSet(CANVAS_SHUT);
   let count = 0;
-  const walk = (node) => {
+  const pid = state.project.id;
+  const walk = (node, parent, siblings) => {
     count++;
     const kids = el("div", { class: "kids" });
-    for (const c of node.children) kids.append(walk(c));
-    return el("div", {},
-      el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id), ondblclick: () => renameCanvas(node) },
-        el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title)),
-      kids);
+    const children = sorted(node.children, "canvas");
+    for (const c of children) kids.append(walk(c, node.id, children.map((x) => x.id)));
+    const row = el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id), ondblclick: () => renameCanvas(node) },
+      el("span", {}, twisty(node.id, node.children.length > 0, kids, shut, CANVAS_SHUT), node.title),
+      parent ? star(node) : null);
+    // The top canvas has no siblings to be ordered among.
+    if (parent) dragRow(row, "canvas", parent, node.id, siblings, async (ids) => { await core("PUT", `/projects/${pid}/canvases/${parent}/order`, { children: ids }); loadCanvas(); });
+    return el("div", {}, row, kids);
   };
 
   // The trail is the header: each step goes back up to that canvas.
@@ -246,7 +358,11 @@ async function loadCanvas() {
     title: "Canvas",
   });
   frame.addEventListener("load", () => shareTheme(frame));
-  const treePane = el("div", { class: "tree canvas-tree" }, walk(tree));
+  const star = (node) => starButton(node.starred, async (on) => { await core("PUT", `/projects/${pid}/canvases/${node.id}/star`, { starred: on }); loadCanvas(); });
+  const starredRow = (node, where) => el("div", { class: "row" + (node.id === viewing ? " on" : ""), onclick: () => view(node.id), ondblclick: () => renameCanvas(node) },
+    el("span", { class: "starred-t" }, node.title, where ? el("span", { class: "where" }, where) : ""), star(node));
+  const treePane = el("div", { class: "tree canvas-tree" }, sortButton("canvas", loadCanvas),
+    starredSection(tree.children, "canvas", starredRow), walk(tree, null, []));
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
@@ -356,7 +472,8 @@ function deleteCanvas(node, parent) {
 async function newCanvas() {
   const tree = canvasTreeCache ?? await core("GET", `/projects/${state.project.id}/canvases`);
   const parent = viewing ?? tree.id;
-  await core("POST", `/projects/${state.project.id}/canvases/${parent}/children`, { title: "Untitled" });
+  // Named for when it was made, until it is renamed.
+  await core("POST", `/projects/${state.project.id}/canvases/${parent}/children`, { title: "" });
   const shut = shutSet(CANVAS_SHUT);
   shut.delete(parent);
   try { localStorage.setItem(CANVAS_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
@@ -542,23 +659,32 @@ async function loadWriting() {
   const pages = (await core("GET", `/projects/${state.project.id}/pages`)).filter((n) => !(dailyOn && n.path === DAILY));
   const shut = shutSet(WRITING_SHUT);
   let count = 0;
-  const branch = (nodes) => {
+  const pid = state.project.id;
+  const star = (n) => starButton(n.starred, async (on) => { await core("PUT", `/projects/${pid}/page/star?path=${encodeURIComponent(n.path)}`, { starred: on }); loadWriting(); });
+  const starredRow = (n, where) => el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
+    el("span", { class: "starred-t" }, n.title, where ? el("span", { class: "where" }, where) : ""), star(n));
+  const branch = (nodes, parent) => {
     const wrap = el("div");
-    for (const n of nodes) {
+    const shown = sorted(nodes, "writing");
+    const names = shown.map((n) => n.title);
+    for (const n of shown) {
       count++;
-      const kids = branch(n.children);
+      const kids = branch(n.children, n.path);
       kids.className = "kids";
       const twist = twisty(n.path, n.children.length > 0, kids, shut, WRITING_SHUT);
-      wrap.append(el("div", {},
-        el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path) }, el("span", {}, twist, n.title)),
-        kids));
+      const row = el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
+        el("span", {}, twist, n.title), star(n));
+      dragRow(row, "writing", parent, n.title, names, async (order) => { await core("PUT", `/projects/${pid}/pages/order`, { parent, names: order }); loadWriting(); });
+      wrap.append(el("div", {}, row, kids));
     }
     return wrap;
   };
   const tree = el("div", { class: "tree" },
     dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
     dailyOn ? el("div", { class: "label section" }, "PAGES") : "",
-    pages.length ? branch(pages) : el("div", { class: "empty" }, "No pages yet"));
+    pages.length ? sortButton("writing", loadWriting) : "",
+    starredSection(pages, "writing", starredRow),
+    pages.length ? branch(pages, "") : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
@@ -572,7 +698,9 @@ async function loadWriting() {
   $("count").textContent = `${state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list"), " ", el("button", { onclick: () => newPage(null) }, "New page")];
   if (open && !isDaily(open)) {
+    const here = { path: open, title: open.split("/").pop() };
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
+      " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
       " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
   }
   $("actions").replaceChildren(...actions);
@@ -633,13 +761,28 @@ async function save() {
 }
 
 async function newPage(parent) {
-  const made = await core("POST", `/projects/${state.project.id}/pages`, { parent, title: "Untitled" });
+  // Named for when it was made, until it is renamed.
+  const made = await core("POST", `/projects/${state.project.id}/pages`, { parent, title: "" });
   if (parent) {
     const shut = shutSet(WRITING_SHUT);
     shut.delete(parent);
     try { localStorage.setItem(WRITING_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
   }
   edit(made.path);
+}
+
+// A new name for a page, where it is; the one being written follows it, and what is beneath it.
+function renamePage(n) {
+  askName(`Rename “${n.title}”`, n.title, async (title) => {
+    if (saveTimer) { clearTimeout(saveTimer); await save(); }
+    const parent = n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : null;
+    const moved = await core("POST", `/projects/${state.project.id}/page/move`, { path: n.path, parent, title });
+    if (open && (open === n.path || open.startsWith(`${n.path}/`))) {
+      if (editor) { editor.destroy(); editor = null; }
+      open = moved.path + open.slice(n.path.length);
+    }
+    loadWriting();
+  });
 }
 
 function deletePage() {

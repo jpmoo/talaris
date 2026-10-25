@@ -114,6 +114,11 @@ export interface CanvasNode {
   title: string;
   parent: string | null;
   children: CanvasNode[];
+  /** ISO times: when it was made (or first seen), and last saved. */
+  created?: string;
+  modified?: string;
+  /** Kept at the top of its list. */
+  starred?: boolean;
 }
 
 /** A place that links to a canvas: a `canvas-link` item on some canvas. */
@@ -133,6 +138,11 @@ export interface PageNode {
   path: string;
   title: string;
   children: PageNode[];
+  /** ISO times: when it was made (or first seen), and last written. */
+  created?: string;
+  modified?: string;
+  /** Kept at the top of its list. */
+  starred?: boolean;
 }
 
 export interface VersionEntry {

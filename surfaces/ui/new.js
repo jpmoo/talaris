@@ -784,7 +784,7 @@
       }
       if (kind === "note") {
         const title = plain(v.title) || plain((v.body || "").split("\n")[0]).slice(0, 80);
-        if (!title) throw new Error("A note needs a title or some words");
+        // Nameless, the core names it for when it was made.
         if (!v.project) throw new Error("Choose a project for it");
         const kept = await keepInProject(v.project, "noteFiles");
         const body = [String(v.body || "").trimEnd(), kept.files.map(linkOf).join(" ")].filter(Boolean).join("\n\n");

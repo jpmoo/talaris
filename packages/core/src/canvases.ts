@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   FORMAT_VERSION,
@@ -10,7 +10,7 @@ import {
   type CanvasItem,
   type CanvasNode,
 } from "@talaris/model";
-import { MACHINERY } from "./paths.js";
+import { MACHINERY, stamp } from "./paths.js";
 import { Conflict, NotFound, findProject, listProjects, readProject } from "./projects.js";
 import { newId, readJson, writeJson } from "./store.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
@@ -54,16 +54,59 @@ function allCanvases(folder: string): CanvasDocument[] {
     .map((n) => readJson<CanvasDocument>(join(dir(folder), n)));
 }
 
+/*
+ * What the drawer's list knows of each canvas, kept apart from the canvases in
+ * `.talaris/canvas-list.json` so a star or a drag is not an edit: `created`
+ * (an older canvas has none; its file's birth stands in), `starred`, and
+ * `childOrder` — the order its children were dragged into, those not in it
+ * after, by name.
+ */
+type Listed = { created?: string; starred?: boolean; childOrder?: string[] };
+const LIST = "canvas-list.json";
+function readListed(folder: string): Record<string, Listed> {
+  try {
+    return readJson<Record<string, Listed>>(join(machinery(folder), LIST));
+  } catch {
+    return {};
+  }
+}
+function listed(folder: string, id: string, change: (l: Listed) => void): void {
+  const all = readListed(folder);
+  const l = { ...(all[id] ?? {}) };
+  change(l);
+  if (Object.keys(l).length) all[id] = l;
+  else delete all[id];
+  writeJson(join(machinery(folder), LIST), all);
+}
+
 export function canvasTree(projectId: string): CanvasNode {
   const { folder } = findProject(projectId);
   const top = readProject(folder).topCanvas;
   const docs = allCanvases(folder);
-  const node = (d: CanvasDocument): CanvasNode => ({
-    id: d.id,
-    title: d.title,
-    parent: d.parent,
-    children: docs.filter((c) => c.parent === d.id).sort((a, b) => a.title.localeCompare(b.title)).map(node),
-  });
+  const list = readListed(folder);
+  const times = (id: string) => {
+    try {
+      const st = statSync(file(folder, id));
+      return { created: (st.birthtimeMs > 0 ? st.birthtime : st.mtime).toISOString(), modified: st.mtime.toISOString() };
+    } catch {
+      return { created: "", modified: "" };
+    }
+  };
+  const node = (d: CanvasDocument): CanvasNode => {
+    const l = list[d.id] ?? {};
+    const order = l.childOrder ?? [];
+    const rank = (c: CanvasDocument) => (order.includes(c.id) ? order.indexOf(c.id) : order.length);
+    const t = times(d.id);
+    return {
+      id: d.id,
+      title: d.title,
+      parent: d.parent,
+      children: docs.filter((c) => c.parent === d.id).sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title)).map(node),
+      created: l.created ?? t.created,
+      modified: t.modified,
+      ...(l.starred ? { starred: true } : {}),
+    };
+  };
   const root = docs.find((d) => d.id === top);
   if (!root) throw new NotFound(`project ${projectId} has lost its top canvas`);
   return node(root);
@@ -148,6 +191,26 @@ export function renameCanvas(projectId: string, id: string, title: string): Canv
   return renamed;
 }
 
+/** Star a canvas, or not: a starred one is kept at the top of its list. */
+export function starCanvas(projectId: string, id: string, starred: boolean): void {
+  const { folder } = findProject(projectId);
+  readCanvas(projectId, id);
+  listed(folder, id, (l) => {
+    if (starred) l.starred = true;
+    else delete l.starred;
+  });
+}
+
+/** A canvas's children in an order given whole, as its list was dragged into. */
+export function orderCanvases(projectId: string, id: string, children: string[]): void {
+  const { folder } = findProject(projectId);
+  readCanvas(projectId, id);
+  const mine = new Set(allCanvases(folder).filter((c) => c.parent === id).map((c) => c.id));
+  listed(folder, id, (l) => {
+    l.childOrder = children.filter((c) => mine.has(c));
+  });
+}
+
 export function createChild(
   projectId: string,
   parentId: string,
@@ -161,7 +224,8 @@ export function createChild(
     id: newId("cv"),
     project: projectId,
     parent: parentId,
-    title: title.trim() || "Untitled",
+    // Nameless, it is called when it was made.
+    title: title.trim() || stamp(),
     items: [],
     links: [],
     regions: [],
@@ -179,6 +243,9 @@ export function createChild(
   // The child first: a crash between the two leaves a canvas in the tree with
   // no card yet, which is recoverable, rather than a card pointing at nothing.
   persist(folder, child);
+  listed(folder, child.id, (l) => {
+    l.created = new Date().toISOString();
+  });
   const updated = { ...parent, items: [...parent.items, card] };
   persist(folder, updated);
   return { canvas: child, parent: updated };

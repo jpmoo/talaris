@@ -247,9 +247,9 @@
     let hover = null, frame = 0, chosen = null;
     let pal = {};
 
-    // The graph's look and pull, as the Display panel sets them (kept): tuned for a link
-    // distance of 70, where the spring and the push nearly cancel.
-    const DISPLAY = { size: 1, distance: 70, repel: 300, gravity: 12, labels: "hubs", text: 11, line: 1 };
+    // The graph's look and pull, as the Display panel sets them (kept), and as they start:
+    // close together, a light push, ties drawn heavy, small type.
+    const DISPLAY = { size: 1.1, distance: 55, repel: 50, gravity: 9, labels: "hubs", text: 9, line: 2.25 };
     let gs = { ...DISPLAY, ...store.get("talaris.glance.display", {}) };
     const SPRING = 0.08, DAMP = 0.6, CUT2 = 520 * 520;
     const DECAY = 0.015, ALPHA_MIN = 0.002, WARM_TICKS = 300;

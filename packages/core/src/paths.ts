@@ -53,3 +53,9 @@ export const MACHINERY = ".talaris";
 export const WRITING = "Writing";
 /** A project's files — attached to a page or a canvas note — in a visible folder of their own. */
 export const FILES = "Files";
+
+/** A name for something made without one: when it was made, local, "2026-10-25 09:14". */
+export function stamp(at = new Date()): string {
+  const z = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${z(at.getMonth() + 1)}-${z(at.getDate())} ${z(at.getHours())}:${z(at.getMinutes())}`;
+}

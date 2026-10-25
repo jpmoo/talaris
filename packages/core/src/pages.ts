@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
-import { MACHINERY, WRITING } from "./paths.js";
+import { MACHINERY, WRITING, stamp } from "./paths.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
@@ -26,10 +26,13 @@ const ORDER = "writing-order.json";
 /**
  * How a page looks — its paper's color — kept by path in
  * `.talaris/writing-look.json`, not in the page: the Markdown file stays
- * exactly what was written, and other applications open it unchanged.
+ * exactly what was written, and other applications open it unchanged. Beside
+ * it, what the list knows of the page: when it was made, and whether it is
+ * starred. A page from outside has no made time here; the file's own birth
+ * time stands in.
  */
 const LOOK = "writing-look.json";
-type Look = Record<string, { paper?: string | null }>;
+type Look = Record<string, { paper?: string | null; created?: string; starred?: boolean }>;
 
 function readLook(folder: string): Look {
   try {
@@ -115,12 +118,51 @@ function siblings(folder: string, parent: string, order: Order): string[] {
 export function pageTree(projectId: string): PageNode[] {
   const { folder } = findProject(projectId);
   const order = readOrder(folder);
+  const look = readLook(folder);
+  const times = (path: string) => {
+    for (const f of [pageFile(folder, path), childDir(folder, path)]) {
+      try {
+        const st = statSync(f);
+        const born = st.birthtimeMs > 0 ? st.birthtime : st.mtime;
+        return { created: born.toISOString(), modified: st.mtime.toISOString() };
+      } catch {
+        // Not this one: a folder with no page of its own, or the other way round.
+      }
+    }
+    return { created: "", modified: "" };
+  };
   const build = (parent: string): PageNode[] =>
     siblings(folder, parent, order).map((title) => {
       const path = parent ? `${parent}/${title}` : title;
-      return { path, title, children: build(path) };
+      const t = times(path);
+      const l = look[path] ?? {};
+      return { path, title, children: build(path), created: l.created ?? t.created, modified: t.modified, ...(l.starred ? { starred: true } : {}) };
     });
   return build("");
+}
+
+/** Star a page, or not: a starred one is kept at the top of its list. */
+export function starPage(projectId: string, path: string, starred: boolean): void {
+  const { folder } = findProject(projectId);
+  const p = safe(path);
+  const all = readLook(folder);
+  const next = { ...(all[p] ?? {}) };
+  if (starred) next.starred = true;
+  else delete next.starred;
+  if (Object.keys(next).length) all[p] = next;
+  else delete all[p];
+  writeJson(join(folder, MACHINERY, LOOK), all);
+}
+
+/** The pages inside `parent` ("" for the top) in an order given whole, as a list dragged into it. */
+export function orderPages(projectId: string, parent: string, names: string[]): void {
+  const { folder } = findProject(projectId);
+  const under = parent ? safe(parent) : "";
+  const order = readOrder(folder);
+  const have = siblings(folder, under, order);
+  const given = names.filter((n) => have.includes(n));
+  order[under] = [...given, ...have.filter((n) => !given.includes(n))];
+  writeOrder(folder, order);
 }
 
 export function readPage(projectId: string, path: string): string {
@@ -143,7 +185,8 @@ export function writePage(projectId: string, path: string, text: string): void {
 /** A title that is free among its siblings: "Untitled", then "Untitled 2"… */
 function freeTitle(folder: string, parent: string, title: string): string {
   const taken = new Set(siblings(folder, parent, readOrder(folder)));
-  const base = title.trim().replace(/[/\\\0]/g, "-").replace(/^\.+/, "") || "Untitled";
+  // Nameless, it is called when it was made.
+  const base = title.trim().replace(/[/\\\0]/g, "-").replace(/^\.+/, "") || stamp();
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base} ${n}`)) return `${base} ${n}`;
 }
@@ -157,6 +200,9 @@ export function createPage(projectId: string, parent: string | null, title: stri
   const name = freeTitle(folder, under, title);
   const path = under ? `${under}/${name}` : name;
   writeAtomic(pageFile(folder, path), "");
+  const look = readLook(folder);
+  look[path] = { ...(look[path] ?? {}), created: new Date().toISOString() };
+  writeJson(join(folder, MACHINERY, LOOK), look);
   const order = readOrder(folder);
   order[under] = [...siblings(folder, under, order).filter((n) => n !== name), name];
   writeOrder(folder, order);
@@ -209,8 +255,13 @@ export function movePage(projectId: string, path: string, newParent: string | nu
     const k = key === from || key.startsWith(`${from}/`) ? to + key.slice(from.length) : key;
     next[k] = names;
   }
-  next[fromParent] = (next[fromParent] ?? []).filter((n) => n !== oldTitle);
-  next[toParent] = [...(next[toParent] ?? []).filter((n) => n !== title), title];
+  if (toParent === fromParent && (next[fromParent] ?? []).includes(oldTitle)) {
+    // Renamed where it is: it keeps its place.
+    next[fromParent] = next[fromParent]!.map((n) => (n === oldTitle ? title : n));
+  } else {
+    next[fromParent] = (next[fromParent] ?? []).filter((n) => n !== oldTitle);
+    next[toParent] = [...(next[toParent] ?? []).filter((n) => n !== title), title];
+  }
   writeOrder(folder, next);
   // And its look, with it and its children.
   const look = readLook(folder);

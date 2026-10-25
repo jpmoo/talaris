@@ -356,6 +356,35 @@ test("a project at a glance: its pages, canvases, filed things and files, and on
   assert.equal(found[0]?.id, task.id);
 });
 
+test("pages and canvases: named for when they were made, starred, and in an order dragged", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const canvases = await import("../src/canvases.js");
+  const p = projects.createProject("Lists");
+  const a = pages.createPage(p.id, null, "");
+  assert.match(a.title, /^\d{4}-\d\d-\d\d \d\d:\d\d$/, "a nameless page is called when it was made");
+  pages.createPage(p.id, null, "Beta");
+  pages.createPage(p.id, null, "Alpha");
+  pages.starPage(p.id, "Alpha", true);
+  pages.orderPages(p.id, "", ["Alpha", "Beta"]);
+  const tree = pages.pageTree(p.id);
+  assert.deepEqual(tree.map((n) => n.title), ["Alpha", "Beta", a.title]);
+  assert.equal(tree[0]?.starred, true);
+  assert.ok(tree.every((n) => n.created && n.modified));
+  const top = canvases.canvasTree(p.id);
+  const one = canvases.createChild(p.id, top.id, "One").canvas;
+  const two = canvases.createChild(p.id, top.id, "").canvas;
+  assert.match(two.title, /^\d{4}-/);
+  const before = canvases.readCanvas(p.id, one.id);
+  canvases.starCanvas(p.id, one.id, true);
+  canvases.orderCanvases(p.id, top.id, [two.id, one.id]);
+  assert.deepEqual(canvases.readCanvas(p.id, one.id), before, "a star is not an edit of the canvas");
+  const kids = canvases.canvasTree(p.id).children;
+  assert.deepEqual(kids.map((c) => c.id), [two.id, one.id]);
+  assert.equal(kids[1]?.starred, true);
+  assert.ok(kids[0]?.created);
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

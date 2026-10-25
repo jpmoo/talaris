@@ -14,6 +14,8 @@ import {
   backlinks,
   canvasTree,
   renameCanvas,
+  orderCanvases,
+  starCanvas,
   canvasVersion,
   canvasVersions,
   createChild,
@@ -33,6 +35,8 @@ import {
   pageVersions,
   readPage,
   reorderPage,
+  orderPages,
+  starPage,
   restorePage,
   writePage,
   pageLook,
@@ -146,7 +150,15 @@ route("DELETE", "/projects/:id/canvases/:cid", (_r, [id, cid]) => {
 });
 route("POST", "/projects/:id/canvases/:cid/children", async (req, [id, cid]) => {
   const b = await json<{ title?: string; x?: number; y?: number }>(req);
-  return createChild(id!, cid!, b.title ?? "Untitled", { x: b.x ?? 0, y: b.y ?? 0 });
+  return createChild(id!, cid!, b.title ?? "", { x: b.x ?? 0, y: b.y ?? 0 });
+});
+route("PUT", "/projects/:id/canvases/:cid/star", async (req, [id, cid]) => {
+  starCanvas(id!, cid!, Boolean((await json<{ starred?: boolean }>(req)).starred));
+  return { ok: true };
+});
+route("PUT", "/projects/:id/canvases/:cid/order", async (req, [id, cid]) => {
+  orderCanvases(id!, cid!, (await json<{ children?: string[] }>(req)).children ?? []);
+  return { ok: true };
 });
 route("GET", "/projects/:id/canvases/:cid/backlinks", (_r, [id, cid]) => backlinks(id!, cid!));
 route("GET", "/projects/:id/canvases/:cid/versions", (_r, [id, cid]) => canvasVersions(id!, cid!));
@@ -178,7 +190,16 @@ route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));
 route("GET", "/projects/:id/daily", (_r, [id], q) => ({ enabled: dailyEnabled(id!), days: dailyMonth(id!, need(q, "month")) }));
 route("POST", "/projects/:id/pages", async (req, [id]) => {
   const b = await json<{ parent?: string | null; title?: string }>(req);
-  return createPage(id!, b.parent ?? null, b.title ?? "Untitled");
+  return createPage(id!, b.parent ?? null, b.title ?? "");
+});
+route("PUT", "/projects/:id/page/star", async (req, [id], q) => {
+  starPage(id!, need(q, "path"), Boolean((await json<{ starred?: boolean }>(req)).starred));
+  return { ok: true };
+});
+route("PUT", "/projects/:id/pages/order", async (req, [id]) => {
+  const b = await json<{ parent?: string | null; names?: string[] }>(req);
+  orderPages(id!, b.parent ?? "", b.names ?? []);
+  return { ok: true };
 });
 route("GET", "/projects/:id/page", (_r, [id], q) => readPage(id!, need(q, "path")));
 route("PUT", "/projects/:id/page", async (req, [id], q) => {
