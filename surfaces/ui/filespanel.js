@@ -354,7 +354,8 @@
   /** Files from elsewhere: shortcuts (nothing moved), or moved in after saying what that would disturb. */
   async function bringIn(paths, how = "", into = null) {
     const to = into || project || surface.project;
-    if (!paths.length || !to) return;
+    if (!paths.length) return;
+    if (!to) { say("Choose a project on the left first: that is where they go", true); return; }
     if (how === "shortcut") {
       let made = 0;
       for (const p of paths) {

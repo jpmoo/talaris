@@ -93,10 +93,6 @@ class FilesBridge(Bridge):
             _launch("xdg-open", os.path.dirname(full))
 
     @Slot()
-    def describe(self) -> dict:
-        # The project you are in: what the list starts on, and where a file dropped goes.
-        return {**super().describe(), "project": self.desktop.project.get("id", "")}
-
     def choose(self) -> None:
         """Files from elsewhere, from the desktop's chooser, to bring in."""
         self.owner.choose()
@@ -134,6 +130,10 @@ class FilesPanel(Overlay):
         super().__init__(profile, desktop, "talaris-ui://ui/filespanel.html", FilesBridge(None, None))
         self.bridge.owner = self
         self.bridge.setParent(self)
+
+    def describe(self) -> dict:
+        # The project you are in: what the list starts on, and where a file dropped goes.
+        return {**super().describe(), "project": self.desktop.project.get("id", "")}
 
     def choose(self) -> None:
         choose_files(self, "Files to bring in", lambda paths: self.bridge.chosen.emit(json.dumps(paths)))
