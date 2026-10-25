@@ -123,3 +123,24 @@ test("a rule Talaris cannot run: the collection holds Hermes Notes' answer, kept
   assert.deepEqual(out.writes.map((w) => [w.side, w.verb, w.obj]), [["talaris", "PUT", "t1"], ["talaris", "DELETE", "t3"]]);
   assert.match(out.said.join(), /meaning/);
 });
+
+test("a Hermes Notes matrix is a matrix, a board, or nothing: its own grid, laid out by a field, or by days", async () => {
+  const { kindFor, definitionOf } = await import("../collections.mjs");
+  const smart = { mode: "query", query: { kind: "blockType", typeId: "h-task" } };
+  const grid = { id: "g", name: "Kanban", kind: "matrix", membership: smart, properties: { "hermes:matrix_cols": 4, "hermes:matrix_rows": 1 },
+    placement: { semantic: true, regions: ["backlog", "doing", "review", "done"] } };
+  assert.equal(kindFor(grid, H, T), "matrix");
+  assert.equal(definitionOf(grid, H, T).body.placement["talaris:columns"], 4, "one row of four");
+  const byStatus = { ...grid, properties: { "hermes:matrix_bind_property": "status" } };
+  assert.equal(kindFor(byStatus, H, T), "board");
+  const d = definitionOf(byStatus, H, T);
+  assert.equal(d.body.bind, "status");
+  assert.equal(d.body.placement, undefined, "its columns are the field's options");
+  assert.equal(kindFor({ ...grid, properties: { "hermes:matrix_bind_property": "@days_after" } }, H, T), null, "days as columns: nothing like it");
+  assert.equal(kindFor({ ...grid, properties: { "hermes:matrix_bind_property": "duration" } }, H, T), null, "a field no profile shares");
+  assert.equal(kindFor({ id: "r", kind: "rollup" }, H, T), null);
+  // Asked about as what it will be.
+  const asked = planCollections({ pairs: [], declined: [] }, { ...T, collections: [{ id: "c_b", name: "Mine", kind: "board", members: [] }] }, { ...H, whole: true, collections: [byStatus] }, []).ask;
+  assert.equal(asked[0].title, "Kanban · board");
+  assert.deepEqual(asked[0].choices.map((c) => c.key), ["bring", "t=c_b", "no"]);
+});

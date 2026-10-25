@@ -196,7 +196,9 @@ export function makeCollection(id: string, body: Record<string, unknown>, by?: {
   if (m?.mode === "query" && !isCondition(m.query)) return { ok: false, reports: ["collection.rule-not-runnable: a rule in Talaris's own conditions"] };
   const made = createList({ id, name: String(body.name ?? "Untitled"), kind: kind as List["kind"],
     ...(m?.mode === "query" ? { query: m.query as Condition } : {}),
-    ...(body.placement ? { placement: body.placement as List["placement"] } : {}),
+    // A board's field: its options are the columns, a card's column its value.
+    ...(kind === "board" && typeof body.bind === "string" ? { bind: body.bind } : {}),
+    ...(body.placement && kind !== "board" ? { placement: body.placement as List["placement"] } : {}),
     ...(body.order ? { order: body.order as List["order"] } : {}),
     extra: { ...Object.fromEntries(Object.entries(body).filter(([k]) => k.includes(":") && !k.startsWith("talaris:"))),
       ...(by ? { "talaris:syncedBy": by.name, "talaris:syncedPlugin": by.id } : {}) } });
@@ -211,7 +213,7 @@ export function makeCollection(id: string, body: Record<string, unknown>, by?: {
  * whoever keeps it in step). Marked as synced, and by what, so the Tasks
  * panel can say so.
  */
-export function defineCollection(id: string, d: { name?: string; placement?: unknown; order?: unknown; membership?: { mode?: string; query?: unknown }; synced?: boolean }, by: { id: string; name: string }): MemberAnswer {
+export function defineCollection(id: string, d: { name?: string; placement?: unknown; order?: unknown; membership?: { mode?: string; query?: unknown }; bind?: string; synced?: boolean }, by: { id: string; name: string }): MemberAnswer {
   try { getList(id); } catch { return { ok: false, reports: ["collection.not-found"] }; }
   // No longer synced (its other side gone): the mark taken off, the collection kept as it stands.
   if (d.synced === false) {
@@ -224,7 +226,8 @@ export function defineCollection(id: string, d: { name?: string; placement?: unk
   if (d.membership?.mode === "query" && !isCondition(d.membership.query)) return { ok: false, reports: ["collection.rule-not-runnable: a rule in Talaris's own conditions"] };
   updateList(id, {
     ...(typeof d.name === "string" && d.name.trim() ? { name: d.name } : {}),
-    ...(d.placement ? { placement: d.placement as List["placement"] } : {}),
+    ...(d.placement && getList(id).kind !== "board" ? { placement: d.placement as List["placement"] } : {}),
+    ...(typeof d.bind === "string" && getList(id).kind === "board" ? { bind: d.bind } : {}),
     ...(d.order !== undefined ? { order: (d.order as List["order"]) ?? null } : {}),
     ...(d.membership ? { query: d.membership.mode === "query" ? (d.membership.query as Condition) : null } : {}),
   });

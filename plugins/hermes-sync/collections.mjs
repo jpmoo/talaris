@@ -14,8 +14,8 @@
 // sides.mjs it knows neither app's field names — a field is found by the
 // profile slot that names it, a status by what it means.
 
-/** What pairs with what: Hermes Notes' kinds that Talaris keeps the same way. */
-export const KINDS = ["list", "table", "matrix", "calendar"];
+/** The most columns a Talaris matrix draws. */
+const MOST_COLUMNS = 6;
 /** A Hermes Notes type, as a kind Talaris knows: the first profile it declares, in this order. */
 const PROFILE_ORDER = ["task", "event", "project", "contact", "journal", "note"];
 /** Hermes Notes' daily pages, in its rules: no real type, a marker (packages/shared, DAILY_NOTE_TYPE_ID). */
@@ -186,17 +186,46 @@ export function translateRegions(regions, H, T) {
   });
 }
 
+/**
+ * What a Hermes Notes collection is in Talaris, or null where Talaris keeps
+ * nothing like it. A Hermes Notes matrix is one of three things: a grid of
+ * its own regions (a one-row one is a board in all but name) — a Talaris
+ * matrix, as many columns to a row; one whose rule's cards are laid out by a
+ * field, a column to each of its options — a Talaris board, bound to the
+ * same field through the profiles; or one laid out by days, which Talaris
+ * has nothing like.
+ */
+export function kindFor(hc, H, T) {
+  if (["list", "table", "calendar"].includes(hc.kind)) return hc.kind;
+  if (hc.kind !== "matrix") return null;
+  const bind = hc.properties?.["hermes:matrix_bind_property"];
+  if (!bind || hc.membership?.mode !== "query") return "matrix";
+  if (String(bind).startsWith("@")) return null;
+  return boardField(bind, H, T) ? "board" : null;
+}
+/** The Talaris field a Hermes Notes field is, through the profile slot naming both; null when none does. */
+function boardField(key, H, T) {
+  const hs = slotsOf(H.types), ts = slotsOf(T.types);
+  const slot = (hs.byKey.get(key) ?? []).find((s) => ts.bySlot.has(s));
+  return slot ? ts.bySlot.get(slot)[0].key : null;
+}
+
 /** What Talaris should hold for a Hermes Notes collection, and how its members are kept. */
 export function definitionOf(hc, H, T) {
+  const kind = kindFor(hc, H, T);
   const rule = hc.membership?.mode === "query" ? translateRule(hc.membership.query, H, T) : null;
   const how = hc.membership?.mode !== "query" ? "explicit" : rule.query ? "rule" : "members";
   const order = translateOrder(hc.order, H, T);
+  const columns = Math.min(MOST_COLUMNS, Math.max(1, Number(hc.properties?.["hermes:matrix_cols"]) || 2));
   return {
     how,
+    kind,
     why: rule?.why ?? [],
     body: {
       name: hc.name,
-      ...(hc.kind === "matrix" ? { placement: { semantic: true, regions: translateRegions(hc.placement?.regions, H, T) } } : {}),
+      ...(kind === "matrix" ? { placement: { semantic: true, regions: translateRegions(hc.placement?.regions, H, T), "talaris:columns": columns } } : {}),
+      // A board's columns are its field's options: no regions of its own to keep.
+      ...(kind === "board" ? { bind: boardField(hc.properties["hermes:matrix_bind_property"], H, T) } : {}),
       order,
       membership: how === "rule" ? { mode: "query", query: rule.query } : { mode: "explicit" },
     },
@@ -207,7 +236,8 @@ export function definitionOf(hc, H, T) {
 function sameDefinition(tc, body) {
   const regions = (p) => json((p?.regions ?? []).map((r) => (typeof r === "string" ? { name: r, label: r } : r)));
   return tc.name === body.name
-    && (body.placement === undefined || regions(tc.placement) === regions(body.placement))
+    && (body.placement === undefined || (regions(tc.placement) === regions(body.placement) && tc.placement?.["talaris:columns"] === body.placement["talaris:columns"]))
+    && (body.bind === undefined || tc["talaris:bind"] === body.bind)
     && json(tc.order ?? null) === json(body.order ?? null)
     && (tc.membership?.mode ?? "explicit") === body.membership.mode
     && (body.membership.mode !== "query" || json(tc.membership?.query) === json(body.membership.query));
@@ -272,7 +302,8 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
     }
 
     // Where each card sits on a matrix: both ways, against what the two last agreed on; both moved differently, asked.
-    if (hc.kind === "matrix") {
+    // (On a board, a card's column is its field's value, which goes across with the thing itself.)
+    if (d.kind === "matrix") {
       const regions = { ...(p.base?.regions ?? {}) };
       const names = new Set((d.body.placement?.regions ?? []).map((r) => r.name));
       const objects = new Set([
@@ -316,10 +347,11 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
     const paired = new Set(pairs.map((p) => p.h));
     const taken = new Set(pairs.map((p) => p.t));
     for (const hc of hCols.values()) {
-      if (!KINDS.includes(hc.kind) || paired.has(hc.id) || (cs.declined ?? []).includes(hc.id)) continue;
-      const mates = [...tCols.values()].filter((c) => c.kind === hc.kind && !taken.has(c.id) && !c.archived && !c["talaris:syncedPlugin"]).slice(0, 9);
+      const kind = kindFor(hc, H, T);
+      if (!kind || paired.has(hc.id) || (cs.declined ?? []).includes(hc.id)) continue;
+      const mates = [...tCols.values()].filter((c) => c.kind === kind && !taken.has(c.id) && !c.archived && !c["talaris:syncedPlugin"]).slice(0, 9);
       ask.push({ id: `coll:${hc.id}`, on: "tasks", group: "eligible collections", prompt: "Choose which to sync.",
-        title: `${hc.name} · ${hc.kind}`,
+        title: `${hc.name} · ${kind}`,
         choices: [{ key: "bring", label: "Bring it down" }, ...mates.map((c) => ({ key: `t=${c.id}`, label: `Match “${c.name}”` })), { key: "no", label: "Don't sync" }] });
     }
   }
@@ -329,5 +361,5 @@ export function planCollections(cs, T, H, links, on = true, titles = new Map()) 
 /** A collection brought down: made at its own id in Talaris, with the definition; then paired. */
 export function bringDown(hc, H, T) {
   const d = definitionOf(hc, H, T);
-  return { id: talarisIdFor(hc.id), body: { id: talarisIdFor(hc.id), kind: hc.kind, ...d.body, "hermes-sync:source": hc.id } };
+  return { id: talarisIdFor(hc.id), body: { id: talarisIdFor(hc.id), kind: d.kind, ...d.body, "hermes-sync:source": hc.id } };
 }

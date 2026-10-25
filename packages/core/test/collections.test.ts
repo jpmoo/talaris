@@ -105,3 +105,12 @@ test("a list is deleted without archiving it first; its members stay", () => {
   assert.throws(() => lists.getList(l.id));
   assert.ok(entities.getEntity(t.id));
 });
+
+test("a board is made bound to its field, its columns that field's options", () => {
+  const made = interchange.makeCollection("c_board", { name: "By status", kind: "board", bind: "status",
+    membership: { mode: "query", query: { kind: "profile", profile: "task" } }, placement: { semantic: true, regions: ["ignored"] } }, { id: "p", name: "P" });
+  assert.equal(made.ok, true);
+  const l = lists.getList("c_board");
+  assert.equal(l["talaris:bind"], "status");
+  assert.notDeepEqual(l.placement?.regions, ["ignored"], "not regions of its own");
+});
