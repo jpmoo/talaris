@@ -1,0 +1,41 @@
+# A plugin, as small as one can be: what Talaris reads before anything runs.
+# Copy this folder, change the id, and it is yours.
+
+id = "hello"
+name = "Hello"
+version = "0.1.0"
+description = "Counts your open tasks, and leaves a note when asked. An example to copy."
+author = "Jeff Moore"
+license = "GPL-3.0-only"
+
+# Run in this folder; standard input and output speak MCP.
+command = ["node", "main.mjs"]
+
+# The tools it offers. Only these are passed on — to Morgan, and anywhere else
+# Talaris offers tools — whatever the program itself says.
+[[tools]]
+name = "count_open_tasks"
+description = "How many tasks are open"
+
+[[tools]]
+name = "leave_a_note"
+description = "A note in Talaris, with the greeting and the words given"
+
+# What it may ask of Talaris, shown before it is enabled and held to after.
+[permissions]
+read = ["task", "note"]
+write = ["note"]
+notify = true
+
+[[settings]]
+key = "greeting"
+label = "Greeting"
+kind = "text"
+default = "Hello"
+help = "Put at the start of every note it leaves."
+
+[[settings]]
+key = "token"
+label = "A secret"
+kind = "secret"
+help = "Kept in the login keyring; shown here only as set or not."

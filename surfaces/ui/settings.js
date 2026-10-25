@@ -1348,6 +1348,7 @@ function drawRevive() {
 }
 
 function onPicked(p) {
+  if (p.kind === "plugin") { installPlugin(p.path); return; }
   if (p.kind === "folder") save({ data: { backupFolder: p.path } });
   else { reviving = p.path; drawRevive(); }
 }
@@ -1403,6 +1404,7 @@ function show(page) {
     powerNote();
   }
   if (page === "data") loadData();
+  if (page === "plugins") loadPlugins();
   if (page === "look") bridge.wallpaper(wallScope || "", (text) => drawWallpaper(JSON.parse(text)));
   if (page === "keys") bridge.keys((text) => $("keylist").replaceChildren(...JSON.parse(text).map((k) => el("tr", {}, el("td", {}, k.keys), el("td", {}, k.does)))));
 }
@@ -1455,3 +1457,122 @@ Surface.connect({
   b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
 });
+
+// ---------------------------------------------------------------- plugins
+//
+// Each installed plugin (core, plugins.ts): whether it runs, and opened, what
+// it adds (its tools), what it may ask of Talaris — said before enabling, and
+// asked again when it is — its settings (a secret only as set or not), the
+// line it keeps about itself, and its log.
+
+/** As `el`, leaving out what is absent: a null attribute is no attribute, a null child no child. */
+function pel(tag, attrs = {}, ...kids) {
+  return el(tag, Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== null && v !== undefined && v !== false)),
+    ...kids.flat().filter((k) => k !== null && k !== undefined && k !== false && k !== ""));
+}
+const plOpen = new Set();
+const plLogShown = new Set();
+const KIND_WORD = { task: "tasks", project: "projects", event: "events", contact: "people", note: "notes" };
+const kindsSaid = (ks) => ks.map((k) => KIND_WORD[k] || k).join(", ");
+
+function plAsks(m) {
+  const p = m.permissions;
+  const items = [];
+  if (p.read.length) items.push(`Read your ${kindsSaid(p.read)}`);
+  if (p.write.length) items.push(`Make and change ${kindsSaid(p.write)}`);
+  if (p.notify) items.push("Show notifications");
+  if (!items.length) items.push("Nothing of Talaris");
+  const said = [...(p.network.length ? [`Reaches ${p.network.join(", ")}`] : []), ...(p.files.length ? [`Uses ${p.files.join(", ")}`] : [])];
+  return pel("div", {}, pel("ul", {}, ...items.map((x) => pel("li", {}, x))),
+    said.length ? pel("p", { class: "note", style: "margin:0 0 6px" }, `It says it ${said.join("; ").replace(/^R/, "r").replace(/^U/, "u")} — said, not something Talaris can hold it to.`) : null);
+}
+
+async function loadPlugins() {
+  let rows;
+  try { rows = await core("GET", "/plugins"); } catch (e) { $("plugin-list").replaceChildren(pel("p", { class: "note err" }, e.message)); return; }
+  const redraw = () => loadPlugins();
+  $("plugin-list").replaceChildren(...(rows.length ? rows.map((r) => {
+    if (!r.manifest) {
+      return pel("div", { class: "row mg-bad" }, pel("span", { class: "name" }, r.id, pel("small", {}, `Not a plugin Talaris can read: ${r.error}`)), pel("span", { class: "what" }));
+    }
+    const m = r.manifest;
+    const open = plOpen.has(r.id);
+    const asking = pel("div", {});
+    const sw = mgSwitch(r.enabled, async (on, s) => {
+      // Enabling is asked: what it may ask of Talaris, said once more where the switch is.
+      if (on && !s.dataset.armed) {
+        s.dataset.armed = "1";
+        plOpen.add(r.id);
+        asking.replaceChildren(pel("div", { class: "pl-ask" }, pel("div", {}, `Enable ${m.name}? It may:`), plAsks(m),
+          pel("div", { class: "acts" }, pel("button", { class: "t-btn", onclick: () => s.click() }, "Enable it"),
+            pel("button", { class: "t-btn", onclick: () => { delete s.dataset.armed; asking.replaceChildren(); } }, "Not now"))));
+        return;
+      }
+      delete s.dataset.armed;
+      s.disabled = true;
+      try { await core("POST", `/plugins/${encodeURIComponent(r.id)}/enable`, { on }); say(on ? `${m.name} enabled` : `${m.name} stopped`); } catch (e) { say(e.message, true); }
+      setTimeout(redraw, on ? 1200 : 300);
+    }, r.enabled ? "Stop it" : "Enable it");
+    const state = r.state === "disabled" ? "off" : r.state;
+    const head = pel("div", { class: "row net" + (r.state === "crashed" ? " mg-bad" : "") },
+      pel("span", { class: "name" }, `${m.name} `, pel("small", {}, [`${m.version}`, m.description, r.status, r.problem && r.state !== "running" ? r.problem : ""].filter(Boolean).join(" · "))),
+      pel("span", { class: "what" }, pel("span", { class: `pl-state ${r.state}` }, state),
+        pel("button", { class: "t-btn", onclick: () => { if (open) plOpen.delete(r.id); else plOpen.add(r.id); redraw(); } }, open ? "Less" : "More"), sw));
+    const block = pel("div", { class: "mg-server" }, head, asking);
+    if (!open) return block;
+    const body = pel("div", { class: "pl-body" });
+    body.append(pel("h3", {}, "It adds"),
+      m.tools.length ? pel("ul", {}, ...m.tools.map((t) => pel("li", {}, `${t.name}${t.description ? ` — ${t.description}` : ""}`))) : pel("p", { class: "note" }, "No tools"),
+      pel("p", { class: "note", style: "margin:0 0 6px" }, "Its tools reach Morgan, under Talaris's connection, with Allow, Ask or Off like any other."),
+      pel("h3", {}, "It may ask of Talaris"), plAsks(m));
+    if (m.settings.length) {
+      body.append(pel("h3", {}, "Its settings"));
+      const fields = {};
+      for (const def of m.settings) {
+        const now = r.settings[def.key];
+        let input;
+        if (def.kind === "boolean") input = mgSwitch(Boolean(now), (on, s) => { s.classList.toggle("on", on); fields[def.key] = () => on; });
+        else if (def.kind === "choice") input = pel("select", {}, ...(def.choices || []).map((c) => pel("option", { value: c, selected: c === now ? "" : null }, c)));
+        else if (def.kind === "secret") input = pel("input", { type: "password", autocomplete: "off", placeholder: now && now.set ? "Set — type to replace" : "Not set" });
+        else input = pel("input", { type: def.kind === "number" ? "number" : "text", spellcheck: "false", autocomplete: "off", value: now ?? "" });
+        if (def.kind !== "boolean") fields[def.key] = () => (def.kind === "number" ? (input.value === "" ? null : Number(input.value)) : def.kind === "secret" ? (input.value ? input.value : undefined) : input.value);
+        body.append(mgRow(def.label, def.help || "", input));
+      }
+      body.append(pel("div", { class: "row" }, pel("span", { class: "name" }), pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: async () => {
+        const values = {};
+        for (const [k, get] of Object.entries(fields)) { const v = get(); if (v !== undefined) values[k] = v; }
+        try { await core("PUT", `/plugins/${encodeURIComponent(r.id)}/settings`, { values }); say("Saved"); redraw(); } catch (e) { say(e.message, true); }
+      } }, "Save"))));
+    }
+    const logBox = pel("div", { class: "pl-log", hidden: plLogShown.has(r.id) ? null : "" });
+    if (plLogShown.has(r.id)) core("GET", `/plugins/${encodeURIComponent(r.id)}/log`).then((lines) => { logBox.textContent = lines.slice(-60).join("\n") || "Nothing logged yet."; logBox.scrollTop = logBox.scrollHeight; }, () => undefined);
+    body.append(pel("div", { class: "acts", style: "margin-top:8px" },
+      pel("button", { class: "t-btn", onclick: () => { if (plLogShown.has(r.id)) plLogShown.delete(r.id); else plLogShown.add(r.id); redraw(); } }, plLogShown.has(r.id) ? "Hide its log" : "Its log"),
+      r.enabled ? pel("button", { class: "t-btn", onclick: async () => { try { await core("POST", `/plugins/${encodeURIComponent(r.id)}/restart`); say(`${m.name} restarted`); } catch (e) { say(e.message, true); } setTimeout(redraw, 1200); } }, "Restart") : null,
+      twiceBtn("Uninstall", "Uninstall it?", async () => { try { await core("DELETE", `/plugins/${encodeURIComponent(r.id)}`); say(`${m.name} uninstalled`); } catch (e) { say(e.message, true); } redraw(); })),
+      logBox, pel("p", { class: "note" }, `${[m.author, m.license].filter(Boolean).join(" · ")}${m.homepage ? ` · ${m.homepage}` : ""} · ${r.dir}`));
+    block.append(body);
+    return block;
+  }) : [pel("p", { class: "note" }, "None installed yet.")]));
+}
+
+async function installPlugin(from, replace = false) {
+  $("plugin-msg").textContent = "Installing…";
+  $("plugin-msg").className = "note";
+  try {
+    const m = await core("POST", "/plugins/install", { from, replace });
+    $("plugin-msg").textContent = `${m.name} is installed. It is not running until you enable it.`;
+    plOpen.add(m.id);
+    loadPlugins();
+  } catch (e) {
+    // Installed already: offered as an update, in so many words.
+    if (/already installed/.test(e.message) && !replace) {
+      $("plugin-msg").replaceChildren(`${e.message}. `, pel("button", { class: "t-btn", onclick: () => installPlugin(from, true) }, "Replace it with this one"));
+      return;
+    }
+    $("plugin-msg").textContent = e.message;
+    $("plugin-msg").className = "note err";
+  }
+}
+$("plugin-folder").addEventListener("click", () => bridge.choose("plugin"));
+$("plugin-clone").addEventListener("click", () => { const v = $("plugin-git").value.trim(); if (v) installPlugin(v); });

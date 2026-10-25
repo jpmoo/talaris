@@ -51,6 +51,7 @@ import * as lists from "./lists.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, patchObject, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
+import * as plugins from "./plugins.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
 import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
@@ -362,6 +363,30 @@ route("POST", "/entities/:id/files", async (req, [id]) => {
 });
 route("GET", "/entity-types", () => entities.types());
 route("GET", "/interchange/export", () => exportEnvelope());
+// Plugins (plugins.ts): installed, enabled, set, supervised; their tools, for Talaris's MCP.
+route("GET", "/plugins", () => plugins.listPlugins());
+route("GET", "/plugins/tools", () => plugins.pluginTools());
+route("POST", "/plugins/install", async (req) => {
+  const b = await json<{ from?: string; replace?: boolean }>(req);
+  if (!b.from) throw new BadRequest("install from a folder or a git address");
+  return plugins.install(b.from, { replace: b.replace === true });
+});
+route("POST", "/plugins/:id/enable", async (req, [id]) => {
+  plugins.enable(id!, (await json<{ on?: boolean }>(req)).on === true);
+  return { ok: true };
+});
+route("POST", "/plugins/:id/restart", (_r, [id]) => { plugins.restart(id!); return { ok: true }; });
+route("PUT", "/plugins/:id/settings", async (req, [id]) => {
+  plugins.setSettings(id!, (await json<{ values?: Record<string, unknown> }>(req)).values ?? {});
+  return { ok: true };
+});
+route("GET", "/plugins/:id/log", (_r, [id]) => plugins.pluginLog(id!));
+route("POST", "/plugins/:id/call", async (req, [id]) => {
+  const b = await json<{ tool?: string; arguments?: Record<string, unknown> }>(req);
+  if (!b.tool) throw new BadRequest("call which tool?");
+  return plugins.callPluginTool(id!, b.tool, b.arguments ?? {});
+});
+route("DELETE", "/plugins/:id", (_r, [id]) => { plugins.uninstall(id!); return { ok: true }; });
 // The live binding (pkm-interchange): what this answers, the store as an envelope to follow, and the two writes.
 route("GET", "/conformance", () => ({ format: "pkm-interchange/0", ...liveManifest() }));
 route("GET", "/interchange", (_r, _p, q) =>

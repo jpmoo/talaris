@@ -341,13 +341,14 @@ class SettingsBridge(Bridge):
         not freeze meanwhile. Only the store's own routes: this is not a door
         to the rest of the core.
         """
-        if not re.match(r"^/(vault|backups|entities|projects)(/|$|\?)", path):
+        if not re.match(r"^/(vault|backups|entities|projects|plugins)(/|$|\?)", path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
             return
 
         def run() -> None:
             # A revival or a backup of a large store takes a while.
-            status, text = core_call(method, path, body or None, timeout=600 if path.startswith("/backups") else 30)
+            # A revival or a backup of a large store takes a while; so does cloning a plugin.
+            status, text = core_call(method, path, body or None, timeout=600 if path.startswith("/backups") else 180 if path.startswith("/plugins") else 30)
             try:
                 data = json.loads(text) if text else None
             except ValueError:
@@ -527,6 +528,8 @@ class Settings(QObject):
         chooser.setProgram("zenity")
         if kind == "folder":
             chooser.setArguments(["--file-selection", "--directory", "--title=A folder for backups"])
+        elif kind == "plugin":
+            chooser.setArguments(["--file-selection", "--directory", "--title=A plugin's folder (it has a plugin.toml)"])
         else:
             start = self.desktop.config.get("data", {}).get("backupFolder") or os.path.expanduser("~/.local/share/talaris/backups")
             chooser.setArguments(["--file-selection", "--title=A backup to revive", f"--filename={os.path.expanduser(start)}/",

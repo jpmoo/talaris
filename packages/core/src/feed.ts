@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { ENTITIES_DIR } from "./vault.js";
@@ -38,6 +38,8 @@ let meta: Meta | null = null;
 
 function load(): { rows: Change[]; meta: Meta } {
   if (rows && meta) return { rows, meta };
+  // Asked before the store has been opened (a fresh one): its folder, first.
+  mkdirSync(ENTITIES_DIR, { recursive: true });
   try {
     meta = JSON.parse(readFileSync(META(), "utf8")) as Meta;
   } catch {

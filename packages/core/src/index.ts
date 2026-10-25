@@ -16,6 +16,7 @@ import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
 import { startSchedule } from "./backup.js";
 import { forgetNonPeople } from "./entities.js";
+import { startPlugins, stopPlugins } from "./plugins.js";
 
 async function main(): Promise<void> {
   const home = ensureHome();
@@ -29,8 +30,10 @@ async function main(): Promise<void> {
     console.log(`talaris-core: people not checked yet: ${(e as Error).message}`);
   }
   const server = await listen(SOCKET);
+  // Plugins after the socket: they may ask for what it serves.
+  startPlugins();
   console.log(`talaris-core ${VERSION}: ${projectsRoot()} (Home ${home.code}), on ${SOCKET}`);
-  const stop = () => server.close(() => process.exit(0));
+  const stop = () => { stopPlugins(); server.close(() => process.exit(0)); };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
 }

@@ -282,6 +282,28 @@ TOOLS.push(
 // What is on the screen, the verbs, pages and canvases (mcp-desktop.ts).
 TOOLS.push(...desktopTools(core));
 
+/**
+ * The tools of every running plugin, under names of their own —
+ * `<plugin>__<tool>` — with their descriptions said to be the plugin's and
+ * their read-only hints kept, so Morgan asks before one changes anything
+ * exactly as it does for Talaris's own (DESIGN: plugin verbs reach Morgan
+ * without wiring).
+ */
+interface PluginTool { plugin: string; tool: string; listed: { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown> } }
+async function pluginTools(): Promise<PluginTool[]> {
+  const rows = await core<{ plugin: string; pluginName: string; tool: { name: string; description?: string; inputSchema?: Record<string, unknown>; annotations?: Record<string, unknown> } }[]>("GET", "/plugins/tools").catch(() => []);
+  return rows.map((r) => ({
+    plugin: r.plugin,
+    tool: r.tool.name,
+    listed: {
+      name: `${r.plugin.replace(/[^A-Za-z0-9_]/g, "_")}__${r.tool.name}`.slice(0, 64),
+      description: `(${r.pluginName}, a Talaris plugin) ${r.tool.description ?? ""}`.trim(),
+      inputSchema: r.tool.inputSchema ?? { type: "object", properties: {} },
+      ...(r.tool.annotations ? { annotations: r.tool.annotations } : {}),
+    },
+  }));
+}
+
 type Message = { jsonrpc: "2.0"; id?: number | string; method?: string; params?: Record<string, unknown> };
 
 function reply(id: Message["id"], result: unknown): void {
@@ -297,17 +319,26 @@ async function answer(m: Message): Promise<void> {
     case "initialize":
       return reply(m.id, {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
-        capabilities: { tools: {} },
+        capabilities: { tools: { listChanged: true } },
         serverInfo: { name: "talaris", version: "0.1.0" },
         instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: find with talaris_find, then talaris_read for everything connected to one. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
       });
     case "ping":
       return reply(m.id, {});
     case "tools/list":
-      return reply(m.id, { tools: TOOLS.map(({ run: _run, ...t }) => t) });
+      return reply(m.id, { tools: [...TOOLS.map(({ run: _run, ...t }) => t), ...(await pluginTools()).map((p) => p.listed)] });
     case "tools/call": {
       const tool = TOOLS.find((t) => t.name === m.params?.name);
-      if (!tool) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
+      if (!tool) {
+        // A plugin's tool, passed through to it as it was offered (plugins.ts): its answer is its own.
+        const p = (await pluginTools()).find((x) => x.listed.name === m.params?.name);
+        if (!p) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
+        try {
+          return reply(m.id, await core("POST", `/plugins/${encodeURIComponent(p.plugin)}/call`, { tool: p.tool, arguments: m.params?.arguments ?? {} }));
+        } catch (e) {
+          return reply(m.id, { content: [{ type: "text", text: (e as Error).message }], isError: true });
+        }
+      }
       try {
         const text = await tool.run((m.params?.arguments as Record<string, unknown>) ?? {});
         return reply(m.id, { content: [{ type: "text", text }] });
@@ -324,6 +355,14 @@ const inFlight = new Set<Promise<void>>();
 
 export function serveMcp(): void {
   const lines = createInterface({ input: process.stdin });
+  // A plugin enabled, stopped or offering new tools: the client is told its list changed.
+  let known = "";
+  const watch = setInterval(() => void pluginTools().then((t) => {
+    const now = t.map((x) => x.listed.name).sort().join(",");
+    if (known && now !== known) process.stdout.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" }) + "\n");
+    known = now;
+  }), 30_000);
+  watch.unref();
   lines.on("line", (text) => {
     if (!text.trim()) return;
     let m: Message;

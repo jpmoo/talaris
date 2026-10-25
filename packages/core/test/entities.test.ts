@@ -477,6 +477,77 @@ test("the live binding: a cursor to follow, deletions in the feed, creates that 
   assert.equal(live.readEnvelope({ q: "Through the binding" }).objects?.[0]?.id, t.id);
 });
 
+test("plugin.toml: the TOML a manifest uses, and what it refuses", async () => {
+  const { parseToml, TomlError } = await import("../src/toml.js");
+  const t = parseToml(`# a comment
+id = "x" # trailing
+n = 1_000
+f = 1.5
+on = true
+list = [ "a",
+  'b', # inside
+]
+"quoted key".dotted = "v"
+inline = { a = 1, b = "two" }
+long = """
+first\\
+  second"""
+[permissions]
+read = ["task"]
+[[settings]]
+key = "one"
+[[settings]]
+key = "two"
+`);
+  assert.equal(t.id, "x");
+  assert.equal(t.n, 1000);
+  assert.equal(t.f, 1.5);
+  assert.equal(t.on, true);
+  assert.deepEqual(t.list, ["a", "b"]);
+  assert.deepEqual(t["quoted key"], { dotted: "v" });
+  assert.deepEqual(t.inline, { a: 1, b: "two" });
+  assert.equal(t.long, "firstsecond", "a line-ending backslash takes the newline and the space after it");
+  assert.deepEqual((t.permissions as Record<string, unknown>).read, ["task"]);
+  assert.deepEqual((t.settings as { key: string }[]).map((x) => x.key), ["one", "two"]);
+  assert.throws(() => parseToml("a = 1\na = 2"), TomlError, "a key given twice");
+  assert.throws(() => parseToml("when = 2026-10-25"), TomlError, "no dates in a manifest");
+});
+
+test("a plugin: installed from a folder, enabled, supervised over MCP, its tools called, held to its manifest", async () => {
+  process.env.TALARIS_PLUGINS = join(sandbox, "plugins");
+  const plugins = await import("../src/plugins.js");
+  const example = join(new URL("../../../../examples/plugins/hello", import.meta.url).pathname);
+  const m = plugins.install(example);
+  assert.equal(m.id, "hello");
+  assert.deepEqual(m.permissions.read.sort(), ["note", "task"]);
+  assert.throws(() => plugins.install(example), /already installed/);
+  assert.equal(plugins.listPlugins()[0]?.state, "disabled", "installing is not enabling");
+  plugins.setSettings("hello", { greeting: "Ahoy", token: "s3cret" });
+  after(() => plugins.stopPlugins());
+  assert.deepEqual(plugins.listPlugins()[0]?.settings, { greeting: "Ahoy", token: { set: true } }, "a secret is shown only as set");
+  plugins.enable("hello", true);
+  const until = async (ok: () => boolean) => { for (let n = 0; n < 100 && !ok(); n++) await new Promise((r) => setTimeout(r, 50)); };
+  await until(() => plugins.listPlugins()[0]?.state === "running");
+  assert.equal(plugins.listPlugins()[0]?.state, "running", plugins.pluginLog("hello").join("\n"));
+  assert.deepEqual(plugins.pluginTools().map((t) => t.tool.name).sort(), ["count_open_tasks", "leave_a_note"]);
+  const tasks = await import("../src/tasks.js");
+  tasks.createTask({ title: "For the plugin to count" });
+  const counted = (await plugins.callPluginTool("hello", "count_open_tasks", {})) as { content: { text: string }[] };
+  assert.match(counted.content[0]!.text, /^\d+ open task/);
+  assert.match(plugins.listPlugins()[0]!.status, /open task/, "it set a line about itself");
+  try {
+    const left = (await plugins.callPluginTool("hello", "leave_a_note", { words: "from a plugin" })) as { content: { text: string }[] };
+    assert.match(left.content[0]!.text, /Left a note/);
+    const note = entities.findEntities({ q: "from a plugin" })[0];
+    assert.match(note?.title ?? "", /^Ahoy/, "the note is in the store, with the greeting it was given");
+  } finally {
+    plugins.enable("hello", false);
+  }
+  await until(() => plugins.listPlugins()[0]?.state === "disabled");
+  plugins.uninstall("hello");
+  assert.equal(plugins.listPlugins().length, 0);
+});
+
 test("a backup opens only with the recovery key, and revives the store as it was", async () => {
   const backup = await import("../src/backup.js");
   const { mkdirSync } = await import("node:fs");

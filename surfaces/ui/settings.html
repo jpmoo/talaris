@@ -150,6 +150,15 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .mg-change.undone .mg-said { color: var(--muted); }
 .mg-server .row.mg-bad .name small { color: var(--danger); }
 .mg-tools { padding: 0 0 10px 18px; }
+/* Plugins: one block each, opened to what it adds, what it may ask, its settings and its log. */
+.pl-state { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
+.pl-state.running { color: var(--accent); }
+.pl-state.crashed { color: var(--danger); }
+.pl-body { padding: 0 0 12px 18px; }
+.pl-body ul { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; }
+.pl-body li { margin: 2px 0; }
+.pl-log { max-height: 180px; overflow: auto; font-family: var(--mono, monospace); font-size: 11px; white-space: pre-wrap; background: color-mix(in srgb, var(--line) 40%, transparent); border-radius: 6px; padding: 6px 8px; }
+.pl-ask { border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; font-size: 12.5px; }
 .mg-log { max-height: 60vh; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 11.5px; user-select: text; -webkit-user-select: text; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 6px 8px; }
 /* A connection: its name and long address take the room there is, and wrap; its buttons keep to the right. */
 .mg-server > .row > .name { flex: 1; width: auto; min-width: 0; }
@@ -191,6 +200,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <button data-page="data">Data</button>
     <button data-page="keys">Keys</button>
     <button data-page="morgan">Morgan</button>
+    <button data-page="plugins">Plugins</button>
   </nav>
   <main>
     <section id="look">
@@ -360,6 +370,15 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h3>Applications</h3>
       <div id="nt-apps"></div>
       <div class="data-buttons"><button class="t-btn" id="nt-test">Send a test notification</button></div>
+    </section>
+    <section id="plugins">
+      <h2>Plugins</h2>
+      <p class="note">A plugin is a program of its own that adds to Talaris — its tools reach Morgan, and it asks Talaris only for what its manifest says, shown here before it is enabled. It runs as you: Talaris holds it to what it may ask of Talaris, and cannot stop it reading files or using the network.</p>
+      <div id="plugin-list"></div>
+      <h3>Install</h3>
+      <div class="row"><span class="name">From a folder<small>One with a plugin.toml</small></span><span class="what"><button class="t-btn" id="plugin-folder">Choose…</button></span></div>
+      <div class="row"><span class="name">From a git address</span><span class="what"><input id="plugin-git" spellcheck="false" autocomplete="off" placeholder="https://…"><button class="t-btn" id="plugin-clone">Install</button></span></div>
+      <p class="note" id="plugin-msg"></p>
     </section>
     <section id="data">
       <h2>Data</h2>

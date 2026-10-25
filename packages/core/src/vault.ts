@@ -206,3 +206,32 @@ export function forgetKeyForTests(): void {
   key = null;
   pendingHere = null;
 }
+
+// ------------------------------------------------------------ other secrets
+
+/*
+ * A plugin's secrets (an access key, a password) in the login keyring beside
+ * the store's own key, by name — never in a file. Under test there is no
+ * keyring, and they are kept in memory.
+ */
+const heldHere = new Map<string, string>();
+
+/** A secret, or null when the keyring has none. Locked or not running is an error to try again, never "none". */
+export function getSecret(name: string): string | null {
+  if (testing()) return heldHere.get(name) ?? null;
+  const got = keyring("get", name);
+  if (got.code === 1) return null;
+  if (got.code !== 0) throw new Locked(got.err || "the login keyring is not available yet");
+  return got.out;
+}
+
+export function setSecret(name: string, value: string): void {
+  if (testing()) { heldHere.set(name, value); return; }
+  const done = keyring("set", name, value + "\n");
+  if (done.code !== 0) throw new Locked(done.err || "the login keyring is not available yet");
+}
+
+export function forgetSecret(name: string): void {
+  if (testing()) { heldHere.delete(name); return; }
+  keyring("forget", name);
+}

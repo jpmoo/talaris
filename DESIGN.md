@@ -1420,8 +1420,20 @@ of it and comes out at the end.
     /interchange/objects/:id` — measured at operate 4 by the format's own
     fixtures (`pnpm --filter @talaris/core measure`) and clean under
     `pkm-check --url`. The change feed is `feed.ts`. Its lists stay in the file
-    export; the live binding carries objects. Next: the plugin host, then the
-    plugin.
+    export; the live binding carries objects. **The plugin host is built**
+    (`packages/core/src/plugins.ts`): `plugin.toml` manifests (a TOML reader of
+    its own, `toml.ts`), installed from a folder or a git address and never
+    enabled by installing, started and supervised (restarted after a crash, a
+    second then longer each time, up to five minutes), spoken to over MCP on
+    standard input and output, with Talaris's extension offered in
+    `experimental.talaris` — the plugin's settings at the handshake, and
+    `talaris/settings`, `talaris/interchange` (the live binding, held to the
+    manifest's kinds), `talaris/notify` and `talaris/status` as requests back.
+    Only tools the manifest names are passed on; they reach Morgan through
+    Talaris's MCP as `<id>__<tool>`, with Morgan's Allow, Ask or Off. Settings,
+    Plugins shows each before and after enabling. `examples/plugins/hello` is a
+    whole plugin with no dependencies; `examples/plugins/README.md` is how to
+    write one. Next: the Hermes sync plugin.
 14. Pruning.
 15. Tasks — Hermes' system, feature for feature — and the plugin that syncs
     projects and tasks through the spec.
