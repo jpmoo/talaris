@@ -57,6 +57,7 @@ from notifications import Notifications
 import thumbs
 from osd import Osd
 from tip import Tip
+import desktop_api
 from tray import Tray
 from winfx import WindowDraw
 import wallpaper
@@ -75,7 +76,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 UI = os.path.join(HERE, "ui")
 LAUNCHER = os.path.join(HERE, "talaris-surfaces")
 SCHEME = b"talaris-ui"
-CONTROL = f"talaris-surfaces-{os.getuid()}"
+# A path, not a bare name (which Qt puts in a temporary folder of its own choosing):
+# the core's MCP server finds it here to ask what is on the screen (desktop_api.py).
+CONTROL = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-surfaces.sock")
 # Small on purpose: the handle says "something is here", not "look at me".
 
 
@@ -642,6 +645,17 @@ class Desktop(QObject):
 
         def read() -> None:
             line = bytes(conn.readAll()).decode("utf-8", "replace").strip()
+            # A JSON line is the MCP's (desktop_api.py), answered with one.
+            if line.startswith("{"):
+                try:
+                    req = json.loads(line)
+                    reply = desktop_api.answer(self, req) if isinstance(req, dict) else {"ok": False, "error": "a request is an object"}
+                except ValueError:
+                    reply = {"ok": False, "error": "not JSON"}
+                conn.write((json.dumps(reply) + "\n").encode())
+                conn.flush()
+                conn.disconnectFromServer()
+                return
             verb, _, arg = line.partition(" ")
             if verb == "toggle" and arg in self.workspaces:
                 self.workspaces[arg].toggle()

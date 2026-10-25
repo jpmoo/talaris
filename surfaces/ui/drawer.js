@@ -393,6 +393,8 @@ async function loadCanvas() {
   }
   $("actions").replaceChildren(...actions);
   status("");
+  // What is on show, for "what is current" (desktop_api.py).
+  if (bridge) bridge.seen(JSON.stringify({ canvas: { id: viewing, title: node.title, trail: trail.map((t) => t.title) } }));
 }
 
 /*
@@ -723,9 +725,27 @@ async function loadWriting() {
   $("actions").replaceChildren(...actions);
   // A day with no note yet reads as empty; the file appears when you write.
   if (open) text = await core("GET", `/projects/${state.project.id}/page?path=${encodeURIComponent(open)}`).catch(() => "");
+  if (bridge) bridge.seen(JSON.stringify({ page: open ? { path: open } : null }));
   drawEditor();
   drawCalendar();
 }
+
+/*
+ * A page or a canvas changed from outside — by Morgan, through Talaris's MCP
+ * (desktop_api.py) — while this drawer shows it: read again. A page's words
+ * typed in the last moment and not yet saved give way to the change; a
+ * canvas's are refused by the core as stale (`rev`) and the canvas reads
+ * itself back.
+ */
+window.talarisChanged = (c) => {
+  if (!c || c.project !== state.project.id) return;
+  if (c.kind === "canvas" && state.drawer === "canvas" && c.where === viewing) loadCanvas();
+  if (c.kind === "page" && state.drawer === "writing" && c.where === open) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (editor) { editor.destroy(); editor = null; }
+    loadWriting();
+  }
+};
 
 async function edit(path) {
   if (saveTimer) { clearTimeout(saveTimer); await save(); }

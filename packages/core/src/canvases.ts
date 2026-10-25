@@ -112,9 +112,21 @@ export function canvasTree(projectId: string): CanvasNode {
   return node(root);
 }
 
+/*
+ * Each save counts (`talaris:rev`), so a page holding an older copy cannot
+ * write it back over a newer one — a canvas changed by Morgan through the MCP
+ * while its drawer had it open. A writer that sends a count must send the
+ * current one (writeCanvas); a writer that sends none is not checked.
+ */
+const REV = "talaris:rev";
+const revOf = (doc: CanvasDocument) => (typeof doc[REV] === "number" ? (doc[REV] as number) : 0);
+
 function persist(folder: string, doc: CanvasDocument): void {
+  const path = file(folder, doc.id);
+  const before = existsSync(path) ? revOf(readJson<CanvasDocument>(path)) : 0;
+  doc[REV] = before + 1;
   const content = JSON.stringify(doc, null, 2) + "\n";
-  writeJson(file(folder, doc.id), doc);
+  writeJson(path, doc);
   saveVersion(versionDir(machinery(folder), "canvas", doc.id), content, "json");
 }
 
@@ -130,6 +142,9 @@ function persist(folder: string, doc: CanvasDocument): void {
 export function writeCanvas(projectId: string, doc: CanvasDocument, options: { detach?: boolean } = {}): CanvasDocument {
   const { folder } = findProject(projectId);
   const current = readCanvas(projectId, doc.id);
+  if (typeof doc[REV] === "number" && doc[REV] !== revOf(current)) {
+    throw new Conflict("stale: this canvas has changed since it was read");
+  }
   if (doc.project !== current.project || doc.parent !== current.parent) {
     throw new Conflict("a canvas's project and parent are changed by moving it, not by saving it");
   }

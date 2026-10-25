@@ -101,7 +101,8 @@ export interface Linked {
 
 const canvasPath = () => `/projects/${where.project}/canvases/${where.canvas}`;
 export const getDocument = () => ask<CanvasDocument>("GET", canvasPath());
-export const putDocument = (doc: CanvasDocument) => ask<unknown>("PUT", canvasPath(), doc);
+/** Saved, the core answers the document as kept — with its new `talaris:rev`, the count the next save must send. */
+export const putDocument = (doc: CanvasDocument) => ask<CanvasDocument>("PUT", canvasPath(), doc);
 /*
  * Library blocks placed on a canvas are a plugin's to describe. Until one is
  * installed every such item is honestly missing, and is drawn from what it

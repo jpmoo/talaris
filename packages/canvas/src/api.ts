@@ -235,8 +235,10 @@ function save() {
     // Chained rather than parallel: two whole-document writes racing is exactly
     // the problem the single-document design exists to avoid.
     writing = writing.then(() => putDocument(held)).then(
-      () => onWritten?.(),
+      (kept) => { adoptRev(kept); onWritten?.(); },
       (err) => {
+        // Changed elsewhere since it was read (Morgan, through the MCP): read again.
+        if (String((err as Error).message || err).includes("stale")) { location.reload(); return; }
         /*
          * The core refuses a save that would take a child canvas off its
          * parent — that is a delete, and deletes are asked for in the drawer.
@@ -256,9 +258,15 @@ export function flush() {
   if (pending !== null) {
     clearTimeout(pending);
     pending = null;
-    writing = writing.then(() => putDocument(held));
+    writing = writing.then(() => putDocument(held)).then(adoptRev, () => undefined);
   }
   return writing;
+}
+
+/** The count the core gave the save, kept for the next one. */
+function adoptRev(kept: CanvasDocument | undefined) {
+  const rev = (kept as Record<string, unknown> | undefined)?.["talaris:rev"];
+  if (typeof rev === "number") held = { ...held, "talaris:rev": rev } as CanvasDocument;
 }
 addEventListener("pagehide", () => void flush());
 

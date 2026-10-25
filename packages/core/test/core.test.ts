@@ -132,8 +132,17 @@ test("renaming a canvas renames its cards, and a stale save cannot undo it", () 
   assert.equal(canvases.canvasTree(p.id).title, "Story", "the top canvas too");
   const card = canvases.readCanvas(p.id, top).items.find((i) => i.canvas === a.id);
   assert.equal(card?.seen?.title, "Act one");
-  canvases.writeCanvas(p.id, stale);
+  // A page holding the copy from before is refused whole (its count is behind)…
+  assert.throws(() => canvases.writeCanvas(p.id, stale), /stale/);
   assert.equal(canvases.readCanvas(p.id, a.id).title, "Act one");
+  // …and one that sends no count is not checked, but still keeps the new name.
+  const { ["talaris:rev"]: _rev, ...uncounted } = stale;
+  canvases.writeCanvas(p.id, uncounted as typeof stale);
+  assert.equal(canvases.readCanvas(p.id, a.id).title, "Act one");
+  // A save with the current count goes through, and the count moves on.
+  const fresh = canvases.readCanvas(p.id, a.id);
+  const kept = canvases.writeCanvas(p.id, fresh);
+  assert.equal(kept["talaris:rev"], (fresh["talaris:rev"] as number) + 1);
   assert.throws(() => canvases.renameCanvas(p.id, a.id, " "), /needs a name/);
 });
 

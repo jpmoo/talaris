@@ -1361,8 +1361,23 @@ of it and comes out at the end.
 **Milestone two — projects and plugins.**
 
 9. Projects: per-project drawers, workspaces, `go`, the dock and launcher.
-10. Talaris's MCP — context and verbs — and Morgan connected to it; Canvas
-    Chat's job as tools.
+10. ~~Talaris's MCP — context and verbs — and Morgan connected to it; Canvas
+    Chat's job as tools.~~ **Done** (2026-10-25): `talaris-core mcp` serves,
+    beside the entity and task tools, what is on the screen (`talaris_now`:
+    the project, the focused window, the other windows here, the panels out,
+    the canvas and page the drawers show — no screenshot), the open windows,
+    a project's contents, pages and canvases to read, and the verbs: go,
+    open (a page, canvas, file, or an entity where it lives), show a panel,
+    launch, focus and close a window, write a page, edit a canvas (notes,
+    cards, links, child canvases — Canvas Chat's job). The screen and the
+    verbs are the surfaces process's (`surfaces/desktop_api.py`), asked over
+    its control socket, now `$XDG_RUNTIME_DIR/talaris-surfaces.sock`; the verbs
+    go through what a person uses (`Launcher.act`, `go_to_project`). A page or
+    canvas changed this way is read again by the drawer showing it, and a
+    canvas page holding an older copy has its save refused (`talaris:rev`)
+    and reads itself back. Morgan, a client of the home server, runs it on the
+    laptop from `client.json` and offers its tools to the server (protocol
+    1.4); only the read-only ones unless that entry says `"allow": "all"`.
 11. Bookmark cards with three adapters; snapshots; opening out of the card;
     export.
 12. Floating, *place*, Recent.

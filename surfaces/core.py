@@ -172,6 +172,14 @@ class Bridge(QObject):
             self.owner.file_away()
         desktop.people.show_person(entity)
 
+    @Slot(str)
+    def seen(self, what: str) -> None:
+        """What a drawer is showing — its canvas, its page — for the MCP's "what is current"."""
+        try:
+            self.owner.here = json.loads(what)
+        except (ValueError, AttributeError):
+            pass
+
     def _going(self, *stay: str) -> object:
         """The desktop, with this panel put away first when what opens is elsewhere."""
         desktop = getattr(self.owner, "desktop", None)

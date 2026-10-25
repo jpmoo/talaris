@@ -4,6 +4,7 @@
 import { request } from "node:http";
 import { createInterface } from "node:readline";
 import { SOCKET } from "./paths.js";
+import { desktopTools } from "./mcp-desktop.js";
 
 /**
  * `talaris-core mcp`: the entity graph for any MCP client on this machine —
@@ -278,6 +279,9 @@ TOOLS.push(
   },
 );
 
+// What is on the screen, the verbs, pages and canvases (mcp-desktop.ts).
+TOOLS.push(...desktopTools(core));
+
 type Message = { jsonrpc: "2.0"; id?: number | string; method?: string; params?: Record<string, unknown> };
 
 function reply(id: Message["id"], result: unknown): void {
@@ -295,7 +299,7 @@ async function answer(m: Message): Promise<void> {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
         capabilities: { tools: {} },
         serverInfo: { name: "talaris", version: "0.1.0" },
-        instructions: "Talaris keeps the user's people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected. Find with talaris_find, then talaris_read for everything connected to one.",
+        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: find with talaris_find, then talaris_read for everything connected to one. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
       });
     case "ping":
       return reply(m.id, {});
