@@ -6,6 +6,7 @@ import { mkdirSync, readdirSync, renameSync, rmSync, existsSync } from "node:fs"
 import { join } from "node:path";
 import { allRecords, createEntity, findEntities, getEntity, getFile, putFile, reloadEntities, sealedList, sealedPut, types, updateEntity, type Entity, type EntityType, type Relation } from "./entities.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
+import { createProject, renameProject } from "./projects.js";
 import { allSeries } from "./tasks.js";
 import { show, type List } from "./lists.js";
 import { ENTITIES_DIR } from "./vault.js";
@@ -339,6 +340,11 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
   const now = getEntity(id);
   const ruled = applyPatch(now, p);
   if (!ruled.ok) return { ...ruled, object: now as unknown as WriteAnswer["object"] };
+  // A project's name is its project's (the bar, the switcher, Tasks): renamed there, as Tasks' own sheet does,
+  // or the store would put the old one back the next time it reads the projects.
+  const ws = ((now["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project")?.key;
+  const titleKey = types().find((t) => t.id === now.type)?.profiles?.project?.title;
+  if (ws && typeof titleKey === "string" && typeof p.set?.[titleKey] === "string" && (p.set[titleKey] as string).trim()) renameProject(ws, p.set[titleKey] as string);
   const properties: Record<string, unknown> = { ...(p.set ?? {}) };
   for (const k of p.unset ?? []) properties[k] = null;
   const written = updateEntity(id, {
@@ -373,6 +379,16 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
   try { existing = getEntity(at) as unknown as Record<string, unknown>; } catch { /* free */ }
   const ruled = createRule(body, at, existing, (t) => types().some((x) => x.id === t));
   if (ruled) return { ...ruled, cursor: cursor() };
+  // A project is a project — a folder, a desktop — whoever makes it: made as Tasks makes one, its entity at the id asked for.
+  const projectTitle = types().find((t) => t.id === body.type)?.profiles?.project?.title;
+  if (typeof projectTitle === "string") {
+    const name = String(body.properties?.[projectTitle] ?? "").trim();
+    if (!name) return { ok: false, created: false, fidelity: "full", reports: ["create.project-needs-a-name"], cursor: cursor() };
+    let folder;
+    try { folder = createProject(name); } catch (e) { return { ok: false, created: false, fidelity: "full", reports: [`create.project-refused: ${(e as Error).message}`], cursor: cursor() }; }
+    const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, sources: [{ kind: "talaris-project", key: folder.id }] });
+    return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
+  }
   const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, ...(body.content ? { content: body.content } : {}), ...(body.tags ? { tags: body.tags } : {}) });
   return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
 }

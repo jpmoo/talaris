@@ -471,6 +471,20 @@ test("the live binding: a cursor to follow, deletions in the feed, creates that 
   const t = tasks.createTask({ title: "Through the binding" });
   const done = live.patchObject(t.id, { set: { status: "done" } });
   assert.ok(done.ok && done.object?.properties?.done_at, "completing stamped its time, the store's doing");
+  // A project made through the binding is a project: a folder and a desktop, its entity at the id asked for.
+  const projects = await import("../src/projects.js");
+  const projType = entities.types().find((x) => x.profiles?.project)!;
+  const pm = live.createObject("11111111-aaaa-4aaa-8aaa-111111111111", { type: projType.id, properties: { title: "From elsewhere" } });
+  assert.ok(pm.ok && pm.created);
+  const folder = projects.listProjects().find((x) => x.name === "From elsewhere");
+  assert.ok(folder, "a project folder, as Tasks makes one");
+  assert.equal(tasks.taskProjects().find((x) => x.workspace === folder!.id)?.id, "11111111-aaaa-4aaa-8aaa-111111111111", "its entity is the one made, not a second");
+  // Renamed through the binding: the project is renamed, and stays so.
+  const pv = entities.getEntity("11111111-aaaa-4aaa-8aaa-111111111111").version;
+  assert.ok(live.patchObject("11111111-aaaa-4aaa-8aaa-111111111111", { set: { title: "Renamed elsewhere" }, version: pv }).ok);
+  tasks.taskProjects();
+  assert.equal(projects.findProject(folder!.id).name, "Renamed elsewhere");
+  assert.equal(entities.getEntity("11111111-aaaa-4aaa-8aaa-111111111111").properties.title, "Renamed elsewhere", "not put back by the projects' own names");
   // Narrowed reads are whole envelopes: one profile, or what matches words, most relevant first.
   const onlyTasks = live.readEnvelope({ profile: "task" });
   assert.ok(onlyTasks.objects!.length > 0 && onlyTasks.objects!.every((o) => o.type === "t_task"));
