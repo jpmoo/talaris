@@ -53,8 +53,24 @@ changed, not only that one thing: a sync of one alone would move the cursor past
 what it did not look at. It says Done, what went wrong, or how many decisions
 wait in Settings, Plugins.
 
-**Not yet:** attachments (the format has no slot naming the field that holds
-them, and the live binding no way to hand over one file), a task's notes (the format's `task` profile has no body slot),
+**Notes**, when the Notes setting says so: Talaris's undated notes (the
+Writing drawer's Undated tab, `~/Projects/Notes`) and Hermes Notes' notes —
+all of them, or only those wearing a tag named in Note tags; never a day's
+page (a type that declares the format's `journal`, and carries its day). A
+note's words travel as its body: Hermes Notes keeps them in the body slot,
+Talaris in its Note type's `body` field, and the profiles say which. Where a
+note sits among the undated notes is Talaris's alone: Hermes Notes' are flat,
+and one made there arrives at the top. A note made in Hermes Notes from
+Talaris, in tagged mode, wears the first tag named.
+
+**Attachments**, on anything whose type keeps files on both sides — the first
+field of the format's `attachment` kind, found by its kind and never its name.
+They compare as which files (by hash), so a file renamed is the same file. A
+file added on one side is handed to the other by its hash first
+(`/interchange/files/<sha256>`), then named in the field; a file taken off is
+taken off there too, and each side frees a file nothing names any more.
+
+**Not yet:** a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a
 thing of its own (carried only where both sides keep it as words).
 

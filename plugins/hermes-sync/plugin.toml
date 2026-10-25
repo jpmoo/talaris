@@ -1,11 +1,12 @@
-# Hermes Notes sync: tasks, projects and people kept in step between
+# Hermes Notes sync: tasks, projects, people and undated notes — and their
+# attachments — kept in step between
 # Talaris and Hermes Notes, through pkm-interchange alone — an implementation
 # of the format of its own, knowing neither app's field names.
 
 id = "hermes-sync"
 name = "Hermes Notes sync"
 version = "0.1.0"
-description = "Keeps tasks, projects and people in step with Hermes Notes."
+description = "Keeps tasks, projects, people and undated notes, with their attachments, in step with Hermes Notes."
 author = "Jeff Moore"
 license = "GPL-3.0-only"
 command = ["node", "main.mjs"]
@@ -26,8 +27,8 @@ url = "{server}"
 key = "SUPER SHIFT, H"
 
 [permissions]
-read = ["task", "project", "person"]
-write = ["task", "project", "person"]
+read = ["task", "project", "person", "note"]
+write = ["task", "project", "person", "note"]
 notify = true
 network = ["your Hermes Notes server"]
 
@@ -72,6 +73,21 @@ default = "Only those Hermes Notes has"
 help = "Talaris keeps whole address books; Everyone sends them all to Hermes Notes."
 
 [[settings]]
+key = "notes"
+label = "Notes"
+kind = "choice"
+choices = ["Off", "All notes", "Only those with these tags"]
+default = "Off"
+help = "Talaris's undated notes and Hermes Notes' notes (not its daily pages). Where a note sits among Talaris's undated notes stays in Talaris."
+
+[[settings]]
+key = "noteTags"
+label = "Note tags"
+kind = "text"
+default = "talaris"
+help = "For Only those with these tags: the Hermes Notes tags, comma-separated. A note made in Hermes Notes from Talaris wears the first."
+
+[[settings]]
 key = "minutes"
 label = "Every (minutes)"
 kind = "number"
@@ -89,7 +105,7 @@ help = "Sync now on each person, task and project, and Sync all at the top of Pe
 [[actions]]
 id = "sync"
 label = "Sync now"
-on = ["person", "task", "project"]
+on = ["person", "task", "project", "note"]
 tool = "sync_now"
 when = "buttons"
 
@@ -104,5 +120,12 @@ when = "buttons"
 id = "sync-tasks"
 label = "Sync all tasks and projects"
 on = ["tasks"]
+tool = "sync_now"
+when = "buttons"
+
+[[actions]]
+id = "sync-notes"
+label = "Sync all notes"
+on = ["notes"]
 tool = "sync_now"
 when = "buttons"

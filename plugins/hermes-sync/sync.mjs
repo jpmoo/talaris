@@ -25,8 +25,11 @@ import { KINDS, ORDER, REFS, Side, merge } from "./sides.mjs";
 const json = (v) => (v === null || v === undefined ? null : JSON.stringify(v));
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
-  start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project" };
-const KIND_WORDS = { project: "project", contact: "person", task: "task" };
+  start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project",
+  files: "Attachments" };
+const KIND_WORDS = { project: "project", contact: "person", task: "task", note: "note" };
+/** The mark Talaris puts on its undated notes (notes.ts): the only notes of Talaris's this sync carries. */
+const UNDATED = "talaris:undated";
 /**
  * Each linked Talaris thing carries a way back to its Hermes Notes one: the
  * format's `url` for it, under this plugin's own key (unprefixed keys are the
@@ -39,8 +42,8 @@ const linkOf = (b) => (typeof b?.url === "string" && /^https?:\/\//.test(b.url) 
 /**
  * @param state    { started, links: [{ kind, t, h, base }], apart: [[t, h]], only: [id], mode }
  * @param T, H     envelopes read from Talaris and from Hermes
- * @param s        settings: { mode: "merge" | "hermes" | "talaris", kinds: { task, project, contact },
- *                   people: "known" | "everyone" }
+ * @param s        settings: { mode: "merge" | "hermes" | "talaris", kinds: { task, project, contact, note },
+ *                   people: "known" | "everyone", notes: "all" | "tagged", noteTags: [tag] }
  * @param newId    a fresh id for something made in Hermes
  * @returns { writes: [{ side, op, id, type?, patch?, body?, link? }], ask: [decision], links, summary }
  */
@@ -59,11 +62,24 @@ export function plan(state, T, H, s, newId) {
   const keyT = (id) => (byT.has(id) ? id : null), keyH = (id) => byH.get(id)?.t ?? null;
   const idT = (key) => (byT.has(key) ? key : null), idH = (key) => byT.get(key)?.h ?? null;
 
-  /** Whether a Talaris thing is one this sync carries at all. */
+  /** Whether a Talaris thing is one this sync carries at all: a note, only an undated one. */
   const carriesT = (o, kind) => {
+    if (kind === "note" && o[UNDATED] !== true) return false;
     return !(o.archived || o.stub || only.has(o.id));
   };
-  const carriesH = (o) => !o.archived && !o.stub && !only.has(o.id);
+  /**
+   * Whether a Hermes Notes thing is: a note, never the page for a day (its type
+   * declares `journal` and it carries that day — the format's word for a daily
+   * note), and in tagged mode only one wearing a tag named in the settings.
+   */
+  const carriesH = (o, kind) => {
+    if (o.archived || o.stub || only.has(o.id)) return false;
+    if (kind !== "note") return true;
+    const day = h.types.get(o.type)?.profiles?.journal?.date;
+    if (typeof day === "string" && o.properties?.[day]) return false;
+    if (s.notes === "tagged") return (o.tags ?? []).some((tag) => (s.noteTags ?? []).includes(tag));
+    return true;
+  };
 
   const slotsOf = (kind) => KINDS[kind].filter((slot) => t.has(kind, slot) && h.has(kind, slot));
   const valuesT = (o, kind) => Object.fromEntries(slotsOf(kind).map((slot) => [slot, json(t.value(o, kind, slot, keyT))]));
@@ -81,7 +97,11 @@ export function plan(state, T, H, s, newId) {
   const make = (toSide, kind, fromSide, fromObj, id) => {
     const type = toSide.typeFor(kind);
     const p = carry(toSide, null, kind, fromSide, fromObj, slotsOf(kind));
-    return { side: toSide === t ? "talaris" : "hermes", op: "put", id, body: { type: type.id, properties: p.set ?? {} } };
+    // A note made in Hermes Notes, in tagged mode, wears the first tag named — or it would not come back next time.
+    const tags = kind === "note" && toSide === h && s.notes === "tagged" && s.noteTags?.length ? [s.noteTags[0]] : null;
+    return { side: toSide === t ? "talaris" : "hermes", op: "put", id,
+      body: { type: type.id, properties: p.set ?? {}, ...(p.content !== undefined ? { content: p.content } : {}), ...(tags ? { tags } : {}) },
+      ...(p.files ? { files: p.files } : {}) };
   };
 
   // ------------------------------------------------------------ the first time: matching
@@ -90,7 +110,7 @@ export function plan(state, T, H, s, newId) {
     for (const kind of ORDER) {
       if (!wanted(kind)) continue;
       const ts = [...t.objects.values()].filter((o) => t.kindOf(o) === kind && carriesT(o, kind) && !byT.has(o.id));
-      const hs = [...h.objects.values()].filter((o) => h.kindOf(o) === kind && carriesH(o) && !byH.has(o.id));
+      const hs = [...h.objects.values()].filter((o) => h.kindOf(o) === kind && carriesH(o, kind) && !byH.has(o.id));
       const taken = new Set();
       for (const a of ts) {
         // Certain: the same address, or the same name where names are how the thing is known.
@@ -120,7 +140,7 @@ export function plan(state, T, H, s, newId) {
       for (const kind of ORDER) {
         if (!wanted(kind)) continue;
         for (const o of t.objects.values()) if (t.kindOf(o) === kind && carriesT(o, kind) && !byT.has(o.id) && toHermesAllowed(kind, s)) summary.toHermes++;
-        for (const o of h.objects.values()) if (h.kindOf(o) === kind && carriesH(o) && !byH.has(o.id) && s.mode !== "talaris") summary.toTalaris++;
+        for (const o of h.objects.values()) if (h.kindOf(o) === kind && carriesH(o, kind) && !byH.has(o.id) && s.mode !== "talaris") summary.toTalaris++;
       }
       const mode = s.mode === "hermes" ? "Hermes Notes replaces what Talaris has, for the pairs matched"
         : s.mode === "talaris" ? "Talaris replaces what Hermes Notes has, for the pairs matched" : "Merged: a difference between matched pairs is put to you";
@@ -187,17 +207,17 @@ export function plan(state, T, H, s, newId) {
         }
       }
       if (toH.length) {
-        const patch = carry(h, b, kind, t, a, toH);
-        if (patch.set || patch.unset) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, link: l, slots: toH, values: tv });
+        const { files, ...patch } = carry(h, b, kind, t, a, toH);
+        if (patch.set || patch.unset || patch.content !== undefined) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, ...(files ? { files } : {}), link: l, slots: toH, values: tv });
         summary.carried += toH.length;
       }
       // Its way back to Hermes Notes, written with whatever else goes to it, or alone.
       const back = linkOf(b);
       const backChanged = back && json(a.properties?.[LINK]) !== json(back);
       if (toT.length || backChanged) {
-        const patch = carry(t, a, kind, h, b, toT);
+        const { files, ...patch } = carry(t, a, kind, h, b, toT);
         if (backChanged) patch.set = { ...(patch.set ?? {}), [LINK]: back };
-        if (patch.set || patch.unset) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, link: l, slots: toT, values: hv });
+        if (patch.set || patch.unset || patch.content !== undefined) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, ...(files ? { files } : {}), link: l, slots: toT, values: hv });
         summary.carried += toT.length;
       }
     }
@@ -215,7 +235,7 @@ export function plan(state, T, H, s, newId) {
     } else for (const a of t.objects.values()) if (t.kindOf(a) === kind && carriesT(a, kind) && !byT.has(a.id)) summary.left++;
     if (winner !== "talaris") {
       for (const b of h.objects.values()) {
-        if (h.kindOf(b) !== kind || !carriesH(b) || byH.has(b.id)) continue;
+        if (h.kindOf(b) !== kind || !carriesH(b, kind) || byH.has(b.id)) continue;
         // Made in Talaris at Hermes' own id: the same id on both sides, for anyone reading either.
         const l = { kind, t: b.id, h: b.id, base: {}, made: "talaris" };
         links.push(l); byT.set(l.t, l); byH.set(l.h, l);
@@ -224,7 +244,7 @@ export function plan(state, T, H, s, newId) {
         writes.push(w);
         summary.toTalaris++;
       }
-    } else for (const b of h.objects.values()) if (h.kindOf(b) === kind && carriesH(b) && !byH.has(b.id)) summary.left++;
+    } else for (const b of h.objects.values()) if (h.kindOf(b) === kind && carriesH(b, kind) && !byH.has(b.id)) summary.left++;
   }
   return { writes, ask, links: links.filter((l) => !l.gone), summary };
 

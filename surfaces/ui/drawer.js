@@ -767,6 +767,11 @@ async function loadWriting() {
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNDATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
   if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(null) }, "New page"));
+  // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
+  if (scope === "undated" && window.Peek) {
+    actions.push(" ", Peek.actionButtons("notes", null, core, ""));
+    if (open) actions.push(" ", Peek.actionButtons("note", `notes/${open}`, core, ""));
+  }
   if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
     // Across: from this project to the undated notes, or from them into this project.

@@ -139,3 +139,76 @@ test("a thing deleted on one side: asked about, never made again unasked, never 
   const p2 = plan({ started: true, links: [], only: ["tt1"] }, T, env(H_TYPES, []), S, newId);
   assert.equal(p2.writes.length, 0);
 });
+
+// ------------------------------------------------------------ notes, and files
+
+const NOTE_T = [{ id: "t_note", fields: [{ key: "title", kind: "text" }, { key: "body", kind: "richtext" }, { key: "files", kind: "attachment", many: true }],
+  profiles: { note: { title: "title", body: "body" } } }];
+const NOTE_H = [{ id: "h-text", fields: [{ key: "title", kind: "text" }, { key: "today_note", kind: "date" }, { key: "attach", kind: "attachment", many: true }],
+  profiles: { note: { title: "title", body: "content" }, journal: { date: "today_note" } } }];
+const SHA = (c) => c.repeat(64);
+const file = (c, name) => ({ kind: "attachment", filename: name, mediaType: "text/plain", sha256: SHA(c) });
+
+test("notes: only Talaris's undated ones and Hermes Notes' that are not a day's page; words between a field and the body slot", () => {
+  const T = env(NOTE_T, [
+    { id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Ideas", body: "from Talaris" }, version: 1 },
+    { id: "tn2", type: "t_note", properties: { title: "A canvas note's mentions" }, version: 1 },
+  ]);
+  const H = env(NOTE_H, [
+    { id: "hn1", type: "h-text", properties: { title: "Reading list" }, content: "from Hermes", version: 1 },
+    { id: "hn2", type: "h-text", properties: { title: "Thursday", today_note: "2026-10-08" }, content: "a day's page", version: 1 },
+  ]);
+  const p = plan({ started: true, links: [] }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  const toH = p.writes.find((w) => w.side === "hermes");
+  const toT = p.writes.find((w) => w.side === "talaris");
+  assert.equal(p.writes.length, 2, "the canvas note's entity and the day's page stay where they are");
+  assert.equal(toH.body.content, "from Talaris", "Talaris's body field becomes Hermes Notes' body slot");
+  assert.equal(toT.id, "hn1");
+  assert.equal(toT.body.properties.body, "from Hermes", "and back");
+});
+
+test("notes, tagged: only Hermes Notes' wearing a tag named come across, and Talaris's go out wearing the first", () => {
+  const T = env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Out" }, version: 1 }]);
+  const H = env(NOTE_H, [
+    { id: "hn1", type: "h-text", properties: { title: "Tagged" }, tags: ["talaris"], version: 1 },
+    { id: "hn2", type: "h-text", properties: { title: "Not tagged" }, tags: ["work"], version: 1 },
+  ]);
+  const p = plan({ started: true, links: [] }, T, H, { ...S, kinds: { note: true }, notes: "tagged", noteTags: ["talaris", "shared"] }, newId);
+  assert.deepEqual(p.writes.filter((w) => w.side === "talaris").map((w) => w.id), ["hn1"]);
+  assert.deepEqual(p.writes.find((w) => w.side === "hermes").body.tags, ["talaris"]);
+});
+
+test("files: added on one side, the field written whole on the other and the file handed over; taken off, taken off there too", () => {
+  const links = [{ kind: "note", t: "tn1", h: "hn1", base: { title: '"Plan"', body: '"words"', files: null } }];
+  const base = (files, hfiles) => [
+    env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Plan", body: "words", ...(files ? { files } : {}) }, version: 2 }]),
+    env(NOTE_H, [{ id: "hn1", type: "h-text", properties: { title: "Plan", ...(hfiles ? { attach: hfiles } : {}) }, content: "words", version: 4 }]),
+  ];
+  // Added in Talaris: Hermes Notes' attachment field set, the file listed to hand over first.
+  let [T, H] = base([file("a", "brief.pdf")], null);
+  let p = plan({ started: true, links: structuredClone(links) }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  const w = p.writes.find((x) => x.side === "hermes");
+  assert.deepEqual(w.patch.set.attach.map((a) => a.sha256), [SHA("a")]);
+  assert.equal(w.patch.set.attach[0].bytes, undefined, "never the bytes in a write: they go by hash");
+  assert.deepEqual(w.files.map((f) => f.sha256), [SHA("a")]);
+  agreed(p.links[0], w.slots, w.values);
+  // Renamed on the other side, it is the same file: nothing to carry.
+  [T, H] = base([file("a", "brief.pdf")], [file("a", "Brief (final).pdf")]);
+  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  assert.equal(p.writes.length, 0);
+  // Taken off in Hermes Notes: taken off in Talaris.
+  [T, H] = base([file("a", "brief.pdf")], null);
+  p = plan({ started: true, links: p.links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  const off = p.writes.find((x) => x.side === "talaris");
+  assert.deepEqual(off.patch.unset, ["files"]);
+});
+
+test("a body changed in Talaris goes to Hermes Notes in the patch's body, not as a property", () => {
+  const links = [{ kind: "note", t: "tn1", h: "hn1", base: { title: '"Plan"', body: '"old"', files: null } }];
+  const T = env(NOTE_T, [{ id: "tn1", type: "t_note", "talaris:undated": true, properties: { title: "Plan", body: "new" }, version: 2 }]);
+  const H = env(NOTE_H, [{ id: "hn1", type: "h-text", properties: { title: "Plan" }, content: "old", version: 4 }]);
+  const p = plan({ started: true, links }, T, H, { ...S, kinds: { note: true }, notes: "all" }, newId);
+  const w = p.writes.find((x) => x.side === "hermes");
+  assert.equal(w.patch.content, "new");
+  assert.equal(w.patch.set, undefined);
+});

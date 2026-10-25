@@ -10,17 +10,26 @@
 
 /** What syncs, by kind: the slots compared and carried, in the format's words. */
 export const KINDS = {
-  project: ["title", "body"],
-  contact: ["title", "email", "phone", "organization", "role", "body"],
-  task: ["title", "complete", "start", "due", "project"],
+  project: ["title", "body", "files"],
+  contact: ["title", "email", "phone", "organization", "role", "body", "files"],
+  task: ["title", "complete", "start", "due", "project", "files"],
+  note: ["title", "body", "files"],
 };
 /** The slots that point at other things, and what they point at. */
 export const REFS = { task: { project: "project" } };
 /** In order: what is pointed at is made before what points at it. */
-export const ORDER = ["project", "contact", "task"];
+export const ORDER = ["project", "contact", "task", "note"];
 const DATES = new Set(["start", "end", "due"]);
 
 const field = (type, key) => (type.fields ?? []).find((f) => f.key === key);
+/**
+ * Where a type keeps its files: the first field of the format's `attachment`
+ * kind it declares. Not a profile slot — the format names none — and found by
+ * the field's kind, never its name, the way Hermes' own exporter answers it.
+ */
+const filesField = (type) => (type?.fields ?? []).find((f) => f.kind === "attachment") ?? null;
+/** One attachment value, as it travels in a write: which file, and its label — never the bytes, which go by hash. */
+const fileValue = (a) => ({ kind: "attachment", filename: a.filename ?? "attachment", ...(a.mediaType ? { mediaType: a.mediaType } : {}), sha256: a.sha256 });
 const blank = (v) => (v === "" || v === undefined ? null : v);
 
 /** A date or time as one string to compare: to the minute, in UTC, where it can be read; as written where not. */
@@ -60,6 +69,7 @@ export class Side {
     const t = this.typeFor(kind);
     if (!t) return false;
     const map = t.profiles[kind];
+    if (slot === "files") return Boolean(filesField(t));
     return slot === "complete" ? Boolean(map.status) : map[slot] !== undefined && map[slot] !== null;
   }
 
@@ -68,6 +78,13 @@ export class Side {
     const type = this.types.get(o.type);
     const map = type?.profiles?.[kind];
     if (!map) return null;
+    if (slot === "files") {
+      const f = filesField(type);
+      if (!f) return null;
+      const v = o.properties?.[f.key];
+      const list = (Array.isArray(v) ? v : v ? [v] : []).filter((a) => a && a.kind === "attachment" && typeof a.sha256 === "string");
+      return list.length ? list : null;
+    }
     if (slot === "complete") {
       if (!map.status) return null;
       return (map.completeValues ?? []).includes(o.properties?.[map.status]);
@@ -93,6 +110,8 @@ export class Side {
     const v = this.raw(o, kind, slot);
     if (v === null) return null;
     if (slot === "complete") return v;
+    // Files compare as which files, by hash: a file renamed on one side is the same file.
+    if (slot === "files") return [...new Set(v.map((a) => a.sha256))].sort();
     if (REFS[kind]?.[slot]) {
       const ids = (Array.isArray(v) ? v : [v]).map(String).map(key).filter(Boolean).sort();
       return ids.length ? ids : null;
@@ -112,6 +131,7 @@ export class Side {
     const v = this.raw(o, kind, slot);
     if (v === null) return "—";
     if (slot === "complete") return v ? "done" : "not done";
+    if (slot === "files") return v.map((a) => a.filename ?? a.sha256.slice(0, 8)).join(", ");
     if (Array.isArray(v)) return v.join(", ");
     return typeof v === "string" ? v : JSON.stringify(v);
   }
@@ -128,6 +148,14 @@ export class Side {
     const type = o ? this.types.get(o.type) : this.typeFor(kind);
     const map = type?.profiles?.[kind];
     if (!map) return null;
+    if (slot === "files") {
+      // The field written whole — a file not named goes from this side too — and each file to be handed over first (`files`).
+      const f = filesField(type);
+      if (!f) return null;
+      const list = (rawFrom ?? []).map(fileValue);
+      if (!list.length) return { unset: [f.key] };
+      return { set: { [f.key]: f.many ? list : list[0] }, files: list };
+    }
     if (slot === "complete") {
       if (!map.status || value === null) return null;
       const now = o ? (map.completeValues ?? []).includes(o.properties?.[map.status]) : null;
@@ -137,7 +165,9 @@ export class Side {
       return next === undefined ? null : { set: { [map.status]: next } };
     }
     const spec = map[slot];
-    if (spec === undefined || spec === null || spec === "content") return null;
+    if (spec === undefined || spec === null) return null;
+    // The body slot, as the format now lets a patch write it: beside `set`, removed by unset.
+    if (spec === "content") return rawFrom === null || rawFrom === undefined ? { unset: ["content"] } : { content: String(rawFrom) };
     const key = typeof spec === "string" ? spec : spec.field;
     const def = field(type, key);
     let out = rawFrom;
@@ -163,10 +193,13 @@ export class Side {
 export function merge(patches) {
   const set = {}, unset = [];
   const spans = {};
+  let content, files = [];
   for (const p of patches) {
     if (!p) continue;
     Object.assign(set, p.set ?? {});
     for (const k of p.unset ?? []) unset.push(k);
+    if (p.content !== undefined) content = p.content;
+    if (p.files) files = files.concat(p.files);
     // Halves of a span: each onto the span as it stands, together.
     for (const [k, { base, changes }] of Object.entries(p.parts ?? {})) {
       spans[k] ??= { ...(base ?? {}) };
@@ -180,6 +213,7 @@ export function merge(patches) {
     if (Object.keys(whole).length) set[k] = whole;
     else unset.push(k);
   }
-  const gone = [...new Set(unset)].filter((k) => !(k in set));
-  return { ...(Object.keys(set).length ? { set } : {}), ...(gone.length ? { unset: gone } : {}) };
+  const gone = [...new Set(unset)].filter((k) => !(k in set) && !(k === "content" && content !== undefined));
+  return { ...(Object.keys(set).length ? { set } : {}), ...(gone.length ? { unset: gone } : {}),
+    ...(content !== undefined ? { content } : {}), ...(files.length ? { files } : {}) };
 }

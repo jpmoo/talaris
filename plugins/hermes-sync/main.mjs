@@ -54,6 +54,41 @@ async function hermes(method, path, body) {
   return data;
 }
 
+/**
+ * A file by its hash, at either side's /interchange/files (*Files*): raw bytes
+ * to and from Hermes Notes, base64 through Talaris's plugin host. `held`
+ * answers whether a side has it; `fetch` its bytes, or null; `give` hands it
+ * over, checked against its hash by the side that keeps it.
+ */
+const files = {
+  async held(side, sha) {
+    if (side === "talaris") return (await tal("HEAD", `/interchange/files/${sha}`)).ok === true;
+    const res = await fetch(`${hermesBase()}/interchange/files/${sha}`, { method: "HEAD", headers: { authorization: `Bearer ${settings.key}` }, signal: AbortSignal.timeout(60_000) });
+    return res.ok;
+  },
+  async fetch(side, sha) {
+    if (side === "talaris") { const got = await tal("GET", `/interchange/files/${sha}`); return got.ok ? Buffer.from(got.bytes, "base64") : null; }
+    const res = await fetch(`${hermesBase()}/interchange/files/${sha}`, { headers: { authorization: `Bearer ${settings.key}` }, signal: AbortSignal.timeout(300_000) });
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+  },
+  async give(side, sha, bytes) {
+    if (side === "talaris") { const got = await tal("PUT", `/interchange/files/${sha}`, { bytes: bytes.toString("base64") }); if (!got.ok) throw new Error((got.reports ?? []).join(", ")); return; }
+    const res = await fetch(`${hermesBase()}/interchange/files/${sha}`, { method: "PUT", headers: { authorization: `Bearer ${settings.key}`, "content-type": "application/octet-stream" }, body: bytes, signal: AbortSignal.timeout(300_000) });
+    if (!res.ok) throw new Error(`Hermes Notes refused a file: ${res.status}`);
+  },
+};
+/** Before a write naming files the side it goes to lacks: each one fetched from the other side and handed over. */
+async function handOver(w) {
+  const from = w.side === "talaris" ? "hermes" : "talaris";
+  for (const f of w.files ?? []) {
+    if (await files.held(w.side, f.sha256)) continue;
+    const bytes = await files.fetch(from, f.sha256);
+    // Not on either side: the write names it anyway, and the side it goes to says it is known-missing.
+    if (bytes) await files.give(w.side, f.sha256, bytes);
+    else log(`${f.filename}: neither side holds ${f.sha256}`);
+  }
+}
+
 // ------------------------------------------------------------ what it keeps
 
 const STATE_DIR = join((process.env.XDG_STATE_HOME || "").trim() || join(homedir(), ".local/state"), "talaris", "plugins", "hermes-sync");
@@ -74,8 +109,11 @@ function words() {
   return {
     // A side winning that was declined goes on merging, until the setting is changed.
     mode: asked === state.notMode ? "merge" : asked,
-    kinds: { task: settings.tasks !== false, project: settings.projects !== false, contact: settings.people !== "Off" },
+    kinds: { task: settings.tasks !== false, project: settings.projects !== false, contact: settings.people !== "Off", note: (settings.notes ?? "Off") !== "Off" },
     people: settings.people === "Everyone" ? "everyone" : "known",
+    // Undated notes: all of Hermes Notes' (daily pages aside), or only those wearing one of the tags named.
+    notes: settings.notes === "Only those with these tags" ? "tagged" : "all",
+    noteTags: String(settings.noteTags ?? "").split(",").map((x) => x.trim().replace(/^#/, "")).filter(Boolean),
     now: Date.now(),
   };
 }
@@ -132,7 +170,7 @@ async function once(force) {
   }
   // A kind wanted that one side has no type for: said, so the person knows where to mark one.
   const declares = (env, kind) => (env.types ?? []).some((t) => t.profiles && kind in t.profiles);
-  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && !declares(H, k)).map(([k]) => ({ contact: "person", project: "project", task: "task" })[k]);
+  const unmarked = Object.entries(s.kinds).filter(([k, on]) => on && !declares(H, k)).map(([k]) => ({ contact: "person", project: "project", task: "task", note: "note" })[k]);
   const p = plan(state, T, H, s, randomUUID);
   last.unmarked = unmarked;
   state.links = p.links;
@@ -148,6 +186,8 @@ async function once(force) {
   let done = 0, failed = 0;
   for (const w of p.writes) {
     try {
+      // Files first: a write naming one the side lacks would only keep a known-missing file.
+      await handOver(w);
       const answer = w.side === "talaris"
         ? await tal(w.op === "put" ? "PUT" : "PATCH", `/interchange/objects/${encodeURIComponent(w.id)}`, w.op === "put" ? w.body : w.patch)
         : await hermes(w.op === "put" ? "PUT" : "PATCH", `/interchange/objects/${encodeURIComponent(w.id)}`, w.op === "put" ? w.body : w.patch);

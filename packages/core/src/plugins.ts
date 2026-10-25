@@ -48,7 +48,7 @@ const STATE = () => join(CONFIG_DIR, "plugins.json");
 const KINDS = ["task", "project", "event", "contact", "note"];
 const kindOf = (k: string) => (k === "person" ? "contact" : k);
 /** The lists an action may be on as a whole: People's, and Tasks' (its tasks and projects). */
-const LISTS = ["people", "tasks"];
+const LISTS = ["people", "tasks", "notes"];
 
 export interface SettingDef {
   key: string;
@@ -87,7 +87,7 @@ export interface AppDecl {
 export interface ActionDecl {
   id: string;
   label: string;
-  /** Which sheets: task, project, contact (a person); or which lists: people, tasks. */
+  /** Which sheets: task, project, contact (a person), note (an undated one); or which lists: people, tasks, notes (the undated ones). */
   on: string[];
   tool: string;
   when?: string;
@@ -170,8 +170,8 @@ export function readManifest(dir: string): Manifest {
     if (typeof a.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,30}$/.test(a.id)) throw new Conflict(`actions ${n + 1} needs an id of lowercase letters, digits and dashes`);
     if (typeof a.label !== "string" || !a.label.trim()) throw new Conflict(`action ${a.id} needs a label`);
     const on = strs(a.on).map(kindOf);
-    const sheets = ["task", "project", "contact", ...LISTS];
-    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project or person sheets, or the people or tasks lists`);
+    const sheets = ["task", "project", "contact", "note", ...LISTS];
+    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or undated note sheets, or the people, tasks or notes lists`);
     if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
     if (a.when !== undefined && !settings.some((s) => s.key === a.when && s.kind === "boolean")) throw new Conflict(`action ${a.id}'s when names one of its yes-or-no settings`);
     return { id: a.id, label: a.label.trim(), on: [...new Set(on)], tool: a.tool, ...(typeof a.when === "string" ? { when: a.when } : {}) };
