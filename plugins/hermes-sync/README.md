@@ -33,7 +33,12 @@ Notes has are matched and kept in step, and new ones come across. Events made
 in either app sync both ways; events from your calendars go one way, Talaris
 to Hermes Notes, only if *Calendar events* says so — the calendar's word wins.
 
-**Not yet:** a task's notes (the format's `task` profile has no body slot),
+**A way back.** Every Talaris thing linked to a Hermes Notes one carries its
+address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
+"Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.
+
+**Not yet:** attachments (the format has no slot naming the field that holds
+them, and the live binding no way to hand over one file), a task's notes (the format's `task` profile has no body slot),
 archiving (the binding has no way to write it), and an organization kept as a
 thing of its own (carried only where both sides keep it as words).
 

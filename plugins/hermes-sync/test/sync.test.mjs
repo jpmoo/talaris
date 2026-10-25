@@ -70,6 +70,9 @@ test("after it starts: made on one side, made on the other — its project follo
   const toT = p.writes.find((w) => w.side === "talaris" && w.op === "put");
   assert.equal(toT.id, "ht1", "made in Talaris at Hermes' own id");
   assert.deepEqual(toT.body.properties, { title: "Order food", status: "not_started", project: ["tp1"] });
+  const H2 = env(H_TYPES, [{ ...H.objects[1], url: "https://h.example/block/ht1" }]);
+  const withLink = plan({ started: true, links }, T, H2, S, newId).writes.find((w) => w.side === "talaris" && w.op === "put");
+  assert.deepEqual(withLink.body.properties["hermes-sync:link"], { url: "https://h.example/block/ht1", label: "Hermes Notes" }, "made with its way back");
 });
 
 test("merge: a change on one side is carried; on both, it is asked; the person's pick is carried once", () => {

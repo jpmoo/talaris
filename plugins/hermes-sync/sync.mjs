@@ -27,6 +27,14 @@ const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const SLOT_WORDS = { title: "Name", body: "Description", email: "Email", phone: "Phone", organization: "Organization", role: "Role",
   start: "Starts", end: "Ends", due: "Due", location: "Where", attendees: "Who is invited", organizer: "Organizer", complete: "Done", project: "Project" };
 const KIND_WORDS = { project: "project", contact: "person", event: "event", task: "task" };
+/**
+ * Each linked Talaris thing carries a way back to its Hermes Notes one: the
+ * format's `url` for it, under this plugin's own key (unprefixed keys are the
+ * format's), which Talaris shows as "Open in Hermes Notes". Not a slot — never
+ * compared, never sent the other way.
+ */
+export const LINK = "hermes-sync:link";
+const linkOf = (b) => (typeof b?.url === "string" && /^https?:\/\//.test(b.url) ? { url: b.url, label: "Hermes Notes" } : null);
 
 /**
  * @param state    { started, links: [{ kind, t, h, base }], apart: [[t, h]], only: [id], mode }
@@ -191,8 +199,12 @@ export function plan(state, T, H, s, newId) {
         if (patch.set || patch.unset) writes.push({ side: "hermes", op: "patch", id: b.id, patch: { ...patch, version: b.version }, link: l, slots: toH, values: tv });
         summary.carried += toH.length;
       }
-      if (toT.length) {
+      // Its way back to Hermes Notes, written with whatever else goes to it, or alone.
+      const back = linkOf(b);
+      const backChanged = back && json(a.properties?.[LINK]) !== json(back);
+      if (toT.length || backChanged) {
         const patch = carry(t, a, kind, h, b, toT);
+        if (backChanged) patch.set = { ...(patch.set ?? {}), [LINK]: back };
         if (patch.set || patch.unset) writes.push({ side: "talaris", op: "patch", id: a.id, patch: { ...patch, version: a.version }, link: l, slots: toT, values: hv });
         summary.carried += toT.length;
       }
@@ -215,7 +227,9 @@ export function plan(state, T, H, s, newId) {
         // Made in Talaris at Hermes' own id: the same id on both sides, for anyone reading either.
         const l = { kind, t: b.id, h: b.id, base: {}, made: "talaris" };
         links.push(l); byT.set(l.t, l); byH.set(l.h, l);
-        writes.push({ ...make(t, kind, h, b, b.id), link: l, values: valuesH(b, kind) });
+        const w = { ...make(t, kind, h, b, b.id), link: l, values: valuesH(b, kind) };
+        if (linkOf(b)) w.body.properties[LINK] = linkOf(b);
+        writes.push(w);
         summary.toTalaris++;
       }
     } else for (const b of h.objects.values()) if (h.kindOf(b) === kind && carriesH(b) && !byH.has(b.id)) summary.left++;

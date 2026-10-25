@@ -78,7 +78,7 @@ window.TalarisMentions = (api, open, opts) => {
       const openPlace = o().openPlace;
       const place = openPlace ? await api("GET", `/entities/${encodeURIComponent(id)}/place`).catch(() => null) : null;
       if (place) openPlace(place);
-      else if (window.Peek) Peek.show(id, api, { openPlace, openPerson: o().openPerson, openTask: o().openTask, openEvent: o().openEvent });
+      else if (window.Peek) Peek.show(id, api, { openPlace, openPerson: o().openPerson, openTask: o().openTask, openEvent: o().openEvent, openUrl: o().openUrl });
     },
   };
 };

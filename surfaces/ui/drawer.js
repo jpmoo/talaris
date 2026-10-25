@@ -323,6 +323,7 @@ window.talarisMentionDefaults = {
   openPerson: (id) => bridge && bridge.openPerson(id),
   openTask: (id) => bridge && bridge.openTask(id),
   openEvent: (calendar, uid, start) => bridge && bridge.openEvent(calendar, uid, start),
+  openUrl: (url) => bridge && bridge.openUrl(url),
 };
 window.talarisStatus = (text) => status(text.toUpperCase().slice(0, 80));
 

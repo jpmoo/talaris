@@ -61,6 +61,9 @@ try {
   const tTask = env.objects.find((o) => o.properties.title === "Order food");
   check(tTask?.id === "22222222-2222-4222-8222-222222222222" && tTask?.properties.project?.[0] === proj.id, "Hermes' task in Talaris, at its own id, in Talaris's Retreat");
   check(tTask?.properties.status === "not_started", "its status in Talaris's words");
+  check(tTask?.properties["hermes-sync:link"]?.url === "https://hermes.example/block/22222222-2222-4222-8222-222222222222", "it carries its way back to Hermes");
+  const rosa = (await call("GET", "/interchange?profile=contact")).objects.find((o) => o.properties.title === "Rosa Diaz");
+  check(rosa?.properties["hermes-sync:link"]?.label === "Hermes Notes", "and so does a thing matched on the first sync");
   // Changed in Hermes: carried to Talaris.
   await hermes("POST", "/test/set", { id: "22222222-2222-4222-8222-222222222222", set: { title: "Order lunch", status: "done" } });
   await call("POST", "/plugins/hermes-sync/call", { tool: "sync_now", arguments: {} });

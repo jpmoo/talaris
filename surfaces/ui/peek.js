@@ -41,6 +41,25 @@ window.Peek = (() => {
   function outside(e) { if (card && !card.contains(e.target)) close(); }
 
   const kindOf = (kinds) => KIND[(kinds || []).find((k) => KIND[k])] || "Thing";
+
+  /**
+   * Where else a thing lives: a plugin that keeps it in step with another app
+   * leaves a way back on it, as `<plugin>:link` = { url, label } (the Hermes
+   * Notes sync does). Any such link is shown as "Open in <label>" — on this
+   * card, in Tasks' editor, in a person's entry — opening in the browser.
+   */
+  function elsewhere(entity) {
+    const out = [];
+    for (const [k, v] of Object.entries((entity && entity.properties) || {})) {
+      if (!/^[a-z0-9-]+:link$/.test(k) || !v || typeof v.url !== "string" || !/^https?:\/\//.test(v.url)) continue;
+      out.push({ url: v.url, label: typeof v.label === "string" && v.label.trim() ? v.label.trim() : new URL(v.url).host });
+    }
+    return out;
+  }
+  /** "Open in …" buttons for those links; `open(url)` is the page's way to the browser. */
+  function elsewhereButtons(entity, open, cls = "t-btn") {
+    return elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, onclick: () => open(l.url) }, `Open in ${l.label}`));
+  }
   // What a card's links are grouped by: what the other thing is.
   const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
@@ -131,6 +150,7 @@ window.Peek = (() => {
       note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1").slice(0, 300)) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, place.kind === "page" ? "Open page" : "Open canvas") : null,
+      opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
       order.map((name) => group(name, groups.get(name), api, opts)),
       groups.size ? null : el("div", { class: "peek-line" }, "Nothing connected yet"),
     ].flat().filter((x) => x != null));
@@ -160,5 +180,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close };
+  return { show, close, elsewhere, elsewhereButtons };
 })();

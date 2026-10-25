@@ -384,7 +384,9 @@
           sha ? { label: "Remove picture", act: () => setProps({ [img.key]: null }).then(drawPerson) } : null,
         ].filter(Boolean), e.currentTarget);
       } });
-    return el("div", { class: "p-head" }, av, name);
+    // Where else they live (a sync's way back to them), under their name.
+    const elsewhere = window.Peek ? Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u)) : [];
+    return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);
   }
 
   // ---- a field, by its kind
@@ -724,7 +726,7 @@
   const mentionOpts = { project: () => "", openPlace };
   // A person among the links is chosen here, in the list; anything else is its card.
   const peek = (id) => window.Peek && Peek.show(id, api, { openPlace, openPerson: (pid) => window.People.show(pid),
-    openTask: (tid) => bridge && bridge.openTask(tid), openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s) });
+    openTask: (tid) => bridge && bridge.openTask(tid), openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u) });
   // A mention in the description: one of these people is chosen here; anything else peeks.
   function openMention(id) {
     if (people.some((p) => p.id === id)) { choose(id); return; }

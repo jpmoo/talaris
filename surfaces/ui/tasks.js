@@ -892,6 +892,8 @@
     const stamp = split(p[shape.doneKey]);
     $("s-done").textContent = stamp.day ? `Done ${stamp.day.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${stamp.time != null ? `, ${timeLabel(stamp.time)}` : ""}` : "";
     $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
+    // Where else it lives (a sync's way back), beside its own buttons.
+    $("s-elsewhere").replaceChildren(...(window.Peek ? Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)) : []));
   }
 
   // Title and notes are the editor, so @ names anything in them (mentions.js);
@@ -907,7 +909,7 @@
       if (place) { openPlace(place); return; }
     } catch { /* gone: peek says so */ }
     if (window.Peek) Peek.show(id, api, { onTask: openTask, openTask, openPlace, openPerson: (pid) => bridge && bridge.openPerson(pid),
-      openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s) });
+      openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u) });
   }
   function saveTitle() {
     if (!entity || !shape || !titleEd) return;

@@ -21,6 +21,8 @@ const objects = new Map([
   [R, { id: R, type: types[2].id, properties: { title: "Rosa Diaz", email: "rosa@99.example", role: "Sergeant" }, version: 1 }],
 ]);
 let seq = 3; const log = [{ seq: 1, object: P, op: "create" }, { seq: 2, object: T1, op: "create" }, { seq: 3, object: R, op: "create" }];
+// Where a person opens each one, as Hermes says it (the format's `url`).
+const withUrl = (o) => ({ ...o, url: `https://hermes.example/block/${o.id}` });
 const changed = (id, op) => log.push({ seq: ++seq, object: id, op });
 const body = (req) => new Promise((ok) => { let s = ""; req.on("data", (c) => (s += c)); req.on("end", () => ok(s ? JSON.parse(s) : {})); });
 const send = (res, code, v) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(v)); };
@@ -31,9 +33,9 @@ http.createServer(async (req, res) => {
     const since = url.searchParams.get("since");
     if (since !== null) {
       const ch = log.filter((c) => c.seq > Number(since));
-      return send(res, 200, { format: "pkm-interchange/0", cursor: String(seq), types, objects: ch.filter((c) => c.op !== "delete").map((c) => objects.get(c.object)).filter(Boolean), changes: ch });
+      return send(res, 200, { format: "pkm-interchange/0", cursor: String(seq), types, objects: ch.filter((c) => c.op !== "delete").map((c) => objects.get(c.object)).filter(Boolean).map(withUrl), changes: ch });
     }
-    return send(res, 200, { format: "pkm-interchange/0", cursor: String(seq), types, objects: [...objects.values()] });
+    return send(res, 200, { format: "pkm-interchange/0", cursor: String(seq), types, objects: [...objects.values()].map(withUrl) });
   }
   const m = /^\/hermes\/api\/interchange\/objects\/([^/]+)$/.exec(url.pathname);
   if (m && req.method === "PUT") {

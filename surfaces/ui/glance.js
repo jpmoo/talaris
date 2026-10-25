@@ -191,7 +191,7 @@
     if (n.path && data) { bridge.openProjectFile(n.fileProject || data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
     if (n.id) Peek.show(n.id, api, { openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), openTask: (id) => bridge.openTask(id),
-      openEvent: (c, u, s) => bridge.openEvent(c, u, s), openPerson: (id) => bridge.openPerson(id) });
+      openEvent: (c, u, s) => bridge.openEvent(c, u, s), openPerson: (id) => bridge.openPerson(id), openUrl: (u) => bridge.openUrl(u) });
   }
 
   // ---------------------------------------------------------------- the list
