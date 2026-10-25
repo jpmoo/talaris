@@ -98,6 +98,9 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; }
 .row:hover { background: var(--accent-wash); }
 .row.on { background: var(--accent-wash); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-row) var(--radius-row) 0; }
 .row .tw { width: 12px; color: var(--muted); display: inline-block; }
+/* A name takes one line, whatever its length: cut short, the whole of it in the row's tip. */
+.row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row > :not(:first-child) { flex: none; }
 .kids { margin-left: 14px; }
 /* A row's star: shown as it is pointed at, and always once on. */
 .row .star { background: none; border: 0; padding: 0 2px; font: inherit; line-height: 1; color: var(--muted); cursor: pointer; visibility: hidden; }
@@ -213,6 +216,8 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
 .context { position: fixed; z-index: 50; min-width: 150px; }
+/* A long list (every tag) scrolls rather than running off the screen. */
+.context.scrolls { overflow-y: auto; max-width: 260px; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>

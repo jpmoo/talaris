@@ -284,10 +284,13 @@ function tagFilterButton() {
     menu = el("div", { class: "context" },
       el("button", { class: "menu-item" + (on ? "" : " on"), onclick: () => { closeMenu(); setTagFilter(null); } }, "All pages"),
       all.length ? el("div", { class: "menu-sep" }) : "",
-      ...all.slice(0, 40).map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), onclick: () => { closeMenu(); setTagFilter(tag); } }, `#${tag}`, el("span", { class: "n" }, String(count)))));
+      ...all.map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), onclick: () => { closeMenu(); setTagFilter(tag); } }, `#${tag}`, el("span", { class: "n" }, String(count)))));
     const r = b.getBoundingClientRect();
     menu.style.left = `${r.left}px`;
     menu.style.top = `${r.bottom + 4}px`;
+    // As tall as there is room for below the button, then it scrolls.
+    menu.classList.add("scrolls");
+    menu.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 16)}px`;
     document.body.append(menu);
   });
   return b;
@@ -807,7 +810,7 @@ async function loadWriting() {
       const kids = branch(n.children, n.path);
       kids.className = "kids";
       const twist = twisty(n.path, n.children.length > 0, kids, shut, WRITING_SHUT);
-      const row = el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
+      const row = el("div", { class: "row" + (n.path === open ? " on" : ""), title: n.title, onclick: () => edit(n.path), ondblclick: () => renamePage(n) },
         el("span", {}, twist, n.title), star(n));
       dragRow(row, "writing", parent, n.title, names, async (order) => { await core("PUT", `/projects/${pid}/pages/order`, { parent, names: order }); loadWriting(); });
       wrap.append(el("div", {}, row, kids));
