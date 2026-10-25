@@ -4,7 +4,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { projectsRoot } from "./paths.js";
 import { glance, nearProject } from "./glance.js";
@@ -52,6 +52,7 @@ import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
 import * as tagsM from "./tags.js";
+import * as links from "./links.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -356,6 +357,8 @@ route("POST", "/entities/people/known", async (req) => {
   return out;
 });
 route("GET", "/entities/:id", (_r, [id]) => {
+  // Its linked files looked at as it is opened: changed or gone since, said (links.ts).
+  links.refreshLinks([id!]);
   const { entity, out, in: incoming } = entities.connections(id!);
   return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming };
 });
@@ -516,6 +519,31 @@ route("POST", "/tasks/:id/attachments", async (req, [id]) => {
   if (!b.filename || !b.data) throw new BadRequest("a file has a name and data (base64)");
   return tasks.attachFile(id!, Buffer.from(b.data, "base64"), b.filename, b.mediaType);
 });
+// Linked files (links.ts): a file in the home folder linked where it is; and a link made a copy, or a copy saved and linked.
+route("POST", "/entities/:id/links", async (req, [id]) => {
+  const b = await json<{ path?: string }>(req);
+  if (!b.path) throw new BadRequest("link which file?");
+  return links.linkFile(id!, b.path);
+});
+route("POST", "/entities/:id/attachments/:sha/snapshot", (_r, [id, sha]) => links.toSnapshot(id!, sha!));
+route("POST", "/entities/:id/attachments/:sha/link", async (req, [id, sha]) => {
+  const b = await json<{ folder?: string }>(req);
+  return links.toLink(id!, sha!, b.folder || filesFolderFor(id!));
+});
+/** Where a copy saved to be linked goes: the Files folder of the project the thing is filed under, or Home's. */
+function filesFolderFor(id: string): string {
+  const e = entities.getEntity(id);
+  for (const v of Object.values(e.properties ?? {})) {
+    for (const ref of Array.isArray(v) ? v : [v]) {
+      if (typeof ref !== "string") continue;
+      try {
+        const src = ((entities.getEntity(ref)["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project");
+        if (src) return join(findProject(src.key).folder, "Files");
+      } catch { /* not a thing */ }
+    }
+  }
+  return join(listProjects().find((p) => p.home)!.folder, "Files");
+}
 route("DELETE", "/tasks/:id/attachments/:sha", (_r, [id, sha]) => {
   tasks.detachFile(id!, sha!);
   return { ok: true };

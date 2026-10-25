@@ -949,19 +949,46 @@
     $("s-tags").replaceChildren(...tags.map((t) => el("span", { class: "chip-p" }, `#${t}`,
       el("button", { title: "Remove", onclick: () => update(editing, { tags: tags.filter((x) => x !== t) }).catch(failed) }, "×"))));
 
-    // Files kept with it: a press opens one in its application; × takes it off the task.
+    /*
+     * Its files: a copy kept with it (attached), or a file linked where it is
+     * (↗; links.ts) — opened in its application either way, the link's being
+     * the file itself. A right-click turns one into the other: a link made a
+     * copy, or a copy saved into the project's Files and linked. × takes it off
+     * the task; a linked file stays where it is.
+     */
     const fk = (type.fields.find((f) => f.kind === "attachment" && f.many) || {}).key;
     $("s-files-row").hidden = !fk;
     if (fk) {
       const files = Array.isArray(p[fk]) ? p[fk] : [];
+      const id = editing;
+      const after = () => { loadEditing(); refresh(); };
+      const fileMenu = (e, a) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const link = a["talaris:link"];
+        menuAt(e.clientX, e.clientY, link ? [
+          { label: "Make a copy instead", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) },
+          { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
+        ] : [
+          { label: "Save to the project and link it", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
+        ]);
+      };
       $("s-files").replaceChildren(
-        ...files.map((a) => el("span", { class: "chip-p", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile(a.sha256, a.filename) },
-          el("span", { class: "fname" }, a.filename),
-          el("button", { title: "Take off the task", onclick: (e) => {
-            e.stopPropagation();
-            api("DELETE", `/tasks/${enc(editing)}/attachments/${enc(a.sha256)}`).then(() => { loadEditing(); refresh(); }).catch(failed);
-          } }, "×"))),
-        el("button", { class: "add", title: "Attach files", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
+        ...files.map((a) => {
+          const link = a["talaris:link"], missing = a["talaris:missing"];
+          return el("span", { class: "chip-p" + (link ? " linked" : "") + (missing ? " missing" : ""),
+            title: link ? (missing ? `${a.filename} is not at ${link.path} any more` : `Open ${link.path}`) : `Open ${a.filename} (a copy kept with the task)`,
+            onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
+            oncontextmenu: (e) => fileMenu(e, a) },
+            link ? el("span", { class: "link-mark" }, "↗") : null,
+            el("span", { class: "fname" }, a.filename),
+            el("button", { title: link ? "Take the link off the task (the file stays)" : "Take off the task", onclick: (e) => {
+              e.stopPropagation();
+              api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
+            } }, "×"));
+        }),
+        el("button", { class: "add", title: "Attach files: a copy kept with the task", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
+        el("button", { class: "add link-add", title: "Link files: opened where they are, no copy", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
         el("span", { id: "s-files-note" }));
     }
     if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");

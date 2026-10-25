@@ -513,6 +513,53 @@ test("tags: a page tagged gets an entity; renames and copies keep its tags; a ta
   assert.equal(tags.tagged(["board"]).length, 1, "the deleted page's tags went with it");
 });
 
+test("links: a file in the home folder linked where it is, served from there, followed as it changes, kept through a sync's write, converted both ways, never deleted", async () => {
+  const { mkdirSync, writeFileSync, rmSync: rm, existsSync: there } = await import("node:fs");
+  const homeDir = join(sandbox, "home");
+  mkdirSync(join(homeDir, "Documents"), { recursive: true });
+  process.env.TALARIS_LINK_HOME = homeDir;
+  const links = await import("../src/links.js");
+  const live = await import("../src/interchange.js");
+  const tasks = await import("../src/tasks.js");
+  const t = tasks.createTask({ title: "Read the report" });
+  const file = join(homeDir, "Documents", "report.odt");
+  writeFileSync(file, "first draft");
+  assert.throws(() => links.linkFile(t.id, "/etc/hostname"), /home folder/);
+  const v = links.linkFile(t.id, file);
+  assert.equal(v["talaris:link"]?.path, file);
+  assert.equal(entities.getFile(v.sha256), null, "no copy kept");
+  assert.equal(live.getInterchangeFile(v.sha256).bytes?.toString(), "first draft", "its bytes, read from the file");
+  // Changed where it is: a new hash on the next look.
+  writeFileSync(file, "second draft, longer");
+  links.refreshLinks([t.id]);
+  const key = links.filesField(entities.getEntity(t.id));
+  const now = () => (entities.getEntity(t.id).properties[key] as Record<string, unknown>[])[0]!;
+  assert.notEqual(now().sha256, v.sha256);
+  // A sync's write names files by hash and nothing else: the link stays a link.
+  live.patchObject(t.id, { set: { [key]: [{ kind: "attachment", filename: "report.odt", sha256: now().sha256 }] } });
+  assert.equal((now()["talaris:link"] as { path: string }).path, file);
+  // Gone: marked missing, its last hash kept.
+  const last = now().sha256;
+  rm(file);
+  links.refreshLinks([t.id]);
+  assert.equal(now()["talaris:missing"], true);
+  assert.equal(now().sha256, last);
+  // Back, made a copy: kept in the store, the link let go, the file untouched.
+  writeFileSync(file, "second draft, longer");
+  links.refreshLinks([t.id]);
+  const copy = links.toSnapshot(t.id, now().sha256 as string);
+  assert.ok(entities.getFile(copy.sha256));
+  assert.equal(now()["talaris:link"], undefined);
+  assert.ok(there(file));
+  // And a copy saved and linked: a file in the folder, the copy freed.
+  const saved = links.toLink(t.id, copy.sha256, join(homeDir, "Saved"));
+  assert.ok(there(saved["talaris:link"]!.path));
+  assert.equal(entities.getFile(copy.sha256), null, "the file holds it now");
+  // Taken off: the link goes, the file stays.
+  live.patchObject(t.id, { unset: [key] });
+  assert.ok(there(saved["talaris:link"]!.path), "a link taken off never deletes its file");
+});
+
 test("undated notes through the live binding: their file is the truth, renamed and rewritten by a write, made by a create, gone when deleted", async () => {
   const live = await import("../src/interchange.js");
   const pagesM = await import("../src/pages.js");

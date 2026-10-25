@@ -857,7 +857,8 @@ export function forgetFiles(hashes: string[]): string[] {
     if (Array.isArray(v)) { v.forEach(walk); return; }
     if (v && typeof v === "object") {
       const a = v as { kind?: string; sha256?: unknown };
-      if (a.kind === "attachment" && typeof a.sha256 === "string") named.add(a.sha256);
+      // A link keeps no copy (links.ts): only a value the store holds the bytes for keeps them here.
+      if (a.kind === "attachment" && typeof a.sha256 === "string" && !(v as Record<string, unknown>)["talaris:link"]) named.add(a.sha256);
     }
   };
   for (const r of load().records.values()) for (const v of Object.values(r.object.properties ?? {})) walk(v);

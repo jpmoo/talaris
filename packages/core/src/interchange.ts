@@ -6,6 +6,7 @@ import { mkdirSync, readdirSync, renameSync, rmSync, existsSync } from "node:fs"
 import { join } from "node:path";
 import { allRecords, createEntity, findEntities, forgetFiles, getEntity, getFile, putFile, reloadEntities, sealedList, sealedPut, types, updateEntity, type Entity, type EntityType, type Relation } from "./entities.js";
 import { createNote, isUndated, reconcileNotes, writeNote } from "./notes.js";
+import { keepLinks, linkedBytes, refreshLinks } from "./links.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
 import { allSeries } from "./tasks.js";
@@ -255,8 +256,10 @@ export function liveManifest(): typeof LIVE_MANIFEST {
  * an object points at travelling with it (all of them: there are few).
  */
 export function readEnvelope(q: { since?: string; profile?: string; q?: string } = {}): Envelope & { cursor: string; changes?: Change[] } {
-  // The undated notes' entities as their files are now (notes.ts): edited in another editor, moved, deleted.
+  // The undated notes' entities as their files are now (notes.ts): edited in another editor, moved, deleted;
+  // and linked files looked at again (links.ts): changed, a new hash; gone, marked missing.
   reconcileNotes();
+  refreshLinks();
   const at = cursor();
   const whole = exportEnvelope();
   let objects = whole.objects ?? [];
@@ -364,7 +367,8 @@ export function fileRule(held: (sha: string) => boolean, op: string, sha256: str
   if (op === "get") return held(sha256) ? { ok: true, reports: [] } : { ok: false, reports: ["file.not-held"] };
   return { ok: false, reports: ["file.op"] };
 }
-const holds = (sha: string) => { try { return getFile(sha) !== null; } catch { return false; } };
+/** Whether this store can answer a file's bytes: kept, or a linked file that is still that file (links.ts). */
+const holds = (sha: string) => { try { return getFile(sha) !== null || linkedBytes(sha) !== null; } catch { return false; } };
 
 /** A file handed over at /interchange/files/<sha256>: kept, by the rule above. */
 export function putInterchangeFile(sha256: string, bytes: Buffer): { ok: boolean; created?: boolean; reports: string[] } {
@@ -375,7 +379,7 @@ export function putInterchangeFile(sha256: string, bytes: Buffer): { ok: boolean
 /** A file asked for by its hash: its bytes, or why not. */
 export function getInterchangeFile(sha256: string): { ok: boolean; bytes?: Buffer; reports: string[] } {
   const ruled = fileRule(holds, "get", sha256);
-  return ruled.ok ? { ...ruled, bytes: getFile(sha256)! } : ruled;
+  return ruled.ok ? { ...ruled, bytes: getFile(sha256) ?? linkedBytes(sha256)! } : ruled;
 }
 
 /**
@@ -421,7 +425,8 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
   const ruled = applyPatch(now, p);
   if (!ruled.ok) return { ...ruled, object: now as unknown as WriteAnswer["object"] };
   const reports: string[] = [];
-  const set = absorbFiles(p.set, reports);
+  // A file named by hash that this thing links stays a link (links.ts): a sync knows nothing of links.
+  const set = absorbFiles(keepLinks(now.properties, p.set), reports);
   const body = bodyOf(p);
   const propUnset = (p.unset ?? []).filter((k) => k !== "content");
   // The files the touched fields named before, and what they name now: the rest are let go, and freed if nothing else names them.
