@@ -60,6 +60,20 @@ export interface ToolDecl {
   name: string;
   description?: string;
 }
+/**
+ * A window a plugin offers (`[[apps]]`): a web app in a window of its own
+ * (surfaces, webapps.py), with its own saved sign-in, in the launcher and
+ * the dock by its name, and on a key while the plugin is enabled. Its address
+ * may name the plugin's own settings, as `{server}` — never a secret.
+ */
+export interface AppDecl {
+  id: string;
+  name: string;
+  url: string;
+  key?: string;
+  /** An image in the plugin's folder, for the dock and the launcher. */
+  icon?: string;
+}
 export interface Manifest {
   id: string;
   name: string;
@@ -71,6 +85,7 @@ export interface Manifest {
   /** The command, run in the plugin's folder: the program and its arguments. */
   command: string[];
   tools: ToolDecl[];
+  apps: AppDecl[];
   settings: SettingDef[];
   permissions: {
     read: string[];
@@ -117,6 +132,20 @@ export function readManifest(dir: string): Manifest {
     if (typeof d.name !== "string") throw new Conflict("each [[tools]] needs a name");
     return { name: d.name, ...(typeof d.description === "string" ? { description: d.description } : {}) };
   });
+  const secrets = new Set(settings.filter((s) => s.kind === "secret").map((s) => s.key));
+  const apps = (Array.isArray(t.apps) ? t.apps : []).map((x, n) => {
+    const a = x as Record<string, unknown>;
+    if (typeof a.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,30}$/.test(a.id)) throw new Conflict(`apps ${n + 1} needs an id of lowercase letters, digits and dashes`);
+    if (typeof a.name !== "string" || !a.name.trim()) throw new Conflict(`app ${a.id} needs a name`);
+    if (typeof a.url !== "string" || !a.url.trim()) throw new Conflict(`app ${a.id} needs a url`);
+    // An address is shown, written into a desktop entry, and opened: a secret has no place in it.
+    for (const [, key] of a.url.matchAll(/\{([A-Za-z0-9_-]+)\}/g)) {
+      if (secrets.has(key!)) throw new Conflict(`app ${a.id}'s url names the secret ${key}`);
+      if (!settings.some((s) => s.key === key)) throw new Conflict(`app ${a.id}'s url names ${key}, which is not one of its settings`);
+    }
+    if (a.key !== undefined && (typeof a.key !== "string" || !/^[A-Z ]*,\s*\S+$/.test(a.key))) throw new Conflict(`app ${a.id}'s key is Hyprland's form, e.g. "SUPER SHIFT, H"`);
+    return { id: a.id, name: a.name.trim(), url: a.url.trim(), ...(typeof a.key === "string" ? { key: a.key } : {}), ...(typeof a.icon === "string" ? { icon: a.icon } : {}) };
+  });
   const read = kinds(p.read);
   const write = kinds(p.write);
   return {
@@ -125,7 +154,7 @@ export function readManifest(dir: string): Manifest {
     ...(typeof t.author === "string" ? { author: t.author } : {}),
     ...(typeof t.license === "string" ? { license: t.license } : {}),
     ...(typeof t.homepage === "string" ? { homepage: t.homepage } : {}),
-    command, tools, settings,
+    command, tools, apps, settings,
     // Changing a kind means reading it: a write permission brings the read with it.
     permissions: { read: [...new Set([...read, ...write])], write, notify: p.notify === true, network: strs(p.network), files: strs(p.files) },
   };
@@ -604,6 +633,31 @@ export function listPlugins(): PluginRow[] {
 
 export function pluginLog(id: string): string[] {
   return running.get(id)?.log ?? [];
+}
+
+/**
+ * Every enabled plugin's windows (`[[apps]]`), their addresses filled in
+ * from the plugin's settings — only those whose address is whole and a web
+ * address: one waiting on a setting is not offered yet. For the surfaces,
+ * which make each a window, a launcher entry and a key (webapps.py).
+ */
+export function pluginApps(): { plugin: string; pluginName: string; id: string; name: string; url: string; key?: string; icon?: string }[] {
+  const k = kept();
+  return installed().filter((p) => k.enabled[p.manifest.id]).flatMap((p) => {
+    const mine = settingsShown(p.manifest);
+    return p.manifest.apps.flatMap((a) => {
+      let whole = true;
+      const url = a.url.replace(/\{([A-Za-z0-9_-]+)\}/g, (_m, key: string) => {
+        const v = mine[key];
+        if (typeof v !== "string" || !v.trim()) whole = false;
+        return typeof v === "string" ? v.trim() : "";
+      });
+      if (!whole || !/^https?:\/\/\S+$/.test(url)) return [];
+      const icon = a.icon ? resolve(p.dir, a.icon) : undefined;
+      return [{ plugin: p.manifest.id, pluginName: p.manifest.name, id: a.id, name: a.name, url, ...(a.key ? { key: a.key } : {}),
+        ...(icon && icon.startsWith(p.dir + "/") && existsSync(icon) ? { icon } : {}) }];
+    });
+  });
 }
 
 /** Every running plugin's tools, for Talaris's MCP to pass to Morgan. */

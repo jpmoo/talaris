@@ -366,6 +366,7 @@ route("GET", "/interchange/export", () => exportEnvelope());
 // Plugins (plugins.ts): installed, enabled, set, supervised; their tools, for Talaris's MCP.
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
+route("GET", "/plugins/apps", () => plugins.pluginApps());
 route("POST", "/plugins/install", async (req) => {
   const b = await json<{ from?: string; replace?: boolean }>(req);
   if (!b.from) throw new BadRequest("install from a folder or a git address");

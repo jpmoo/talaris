@@ -230,7 +230,7 @@ function statusText() {
 let timer = null;
 function schedule() {
   clearInterval(timer);
-  const minutes = Math.max(1, Number(settings.minutes) || 15);
+  const minutes = Math.max(1, Number(settings.minutes) || 5);
   timer = setInterval(() => void sync(), minutes * 60_000);
 }
 

@@ -1585,6 +1585,8 @@ async function loadPlugins() {
     const body = pel("div", { class: "pl-body" });
     body.append(pel("h3", {}, "It adds"),
       m.tools.length ? pel("ul", {}, ...m.tools.map((t) => pel("li", {}, `${t.name}${t.description ? ` — ${t.description}` : ""}`))) : pel("p", { class: "note" }, "No tools"),
+      // Its windows: a web app each, in the launcher and the dock, on its key while it is enabled.
+      (m.apps || []).length ? pel("ul", {}, ...m.apps.map((a) => pel("li", {}, `A window: ${a.name}${a.key ? `, on ${a.key.replace(/\s*,\s*/, "+").replace(/\s+/g, "+").toLowerCase().replace(/(^|\+)(\w)/g, (_m, p, c) => p + c.toUpperCase())}` : ""} — and in the launcher`))) : null,
       pel("p", { class: "note", style: "margin:0 0 6px" }, "Its tools reach Morgan, under Talaris's connection, with Allow, Ask or Off like any other."),
       pel("h3", {}, "It may ask of Talaris"), plAsks(m));
     if (m.settings.length) {

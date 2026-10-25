@@ -53,6 +53,7 @@ from jump_panel import Jump
 from people_panel import People
 from glance_panel import Glance
 from archive_panel import Archive
+from webapps import WebApps
 from desk import Desk
 from notifications import Notifications
 import thumbs
@@ -217,6 +218,8 @@ class Desktop(QObject):
         self.people = People(profile, self)
         # Glance: the current project, all of it, as a list or a graph (Super+Shift+G).
         self.glance = Glance(profile, self)
+        # Plugins' windows: a desktop entry, a key, one window each (webapps.py).
+        self.webapps = WebApps(self, LAUNCHER)
         self.archive = Archive(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
@@ -391,12 +394,16 @@ class Desktop(QObject):
         hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
         hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
         self.osd.bind(LAUNCHER)
+        # A reload dropped plugins' window keys too.
+        if hasattr(self, "webapps"):
+            self.webapps.rebind()
 
     def unbind(self) -> None:
         for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", *(f"SUPER ALT, {x}" for x in JUMP_LETTERS), *JUMP_OPEN, "SUPER ALT, ESCAPE", "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
+        self.webapps.unbind()
         self.power.stop()
         self.tray.stop()
         self.notifications.stop()
@@ -702,6 +709,8 @@ class Desktop(QObject):
                 self.people.toggle()
             elif verb == "glance":
                 self.glance.toggle()
+            elif verb == "app":
+                self.webapps.open(arg)
             elif verb == "archive":
                 self.archive.toggle()
             elif verb == "new":
@@ -769,6 +778,8 @@ def main() -> int:
         return send("people")
     if args[:1] == ["--glance"]:
         return send("glance")
+    if args[:1] == ["--app"] and len(args) == 2:
+        return send(f"app {args[1]}")
     if args[:1] == ["--archive"]:
         return send("archive")
     if args[:1] == ["--new"]:

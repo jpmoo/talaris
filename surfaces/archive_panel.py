@@ -30,6 +30,8 @@ ALLOWED = re.compile(r"^/(archive(/|$|\?)|projects/[A-Za-z0-9_]+/(page|pages|can
 class ArchiveBridge(Bridge):
     #: The core's answer to `core`: {id, status, data}.
     coreReply = Signal(str)
+    #: A project brought back: said from the worker thread, heard on Qt's, where the bar is redrawn.
+    restored = Signal()
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
@@ -48,7 +50,7 @@ class ArchiveBridge(Bridge):
             self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
             # Back in use: the bar's list and the switcher have it again.
             if writes and status == 200:
-                QTimer.singleShot(0, self.owner.desktop.bar.changed)
+                self.restored.emit()
         threading.Thread(target=run, daemon=True).start()
 
     @Slot(str)
@@ -67,6 +69,7 @@ class Archive(Overlay):
         super().__init__(profile, desktop, "talaris-ui://ui/archive.html", ArchiveBridge(None, None))
         self.bridge.owner = self
         self.bridge.setParent(self)
+        self.bridge.restored.connect(self.desktop.bar.changed)
 
     def show(self, query: str = "") -> None:
         """Out, searching for `query` if there is one."""

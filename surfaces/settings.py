@@ -330,6 +330,8 @@ class SettingsBridge(Bridge):
 
     #: The core's answer to `core`: {id, status, data}.
     coreReply = Signal(str)
+    #: A plugin was enabled, stopped, set or removed: said from the worker thread, heard on Qt's.
+    pluginsTouched = Signal()
     #: A folder or a backup file chosen: {kind, path}.
     picked = Signal(str)
 
@@ -354,6 +356,9 @@ class SettingsBridge(Bridge):
             except ValueError:
                 data = {"error": text}
             self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
+            # A plugin enabled, stopped, set or gone: its windows, keys and entries follow.
+            if path.startswith("/plugins") and method != "GET":
+                self.pluginsTouched.emit()
         threading.Thread(target=run, daemon=True).start()
 
     @Slot(str)
@@ -385,6 +390,8 @@ class Settings(QObject):
         # theme changing) does not pull the page back to it.
         self.page = ""
         self.bridge = SettingsBridge(self, self)
+        # Its windows, keys and launcher entries follow a plugin's change, once it has started or stopped.
+        self.bridge.pluginsTouched.connect(lambda: QTimer.singleShot(1500, self.desktop.webapps.refresh))
         self.view = make_view(profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-settings")
         # A clear layer behind it, over the windows: a click off Settings closes it.

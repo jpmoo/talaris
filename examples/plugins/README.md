@@ -13,6 +13,11 @@ in a hundred lines with no dependencies: copy it, change the id, and it is yours
   - `[permissions]` — what it may ask of Talaris, shown before it is enabled and held to after:
     `read` and `write` (kinds: `task`, `project`, `event`, `contact` or `person`, `note`),
     `notify`, and — said, not enforced — `network` and `files`.
+  - `[[apps]]` — a window it offers: `id`, `name`, `url` (which may name its own
+    settings, `{server}`, never a secret), `key` (Hyprland's form, `"SUPER SHIFT, H"`),
+    `icon`. While the plugin is enabled, Talaris gives each a window of its own with
+    a kept sign-in, a launcher entry, a place in the dock, and its key — one window,
+    brought forward if open.
   - `[[settings]]` — `key`, `label`, `kind` (`text`, `secret`, `choice`, `boolean`,
     `number`), `choices`, `default`, `help`. Secrets live in the login keyring.
 - Installed is a copy in `~/.local/share/talaris/plugins/<id>/` (Settings, Plugins:

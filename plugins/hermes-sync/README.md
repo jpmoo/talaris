@@ -34,6 +34,13 @@ Notes has are matched and kept in step, and new ones come across.
 for itself; a copy of a copy, with the calendar's word and each app's edits to
 weigh, was more trouble than it was worth.
 
+**Hermes Notes in a window.** While the plugin is enabled, Super+Shift+H (or
+"Hermes Notes" in the launcher) opens Hermes Notes in a window of its own,
+signed in once and kept; pressed again, it brings that window forward.
+
+**Every five minutes** by default: when nothing has changed, a sync is two
+small questions; it reads both libraries only when something has.
+
 **A way back.** Every Talaris thing linked to a Hermes Notes one carries its
 address (the format's `url`) as `hermes-sync:link`, and Talaris shows it as
 "Open in Hermes Notes" — in Tasks' editor, a person's entry, and a thing's card.

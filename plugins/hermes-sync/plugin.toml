@@ -18,6 +18,13 @@ description = "Sync with Hermes Notes now, rather than at the next interval"
 name = "sync_status"
 description = "When it last synced, what it carried, and what waits to be decided"
 
+# Hermes Notes itself, in a window of its own, on a key.
+[[apps]]
+id = "hermes"
+name = "Hermes Notes"
+url = "{server}"
+key = "SUPER SHIFT, H"
+
 [permissions]
 read = ["task", "project", "person"]
 write = ["task", "project", "person"]
@@ -68,4 +75,5 @@ help = "Talaris keeps whole address books; Everyone sends them all to Hermes Not
 key = "minutes"
 label = "Every (minutes)"
 kind = "number"
-default = 15
+default = 5
+help = "When nothing has changed, a sync is two small questions; it reads everything only when something has."
