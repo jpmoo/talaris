@@ -54,6 +54,7 @@ import * as lists from "./lists.js";
 import * as tagsM from "./tags.js";
 import * as links from "./links.js";
 import * as files from "./files.js";
+import * as meaning from "./meaning.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -281,6 +282,20 @@ route("POST", "/files/snapshot/save", async (req) => {
   return files.saveSnapshot(b.holder, b.sha256, b.project, b.dir || undefined);
 });
 route("POST", "/files/open-copy", async (req) => ({ path: files.openableCopy(await json<{ sha256?: string; project?: string; path?: string; name?: string }>(req)) }));
+// Search by meaning (meaning.ts): what is nearest what was asked; how the index stands; a pass now.
+route("GET", "/meaning", async (_r, _p, q) => meaning.searchMeaning(q.get("q") ?? "", { limit: Number(q.get("limit") ?? 20),
+  ...(q.get("kind") ? { kind: q.get("kind")! } : {}), ...(q.get("project") ? { project: q.get("project")! } : {}), ...(q.get("floor") ? { floor: Number(q.get("floor")) } : {}) }));
+route("GET", "/meaning/status", () => meaning.meaningStatus());
+route("POST", "/meaning/reindex", async () => ({ embedded: await meaning.reindex() }));
+route("GET", "/meaning/models", async (_r, _p, q) => {
+  // The models a server offers that make vectors, for Settings to choose from.
+  const url = need(q, "url").replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(url)) throw new BadRequest("an http(s) address");
+  const r = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(8000) }).catch((e) => { throw new Conflict(`could not reach it: ${(e as Error).message}`); });
+  if (!r.ok) throw new Conflict(`it answered ${r.status}`);
+  const models = ((await r.json()) as { models?: { name: string; details?: { family?: string } }[] }).models ?? [];
+  return models.filter((m) => /embed|bge|minilm|e5|gte/i.test(m.name) || ["bert", "nomic-bert"].includes(m.details?.family ?? "")).map((m) => m.name.replace(/:latest$/, ""));
+});
 // A project at a glance (glance.ts): its own things, one step out, and how they are tied.
 route("GET", "/projects/:id/glance", (_r, [id], q) => glance(id!, Number(q.get("steps") ?? 1), q.get("from") ?? ""));
 route("GET", "/projects/:id/pages", (_r, [id]) => pageTree(id!));

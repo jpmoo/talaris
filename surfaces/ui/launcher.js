@@ -48,6 +48,8 @@ const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS",
 // after what the launcher found itself, before the question to Morgan.
 const TALKED = 3;
 let talked = { query: "", results: [] };
+// What is nearest the query in meaning (the core's meaning.ts), for the query it answered.
+let meant = { query: "", results: [] };
 // `#tag`: what carries it, asked of the core as it is typed (launcher.py, tagged).
 let tagCache = new Map();
 let talkSoon = null;
@@ -250,6 +252,18 @@ function draw() {
     const plain = String(Math.round(worked * 1e10) / 1e10);
     shown.unshift({ kind: "sum", title: figure(worked), sub: "Enter copies it", act: { kind: "copy", text: plain } });
   }
+  // By meaning: pages, notes, tasks and people about what was typed, below what matched its words — each once.
+  if (query.trim() && !tagAsked && meant.query === query.trim().replace(/\s+/g, " ")) {
+    const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
+    const AS = { task: "task", person: "person" };
+    for (const r of meant.results) {
+      if (r.kind === "project") continue;
+      if (have.has(`page:${r.title}`.toLowerCase()) || have.has(`entity:${r.title}`.toLowerCase())) continue;
+      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page") : r.kind === "task" ? "Task" : "Person";
+      shown.push({ kind: "page", key: `meaning:${r.key}`, title: r.title, sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
+        act: r.kind === "page" ? { kind: "page", project: r.project, path: r.path } : { kind: "entity", id: r.id, as: AS[r.kind] || "" } });
+    }
+  }
   // A tag search is a question about tags: past conversations that happen to hold the word are not an answer to it.
   if (query.trim() && !tagAsked && talked.query === query.trim().replace(/\s+/g, " ")) {
     for (const r of talked.results.slice(0, TALKED)) {
@@ -312,7 +326,7 @@ $("q").addEventListener("input", () => {
   at = 0; armed = null; say(""); draw();
   clearTimeout(talkSoon);
   const q = $("q").value.trim().replace(/\s+/g, " ");
-  if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => bridge && bridge.morganSearch(q), 350);
+  if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => { if (!bridge) return; bridge.morganSearch(q); if (bridge.meaningSearch && !q.startsWith("#")) bridge.meaningSearch(q); }, 350);
 });
 addEventListener("keydown", (e) => {
   if (!bridge) return;
@@ -391,6 +405,12 @@ Surface.connect({ onState: (s) => onState(s) }).then((b) => {
     const found = JSON.parse(text);
     if (found.query !== $("q").value.trim().replace(/\s+/g, " ")) return;
     talked = found;
+    draw();
+  });
+  b.meaningFound.connect((text) => {
+    const found = JSON.parse(text);
+    if (found.query !== $("q").value.trim().replace(/\s+/g, " ")) return;
+    meant = found;
     draw();
   });
   // Going: played, then the process is told, and takes the surface away.

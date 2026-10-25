@@ -217,7 +217,11 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
 .context { position: fixed; z-index: 50; min-width: 150px; }
 /* A long list (every tag) scrolls rather than running off the screen. */
-.context.scrolls { overflow-y: auto; max-width: 260px; }
+.tag-filter { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context.scrolls { overflow-y: auto; overflow-x: hidden; max-width: 260px; }
+/* Anything long in it is cut short, whole in its tip — never a sideways scroll. */
+.context.scrolls .menu-item { display: flex; min-width: 0; max-width: 100%; }
+.context.scrolls .menu-item .tg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .empty { color: var(--muted); padding: 8px; }
 </style>

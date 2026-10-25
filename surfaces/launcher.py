@@ -121,9 +121,31 @@ class _MorganSearch(QRunnable):
         self.bridge.morganFound.emit(json.dumps({"query": self.query, "results": results}))
 
 
+class _MeaningSearch(QRunnable):
+    """The core's search by meaning, off the screen's thread: the query is embedded by the model server it uses."""
+
+    def __init__(self, bridge: "LauncherBridge", query: str) -> None:
+        super().__init__()
+        self.bridge, self.query = bridge, query
+
+    def run(self) -> None:
+        from urllib.parse import quote
+        results = _json(f"/meaning?q={quote(self.query)}&limit=8", [])
+        self.bridge.meaningFound.emit(json.dumps({"query": self.query, "results": results if isinstance(results, list) else []}))
+
+
 class LauncherBridge(Bridge):
     #: Pushed to the page: Morgan's past conversations for a query, `{query, results}`.
     morganFound = Signal(str)
+    #: Pushed to the page: what is nearest a query in meaning, `{query, results}` (the core's meaning.ts).
+    meaningFound = Signal(str)
+
+    @Slot(str)
+    def meaningSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name
+        """Pages, notes, tasks and people by what they are about. Nothing is embedded here: the core asks its model server."""
+        query = " ".join(query.split())[:300]
+        if len(query) >= 3:
+            self.owner.searches.start(_MeaningSearch(self, query))
 
     @Slot(str)
     def morganSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name

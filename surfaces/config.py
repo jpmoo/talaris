@@ -95,6 +95,9 @@ DEFAULTS = {
     # written to `backupFolder` ("" is ~/.local/share/talaris/backups) daily,
     # weekly or never, keeping the newest `keep`. Read by talaris-core.
     "data": {"backupFolder": "", "schedule": "off", "keep": 7},
+    # Search by meaning (the core's meaning.ts): on or off, and the model server
+    # and embedding model it uses — Morgan's, unless chosen otherwise.
+    "meaning": {"on": False, "url": "", "model": ""},
     "power": {"managed": False, "dimTo": 20,
               "ac": {"dim": 0, "lock": 600, "screenOff": 900, "suspend": 0},
               "battery": {"dim": 120, "lock": 300, "screenOff": 420, "suspend": 1200},

@@ -276,7 +276,7 @@ function setTagFilter(tag) {
 }
 function tagFilterButton() {
   const on = tagFilter.get(wpid());
-  const b = el("button", { class: "sort-btn tag-filter" + (on ? " on" : ""), title: "Show only pages with a tag" }, on ? `#${on} ▾` : "TAG ▾");
+  const b = el("button", { class: "sort-btn tag-filter" + (on ? " on" : ""), title: on ? `Showing only #${on}` : "Show only pages with a tag" }, on ? `#${on} ▾` : "TAG ▾");
   b.addEventListener("click", async (e) => {
     e.stopPropagation();
     closeMenu();
@@ -284,7 +284,7 @@ function tagFilterButton() {
     menu = el("div", { class: "context" },
       el("button", { class: "menu-item" + (on ? "" : " on"), onclick: () => { closeMenu(); setTagFilter(null); } }, "All pages"),
       all.length ? el("div", { class: "menu-sep" }) : "",
-      ...all.map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), onclick: () => { closeMenu(); setTagFilter(tag); } }, `#${tag}`, el("span", { class: "n" }, String(count)))));
+      ...all.map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), title: `#${tag}`, onclick: () => { closeMenu(); setTagFilter(tag); } }, el("span", { class: "tg" }, `#${tag}`), el("span", { class: "n" }, String(count)))));
     const r = b.getBoundingClientRect();
     menu.style.left = `${r.left}px`;
     menu.style.top = `${r.bottom + 4}px`;

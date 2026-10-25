@@ -165,6 +165,10 @@ def _checked(c: dict) -> str:
         return "Not one of the launcher's keys"
     if c["launcher"].get("singleWindow", "bring") not in ("bring", "go"):
         return "Bring it here, or go to it"
+    meaning = c.get("meaning", {})
+    if not isinstance(meaning.get("on", False), bool) or not isinstance(meaning.get("model", ""), str) \
+            or not re.fullmatch(r"(https?://[^\s]{1,200})?", meaning.get("url", "") or ""):
+        return "Search by meaning needs an http(s) address and a model's name"
     stays = c["dock"].get("stays", {})
     if not isinstance(stays, dict) or not all(isinstance(k, str) and isinstance(v, str) and v.startswith("prj_") for k, v in stays.items()):
         return "Something kept in a project names the project"
@@ -364,7 +368,7 @@ class SettingsBridge(Bridge):
         not freeze meanwhile. Only the store's own routes: this is not a door
         to the rest of the core.
         """
-        if not re.match(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses)(/|$|\?)", path):
+        if not re.match(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)", path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
             return
 
@@ -580,7 +584,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "meaning"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

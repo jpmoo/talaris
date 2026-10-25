@@ -942,6 +942,28 @@ the canvas, the launcher, Morgan, `tagged`.
   what it would disturb first.
 - **Kept views** are the page's own, in its local storage, for now.
 
+### Search by meaning (built 2026-10-25)
+
+**What is written, found by what it is about** — "notes on distributed
+practice" finds the page about spiraling — beside, never instead of, finding
+by words. In the launcher, below what matched the words (marked "By meaning",
+with the passage that matched); and for Morgan (`talaris_search_meaning`).
+
+- **What is embedded:** every writing page — each project's, the unaffiliated
+  notes, Home's daily notes — in passages of a few paragraphs, each led by its
+  page's title; and tasks, people and projects, as what they say. Not events,
+  not files.
+- **By a model server** — Morgan's, unless Settings, Data says another (Ollama's
+  `/api/embed`, or the OpenAI-style `/v1/embeddings`). Off until it is turned
+  on there, and nothing goes anywhere while it is off.
+- **Kept sealed** with the store's key (`meaning.sealed`, beside the entities):
+  a vector says something about what it was made from.
+- **Kept current by looking**, every few minutes, in the background: a page by
+  when it was written, a thing by its version, and only what changed is sent
+  again. Another model starts the index again.
+- **Not yet:** a smart list's "meaning" condition (*Lists*, above), and files'
+  own words.
+
 ## Tasks
 
 Decided 2026-10-23. **Talaris gets its own task system, copying Hermes Notes'

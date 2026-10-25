@@ -357,6 +357,24 @@ export function desktopTools(core: Core): DesktopTool[] {
         return `${path}: ${kept.length ? kept.map((t) => `#${t}`).join(" ") : "no tags"}`;
       },
     },
+    // ------------------------------------------------------------ meaning
+    {
+      name: "talaris_search_meaning",
+      description: "Find Talaris's pages, notes (a project's, unaffiliated, daily), tasks, people and projects by what they are about — not only the words used: \"what did I write about distributed practice\", \"notes on the budget fight\". Nearest first, each with the passage that matched. Only kind (page, task, person, project) or one project (an id, a name, \"here\", or \"notes\" for unaffiliated notes) if asked. Empty when search by meaning is off (Settings, Data).",
+      inputSchema: { type: "object", properties: { q: { type: "string" }, kind: { type: "string", enum: ["page", "task", "person", "project"] }, project: { type: "string" }, limit: { type: "number", description: "Default 10." } }, required: ["q"] },
+      annotations: { readOnlyHint: true, title: "Search by meaning" },
+      run: async (a) => {
+        const q = new URLSearchParams({ q: str(a.q), limit: String(typeof a.limit === "number" ? a.limit : 10) });
+        if (str(a.kind)) q.set("kind", str(a.kind));
+        if (str(a.project)) q.set("project", str(a.project) === "notes" ? "notes" : (await project(str(a.project) === "here" ? undefined : a.project)).id);
+        const rows = await core<{ kind: string; title: string; project?: string; path?: string; id?: string; score: number; passage: string }[]>("GET", `/meaning?${q}`);
+        if (!rows.length) {
+          const st = await core<{ on: boolean; items: number }>("GET", "/meaning/status");
+          return st.on ? "Nothing near that in meaning." : "Search by meaning is off (Settings, Data).";
+        }
+        return rows.map((r) => `- ${r.title} — ${r.kind === "page" ? (r.project === "notes" ? `unaffiliated note (path: ${r.path})` : `page in project ${r.project} (path: ${r.path})`) : `${r.kind} [${r.id}]`} · ${r.score}\n  “${r.passage}”`).join("\n");
+      },
+    },
     // ------------------------------------------------------------ files
     {
       name: "talaris_files",

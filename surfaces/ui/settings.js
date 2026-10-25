@@ -1312,9 +1312,51 @@ async function loadData() {
   }
 }
 
+// Data → Search by meaning: on or off, the model server and its embedding model (Morgan's, unless chosen), and how the index stands.
+async function drawMeaning() {
+  const host = $("meaning");
+  if (!host) return;
+  const m = cfg.meaning || { on: false, url: "", model: "" };
+  let st = null;
+  try { st = await core("GET", "/meaning/status"); } catch { /* the core is away for a moment */ }
+  const url = pel("input", { type: "text", spellcheck: "false", autocomplete: "off", placeholder: "http://host:11434", value: m.url || "" });
+  const models = pel("span", { class: "what" });
+  const listModels = async () => {
+    const at = url.value.trim();
+    if (!at) { models.replaceChildren(pel("small", {}, "Set the address first")); return; }
+    models.replaceChildren(pel("small", {}, "Looking…"));
+    try {
+      const list = await core("GET", `/meaning/models?url=${encodeURIComponent(at)}`);
+      models.replaceChildren(...(list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...m, url: at, model: name } }) }, name))
+        : [pel("small", {}, "It has no embedding model")]));
+    } catch (e) { models.replaceChildren(pel("small", { class: "err" }, e.message)); }
+  };
+  const useMorgans = pel("button", { class: "t-btn", onclick: async () => {
+    const r = await ask("config.get");
+    if (!r || !r.ok || !(r.ollama || {}).url) { say("Morgan did not say its model server", true); return; }
+    save({ meaning: { ...m, url: r.ollama.url, model: r.embedModel || m.model } });
+  } }, "Use Morgan's");
+  url.addEventListener("keydown", (e) => { if (e.key === "Enter") save({ meaning: { ...m, url: url.value.trim() } }); });
+  const said = !st ? "" : st.error ? `Stopped: ${st.error}`
+    : st.indexing ? `Indexing… ${st.items} found so far, ${st.pending} to go`
+    : `${st.items} things, ${st.passages} passages${st.pending ? `, ${st.pending} waiting` : ""}${st.last ? ` · looked ${when(st.last)}` : ""}`;
+  host.replaceChildren(
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "On"), pel("span", { class: "what" }, mgSwitch(Boolean(m.on), (on) => save({ meaning: { ...m, on } })))),
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Model server", pel("small", {}, "Ollama, or anything with the OpenAI-style API")), pel("span", { class: "what" }, url, useMorgans)),
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Embedding model", pel("small", {}, m.model ? `Now: ${m.model}. Changing it makes the index again` : "Not chosen")), models),
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Index", pel("small", { class: st && st.error ? "err" : "" }, said)),
+      pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: !m.on || !m.model ? "" : null, onclick: async (e) => {
+        e.target.disabled = true; say("Indexing…");
+        try { const r = await core("POST", "/meaning/reindex"); say(`${r.embedded} embedded`); } catch (x) { say(x.message, true); }
+        drawMeaning();
+      } }, "Index now"))));
+  if (m.url) listModels();
+}
+
 function drawData() {
   const v = vaultNow;
   if (!v) return;
+  drawMeaning();
   $("data-where").className = "note";
   $("data-where").textContent = "People, events, notes, tasks and projects, kept encrypted in ~/.local/share/talaris.";
   $("data-locked").hidden = !v.locked;
