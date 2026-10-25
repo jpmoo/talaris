@@ -14,15 +14,16 @@ $("ask").innerHTML = Icons.launcher();
 $("settings").innerHTML = Icons.settings();
 $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
+$("bell-ic").innerHTML = Icons.bell();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "power"];
+const BAR_ITEMS = ["ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
   // A button whose popup is out shows it, as a pressed button would.
-  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where" };
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where", notifications: "bell" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
@@ -75,9 +76,13 @@ function onState(s) {
   $("morgan").title = now === "absent" ? "Morgan is not running"
     : ({ listening: "Morgan is listening", transcribing: "Morgan is listening", thinking: "Morgan is thinking",
          consulting: "Morgan is consulting the Oracle", speaking: "Morgan is speaking" })[now] || "Morgan (Super+Shift+M)";
-  for (const [id, kind] of [["vol", "volume"], ["power", "power"], ["net", "network"], ["bt", "bluetooth"]]) {
+  for (const [id, kind] of [["vol", "volume"], ["power", "power"], ["net", "network"], ["bt", "bluetooth"], ["bell", "notifications"]]) {
     $(id).classList.toggle("on", s.popup === kind);
   }
+  // The bell wears a dot while anything is unread; its tip says how many.
+  const unread = s.unread || 0;
+  $("bell").classList.toggle("unread", unread > 0);
+  $("bell").title = unread ? `Notifications · ${unread} unread` : "Notifications";
 }
 
 function onMachine(m) {
@@ -174,6 +179,7 @@ $("clock").addEventListener("click", () => bridge && bridge.calendar());
 const under = (id) => { const r = $(id).getBoundingClientRect(); return r.left + r.width / 2; };
 $("net").addEventListener("click", () => bridge && bridge.popupAt("network", under("net")));
 $("bt").addEventListener("click", () => bridge && bridge.popupAt("bluetooth", under("bt")));
+$("bell").addEventListener("click", () => bridge && bridge.popupAt("notifications", under("bell")));
 
 // The tray: running applications' icons. A press opens the application (or,
 // for one that is only a menu, its menu); the middle button is its second
@@ -224,7 +230,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#where, #vol, #power, #bat, #net, #bt, #ask, #new, #morgan, #people, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bell, #bat, #net, #bt, #ask, #new, #morgan, #people, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

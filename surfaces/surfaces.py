@@ -52,6 +52,7 @@ from new_panel import New
 from jump_panel import Jump
 from people_panel import People
 from desk import Desk
+from notifications import Notifications
 import thumbs
 from osd import Osd
 from tip import Tip
@@ -213,6 +214,10 @@ class Desktop(QObject):
         self.new = New(profile, self, self.calendar_service)
         # Project jump: Super+Alt+a letter.
         self.jump = Jump(profile, self)
+        # Notifications: Talaris's own, in place of mako; the bar's bell lists them.
+        self.notifications = Notifications(self, profile)
+        self.notifications.changed.connect(self.bar.changed)
+        self.notifications.changed.connect(self.bar.notifications_changed)
         # The empty desktop, under the windows: its right-click menu (the wallpaper).
         self.desk = Desk(profile, self)
         self.desk.place()
@@ -385,6 +390,7 @@ class Desktop(QObject):
         self.osd.unbind()
         self.power.stop()
         self.tray.stop()
+        self.notifications.stop()
         self.calendar_service.stop()
 
     # ---------------------------------------------------------------- settings
@@ -409,6 +415,8 @@ class Desktop(QObject):
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
+        if after.get("notifications") != before.get("notifications") or after["theme"] != before["theme"]:
+            self.notifications.toasts._tell()
         if after["bar"] != before["bar"]:
             self.bar.edge = after["bar"]["edge"]
             self.bar.place()

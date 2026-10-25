@@ -82,6 +82,15 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 .tray-item img { width: 16px; height: 16px; display: block; opacity: .85; }
 .tray-item:hover img, .tray-item.attention img { opacity: 1; }
 .tray-item.attention { border-color: var(--accent); }
+/* The bell: a dot at its shoulder while something is unread. Placed on the
+   button, not the bar, so a strip and a floating bar, top or bottom, put it
+   in the same place on the icon; ringed in the bar's color to stand clear. */
+#bell { position: relative; }
+#bell .dot {
+  position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;
+}
+#bell.unread .dot { display: block; }
 </style>
 </head>
 <body data-edge="top">
@@ -105,6 +114,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
     <button id="bat" class="bar-item" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></button>
     <button id="settings" class="bar-item" title="Settings"></button>
+    <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span class="dot"></span></button>
     <button id="power" class="bar-item" title="Power"></button>
   </div>
 </div>

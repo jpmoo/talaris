@@ -55,7 +55,7 @@ BAR = 34
 #: Each popup's surface: the panel and the clear room round it for the
 #: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
 POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
-          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160)}
+          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160), "notifications": (380, 460)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -143,6 +143,33 @@ class BarBridge(Bridge):
         here = self.owner.desktop.project.get("id")
         return json.dumps([{"id": p.get("id"), "name": p.get("name", ""), "code": p.get("code", ""), "current": p.get("id") == here}
                            for p in listed])
+
+    #: Pushed to the popup: the notifications, newest first (the bell's list).
+    notices = Signal(str)
+
+    @Slot(result=str)
+    def notifications(self) -> str:
+        """The bell's list, newest first; opening it reads them all."""
+        listing = self.owner.desktop.bar.notification_listing()
+        self.owner.desktop.notifications.read_all()
+        return listing
+
+    @Slot(int)
+    def dismissNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.notifications.dismiss(nid)
+
+    @Slot()
+    def clearNotices(self) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.notifications.clear()
+
+    @Slot(int)
+    def openNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.notifications.open_app(nid)
+
+    @Slot(int, str)
+    def actNotice(self, nid: int, key: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.notifications.act(nid, key)
 
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
@@ -422,7 +449,18 @@ class Bar(QObject):
                            "tasks": bool(getattr(self.desktop, "tasks", None) and (self.desktop.tasks.up or self.desktop.tasks.windowed)),
                            "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
                            "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed))},
+            # The bell's dot: how many notifications have not been seen in its list.
+            "unread": self.desktop.notifications.unread() if getattr(self.desktop, "notifications", None) else 0,
         }
+
+    def notifications_changed(self) -> None:
+        """The list of notifications changed: the bell's list, if it is out, drawn again."""
+        if self.popup.kind == "notifications":
+            self.popup.bridge.notices.emit(self.notification_listing())
+
+    def notification_listing(self) -> str:
+        n = self.desktop.notifications
+        return json.dumps([{**x, "canOpen": n.can_open(x)} for x in n.items])
 
     def changed(self) -> None:
         """Something the bar lights for opened or closed: said again."""

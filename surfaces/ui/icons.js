@@ -107,5 +107,8 @@ const Icons = (() => {
   const tasks = () => svg('<path d="M2 4.6 3.5 6 6 3.2M8.5 4.8h5.5M2 10.6 3.5 12 6 9.2M8.5 10.8h5.5"/>');
   // New: a plus, for making something (new.html).
   const plus = () => svg('<path d="M8 2.6v10.8M2.6 8h10.8"/>');
-  return { sideList, people, tasks, plus, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  // Notifications: a bell. With some unread the bar sets a dot at its shoulder
+  // (bar.html's #bell .dot), a thing of its own so it keeps its color and place.
+  const bell = () => svg('<path d="M4 11V7.4a4 4 0 0 1 8 0V11l1.2 1.5H2.8z"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>');
+  return { sideList, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

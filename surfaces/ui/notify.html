@@ -1,0 +1,316 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The pop-ups (notifications.py, Toasts): a column at the top right, newest on
+top, the surface as tall as the page says.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris notifications</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+:root { --toast-bg: var(--surface); --toast-edge: var(--frame); --toast-shadow: var(--menu-shadow); }
+/* Room above for the shadow's top, below for its fall; the sides as the surface allows. */
+#col { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-direction: column; gap: 8px; padding: 6px 12px 26px; }
+#col:empty { padding: 0; }
+.toast {
+  position: relative; overflow: hidden; padding: 9px 12px 11px;
+  background: var(--toast-bg); border: 1px solid var(--toast-edge); border-radius: 10px; box-shadow: var(--toast-shadow);
+  font: 13px/1.4 var(--font); color: var(--text);
+}
+.toast.clickable { cursor: pointer; }
+.top { display: flex; align-items: center; gap: 7px; height: 18px; }
+.top .icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
+.top .app { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .x { flex: none; width: 20px; height: 20px; padding: 0; border: none; border-radius: 4px; font-size: 15px; line-height: 1; color: var(--muted); }
+.top .x:hover { color: var(--accent); background: var(--accent-wash); }
+.main { display: flex; gap: 10px; margin-top: 5px; }
+.main .image { width: 48px; height: 48px; flex: none; border-radius: 6px; object-fit: cover; }
+.words { flex: 1; min-width: 0; }
+.summary { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+/* Apps send line breaks as newlines as often as <br>. */
+.body { color: var(--text); white-space: pre-line; overflow-wrap: anywhere; max-height: 8.4em; overflow: hidden; }
+.body .link { text-decoration: underline; }
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.buttons:empty { display: none; }
+.buttons .t-btn { font-size: 12px !important; padding: 1px 10px !important; max-width: 100%; }
+.buttons .t-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.left { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); opacity: .7; transform-origin: left; }
+</style>
+</head>
+<body>
+<div id="col"></div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="motion.js"></script>
+<script src="pagetips.js"></script>
+<script src="surface.js"></script>
+<script>
+"use strict";
+
+// The layer surface's width in Qt units (notifications.py: WIDTH + 24). The
+// process takes fit() as Qt units, not page pixels, so the page converts.
+const SURFACE_WIDTH = 404;
+const SPEEDS = { slow: 1.6, normal: 1, fast: .6, fastest: .3 };
+const col = document.getElementById("col");
+let bridge = null;
+let look = {};
+let speed = "normal";
+const cards = new Map();     // id → card, for the ones showing and not leaving
+const sent = new Set();      // ids this page ended: a state still listing them is from before
+
+const zoom = () => (innerWidth > 0 ? SURFACE_WIDTH / innerWidth : 1);
+const kind = () => (look.animation === "draw" ? "chaos" : look.animation || "slide");
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || kind() === "none";
+const ms = (n) => Math.round(n * (SPEEDS[speed] || 1));
+
+function done(id, how, key = "") {
+  if (bridge) bridge.done(JSON.stringify({ id, how, key }));
+}
+
+function fit() {
+  if (!bridge) return;
+  bridge.fit(col.children.length ? Math.ceil(col.getBoundingClientRect().height * zoom()) : 0);
+}
+const refit = () => document.fonts.ready.then(() => requestAnimationFrame(fit));
+
+/*
+ * The surface grows after the page asks, a frame or more later; a card moving
+ * before then is cut off at the old bottom. So arriving waits until the page
+ * is as tall as the column (or a third of a second), the card held unseen.
+ */
+function room() {
+  return new Promise((ok) => {
+    const began = performance.now();
+    const look = () => {
+      if (innerHeight + 1 >= col.getBoundingClientRect().height || performance.now() - began > 330) ok();
+      else requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+}
+
+// ---------------------------------------------------------------- motion
+//
+// Slide, pop and fade as Motion plays them (same frames, times and easing),
+// but per card: Motion counts arrivals page-wide, so a second card arriving or
+// one leaving would cancel another's arrival. Draw is Motion's own.
+
+const offRight = (card) => `${innerWidth - card.getBoundingClientRect().left + 8}px 0`;
+const FROM = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } };
+const AT = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } };
+
+// `then` once it is under way: Motion's draw begins by cancelling every
+// animation on the card, the countdown's too, so that starts after.
+function arrive(card, then) {
+  if (still()) { then(); return; }
+  card.style.visibility = "hidden";
+  room().then(() => {
+    if (!card.isConnected || card.leaving) return;
+    card.style.visibility = "";
+    const go = () => { if (!card.leaving) then(); };
+    const k = kind();
+    if (k === "chaos") {
+      Motion.arrive(card, { kind: "chaos", speed, edge: "right", flush: false, viewport: [innerWidth, innerHeight] });
+      go();
+      return;
+    }
+    card.animate([FROM[k] || { translate: offRight(card) }, AT[k] || { translate: "0 0" }], { duration: ms(450), easing: "cubic-bezier(.2,.8,.2,1)" });
+    go();
+  });
+}
+
+function leave(card) {
+  if (card.leaving) return;
+  card.leaving = true;
+  card.style.visibility = "";
+  if (card.timer) card.timer.cancel();
+  if (cards.get(card.dataset.id) === card) cards.delete(card.dataset.id);
+  card.style.pointerEvents = "none";
+  const gone = () => { flip(() => card.remove()); refit(); };
+  if (still()) { gone(); return; }
+  const k = kind();
+  const a = k === "chaos"
+    ? Motion.leave(card, { kind: "chaos", speed, edge: "right", flush: false })
+    : card.animate([AT[k] || { translate: "0 0" }, FROM[k] || { translate: offRight(card) }], { duration: ms(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+  if (a) a.addEventListener("finish", gone); else gone();
+}
+
+// The others glide to their new places, rather than jump, when one comes or goes.
+function flip(change) {
+  const before = new Map([...col.children].map((c) => [c, c.getBoundingClientRect().top]));
+  change();
+  if (still()) return;
+  for (const c of col.children) {
+    const was = before.get(c);
+    if (was === undefined || c.leaving) continue;
+    const dy = was - c.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) c.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: ms(260), easing: "cubic-bezier(.2,.8,.2,1)" });
+  }
+}
+
+// ---------------------------------------------------------------- the countdown
+
+/** How long it stays, in ms, or 0 for until it is dismissed. The app's own wish wins. */
+function lasts(t) {
+  if (t.urgency === 2 || t.timeout === 0) return 0;
+  return t.timeout > 0 ? t.timeout : (look.seconds || 6) * 1000;
+}
+
+function countdown(card, t) {
+  if (card.timer) card.timer.cancel();
+  card.timer = null;
+  const bar = card.bar;
+  const length = lasts(t);
+  bar.hidden = !length;
+  if (!length) return;
+  // An animation, so pausing on hover keeps where it was for nothing.
+  card.timer = bar.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], { duration: length, easing: "linear", fill: "forwards" });
+  if (card.matches(":hover")) card.timer.pause();
+  card.timer.onfinish = () => { if (card.leaving) return; sent.add(card.dataset.id); leave(card); done(t.id, "expired"); };
+}
+
+// ---------------------------------------------------------------- the card
+
+/*
+ * The body's markup as the spec allows it: b, i, u, a and br. Parsed into an
+ * inert template (nothing loads, nothing runs) and copied across element by
+ * element; anything else gives up its text, script and style not even that.
+ * A link is only underlined text: a pop-up is no place to be sent somewhere.
+ */
+function markup(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html || "";
+  const copy = (from, to) => {
+    for (const n of from.childNodes) {
+      if (n.nodeType === Node.TEXT_NODE) { to.append(n.textContent); continue; }
+      if (n.nodeType !== Node.ELEMENT_NODE) continue;
+      const tag = n.localName;
+      if (tag === "script" || tag === "style") continue;
+      if (tag === "br") { to.append(document.createElement("br")); continue; }
+      const el = tag === "b" || tag === "i" || tag === "u" ? document.createElement(tag)
+        : tag === "a" ? Object.assign(document.createElement("span"), { className: "link" }) : null;
+      if (el) { copy(n, el); to.append(el); } else copy(n, to);
+    }
+  };
+  const out = document.createDocumentFragment();
+  copy(tpl.content, out);
+  return out;
+}
+
+function el(tag, cls, props = {}) {
+  return Object.assign(document.createElement(tag), { className: cls }, props);
+}
+
+function fill(card, t) {
+  const actions = (t.actions || []).filter((a) => Array.isArray(a) && a.length >= 2);
+  const clickable = actions.some(([key]) => key === "default");
+  card.classList.toggle("clickable", clickable);
+  card.clickable = clickable;
+
+  const top = el("div", "top");
+  if (t.icon) top.append(el("img", "icon", { src: t.icon, alt: "" }));
+  top.append(el("span", "app", { textContent: t.app || "" }));
+  const x = el("button", "x", { textContent: "×", title: "Dismiss" });
+  x.addEventListener("click", (e) => { e.stopPropagation(); sent.add(card.dataset.id); leave(card); done(t.id, "dismissed"); });
+  top.append(x);
+
+  const main = el("div", "main");
+  if (t.image) main.append(el("img", "image", { src: t.image, alt: "" }));
+  const words = el("div", "words");
+  if (t.summary) words.append(el("div", "summary", { textContent: t.summary }));
+  if (t.body) { const b = el("div", "body"); b.append(markup(t.body)); words.append(b); }
+  main.append(words);
+
+  const buttons = el("div", "buttons");
+  for (const [key, label] of actions) {
+    if (key === "default") continue;
+    const b = el("button", "t-btn");
+    b.append(el("span", "", { textContent: label }));
+    b.addEventListener("click", (e) => { e.stopPropagation(); done(t.id, "action", String(key)); });
+    buttons.append(b);
+  }
+  if (t.canOpen) {
+    const text = t.app ? `Open ${t.app}` : "Open";
+    const b = el("button", "t-btn", { title: text });
+    b.append(el("span", "", { textContent: text }));
+    b.addEventListener("click", (e) => { e.stopPropagation(); done(t.id, "open"); });
+    buttons.append(b);
+  }
+
+  card.canOpen = !!t.canOpen;
+  // The countdown's bar is the card's for good: refilled, its clock runs on.
+  card.replaceChildren(top, main, buttons, card.bar);
+}
+
+function make(t) {
+  const card = el("div", "toast");
+  card.dataset.id = String(t.id);
+  card.bar = el("div", "left", { hidden: true });
+  card.addEventListener("click", () => { if (card.clickable && !card.leaving) done(t.id, "action", "default"); });
+  card.addEventListener("pointerenter", () => { if (card.timer) card.timer.pause(); });
+  card.addEventListener("pointerleave", () => { if (card.timer && card.timer.playState === "paused") card.timer.play(); });
+  return card;
+}
+
+// A state sent again for another card's sake changes nothing here; only the
+// card's own news (canOpen aside, which is the process's reading) restarts it.
+const news = (t) => JSON.stringify({ ...t, canOpen: undefined });
+
+// ---------------------------------------------------------------- the state
+
+function onState(s) {
+  look = s.look || {};
+  speed = (s.theme || {}).motionSpeed || "normal";
+  const root = document.documentElement.style;
+  const opacity = Math.max(20, Math.min(100, Number(look.opacity) || 100));
+  root.setProperty("--toast-bg", `color-mix(in srgb, var(--surface) ${opacity}%, transparent)`);
+  root.setProperty("--toast-edge", look.outline === "accent" ? "var(--accent)" : look.outline === "none" ? "transparent" : "var(--frame)");
+  root.setProperty("--toast-shadow", look.shadow === false ? "none" : "var(--menu-shadow)");
+
+  const list = s.up ? (s.toasts || []).slice(0, 6) : [];
+  const ids = new Set(list.map((t) => String(t.id)));
+  // Ended here and gone from the list too: the process has caught up.
+  for (const id of [...sent]) if (!ids.has(id)) sent.delete(id);
+  const wanted = list.filter((t) => !sent.has(String(t.id)));
+  const keep = new Set(wanted.map((t) => String(t.id)));
+
+  for (const [id, card] of [...cards]) if (!keep.has(id)) leave(card);
+
+  const arriving = [];
+  flip(() => {
+    // In the list's order, newest first; leaving cards stay where they were until gone.
+    let at = null;
+    for (const t of wanted) {
+      const id = String(t.id);
+      let card = cards.get(id);
+      if (!card) {
+        card = make(t);
+        cards.set(id, card);
+        fill(card, t);
+        card.news = news(t);
+        arriving.push([card, t]);
+      } else if (card.news !== news(t)) {
+        // Replaced: new words in the same place, the clock started again.
+        fill(card, t);
+        card.news = news(t);
+        countdown(card, t);
+      } else if (card.canOpen !== !!t.canOpen) {
+        fill(card, t);
+      }
+      const next = at ? at.nextElementSibling : col.firstElementChild;
+      if (next !== card) col.insertBefore(card, next);
+      at = card;
+    }
+  });
+  refit();
+  for (const [card, t] of arriving) arrive(card, () => countdown(card, t));
+}
+
+Surface.connect({ onState }).then((b) => { bridge = b; refit(); });
+</script>
+</body>
+</html>

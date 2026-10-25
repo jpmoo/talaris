@@ -72,11 +72,64 @@ function drawProjects() {
   });
 }
 
+// The bell's list, newest first. Opening it reads them all, so which were
+// unread is what the first fetch said; kept for as long as it stays open, so
+// a redraw from `notices` does not take the rule off what was just seen.
+let noticesShown = null;
+let unreadSeen = new Set();
+function drawNotices() {
+  bridge.notifications((text) => {
+    const list = JSON.parse(text);
+    unreadSeen = new Set(list.filter((n) => !n.read).map((n) => n.id));
+    showNotices(list);
+  });
+}
+/** "now", "5 min", "2:14 PM" today, "Mon" this week, "Mar 3" before. */
+function noticeWhen(at) {
+  const then = new Date(at), now = new Date(), mins = Math.floor((now - then) / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins} min`;
+  if (then.toDateString() === now.toDateString()) return then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (now - then < 6 * 86400000) return then.toLocaleDateString("en-US", { weekday: "short" });
+  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+/** A body's markup (the spec allows a little: <b>, <i>, <a>) as plain text; parsed inert, never run. */
+function plainText(markup) {
+  if (!markup) return "";
+  return (new DOMParser().parseFromString(String(markup), "text/html").body.textContent || "").trim();
+}
+function showNotices(list) {
+  for (const n of list) if (!n.read) unreadSeen.add(n.id);
+  $("notice-clear").hidden = !list.length;
+  $("notice-list").replaceChildren(...(list.length ? list.map((n) => {
+    const d = Object.assign(document.createElement("div"), { className: "notice" + (unreadSeen.has(n.id) ? " unread" : "") });
+    const top = Object.assign(document.createElement("div"), { className: "top" });
+    if (n.icon) top.append(Object.assign(document.createElement("img"), { src: n.icon, alt: "" }));
+    else top.insertAdjacentHTML("beforeend", Icons.bell());
+    const x = button("", () => bridge.dismissNotice(n.id), "x");
+    x.title = "Dismiss";
+    x.innerHTML = Icons.close();
+    top.append(Object.assign(document.createElement("span"), { className: "app", textContent: n.app || "" }),
+      Object.assign(document.createElement("span"), { className: "when", textContent: n.at ? noticeWhen(n.at) : "" }), x);
+    d.append(top);
+    if (n.summary) d.append(Object.assign(document.createElement("div"), { className: "sum", textContent: n.summary }));
+    const body = plainText(n.body);
+    if (body) d.append(Object.assign(document.createElement("div"), { className: "body", textContent: body }));
+    const acts = Object.assign(document.createElement("div"), { className: "acts" });
+    for (const [key, label] of n.actions || []) if (key !== "default") acts.append(button(label || key, () => bridge.actNotice(n.id, key)));
+    if (n.canOpen) acts.append(button("Open", () => bridge.openNotice(n.id)));
+    d.append(acts);
+    return d;
+  }) : [note("No notifications")]));
+}
+$("notice-clear").addEventListener("click", () => bridge && bridge.clearNotices());
+
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
+  if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); }
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
   disarm();
@@ -368,4 +421,5 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.panel.connect((text) => onPanel(JSON.parse(text)));
   b.trayMenu.connect((text) => drawTrayMenu(JSON.parse(text)));
   b.tray.connect((text) => drawTrayIcons(JSON.parse(text)));
+  b.notices.connect((text) => { if (document.body.dataset.popup === "notifications") showNotices(JSON.parse(text)); });
 });

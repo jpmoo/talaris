@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import base64
 import os
 import shutil
@@ -95,7 +96,7 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "power")
+    BAR_ITEMS = ("ask", "new", "morgan", "people", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:
@@ -149,6 +150,11 @@ def _checked(c: dict) -> str:
         return "Windows slide, pop, fade or neither"
     if not 15 <= int(c["idleSeconds"]) <= 600:
         return "Idle is between 15 seconds and 10 minutes"
+    n = c.get("notifications", {})
+    if n.get("animation", "slide") not in ("slide", "pop", "fade", "draw") or n.get("outline", "line") not in ("line", "accent", "none"):
+        return "Not a notification look"
+    if not 2 <= int(n.get("seconds", 6)) <= 60 or not 20 <= int(n.get("opacity", 100)) <= 100:
+        return "Notifications stay 2 to 60 seconds, and are 20% to 100% solid"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
     if c["launcher"].get("singleWindow", "bring") not in ("bring", "go"):
@@ -210,6 +216,13 @@ class SettingsBridge(Bridge):
                         pass
             self.morganReply.emit(json.dumps({"id": ident, "reply": reply}))
         threading.Thread(target=run, daemon=True).start()
+
+    @Slot()
+    def testNotification(self) -> None:  # noqa: N802 — called from the page by this name
+        """One notification, as any application would send it: to see the look just chosen."""
+        subprocess.Popen(["notify-send", "--app-name=Talaris", "--icon=preferences-system-notifications",
+                          "A test notification", "This is how they look now. It goes when its bar runs out."],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
     @Slot(str)
     def morganAccount(self, verb: str) -> None:  # noqa: N802 — called from the page by this name
@@ -532,7 +545,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

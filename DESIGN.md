@@ -368,7 +368,7 @@ plugin provides.
 | Tray | **Talaris's own**: `surfaces/trayd.py`, a child process, is the StatusNotifierWatcher and host on the session bus (GLib, since PySide6 here has no QtDBus); `tray.py` passes its items to the bar and the bar's presses back. Left press activates (or opens the menu of an item that is only a menu), middle is the second action, right is the item's dbusmenu in a popup under it. Settings, Bar turns it off or puts single icons away, by application id. |
 | Charging | **The battery's own** `charge_types` and start/stop limits in sysfs, set from Settings, Power, Charging, whether or not Talaris manages power. Root's files, so `systemd/90-talaris-battery.rules` (installed once, with sudo) makes them writable by `users`. |
 | Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
-| Notifications, for now | **`mako`**, D-Bus-activated, in Talaris's look (`systemd/mako.config`), until Talaris holds the bus. |
+| Notifications | **Talaris's own** (`notifications.py`, `notifyd.py`) since 2026-10-24: it stops `mako` and holds the bus; `mako`, still installed and D-Bus-activated, answers whenever Talaris is not running. |
 | Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |
 | Network and Bluetooth settings | `nmtui`, `bluetoothctl`, opened from the bar. |
 
@@ -1370,7 +1370,7 @@ of it and comes out at the end.
 14. Pruning.
 15. Tasks — Hermes' system, feature for feature — and the plugin that syncs
     projects and tasks through the spec.
-16. Talaris's own notifications, replacing `mako`.
+16. ~~Talaris's own notifications, replacing `mako`.~~ **Done** (2026-10-24): pop-ups at the top right in the theme — motion, shadow, opacity, outline, a countdown that pauses under the pointer, ×, the app's buttons and Open — set in Settings, Notifications, with applications muted one by one; the bar's bell, with a dot for unread, lists them all. Ubuntu's AppArmor profile keeps `notify-send` from seeing that Talaris has buttons; applications themselves are not so confined.
 17. Resume, once the spike says how.
 18. **Calendar and contacts** (asked for 2026-10-23). **The calendar's first
     pass is built** (2026-10-24): `calendar_panel.py` and `ui/calendar.html`,

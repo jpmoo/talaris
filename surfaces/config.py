@@ -51,6 +51,12 @@ DEFAULTS = {
     # Wallpapers of their own, by project id ({path, fit}); a project without
     # one shows the default, which is hyprpaper's own file (wallpaper.py).
     "wallpaper": {"projects": {}},
+    # Notifications (notifications.py): shown at all; their motion ("slide",
+    # "pop", "fade", "draw"), shadow, opacity and outline; how long one stays,
+    # in seconds; the applications muted (kept and listed, not popped up), and
+    # every application seen sending one, to mute from Settings.
+    "notifications": {"enabled": True, "animation": "slide", "shadow": True, "opacity": 100, "outline": "line",
+                      "seconds": 6, "muted": [], "seen": []},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},

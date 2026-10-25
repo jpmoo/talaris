@@ -167,18 +167,15 @@ function draw() {
   }
   for (const id of ["power-dim", "power-dimto", "power-lock", "power-off", "power-suspend"]) $(id).disabled = !pw.managed;
   if (bridge && $("power").classList.contains("on")) powerNote();
+  drawNotifications();
 
   // Settings that only matter when another is on, dimmed while it is off.
-  const hidesSomething = cfg.bar.autohide || (cfg.dock.enabled !== false && cfg.dock.autohide);
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
   needs(["bar-m-top"], cfg.bar.shape === "floating");
   needs(["dock-hide", "dock-icon", "dock-mag", "dock-scope", "dock-outline", "dock-shadow", "dock-op"], cfg.dock.enabled !== false);
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
-  needs(["touch-thick", "touch-length"], hidesSomething);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
-  slider("touch-thick", cfg.touch.thick, (v) => `${v}px`, (v) => save({ touch: { thick: v } }));
-  slider("touch-length", cfg.touch.length, (v) => (Number(v) >= 100 ? "All" : `${v}%`), (v) => save({ touch: { length: v } }));
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   seg("win-outline", [["focus", "Accent in use"], ["accent", "Accent"], ["line", "Line"], ["none", "None"]], cfg.windows.outline || "focus",
@@ -227,6 +224,42 @@ function trayRows() {
 }
 
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
+
+// ---------------------------------------------------------------- notifications
+//
+// How they pop up, and from whom. Every application that has sent one is in
+// `seen`; those in `muted` are kept and listed under the bell, not popped up.
+const nt = () => cfg.notifications || {};
+// A desktop id (org.gnome.Calendar) by its last part, the whole id under it.
+const appName = (key) => (key.includes(".") ? key.split(".").pop() : key);
+function drawNotifications() {
+  const n = nt();
+  const on = n.enabled !== false;
+  $("nt-on").classList.toggle("on", on);
+  $("nt-off-note").hidden = on;
+  seg("nt-motion", [["slide", "Slide"], ["pop", "Pop"], ["fade", "Fade"], ["draw", "Draw"]], n.animation || "slide", (animation) => save({ notifications: { animation } }));
+  $("nt-shadow").classList.toggle("on", n.shadow !== false);
+  slider("nt-op", n.opacity ?? 100, (v) => `${v}%`, (opacity) => save({ notifications: { opacity } }));
+  seg("nt-outline", [["line", "Line"], ["accent", "Accent"], ["none", "None"]], n.outline || "line", (outline) => save({ notifications: { outline } }));
+  slider("nt-secs", n.seconds ?? 6, (v) => `${v} s`, (seconds) => save({ notifications: { seconds } }));
+  needs(["nt-motion", "nt-shadow", "nt-op", "nt-outline", "nt-secs"], on);
+  const muted = new Set(n.muted || []);
+  const apps = [...new Set(n.seen || [])].sort((a, b) => appName(a).localeCompare(appName(b), undefined, { sensitivity: "base" }) || a.localeCompare(b));
+  $("nt-apps").replaceChildren(...(apps.length ? apps.map((key) => {
+    const sw = el("button", { class: "switch" + (muted.has(key) ? "" : " on"), title: "Shown" });
+    sw.addEventListener("click", () => {
+      const now = new Set(nt().muted || []);
+      if (now.has(key)) now.delete(key); else now.add(key);
+      save({ notifications: { muted: [...now] } });
+    });
+    const name = el("span", { class: "name" }, appName(key), ...(appName(key) !== key ? [el("small", {}, key)] : []));
+    return el("div", { class: "row" }, name, el("span", { class: "what" }, el("small", { class: "note", style: "margin:0" }, "Shown"), sw));
+  }) : [el("p", { class: "note" }, "None yet: an application appears here once it sends one.")]));
+}
+$("nt-on").addEventListener("click", () => save({ notifications: { enabled: nt().enabled === false } }));
+$("nt-shadow").addEventListener("click", () => save({ notifications: { shadow: nt().shadow === false } }));
+// The process sends it (notify-send), once the bridge has the slot for it.
+$("nt-test").addEventListener("click", () => bridge && bridge.testNotification && bridge.testNotification());
 // ---------------------------------------------------------------- the picker
 //
 // The accent of the mode being set (Look, Accent): the one in use is `accent`,
@@ -1309,7 +1342,7 @@ $("unlock-go").addEventListener("click", async () => {
 // What the bar shows, item by item. Settings is not among them: it is the way back.
 const BAR_SHOWN = [["ask", "Launcher"], ["new", "New"], ["morgan", "Morgan"], ["people", "People"], ["tasks", "Tasks"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["where", "Project"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
-  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["power", "Power"]];
+  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["bell", "Notifications"], ["power", "Power"]];
 function drawBarShown() {
   const hidden = new Set(cfg.bar.hidden || []);
   $("bar-shown").replaceChildren(...BAR_SHOWN.map(([id, label]) => {
