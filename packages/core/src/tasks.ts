@@ -245,7 +245,7 @@ export function dropSeries(id: string): void {
  * project (a folder, a workspace) is one, made the first time it is asked for,
  * known by its source so a rename in either place is the same project.
  */
-export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string; group?: string; description?: string }[] {
+export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string; group?: string; description?: string; position?: number }[] {
   const type = typeFor("project");
   for (const p of listProjects()) {
     // Home is the scratchpad, not a project: nothing is filed under it. One
@@ -266,8 +266,36 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
     // Its group is Tasks' own way of arranging the list (`talaris:group`): no folder, no meaning anywhere else.
     const group = typeof e["talaris:group"] === "string" && e["talaris:group"] ? (e["talaris:group"] as string) : undefined;
     const description = typeof e.properties.description === "string" && e.properties.description ? e.properties.description : undefined;
-    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws.key } : {}), ...(group ? { group } : {}), ...(description ? { description } : {}) };
+    // Its place in Tasks' column, dragged there (`talaris:position`); none yet, after those that have one, by name.
+    const position = typeof e["talaris:position"] === "number" ? (e["talaris:position"] as number) : undefined;
+    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws.key } : {}), ...(group ? { group } : {}), ...(description ? { description } : {}),
+      ...(position !== undefined ? { position } : {}) };
+  }).sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * Tasks' column in the order it was dragged into: the projects, each with its
+ * place (and, dropped beside one in another group, that group), and the
+ * groups themselves. Only what changed is written.
+ */
+export function orderProjects(order: { id: string; group?: string | null }[]): void {
+  order.forEach(({ id, group }, i) => {
+    const e = getEntity(id);
+    const patch: Record<string, unknown> = {};
+    if (e["talaris:position"] !== i) patch["talaris:position"] = i;
+    if (group !== undefined && (e["talaris:group"] ?? null) !== (group || null)) patch["talaris:group"] = group || null;
+    if (Object.keys(patch).length) updateEntity(id, patch);
   });
+}
+const PREFS = "tasks-prefs";
+export function groupOrder(): string[] {
+  const kept = sealedList<{ id?: string; order?: string[] }>(PREFS).find((x) => x.id === "groups");
+  return kept?.order ?? [];
+}
+export function setGroupOrder(names: string[]): string[] {
+  const order = [...new Set(names.filter((n) => typeof n === "string" && n.trim()))];
+  sealedPut(PREFS, "groups", { id: "groups", order });
+  return order;
 }
 
 /**

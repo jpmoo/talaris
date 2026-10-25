@@ -48,6 +48,7 @@
   let shape = null;    // how it is a task: titleKey, statusKey, complete, defaultStatus, spanKey, doneKey
   let projects = [];
   let lists = [];
+  let groupOrder = []; // the groups, in the order dragged into (the core keeps it)
   let current = null;  // {kind: "list" | "project", id}
   let shown = null;    // the core's Shown for it
   let editing = null;  // the task open in the sheet
@@ -244,12 +245,60 @@
     });
   }
 
-  // A project dropped on a group's heading joins it; on "Projects", leaves
-  // its group. Projects have no order of their own to drag into.
+  /*
+   * A project dragged above or below another goes there — into that one's
+   * group, if it is in another — and the whole column's order is kept by the
+   * core. Dropped on a group's heading it joins the group; on "Projects", it
+   * leaves its group.
+   */
   function movable(item, id) {
     item.draggable = true;
     item.addEventListener("dragstart", (e) => { dragging = { id, scope: "project" }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); item.classList.add("dragging"); });
     item.addEventListener("dragend", () => { item.classList.remove("dragging"); clearMarks(); dragging = null; });
+    item.addEventListener("dragover", (e) => {
+      if (!dragging || dragging.scope !== "project" || dragging.id === id) return;
+      e.preventDefault();
+      const b = item.getBoundingClientRect();
+      const above = e.clientY < b.top + b.height / 2;
+      if (!item.classList.contains(above ? "drop-above" : "drop-below")) { clearMarks(); item.classList.add(above ? "drop-above" : "drop-below"); }
+    });
+    item.addEventListener("drop", (e) => {
+      if (!dragging || dragging.scope !== "project" || dragging.id === id) return;
+      e.preventDefault();
+      const above = item.classList.contains("drop-above");
+      clearMarks();
+      const target = projects.find((p) => p.id === id);
+      const order = columnOrder().filter((p) => p.id !== dragging.id);
+      order.splice(order.indexOf(target) + (above ? 0 : 1), 0, { ...projects.find((p) => p.id === dragging.id), group: target.group || null });
+      api("PUT", "/tasks/projects/order", { order: order.map((p) => ({ id: p.id, group: p.group || null })) }).then(loadSide).catch(failed);
+    });
+  }
+  /** The projects as the column shows them: each group in its order, then those in none. */
+  function columnOrder() {
+    const live = projects.filter((p) => !p.archived);
+    return [...groupNames().flatMap((g) => live.filter((p) => p.group === g)), ...live.filter((p) => !p.group)];
+  }
+  /** A group's heading dragged above or below another's: the groups' order, kept by the core. */
+  function groupMovable(node, g) {
+    node.draggable = true;
+    node.addEventListener("dragstart", (e) => { dragging = { id: g, scope: "group" }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", g); node.classList.add("dragging"); });
+    node.addEventListener("dragend", () => { node.classList.remove("dragging"); clearMarks(); dragging = null; });
+    node.addEventListener("dragover", (e) => {
+      if (!dragging || dragging.scope !== "group" || dragging.id === g) return;
+      e.preventDefault();
+      const b = node.getBoundingClientRect();
+      const above = e.clientY < b.top + b.height / 2;
+      if (!node.classList.contains(above ? "drop-above" : "drop-below")) { clearMarks(); node.classList.add(above ? "drop-above" : "drop-below"); }
+    });
+    node.addEventListener("drop", (e) => {
+      if (!dragging || dragging.scope !== "group" || dragging.id === g) return;
+      e.preventDefault();
+      const above = node.classList.contains("drop-above");
+      clearMarks();
+      const names = groupNames().filter((x) => x !== dragging.id);
+      names.splice(names.indexOf(g) + (above ? 0 : 1), 0, dragging.id);
+      api("PUT", "/tasks/groups/order", { names }).then(loadSide).catch(failed);
+    });
   }
   function groupTarget(node, group) {
     node.addEventListener("dragover", (e) => {
@@ -270,9 +319,10 @@
   // ---------------------------------------------------------------- loading
 
   async function loadSide() {
-    const [l, p] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects")]);
+    const [l, p, g] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/groups/order").catch(() => [])]);
     lists = l || [];
     projects = p || [];
+    groupOrder = g || [];
     drawSide();
   }
   // What was shown last, if it is still there; else the starter Today; else the first list.
@@ -330,7 +380,9 @@
   // Groups are Tasks' own arrangement (`talaris:group` on the project): a
   // group is only its name, there while some project has it.
   const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
-  const groupNames = () => [...new Set(projects.filter((p) => !p.archived && p.group).map((p) => p.group))].sort(byName);
+  // In the order they were dragged into; one not placed yet, after those, by name.
+  const groupRank = (g) => { const i = groupOrder.indexOf(g); return i < 0 ? Infinity : i; };
+  const groupNames = () => [...new Set(projects.filter((p) => !p.archived && p.group).map((p) => p.group))].sort((a, b) => groupRank(a) - groupRank(b) || byName(a, b));
   let shutGroups = new Set(store.get("talaris.tasks.groupsShut", []));
   function toggleGroup(g) {
     if (shutGroups.has(g)) shutGroups.delete(g); else shutGroups.add(g);
@@ -364,6 +416,7 @@
       const head = el("div", { class: "item grp" + (shut ? " folded" : ""), title: g, onclick: () => toggleGroup(g) },
         el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), el("span", { class: "n" }, String(mine.length)));
       groupTarget(head, g);
+      groupMovable(head, g);
       out.push(head, ...mine.filter((p) => !shut || isOn("project", p.id)).map((p) => projectRow(p, true, isOn("project", p.id))));
     }
     out.push(...live.filter((p) => !p.group).map((p) => projectRow(p, false, isOn("project", p.id))));
@@ -716,6 +769,14 @@
       const listId = shown.list.id;
       sortable(row, r.id, "rows", (object, after, before) =>
         api("POST", `/lists/${enc(listId)}/members`, { object, after, before }).then(() => loadShown()).catch(failed));
+    } else if (current.kind === "project") {
+      // A project's tasks are by due date until one is dragged; from then on, in the order they are put in.
+      const projectId = current.id;
+      sortable(row, r.id, "rows", (object, after) => {
+        const ids = shown.rows.map((x) => x.id).filter((x) => x !== object);
+        ids.splice(after ? ids.indexOf(after) + 1 : 0, 0, object);
+        api("PUT", `/tasks/projects/${enc(projectId)}/order`, { ids }).then(() => loadShown()).catch(failed);
+      });
     }
     return row;
   }
@@ -727,6 +788,10 @@
       const listId = shown.list.id;
       if (items.length) items.push("sep");
       items.push({ label: "Remove from list", act: () => api("DELETE", `/lists/${enc(listId)}/members/${enc(r.id)}`).then(() => loadShown()).catch(failed) });
+    } else if (shown.manual && current.kind === "project") {
+      const projectId = current.id;
+      if (items.length) items.push("sep");
+      items.push({ label: "Back to by due date", act: () => api("PUT", `/tasks/projects/${enc(projectId)}/order`, { ids: null }).then(() => loadShown()).catch(failed) });
     }
     if (items.length) menuAt(e.clientX, e.clientY, items);
   }

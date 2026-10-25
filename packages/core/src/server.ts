@@ -409,11 +409,23 @@ route("PATCH", "/interchange/objects/:id", async (req, [id]) => {
 // ------------------------------------------------------------ tasks and lists (DESIGN, Tasks)
 
 route("GET", "/tasks/projects", () => tasks.taskProjects());
+// Tasks' column, in the order dragged into: the projects (with their groups), and the groups.
+route("PUT", "/tasks/projects/order", async (req) => {
+  tasks.orderProjects((await json<{ order?: { id: string; group?: string | null }[] }>(req)).order ?? []);
+  return { ok: true };
+});
+route("GET", "/tasks/groups/order", () => tasks.groupOrder());
+route("PUT", "/tasks/groups/order", async (req) => tasks.setGroupOrder((await json<{ names?: string[] }>(req)).names ?? []));
 route("POST", "/tasks/projects", async (req) => {
   const b = await json<{ title?: string }>(req);
   return tasks.createTaskProject(b.title ?? "");
 });
 route("GET", "/tasks/projects/:id", (_r, [id]) => lists.showProject(id!));
+// A project's tasks in the order dragged into; none (or an empty one) goes back to by due date.
+route("PUT", "/tasks/projects/:id/order", async (req, [id]) => {
+  lists.setProjectTaskOrder(id!, (await json<{ ids?: string[] | null }>(req)).ids ?? null);
+  return { ok: true };
+});
 route("POST", "/tasks", async (req) => {
   const b = await json<tasks.NewTask & { list?: string; region?: string }>(req);
   if (!b.title) throw new BadRequest("a task has a title");

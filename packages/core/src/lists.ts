@@ -492,7 +492,27 @@ export function showProject(projectId: string, asOf = new Date()): Shown {
     membership: { mode: "query", materialized: false, query: { kind: "group", match: "all", items: [{ kind: "property", key: "project", op: "contains", value: projectId }] } },
     order: { sort: [{ by: { field: "schedule", part: "end" } }, { by: { field: "title" } }] },
   };
-  return show(virtual, asOf);
+  const shown = show(virtual, asOf);
+  // Dragged into an order: that order, and what was never placed after it, by due date as before.
+  const placed = projectTaskOrder(projectId);
+  if (!placed.length) return shown;
+  const rank = (id: string) => { const i = placed.indexOf(id); return i < 0 ? Infinity : i; };
+  const rows = shown.rows.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r.id) - rank(b.r.id) || a.i - b.i).map((x) => x.r);
+  return { ...shown, rows, manual: true };
+}
+
+/*
+ * A project's tasks in the order they were dragged into in Tasks, kept apart
+ * from the tasks (dragging is not editing them), beside the lists' own.
+ */
+const PREFS = "tasks-prefs";
+export function projectTaskOrder(projectId: string): string[] {
+  return sealedList<{ id?: string; order?: string[] }>(PREFS).find((x) => x.id === `project-${projectId}`)?.order ?? [];
+}
+export function setProjectTaskOrder(projectId: string, ids: string[] | null): void {
+  const key = `project-${projectId}`;
+  if (!ids || !ids.length) sealedDrop(PREFS, key);
+  else sealedPut(PREFS, key, { id: key, order: [...new Set(ids)] });
 }
 
 export function show(list: List, asOf = new Date()): Shown {
