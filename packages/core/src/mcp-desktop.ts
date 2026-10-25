@@ -96,7 +96,15 @@ export function desktopTools(core: Core): DesktopTool[] {
       return all.find((c) => c.id === shown) ?? tree;
     }
     const l = w.toLowerCase();
-    const hit = all.find((c) => c.id === w) ?? all.find((c) => c.title.toLowerCase() === l) ?? all.find((c) => c.title.toLowerCase().includes(l));
+    const byId = all.find((c) => c.id === w);
+    if (byId) return byId;
+    // More than one by that name: not a guess, but the choice put back, with each one's place to tell them apart.
+    const path = (c: CanvasNode): string => { const up = all.find((x) => x.children.includes(c)); return up ? `${path(up)} / ${c.title}` : c.title; };
+    const pick = (hits: CanvasNode[]) => {
+      if (hits.length > 1) throw new Error(`${hits.length} canvases in ${p.name} answer to "${w}": ${hits.map((c) => `${path(c)} [${c.id}]`).join("; ")}. Ask the user which, then give its id.`);
+      return hits[0];
+    };
+    const hit = pick(all.filter((c) => c.title.toLowerCase() === l)) ?? pick(all.filter((c) => c.title.toLowerCase().includes(l)));
     if (!hit) throw new Error(`no canvas called ${w} in ${p.name}; it has ${all.map((c) => c.title).join(", ")}`);
     return hit;
   }
@@ -194,7 +202,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     {
       name: "talaris_canvas_read",
       description: "Read a canvas of a Talaris project: every item (notes, shapes, cards of people, tasks and events, child canvases) with its id, position, size and words, and the links between them. No canvas given: the one the canvas drawer shows, or the project's top canvas.",
-      inputSchema: { type: "object", properties: { project: { type: "string" }, canvas: { type: "string", description: "Its title or id." } } },
+      inputSchema: { type: "object", properties: { project: { type: "string" }, canvas: { type: "string", description: "Its title or id; if a title fits more than one, the answer lists them to ask the user." } } },
       annotations: { readOnlyHint: true, title: "Read a canvas" },
       run: async (a) => {
         const p = await project(a.project);
