@@ -22,7 +22,7 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call
+from core import Bridge, local_call, route_ok
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, Placement
 from overlay import Overlay
 from files import choose_files, send_files, send_project_files
@@ -44,7 +44,7 @@ class NewBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not ALLOWED.match(path):
+        if not route_ok(ALLOWED, path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route New uses"}}))
             return
 

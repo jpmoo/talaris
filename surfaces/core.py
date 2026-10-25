@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import os
 import socket
 import threading
@@ -25,6 +26,7 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 import hypr
+from views import log
 
 SOCKET = os.environ.get(
     "TALARIS_SOCKET",
@@ -74,6 +76,20 @@ def local_call(method: str, path: str, body: str | None, timeout: float | None =
     return call(method, path, body, **({"timeout": timeout} if timeout else {}))
 
 
+#: A path the core would read differently from how it is written — a dot
+#: segment, an escaped dot or slash, a backslash, a doubled slash — is never
+#: passed on: a filter that checks the written path could be walked past.
+_REWRITTEN = re.compile(r"(^|/)\.{1,2}(/|$)|%2e|%2f|%5c|\\|//", re.IGNORECASE)
+
+
+def route_ok(allowed, path: str) -> bool:
+    """Whether a page may ask for this path: one of its routes (anchored), and nothing the core would rewrite."""
+    if allowed is None or not isinstance(path, str) or not path.startswith("/"):
+        return False
+    where = path.split("?", 1)[0]
+    return not _REWRITTEN.search(where) and bool(allowed.match(path))
+
+
 class _Call(QRunnable):
     def __init__(self, bridge: "Bridge", rid: int, method: str, path: str, body: str | None) -> None:
         super().__init__()
@@ -109,8 +125,17 @@ class Bridge(QObject):
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(2)
 
+    #: The core routes a page held by this bridge may ask for, as one pattern; none, by default.
+    ROUTES: "re.Pattern | None" = None
+
     @Slot(int, str, str, str)
     def request(self, rid: int, method: str, path: str, body: str) -> None:
+        # Only the routes this page needs: a page that ever ran someone else's script must not reach the rest
+        # (installing a plugin, the vault, a plugin's settings).
+        if not route_ok(self.ROUTES, path):
+            log(f"bridge: refused {method} {path[:120]} from {type(self).__name__}")
+            self.replied.emit(rid, 403, json.dumps({"error": "not a route this page uses"}))
+            return
         self._pool.start(_Call(self, rid, method.upper(), path, body if body else None))
 
     @Slot()

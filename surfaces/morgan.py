@@ -38,7 +38,7 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge
+from core import Bridge, route_ok
 from layershell import ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 from overlay import Overlay
 from views import log, make_view, zoom
@@ -138,6 +138,10 @@ class Link(QObject):
             self.event.emit(text)
 
 
+#: Any path, for route_ok's check of what the core would rewrite (the routes themselves are ALLOWED's).
+_ANY = re.compile(r"^/")
+
+
 class MorganBridge(Bridge):
     """What Morgan's page asks of its host — the same as Morgan's own window answered, and the core for `@`."""
 
@@ -146,7 +150,7 @@ class MorganBridge(Bridge):
 
     @Slot(int, str, str, str)
     def request(self, rid: int, method: str, path: str, body: str) -> None:
-        if not any(m == method.upper() and r.fullmatch(path) for m, r in ALLOWED):
+        if not route_ok(_ANY, path) or not any(m == method.upper() and r.fullmatch(path) for m, r in ALLOWED):
             self.replied.emit(rid, 400, json.dumps({"error": "not a route Morgan's page uses"}))
             return
         super().request(rid, method, path, body)

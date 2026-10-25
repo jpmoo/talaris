@@ -34,8 +34,20 @@ const tal = async (method, path, body) => talaris("talaris/interchange", { metho
 let settings = {};
 function hermesBase() {
   const s = String(settings.server ?? "").trim().replace(/\/+$/, "");
-  if (!s) return "";
+  if (!s || !privateEnough(s)) return "";
   return /\/api$/.test(s) ? s : `${s}/api`;
+}
+/**
+ * The access key goes with every request, so the address must keep it to the
+ * two ends: https, or plain http only to this machine itself.
+ */
+function privateEnough(address) {
+  try {
+    const u = new URL(address);
+    return u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname));
+  } catch {
+    return false;
+  }
 }
 async function hermes(method, path, body) {
   const res = await fetch(`${hermesBase()}${path}`, {
@@ -122,9 +134,10 @@ const STATE_DIR = (process.env.TALARIS_PLUGIN_STATE || "").trim() || join((proce
 const STATE = join(STATE_DIR, "state.json");
 const fresh = () => ({ started: false, links: [], apart: [], only: [], mode: null, cursors: null, last: null });
 let state = (() => { try { return { ...fresh(), ...JSON.parse(readFileSync(STATE, "utf8")) }; } catch { return fresh(); } })();
+// What it keeps holds copies of synced titles and words: the person's alone to read.
 function save() {
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(`${STATE}.tmp`, JSON.stringify(state));
+  mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+  writeFileSync(`${STATE}.tmp`, JSON.stringify(state), { mode: 0o600 });
   renameSync(`${STATE}.tmp`, STATE);
 }
 
@@ -175,6 +188,8 @@ function sync(force = false) {
 }
 
 async function once(force) {
+  const given = String(settings.server ?? "").trim();
+  if (given && !privateEnough(given)) { await status("Not synced: the address must be https:// (the access key would travel unencrypted)"); return; }
   if (!hermesBase() || !settings.key) { await status("Needs the Hermes Notes address and access key"); return; }
   const s = words();
 

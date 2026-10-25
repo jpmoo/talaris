@@ -40,7 +40,10 @@ import power
 import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config, settle_accent, settle_opacity
-from core import Bridge, call as core_call
+from core import Bridge, call as core_call, route_ok
+
+#: What Settings may ask the core for.
+SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
 from sensor import Catcher
@@ -368,7 +371,7 @@ class SettingsBridge(Bridge):
         not freeze meanwhile. Only the store's own routes: this is not a door
         to the rest of the core.
         """
-        if not re.match(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)", path):
+        if not route_ok(SETTINGS_ROUTES, path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
             return
 

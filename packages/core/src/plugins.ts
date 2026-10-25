@@ -303,7 +303,7 @@ export function install(from: string, options: { replace?: boolean } = {}): Mani
   if (/^(https?:\/\/|git@|ssh:\/\/)/.test(source) || source.endsWith(".git")) {
     temp = mkdtempSync(join(tmpdir(), "talaris-plugin-"));
     try {
-      execFileSync("git", ["clone", "--depth", "1", source, join(temp, "src")], { stdio: "pipe", timeout: 120_000 });
+      execFileSync("git", ["clone", "--depth", "1", "--", source, join(temp, "src")], { stdio: "pipe", timeout: 120_000 });
     } catch (e) {
       rmSync(temp, { recursive: true, force: true });
       throw new Conflict(`could not clone it: ${String((e as { stderr?: Buffer }).stderr ?? (e as Error).message).trim().split("\n").pop()}`);

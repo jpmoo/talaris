@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { trusted } from "./entities.js";
 import { backupPlugins, restorePlugins, type PluginBackup } from "./plugins.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -187,7 +188,8 @@ export function reviveBackup(file: string, recoveryKey: string): { findings: Fin
   adopt(o.vault, recoveryKey);
   const after = storeKey();
   if (before && !before.equals(after)) resealProjects(before, after);
-  const result = importEnvelope(o.envelope);
+  // The person's own backup: its linked files are theirs, kept as links (entities.ts, `trusted`).
+  const result = trusted(() => importEnvelope(o.envelope));
   // After the things they refer to are back: a sync's state names them by id.
   const plugins = restorePlugins(o.plugins ?? []);
   return { ...result, safety, plugins };

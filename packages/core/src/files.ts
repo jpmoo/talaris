@@ -30,8 +30,8 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
-import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
-import { LINK, linkFile, toLink } from "./links.js";
+import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
+import { LINK, homeHolds, linkFile, real, toLink } from "./links.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
 import { Conflict, NotFound, findProject, listProjects } from "./projects.js";
 import { isSealedFile, readBytes } from "./store.js";
@@ -401,7 +401,11 @@ function inProject(projectId: string, rel: string): string {
   const { folder } = findProject(projectId);
   const parts = rel.split("/");
   if (parts.some((p) => !p || p === "." || p === ".." || p.includes("\0")) || parts[0] === MACHINERY) throw new Conflict("not a file of this project's");
-  return join(folder, ...parts);
+  const abs = join(folder, ...parts);
+  // A symlink in the folder that leads out of it is not the project's to rename, move or delete.
+  const root = real(folder), at = real(abs);
+  if (at !== root && !at.startsWith(root + "/")) throw new Conflict("not a file of this project's: it leads outside its folder");
+  return abs;
 }
 
 function cleanName(name: string): string {
@@ -429,7 +433,8 @@ function moved(fromAbs: string, toAbs: string): void {
       props[key] = Array.isArray(v) ? next : next[0];
       dirty = true;
     }
-    if (dirty) updateEntity(o.id, { properties: props });
+    // A link moved with its file: Talaris's own doing (entities.ts, `trusted`).
+    if (dirty) trusted(() => updateEntity(o.id, { properties: props }));
   }
   const from = placeOf(fromAbs), to = placeOf(toAbs);
   if (!from) return;
@@ -524,7 +529,7 @@ export function setFileTags(projectId: string, rel: string, tags: string[]): str
 
 const inHome = (path: string) => {
   const full = resolve(path.replace(/^~(?=$|\/)/, home()));
-  if (full !== home() && !full.startsWith(home() + "/")) throw new Conflict("a file in your home folder");
+  if (!homeHolds(full)) throw new Conflict("a file in your home folder");
   return full;
 };
 

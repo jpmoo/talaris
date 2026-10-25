@@ -19,6 +19,7 @@ by its state: mode `expanded` while out, with the insets that center it, and
 from __future__ import annotations
 
 import json
+import re
 
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
@@ -33,11 +34,19 @@ WIDE, TALL = 0.86, 0.80
 WIDEST = 1500
 
 
+
+class DrawerBridge(Bridge):
+    """The canvas's and the writing surface's bridge: the routes they and the canvas inside them use, and no others."""
+    ROUTES = re.compile(
+        r"^/(projects|entities|tasks|tags|mentionables|people/find)(/|$|\?)"
+        r"|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$"
+        r"|^/files/[0-9a-f]{64}$|^/files/unbacked$|^/meaning(\?|$)")
+
 class Workspace(Overlay):
     def __init__(self, name: str, profile: QWebEngineProfile, desktop) -> None:
         self.NAME = name
         self.TITLE = {"canvas": "Canvas", "writing": "Writing"}.get(name, name.title())
-        super().__init__(profile, desktop, f"talaris-ui://ui/drawer.html?drawer={name}", Bridge(None, None))
+        super().__init__(profile, desktop, f"talaris-ui://ui/drawer.html?drawer={name}", DrawerBridge(None, None))
         self.bridge.owner = self
         self.bridge.setParent(self)
 

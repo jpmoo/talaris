@@ -20,7 +20,7 @@ import threading
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call
+from core import Bridge, local_call, route_ok
 from overlay import Overlay
 
 #: What the page may ask the core for: the glance, and an entity's card.
@@ -33,7 +33,7 @@ class GlanceBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not ALLOWED.match(path) or method != "GET":
+        if not route_ok(ALLOWED, path) or method != "GET":
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route Glance uses"}}))
             return
 

@@ -47,7 +47,7 @@ network = ["your Hermes Notes server"]
 key = "server"
 label = "Hermes Notes address"
 kind = "text"
-help = "Where you open Hermes Notes, e.g. https://example.org/hermesnotes"
+help = "Where you open Hermes Notes, e.g. https://example.org/hermesnotes. https only: the access key goes with every request."
 
 [[settings]]
 key = "key"

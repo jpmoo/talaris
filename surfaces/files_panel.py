@@ -23,7 +23,7 @@ import threading
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call
+from core import Bridge, local_call, route_ok
 from files import choose_files
 from views import log
 from overlay import Overlay
@@ -51,7 +51,7 @@ class FilesBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not ALLOWED.match(path):
+        if not route_ok(ALLOWED, path):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route Files uses"}}))
             return
 

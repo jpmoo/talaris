@@ -694,6 +694,13 @@ function safely<T>(f: () => T, fallback: T): T {
 
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", "http://talaris");
+  // A path read differently from how it was written (a dot segment, an escaped dot or slash, a backslash)
+  // is refused: whatever let it through checked the written one.
+  const written = (req.url ?? "/").split("?")[0]!;
+  if (written !== url.pathname || /%2e|%2f|%5c/i.test(written)) {
+    send(res, 400, { error: "a path that does not say what it means" });
+    return;
+  }
   const path = url.pathname.split("/").map(decodeURIComponent).join("/");
   try {
     for (const [method, re, handler] of routes) {

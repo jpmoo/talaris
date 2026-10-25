@@ -20,7 +20,7 @@ import threading
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call
+from core import Bridge, local_call, route_ok
 from overlay import Overlay
 
 #: What the page may ask the core for: the archive, an archived project's pages and canvases, and bringing one back.
@@ -36,7 +36,7 @@ class ArchiveBridge(Bridge):
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
         writes = method == "POST" and path.endswith("/restore")
-        if not ALLOWED.match(path) or (method != "GET" and not writes):
+        if not route_ok(ALLOWED, path) or (method != "GET" and not writes):
             self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the archive uses"}}))
             return
 

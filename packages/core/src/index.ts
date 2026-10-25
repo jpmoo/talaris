@@ -10,7 +10,10 @@
  * cleanly so the next start finds nothing stale.
  */
 
-import { SOCKET, projectsRoot } from "./paths.js";
+import { chmodSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { CONFIG_DIR, SOCKET, STATE_DIR, projectsRoot } from "./paths.js";
+import { DATA_DIR } from "./vault.js";
 import { ensureHome } from "./projects.js";
 import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
@@ -20,7 +23,34 @@ import { startMeaning } from "./meaning.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
 
+/**
+ * Talaris's own folders, the person's alone: its settings (a plugin's choices,
+ * the backup folder), what it knows of the state of things (a sync's copies of
+ * synced words), and its store. Whatever made them, they are made so again at
+ * every start, and the files in the first two with them.
+ */
+function keepPrivate(): void {
+  for (const dir of [CONFIG_DIR, STATE_DIR, DATA_DIR]) {
+    try { mkdirSync(dir, { recursive: true, mode: 0o700 }); chmodSync(dir, 0o700); } catch { /* said when it is used */ }
+  }
+  const walk = (dir: string) => {
+    let names: string[] = [];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      const p = join(dir, n);
+      try {
+        const st = lstatSync(p);
+        if (st.isSymbolicLink()) continue;
+        if (st.isDirectory()) { chmodSync(p, 0o700); walk(p); } else chmodSync(p, st.mode & 0o700);
+      } catch { /* gone meanwhile */ }
+    }
+  };
+  walk(CONFIG_DIR);
+  walk(STATE_DIR);
+}
+
 async function main(): Promise<void> {
+  keepPrivate();
   const home = ensureHome();
   startSealing();
   startSchedule();

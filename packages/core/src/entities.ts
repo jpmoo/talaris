@@ -555,6 +555,44 @@ export function connections(id: string): { entity: Entity; out: Connection[]; in
 
 const now = () => new Date().toISOString();
 
+/*
+ * A linked file (links.ts) is an attachment saying where a file is on disk;
+ * whatever holds the link has the file read when it is looked at again, and
+ * its bytes handed to whoever may read the thing. So a link is made only by
+ * Talaris's own code — linking a file the person chose, moving one, putting
+ * one back — never taken from a write: a plugin, a sync or Morgan writing a
+ * task could otherwise name any file of the person's, and have it read and
+ * carried off. A write that carries a link the thing already had, unchanged,
+ * keeps it (a sync rewriting a task's files keeps their links).
+ */
+const LINK_MARKS = ["talaris:link", "talaris:missing"];
+let trustedDepth = 0;
+/** Writes made inside `f` may make links: Talaris's own linking, and a revived backup of the person's own. */
+export function trusted<T>(f: () => T): T {
+  trustedDepth++;
+  try { return f(); } finally { trustedDepth--; }
+}
+const isAttachment = (x: unknown): x is Record<string, unknown> => Boolean(x) && typeof x === "object" && (x as { kind?: unknown }).kind === "attachment";
+/** A write's properties, with any link it did not have before taken off. */
+function withoutNewLinks(props: Record<string, unknown> | undefined, before: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!props || trustedDepth > 0) return props;
+  const had = (key: string) => {
+    const v = before?.[key];
+    return (Array.isArray(v) ? v : v ? [v] : []).filter(isAttachment);
+  };
+  const clean = (key: string, x: unknown) => {
+    if (!isAttachment(x) || !LINK_MARKS.some((m) => m in x)) return x;
+    const link = x["talaris:link"] as { path?: unknown } | undefined;
+    const same = had(key).some((a) => a.sha256 === x.sha256 && (a["talaris:link"] as { path?: unknown } | undefined)?.path === link?.path);
+    if (same) return x;
+    const { ["talaris:link"]: _l, ["talaris:missing"]: _m, ...rest } = x;
+    return rest;
+  };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) out[k] = Array.isArray(v) ? v.map((x) => clean(k, x)) : clean(k, v);
+  return out;
+}
+
 export interface NewEntity {
   id?: string;
   type?: string;
@@ -575,7 +613,8 @@ export interface NewEntity {
 export function createEntity(input: NewEntity): Entity {
   const ix = load();
   if (input.id && ix.records.has(input.id)) return ix.records.get(input.id)!.object;
-  const { id, role, sources, properties, ...rest } = input;
+  const { id, role, sources, properties: given, ...rest } = input;
+  const properties = withoutNewLinks(given, undefined);
   const type = input.stub && !input.type && !role ? undefined : input.type ?? typeFor(role ?? "note").id;
   if (type && !ix.types.has(type)) throw new Conflict(`no type ${type}`);
   for (const s of sources ?? []) {
@@ -620,7 +659,8 @@ export function updateEntity(id: string, patch: Patch): Entity {
   if (patch.version !== undefined && patch.version !== o.version) {
     throw new Conflict(`entity ${id} has changed since version ${patch.version}`);
   }
-  const { properties, content, sources, version: _v, ...rest } = patch;
+  const { properties: given, content, sources, version: _v, ...rest } = patch;
+  const properties = withoutNewLinks(given, o.properties);
   const next: Entity = { ...o, ...rest, properties: { ...o.properties }, updated: now(), version: o.version + 1 };
   if (patch.type !== undefined && !ix.types.has(patch.type)) throw new Conflict(`no type ${patch.type}`);
   for (const [k, v] of Object.entries(properties ?? {})) {

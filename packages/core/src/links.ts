@@ -23,10 +23,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, extname, join, resolve } from "node:path";
-import { allRecords, forgetFiles, getEntity, getFile, putFile, types, updateEntity, type Entity } from "./entities.js";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { allRecords, forgetFiles, getEntity, getFile, putFile, trusted, types, updateEntity as storeUpdate, type Entity } from "./entities.js";
+/** Every write here makes or keeps links, which only this file and its callers may (entities.ts, `trusted`). */
+const updateEntity: typeof storeUpdate = (id, patch) => trusted(() => storeUpdate(id, patch));
 import { Conflict, NotFound } from "./projects.js";
 
 export const LINK = "talaris:link";
@@ -36,10 +38,26 @@ type Value = { kind: "attachment"; filename: string; mediaType?: string; sha256:
 
 const home = () => resolve(process.env.TALARIS_LINK_HOME ?? homedir());
 
-/** A path inside the home folder, resolved — or refused: a link reaches no further. */
+/** Where a path really is: through any symlink, as far as it exists; the rest as written. */
+export function real(path: string): string {
+  let at = path, rest = "";
+  for (;;) {
+    try { return join(realpathSync(at), rest); } catch { /* not there yet */ }
+    const up = dirname(at);
+    if (up === at) return path;
+    rest = join(basename(at), rest);
+    at = up;
+  }
+}
+/** Whether a path is in the home folder — really, through symlinks: a link reaches no further. */
+export function homeHolds(path: string): boolean {
+  const h = real(home()), full = real(resolve(path));
+  return full === h || full.startsWith(h + "/");
+}
+/** A path inside the home folder, resolved — or refused. */
 function inHome(path: string): string {
   const full = resolve(path.replace(/^~(?=$|\/)/, home()));
-  if (full !== home() && !full.startsWith(home() + "/")) throw new Conflict("a link points at a file in your home folder");
+  if (!homeHolds(full)) throw new Conflict("a link points at a file in your home folder");
   return full;
 }
 
@@ -98,7 +116,8 @@ export function refreshLinks(ids?: string[]): number {
       const next = list.map((a) => {
         const link = a[LINK];
         if (!link) return a;
-        if (!existsSync(link.path)) { if (a[MISSING]) return a; dirty = true; return { ...a, [MISSING]: true }; }
+        // A path outside the home folder (however it got there) is never read: taken as missing.
+        if (!homeHolds(link.path) || !existsSync(link.path)) { if (a[MISSING]) return a; dirty = true; return { ...a, [MISSING]: true }; }
         const st = statSync(link.path);
         if (st.size === link.size && st.mtimeMs === link.mtime && !a[MISSING]) return a;
         dirty = true;
@@ -117,7 +136,7 @@ export function linkedBytes(sha256: string): Buffer | null {
   for (const { object: o } of allRecords()) {
     for (const v of Object.values(o.properties ?? {})) {
       for (const a of valuesIn(v)) {
-        if (a.sha256 !== sha256 || !a[LINK] || !existsSync(a[LINK].path)) continue;
+        if (a.sha256 !== sha256 || !a[LINK] || !homeHolds(a[LINK].path) || !existsSync(a[LINK].path)) continue;
         const bytes = readFileSync(a[LINK].path);
         if (hashOf(bytes) === sha256) return bytes;
       }
@@ -223,7 +242,10 @@ export function restoreLinks(entityId: string): { restored: number; still: strin
       const bytes = getFile(a.sha256);
       if (!bytes) { still.push(a.filename); return a; }
       let path = link.path;
+      // Put back only inside the home folder, checked before any folder is made for it.
+      if (!homeHolds(path)) { still.push(a.filename); return a; }
       if (!existsSync(join(path, ".."))) path = join(fallbackFolder(entityId), basename(path));
+      if (!homeHolds(path)) { still.push(a.filename); return a; }
       if (existsSync(path)) {
         const ext = extname(path), stem = path.slice(0, path.length - ext.length);
         path = `${stem} (restored)${ext}`;

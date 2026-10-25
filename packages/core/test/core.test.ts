@@ -323,3 +323,11 @@ test("the socket answers, with errors that say what was wrong", async () => {
 test("a second core refuses to take a live socket", async () => {
   await assert.rejects(listen(SOCKET), /another talaris-core/);
 });
+
+test("a path the core would read differently from how it is written is refused, not followed", async () => {
+  for (const p of ["/files/../plugins/install", "/files/%2e%2e/vault", "/files/%2E%2E/vault", "/files/..%2fplugins", "/files/x%5c..%5cplugins"]) {
+    const r = await call("POST", p, {});
+    assert.equal(r.status, 400, p);
+  }
+  assert.equal((await call("GET", "/projects")).status, 200, "an ordinary path is answered");
+});
