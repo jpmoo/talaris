@@ -74,7 +74,10 @@
 
   const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder",
     unread: "Not read yet" };
-  const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "on a task", missing: "missing" };
+  // A row says only where its file really is, when that is not simply the project's folder: a shortcut, a link, a copy
+  // stored on a task, gone missing. A page is plain from its group (Writing) and Open; what it is on, and whether it is
+  // read, are the details' to say, not the list's.
+  const MARK = { shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "stored on a task", missing: "missing" };
   const TYPES = [["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
@@ -218,9 +221,7 @@
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
         ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
-        readState[r.key] === "waiting" ? el("span", { class: "mk unread", title: "Search has not read what it says yet: it will, in the background" }, "not read yet") : null,
         r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
-        r.on.length ? el("span", { class: "mk on", title: r.on.map((o) => o.title).join(", ") }, `on ${r.on.length === 1 ? r.on[0].title : `${r.on.length} things`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
