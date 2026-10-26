@@ -212,12 +212,18 @@ const TaskViews = (() => {
       return item([dot(s.color), s.label || v], () => setStatus(ctx, row.id, v), v === row.status ? "on" : "");
     });
   }
-  // A task's status, changed in place: a dot in its color that opens the menu.
+  /** A press on a status: the next in its type's order, after the last the first again (two statuses, a toggle). */
+  const nextStatus = (sh, v) => sh.options[(sh.options.indexOf(v) + 1) % sh.options.length];
+  // A task's status, changed in place: a dot in its color. A press moves it to the next status in its type's
+  // order (after the last, the first again: two statuses, a toggle); a right-click chooses one from the menu.
   function statusDot(ctx, sh, row) {
     if (row.status == null || !sh.options.length) return "";
     const s = ctx.status(row.status) || {};
-    const b = el("button", { class: "tv-sdot tv-nodrag", style: `--c:${s.color || "var(--muted)"}`, title: s.label || row.status });
-    b.addEventListener("click", (e) => { e.stopPropagation(); openPop(b, ...statusItems(ctx, sh, row)); });
+    const next = nextStatus(sh, row.status);
+    const b = el("button", { class: "tv-sdot tv-nodrag", style: `--c:${s.color || "var(--muted)"}`,
+      title: `${s.label || row.status} — press for ${(ctx.status(next) || {}).label || next}, right-click to choose` });
+    b.addEventListener("click", (e) => { e.stopPropagation(); setStatus(ctx, row.id, next); });
+    b.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); openPop(b, ...statusItems(ctx, sh, row)); });
     return b;
   }
 
@@ -535,8 +541,10 @@ const TaskViews = (() => {
       case "status": {
         if (row.status == null) break;
         const s = ctx.status(row.status) || {};
-        const chip = el("button", { class: "tv-status", style: `--c:${s.color || "var(--muted)"}` }, dot(s.color), s.label || row.status);
-        chip.addEventListener("click", (e) => { e.stopPropagation(); openPop(chip, ...statusItems(ctx, sh, row)); });
+        const next = nextStatus(sh, row.status);
+        const chip = el("button", { class: "tv-status", style: `--c:${s.color || "var(--muted)"}`, title: `Press for ${(ctx.status(next) || {}).label || next}, right-click to choose` }, dot(s.color), s.label || row.status);
+        chip.addEventListener("click", (e) => { e.stopPropagation(); setStatus(ctx, row.id, next); });
+        chip.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); openPop(chip, ...statusItems(ctx, sh, row)); });
         td.append(chip);
         break;
       }

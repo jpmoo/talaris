@@ -800,7 +800,8 @@
   }
 
   const isTask = (r) => Boolean(shape) && r.status !== undefined;
-  const nextOpen = (v) => { const o = openValues(); const i = o.indexOf(v); return o[i < 0 ? 0 : (i + 1) % o.length]; };
+  // A press on a status: the next in its type's order, after the last the first again (two statuses, a toggle).
+  const nextStatus = (v) => { const o = options(); return o[(o.indexOf(v) + 1) % o.length]; };
   function statusItems(r) {
     return options().map((v) => ({ label: status(v).label, color: status(v).color, on: v === r.status, act: () => setStatus(r.id, v).catch(failed) }));
   }
@@ -812,8 +813,8 @@
   }
   function chipEl(r) {
     const s = status(r.status);
-    return el("button", { class: "st", style: `--c:${s.color}`,
-      onclick: (e) => { e.stopPropagation(); setStatus(r.id, nextOpen(r.status)).catch(failed); },
+    return el("button", { class: "st", style: `--c:${s.color}`, title: `Press for ${status(nextStatus(r.status)).label}, right-click to choose`,
+      onclick: (e) => { e.stopPropagation(); setStatus(r.id, nextStatus(r.status)).catch(failed); },
       oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); menuAt(e.clientX, e.clientY, statusItems(r)); } }, s.label);
   }
   function metaEl(r) {
