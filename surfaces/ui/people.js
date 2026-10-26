@@ -742,7 +742,7 @@
 
   const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
   const OUT = { mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
-  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
+  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
   const lower = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   const FIRST = 20;
   const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);

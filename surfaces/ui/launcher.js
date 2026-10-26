@@ -43,7 +43,7 @@ const VERBS = [
 // where you go; windows are already open; files are many and come last.
 const WEIGHT = { project: 25, window: 15, canvas: 12, page: 12, app: 10, verb: 8, file: 0 };
 const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID",
-  task: "TASK", person: "PERSON", note: "NOTE", event: "EVENT" };
+  task: "TASK", person: "PERSON", note: "PAGE", event: "EVENT" };
 // Past conversations with Morgan for what is typed, asked for once typing
 // pauses: the query is embedded by Morgan, where it runs, never here. Shown
 // after what the launcher found itself, before the question to Morgan.
@@ -244,7 +244,7 @@ function draw() {
       if (!tagCache.has(t)) bridge.tagged(t, (text) => { tagCache.set(t, JSON.parse(text || "[]")); draw(); });
       const AS = { task: "task", contact: "person", event: "event" };
       shown = (tagCache.get(t) || []).map((x) => x.page
-        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Unaffiliated note" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
+        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Unaffiliated page" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
           act: { kind: "page", project: x.page.project, path: x.page.path } }
         : { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${(x.kinds || [])[0] || "thing"}`,
           act: { kind: "entity", id: x.id, as: AS[(x.kinds || []).find((k) => AS[k])] || "" } });
@@ -267,7 +267,7 @@ function draw() {
     const dayOf = (s) => new Date(s.length > 10 ? s : `${s}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const detail = (r) => r.kind === "task" ? (r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task")
       : r.kind === "person" ? "Person"
-      : r.kind === "note" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page")
+      : r.kind === "note" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
       : `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`;
     const row = (r, sub = detail(r)) => {
       ids.add(r.id || `${r.calendar}:${r.uid}`);
@@ -306,7 +306,7 @@ function draw() {
       if (have.has(`page:${r.title}`.toLowerCase()) || have.has(`entity:${r.title}`.toLowerCase())) continue;
       // A file by what it says: one in a folder opened from there; one only on things, in Glance with them. An event, in Glance too.
       if (r.kind === "file" && !(r.key.startsWith("file:p:") && r.path)) continue;
-      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page")
+      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
         : { task: "Task", person: "Person", file: "File", event: "Event" }[r.kind] || "Thing";
       shown.push({ kind: r.kind === "file" ? "file" : "page", key: `meaning:${r.key}`, title: r.title, sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
         act: r.kind === "page" ? { kind: "page", project: r.project, path: r.path } : r.kind === "file" ? { kind: "file", project: r.project, path: r.path }

@@ -776,8 +776,8 @@ function pageHeading() {
   if (!open) return "";
   if (scope === "daily" && isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
-    // Said for what it is, the day's own note: "Daily note for Sunday, October 25, 2026" — and, away from Home, whose.
-    return `Daily note for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
+    // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
+    return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
   return `${scope === "undated" ? "Unaffiliated · " : ""}${open.split("/").join(" / ")}`.toUpperCase();
 }
@@ -819,11 +819,11 @@ async function loadWriting() {
   };
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const tabs = el("div", { class: "wtabs", role: "tablist" },
-    tab("project", inHome() ? "Home" : state.project.name, "This project's own notes"),
-    tab("daily", "Daily", "Home's daily notes"),
-    tab("undated", "Unaffiliated", "Notes that belong to no project — the same from every project"));
+    tab("project", inHome() ? "Home" : state.project.name, "This project's own pages"),
+    tab("daily", "Daily", "Home's daily pages"),
+    tab("undated", "Unaffiliated", "Pages that belong to no project — the same from every project"));
   // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
-  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily notes — not ", el("b", {}, state.project.name), "'s")
+  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, state.project.name), "'s")
     : "";
   const tree = el("div", { class: "tree" + (scope !== "project" && !(scope === "daily" && inHome()) ? " away" : "") },
     tabs, whose,
@@ -832,7 +832,7 @@ async function loadWriting() {
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
-      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No unaffiliated notes yet" : "No pages yet"));
+      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No unaffiliated pages yet" : "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:

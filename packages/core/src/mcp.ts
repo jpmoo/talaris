@@ -94,7 +94,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const TOOLS: Tool[] = [
   {
     name: "talaris_find",
-    description: "Find people, events, notes, tasks and projects kept in Talaris by words in their title or text. Returns each with its id, for talaris_read.",
+    description: "Find people, events, pages, tasks and projects kept in Talaris by words in their title or text. Returns each with its id, for talaris_read.",
     inputSchema: { type: "object", properties: {
       query: { type: "string", description: "Words to look for; empty lists the most likely." },
       kind: { type: "string", enum: ["person", "event", "note", "task", "project"], description: "Only this kind." },
@@ -110,7 +110,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_context",
-    description: "Everything Talaris knows around some words: the people, tasks, notes, events and projects that hold them, and for each one they name (\"Rich\" names Rich Gelson), everything connected to it — the tasks that mention him, the notes about him, the meetings he was at — though those never say the words. Use it first for \"what do I have on…\", \"anything about…\", or to know the background before answering about a person, project or event.",
+    description: "Everything Talaris knows around some words: the people, tasks, pages, events and projects that hold them, and for each one they name (\"Rich\" names Rich Gelson), everything connected to it — the tasks that mention him, the notes about him, the meetings he was at — though those never say the words. Use it first for \"what do I have on…\", \"anything about…\", or to know the background before answering about a person, project or event.",
     inputSchema: { type: "object", properties: { query: { type: "string", description: "A name or a few words." } }, required: ["query"] },
     annotations: { readOnlyHint: true, title: "Context from Talaris" },
     run: async (a) => {
@@ -172,18 +172,18 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_read",
-    description: "Read one Talaris entity and everything connected to it, both ways: an event's attendees and organizer, the events and notes a person turns up in, what a project holds, the notes linked to anything.",
+    description: "Read one Talaris entity and everything connected to it, both ways: an event's attendees and organizer, the events and pages a person turns up in, what a project holds, the notes linked to anything.",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
     annotations: { readOnlyHint: true, title: "Read from Talaris" },
     run: async (a) => describe(await core<Read>("GET", `/entities/${encodeURIComponent(str(a.id))}`)),
   },
   {
     name: "talaris_create",
-    description: "Make a new person, event, note, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email. A note made here belongs to no project: a note in a project (\"a note in this project\") is one of its writing pages — talaris_page_write.",
+    description: "Make a new person, event, page, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email. What the user calls a note is a page: one made here is an unaffiliated page (of no project); a page in a project (\"a note in this project\") is made with talaris_page_write.",
     inputSchema: { type: "object", properties: {
-      kind: { type: "string", enum: ["person", "event", "note", "task", "project"] },
+      kind: { type: "string", enum: ["person", "event", "page", "task", "project"] },
       title: { type: "string" },
-      body: { type: "string", description: "A note's text, in Markdown." },
+      body: { type: "string", description: "A page's words, in Markdown." },
       email: { type: "string", description: "A person's email." },
     }, required: ["kind", "title"] },
     annotations: { readOnlyHint: false, title: "Create in Talaris" },
@@ -192,8 +192,14 @@ const TOOLS: Tool[] = [
         const p = await core<{ id: string }>("POST", "/entities/person", { email: str(a.email), name: str(a.title) });
         return `${str(a.title)} [${p.id}]`;
       }
+      // A page — a note, as it may be asked for — is an unaffiliated page: written where those are, as the writing drawer makes one.
+      if (a.kind === "page" || a.kind === "note") {
+        const page = await core<{ path: string }>("POST", "/projects/notes/pages", { parent: null, title: str(a.title) });
+        if (a.body) await core("PUT", `/projects/notes/page?path=${encodeURIComponent(page.path)}`, str(a.body));
+        return `Made the unaffiliated page ${page.path} (project "notes", path "${page.path}")`;
+      }
       const role = ROLE[str(a.kind)];
-      if (!role) throw new Error("kind is person, event, note, task or project");
+      if (!role) throw new Error("kind is person, event, page, task or project");
       const properties: Record<string, unknown> = { title: str(a.title) };
       if (a.body) properties.body = str(a.body);
       const made = await core<{ id: string }>("POST", "/entities", { role, properties });
@@ -202,7 +208,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_connect",
-    description: "Connect one Talaris entity to another — a note to the person or event it is about, a task to its project. Talaris files it where that kind of thing declares such a link.",
+    description: "Connect one Talaris entity to another — a page to the person or event it is about, a task to its project. Talaris files it where that kind of thing declares such a link.",
     inputSchema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" } }, required: ["from", "to"] },
     annotations: { readOnlyHint: false, title: "Connect in Talaris" },
     run: async (a) => {
@@ -212,7 +218,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_update",
-    description: "Change fields of a Talaris entity: a title, a note's body, a person's notes, a task's status (todo, doing, done). Only the fields given change; a field set to an empty string is removed.",
+    description: "Change fields of a Talaris entity: a title, a page's body, a person's notes, a task's status (todo, doing, done). Only the fields given change; a field set to an empty string is removed.",
     inputSchema: { type: "object", properties: {
       id: { type: "string" },
       fields: { type: "object", description: "Field names and their new values, e.g. {\"notes\": \"Prefers mornings\"}." },
@@ -386,7 +392,7 @@ async function answer(m: Message): Promise<void> {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
         capabilities: { tools: { listChanged: true } },
         serverInfo: { name: "talaris", version: "0.1.0" },
-        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: talaris_context for everything around a name or some words, talaris_find to look one up, talaris_read for one thing whole, talaris_suggestions for what one might be tied to and is not, talaris_file_read for what a file says. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
+        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), pages (writing — what the user may call notes), tasks and projects, all connected: talaris_context for everything around a name or some words, talaris_find to look one up, talaris_read for one thing whole, talaris_suggestions for what one might be tied to and is not, talaris_file_read for what a file says. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
       });
     case "ping":
       return reply(m.id, {});

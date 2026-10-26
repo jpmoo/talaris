@@ -32,7 +32,7 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* fine */ } },
   };
 
-  const KINDS = [["task", "Task"], ["event", "Event"], ["contact", "Person"], ["note", "Note"], ["project", "Project"]];
+  const KINDS = [["task", "Task"], ["event", "Event"], ["contact", "Person"], ["note", "Page"], ["project", "Project"]];
   let bridge = null;
   let surface = { up: false };
   let kind = store.get("talaris.new.kind", "task");
@@ -510,7 +510,7 @@
       label: `${x.name}${x.id === surface.project ? " · here" : ""}`, on: x.id === v.project, act: () => { v.project = x.id; paint(); } }))) },
       p ? p.name : "Choose a project");
     return [
-      row("Note", line("title", "Its title", { big: true, spell: true })),
+      row("Page", line("title", "Its title", { big: true, spell: true })),
       row("Project", pick),
       row("", writing("body", "Write — @ to link, or drop a file in", { body: true, files: TalarisFiles(api, () => v.project, () => bridge) })),
       // Kept in the project's Files/ when the note is made, and linked at its end.
@@ -790,9 +790,9 @@
         const body = [String(v.body || "").trimEnd(), kept.files.map(linkOf).join(" ")].filter(Boolean).join("\n\n");
         const page = await api("POST", `/projects/${enc(v.project)}/pages`, { parent: null, title });
         if (body.trim()) await api("PUT", `/projects/${enc(v.project)}/page?path=${enc(page.path)}`, body);
-        if (kept.error) { busy = false; say(`Note made, but: ${kept.error}`, true); return; }
+        if (kept.error) { busy = false; say(`Page made, but: ${kept.error}`, true); return; }
         const where = (projectList.find((x) => x.id === v.project) || {}).name;
-        done(`Note made${where && v.project !== surface.project ? ` in ${where}` : ""}`, andOpen ? () => bridge.openThing("page", `${v.project}/${page.path}`) : null);
+        done(`Page made${where && v.project !== surface.project ? ` in ${where}` : ""}`, andOpen ? () => bridge.openThing("page", `${v.project}/${page.path}`) : null);
         return;
       }
       const t = typeFor(kind);

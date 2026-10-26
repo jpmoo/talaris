@@ -1174,6 +1174,18 @@ imports — the same import as any other, so every revival is also a test that
 the round trip loses nothing. Project folders are not in it: they are folders,
 for whatever already backs up folders.
 
+### Pages, not notes (2026-10-26)
+
+**What is written is a page, everywhere it is named.** A project's pages, the
+unaffiliated pages (of no project), Home's daily pages; New makes a page;
+Glance, the cards and the launcher group and label them as pages, whatever
+kind of thing stands for them underneath (`note` stays the format's profile
+name, and the unaffiliated pages' place is still `notes` on disk and in the
+API). Morgan is told the user may say "note" and means a page, and a note it
+is asked to make is an unaffiliated page. Hermes Notes' own word is kept when
+its side is meant. Still called notes, being something else: a field of notes
+on a task, an event or a person; a note card on a canvas; Morgan's memory.
+
 ### Context, Glance on anything, and suggested ties (2026-10-26)
 
 **The launcher is context, not only words.** What was typed finds what holds

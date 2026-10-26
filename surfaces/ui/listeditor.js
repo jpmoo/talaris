@@ -150,7 +150,7 @@
   // What the type says it has, read from the fields' kinds — never their
   // names. A datespan is two dates, its halves under the labels it gives them.
 
-  const PROFILES = [["task", "Task"], ["note", "Note"], ["contact", "Person"], ["event", "Event"], ["project", "Project"]];
+  const PROFILES = [["task", "Task"], ["note", "Page"], ["contact", "Person"], ["event", "Event"], ["project", "Project"]];
   const fieldLabel = (f) => (f.label && String(f.label).trim()) || pretty(f.key);
   function kindOf(f) {
     if (["date", "datetime"].includes(f.kind)) return "date";

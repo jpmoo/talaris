@@ -6,7 +6,7 @@
 id = "hermes-sync"
 name = "Hermes Notes sync"
 version = "0.1.0"
-description = "Keeps tasks, projects, people, unaffiliated notes, daily notes and collections, with their attachments, in step with Hermes Notes."
+description = "Keeps tasks, projects, people, unaffiliated pages, daily pages and collections, with their attachments, in step with Hermes Notes."
 author = "Jeff Moore"
 license = "GPL-3.0-only"
 command = ["node", "main.mjs"]
@@ -89,25 +89,25 @@ help = "Talaris keeps whole address books; Everyone sends them all to Hermes Not
 
 [[settings]]
 key = "notes"
-label = "Notes"
+label = "Unaffiliated pages"
 kind = "choice"
-choices = ["Off", "All notes", "Only those with these tags"]
+choices = ["Off", "All pages", "Only those with these tags"]
 default = "Off"
-help = "Talaris's unaffiliated notes (those of no project) and Hermes Notes' notes (not its daily pages). Where a note sits among Talaris's unaffiliated notes stays in Talaris."
+help = "Talaris's unaffiliated pages (those of no project) and Hermes Notes' notes (not its daily pages). Where a page sits among Talaris's unaffiliated pages stays in Talaris."
 
 [[settings]]
 key = "noteTags"
-label = "Note tags"
+label = "Page tags"
 kind = "text"
 default = "talaris"
-help = "For Only those with these tags: comma-separated. A note on either side takes part by wearing one — in Talaris, tag it in the writing drawer."
+help = "For Only those with these tags: comma-separated. A page on either side takes part by wearing one — in Talaris, tag it in the writing drawer."
 
 [[settings]]
 key = "dailyNotes"
-label = "Daily notes"
+label = "Daily pages"
 kind = "boolean"
 default = false
-help = "Talaris's daily notes (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
+help = "Talaris's daily pages (Home's) and Hermes Notes' daily pages, paired by their day. A day with no words is not made on the other side. Hermes Notes takes a day only once it has a daily page of its own (open Today there once)."
 
 [[settings]]
 key = "collections"

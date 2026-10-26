@@ -13,7 +13,7 @@
 "use strict";
 
 window.Peek = (() => {
-  const KIND = { contact: "Person", event: "Event", task: "Task", note: "Note", project: "Project" };
+  const KIND = { contact: "Person", event: "Event", task: "Task", note: "Page", project: "Project" };
   // A link read from the far end, in words: a person is invited to the event that lists them.
   const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
   // A link read from this end: an event's attendees are invited; what a page mentions is mentioned.
@@ -112,7 +112,7 @@ window.Peek = (() => {
     return go ? el("button", { class: cls, title: "What it is tied to, and might be", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
   }
   // What a card's links are grouped by: what the other thing is.
-  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
+  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   const FIRST = 20;
   const ARCHIVED = "In archived projects";

@@ -91,12 +91,13 @@
   // The header's order for the chips; the list's own order differs (LIST_ORDER), as asked.
   const GROUPS = [
     ["page", "Pages"], ["canvas", "Canvases"], ["task", "Tasks"], ["file", "Files"], ["contact", "People"],
-    ["event", "Events"], ["note", "Notes"], ["project", "Projects"], ["other", "Other"],
+    ["event", "Events"], ["project", "Projects"], ["other", "Other"],
   ];
-  const LIST_ORDER = ["page", "canvas", "task", "file", "note", "event", "contact", "project", "other"];
+  const LIST_ORDER = ["page", "canvas", "task", "file", "event", "contact", "project", "other"];
   const NAME = Object.fromEntries(GROUPS);
   const KNOWN = new Set(GROUPS.map(([k]) => k));
-  const groupOf = (n) => (KNOWN.has(n.kind) ? n.kind : "other");
+  // A note is a page, wherever it is written: one group, one name.
+  const groupOf = (n) => (n.kind === "note" ? "page" : KNOWN.has(n.kind) ? n.kind : "other");
   // The middle: the project as the glance opens, or the thing walked to.
   const isRoot = (n) => Boolean(data && n.key === data.root);
 
@@ -784,7 +785,7 @@
   // ---------------------------------------------------------------- suggested ties
 
   // The core's kinds for a suggestion, as the glance's.
-  const SUG_KIND = { person: "contact", page: "page", note: "note", task: "task", event: "event", file: "file", project: "project" };
+  const SUG_KIND = { person: "contact", page: "page", note: "page", task: "task", event: "event", file: "file", project: "project" };
   /** A node for a key not in the glance: enough to walk to it and open it. */
   function nodeFor(s) {
     const body = s.key.slice(s.key.indexOf(":") + 1);
