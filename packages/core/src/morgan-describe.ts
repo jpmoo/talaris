@@ -20,16 +20,20 @@ const SOCKET = () => process.env.HEYMORGAN_SOCKET || join(process.env.XDG_RUNTIM
 /** Larger than this is not sent: a picture that size is a photograph, and Morgan's side reads it whole. */
 const LARGEST = 20 * 1024 * 1024;
 
-export function morganDescribe(bytes: Buffer, name: string): Promise<string | null> {
+export function morganDescribe(bytes: Buffer, _name: string): Promise<string | null> {
   if (bytes.length > LARGEST) return Promise.resolve("");
   return new Promise((ok) => {
     const chunks: Buffer[] = [];
     let done = false;
     const finish = (v: string | null) => { if (!done) { done = true; ok(v); } };
-    const sock = createConnection(SOCKET());
+    const sock = createConnection({ path: SOCKET(), allowHalfOpen: false });
     sock.setTimeout(240_000, () => { sock.destroy(); finish(null); });
     sock.on("error", () => finish(null));
-    sock.on("data", (c) => chunks.push(c));
+    sock.on("data", (c) => {
+      chunks.push(c);
+      // One line of answer, then Morgan closes; taken as soon as it is whole.
+      if (c.includes(10)) sock.end();
+    });
     sock.on("end", () => {
       try {
         const r = JSON.parse(Buffer.concat(chunks).toString("utf8").trim().split("\n").pop() || "{}") as { ok?: boolean; text?: string; error?: string };
@@ -37,6 +41,7 @@ export function morganDescribe(bytes: Buffer, name: string): Promise<string | nu
         finish(r.ok ? String(r.text ?? "").trim() : null);
       } catch { finish(null); }
     });
-    sock.on("connect", () => sock.end(`describe ${JSON.stringify({ image: bytes.toString("base64"), question: `It is a file called ${name}.` })}\n`));
+    // Written, and the connection left open: Morgan drops one half-closed before it answers.
+    sock.on("connect", () => sock.write(`describe ${JSON.stringify({ image: bytes.toString("base64") })}\n`));
   });
 }
