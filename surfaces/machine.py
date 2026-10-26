@@ -23,7 +23,9 @@ import os
 import re
 import time
 import shutil
+import signal
 import subprocess
+import threading
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
@@ -161,6 +163,65 @@ POWER = {
     "restart": ("systemctl", "reboot"),
     "shutdown": ("systemctl", "poweroff"),
 }
+
+#: The verbs that end the session: before them, every app is asked to quit, so each saves itself.
+ENDING = {"logout", "restart", "shutdown"}
+#: How long apps are given to quit when asked, then to close a window when asked that.
+QUIT_S, CLOSE_S = 10.0, 5.0
+
+
+def _apps() -> list[dict]:
+    """Every app window but Talaris's own (this process's, and its own windows)."""
+    import hypr
+    try:
+        clients = json.loads(hypr.ask("j/clients"))
+    except (OSError, ValueError):
+        return []
+    me = os.getpid()
+    return [c for c in clients if c.get("pid", 0) > 1 and c["pid"] != me and c.get("mapped", True)
+            and not str(c.get("class") or c.get("initialClass") or "").startswith("talaris")]
+
+
+def _gone(wait: float) -> list[dict]:
+    """The app windows still open after waiting up to `wait` seconds for them to go."""
+    until = time.monotonic() + wait
+    left = _apps()
+    while left and time.monotonic() < until:
+        time.sleep(0.3)
+        left = _apps()
+    return left
+
+
+def end_session(verb: str) -> list[str]:
+    """
+    Every app asked to quit before the session ends — log out, restart, shut
+    down — so it saves itself as it does when quit by hand: a browser its
+    windows and tabs, an editor its state. Ending the session under them
+    (`hyprctl dispatch exit`, `systemctl poweroff`) took the display away
+    first, and each went down as a crash, saving nothing.
+
+    First each app as a whole, by its process (SIGTERM: a browser's Quit, all
+    its windows together, where closing them one by one would drop all but
+    the last from what it brings back); then any window still open, asked to
+    close as its × does. One still there after both is waiting on a question
+    (unsaved changes): the session is not ended under it — its name is
+    answered, and the person deals with it and asks again.
+    """
+    import hypr
+    for pid in {c["pid"] for c in _apps()}:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    left = _gone(QUIT_S)
+    for c in left:
+        hypr.ask(f"/dispatch closewindow address:{c['address']}")
+    left = _gone(CLOSE_S) if left else []
+    if left:
+        return sorted({str(c.get("class") or c.get("title") or "an app") for c in left})
+    _detach(*POWER[verb])
+    return []
+
 
 #: The settings the bar hands off rather than rebuilds.
 #: Morgan's command, for signing the Oracle in and out where it can ask in a terminal.
@@ -363,8 +424,19 @@ class Machine(QObject):
         self.refresh()
 
     def power(self, verb: str) -> None:
-        if verb in POWER:
+        if verb not in POWER:
+            return
+        if verb not in ENDING:
             _detach(*POWER[verb])
+            return
+        # Apps first (end_session), off the screen's thread; one that will not go is said, and nothing ends.
+        def run() -> None:
+            held = end_session(verb)
+            if held:
+                word = {"logout": "Log out", "restart": "Restart", "shutdown": "Shut down"}[verb]
+                _detach("notify-send", "--app-name=Talaris", "--urgency=critical", f"{word} waits",
+                        f"Still open: {', '.join(held)} — it may be asking to save. Close it, then {word.lower()} again.")
+        threading.Thread(target=run, daemon=True).start()
 
     def open_tool(self, name: str) -> None:
         """A setting handed off: its own tool, in the user's terminal."""
