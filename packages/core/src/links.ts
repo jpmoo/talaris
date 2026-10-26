@@ -22,8 +22,9 @@
  * link off; the file stays where it is.
  */
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { allRecords, forgetFiles, getEntity, getFile, putFile, trusted, types, updateEntity as storeUpdate, type Entity } from "./entities.js";
@@ -176,6 +177,72 @@ function find(entityId: string, sha256: string): { o: Entity; key: string; list:
   return { o, key, list, at };
 }
 
+/** A path not taken in `dir`: the name as it is, or "name 2", "name 3"… */
+function freePath(dir: string, filename: string): string {
+  const ext = extname(filename), stem = filename.slice(0, filename.length - ext.length) || "attachment";
+  let path = join(dir, filename);
+  for (let n = 2; existsSync(path); n++) path = join(dir, `${stem} ${n}${ext}`);
+  return path;
+}
+
+/** Every thing's link to `from`, pointed at `to` instead (a file moved: what links it follows). */
+function relink(from: string, to: string): void {
+  const st = statSync(to);
+  for (const r of allRecords()) {
+    const o = r.object;
+    for (const [key, v] of Object.entries(o.properties ?? {})) {
+      const list = valuesIn(v);
+      if (!list.some((a) => a[LINK]?.path === from)) continue;
+      updateEntity(o.id, { properties: { [key]: list.map((a) => (a[LINK]?.path === from
+        ? { ...a, filename: basename(to), [LINK]: { path: to, size: st.size, mtime: st.mtimeMs } } : a)) } });
+    }
+  }
+}
+
+/**
+ * A linked file moved into a folder (the thing's project's), and every link
+ * to it following — the file is the same file, somewhere else. Already in
+ * that folder, nothing moves.
+ */
+export function moveLinked(entityId: string, sha256: string, folder: string): Value {
+  const { list, at } = find(entityId, sha256);
+  const link = list[at]![LINK];
+  if (!link) throw new Conflict("it is stored on the thing, not linked: save it to the folder instead");
+  const from = inHome(link.path);
+  if (!existsSync(from)) throw new NotFound(`${basename(from)} is missing from its folder`);
+  const dir = inHome(folder);
+  if (dirname(from) === dir) return list[at]!;
+  mkdirSync(dir, { recursive: true });
+  const to = freePath(dir, basename(from));
+  // Across disks a rename cannot: copied, then the old one removed.
+  try { renameSync(from, to); } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EXDEV") throw e;
+    copyFileSync(from, to);
+    unlinkSync(from);
+  }
+  relink(from, to);
+  return find(entityId, sha256).list.find((a) => a.sha256 === sha256)!;
+}
+
+/**
+ * A linked file deleted — put in the Trash, as Files deletes (`gio trash`),
+ * so it can be brought back from there — and taken off the thing. Anything
+ * else linking it finds it missing at its next look.
+ */
+export function trashLinked(entityId: string, sha256: string): void {
+  const { key, list, at } = find(entityId, sha256);
+  const link = list[at]![LINK];
+  if (!link) throw new Conflict("it is stored on the thing, not linked: remove it from the thing instead");
+  const full = inHome(link.path);
+  if (existsSync(full)) {
+    try { execFileSync("gio", ["trash", full], { timeout: 15000 }); } catch (e) {
+      throw new Conflict(`could not put it in the Trash: ${String((e as { stderr?: Buffer }).stderr ?? (e as Error).message).trim()}`);
+    }
+  }
+  updateEntity(entityId, { properties: { [key]: list.filter((_, i) => i !== at) } });
+  refreshLinks();
+}
+
 /** A link made a copy: its contents kept, as they are now, and the link let go. The file itself is untouched. */
 export function toSnapshot(entityId: string, sha256: string): Value {
   const { key, list, at } = find(entityId, sha256);
@@ -202,9 +269,7 @@ export function toLink(entityId: string, sha256: string, folder: string): Value 
   if (!bytes) throw new NotFound(`${a.filename} is not held, so there is nothing to save`);
   const dir = inHome(folder);
   mkdirSync(dir, { recursive: true });
-  const ext = extname(a.filename), stem = a.filename.slice(0, a.filename.length - ext.length) || "attachment";
-  let path = join(dir, a.filename);
-  for (let n = 2; existsSync(path); n++) path = join(dir, `${stem} ${n}${ext}`);
+  const path = freePath(dir, a.filename);
   writeFileSync(path, bytes);
   const st = statSync(path);
   const linked: Value = { kind: "attachment", filename: basename(path), ...(a.mediaType ? { mediaType: a.mediaType } : {}), sha256: a.sha256,

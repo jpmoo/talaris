@@ -607,6 +607,12 @@ route("POST", "/entities/:id/attachments/:sha/link", async (req, [id, sha]) => {
   const b = await json<{ folder?: string }>(req);
   return links.toLink(id!, sha!, b.folder || filesFolderFor(id!));
 });
+// A linked file moved into the thing's project's folder (every link to it following), or deleted to the Trash.
+route("POST", "/entities/:id/attachments/:sha/move", async (req, [id, sha]) => {
+  const b = await json<{ folder?: string }>(req);
+  return links.moveLinked(id!, sha!, b.folder || filesFolderFor(id!));
+});
+route("POST", "/entities/:id/attachments/:sha/trash", (_r, [id, sha]) => { links.trashLinked(id!, sha!); return { ok: true }; });
 // Missing linked files put back from held copies (links.ts, restoreLinks); and what is in no folder.
 route("POST", "/entities/:id/links/restore", (_r, [id]) => links.restoreLinks(id!));
 route("GET", "/files/unbacked", () => links.unbacked());

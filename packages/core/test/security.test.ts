@@ -3,7 +3,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -73,4 +73,25 @@ test("a symlink in a project's folder that leads out is not the project's to ren
   symlinkSync(sandbox, join(p.folder, "out"));
   assert.throws(() => files.renameFile(p.id, "out/secret.key", "taken.key"), /outside its folder/);
   assert.throws(() => files.trashFile(p.id, "out/secret.key"), /outside its folder/);
+});
+
+test("a linked file moved into the project's folder: the file moves, and every link to it follows", () => {
+  const elsewhere = join(HOME, "Downloads");
+  mkdirSync(elsewhere, { recursive: true });
+  const file = join(elsewhere, "brief.txt");
+  writeFileSync(file, "the brief");
+  const a = tasks.createTask({ title: "One" }), b = tasks.createTask({ title: "Two" });
+  const v = links.linkFile(a.id, file);
+  links.linkFile(b.id, file);
+  const into = join(HOME, "Projects", "Here", "Files");
+  mkdirSync(join(into, ".."), { recursive: true });
+  writeFileSync(join(elsewhere, "..", "placeholder"), "");
+  mkdirSync(into, { recursive: true });
+  writeFileSync(join(into, "brief.txt"), "another file of that name");
+  const moved = links.moveLinked(a.id, v.sha256 as string, into);
+  const at = (moved["talaris:link"] as { path: string }).path;
+  assert.equal(at, join(into, "brief 2.txt"), "beside one of the same name, never over it");
+  assert.equal(existsSync(file), false);
+  assert.equal((attachments(b.id)[0]!["talaris:link"] as { path: string }).path, at, "the other task's link followed");
+  assert.throws(() => links.moveLinked(a.id, v.sha256 as string, sandbox), /home folder/, "never out of home");
 });

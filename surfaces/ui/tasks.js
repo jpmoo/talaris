@@ -915,9 +915,9 @@
 
   // ---------------------------------------------------------------- the task's sheet
 
-  function filesNote(text, error = false) {
+  function filesNote(text, error = false, ...more) {
     const n = $("s-files-note");
-    if (n) { n.textContent = text; n.className = error ? "err" : ""; }
+    if (n) { n.replaceChildren(text, ...more); n.className = error ? "err" : ""; }
   }
 
   function openTask(id) {
@@ -949,6 +949,8 @@
   }
   // The folder of the project the task is filed under: a file linked from inside it is the project's.
   let taskFolder = "";
+  // Set while a task's files are drawn: the note offering to move those linked from another folder into this project's.
+  let offerMove = null;
   const props = () => (entity && entity.properties) || {};
   const focused = (id) => document.activeElement === $(id);
   const spanNow = () => (shape && shape.spanKey ? props()[shape.spanKey] : null) || {};
@@ -1023,13 +1025,30 @@
         return taskFolder && link.path.startsWith(taskFolder.replace(/\/$/, "") + "/") ? "project" : "elsewhere";
       };
       const dirOf = (p) => p.replace(/\/[^/]*$/, "").replace(/^\/home\/[^/]+/, "~");
+      const projectName = taskFolder.replace(/\/$/, "").split("/").pop() || "this project";
+      const attachment = (a, verb) => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/${verb}`, {}).then(after).catch(failed);
+      // Each asks once more in a menu of its own where it was pressed: what will happen, said, and keeping it as it is.
+      const confirmAt = (x, y, label, act) => menuAt(x, y, [{ label, act }, { label: "Keep it as it is", act: () => {} }]);
+      const askMove = (x, y, a) => confirmAt(x, y, `Move “${a.filename}” from ${dirOf(a["talaris:link"].path)} into ${projectName}'s folder`, () => attachment(a, "move"));
+      const askTrash = (x, y, a) => confirmAt(x, y, `Delete “${a.filename}” from ${dirOf(a["talaris:link"].path)} (to the Trash)`, () => attachment(a, "trash"));
+      offerMove = () => {
+        const away = files.filter((a) => placeOf(a) === "elsewhere" && !a["talaris:missing"]);
+        if (!away.length) return;
+        const b = el("button", { class: "t-btn", onclick: (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          confirmAt(r.left, r.bottom + 4, `Move ${away.length === 1 ? `“${away[0].filename}”` : `these ${away.length} files`} into ${projectName}'s folder`,
+            () => Promise.all(away.map((a) => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/move`, {}))).then(after).catch(failed));
+        } }, "Move into this project's folder…");
+        filesNote(`Linked from ${dirOf(away[0]["talaris:link"].path)}${away.length > 1 ? " and elsewhere" : ""}. `, false, b);
+      };
       const fileMenu = (e, a) => {
         e.preventDefault();
         e.stopPropagation();
         const link = a["talaris:link"];
-        const toTask = { label: "Store on this task only", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) };
+        const toTask = { label: "Store on this task only", act: () => attachment(a, "snapshot") };
         menuAt(e.clientX, e.clientY, link ? [
           ...(a["talaris:missing"] ? [] : [toTask]),
+          ...(placeOf(a) === "elsewhere" && !a["talaris:missing"] ? [{ label: "Move into this project's folder…", act: () => askMove(e.clientX, e.clientY, a) }] : []),
           { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
         ] : [
           { label: "Save to this project's folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
@@ -1045,10 +1064,20 @@
             : where === "project" ? `${a.filename} — in this project's folder (${dirOf(link.path)})`
             : `${a.filename} — linked from ${dirOf(link.path)}`;
           // Removing one stored on the task only deletes it: the × asks once more ("Delete?") before it does.
+          // One in a folder: taken off the task, the file staying where it is — or, asked again, deleted to the Trash.
           let armed = 0;
-          const x = el("button", { title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task (the file stays in its folder)", onclick: (e) => {
+          const x = el("button", { title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task, or delete the file", onclick: (e) => {
             e.stopPropagation();
-            if (where === "task" && !armed) {
+            if (where !== "task") {
+              const r = e.currentTarget.getBoundingClientRect();
+              menuAt(r.left, r.bottom + 4, [
+                { label: `Take off the task — it stays in ${where === "project" ? `${projectName}'s folder` : dirOf(link.path)}`,
+                  act: () => api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed) },
+                ...(missing ? [] : [{ label: "Delete the file…", act: () => askTrash(r.left, r.bottom + 4, a) }]),
+              ]);
+              return;
+            }
+            if (!armed) {
               x.textContent = "Delete?";
               x.classList.add("arming");
               armed = setTimeout(() => { armed = 0; x.textContent = "×"; x.classList.remove("arming"); }, 3000);
@@ -1356,7 +1385,11 @@
     // Files chosen and kept (or why not): the open task drawn again with them.
     b.attached.connect((text) => {
       const r = JSON.parse(text);
-      if (r.task === editing) loadEditing().then(() => filesNote(r.error || "", Boolean(r.error))).catch(failed);
+      if (r.task === editing) loadEditing().then(() => {
+        filesNote(r.error || "", Boolean(r.error));
+        // Linked from another folder: offered a move into this project's, then and there.
+        if (r.linked && !r.error && offerMove) offerMove();
+      }).catch(failed);
       refresh();
     });
     b.leave.connect(() => {

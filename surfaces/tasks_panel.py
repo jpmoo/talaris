@@ -141,7 +141,7 @@ class Tasks(Overlay):
                     errors.append(f"{os.path.basename(path)}: {json.loads(text).get('error', '')}")
                 except ValueError:
                     errors.append(os.path.basename(path))
-        self.bridge.attached.emit(json.dumps({"task": task, "added": added, "error": "; ".join(errors)}))
+        self.bridge.attached.emit(json.dumps({"task": task, "added": added, "linked": True, "error": "; ".join(errors)}))
 
     def choose_wallpaper(self, project: str) -> None:
         """A picture for a project, from the desktop's chooser (the panel steps aside for it)."""
