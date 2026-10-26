@@ -561,9 +561,8 @@ class Desktop(QObject):
         if move:
             back = self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
             hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
+        # Already there (an app opened, a window focused): nothing to say — the flash is for arriving.
         if found["id"] == self.project.get("id"):
-            if announce:
-                self.say_where(found)
             return
         self.project = found
         self.jump.went(found["id"])
