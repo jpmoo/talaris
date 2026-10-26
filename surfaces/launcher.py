@@ -423,6 +423,15 @@ class Launcher(QObject):
         if self.kept(app_id):
             return
         mine = self._app_windows(app_id)
+        # Its choice for when it is open in another project (the dock's menu): a new window here, or it brought or gone to.
+        choice = self.desktop.dock.elsewhere(app_id)
+        now = hypr.windows()
+        if choice and mine and not any(w["workspace"] == now["active"] for w in mine):
+            if choice == "new":
+                self.desktop.dock.new_window(app_id)
+            else:
+                self._bring(app_id, (now["active"], now["activeTarget"]), go=(choice == "go") != there)
+            return
         # One that keeps a single window, open elsewhere: brought here, or gone to —
         # as Settings says (Keys, Launcher), or its exception; Shift+Enter the other.
         go = (not self.brings(app_id)) != there

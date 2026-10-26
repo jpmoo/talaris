@@ -27,6 +27,13 @@ corner, a press brings forward the window showing it or opens it there, and
 its tip says what it is and what it opens in. Which document a window shows is
 looked for, not guessed (docs.py); where it cannot be told, nothing is offered.
 
+**Open only in another project**, a press does as its menu says: opens a
+new window here, brings its window here, or goes to it. Unchosen, an
+application whose desktop file has a "new window" action (a browser, a
+terminal) opens a new window here; the rest follow the rule in Settings. The
+menu also lists each of its windows on every desktop, with its project, to go
+to one, and opens a new window here.
+
 **Kept in a project**: anything pinned can be (its menu, "Keep in this
 project"). Pressed in another project, its project is gone to and it is shown
 or opened there, never brought to where you are; the launcher and an app's
@@ -53,7 +60,7 @@ from PySide6.QtWidgets import QApplication
 
 import docs
 import hypr
-from apps import Apps, new_window_command
+from apps import Apps, keeps_one_window, new_window_command, opens_new_windows
 from config import save_config
 from core import Bridge, call
 from layershell import (
@@ -144,7 +151,24 @@ class DockMenu(QObject):
 
     def describe(self) -> dict:
         item = self.dock.items.get(self.key, {})
-        return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"]}
+        return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
+                "everywhere": self.everywhere, "elsewhere": self.dock.elsewhere(self.key) if self.key else "",
+                "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
+                "oneWindow": bool(self.key and keeps_one_window(self.key))}
+
+    #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
+    everywhere: list = []
+
+    def _everywhere(self, key: str) -> list:
+        now = hypr.windows()
+        desks = {x["id"]: x["name"] for x in now.get("workspaces", [])}
+        out = []
+        for w in sorted(now["windows"], key=lambda w: w["recent"]):
+            if _key(self.dock.apps.lookup(w["class"]), w["class"]) != key:
+                continue
+            out.append({"address": w["address"], "title": w["title"], "hidden": w["hidden"], "here": w["workspace"] == now["active"],
+                        "project": self.dock._project_name(desks.get(w["workspace"], "")) if desks.get(w["workspace"]) else ""})
+        return out
 
     def open(self, key: str, x: int) -> None:
         if key not in self.dock.items:
@@ -153,11 +177,14 @@ class DockMenu(QObject):
         # The document its last-used window shows, if one can be told: offered to pin.
         item = self.dock.items[key]
         self.found = None
+        self.everywhere = [] if item.get("doc") else self._everywhere(key)
         if not item.get("doc") and item["windows"]:
             w = item["windows"][0]
             self.found = docs.document_of(w, self.dock.apps.lookup(w["class"]))
         screen = QApplication.primaryScreen().geometry()
-        w, h = zoom(MENU[0]), zoom(MENU[1])
+        # Taller by a row for each window listed (two or more), up to ten.
+        rows = len(self.everywhere) + 1 if len(self.everywhere) > 1 else 0
+        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 11) + 120)
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
@@ -183,6 +210,15 @@ class DockMenu(QObject):
     def act(self, verb: str, key: str) -> None:
         found = self.found
         self.file_away()
+        if verb.startswith("go:"):
+            # One of its windows, chosen from the list: shown, or gone to where it is (its project with it).
+            address = verb[3:]
+            w = next((x for x in hypr.windows()["windows"] if x["address"] == address), None)
+            if w and w["hidden"]:
+                hypr.show(address)
+            elif w:
+                hypr.focus(address)
+            return
         if verb in ("doc-here", "doc-all") and found:
             item = self.dock.items.get(key, {})
             self.dock.pin_doc(found, item.get("id", ""), "here" if verb == "doc-here" else "all")
@@ -377,6 +413,29 @@ class Dock(QObject):
 
     # ------------------------------------------------------------ what it does
 
+    def elsewhere(self, key: str) -> str:
+        """
+        What a press does with an application open in another project and not
+        here (the menu's choice for it): `bring` its window here, `go` to it,
+        or open a `new` window here. Unchosen, an application its desktop
+        file says opens new windows (a "new window" action: a browser, a
+        terminal) opens a new one here; any other follows the rule in Settings
+        ("") — most say nothing either way, and are taken as keeping one.
+        """
+        chosen = self.desktop.config["dock"].get("elsewhere", {}).get(key, "")
+        if chosen:
+            return chosen
+        return "new" if not key.startswith(("doc:", "class:")) and opens_new_windows(key) else ""
+
+    def new_window(self, app_id: str) -> None:
+        """A new window of an application, here: by its own "new window" action where it has one (a browser's), else started again."""
+        fresh = new_window_command(app_id)
+        if fresh:
+            args = [a for a in fresh if not (a.startswith("%") and len(a) == 2)]
+            hypr.ask(f"/dispatch exec {' '.join(shlex.quote(a) for a in args)}")
+        elif self.apps.is_launchable(app_id):
+            hypr.ask(f"/dispatch exec gtk-launch {shlex.quote(app_id)}")
+
     def press(self, key: str) -> None:
         """A press: the window last used; again, the next; a pin with nothing open is started."""
         item = self.items.get(key)
@@ -386,6 +445,18 @@ class Dock(QObject):
         if not windows and item.get("keptIn") and not item.get("keptHere"):
             self.go_kept(item)
             return
+        # Open only in another project: as its menu says — brought here, gone to, or a new window here.
+        choice = self.elsewhere(key)
+        # (A hidden window counts as here: pressed, it is shown.)
+        if choice and item["id"] and not item.get("doc") and not any(w.get("here") or w["hidden"] for w in windows):
+            if choice == "new":
+                self.new_window(item["id"])
+                return
+            mine = self.desktop.launcher._app_windows(item["id"])
+            if mine:
+                now = hypr.windows()
+                self.desktop.launcher._bring(item["id"], (now["active"], now["activeTarget"]), go=choice == "go")
+                return
         if not windows:
             if item.get("doc"):
                 self.call_doc(item)
@@ -462,8 +533,16 @@ class Dock(QObject):
         elif verb == "close-all":
             for w in item["windows"]:
                 hypr.close(w["address"])
-        elif verb == "new" and item["id"] and self.apps.is_launchable(item["id"]):
-            hypr.ask(f"/dispatch exec gtk-launch {item['id']}")
+        elif verb == "new" and item["id"]:
+            self.new_window(item["id"])
+        elif verb.startswith("elsewhere-") and item["id"] and not item.get("doc"):
+            # Its choice for when it is open in another project; "elsewhere-rule" back to Settings' rule.
+            choice = verb[len("elsewhere-"):]
+            chosen = {k: v for k, v in cfg.get("elsewhere", {}).items() if k != key}
+            if choice in ("bring", "go", "new"):
+                chosen[key] = choice
+            cfg["elsewhere"] = chosen
+            save_config(self.desktop.config)
         if verb == "unpin":
             # Unpinned, its exception goes with it.
             cfg["stays"] = {k: v for k, v in cfg.get("stays", {}).items() if k != key}

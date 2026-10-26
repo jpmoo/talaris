@@ -316,6 +316,15 @@ Along the bottom: open applications, grouped by the project whose workspace
 they are on, and the projects that are live. Click to go; the count of live
 windows per project is the same number pruning acts on.
 
+**Another project's apps** (2026-10-26) are drawn fainter and greyer, their
+tip naming the project. One open only in another project does, when pressed,
+what its menu chooses — a new window here, its window brought here, or gone
+to — the default being a new window here for an app whose desktop file says
+it opens new windows (a browser, a terminal), and the rule in Settings for
+the rest, which are taken as keeping one. Its menu lists every window of it
+on every desktop, with its project, to go to one; and opens a new window
+here. The launcher keeps to the same choice.
+
 ### The launcher
 
 An overlay with exclusive keyboard while it is up. One box, everything:
