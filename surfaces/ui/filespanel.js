@@ -107,7 +107,8 @@
   // ---------------------------------------------------------------- loading
 
   async function loadProjects() {
-    projects = await api("GET", "/projects");
+    // The unaffiliated pages too: a place of their own (the core's `notes`), listed after the projects; moved to, never.
+    projects = [...await api("GET", "/projects"), { id: "notes", name: "Unaffiliated pages", code: "", pagesOnly: true }];
   }
 
   async function load() {
@@ -341,7 +342,7 @@
       // No browser pickers on a layer surface: the projects as buttons, the one chosen lit.
       const to = { value: r.project };
       const picks = el("div", { class: "pick-list" });
-      const drawPicks = () => picks.replaceChildren(...projects.map((p) => el("button", { class: `t-btn${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
+      const drawPicks = () => picks.replaceChildren(...projects.filter((p) => !p.pagesOnly).map((p) => el("button", { class: `t-btn${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
       drawPicks();
       const folders = [...new Set(rows.filter((x) => x.project === r.project && x.path).map(whereOf).filter(Boolean))].sort();
       const list = el("datalist", { id: "folders" }, ...folders.map((f) => el("option", { value: f })));
@@ -352,7 +353,7 @@
     } else if (what === "also") {
       // A shortcut in each project chosen: the file stays where it is, and is in all of them.
       const taken = new Set([r.project, ...(r.alsoIn || []), ...(r.livesIn ? [r.livesIn.project] : [])]);
-      const left = projects.filter((p) => !taken.has(p.id));
+      const left = projects.filter((p) => !taken.has(p.id) && !p.pagesOnly);
       host.replaceChildren(left.length ? el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/shortcut", { project: p.id, path: r.abs })
         .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name)))
         : el("span", { class: "hint" }, "It is in every project already."));

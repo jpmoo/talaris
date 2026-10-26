@@ -33,7 +33,7 @@ import { basename, dirname, extname, join, relative, resolve, sep } from "node:p
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
 import { LINK, homeHolds, linkFile, real, toLink } from "./links.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
-import { Conflict, NotFound, findProject, listProjects } from "./projects.js";
+import { Conflict, NotFound, findProject, listProjects, UNDATED, notesFolder } from "./projects.js";
 import { isSealedFile, readBytes } from "./store.js";
 import { cleanTags } from "./tags.js";
 
@@ -156,7 +156,9 @@ function settle(ix: ProjectIndex): void {
 /** Every project in use, indexed and watched; one archived or gone, let go. */
 export function watchProjects(): void {
   const now = new Set<string>();
-  for (const p of listProjects()) {
+  // The unaffiliated pages' folder too (projects.ts, `notes`): pages of no project, but files on disk all the same.
+  const places = [...listProjects().map((p) => ({ id: p.id, folder: p.folder })), ...(existsSync(notesFolder()) ? [{ id: UNDATED, folder: notesFolder() }] : [])];
+  for (const p of places) {
     now.add(p.id);
     const had = indexes.get(p.id);
     if (had && had.root === p.folder) continue;
@@ -287,7 +289,8 @@ function allRows(only?: string): FileRow[] {
     if (only && ix.id !== only) continue;
     if (!ix.watched) scan(ix);
     for (const [rel, seen] of ix.files) {
-      const page = rel.startsWith(`${WRITING}/`) && rel.endsWith(".md");
+      // A page: in a project's Writing; anywhere in the unaffiliated pages' folder.
+      const page = rel.endsWith(".md") && (ix.id === UNDATED || rel.startsWith(`${WRITING}/`));
       const abs = join(ix.root, rel);
       rows.set(`p:${ix.id}/${rel}`, { key: `p:${ix.id}/${rel}`, project: ix.id, name: basename(rel), path: rel, abs, type: page ? "document" : typeOfName(rel),
         size: seen.size, mtime: new Date(seen.mtime).toISOString(), status: [page ? "page" : "folder"], on: [], tags: [],
