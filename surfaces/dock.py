@@ -186,8 +186,10 @@ class DockMenu(QObject):
             self.found = docs.document_of(w, self.dock.apps.lookup(w["class"]))
         screen = QApplication.primaryScreen().geometry()
         # Taller by a row for each window listed (two or more), up to ten.
-        rows = len(self.everywhere) + 1 if len(self.everywhere) > 1 else 0
-        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 11) + 120)
+        # A row for each window listed (two or more), and one for each place they are grouped under.
+        places = {"hidden" if x["hidden"] else "here" if x["here"] else x["project"] for x in self.everywhere}
+        rows = len(self.everywhere) + len(places) + 1 if len(self.everywhere) > 1 else 0
+        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120)
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
@@ -382,6 +384,10 @@ class Dock(QObject):
             shown = [w for w in item["windows"] if not w["hidden"]]
             item["away"] = bool((item.get("keptIn") and not item.get("keptHere") and not any(w["here"] for w in item["windows"]))
                                 or (shown and not any(w["here"] for w in shown)))
+            # Each window elsewhere says where, for the tip.
+            for w in shown:
+                if not w["here"] and desks.get(w["workspace"]):
+                    w["project"] = self._project_name(desks[w["workspace"]])
             if item["away"]:
                 where = [item["keptIn"]] if item.get("keptIn") and not item.get("keptHere") else []
                 where += [desks.get(w["workspace"], "") for w in shown]

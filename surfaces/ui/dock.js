@@ -20,13 +20,19 @@ function item(app, pinned) {
   const b = el("button", "bar-item app");
   b.dataset.key = app.key;
   b.dataset.pinned = pinned ? "1" : "";
-  const titles = app.windows.map((w) => w.title).filter(Boolean);
+  // A window elsewhere, where: "Mail (Home)" — only when some are here, else the project leads the tip.
+  const titles = app.windows.filter((w) => w.title).map((w) => (w.project && !app.away ? `${w.title.length > 26 ? `${w.title.slice(0, 25)}…` : w.title} (${w.project})` : w.title));
   // A document says what it is and what it opens in; an application, its windows.
   if (app.doc) b.title = `${app.name} — ${app.appName || "opens by default"}${app.doc.missing ? " (not found)" : ""}`;
-  else b.title = titles.length ? `${app.name} — ${titles.join(" · ")}` : app.name;
+  else {
+    // Its project first (another's), then its windows' titles, each cut short, three at most: long titles hid the project.
+    const cut = (t) => (t.length > 32 ? `${t.slice(0, 31)}…` : t);
+    const shown = titles.slice(0, 3).map(cut).join(" · ") + (titles.length > 3 ? ` · and ${titles.length - 3} more` : "");
+    b.title = [app.name, app.away && app.awayIn && app.awayIn.length ? `in ${app.awayIn.join(", ")}` : "", shown].filter(Boolean).join(" — ");
+  }
   // Another project's, said by name: where it is kept, or the desktops its windows are on.
-  if (app.away && app.awayIn && app.awayIn.length) b.title += ` — in ${app.awayIn.join(", ")}`;
-  else if (app.keptIn && !app.keptHere) b.title += " — kept in another project";
+  if (app.doc && app.away && app.awayIn && app.awayIn.length) b.title += ` — in ${app.awayIn.join(", ")}`;
+  else if (app.keptIn && !app.keptHere && !app.away) b.title += " — kept in another project";
   b.classList.toggle("doc", !!app.doc);
   b.classList.toggle("missing", !!(app.doc && app.doc.missing));
   // Every window hidden: the item stays, dimmed, until shown again.

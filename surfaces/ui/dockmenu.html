@@ -18,7 +18,8 @@ html, body { height: 100%; }
 body[data-edge="top"] .menu { bottom: auto; top: 6px; }
 .menu-item[hidden] { display: none !important; }
 .menu-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.menu-item .where { color: var(--muted); margin-left: 6px; font-size: .9em; }
+#wins .hint.sub { padding-top: 4px !important; letter-spacing: 1px; text-transform: none; }
+.menu-item.win { padding-left: 1.6em !important; }
 .menu-item.on::before { content: "✓"; display: inline-block; width: 1.2em; margin-left: -1.2em; color: var(--accent); }
 .menu-item.choice { padding-left: 1.6em !important; }
 #wins:empty, #wins-hint[hidden], #choose[hidden] { display: none; }
@@ -108,17 +109,23 @@ function onState(s) {
   // Every window of it, on every desktop, each with its project: one pressed is gone to. Only when there are two or more.
   const all = s.everywhere || [];
   const list = document.getElementById("wins");
-  list.replaceChildren(...(all.length > 1 ? all : []).map((w) => {
-    const b = document.createElement("button");
-    b.className = "menu-item";
-    b.append(document.createTextNode(w.title || it.name || "Window"));
-    const where = document.createElement("span");
-    where.className = "where";
-    where.textContent = w.hidden ? "hidden" : w.here ? "here" : w.project || "another desktop";
-    b.append(where);
-    b.title = `${w.title} — ${w.here ? "here" : w.project || "another desktop"}`;
-    b.addEventListener("click", () => bridge && bridge.act(`go:${w.address}`, key));
-    return b;
+  // Grouped by where they are: here first, then each other project by name, the hidden last.
+  const groups = new Map();
+  const whereOf = (w) => (w.hidden ? "Hidden" : w.here ? "Here" : w.project || "Another desktop");
+  for (const w of all.length > 1 ? all : []) groups.set(whereOf(w), [...(groups.get(whereOf(w)) || []), w]);
+  const order = [...groups.keys()].sort((a, b) => (a === "Here" ? -1 : b === "Here" ? 1 : a === "Hidden" ? 1 : b === "Hidden" ? -1 : a.localeCompare(b)));
+  list.replaceChildren(...order.flatMap((where) => {
+    const head = document.createElement("div");
+    head.className = "hint sub";
+    head.textContent = where;
+    return [head, ...groups.get(where).map((w) => {
+      const b = document.createElement("button");
+      b.className = "menu-item win";
+      b.textContent = w.title || it.name || "Window";
+      b.title = `${w.title} — ${where}`;
+      b.addEventListener("click", () => bridge && bridge.act(`go:${w.address}`, key));
+      return b;
+    })];
   }));
   document.getElementById("wins-hint").hidden = all.length < 2;
   document.getElementById("wins-sep").hidden = all.length < 2;
