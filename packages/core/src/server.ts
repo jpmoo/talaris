@@ -243,6 +243,15 @@ route("GET", "/files", (_r, _p, q) => {
   return { ...got, ...meaning.fileReadStates(got.rows) };
 });
 route("GET", "/files/version", () => ({ version: files.filesVersion() }));
+// Linked folders (files.ts): what one holds, before linking it; linked, and watched; no longer watched; those watched.
+route("GET", "/files/folder", (_r, _p, q) => { const f = files.folderFiles(need(q, "path")); return { folder: f.folder, count: f.paths.length, most: f.most }; });
+route("POST", "/files/folder", async (req) => {
+  const b = await json<{ project?: string; path?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("a folder, and the project to link it into");
+  return files.linkFolder(b.project, b.path);
+});
+route("DELETE", "/files/folder", (_r, _p, q) => { files.unlinkFolder(need(q, "project"), need(q, "path")); return { ok: true }; });
+route("GET", "/files/folders", (_r, _p, q) => files.foldersLinked(q.get("project") || undefined));
 route("GET", "/files/ignored", (_r, _p, q) => files.ignoredIn(need(q, "project")));
 route("POST", "/files/rename", async (req) => {
   const b = await json<{ project?: string; path?: string; name?: string }>(req);

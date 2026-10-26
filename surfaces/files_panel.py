@@ -24,7 +24,7 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge, local_call, route_ok
-from files import MOST_FROM_A_FOLDER, choose_files, choose_folder, files_under
+from files import choose_files, choose_folder
 from views import log
 from overlay import Overlay
 
@@ -145,16 +145,8 @@ class FilesPanel(Overlay):
         choose_files(self, "Files to bring in", lambda paths: self.bridge.chosen.emit(json.dumps(paths)))
 
     def choose_folder(self) -> None:
-        """A whole folder: every file in it and its subfolders, found off the screen's thread, handed to the page to link."""
-        def got(folder: str) -> None:
-            if not folder:
-                return
-            def run() -> None:
-                paths = files_under(folder)
-                self.bridge.chosen.emit(json.dumps({"folder": os.path.basename(folder.rstrip("/")) or folder, "paths": paths,
-                                                    "most": len(paths) >= MOST_FROM_A_FOLDER}))
-            threading.Thread(target=run, daemon=True).start()
-        choose_folder(self, "A folder to bring in", got)
+        """A whole folder, handed to the page: the core looks in it, links it, and watches it (files.ts, linked folders)."""
+        choose_folder(self, "A folder to link", lambda folder: folder and self.bridge.chosen.emit(json.dumps({"folder": folder})))
 
     def opened(self) -> None:
         self.desktop.bar.changed()

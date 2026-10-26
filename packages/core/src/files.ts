@@ -31,10 +31,12 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
-import { LINK, homeHolds, linkFile, real, toLink } from "./links.js";
+import { LINK, homeHolds, linkFile, real, refreshLinks, toLink } from "./links.js";
+import { seal, unseal } from "./seal.js";
+import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
 import { Conflict, NotFound, findProject, listProjects, UNDATED, notesFolder } from "./projects.js";
-import { isSealedFile, readBytes } from "./store.js";
+import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
 
 const MISSING = "talaris:missing";
@@ -175,7 +177,11 @@ let started: NodeJS.Timeout | null = null;
 export function startWatching(): void {
   if (started) return;
   watchProjects();
-  started = setInterval(() => { try { watchProjects(); } catch { /* a project unreadable for now */ } }, 60_000);
+  started = setInterval(() => {
+    try { watchProjects(); } catch { /* a project unreadable for now */ }
+    // Files linked from elsewhere, and folders linked whole: changes, and new files, taken up.
+    try { watchLinked(); } catch { /* the store locked for now */ }
+  }, 60_000);
   started.unref();
 }
 export function stopAll(): void {
@@ -550,6 +556,112 @@ export function makeShortcut(projectId: string, path: string): FileRow {
   linkFile(e.id, abs);
   version++;
   return listFiles({ project: projectId }).rows.find((r) => r.entity === e.id)!;
+}
+
+// ------------------------------------------------------------ linked folders
+
+/*
+ * A folder linked into a project (Files, Add from elsewhere, A folder): every
+ * file in it and its folders a shortcut there — hidden ones and programs'
+ * machinery aside — and the folder remembered and looked at again now and
+ * then, so a file put in it later is linked too. Kept sealed, beside the
+ * entities: which folders, and for which projects, is the person's own.
+ */
+const LINKED_FOLDERS = () => join(DATA_DIR, "linked-folders.sealed");
+const SKIP_DIRS = new Set(["node_modules", "__pycache__", ".git", "venv", ".venv", "dist", "build", "target"]);
+export const MOST_FROM_A_FOLDER = 2000;
+
+function linkedFolders(): Record<string, string[]> {
+  if (!existsSync(LINKED_FOLDERS())) return {};
+  try { return JSON.parse(unseal(storeKey(), readFileSync(LINKED_FOLDERS())).toString("utf8")) as Record<string, string[]>; } catch { return {}; }
+}
+function saveLinkedFolders(l: Record<string, string[]>): void {
+  writeAtomic(LINKED_FOLDERS(), seal(storeKey(), JSON.stringify(l)));
+}
+
+/** Every file in a folder and its folders, but hidden ones and programs' machinery: at most MOST_FROM_A_FOLDER. */
+export function folderFiles(path: string): { folder: string; paths: string[]; most: boolean } {
+  const dir = inHome(path);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) throw new NotFound(`no folder at ${dir}`);
+  const out: string[] = [];
+  const walkDir = (d: string) => {
+    let names: string[] = [];
+    try { names = readdirSync(d).sort(); } catch { return; }
+    for (const name of names) {
+      if (out.length >= MOST_FROM_A_FOLDER || name.startsWith(".") || name.endsWith(".tmp") || name.endsWith("~")) continue;
+      const full = join(d, name);
+      try {
+        const st = statSync(full);
+        if (st.isDirectory()) { if (!SKIP_DIRS.has(name)) walkDir(full); }
+        else if (st.isFile()) out.push(full);
+      } catch { /* gone between listing and looking */ }
+    }
+  };
+  walkDir(dir);
+  return { folder: dir, paths: out, most: out.length >= MOST_FROM_A_FOLDER };
+}
+
+/** Shortcuts in a project to each of these files not already there or in its folder: how many made, how many not. */
+export function linkPaths(projectId: string, paths: string[]): { made: number; skipped: number } {
+  findProject(projectId);
+  const have = new Set<string>();
+  for (const { object: o } of allRecords()) {
+    const p = o[SHORTCUT] === projectId ? valuesIn(o.properties.file)[0]?.[LINK]?.path : undefined;
+    if (p) have.add(p);
+  }
+  let made = 0, skipped = 0;
+  for (const path of paths) {
+    try {
+      const abs = inHome(path);
+      if (have.has(abs) || placeOf(abs)?.project === projectId || !existsSync(abs) || !statSync(abs).isFile()) { skipped++; continue; }
+      const e = createEntity({ type: typeFor("file").id, properties: { title: basename(abs) }, [SHORTCUT]: projectId });
+      linkFile(e.id, abs);
+      have.add(abs);
+      made++;
+    } catch { skipped++; }
+  }
+  if (made) version++;
+  return { made, skipped };
+}
+
+/** A folder linked into a project: what is in it linked now, and it watched from now on. */
+export function linkFolder(projectId: string, path: string): { folder: string; made: number; skipped: number; most: boolean } {
+  findProject(projectId);
+  const { folder, paths, most } = folderFiles(path);
+  const l = linkedFolders();
+  l[projectId] = [...new Set([...(l[projectId] ?? []), folder])];
+  saveLinkedFolders(l);
+  return { folder, most, ...linkPaths(projectId, paths) };
+}
+
+/** A folder no longer watched for a project. Its shortcuts stay; nothing new is linked from it. */
+export function unlinkFolder(projectId: string, path: string): void {
+  const l = linkedFolders();
+  l[projectId] = (l[projectId] ?? []).filter((f) => f !== path);
+  if (!l[projectId].length) delete l[projectId];
+  saveLinkedFolders(l);
+  version++;
+}
+
+/** The folders watched for a project (or every project's). */
+export function foldersLinked(projectId?: string): { project: string; folder: string; exists: boolean }[] {
+  return Object.entries(linkedFolders()).filter(([p]) => !projectId || p === projectId)
+    .flatMap(([project, folders]) => folders.map((folder) => ({ project, folder, exists: existsSync(folder) })));
+}
+
+/**
+ * Looked at again: every linked file (changed: its new contents' hash, which
+ * search reads again; gone: missing), and every linked folder (a file new in
+ * it: linked). Answers how many things changed.
+ */
+export function watchLinked(): number {
+  let changed = refreshLinks();
+  for (const { project, folder, exists } of foldersLinked()) {
+    if (!exists) continue;
+    try { if (!listProjects().some((p) => p.id === project)) continue; changed += linkPaths(project, folderFiles(folder).paths).made; } catch { /* unreadable for now */ }
+  }
+  if (changed) version++;
+  return changed;
 }
 
 /** A shortcut taken away: the record, never the file. */

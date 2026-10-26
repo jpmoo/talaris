@@ -31,28 +31,6 @@ OPENED = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()
 LARGEST = 48 * 1024 * 1024
 
 
-#: Folders not looked into when a whole folder is brought in: the machinery of programs, not anyone's files.
-SKIP_DIRS = {"node_modules", "__pycache__", ".git", "venv", ".venv", "dist", "build", "target"}
-#: At most this many files from one folder.
-MOST_FROM_A_FOLDER = 2000
-
-
-def files_under(folder: str) -> list[str]:
-    """Every file in a folder and its subfolders, but hidden ones and programs' machinery, by name."""
-    out: list[str] = []
-    for root, dirs, files in os.walk(folder):
-        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS)
-        for name in sorted(files):
-            if name.startswith(".") or name.endswith((".tmp", "~")):
-                continue
-            path = os.path.join(root, name)
-            if os.path.isfile(path) and not os.path.islink(path):
-                out.append(path)
-                if len(out) >= MOST_FROM_A_FOLDER:
-                    return out
-    return out
-
-
 def choose_folder(overlay, title: str, chosen) -> None:
     """A folder chosen in the desktop's chooser; `chosen` hears its path, or ""."""
     if getattr(overlay, "_chooser", None):

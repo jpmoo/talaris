@@ -45,6 +45,7 @@
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
+  let watched = [];   // the folders linked into the project shown, watched for new files
   // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
   let readState = {};
   let reading = { on: false, pending: 0, indexing: false };
@@ -122,6 +123,7 @@
     for (const t of filters.tags) q.append("tag", t);
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
+    watched = project && project !== "notes" ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
     readState = got.read || {};
     reading = got.reading || reading;
     rows = filters.status === "unread" ? got.rows.filter((r) => readState[r.key] === "waiting") : got.rows;
@@ -166,6 +168,14 @@
       el("div", { class: "s-head" }, "Projects"),
       item("All projects", project === "", () => setProject("")),
       ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null)),
+      // The folders linked into this project, watched for new files: each let go of by its ×.
+      watched.length ? el("div", { class: "s-head" }, "Watched folders") : null,
+      ...watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
+        el("span", { class: "nm" }, f.folder.replace(/^\/home\/[^/]+/, "~")),
+        el("button", { class: "s-x", title: "Stop watching it (what is linked stays)", onclick: async () => {
+          try { await api("DELETE", `/files/folder?project=${enc(f.project)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} no longer watched; what was linked stays`); } catch (e) { failed(e); }
+          reload();
+        } }, "×"))),
       shown.length ? el("div", { class: "s-head" }, "Tags") : null,
       ...shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
@@ -391,6 +401,35 @@
   // ---------------------------------------------------------------- bringing in
 
   /** Files from elsewhere: shortcuts (nothing moved), or moved in after saying what that would disturb. */
+  /**
+   * A whole folder: what is in it said, then — asked — every file in it and its
+   * folders linked into the project as shortcuts, read for search, and the
+   * folder watched from then on for files new in it (the core's files.ts).
+   */
+  async function linkFolder(path) {
+    const to = project && project !== "notes" ? project : surface.project;
+    if (!to) { say("Choose a project on the left first: that is where they go", true); return; }
+    let f;
+    try { f = await api("GET", `/files/folder?path=${enc(path)}`); } catch (e) { failed(e); return; }
+    const name = f.folder.split("/").pop();
+    const sheet = $("sheet");
+    const close = () => { sheet.hidden = true; sheet.replaceChildren(); };
+    sheet.replaceChildren(el("div", { class: "sheet" },
+      el("h3", {}, `Link ${name} into ${projectName(to)}`),
+      el("p", {}, `${f.count}${f.most ? "+" : ""} file${f.count === 1 ? "" : "s"} in it and its folders${f.most ? ` (the first ${f.count})` : ""}, hidden ones aside, as shortcuts: each stays where it is, shows here, and is read for search. The folder is watched: a file put in it later is linked too, and a file changed is read again.`),
+      el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
+        el("button", { class: "t-btn primary", onclick: async () => {
+          close();
+          say(`Linking ${name}…`);
+          try {
+            const r = await api("POST", "/files/folder", { project: to, path: f.folder });
+            say(`${r.made} linked from ${name}${r.skipped ? `; ${r.skipped} already here` : ""} — being read for search, and ${name} watched`);
+          } catch (e) { failed(e); }
+          load();
+        } }, "Link and watch it"))));
+    sheet.hidden = false;
+  }
+
   async function bringIn(paths, how = "", into = null, folder = null) {
     const to = into || project || surface.project;
     if (!paths.length) return;
@@ -577,8 +616,7 @@
     b.chosen.connect((text) => {
       const got = JSON.parse(text);
       if (Array.isArray(got)) { bringIn(got); return; }
-      if (!got.paths.length) { say(`Nothing to bring in from ${got.folder}`, true); return; }
-      bringIn(got.paths, "", null, got);
+      linkFolder(got.folder);
     });
     b.leave.connect(() => {
       if (WINDOW) return;

@@ -968,6 +968,11 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
   its own (documents to text, sheets to CSV, slides to PDF), `tesseract` for
   pictures, and kept only if what it read is words. What was read is kept
   sealed (`filetext.sealed`) and read again only when the file changes.
+  Every file is read again as it changes: a folder's as Files watches it; a
+  page by when it was written; a file linked from elsewhere looked at each
+  minute (its new contents' hash, which a sync also carries); and a folder
+  linked whole (Files, Add from elsewhere, A folder) is remembered and looked
+  at each minute for files new in it, which are linked too.
 - **By a model server** — Morgan's, unless Settings, Data says another (Ollama's
   `/api/embed`, or the OpenAI-style `/v1/embeddings`). Off until it is turned
   on there, and nothing goes anywhere while it is off.

@@ -180,3 +180,38 @@ test("one file in several projects: a shortcut in each other one, and each row s
   assert.deepEqual(there.alsoIn!.sort(), [alpha.id, home.id].sort());
   assert.throws(() => files.makeShortcut(alpha.id, join(alpha.folder, "Shared plan.odt")), /already in this project's folder/);
 });
+
+test("a folder linked: every file in it a shortcut, hidden ones aside; watched for new files; a file changed, read anew", async () => {
+  const p = projects.createProject("Receipts project");
+  const dir = join(sandbox, "Receipts");
+  mkdirSync(join(dir, "2026", "march"), { recursive: true });
+  mkdirSync(join(dir, ".cache"), { recursive: true });
+  mkdirSync(join(dir, "node_modules"), { recursive: true });
+  writeFileSync(join(dir, "a.txt"), "first");
+  writeFileSync(join(dir, "2026", "march", "b.pdf"), "pdf");
+  writeFileSync(join(dir, ".cache", "no.txt"), "no");
+  writeFileSync(join(dir, "node_modules", "no.js"), "no");
+  assert.equal(files.folderFiles(dir).paths.length, 2, "two files, hidden and machinery aside");
+  const got = files.linkFolder(p.id, dir);
+  assert.deepEqual([got.made, got.skipped], [2, 0]);
+  assert.deepEqual(files.foldersLinked(p.id).map((f) => f.folder), [dir]);
+  const shortcuts = () => files.listFiles({ project: p.id }).rows.filter((r) => r.status.includes("shortcut"));
+  assert.equal(shortcuts().length, 2);
+  // A file added later: linked at the next look.
+  writeFileSync(join(dir, "2026", "c.csv"), "a,b");
+  const before = files.filesVersion();
+  assert.ok(files.watchLinked() >= 1);
+  assert.equal(shortcuts().length, 3);
+  assert.ok(files.filesVersion() > before, "a change says so, so search reads it");
+  // A file changed: its new contents' hash taken, so search reads it again.
+  const sha = () => shortcuts().find((r) => r.name === "a.txt")!;
+  const was = JSON.stringify(sha());
+  writeFileSync(join(dir, "a.txt"), "second, and longer");
+  files.watchLinked();
+  assert.notEqual(JSON.stringify(sha()), was);
+  // Linked again: nothing twice.
+  assert.equal(files.linkFolder(p.id, dir).made, 0);
+  files.unlinkFolder(p.id, dir);
+  assert.deepEqual(files.foldersLinked(p.id), []);
+  assert.equal(shortcuts().length, 3, "no longer watched; its shortcuts stay");
+});
