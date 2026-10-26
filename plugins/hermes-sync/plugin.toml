@@ -127,8 +127,15 @@ help = "How often it asks Hermes Notes whether anything changed (one small quest
 key = "buttons"
 label = "Sync now buttons"
 kind = "boolean"
-default = true
-help = "Sync now on each person, task and project, and Sync all at the top of People and of Tasks. Each runs the ordinary sync — everything that changed, not only that one — which is quick."
+default = false
+help = "Sync now on each person, task, project and page, and Sync all at the top of People, Tasks and the pages. Each runs the ordinary sync — everything that changed, not only that one — which runs by itself anyway: a change in Talaris within seconds, one in Hermes Notes at the next look. Sync now, here in Settings, is always there."
+
+# Always: one Sync now, in this plugin's part of Settings.
+[[actions]]
+id = "sync-settings"
+label = "Sync now"
+on = ["settings"]
+tool = "sync_now"
 
 # The buttons the setting above puts on Talaris's sheets and lists.
 [[actions]]
@@ -171,12 +178,11 @@ id = "choose-collections"
 label = "Choose collections to sync"
 on = ["tasks"]
 tool = "choose_collections"
-when = ["buttons", "collections"]
+when = "collections"
 
 [[actions]]
 id = "restore"
 label = "Restore missing files"
 on = ["person", "task", "project"]
 tool = "restore_files"
-when = "buttons"
 only = "missing-files"

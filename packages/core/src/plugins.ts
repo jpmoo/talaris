@@ -50,7 +50,8 @@ const STATE = () => join(CONFIG_DIR, "plugins.json");
 const KINDS = ["task", "project", "event", "contact", "note"];
 const kindOf = (k: string) => (k === "person" ? "contact" : k);
 /** The lists an action may be on as a whole: People's, and Tasks' (its tasks and projects). */
-const LISTS = ["people", "tasks", "notes", "daily"];
+// Places with no one thing in them: a list's top, or the plugin's own part of Settings.
+const LISTS = ["people", "tasks", "notes", "daily", "settings"];
 
 export interface SettingDef {
   key: string;
@@ -182,7 +183,7 @@ export function readManifest(dir: string): Manifest {
     if (typeof a.label !== "string" || !a.label.trim()) throw new Conflict(`action ${a.id} needs a label`);
     const on = strs(a.on).map(kindOf);
     const sheets = ["task", "project", "contact", "note", ...LISTS];
-    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or unaffiliated note sheets, or the people, tasks, notes or daily lists`);
+    if (!on.length || on.some((k) => !sheets.includes(k))) throw new Conflict(`action ${a.id} is on task, project, person or unaffiliated note sheets, or the people, tasks, notes or daily lists, or its own part of Settings`);
     if (typeof a.tool !== "string" || !tools.some((d) => d.name === a.tool)) throw new Conflict(`action ${a.id} runs one of the plugin's [[tools]]`);
     // One setting, or several, each to be on.
     const when = a.when === undefined ? [] : typeof a.when === "string" ? [a.when] : strs(a.when);

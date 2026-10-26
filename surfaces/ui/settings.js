@@ -1755,6 +1755,15 @@ async function loadPlugins() {
     const head = pel("div", { class: "row net" + (r.state === "crashed" ? " mg-bad" : "") },
       pel("span", { class: "name" }, `${m.name} `, pel("small", {}, [`${m.version}`, m.description, r.status, r.problem && r.state !== "running" ? r.problem : ""].filter(Boolean).join(" · "))),
       pel("span", { class: "what" }, pel("span", { class: `pl-state ${r.state}` }, state),
+        // What it puts here itself (its actions `on` settings: a Sync now), while it runs.
+        ...(r.state === "running" ? (m.actions || []).filter((a) => (a.on || []).includes("settings")).map((a) => pel("button", { class: "t-btn", onclick: async (e) => {
+          const b = e.currentTarget;
+          b.disabled = true;
+          try { const res = await core("POST", `/plugins/${encodeURIComponent(r.id)}/actions/${encodeURIComponent(a.id)}`, { kind: "settings" }); say(res.text || `${a.label}: done`, res.error); }
+          catch (err) { say(err.message, true); }
+          b.disabled = false;
+          redraw();
+        } }, a.label)) : []),
         pel("button", { class: "t-btn", onclick: () => { if (open) plOpen.delete(r.id); else plOpen.add(r.id); redraw(); } }, open ? "Less" : "More"), sw));
     const block = pel("div", { class: "mg-server" }, head, asking, plDecisions(r, redraw));
     if (!open) return block;
