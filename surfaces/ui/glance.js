@@ -814,7 +814,7 @@
     let got = { quiet: false, suggestions: [] };
     try { got = await api("GET", `/suggestions?key=${enc(key)}`); } catch { /* none, then */ }
     if (seq !== loadSeq || !data || data.root !== key) return;
-    sugg = { key, quiet: Boolean(got.quiet), list: got.suggestions || [] };
+    sugg = { key, quiet: Boolean(got.quiet), list: got.suggestions || [], dismissed: got.dismissed || 0 };
     withSuggested();
     Graph.load(data);
     drawSugg();
@@ -831,6 +831,8 @@
     const head = el("div", { class: "shead" },
       el("span", { class: "t", title: suggFold ? "Show possible connections" : "Fold away", onclick: () => { suggFold = !suggFold; store.set("talaris.glance.suggFold", suggFold); drawSugg(); } },
         `Possible connections${n ? ` · ${n}` : ""}`),
+      // Those turned down for it, offered again (only when there are some).
+      fresh && sugg.dismissed ? el("button", { class: "t-btn", title: `Suggest the ${sugg.dismissed} turned down for this again`, onclick: resetDismissed }, `Reset dismissed (${sugg.dismissed})`) : null,
       fresh ? el("button", { class: "t-btn", title: sugg.quiet ? "Suggest connections for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
     const body = el("div", { class: "sbody" },
       !fresh ? el("div", { class: "none" }, "Looking…")
@@ -872,6 +874,13 @@
       withSuggested();
       Graph.load(data);
       drawSugg();
+    } catch (e) { failed(e); }
+  }
+  async function resetDismissed() {
+    try {
+      const r = await api("POST", "/suggestions/reset", { key: sugg.key });
+      say(`${r.reset} suggested again`);
+      loadSuggestions(loadSeq);
     } catch (e) { failed(e); }
   }
   async function quiet() {

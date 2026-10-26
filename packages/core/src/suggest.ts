@@ -338,6 +338,16 @@ export function dismiss(a: string, b: string): void {
   const k = keptState();
   if (!k.no.includes(pair(a, b))) { k.no.push(pair(a, b)); saveKept(); }
 }
+/** How many suggestions for a thing were turned down. */
+const dismissedFor = (key: string) => keptState().no.filter((p) => p.split("\u0000").includes(key)).length;
+/** Every suggestion turned down for a thing, either way round, made again. Answers how many. */
+export function undismiss(key: string): number {
+  const k = keptState();
+  const before = k.no.length;
+  k.no = k.no.filter((p) => !p.split("\u0000").includes(key));
+  if (k.no.length !== before) saveKept();
+  return before - k.no.length;
+}
 /** A thing told to stop suggesting (or to start again). */
 export function setQuiet(key: string, quiet: boolean): boolean {
   const k = keptState();
@@ -356,8 +366,8 @@ const FLOOR = 0.72;
 const said = (p: string) => p.replace(/\[@?([^\]\n]*)\]\([^)\s]*\)/g, "$1").replace(/[#*_>`]+/g, "").replace(/\s+/g, " ").trim();
 
 /** What a thing is probably tied to and is not, surest first. */
-export function suggestionsFor(key: string, options: { limit?: number } = {}): { quiet: boolean; suggestions: Suggestion[] } {
-  if (isQuiet(key)) return { quiet: true, suggestions: [] };
+export function suggestionsFor(key: string, options: { limit?: number } = {}): { quiet: boolean; suggestions: Suggestion[]; dismissed: number } {
+  if (isQuiet(key)) return { quiet: true, suggestions: [], dismissed: dismissedFor(key) };
   const rows = fileRows();
   const t = thing(key, rows);
   const tied = tiedTo(t);
@@ -399,7 +409,7 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
       ways: fitting.sort((a, b) => (a.how === "merge" ? -1 : 0) - (b.how === "merge" ? -1 : 0)) });
   }
   // Surest first; of two as sure, the one with more reasons, then by name — so the order never shuffles.
-  return { quiet: false, suggestions: out.sort((a, b) => b.score - a.score || b.why.length - a.why.length || a.title.localeCompare(b.title)).slice(0, options.limit ?? 12) };
+  return { quiet: false, dismissed: dismissedFor(key), suggestions: out.sort((a, b) => b.score - a.score || b.why.length - a.why.length || a.title.localeCompare(b.title)).slice(0, options.limit ?? 12) };
 }
 
 // ------------------------------------------------------------ tying

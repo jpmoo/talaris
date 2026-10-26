@@ -464,6 +464,11 @@ route("POST", "/suggestions/dismiss", async (req) => {
   suggest.dismiss(b.key, b.other);
   return { ok: true };
 });
+route("POST", "/suggestions/reset", async (req) => {
+  const b = await json<{ key?: string }>(req);
+  if (!b.key) throw new Conflict("which thing?");
+  return { reset: suggest.undismiss(b.key) };
+});
 route("PUT", "/suggestions/quiet", async (req) => {
   const b = await json<{ key?: string; quiet?: boolean }>(req);
   if (!b.key) throw new Conflict("which thing?");

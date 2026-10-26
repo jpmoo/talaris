@@ -31,7 +31,7 @@ from overlay import Overlay
 #: What the page may ask the core for: the glance, an entity's card, and suggested ties.
 ALLOWED = re.compile(r"^/(projects/[A-Za-z0-9_]+/glance|entities|mentionables|suggestions)(/|$|\?)")
 #: All it may change: a suggestion taken or turned down, a thing told to be quiet.
-WRITES = re.compile(r"^/suggestions/(accept|dismiss|quiet)$")
+WRITES = re.compile(r"^/suggestions/(accept|dismiss|quiet|reset)$")
 
 
 class GlanceBridge(Bridge):

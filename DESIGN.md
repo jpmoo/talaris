@@ -1241,7 +1241,8 @@ from elsewhere, or kept as a copy).
   other's id leads to it after. One another app keeps in step is the one kept;
   two such are merged in that app.
 - **Nothing is tied unless chosen.** Turned down, a suggestion is not made
-  again either way round; a thing can be told to stop suggesting (both kept
+  again either way round — until "Reset dismissed" on that thing (Glance, a
+  person, a task) offers them all again; a thing can be told to stop suggesting (both kept
   sealed, `suggest.sealed`). Morgan offers them (`talaris_suggestions`) and ties
   or merges only when told (`talaris_tie`, `talaris_merge`); it reads a file's
   words with `talaris_file_read`.

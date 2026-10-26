@@ -59,7 +59,10 @@ test("turned down, it is not made again; a thing told to be quiet suggests nothi
   suggest.dismiss(`e:${t.id}`, `e:${p.id}`);
   assert.ok(!suggest.suggestionsFor(`e:${t.id}`).suggestions.some((x) => x.id === p.id));
   suggest.setQuiet(`e:${t.id}`, true);
-  assert.deepEqual(suggest.suggestionsFor(`e:${t.id}`), { quiet: true, suggestions: [] });
+  assert.deepEqual(suggest.suggestionsFor(`e:${t.id}`), { quiet: true, suggestions: [], dismissed: 1 });
+  suggest.setQuiet(`e:${t.id}`, false);
+  assert.equal(suggest.undismiss(`e:${t.id}`), 1, "turned down, made again");
+  assert.ok(suggest.suggestionsFor(`e:${t.id}`).suggestions.some((x) => x.id === p.id));
 });
 
 test("one person twice: merge offered; what pointed at the one gone points at the one kept, and its id leads there", () => {

@@ -216,9 +216,13 @@ window.Peek = (() => {
   function suggestions(key, api, opts = {}) {
     const host = el("div", { class: "peek-sugg" });
     let armed = "";
+    let dismissed = 0;
+    // Those turned down for it, offered again: beside the heading, or alone when nothing else is suggested.
+    const reset = () => (dismissed ? el("button", { class: "t-btn peek-reset", title: `Suggest the ${dismissed} turned down for this again`,
+      onclick: () => api("POST", "/suggestions/reset", { key }).then(load) }, `Reset dismissed (${dismissed})`) : null);
     const draw = (list) => {
-      if (!list.length) { host.replaceChildren(); return; }
-      host.replaceChildren(el("div", { class: "peek-label" }, `Possible connections · ${list.length}`), ...list.map((s) => el("div", { class: "peek-srow" },
+      if (!list.length) { host.replaceChildren(...(dismissed ? [el("div", { class: "peek-label peek-shead" }, "Possible connections", reset())] : [])); return; }
+      host.replaceChildren(el("div", { class: "peek-label peek-shead" }, `Possible connections · ${list.length}`, reset()), ...list.map((s) => el("div", { class: "peek-srow" },
         el("div", { class: "peek-stop" },
           el("button", { class: "peek-item", title: "Open it", onclick: () => s.id && opts.open && opts.open(s.id, s) }, el("span", { class: "peek-t" }, s.title)),
           el("button", { class: "icon-btn peek-no", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
@@ -233,7 +237,7 @@ window.Peek = (() => {
           } }, asking ? "Merge? Again to do it" : w.label);
         })))));
     };
-    const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => draw((r && r.suggestions) || [])).catch(() => draw([]));
+    const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => { dismissed = (r && r.dismissed) || 0; draw((r && r.suggestions) || []); }).catch(() => draw([]));
     load();
     return host;
   }
@@ -260,6 +264,8 @@ window.Peek = (() => {
     .peek-more:empty { display: none; }
     .peek-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
     .peek-sugg:not(:empty) { margin-top: 12px; }
+    .peek-shead { display: flex; align-items: center; gap: 8px; }
+    .peek-reset { margin-left: auto; font-size: 10.5px; padding: 0 7px; letter-spacing: 0; text-transform: none; }
     .peek-srow { padding: 4px 0 6px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
     .peek-stop { display: flex; align-items: center; gap: 4px; }
     .peek-no.icon-btn { flex: none; width: auto; height: auto; min-width: 0; font-size: 14px; line-height: 1; padding: 0 4px !important; border: 0 !important; background: none !important; color: var(--muted); }
