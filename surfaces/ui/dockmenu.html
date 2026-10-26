@@ -49,7 +49,7 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <div id="choose" hidden>
     <div class="hint">Open in another project, a press…</div>
     <button class="menu-item choice" data-verb="elsewhere-new" data-choice="new">Opens a new window here</button>
-    <button class="menu-item choice" data-verb="elsewhere-bring" data-choice="bring">Brings it here</button>
+    <button class="menu-item choice" data-verb="elsewhere-bring" data-choice="bring">Sends it to where you are</button>
     <button class="menu-item choice" data-verb="elsewhere-go" data-choice="go">Goes to it</button>
   </div>
   <div class="hint doc-name" id="doc-name" hidden></div>
@@ -153,7 +153,8 @@ function onState(s) {
     // One that keeps a single window cannot have another.
     document.querySelector('[data-choice="new"]').hidden = !!s.oneWindow;
     // Of an app with many windows, a press brings the one last used, not all of it.
-    document.querySelector('[data-choice="bring"]').textContent = s.manyWindows ? "Brings its last window here" : "Brings it here";
+    // Moved, not copied: its window leaves its project's desktop for yours.
+    document.querySelector('[data-choice="bring"]').textContent = s.manyWindows ? "Sends its last window to where you are" : "Sends it to where you are";
     for (const c of ["new", "bring", "go"]) {
       const b = document.querySelector(`[data-choice="${c}"]`);
       b.classList.toggle("on", now === c);

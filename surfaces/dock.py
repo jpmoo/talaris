@@ -278,6 +278,13 @@ class Dock(QObject):
         super().__init__(desktop)
         self.desktop = desktop
         self.apps = apps
+        # The old "Always bring here" list, become each app's own choice (its menu's "Brings it here").
+        if desktop.config["dock"].get("brings"):
+            chosen = desktop.config["dock"].setdefault("elsewhere", {})
+            for key in desktop.config["dock"]["brings"]:
+                chosen.setdefault(key, "bring")
+            desktop.config["dock"]["brings"] = []
+            save_config(desktop.config)
         # The bar's edge is the other one; side edges wait, as the bar's do.
         self.edge = config.get("edge", "bottom") if config.get("edge") in ("top", "bottom") else "bottom"
         self.last = "{}"

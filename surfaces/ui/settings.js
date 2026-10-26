@@ -187,7 +187,7 @@ function draw() {
   slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
 
   // Keys.
-  seg("single-window", [["bring", "Bring here"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));
+  seg("single-window", [["bring", "Send it to you"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));
   drawStays();
   drawSolid();
 }
@@ -1701,35 +1701,27 @@ function drawSolid() {
   });
 }
 
-// Dock → Kept in a project: pinned things gone to in their own project rather than brought.
+// Dock → Your choices: what each app's dock menu was told — what a click does when it is open in
+// another project, and the project it is kept in — each put back to the default from here.
 let stayApps = null, stayProjects = null;
+const CHOICE = { new: "Opens a new window here", bring: "Sends it to where you are", go: "Goes to it" };
 async function drawStays() {
   if (!stayApps) stayApps = await new Promise((ok) => bridge.applications((t) => ok(JSON.parse(t))));
   if (!stayProjects) { try { stayProjects = (await core("GET", "/projects")).filter((p) => !p.archived); } catch { stayProjects = []; } }
   const stays = cfg.dock.stays || {};
+  const chosen = cfg.dock.elsewhere || {};
   const docs = cfg.dock.docs || [];
   const appName = (key) => key.startsWith("doc:") ? (docs.find((d) => `doc:${d.id}` === key) || {}).name || "a document unpinned"
     : (stayApps.find((a) => a.id === key) || {}).name || key;
   const projName = (id) => (stayProjects.find((p) => p.id === id) || {}).name || "a project gone";
-  const put = (next) => save({ dock: { stays: next } });
-  // The exceptions to the general rule (Keys, single-window apps): kept where it brings, brought where it goes.
-  const going = (cfg.launcher.singleWindow || "bring") === "go";
-  $("stays-head").textContent = going ? "Always brought to you" : "Kept in their project";
-  // What the exception is, against the rule it is the exception to, and how one is added.
-  $("stays-note").textContent = going
-    ? "Usually, opening an app takes you to the project where it already is. These come to the project you are in instead. To add one, right-click it on the dock and choose Always bring here."
-    : "Usually, opening an app brings it to the project you are in. These stay in their own project, and opening one takes you there. To add one, right-click it on the dock and choose Keep in this project.";
-  if (going) {
-    const brings = cfg.dock.brings || [];
-    $("stays").replaceChildren(...(brings.length ? brings.map((key) => pel("div", { class: "row" }, pel("span", { class: "name" }, appName(key)),
-      pel("span", { class: "what" }, pel("button", { class: "t-btn", onclick: () => save({ dock: { brings: brings.filter((k) => k !== key) } }) }, "Remove"))))
-      : [pel("p", { class: "note" }, "None yet.")]));
-    return;
-  }
-  const rows = Object.entries(stays).sort((a, b) => appName(a[0]).localeCompare(appName(b[0]))).map(([app, proj]) =>
-    pel("div", { class: "row" }, pel("span", { class: "name" }, appName(app)),
-      pel("span", { class: "what" }, `stays in ${projName(proj)}`,
-        pel("button", { class: "t-btn", title: "Brought to you like everything else", onclick: () => { const n = { ...stays }; delete n[app]; put(n); } }, "Remove"))));
+  $("stays-head").textContent = "Your choices";
+  $("stays-note").textContent = "Set from an app's menu on the dock (right-click): what a click does when it is open in another project, and the project it is kept in. Everything else follows the defaults: apps that open new windows (browsers, terminals) open one here; the rest as Keys, Single-window apps says, or go to the project they are kept in.";
+  const keys = [...new Set([...Object.keys(chosen), ...Object.keys(stays)])].sort((a, b) => appName(a).localeCompare(appName(b)));
+  const rows = keys.map((key) => pel("div", { class: "row" }, pel("span", { class: "name" }, appName(key)),
+    pel("span", { class: "what" },
+      [chosen[key] ? CHOICE[chosen[key]] : "", stays[key] ? `kept in ${projName(stays[key])}` : ""].filter(Boolean).join(" · "),
+      chosen[key] ? pel("button", { class: "t-btn", title: "Back to the default", onclick: () => { const n = { ...chosen }; delete n[key]; save({ dock: { elsewhere: n } }); } }, "Reset") : null,
+      stays[key] ? pel("button", { class: "t-btn", title: "Kept in no project", onclick: () => { const n = { ...stays }; delete n[key]; save({ dock: { stays: n } }); } }, "Stop keeping") : null)));
   $("stays").replaceChildren(...(rows.length ? rows : [pel("p", { class: "note" }, "None yet.")]));
 }
 

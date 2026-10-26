@@ -413,6 +413,10 @@ class Launcher(QObject):
         pinned thing (the dock's menu) — kept in a project when the rule
         brings, always brought when the rule goes.
         """
+        # An app's own choice, as the dock's menu ticks it (the dock's `elsewhere`); a document, the rule and its keeping.
+        choice = self.desktop.dock.elsewhere(key)
+        if choice:
+            return choice != "go"
         cfg = self.desktop.config
         if cfg["launcher"].get("singleWindow", "bring") == "go":
             return key in cfg["dock"].get("brings", [])
