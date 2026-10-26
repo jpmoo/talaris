@@ -45,6 +45,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
@@ -54,7 +55,7 @@ import docs
 import hypr
 from apps import Apps, new_window_command
 from config import save_config
-from core import Bridge
+from core import Bridge, call
 from layershell import (
     ANCHOR_BOTTOM,
     ANCHOR_LEFT,
@@ -319,7 +320,8 @@ class Dock(QObject):
                                           "pinned": False, "windows": []})
             # Most recently focused first, so a press goes to the one you were in.
             item["windows"].append({"address": w["address"], "title": w["title"], "hidden": w["hidden"],
-                                    "focused": w["address"] == now["focused"], "class": w["class"], "pid": w["pid"]})
+                                    "focused": w["address"] == now["focused"], "class": w["class"], "pid": w["pid"],
+                                    "here": w["workspace"] == now["active"], "workspace": w["workspace"]})
         # Your order first; anything never placed goes after, by name, so an
         # icon does not jump about as focus moves.
         # Its exception to the general rule: kept in a project where the rule brings, always brought where it goes.
@@ -334,6 +336,17 @@ class Dock(QObject):
                 item["keptHere"] = stays[item["key"]] == here
             if going and item["key"] in brings:
                 item["brought"] = True
+        # Another project's: kept there, and not open here; or (the dock showing every desktop's) open only on other desktops.
+        # Which, by name, for its tip.
+        desks = {x["id"]: x["name"] for x in now.get("workspaces", [])}
+        for item in items.values():
+            shown = [w for w in item["windows"] if not w["hidden"]]
+            item["away"] = bool((item.get("keptIn") and not item.get("keptHere") and not any(w["here"] for w in item["windows"]))
+                                or (shown and not any(w["here"] for w in shown)))
+            if item["away"]:
+                where = [item["keptIn"]] if item.get("keptIn") and not item.get("keptHere") else []
+                where += [desks.get(w["workspace"], "") for w in shown]
+                item["awayIn"] = list(dict.fromkeys(self._project_name(x) for x in where if x))
         rank = {key: i for i, key in enumerate(order)}
         def place(item):
             return (rank.get(item["key"], len(rank)), item["name"].lower())
@@ -346,6 +359,21 @@ class Dock(QObject):
         if text != self.last:
             self.last = text
             self.bridge.windows.emit(text)
+
+    _names: dict = {}
+    _names_at = 0.0
+
+    def _project_name(self, key: str) -> str:
+        """A project's name, from its id (a desktop is named by its project's id): looked up now and then, not at every refresh."""
+        if key not in self._names and time.monotonic() - self._names_at > 30:
+            self._names_at = time.monotonic()
+            status, text = call("GET", "/projects")
+            if status == 200:
+                try:
+                    self._names = {p["id"]: p["name"] for p in json.loads(text)}
+                except (ValueError, KeyError, TypeError):
+                    pass
+        return self._names.get(key, key)
 
     # ------------------------------------------------------------ what it does
 

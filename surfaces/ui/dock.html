@@ -40,6 +40,9 @@ body[data-shadow] .pill { box-shadow: 0 -2px 10px rgba(0, 0, 0, .45), 0 0 2px rg
 /* Between what is pinned everywhere and what is pinned to this project only: lighter, dotted. */
 .rule.here { width: 0; background: none; border-left: 2px dotted var(--muted); border-radius: 0; opacity: .6; margin: 0 6px; }
 .app.hidden img, .app.hidden .letter { opacity: .4; }
+/* Another project's: fainter than a hidden window, and drained of most of its color; itself again under the pointer. */
+.app.away img, .app.away .letter, .app.away .badge { opacity: .22; filter: grayscale(.85); transition: opacity .12s, filter .12s; }
+.app.away:hover img, .app.away:hover .letter, .app.away:hover .badge { opacity: .7; filter: none; }
 /* No box on hover or focus: the icon's swell and its dots say which it is. */
 .app, .app:hover, .app:focus, .app:focus-visible { border-color: transparent !important; background: transparent !important; outline: none !important; }
 .app.dragging { opacity: .7; cursor: grabbing; }

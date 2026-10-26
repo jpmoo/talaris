@@ -24,11 +24,15 @@ function item(app, pinned) {
   // A document says what it is and what it opens in; an application, its windows.
   if (app.doc) b.title = `${app.name} — ${app.appName || "opens by default"}${app.doc.missing ? " (not found)" : ""}`;
   else b.title = titles.length ? `${app.name} — ${titles.join(" · ")}` : app.name;
-  if (app.keptIn && !app.keptHere) b.title += " — kept in another project";
+  // Another project's, said by name: where it is kept, or the desktops its windows are on.
+  if (app.away && app.awayIn && app.awayIn.length) b.title += ` — in ${app.awayIn.join(", ")}`;
+  else if (app.keptIn && !app.keptHere) b.title += " — kept in another project";
   b.classList.toggle("doc", !!app.doc);
   b.classList.toggle("missing", !!(app.doc && app.doc.missing));
   // Every window hidden: the item stays, dimmed, until shown again.
   b.classList.toggle("hidden", app.windows.length > 0 && app.windows.every((w) => w.hidden));
+  // Another project's (kept there, or open only on other desktops): dimmer still, so what is here stands out.
+  b.classList.toggle("away", !!app.away);
 
   const img = el("img");
   img.alt = "";
