@@ -343,11 +343,13 @@ const TaskViews = (() => {
   // ---------------------------------------------------------------- a card (board and matrix)
 
   function card(ctx, sh, row, opts = {}) {
+    // Its title on one line (the whole of it on hover); under it, when it is available and when due.
     const meta = [];
-    if (row.due) meta.push(el("span", { class: "tv-due" + (row.overdue ? " late" : "") }, shortDate(row.due)));
+    if (row.start) meta.push(el("span", { class: "tv-avail" }, `Avail ${shortDate(row.start)}`));
+    if (row.due) meta.push(el("span", { class: "tv-due" + (row.overdue ? " late" : "") }, `Due ${shortDate(row.due)}`));
     if (row.projects && row.projects.length) meta.push(el("span", { class: "tv-proj" }, row.projects.map((p) => p.title).join(", ")));
     // In a matrix's region, a card wears a wash of the region's color.
-    const node = el("div", { class: "tv-card" + (row.complete ? " done" : "") + (opts.color ? " tinted" : ""), "data-card": row.id,
+    const node = el("div", { class: "tv-card" + (row.complete ? " done" : "") + (opts.color ? " tinted" : ""), "data-card": row.id, title: row.title || "Untitled",
       ...(opts.color ? { style: `--rc:${opts.color}` } : {}) },
       statusDot(ctx, sh, row),
       el("div", { class: "tv-card-body" },
@@ -665,6 +667,14 @@ const TaskViews = (() => {
   // ---------------------------------------------------------------- matrix
 
   const searches = new Map(); // a list by hand: the drawer's search, kept across refreshes
+  // Drawers put away, by collection: this panel's preference, kept.
+  const DRAWERS = "talaris.tasks.drawersClosed";
+  let drawersClosed = new Set();
+  try { drawersClosed = new Set(JSON.parse(localStorage.getItem(DRAWERS) || "[]")); } catch { /* fine */ }
+  function setDrawer(id, closed) {
+    if (closed) drawersClosed.add(id); else drawersClosed.delete(id);
+    try { localStorage.setItem(DRAWERS, JSON.stringify([...drawersClosed])); } catch { /* fine */ }
+  }
 
   function enterWords(ctx, enter) {
     if (!enter) return "";
@@ -725,7 +735,11 @@ const TaskViews = (() => {
       ? rows.map((row) => card(ctx, sh, row, { from: "drawer", menu: menu(row) }))
       : [el("div", { class: "tv-empty" }, "Empty")]));
     const count = el("span", { class: "tv-count" }, String(waiting.length));
-    const drawer = el("aside", { class: "tv-drawer" }, el("header", {}, el("span", { class: "tv-col-label" }, "Drawer"), count));
+    // Where it sits is the collection's (its editor: left, right, top or bottom); whether it is out, this panel's.
+    const side = ["left", "right", "top", "bottom"].includes((list["talaris:view"] || {}).drawer) ? list["talaris:view"].drawer : "right";
+    const redraw = () => drawMatrix(root, shown, ctx, sh);
+    const drawer = el("aside", { class: "tv-drawer" }, el("header", {}, el("span", { class: "tv-col-label" }, "Drawer"), count,
+      el("button", { class: "tv-x tv-shut", title: "Put the drawer away", onclick: () => { setDrawer(list.id, true); redraw(); } }, "×")));
     if (byHand) {
       const q = el("input", { type: "search", placeholder: "Find tasks", spellcheck: "false" });
       q.value = searches.get(list.id) || "";
@@ -750,7 +764,14 @@ const TaskViews = (() => {
     drawer.append(dbox);
     zone(drawer, (p) => { if (p.from === "region") toDrawer(p.id); });
 
-    root.replaceChildren(el("div", { class: "tv-matrix" }, grid, drawer));
+    if (drawersClosed.has(list.id)) {
+      // Away: a tab at its edge to bring it out, with how many wait in it — and still a place to drop a card.
+      const tab = el("button", { class: "tv-drawer-tab", title: "Bring out the drawer", onclick: () => { setDrawer(list.id, false); redraw(); } }, "Drawer ", el("span", { class: "tv-count" }, String(waiting.length)));
+      zone(tab, (p) => { if (p.from === "region") toDrawer(p.id); });
+      root.replaceChildren(el("div", { class: `tv-matrix drawer-${side} drawer-away` }, grid, tab));
+      return;
+    }
+    root.replaceChildren(el("div", { class: `tv-matrix drawer-${side}` }, grid, drawer));
   }
 
   // ---------------------------------------------------------------- calendar

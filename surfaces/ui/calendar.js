@@ -256,8 +256,7 @@ function drawSide() {
     el("div", { class: "cal" + (overdueShown ? " on" : " muted"), style: "--c:#d0564b" },
       el("button", { class: "sw", title: overdueShown ? "Hide overdue tasks" : "Show overdue tasks on today", onclick: () => showTasks("overdue", !overdueShown) }),
       el("span", {}, "Overdue Tasks")),
-  ]),
-  el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
+  ]));
 }
 
 // Declined, faded; still to come and unanswered, a dashed edge.

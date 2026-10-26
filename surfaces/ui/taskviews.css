@@ -103,7 +103,9 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-card.tinted:hover { border-color: var(--rc); }
 .tv-card .tv-sdot { margin-top: 3px; }
 .tv-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.tv-card .tv-title { white-space: normal; overflow-wrap: anywhere; }
+.tv-card .tv-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-meta .tv-proj { min-width: 0; }
 .tv-meta { display: flex; gap: 8px; font-size: 11.5px; color: var(--muted); min-width: 0; }
 .tv-proj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-x { display: none; border: 0 !important; padding: 0 4px !important; color: var(--muted) !important; line-height: 1; font-size: 14px; }
@@ -133,6 +135,25 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-enter { display: inline-flex; color: var(--muted); opacity: .7; }
 .tv-enter:hover { opacity: 1; color: var(--accent); }
 .tv-drawer { flex: 0 0 230px; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
+.tv-drawer > header .tv-shut { display: inline-block; }
+/* Where the drawer sits (the collection's view): beside the grid, or above or below it, its cards then in a row. */
+.tv-matrix.drawer-left { flex-direction: row-reverse; }
+.tv-matrix.drawer-left .tv-drawer { border-left: 0; border-right: 1px solid var(--line); }
+.tv-matrix.drawer-top { flex-direction: column-reverse; }
+.tv-matrix.drawer-bottom { flex-direction: column; }
+.tv-matrix.drawer-top .tv-drawer, .tv-matrix.drawer-bottom .tv-drawer { flex: 0 0 auto; max-height: 34%; border-left: 0; }
+.tv-matrix.drawer-top .tv-drawer { border-bottom: 1px solid var(--line); }
+.tv-matrix.drawer-bottom .tv-drawer { border-top: 1px solid var(--line); }
+.tv-matrix.drawer-top .tv-drawer-list, .tv-matrix.drawer-bottom .tv-drawer-list { flex-direction: row; flex-wrap: wrap; align-content: flex-start; }
+.tv-matrix.drawer-top .tv-drawer-list .tv-card, .tv-matrix.drawer-bottom .tv-drawer-list .tv-card { width: 220px; }
+/* Put away: a tab at its edge. */
+.tv-drawer-tab { flex: none; align-self: stretch; border: 0 !important; border-radius: 0 !important; background: transparent; color: var(--muted); font-size: 12px; padding: 6px 8px !important; }
+.tv-drawer-tab:hover { color: var(--accent); background: var(--accent-wash); }
+.tv-matrix.drawer-left .tv-drawer-tab, .tv-matrix.drawer-right .tv-drawer-tab { writing-mode: vertical-rl; }
+.tv-matrix.drawer-right .tv-drawer-tab { border-left: 1px solid var(--line) !important; }
+.tv-matrix.drawer-left .tv-drawer-tab { border-right: 1px solid var(--line) !important; transform: rotate(180deg); }
+.tv-matrix.drawer-top .tv-drawer-tab { border-bottom: 1px solid var(--line) !important; }
+.tv-matrix.drawer-bottom .tv-drawer-tab { border-top: 1px solid var(--line) !important; }
 .tv-drawer > header .tv-col-label { flex: 1; color: var(--muted); }
 .tv-drawer-search { padding: 0 8px 8px; flex: none; }
 .tv-drawer-search input { width: 100%; padding: 4px 8px; font-size: 12.5px; }

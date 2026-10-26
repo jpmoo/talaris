@@ -415,6 +415,7 @@
       format: list?.["talaris:view"]?.format ?? "checklist",
       bind: list?.["talaris:bind"] ?? status?.key ?? "status",
       columns: list?.kind === "matrix" ? Number(list.placement?.["talaris:columns"] ?? 2) : 2,
+      drawer: list?.["talaris:view"]?.drawer ?? "right",
       regions: clone(list?.kind === "matrix" && list.placement?.regions?.length
         ? list.placement.regions.map((r) => (typeof r === "string" ? { name: r, label: r } : r))
         : DEFAULT_REGIONS),
@@ -529,6 +530,7 @@
           onclick: () => { d.regions.push({ label: `Region ${d.regions.length + 1}` }); paintKind(); } }, "+ Region");
         return [
           row("Columns", seg([1, 2, 3, 4, 5, 6].map((n) => [n, String(n)]), d.columns, (n) => { d.columns = n; paintKind(); })),
+          row("Drawer", seg([["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"]], d.drawer, (v) => { d.drawer = v; paintKind(); })),
           row("Regions", el("div", { class: "le-regions" }, ...regions), add),
         ];
       }
@@ -589,6 +591,8 @@
         if (d.kind === "list" && d.format !== list?.["talaris:view"]?.format) b.view = { format: d.format };
         if (d.kind === "board" && d.bind !== list?.["talaris:bind"]) b.bind = d.bind;
         if (d.kind === "matrix") {
+          // Where its drawer sits: the view's, Talaris's own arrangement (a sync from elsewhere leaves it be).
+          if (d.drawer !== (list?.["talaris:view"]?.drawer ?? "right")) b.view = { ...(b.view ?? {}), drawer: d.drawer };
           const p = placement();
           if (!list || list.kind !== "matrix" || !same(p, list.placement)) b.placement = p;
         }
