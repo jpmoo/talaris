@@ -184,6 +184,8 @@ class BarBridge(Bridge):
 
     #: Pushed to the popup: the notifications, newest first (the bell's list).
     notices = Signal(str)
+    #: Pushed to the bar: a project gone to — its name flashes, so where you are is plain.
+    flash = Signal()
 
     @Slot(result=str)
     def notifications(self) -> str:
@@ -481,6 +483,11 @@ class Bar(QObject):
         desktop.tray.menu.connect(self._tray_menu)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
+
+    def went(self) -> None:
+        """A project gone to: the bar's name of it flashes — the bar brought out a moment first, if it hides."""
+        self.hider.peek(2600)
+        self.bridge.flash.emit()
 
     def place(self) -> None:
         """Along its edge — or, set to hide, away until the edge is touched."""

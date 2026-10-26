@@ -42,6 +42,14 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
 #where { margin-left: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
+/* A project gone to: its name lit up a moment — the accent filling it, then fading — so where you are is plain. */
+@keyframes where-flash {
+  0% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scale(1.12); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); }
+  35% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  100% { background: transparent; border-color: transparent; transform: none; box-shadow: none; }
+}
+#where.flash { animation: where-flash 1.8s ease-out; }
+#where.flash .code { color: inherit; }
 #where .code.alone { margin-left: 0; color: var(--text); }
 /* Demo mode: a made-up world, said where the project's name is (bar.js). */
 #where .demo-badge { margin-left: 10px; padding: 1px 6px; border-radius: 4px; font-size: .78em; letter-spacing: 1.5px; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }

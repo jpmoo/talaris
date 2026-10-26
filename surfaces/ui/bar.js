@@ -165,6 +165,14 @@ $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
 // The project's name: the projects, to switch between.
 $("where").addEventListener("click", () => bridge && bridge.popupAt("projects", under("where")));
+// A project gone to (bar.py, went): its name flashes, again from the start if it already was.
+function flashWhere() {
+  const w = $("where");
+  w.classList.remove("flash");
+  void w.offsetWidth;
+  w.classList.add("flash");
+}
+$("where").addEventListener("animationend", () => $("where").classList.remove("flash"));
 $("ask").addEventListener("click", () => bridge && bridge.launcher(""));
 $("settings").addEventListener("click", () => bridge && bridge.settings());
 $("theme").addEventListener("click", () => bridge && bridge.themeMode());
@@ -245,6 +253,7 @@ addEventListener("pointerdown", (e) => {
 
 Surface.connect({ onState, onMachine }).then((b) => {
   bridge = b;
+  if (b.flash) b.flash.connect(flashWhere);
   b.tray.connect((text) => drawTray(JSON.parse(text)));
   b.trayItems((text) => drawTray(JSON.parse(text)));
 });

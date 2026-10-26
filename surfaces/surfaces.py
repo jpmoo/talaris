@@ -531,6 +531,13 @@ class Desktop(QObject):
 
     # ---------------------------------------------------------------- what the launcher asks
 
+    def say_where(self, found: dict) -> None:
+        """Where you are now, said: the bar's project name flashed — or, with the bar off, the OSD's note."""
+        if self.config["bar"].get("enabled", True):
+            self.bar.went()
+        else:
+            self.osd.announce(found.get("name", ""), found.get("code", ""))
+
     def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
         """
         The current project changes: the bar says so, the canvas and the
@@ -556,7 +563,7 @@ class Desktop(QObject):
             hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
         if found["id"] == self.project.get("id"):
             if announce:
-                self.osd.announce(found.get("name", ""), found.get("code", ""))
+                self.say_where(found)
             return
         self.project = found
         self.jump.went(found["id"])
@@ -568,9 +575,9 @@ class Desktop(QObject):
         wallpaper.show(self.config, found["id"])
         self.desk.changed()
         self.thumbs.arrived()
-        # Gone to by a key, with nothing on screen to say so: the OSD says where.
+        # Gone to by a key, with nothing on screen to say so: the bar's name of it flashes.
         if announce:
-            self.osd.announce(found.get("name", ""), found.get("code", ""))
+            self.say_where(found)
         log(f"project: {found['name']}")
 
     def _workspace_changed(self, name: str) -> None:

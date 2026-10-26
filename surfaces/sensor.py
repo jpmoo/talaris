@@ -280,6 +280,13 @@ class Autohide(QObject):
             self.sensor.hide()
             self._away.stop()
 
+    def peek(self, ms: int) -> None:
+        """Out for a moment, by itself (a project gone to, said on the bar), then away again unless the pointer stays."""
+        if self.on and not self.out:
+            self.out = True
+            self._reveal()
+            self._away.start(ms)
+
     def touched(self) -> None:
         if self.on and not self.out:
             self.out = True
