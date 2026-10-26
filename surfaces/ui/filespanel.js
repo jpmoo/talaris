@@ -391,27 +391,31 @@
   // ---------------------------------------------------------------- bringing in
 
   /** Files from elsewhere: shortcuts (nothing moved), or moved in after saying what that would disturb. */
-  async function bringIn(paths, how = "", into = null) {
+  async function bringIn(paths, how = "", into = null, folder = null) {
     const to = into || project || surface.project;
     if (!paths.length) return;
     if (!to) { say("Choose a project on the left first: that is where they go", true); return; }
     if (how === "shortcut") {
-      let made = 0;
+      let made = 0, skipped = 0, n = 0;
       for (const p of paths) {
-        try { await api("POST", "/files/shortcut", { project: to, path: p }); made++; } catch (e) { failed(e); }
+        if (paths.length > 20 && ++n % 25 === 0) say(`Linking… ${n} of ${paths.length}`);
+        try { await api("POST", "/files/shortcut", { project: to, path: p }); made++; } catch (e) { if (paths.length === 1) failed(e); else skipped++; }
       }
-      if (made) say(`${made === 1 ? "A shortcut" : `${made} shortcuts`} in ${projectName(to)}`);
+      // Read for search, in the background, as every file is: within a minute or so.
+      if (made || skipped) say(`${made === 1 ? "A shortcut" : `${made} shortcuts`} in ${projectName(to)}${skipped ? `; ${skipped} already here or in its folder` : ""}${made ? " — being read for search" : ""}`);
       return load();
     }
     const sheet = $("sheet");
     const close = () => { sheet.hidden = true; sheet.replaceChildren(); };
     if (how !== "move") {
-      // Asked first: a shortcut, which disturbs nothing, or moved in.
+      // Asked first: a shortcut, which disturbs nothing, or moved in. A whole folder is linked, not moved.
       sheet.replaceChildren(el("div", { class: "sheet" },
-        el("h3", {}, `Bring ${paths.length === 1 ? paths[0].split("/").pop() : `${paths.length} files`} into ${projectName(to)}`),
-        el("p", {}, "A shortcut leaves the file where it is and shows it here. Moving it puts the file itself in the project's folder."),
+        el("h3", {}, folder ? `Link ${paths.length}${folder.most ? "+" : ""} file${paths.length === 1 ? "" : "s"} from ${folder.folder} into ${projectName(to)}`
+          : `Bring ${paths.length === 1 ? paths[0].split("/").pop() : `${paths.length} files`} into ${projectName(to)}`),
+        el("p", {}, folder ? `Everything in it and its folders${folder.most ? ` (the first ${paths.length})` : ""}, hidden ones aside, as shortcuts: each stays where it is, shows here, and is read for search.`
+          : "A shortcut leaves the file where it is and shows it here. Moving it puts the file itself in the project's folder."),
         el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
-          el("button", { class: "t-btn", onclick: () => bringIn(paths, "move", to) }, "Move in…"),
+          folder ? null : el("button", { class: "t-btn", onclick: () => bringIn(paths, "move", to) }, "Move in…"),
           el("button", { class: "t-btn primary", onclick: () => { close(); bringIn(paths, "shortcut", to); } }, "Make shortcuts"))));
       sheet.hidden = false;
       return;
@@ -489,7 +493,19 @@
 
   let typing = 0;
   $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { filters.q = $("q").value.trim(); reload(); }, 180); });
-  $("bring").addEventListener("click", () => bridge && bridge.choose());
+  // Files, or a whole folder (every file in it and its folders): asked which first.
+  $("bring").addEventListener("click", () => {
+    if (!bridge) return;
+    const sheet = $("sheet");
+    const close = () => { sheet.hidden = true; sheet.replaceChildren(); };
+    sheet.replaceChildren(el("div", { class: "sheet" },
+      el("h3", {}, "Add from elsewhere"),
+      el("p", {}, "Some files, or a folder: everything in it and in its folders, linked where it is and read for search."),
+      el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
+        el("button", { class: "t-btn", onclick: () => { close(); bridge.chooseFolder(); } }, "A folder…"),
+        el("button", { class: "t-btn primary", onclick: () => { close(); bridge.choose(); } }, "Files…"))));
+    sheet.hidden = false;
+  });
   $("reveal").addEventListener("click", () => {
     const p = projects.find((x) => x.id === (project || surface.project));
     if (p && bridge) bridge.reveal(p.folder);
@@ -557,7 +573,13 @@
   Surface.connect({ onState }).then((b) => {
     bridge = b;
     b.coreReply.connect((text) => { const r = JSON.parse(text); const done = waiting.get(r.id); waiting.delete(r.id); if (done) done(r); });
-    b.chosen.connect((text) => bringIn(JSON.parse(text)));
+    // Files chosen are a list; a folder, {folder, paths}: linked where they are, after asking.
+    b.chosen.connect((text) => {
+      const got = JSON.parse(text);
+      if (Array.isArray(got)) { bringIn(got); return; }
+      if (!got.paths.length) { say(`Nothing to bring in from ${got.folder}`, true); return; }
+      bringIn(got.paths, "", null, got);
+    });
     b.leave.connect(() => {
       if (WINDOW) return;
       surface = { ...surface, up: false };

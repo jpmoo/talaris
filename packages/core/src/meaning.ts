@@ -309,7 +309,8 @@ let timer: NodeJS.Timeout | null = null;
 /** From now on: a pass a minute after start, then every few minutes. */
 export function startMeaning(): void {
   if (timer) return;
-  const tick = () => { void reindex(); };
+  // More left than a pass takes (a folder of files just linked): the next pass soon after, not minutes later.
+  const tick = () => { void reindex().then(() => { if (status.pending > 0 && !status.error) setTimeout(tick, 5_000).unref(); }); };
   setTimeout(tick, 60_000).unref();
   timer = setInterval(tick, 4 * 60_000);
   timer.unref();

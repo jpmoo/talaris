@@ -24,7 +24,7 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge, local_call, route_ok
-from files import choose_files
+from files import MOST_FROM_A_FOLDER, choose_files, choose_folder, files_under
 from views import log
 from overlay import Overlay
 
@@ -97,6 +97,11 @@ class FilesBridge(Bridge):
         """Files from elsewhere, from the desktop's chooser, to bring in."""
         self.owner.choose()
 
+    @Slot()
+    def chooseFolder(self) -> None:  # noqa: N802 — called from the page by this name
+        """A folder from elsewhere: everything in it, and in its folders, to bring in as shortcuts."""
+        self.owner.choose_folder()
+
     @Slot(str, str)
     def pin(self, path: str, name: str) -> None:
         """A file pinned to the dock, in this project."""
@@ -138,6 +143,18 @@ class FilesPanel(Overlay):
 
     def choose(self) -> None:
         choose_files(self, "Files to bring in", lambda paths: self.bridge.chosen.emit(json.dumps(paths)))
+
+    def choose_folder(self) -> None:
+        """A whole folder: every file in it and its subfolders, found off the screen's thread, handed to the page to link."""
+        def got(folder: str) -> None:
+            if not folder:
+                return
+            def run() -> None:
+                paths = files_under(folder)
+                self.bridge.chosen.emit(json.dumps({"folder": os.path.basename(folder.rstrip("/")) or folder, "paths": paths,
+                                                    "most": len(paths) >= MOST_FROM_A_FOLDER}))
+            threading.Thread(target=run, daemon=True).start()
+        choose_folder(self, "A folder to bring in", got)
 
     def opened(self) -> None:
         self.desktop.bar.changed()
