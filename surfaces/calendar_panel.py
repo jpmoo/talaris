@@ -204,6 +204,12 @@ class CalendarService(QObject):
             elif "calendars" in msg:
                 self.last_calendars = json.dumps(msg["calendars"])
                 self.calendars.emit(self.last_calendars)
+            elif "events" in msg and msg["events"].get("req") in self._finding:
+                # A search asked from another thread (find_events): handed to it.
+                waiting = self._finding.get(msg["events"].get("req"))
+                if waiting:
+                    waiting[1] = msg["events"].get("items", [])
+                    waiting[0].set()
             elif "events" in msg:
                 if msg["events"].get("req") in self._mirror_waiting:
                     self._mirror_waiting.discard(msg["events"]["req"])
@@ -335,6 +341,20 @@ class CalendarService(QObject):
         waiting[0].wait(wait)
         self._finding.pop(req, None)
         return with_talaris_people(query, waiting[1])
+
+    def find_events(self, query: str, wait: float = 4.0) -> list:
+        """Events holding every word, a year either side (calendard `search`), from a worker thread, waited for here."""
+        if not self.state.get("ready"):
+            return []
+        with self._lock:
+            self._find_req += 1
+            req = self._find_req
+        waiting = [threading.Event(), []]
+        self._finding[req] = waiting
+        self._ask.emit(json.dumps({"do": "search", "req": req, "q": query}))
+        waiting[0].wait(wait)
+        self._finding.pop(req, None)
+        return waiting[1]
 
     def make_event(self, calendar: str, event: dict) -> int:
         """An event written to a calendar, for New: the answer comes as `made`, under the number given back."""

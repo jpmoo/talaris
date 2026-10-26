@@ -42,7 +42,8 @@ const VERBS = [
 // How much each kind is worth before the words are compared. Projects are
 // where you go; windows are already open; files are many and come last.
 const WEIGHT = { project: 25, window: 15, canvas: 12, page: 12, app: 10, verb: 8, file: 0 };
-const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID" };
+const KIND = { sum: "=", project: "PROJECT", window: "WINDOW", canvas: "CANVAS", page: "PAGE", app: "APP", verb: "DO", file: "FILE", morgan: "MORGAN", conversation: "SAID",
+  task: "TASK", person: "PERSON", note: "NOTE", event: "EVENT" };
 // Past conversations with Morgan for what is typed, asked for once typing
 // pauses: the query is embedded by Morgan, where it runs, never here. Shown
 // after what the launcher found itself, before the question to Morgan.
@@ -50,6 +51,8 @@ const TALKED = 3;
 let talked = { query: "", results: [] };
 // What is nearest the query in meaning (the core's meaning.ts), for the query it answered.
 let meant = { query: "", results: [] };
+// Tasks, people, notes and events holding the query's words (launcher.py, _ThingSearch), for the query it answered.
+let named = { query: "", results: [] };
 // `#tag`: what carries it, asked of the core as it is typed (launcher.py, tagged).
 let tagCache = new Map();
 let talkSoon = null;
@@ -252,9 +255,25 @@ function draw() {
     const plain = String(Math.round(worked * 1e10) / 1e10);
     shown.unshift({ kind: "sum", title: figure(worked), sub: "Enter copies it", act: { kind: "copy", text: plain } });
   }
+  // By their words: tasks, people, notes and events — after what the launcher has of its own, before what is near in meaning.
+  if (query.trim() && !tagAsked && named.query === query.trim().replace(/\s+/g, " ")) {
+    const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
+    const dayOf = (s) => new Date(s.length > 10 ? s : `${s}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    for (const r of named.results) {
+      if (r.kind === "note" && have.has(`page:${r.title}`.toLowerCase())) continue;
+      if (r.kind === "task") shown.push({ kind: "task", key: `task:${r.id}`, title: r.title, sub: r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task", act: { kind: "entity", id: r.id, as: "task" } });
+      else if (r.kind === "person") shown.push({ kind: "person", key: `person:${r.id}`, title: r.title, sub: "Person", act: { kind: "entity", id: r.id, as: "person" } });
+      else if (r.kind === "note") shown.push({ kind: "note", key: `note:${r.id}`, title: r.title, sub: r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page",
+        act: { kind: "page", project: r.project, path: r.path } });
+      else if (r.kind === "event") shown.push({ kind: "event", key: `event:${r.calendar}:${r.uid}`, title: r.title || "(no title)",
+        sub: `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`,
+        act: { kind: "event", calendar: r.calendar, uid: r.uid, start: r.start } });
+    }
+  }
   // By meaning: pages, notes, tasks and people about what was typed, below what matched its words — each once.
   if (query.trim() && !tagAsked && meant.query === query.trim().replace(/\s+/g, " ")) {
     const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
+    for (const x of shown) if (["task", "person", "note"].includes(x.kind)) { have.add(`page:${x.title}`.toLowerCase()); have.add(`entity:${x.title}`.toLowerCase()); }
     const AS = { task: "task", person: "person" };
     for (const r of meant.results) {
       if (r.kind === "project") continue;
@@ -326,6 +345,7 @@ $("q").addEventListener("input", () => {
   at = 0; armed = null; say(""); draw();
   clearTimeout(talkSoon);
   const q = $("q").value.trim().replace(/\s+/g, " ");
+  if (q.length >= 2 && state.mode !== "ask" && !q.startsWith("#")) setTimeout(() => { if (bridge && bridge.thingSearch && $("q").value.trim().replace(/\s+/g, " ") === q) bridge.thingSearch(q); }, 200);
   if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => { if (!bridge) return; bridge.morganSearch(q); if (bridge.meaningSearch && !q.startsWith("#")) bridge.meaningSearch(q); }, 350);
 });
 addEventListener("keydown", (e) => {
@@ -405,6 +425,12 @@ Surface.connect({ onState: (s) => onState(s) }).then((b) => {
     const found = JSON.parse(text);
     if (found.query !== $("q").value.trim().replace(/\s+/g, " ")) return;
     talked = found;
+    draw();
+  });
+  if (b.thingsFound) b.thingsFound.connect((text) => {
+    const found = JSON.parse(text);
+    if (found.query !== $("q").value.trim().replace(/\s+/g, " ")) return;
+    named = found;
     draw();
   });
   b.meaningFound.connect((text) => {

@@ -134,11 +134,53 @@ class _MeaningSearch(QRunnable):
         self.bridge.meaningFound.emit(json.dumps({"query": self.query, "results": results if isinstance(results, list) else []}))
 
 
+class _ThingSearch(QRunnable):
+    """
+    Tasks, people, notes and events whose words hold what was typed, off the
+    screen's thread: the core's search for the first three (each opened where
+    it lives — a note on its page), the calendar's for events.
+    """
+
+    def __init__(self, bridge: "LauncherBridge", query: str) -> None:
+        super().__init__()
+        self.bridge, self.query = bridge, query
+
+    def run(self) -> None:
+        from datetime import datetime
+        from urllib.parse import quote
+        q = quote(self.query)
+        found: list[dict] = []
+        tasks = _json(f"/tasks/find?text={q}&limit=12", [])
+        # Open ones before done ones, and no more than a handful.
+        for t in sorted(tasks if isinstance(tasks, list) else [], key=lambda t: bool(t.get("complete")))[:6]:
+            found.append({"kind": "task", "id": t["id"], "title": t.get("title", ""), "done": bool(t.get("complete")), "due": t.get("due", "")})
+        for p in _json(f"/entities?q={q}&kind=contact&limit=5", []) or []:
+            found.append({"kind": "person", "id": p["id"], "title": p.get("title", "")})
+        for n in _json(f"/entities?q={q}&kind=note&limit=6", []) or []:
+            place = _json(f"/entities/{quote(n['id'])}/place", None)
+            if place and place.get("kind") == "page":
+                found.append({"kind": "note", "id": n["id"], "title": n.get("title", ""), "project": place.get("project", ""), "path": place.get("where", "")})
+        service = getattr(self.bridge.owner.desktop, "calendar_service", None)
+        for e in (service.find_events(self.query) if service else [])[:5]:
+            found.append({"kind": "event", "calendar": e.get("calendar", ""), "uid": e.get("uid", ""), "title": e.get("title", ""),
+                          "start": datetime.fromtimestamp(e["start"] / 1000).isoformat(), "allDay": bool(e.get("allDay")), "location": e.get("location", "")})
+        self.bridge.thingsFound.emit(json.dumps({"query": self.query, "results": found}))
+
+
 class LauncherBridge(Bridge):
     #: Pushed to the page: Morgan's past conversations for a query, `{query, results}`.
     morganFound = Signal(str)
     #: Pushed to the page: what is nearest a query in meaning, `{query, results}` (the core's meaning.ts).
     meaningFound = Signal(str)
+    #: Pushed to the page: tasks, people, notes and events holding a query's words, `{query, results}` (_ThingSearch).
+    thingsFound = Signal(str)
+
+    @Slot(str)
+    def thingSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name
+        """Tasks, people, notes and events by their words."""
+        query = " ".join(query.split())[:200]
+        if len(query) >= 2:
+            self.owner.searches.start(_ThingSearch(self, query))
 
     @Slot(str)
     def meaningSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name
@@ -316,6 +358,8 @@ class Launcher(QObject):
             self.desktop.open_place("page", str(r["project"]), str(r["path"]))
         elif kind == "page":
             self.desktop.show_in_drawer("writing", {"page": str(r["path"])})
+        elif kind == "event":
+            self.desktop.show_event(str(r.get("calendar", "")), str(r.get("uid", "")), str(r.get("start", "")))
         elif kind == "entity":
             from desktop_api import opened
             said = opened(self.desktop, {"kind": str(r.get("as", "")), "id": str(r["id"])})
