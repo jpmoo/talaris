@@ -452,7 +452,7 @@ route("GET", "/suggestions", (_r, _p, q) => suggest.suggestionsFor(need(q, "key"
 route("POST", "/suggestions/accept", async (req) => {
   const b = await json<{ key?: string; other?: string; way?: suggest.Way }>(req);
   if (!b.key || !b.other || !b.way?.how) throw new Conflict("a suggestion is taken with its key, the other's, and a way");
-  return { ok: true, said: suggest.accept(b.key, b.other, b.way) };
+  return { ok: true, ...suggest.accept(b.key, b.other, b.way) };
 });
 route("POST", "/suggestions/dismiss", async (req) => {
   const b = await json<{ key?: string; other?: string }>(req);

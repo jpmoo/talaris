@@ -53,6 +53,16 @@ function run(cmd: string, args: string[], timeout = 60_000): Promise<string> {
   });
 }
 
+/**
+ * What OCR read, kept only if it is words: a photo with no writing in it reads
+ * as scraps ("lth hy"), which would only make it seem near anything.
+ */
+export function wordsOnly(text: string): string {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const words = tokens.filter((t) => /^[\p{L}][\p{L}'’-]{2,}[.,;:!?]?$/u.test(t));
+  return words.length >= 6 && words.length / tokens.length >= 0.55 ? text : "";
+}
+
 const tidy = (s: string) => s.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MOST);
 
 /** LibreOffice's own profile, apart from the person's: the first run makes it. */
@@ -83,7 +93,7 @@ async function pdf(file: string): Promise<string> {
     const pages = readdirSync(dir).filter((n) => n.endsWith(".png")).sort();
     const read: string[] = [];
     for (const p of pages) read.push(await run("tesseract", [join(dir, p), "-", "--psm", "3"], 60_000));
-    return tidy(read.join("\n\n"));
+    return wordsOnly(tidy(read.join("\n\n")));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -110,7 +120,7 @@ export async function textOfBytes(bytes: Buffer, name: string): Promise<string> 
   try {
     writeFileSync(file, bytes, { mode: 0o600 });
     if (e === ".pdf") return await pdf(file);
-    if (IMAGE.has(e)) return tidy(await run("tesseract", [file, "-", "--psm", "3"]));
+    if (IMAGE.has(e)) return wordsOnly(tidy(await run("tesseract", [file, "-", "--psm", "3"])));
     if (WRITER.has(e)) { const t = await office(file, "txt:Text"); return t ? tidy(readFileSync(t, "utf8")) : ""; }
     if (CALC.has(e)) { const t = await office(file, "csv"); return t ? tidy(readFileSync(t, "utf8")) : ""; }
     if (IMPRESS.has(e)) { const t = await office(file, "pdf"); return t ? await pdf(t) : ""; }
@@ -145,9 +155,11 @@ export function saveFileText(): void {
 }
 
 /** What a file said when last read, if it has not changed since (by `stamp`). */
+// How files are read: a change here reads each again, once.
+const READER = "r2";
 export function keptText(key: string, stamp?: string): string | null {
   const had = loadCache().get(key);
-  return had && (stamp === undefined || had.stamp === stamp) ? had.text : null;
+  return had && (stamp === undefined || had.stamp === `${stamp}|${READER}`) ? had.text : null;
 }
 
 /** A file's text, read again only if `stamp` says it changed; kept for next time. */
@@ -155,7 +167,7 @@ export async function fileText(key: string, stamp: string, read: () => Promise<s
   const had = keptText(key, stamp);
   if (had !== null) return had;
   const text = await read();
-  loadCache().set(key, { stamp, text });
+  loadCache().set(key, { stamp: `${stamp}|${READER}`, text });
   dirty = true;
   return text;
 }

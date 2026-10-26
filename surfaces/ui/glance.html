@@ -142,6 +142,29 @@ main > [hidden] { display: none !important; }
 #trail .here { color: var(--text); padding: 1px 5px; }
 #trail .sep { opacity: .6; }
 
+/* What the thing at the middle might be tied to: a column at the right, in either view. */
+#sugg { flex: none; width: 300px; border-left: 1px solid var(--line); overflow: auto; padding: 8px 0 12px; }
+#sugg.folded { width: auto; }
+#sugg .shead { display: flex; align-items: center; gap: 6px; padding: 4px 12px 6px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+#sugg .shead .t { flex: 1; cursor: pointer; user-select: none; }
+#sugg .shead .t:hover { color: var(--text); }
+#sugg .shead button { letter-spacing: 0; text-transform: none; font-size: 11px; padding: 0 7px; }
+#sugg.folded .sbody, #sugg.folded .shead button { display: none; }
+#sugg.folded .shead { writing-mode: vertical-rl; padding: 10px 6px; }
+.srow { padding: 6px 12px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.srow .top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.srow .ki { flex: none; width: 14px; height: 14px; color: var(--muted); display: inline-flex; }
+.srow .ki svg { width: 14px; height: 14px; }
+.srow .title { text-transform: none; letter-spacing: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; background: none; border: 0; padding: 0;
+  color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.srow .title:hover { color: var(--accent); }
+.srow .no { flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+.srow .no:hover { color: var(--danger); }
+.srow .why { font-size: 11px; color: var(--muted); margin: 2px 0 4px 21px; line-height: 1.35; }
+.srow .ways { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 21px; }
+.srow .ways .t-btn { font-size: 11px; padding: 0 8px; }
+.srow .ways .t-btn.armed { border-color: var(--danger); color: var(--danger); }
+#sugg .none { color: var(--muted); font-size: 12px; padding: 6px 12px; }
 /* Out of sight, read for its resolved colors. */
 #probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
 
@@ -178,6 +201,7 @@ main > [hidden] { display: none !important; }
     <div id="gtip" hidden></div>
     <div id="gempty" class="empty" hidden></div>
   </section>
+  <aside id="sugg" hidden></aside>
 </main>
 <div id="probe"></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>

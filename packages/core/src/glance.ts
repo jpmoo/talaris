@@ -12,6 +12,7 @@ import { pageModified, pageTree, readPage } from "./pages.js";
 import { MACHINERY, WRITING } from "./paths.js";
 import { archivedProjects, findProject } from "./projects.js";
 import { taskProjects } from "./tasks.js";
+import { listFiles, type FileRow } from "./files.js";
 
 /**
  * Glance (ui/glance.html): a thing and what it is tied to, as things (nodes)
@@ -27,8 +28,12 @@ import { taskProjects } from "./tasks.js";
  * and what links it; a person, an event, a task to what their fields and
  * links name, both ways. Each step is held to a few hundred new things.
  *
+ * Files are tied to the things they are on, both ways: a file in a folder,
+ * and a file on a thing that is in no project's folder (linked from
+ * elsewhere, or kept as a copy), known by its row in Files.
+ *
  * Keys: `project:<id>`, `page:<project>/<path>`, `canvas:<project>/<id>`,
- * `file:<project>/<path in its folder>`, `e:<entity id>`.
+ * `file:<project>/<path in its folder>`, `att:<Files row key>`, `e:<entity id>`.
  */
 export interface GlanceNode {
   key: string;
@@ -50,6 +55,9 @@ export interface GlanceNode {
   fileProject?: string;
   /** A project's own id, for a project: to go to. */
   projectId?: string;
+  /** A file on things in no folder: where it is on disk, or the copy kept (its hash). */
+  abs?: string;
+  sha256?: string;
   /** At the glance's edge: the ties it has on past it, not shown, counted by the kind at their far end. */
   beyond?: Record<string, number>;
 }
@@ -109,6 +117,25 @@ class Walk {
   /** Archived projects: out of every glance, and so is everything of theirs. */
   private archived = new Set(archivedProjects().map((p) => p.id));
 
+  private rowsCache: FileRow[] | null = null;
+  private get rows(): FileRow[] { return (this.rowsCache ??= listFiles().rows.filter((r) => !r.status.includes("page"))); }
+  /** A Files row as a glance key: a folder's file by its place, a shortcut by its entity, anything else by its row. */
+  private fileKey(r: FileRow): string {
+    if (r.status.includes("folder") && r.path) return `file:${r.project}/${r.path}`;
+    if (r.status.includes("shortcut") && r.entity) return `e:${r.entity}`;
+    return `att:${r.key}`;
+  }
+  /** The things a file is on, each as its key. */
+  private onIt(r: FileRow | undefined, out: Tie[]): void {
+    for (const o of r?.on ?? []) {
+      try {
+        out.push({ key: this.keyOf(getEntity(o.id)), how: "file on it", back: true });
+      } catch {
+        // On something since deleted.
+      }
+    }
+  }
+
   constructor(readonly here: string) {
     for (const p of taskProjects()) if (p.workspace) this.projectEntities.set(p.id, p.workspace);
   }
@@ -162,6 +189,11 @@ class Walk {
           // A link to a file that has gone: still shown, by its name.
         }
         n = { key, title: rel.split("/").pop() || rel, kind: "file", updated, own: project === this.here, depth, how, path: rel, fileProject: project };
+      } else if (key.startsWith("att:")) {
+        const r = this.rows.find((x) => x.key === key.slice(4));
+        if (!r) return null;
+        n = { key, title: r.name, kind: "file", updated: r.mtime ?? "", own: r.project === this.here, depth, how,
+          ...(r.abs ? { abs: r.abs } : {}), ...(r.sha256 ? { sha256: r.sha256 } : {}) };
       } else if (key.startsWith("e:")) {
         const o = getEntity(key.slice(2));
         if (o.stub || o.archived) return null;
@@ -287,8 +319,13 @@ class Walk {
       } catch {
         // A project that cannot be read: only its folder, then.
       }
+      this.onIt(this.rows.find((r) => r.key === `p:${project}/${rel}`), out);
+    } else if (key.startsWith("att:")) {
+      this.onIt(this.rows.find((r) => r.key === key.slice(4)), out);
     } else if (key.startsWith("e:")) {
       this.ofEntity(key.slice(2), out);
+      const id = key.slice(2);
+      for (const r of this.rows) if (r.on.some((o) => o.id === id)) out.push({ key: this.fileKey(r), how: "file on it" });
     }
     return out;
   }
@@ -358,6 +395,7 @@ class Walk {
   /** What a key is, cheaply, without making its node: for counting past the edge. */
   private kindOf(key: string): string {
     const kind = key.slice(0, key.indexOf(":"));
+    if (kind === "att") return "file";
     if (kind !== "e") return kind;
     try {
       const o = getEntity(key.slice(2));

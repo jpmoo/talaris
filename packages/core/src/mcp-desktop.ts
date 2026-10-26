@@ -288,6 +288,18 @@ export function desktopTools(core: Core): DesktopTool[] {
       run: async (a) => { await surfaces({ do: "show", panel: str(a.panel) }); return `${str(a.panel)} is out.`; },
     },
     {
+      name: "talaris_glance",
+      description: "Open Glance on one thing — a person, task, event, note, page, file or project — for the user to see what it is tied to and what it might be tied to (with the ways to tie each). Give its id (from talaris_find or talaris_context) or its key from talaris_suggestions.",
+      inputSchema: { type: "object", properties: { id: { type: "string" }, key: { type: "string" } } },
+      annotations: { readOnlyHint: false, title: "Open Glance on a thing" },
+      run: async (a) => {
+        const key = str(a.key) || (a.id ? `e:${str(a.id)}` : "");
+        if (!key) throw new Error("give an id or a key");
+        await surfaces({ do: "glance", key });
+        return "Glance is out on it.";
+      },
+    },
+    {
       name: "talaris_launch",
       description: "Start an application, by its name (\"Firefox\", \"Files\") or desktop id, on the current desktop — as the launcher does: one that keeps a single window already open is brought here instead.",
       inputSchema: { type: "object", properties: { app: { type: "string" } }, required: ["app"] },
@@ -360,19 +372,19 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ meaning
     {
       name: "talaris_search_meaning",
-      description: "Find Talaris's pages, notes (a project's, unaffiliated, daily), tasks, people and projects by what they are about — not only the words used: \"what did I write about distributed practice\", \"notes on the budget fight\". Nearest first, each with the passage that matched. Only kind (page, task, person, project) or one project (an id, a name, \"here\", or \"notes\" for unaffiliated notes) if asked. Empty when search by meaning is off (Settings, Data).",
-      inputSchema: { type: "object", properties: { q: { type: "string" }, kind: { type: "string", enum: ["page", "task", "person", "project"] }, project: { type: "string" }, limit: { type: "number", description: "Default 10." } }, required: ["q"] },
+      description: "Find Talaris's pages, notes (a project's, unaffiliated, daily), tasks, people, projects, events and files (by their contents) by what they are about — not only the words used: \"what did I write about distributed practice\", \"notes on the budget fight\". Nearest first, each with the passage that matched. Only kind (page, task, person, project, event, file) or one project (an id, a name, \"here\", or \"notes\" for unaffiliated notes) if asked. Empty when search by meaning is off (Settings, Data).",
+      inputSchema: { type: "object", properties: { q: { type: "string" }, kind: { type: "string", enum: ["page", "task", "person", "project", "event", "file"] }, project: { type: "string" }, limit: { type: "number", description: "Default 10." } }, required: ["q"] },
       annotations: { readOnlyHint: true, title: "Search by meaning" },
       run: async (a) => {
         const q = new URLSearchParams({ q: str(a.q), limit: String(typeof a.limit === "number" ? a.limit : 10) });
         if (str(a.kind)) q.set("kind", str(a.kind));
         if (str(a.project)) q.set("project", str(a.project) === "notes" ? "notes" : (await project(str(a.project) === "here" ? undefined : a.project)).id);
-        const rows = await core<{ kind: string; title: string; project?: string; path?: string; id?: string; score: number; passage: string }[]>("GET", `/meaning?${q}`);
+        const rows = await core<{ key: string; kind: string; title: string; project?: string; path?: string; id?: string; score: number; passage: string }[]>("GET", `/meaning?${q}`);
         if (!rows.length) {
           const st = await core<{ on: boolean; items: number }>("GET", "/meaning/status");
           return st.on ? "Nothing near that in meaning." : "Search by meaning is off (Settings, Data).";
         }
-        return rows.map((r) => `- ${r.title} — ${r.kind === "page" ? (r.project === "notes" ? `unaffiliated note (path: ${r.path})` : `page in project ${r.project} (path: ${r.path})`) : `${r.kind} [${r.id}]`} · ${r.score}\n  “${r.passage}”`).join("\n");
+        return rows.map((r) => `- ${r.title} — ${r.kind === "page" ? (r.project === "notes" ? `unaffiliated note (path: ${r.path})` : `page in project ${r.project} (path: ${r.path})`) : r.kind === "file" ? `file — read it with talaris_file_read, key ${r.key.startsWith("file:p:") ? `file:${r.key.slice(7)}` : `att:${r.key.slice(5)}`}` : `${r.kind} [${r.id}]`} · ${r.score}\n  “${r.passage}”`).join("\n");
       },
     },
     // ------------------------------------------------------------ files

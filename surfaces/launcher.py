@@ -388,6 +388,10 @@ class Launcher(QObject):
             said = opened(self.desktop, {"kind": str(r.get("as", "")), "id": str(r["id"])})
             if not said.get("ok"):
                 return said.get("error", "That cannot be opened")
+        elif kind == "file" and r.get("project"):
+            # Found by what it says, in any project: its project's file, opened (a sealed one as a copy).
+            from files import open_project_file
+            open_project_file(str(r["project"]), str(r["path"]))
         elif kind == "file":
             return self._open_file(str(r["path"]))
         elif kind == "verb" and r.get("name") == "archive":
@@ -396,6 +400,8 @@ class Launcher(QObject):
             return self.desktop.verb(str(r["name"]))
         elif kind == "conversation":
             self.desktop.morgan.show_conversation(str(r["id"]))
+        elif kind == "glance":
+            self.desktop.glance.open_on(str(r["key"]))
         else:
             return "That cannot be done"
         return ""

@@ -215,7 +215,19 @@ const wordIn = (text: string, w: string, caseSensitive: boolean) =>
 const bare = (text: string) => text.replace(/\[[^\]\n]*\]\([^)\s]*\)/g, " ").replace(/https?:\/\/\S+/g, " ");
 
 function byName(t: Thing, add: (key: string, why: string, score: number, ways: Way[]) => void): void {
-  const text = bare(t.text);
+  // A person's or a project's own name is not a mention of anyone: "Rich Gelson" does not name Rich Wiener.
+  const own0 = t.title.trim();
+  const text = bare(t.kind === "person" || t.kind === "project" ? t.text.replace(own0, " ") : t.text);
+  // A person: the notes called by their name are likely about them (the other way round from a note's own).
+  if (t.kind === "person" && t.entity) {
+    const first = own0.split(/\s+/)[0] ?? "";
+    for (const { object: o } of allRecords()) {
+      if (o.archived || o.stub || !profilesOf(o).includes("note") || profilesOf(o).includes("contact")) continue;
+      const title = titleOf(o).trim();
+      if (title.toLowerCase() === own0.toLowerCase()) add(keyOfEntity(o), `Called ${title}`, 0.85, []);
+      else if (first.length >= 3 && own0.includes(" ") && title === first) add(keyOfEntity(o), `Called ${title}`, 0.6, []);
+    }
+  }
   const list = nameList();
   const firsts = new Map<string, Name[]>();
   for (const n of list) if (n.first) firsts.set(n.first, [...(firsts.get(n.first) ?? []), n]);
@@ -300,6 +312,7 @@ function waysBetween(a: Thing, b: Thing): Way[] {
   }
   const label = b.kind === "project" ? `File under ${b.title}`
     : b.kind === "person" && (a.kind === "note" || a.kind === "page") ? `About ${b.title}`
+    : a.kind === "person" && (b.kind === "note" || b.kind === "page") ? `It is about them`
     : a.kind === "project" ? `File here`
     : `Link to ${b.title}`;
   out.push({ how: "connect", label });
@@ -339,7 +352,10 @@ export const isQuiet = (key: string) => keptState().quiet.includes(key);
 
 // ------------------------------------------------------------ suggesting
 
-const FLOOR = 0.66;
+// Short notes are alike in meaning whatever they are about: below this, closeness says little.
+const FLOOR = 0.72;
+/** A passage as a line: its mentions as their words, its Markdown marks gone. */
+const said = (p: string) => p.replace(/\[@?([^\]\n]*)\]\([^)\s]*\)/g, "$1").replace(/[#*_>`]+/g, "").replace(/\s+/g, " ").trim();
 
 /** What a thing is probably tied to and is not, surest first. */
 export function suggestionsFor(key: string, options: { limit?: number } = {}): { quiet: boolean; suggestions: Suggestion[] } {
@@ -361,10 +377,13 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
   byName(t, add);
   twice(t, add);
   if (t.meaning && indexed(t.meaning)) {
-    for (const f of nearTo(t.meaning, { limit: 12, floor: FLOOR })) {
+    // A thing of few words is near many things by chance: it needs to be nearer.
+    const floor = t.text.length < 240 ? FLOOR + 0.07 : FLOOR;
+    for (const f of nearTo(t.meaning, { limit: 8, floor })) {
       const k = glanceKey(f.key);
       if (!k) continue;
-      add(k, f.passage ? `Close in meaning — “${f.passage.slice(0, 90)}”` : "Close in meaning", 0.3 + ((f.score - FLOOR) / (1 - FLOOR)) * 0.5, []);
+      const line = said(f.passage);
+      add(k, line ? `Close in meaning — “${line.slice(0, 90)}${line.length > 90 ? "…" : ""}”` : "Close in meaning", 0.3 + ((f.score - floor) / (1 - floor)) * 0.5, []);
       // Of one kind and nearly the same: perhaps one thing twice.
       if (f.score >= 0.93) add(k, "Nearly the same", 0.7, []);
     }
@@ -402,16 +421,21 @@ const declares = (from: Entity, to: Entity) =>
 // Which end a plain link starts from: the thing that is about the other.
 const RANK = ["page", "note", "task", "file", "event", "person", "project"];
 
-/** A suggestion taken: the two tied the way chosen. Answers what was done, in words. */
-export function accept(key: string, other: string, way: Way): string {
+/** A suggestion taken: the two tied the way chosen. Answers what was done, in words, and after a merge the key of the one kept. */
+export function accept(key: string, other: string, way: Way): { said: string; kept?: string } {
+  const r = tie(key, other, way);
+  return typeof r === "string" ? { said: r } : r;
+}
+
+function tie(key: string, other: string, way: Way): string | { said: string; kept: string } {
   const rows = fileRows();
   const a = thing(key, rows), b = thing(other, rows);
   if (way.how === "merge") {
     const ea = entityFor(a), eb = entityFor(b);
     // The one kept is the one another app keeps in step, where one is.
     const [drop, keep] = syncedBy(ea) && !syncedBy(eb) ? [eb, ea] : [ea, eb];
-    mergeEntities(drop.id, keep.id);
-    return `Merged into ${titleOf(getEntity(keep.id))}.`;
+    const kept = mergeEntities(drop.id, keep.id);
+    return { said: `Merged into ${titleOf(kept)}.`, kept: keyOfEntity(kept) };
   }
   if (way.how === "mention") {
     const target = entityFor(b);

@@ -6,6 +6,12 @@
 // as a graph of how it is tied. Nothing is kept here but what is on show and
 // this page's own preferences; a thing chosen opens where it lives.
 //
+// Opened on any one thing (glance_panel.py, open_on) it is that thing's
+// glance. Beside either view, what the thing at the middle might be tied to
+// and is not (the core's suggest.ts) — each with why, and the ways that fit:
+// taken, turned down, or the thing told to stop suggesting. In the graph they
+// are drawn dashed, off the middle.
+//
 // The graph's layout is a small force simulation of its own — repulsion,
 // springs along the ties, a pull to the middle — so no library comes in, and
 // the project sits pinned at the centre of it.
@@ -53,6 +59,11 @@
   let from = "";
   let trail = [];
   let loadedFor = null;   // the project id it was asked for
+  let startSeen = 0;      // the last "open on this thing" taken (surface.start.n)
+  let keepStart = false;  // a thing to open on is set: a new project does not undo it
+  // What the middle might be tied to: for which key, whether it was told to be quiet, the suggestions.
+  let sugg = { key: "", quiet: false, list: [] };
+  let suggFold = store.get("talaris.glance.suggFold", false);
   let loadSeq = 0;        // answers to an older asking are dropped
 
   // ---------------------------------------------------------------- the core
@@ -111,7 +122,8 @@
   // Shown at all: its kind is on, and it is the project's own when only those are wanted.
   // The project itself is always there — the graph hangs from it.
   const shown = (n) => isRoot(n) || (!off.has(groupOf(n)) && (!mine || n.own));
-  const things = () => (data ? data.nodes.filter((n) => !isRoot(n)) : []);
+  // What is tied: not what is only suggested, which has its own column.
+  const things = () => (data ? data.nodes.filter((n) => !isRoot(n) && !n.sugOnly) : []);
 
   function drawProject() {
     const p = (data && data.project) || surface.project || {};
@@ -187,6 +199,7 @@
     if (!n || !bridge) return;
     // A project — this one or another tied to it — is gone to: its desktop.
     if (n.kind === "project") { if (n.projectId) bridge.goProject(n.projectId); return; }
+    if (n.key && n.key.startsWith("att:")) { bridge.openFile(n.abs || "", n.sha256 || "", n.title || ""); return; }
     if (n.place && (n.place.kind === "page" || n.place.kind === "canvas")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
     if (n.path && data) { bridge.openProjectFile(n.fileProject || data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
@@ -289,7 +302,7 @@
       for (const e of d.edges || []) {
         const s = byKey.get(e.from), t = byKey.get(e.to);
         if (!s || !t || s === t) continue;
-        edges.push({ s, t, how: e.how });
+        edges.push({ s, t, how: e.how, sug: Boolean(e.suggested) });
         adj.get(s.key).add(t.key);
         adj.get(t.key).add(s.key);
       }
@@ -488,6 +501,7 @@
       ctx.beginPath();
       const bright = [];
       for (const e of visEdges) {
+        if (e.sug) continue;
         const on = hover ? e.s === hover || e.t === hover : q ? matches(e.s, q) && matches(e.t, q) : true;
         if (dim && on) { bright.push(e); continue; }
         ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y);
@@ -501,6 +515,18 @@
         for (const e of bright) { ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y); }
         ctx.stroke();
       }
+      // Suggested ties: dashed, in the accent, quieter than what is tied.
+      const sugs = visEdges.filter((e) => e.sug);
+      if (sugs.length) {
+        ctx.globalAlpha = dim ? 0.35 : 0.75;
+        ctx.strokeStyle = pal.accent;
+        ctx.lineWidth = gs.line * 0.8 / cam.s;
+        ctx.setLineDash([5 / cam.s, 4 / cam.s]);
+        ctx.beginPath();
+        for (const e of sugs) { ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y); }
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       // Past the edge: a thing whose ties go on beyond what is shown has them as short
       // spikes in their far end's color, out away from the middle, fading to nothing.
       for (const n of vis) if (n.beyond) spikes(n, dim && !lit(n) ? 0.25 : 1);
@@ -511,6 +537,11 @@
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         if (n.own || isRoot(n)) { ctx.fillStyle = c; ctx.fill(); }
+        else if (n.sugOnly) {
+          // Only suggested: a dashed ring, so it reads as not tied yet.
+          ctx.fillStyle = pal.surface; ctx.fill(); ctx.lineWidth = 1.4 / cam.s; ctx.strokeStyle = c;
+          ctx.setLineDash([3 / cam.s, 2.5 / cam.s]); ctx.stroke(); ctx.setLineDash([]);
+        }
         else { ctx.fillStyle = pal.surface; ctx.fill(); ctx.lineWidth = 1.6 / cam.s; ctx.strokeStyle = c; ctx.stroke(); }
         if (isRoot(n)) {
           ctx.beginPath();
@@ -597,7 +628,8 @@
       if (n === hover) return;
       hover = n;
       const tip = $("gtip");
-      if (n) tip.replaceChildren(el("div", {}, n.title || "Untitled"), n.how && !isRoot(n) ? el("div", { class: "how" }, n.how) : null,
+      if (n) tip.replaceChildren(el("div", {}, n.title || "Untitled"), n.sugOnly ? el("div", { class: "how" }, "Might be tied") : null,
+        n.how && !isRoot(n) ? el("div", { class: "how" }, n.how) : null,
         n.beyond ? el("div", { class: "how" }, further(n.beyond)) : null);
       else tip.hidden = true;
       cv.classList.toggle("over", Boolean(n));
@@ -731,7 +763,8 @@
     const seq = ++loadSeq;
     if (!p.id) { data = null; loadedFor = null; Graph.clear(); drawAll(); say("No project open"); return; }
     // Another project: the walk starts again from it.
-    if (loadedFor !== p.id) { data = null; from = ""; trail = []; Graph.clear(); showing = new Map(); drawAll(); }
+    if (loadedFor !== p.id) { data = null; if (!keepStart) { from = ""; trail = []; } Graph.clear(); showing = new Map(); drawAll(); }
+    keepStart = false;
     loadedFor = p.id;
     say("Reading…");
     try {
@@ -740,11 +773,111 @@
       data = { project: got.project || p, root: got.root, nodes: got.nodes || [], edges: got.edges || [] };
       showing = new Map();
       say("");
+      if (sugg.key === data.root) withSuggested();
       Graph.load(data);
       drawAll();
+      loadSuggestions(seq);
     } catch (e) { if (seq === loadSeq) failed(e); }
   }
-  function drawAll() { drawProject(); drawKinds(); drawView(); drawBody(); }
+  function drawAll() { drawProject(); drawKinds(); drawView(); drawBody(); drawSugg(); }
+
+  // ---------------------------------------------------------------- suggested ties
+
+  // The core's kinds for a suggestion, as the glance's.
+  const SUG_KIND = { person: "contact", page: "page", note: "note", task: "task", event: "event", file: "file", project: "project" };
+  /** A node for a key not in the glance: enough to walk to it and open it. */
+  function nodeFor(s) {
+    const body = s.key.slice(s.key.indexOf(":") + 1);
+    const at = body.indexOf("/");
+    const n = { key: s.key, id: s.id, title: s.title, kind: SUG_KIND[s.kind] || "other", own: false, depth: 1, how: s.why[0] || "", updated: "", sugOnly: true };
+    if (s.key.startsWith("page:")) n.place = { kind: "page", project: body.slice(0, at), where: body.slice(at + 1) };
+    if (s.key.startsWith("file:")) { n.fileProject = body.slice(0, at); n.path = body.slice(at + 1); }
+    if (s.key.startsWith("project:")) n.projectId = body;
+    return n;
+  }
+  /** The suggestions put into the glance: each a dashed tie off the middle, a dashed thing where it is not there already. */
+  function withSuggested() {
+    if (!data) return;
+    data.nodes = data.nodes.filter((n) => !n.sugOnly);
+    data.edges = data.edges.filter((e) => !e.suggested);
+    const have = new Set(data.nodes.map((n) => n.key));
+    for (const s of sugg.list) {
+      if (!have.has(s.key)) data.nodes.push(nodeFor(s));
+      data.edges.push({ from: data.root, to: s.key, how: s.why[0] || "might be tied", suggested: true });
+    }
+  }
+  async function loadSuggestions(seq) {
+    const key = data && data.root;
+    if (!key) return;
+    let got = { quiet: false, suggestions: [] };
+    try { got = await api("GET", `/suggestions?key=${enc(key)}`); } catch { /* none, then */ }
+    if (seq !== loadSeq || !data || data.root !== key) return;
+    sugg = { key, quiet: Boolean(got.quiet), list: got.suggestions || [] };
+    withSuggested();
+    Graph.load(data);
+    drawSugg();
+  }
+
+  let armed = "";   // a merge asked once: "<key>|merge"
+  function drawSugg() {
+    const box = $("sugg");
+    box.hidden = !data;
+    if (!data) return;
+    box.classList.toggle("folded", suggFold);
+    const fresh = sugg.key === data.root;
+    const n = fresh ? sugg.list.length : 0;
+    const head = el("div", { class: "shead" },
+      el("span", { class: "t", title: suggFold ? "Show what it might be tied to" : "Fold away", onclick: () => { suggFold = !suggFold; store.set("talaris.glance.suggFold", suggFold); drawSugg(); } },
+        `Might be tied${n ? ` · ${n}` : ""}`),
+      fresh ? el("button", { class: "t-btn", title: sugg.quiet ? "Suggest ties for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
+    const body = el("div", { class: "sbody" },
+      !fresh ? el("div", { class: "none" }, "Looking…")
+        : sugg.quiet ? el("div", { class: "none" }, "Not suggesting for this.")
+        : !n ? el("div", { class: "none" }, "Nothing more to suggest.")
+        : sugg.list.map(srow));
+    box.replaceChildren(head, body);
+  }
+  function srow(s) {
+    const ki = el("span", { class: "ki" });
+    ki.innerHTML = KIND_ICON[SUG_KIND[s.kind]] || KIND_ICON.other;
+    const node = () => (data && data.nodes.find((x) => x.key === s.key)) || nodeFor(s);
+    return el("div", { class: "srow" },
+      el("div", { class: "top" }, ki,
+        el("button", { class: "title", title: `${s.title} — walk to it; twice, open it`, onclick: () => walkTo(node()), ondblclick: () => open(node()) }, s.title || "Untitled"),
+        el("button", { class: "no", title: "Not tied — don't suggest it again", onclick: () => dismiss(s) }, "×")),
+      el("div", { class: "why" }, s.why.join(" · ")),
+      el("div", { class: "ways" }, s.ways.map((w) => {
+        const id = `${s.key}|${w.how}|${w.text || ""}`;
+        const asking = w.how === "merge" && armed === id;
+        return el("button", { class: "t-btn" + (asking ? " armed" : ""), title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
+          onclick: () => { if (w.how === "merge" && !asking) { armed = id; drawSugg(); return; } armed = ""; take(s, w); } },
+          asking ? "Merge? Again to do it" : w.label);
+      })));
+  }
+  async function take(s, w) {
+    try {
+      const r = await api("POST", "/suggestions/accept", { key: sugg.key, other: s.key, way: w });
+      say(r.said || "Done");
+      // A merge may have taken away the middle itself: the one kept is the middle now.
+      if (r.kept && from === sugg.key) from = r.kept;
+      load();
+    } catch (e) { failed(e); }
+  }
+  async function dismiss(s) {
+    try {
+      await api("POST", "/suggestions/dismiss", { key: sugg.key, other: s.key });
+      sugg = { ...sugg, list: sugg.list.filter((x) => x.key !== s.key) };
+      withSuggested();
+      Graph.load(data);
+      drawSugg();
+    } catch (e) { failed(e); }
+  }
+  async function quiet() {
+    try {
+      await api("PUT", "/suggestions/quiet", { key: sugg.key, quiet: !sugg.quiet });
+      loadSuggestions(loadSeq);
+    } catch (e) { failed(e); }
+  }
 
   // ---------------------------------------------------------------- keys and buttons
 
@@ -807,6 +940,14 @@
   function onState(s) {
     const was = surface;
     surface = s;
+    // Opened on a thing: its glance, from wherever the walk was.
+    if (s.start && s.start.n && s.start.n !== startSeen) {
+      startSeen = s.start.n;
+      from = s.start.key;
+      trail = [];
+      keepStart = true;
+      if (bridge && (WINDOW || was.up)) load();
+    }
     // The theme may have changed under it: the graph's colors read again.
     Graph.palette();
     const pid = (s.project && s.project.id) || null;

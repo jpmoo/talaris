@@ -67,6 +67,7 @@ function remember(key) {
 }
 
 function build(c) {
+  here = (c.project || {}).id || "";
   const icon = (name) => (name ? `talaris-ui://icon/?n=${encodeURIComponent(name)}` : "");
   items = [
     ...c.projects.map((p) => ({ kind: "project", key: `project:${p.id}`, title: p.title, sub: p.code, act: { kind: "project", id: p.id },
@@ -303,9 +304,13 @@ function draw() {
     for (const r of meant.results) {
       if (r.kind === "project") continue;
       if (have.has(`page:${r.title}`.toLowerCase()) || have.has(`entity:${r.title}`.toLowerCase())) continue;
-      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page") : r.kind === "task" ? "Task" : "Person";
-      shown.push({ kind: "page", key: `meaning:${r.key}`, title: r.title, sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
-        act: r.kind === "page" ? { kind: "page", project: r.project, path: r.path } : { kind: "entity", id: r.id, as: AS[r.kind] || "" } });
+      // A file by what it says: one in a folder opened from there; one only on things, in Glance with them. An event, in Glance too.
+      if (r.kind === "file" && !(r.key.startsWith("file:p:") && r.path)) continue;
+      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page")
+        : { task: "Task", person: "Person", file: "File", event: "Event" }[r.kind] || "Thing";
+      shown.push({ kind: r.kind === "file" ? "file" : "page", key: `meaning:${r.key}`, title: r.title, sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
+        act: r.kind === "page" ? { kind: "page", project: r.project, path: r.path } : r.kind === "file" ? { kind: "file", project: r.project, path: r.path }
+          : r.kind === "event" ? { kind: "glance", key: `e:${r.id}` } : { kind: "entity", id: r.id, as: AS[r.kind] || "" } });
     }
   }
   // A tag search is a question about tags: past conversations that happen to hold the word are not an answer to it.
@@ -342,7 +347,8 @@ function draw() {
     const kind = Object.assign(document.createElement("span"), { className: "kind", textContent: KIND[x.kind] });
     row.append(icon, text, kind);
     row.addEventListener("mousemove", () => { if (at !== i) { at = i; draw(); } });
-    row.addEventListener("click", () => choose(i));
+    row.addEventListener("click", (e) => choose(i, e.shiftKey));
+    if (glanceKey(x)) row.title = "Shift+Enter: in Glance";
     return row;
   }));
   const on = list.children[at];
@@ -353,7 +359,21 @@ function say(text, error = false) {
   $("msg").replaceChildren(text ? Object.assign(document.createElement("span"), { className: error ? "err" : "", textContent: text }) : "");
 }
 
-// `there`: Shift+Enter — an application already open in another project is gone to, not brought here.
+// The project the catalog is of: where a page or file with no project of its own is.
+let here = "";
+// What Glance knows a row's thing by (glance.ts keys); "" for what it has no glance of.
+function glanceKey(x) {
+  const a = x.act || {};
+  if (a.kind === "entity" && a.id) return `e:${a.id}`;
+  if (a.kind === "page" && a.path) return `page:${a.project || here}/${a.path}`;
+  if (a.kind === "file" && a.path) return `file:${a.project || here}/${a.path}`;
+  if (a.kind === "project" && a.id) return `project:${a.id}`;
+  if (a.kind === "glance") return a.key;
+  return "";
+}
+
+// `there`: Shift+Enter (or Shift and a click) — an application already open in another project is gone to, not brought here;
+// a thing — a person, a task, a note, a page, a file, a project — opened in Glance, with what it is and might be tied to.
 function choose(i, there = false) {
   const x = shown[i];
   if (!x || !bridge) return;
@@ -363,6 +383,7 @@ function choose(i, there = false) {
   if (x.act.kind === "fill") { $("q").value = x.act.text; $("q").dispatchEvent(new Event("input")); return; }
   if (x.key) remember(x.key);
   if (x.kind === "morgan") say("Asking Morgan…");
+  if (there && x.act.kind !== "app" && glanceKey(x)) { bridge.act(JSON.stringify({ kind: "glance", key: glanceKey(x) }), (error) => { if (error) say(error, true); }); return; }
   bridge.act(JSON.stringify(there && x.act.kind === "app" ? { ...x.act, there: true } : x.act), (error) => { if (error) say(error, true); });
 }
 

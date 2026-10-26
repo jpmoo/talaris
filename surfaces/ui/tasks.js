@@ -1130,7 +1130,8 @@
     // Where else it lives (a sync's way back), beside its own buttons.
     // And what plugins put on a task (Sync now).
     // A plugin's button done (a file restored, say): the task read again, so what changed shows.
-    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing())] : []));
+    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing()),
+      Peek.glanceButton(`e:${editing}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null)].filter(Boolean) : []));
   }
 
   // Title and notes are the editor, so @ names anything in them (mentions.js);

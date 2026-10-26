@@ -35,7 +35,7 @@ test("a name in the words: each person it may be, a mention offered, and taken",
   assert.match(of(gelson.id)!.why[0]!, /one of 2/);
   const way = of(gelson.id)!.ways.find((w) => w.how === "mention")!;
   assert.equal(way.label, "Make “Rich” a mention");
-  suggest.accept(`e:${t.id}`, `e:${gelson.id}`, way);
+  assert.match(suggest.accept(`e:${t.id}`, `e:${gelson.id}`, way).said, /mention/);
   assert.equal(entities.getEntity(t.id).properties.title, `Connect [@Rich](talaris:${gelson.id}) about the retreat`);
   assert.ok(entities.connections(t.id).out.some((c) => c.entity.id === gelson.id), "a mention is a tie");
   assert.ok(!suggest.suggestionsFor(`e:${t.id}`).suggestions.some((x) => x.id === gelson.id), "tied, not suggested again");
@@ -99,4 +99,9 @@ test("a file's text: read as it is, kept until it changes", async () => {
   await filetext.fileText("k", "2", read);
   assert.equal(reads, 2);
   assert.equal(await filetext.textOf(join(sandbox, "x.mp3")), "");
+});
+
+test("what OCR reads is kept only if it is words", () => {
+  assert.equal(filetext.wordsOnly("lth hy\n40 Nyda T\nWhy"), "");
+  assert.match(filetext.wordsOnly("Minutes of the meeting: the board agreed the budget for next year."), /board/);
 });

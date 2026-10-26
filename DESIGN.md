@@ -951,8 +951,14 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
 
 - **What is embedded:** every writing page — each project's, the unaffiliated
   notes, Home's daily notes — in passages of a few paragraphs, each led by its
-  page's title; and tasks, people and projects, as what they say. Not events,
-  not files.
+  page's title; tasks, people, projects and events, as what they write (not
+  their statuses, choices or dates, which make all of a kind alike); and
+  **files, by their contents** (2026-10-26) — a project folder's and those on
+  things — read by `filetext.ts` with what is on the machine: `pdftotext`
+  (a scan's pages through `tesseract`), LibreOffice headless with a profile of
+  its own (documents to text, sheets to CSV, slides to PDF), `tesseract` for
+  pictures, and kept only if what it read is words. What was read is kept
+  sealed (`filetext.sealed`) and read again only when the file changes.
 - **By a model server** — Morgan's, unless Settings, Data says another (Ollama's
   `/api/embed`, or the OpenAI-style `/v1/embeddings`). Off until it is turned
   on there, and nothing goes anywhere while it is off.
@@ -961,8 +967,8 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
 - **Kept current by looking**, every few minutes, in the background: a page by
   when it was written, a thing by its version, and only what changed is sent
   again. Another model starts the index again.
-- **Not yet:** a smart list's "meaning" condition (*Lists*, above), and files'
-  own words.
+- **Not yet:** a smart list's "meaning" condition (*Lists*, above); audio and
+  video.
 
 ## Tasks
 
@@ -1167,6 +1173,44 @@ key, shows what it holds, keeps the current store as a backup first, and then
 imports — the same import as any other, so every revival is also a test that
 the round trip loses nothing. Project folders are not in it: they are folders,
 for whatever already backs up folders.
+
+### Context, Glance on anything, and suggested ties (2026-10-26)
+
+**The launcher is context, not only words.** What was typed finds what holds
+its words (`/context`, `context.ts`); and for each thing it names whole
+("Rich" names Rich Gelson, not Max Richter) everything tied to it, one step
+out both ways, is listed under it — the tasks that mention him, the notes
+about him, his meetings — whether or not they say "Rich". Open tasks and what
+is coming first, done tasks last. Morgan has the same as `talaris_context`.
+
+**Glance opens on any thing**, not only a project: a person, a task, an event,
+a note, a page, a file. Shift+Enter on a launcher result, a Glance button in
+a task and a person, or Morgan (`talaris_glance`). Files are tied to the
+things they are on, both ways — a folder's, and those only on things (linked
+from elsewhere, or kept as a copy).
+
+**Beside it, what the thing at the middle might be tied to and is not**
+(`suggest.ts`), each with why and the ways that fit; in the graph, dashed.
+
+- **Found by**: a person's or project's name in its words, not yet a mention
+  ("Says “Rich” — one of 2 called that"); a note called by a person's name;
+  the same thing twice (one name, one address); closeness in meaning — files
+  by their contents among them — with a higher bar for things of few words,
+  which are near everything by chance.
+- **Ways**: *mention* (the words made a mention, which is a tie and syncs as
+  one), *connect* (in the field one kind declares for the other — a note's
+  people, a task's project — else a plain link), *attach* (a file put on a
+  thing, where it stays), *merge*.
+- **Merge is for two of one kind** (`merge.ts`), and only offered where the two
+  look like one. The one kept takes what it lacks; whatever pointed at the
+  other — a field, a link, a mention in words or a page — points at it; the
+  other's id leads to it after. One another app keeps in step is the one kept;
+  two such are merged in that app.
+- **Nothing is tied unless chosen.** Turned down, a suggestion is not made
+  again either way round; a thing can be told to stop suggesting (both kept
+  sealed, `suggest.sealed`). Morgan offers them (`talaris_suggestions`) and ties
+  or merges only when told (`talaris_tie`, `talaris_merge`); it reads a file's
+  words with `talaris_file_read`.
 
 ### Demo
 

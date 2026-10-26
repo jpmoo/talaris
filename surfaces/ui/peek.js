@@ -107,6 +107,10 @@ window.Peek = (() => {
   function elsewhereButtons(entity, open, cls = "t-btn") {
     return elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, onclick: () => open(l.url) }, `Open in ${l.label}`));
   }
+  // Glance on a thing (glance_panel.py, open_on): what it is tied to, and what it might be. `go` is the page's bridge's glanceAt.
+  function glanceButton(key, go, cls = "t-btn") {
+    return go ? el("button", { class: cls, title: "What it is tied to, and might be", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
+  }
   // What a card's links are grouped by: what the other thing is.
   const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Notes", project: "Projects" };
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
@@ -227,5 +231,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons, actionButtons };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton };
 })();

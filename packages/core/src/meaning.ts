@@ -29,7 +29,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { allRecords, getFile, profilesOf, titleOf, type Entity } from "./entities.js";
+import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
 import { listFiles } from "./files.js";
 import { fileText, keepOnly, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
 import { linkedBytes } from "./links.js";
@@ -140,7 +140,8 @@ function entityDocs(): Doc[] {
     if (o.archived || o.stub) continue;
     const kind = profilesOf(o).map((p) => KIND[p]).find(Boolean);
     if (!kind) continue;
-    out.push({ key: `e:${o.id}`, kind, title: titleOf(o), id: o.id, stamp: String(o.version) });
+    // The "w2": what is embedded of a thing changed once (only its written words): each embedded again, once.
+    out.push({ key: `e:${o.id}`, kind, title: titleOf(o), id: o.id, stamp: `${o.version}w2` });
   }
   return out;
 }
@@ -152,7 +153,7 @@ function fileDocs(): Doc[] {
     if (r.status.includes("page") || r.status.includes("missing") || !readable(r.name)) continue;
     out.push({ key: `file:${r.key}`, kind: "file", title: r.name, project: r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
       ...(r.sha256 ? { sha256: r.sha256, holder: r.holder } : {}), on: r.on.map((o) => o.id),
-      stamp: r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}` });
+      stamp: `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r2` });
   }
   return out;
 }
@@ -169,8 +170,13 @@ export async function docText(d: Doc): Promise<string> {
 /** What an entity says, as words: its title, and every text it holds. */
 function entityText(o: Entity): string {
   const bits = [titleOf(o)];
+  // Only what is written: a status, a choice, a date says nothing of what a thing is about, and makes all of a kind alike.
+  const kinds = new Map((types().find((t) => t.id === o.type)?.fields ?? []).map((f) => [f.key, f.kind]));
   for (const [k, v] of Object.entries(o.properties ?? {})) {
     if (k === "title") continue;
+    const kind = kinds.get(k);
+    if (kind && kind !== "text" && kind !== "richtext") continue;
+    if (k.includes(":")) continue;
     if (typeof v === "string" && v.trim() && !/^\d{4}-\d{2}-\d{2}/.test(v) && !/^[a-z]_[a-z0-9]+$/.test(v)) bits.push(v.trim());
     else if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && x.includes(" ")) bits.push(x);
   }

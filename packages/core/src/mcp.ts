@@ -126,6 +126,51 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "talaris_suggestions",
+    description: "What a Talaris thing is probably tied to and is not yet — by a name in its words, by being the same thing twice, by closeness in meaning (files by their contents) — each with why, and the ways that fit: mention (the name in its words made a mention), connect, attach (a file put on a thing), merge (two of one kind made one). Give an entity id, or a key (page:<project>/<path>, file:<project>/<path>, project:<id>). Offer them to the user; tie one only when they say so (talaris_tie).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, key: { type: "string" } } },
+    annotations: { readOnlyHint: true, title: "Suggested ties" },
+    run: async (a) => {
+      const key = str(a.key) || `e:${str(a.id)}`;
+      const r = await core<{ quiet: boolean; suggestions: { key: string; title: string; kind: string; why: string[]; score: number; ways: { how: string; label: string; text?: string }[] }[] }>("GET", `/suggestions?key=${encodeURIComponent(key)}`);
+      if (r.quiet) return "The user has told this one not to suggest ties.";
+      if (!r.suggestions.length) return "Nothing more to suggest for it.";
+      return [`For ${key}:`, ...r.suggestions.map((x) => `- ${x.title} (${x.kind}) [${x.key}] — ${x.why.join("; ")}. Ways: ${x.ways.map((w) => `${w.how}${w.text ? ` "${w.text}"` : ""} ("${w.label}")`).join(", ")}`)].join("\n");
+    },
+  },
+  {
+    name: "talaris_tie",
+    description: "Tie two Talaris things as talaris_suggestions offered, only when the user has said to: how is mention (give text, the words to make a mention), connect, or attach. Not merge: that is talaris_merge.",
+    inputSchema: { type: "object", properties: {
+      key: { type: "string", description: "The thing the suggestion was for (its key, or e:<id>)." },
+      other: { type: "string", description: "The suggested thing's key." },
+      how: { type: "string", enum: ["mention", "connect", "attach"] },
+      text: { type: "string", description: "For a mention: the words in the text to make one." },
+    }, required: ["key", "other", "how"] },
+    annotations: { readOnlyHint: false, title: "Tie two things" },
+    run: async (a) => {
+      const r = await core<{ said: string }>("POST", "/suggestions/accept", { key: str(a.key), other: str(a.other), way: { how: str(a.how), label: "", ...(a.text ? { text: str(a.text) } : {}) } });
+      return r.said;
+    },
+  },
+  {
+    name: "talaris_merge",
+    description: "Make two Talaris things of one kind one — the same person entered twice, one task written twice — only when the user has asked to. What pointed at either points at the one kept; the other is gone. Give the two keys (e:<id>); one another app keeps in step is kept.",
+    inputSchema: { type: "object", properties: { key: { type: "string" }, other: { type: "string" } }, required: ["key", "other"] },
+    annotations: { readOnlyHint: false, title: "Merge two things" },
+    run: async (a) => (await core<{ said: string }>("POST", "/suggestions/accept", { key: str(a.key), other: str(a.other), way: { how: "merge", label: "" } })).said,
+  },
+  {
+    name: "talaris_file_read",
+    description: "Read what a file in Talaris says, as text — PDFs, documents, spreadsheets, slides, and the words in pictures — by its key: file:<project>/<path in its folder> (from talaris_project_contents or talaris_search_meaning), or att:<…> (a file on a thing, from talaris_read or talaris_suggestions).",
+    inputSchema: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
+    annotations: { readOnlyHint: true, title: "Read a file" },
+    run: async (a) => {
+      const r = await core<{ name: string; text: string }>("GET", `/files/text?key=${encodeURIComponent(str(a.key))}`);
+      return r.text ? `${r.name}:\n\n${r.text.length > 30000 ? `${r.text.slice(0, 30000)}\n…(cut short)` : r.text}` : `${r.name} has no words Talaris can read.`;
+    },
+  },
+  {
     name: "talaris_read",
     description: "Read one Talaris entity and everything connected to it, both ways: an event's attendees and organizer, the events and notes a person turns up in, what a project holds, the notes linked to anything.",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
@@ -341,7 +386,7 @@ async function answer(m: Message): Promise<void> {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
         capabilities: { tools: { listChanged: true } },
         serverInfo: { name: "talaris", version: "0.1.0" },
-        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: talaris_context for everything around a name or some words, talaris_find to look one up, talaris_read for one thing whole. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
+        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: talaris_context for everything around a name or some words, talaris_find to look one up, talaris_read for one thing whole, talaris_suggestions for what one might be tied to and is not, talaris_file_read for what a file says. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
       });
     case "ping":
       return reply(m.id, {});

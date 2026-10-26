@@ -39,6 +39,13 @@ def answer(desktop, req: dict) -> dict:
             return opened(desktop, req)
         if do == "show":
             return show(desktop, str(req.get("panel", "")))
+        if do == "glance":
+            # Glance opened on a thing, by its key (glance.ts): what it is tied to, and what it might be.
+            key = str(req.get("key", ""))
+            if not key:
+                return {"ok": False, "error": "glance needs a thing's key"}
+            desktop.glance.open_on(key)
+            return {"ok": True}
         if do == "launch":
             return launch(desktop, str(req.get("app", "")))
         if do == "focus":
