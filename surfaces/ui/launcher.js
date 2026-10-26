@@ -145,6 +145,9 @@ const GLYPH = {
   morgan: () => Icons.morgan(),
   conversation: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>',
   app: () => GLYPH.verb(), window: () => GLYPH.verb(),
+  // What the words found (_ThingSearch): without these the whole list failed to draw.
+  task: () => Icons.tasks(), person: () => Icons.people(), note: () => GLYPH.page(),
+  event: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>',
 };
 
 /*
