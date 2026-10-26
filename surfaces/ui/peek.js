@@ -207,6 +207,38 @@ window.Peek = (() => {
     ].flat().filter((x) => x != null));
   }
 
+  /**
+   * What a thing might be tied to and is not (the core's suggest.ts), for a
+   * person's or a task's own view: each with why, and the ways that fit —
+   * taken, or turned down (×). `key` is its glance key (`e:<id>`); `opts.open`
+   * opens one chosen (its id), `opts.changed` redraws after a tie is made.
+   * Nothing at all is drawn when there is nothing to suggest.
+   */
+  function suggestions(key, api, opts = {}) {
+    const host = el("div", { class: "peek-sugg" });
+    let armed = "";
+    const draw = (list) => {
+      if (!list.length) { host.replaceChildren(); return; }
+      host.replaceChildren(el("div", { class: "peek-label" }, `Might be tied · ${list.length}`), ...list.map((s) => el("div", { class: "peek-srow" },
+        el("div", { class: "peek-stop" },
+          el("button", { class: "peek-item", title: "Open it", onclick: () => s.id && opts.open && opts.open(s.id, s) }, el("span", { class: "peek-t" }, s.title)),
+          el("button", { class: "icon-btn peek-no", title: "Not tied — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
+        el("div", { class: "peek-why" }, s.why.join(" · ")),
+        el("div", { class: "peek-ways" }, s.ways.map((w) => {
+          const id = `${s.key}|${w.how}|${w.text || ""}`;
+          const asking = w.how === "merge" && armed === id;
+          return el("button", { class: "t-btn" + (asking ? " armed" : ""), onclick: () => {
+            if (w.how === "merge" && !asking) { armed = id; draw(list); return; }
+            armed = "";
+            api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
+          } }, asking ? "Merge? Again to do it" : w.label);
+        })))));
+    };
+    const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => draw((r && r.suggestions) || [])).catch(() => draw([]));
+    load();
+    return host;
+  }
+
   const style = document.createElement("style");
   style.textContent = `
     .peek { position: fixed; z-index: 80; top: 12%; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); max-height: 72%; overflow: auto;
@@ -228,8 +260,16 @@ window.Peek = (() => {
     .peek-fold:hover { color: var(--accent); }
     .peek-more:empty { display: none; }
     .peek-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
+    .peek-sugg:not(:empty) { margin-top: 12px; }
+    .peek-srow { padding: 4px 0 6px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+    .peek-stop { display: flex; align-items: center; gap: 4px; }
+    .peek-no { flex: none; font-size: 14px; line-height: 1; padding: 0 4px !important; }
+    .peek-why { color: var(--muted); font-size: 11px; margin: 0 6px 4px; }
+    .peek-ways { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 6px; }
+    .peek-ways .t-btn { font-size: 11px; padding: 0 8px; }
+    .peek-ways .t-btn.armed { border-color: var(--danger); color: var(--danger); }
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, suggestions };
 })();

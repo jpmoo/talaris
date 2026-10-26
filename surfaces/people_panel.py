@@ -28,7 +28,7 @@ from overlay import Overlay
 
 #: What the page may ask the core for.
 # And plugins' buttons on a person (peek.js, actionButtons): listed and pressed, nothing else of plugins.
-ALLOWED = re.compile(r"^/(people|entities|entity-types|mentionables|contacts/cards|files|tasks)(/|$|\?)|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
+ALLOWED = re.compile(r"^/(people|entities|entity-types|mentionables|contacts/cards|files|tasks|suggestions)(/|$|\?)|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
 
 
 class PeopleBridge(Bridge):

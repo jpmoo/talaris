@@ -23,6 +23,8 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
 .menu-item.on::before { content: "✓"; display: inline-block; width: 1.2em; margin-left: -1.2em; color: var(--accent); }
 .menu-item.choice { padding-left: 1.6em !important; }
 #wins:empty, #wins-hint[hidden], #choose[hidden] { display: none; }
+.doc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none !important; letter-spacing: 0 !important; }
+.doc-name[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -49,6 +51,7 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
     <button class="menu-item choice" data-verb="elsewhere-bring" data-choice="bring">Brings it here</button>
     <button class="menu-item choice" data-verb="elsewhere-go" data-choice="go">Goes to it</button>
   </div>
+  <div class="hint doc-name" id="doc-name" hidden></div>
   <button class="menu-item" data-verb="doc-here">Pin this document to this project</button>
   <button class="menu-item" data-verb="doc-all">Pin this document to all projects</button>
   <div class="menu-sep" id="sep"></div>
@@ -89,10 +92,14 @@ function onState(s) {
   const found = s.found;
   show("doc-here", !doc && !!found);
   show("doc-all", !doc && !!found);
+  // The document named on a line of its own (cut short only there), so the two pins say all they do.
+  const docName = document.getElementById("doc-name");
+  docName.hidden = !(!doc && found);
   if (found) {
-    const short = found.name.length > 22 ? found.name.slice(0, 21) + "…" : found.name;
-    document.querySelector('[data-verb="doc-here"]').textContent = `Pin “${short}” to this project`;
-    document.querySelector('[data-verb="doc-all"]').textContent = `Pin “${short}” to all projects`;
+    docName.textContent = `“${found.name}”`;
+    docName.title = found.name;
+    document.querySelector('[data-verb="doc-here"]').textContent = "Pin it to this project";
+    document.querySelector('[data-verb="doc-all"]').textContent = "Pin it to all projects";
   }
   show("unpin", !!it.pinned);
   // Kept in a project: gone to there when called, not brought.

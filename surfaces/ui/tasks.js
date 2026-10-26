@@ -1130,6 +1130,12 @@
     // Where else it lives (a sync's way back), beside its own buttons.
     // And what plugins put on a task (Sync now).
     // A plugin's button done (a file restored, say): the task read again, so what changed shows.
+    // What it might be tied to and is not (suggest.ts): asked once each time another task is opened, and after a tie.
+    if (window.Peek && suggFor !== editing) {
+      suggFor = editing;
+      $("s-sugg").replaceChildren(Peek.suggestions(`e:${editing}`, api, { open: (id) => openMention(id),
+        changed: (r) => { say(r.said || "Done"); suggFor = null; loadEditing(); } }));
+    }
     $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing()),
       Peek.glanceButton(`e:${editing}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null)].filter(Boolean) : []));
   }
@@ -1137,6 +1143,7 @@
   // Title and notes are the editor, so @ names anything in them (mentions.js);
   // a mention clicked opens a task here, or peeks at anything else.
   let titleEd = null, notesEd = null;
+  let suggFor = null;   // the task whose suggestions are drawn
   const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
   async function openMention(id) {
     try {

@@ -622,7 +622,13 @@
   }
 
   /** What a card has and Talaris doesn't: empty fields filled, addresses and numbers added; nothing overwritten. */
+  // What a contact has that this person doesn't yet: only that is offered, and copied.
   function copyCard(c) {
+    const out = newFrom(c);
+    if (!Object.keys(out).length) { say("Nothing on that contact that isn't here already"); return; }
+    setProps(out).then(() => { drawPerson(); say("Copied in"); });
+  }
+  function newFrom(c) {
     const p = props();
     const out = {};
     const fill = (key, val) => {
@@ -640,8 +646,7 @@
     fill(cardKey("role"), c.role);
     fill(emailKey(), c.emails);
     fill(phoneKey(), c.phones);
-    if (!Object.keys(out).length) { say("Nothing on that card that isn't here already"); return; }
-    setProps(out).then(() => { drawPerson(); say("Copied in"); });
+    return out;
   }
 
   function tiedCard(c) {
@@ -657,7 +662,8 @@
         el("div", { class: "c-name" }, c.name || "No name"),
         cardLines(c)),
       el("div", { class: "c-acts" },
-        el("button", { class: "t-btn", title: "Fill what Talaris doesn't have yet; nothing is overwritten", onclick: () => copyCard(c) }, "Copy into Talaris"),
+        // Only when it has something this person doesn't.
+        Object.keys(newFrom(c)).length ? el("button", { class: "t-btn", title: `Add what Talaris doesn't have yet (${Object.keys(newFrom(c)).map(lower).join(", ")}); nothing is overwritten`, onclick: () => copyCard(c) }, "Copy into Talaris") : null,
         el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Untie")));
   }
   function likelyCard(c) {
@@ -795,9 +801,15 @@
     }
     for (const rows of groups.values()) rows.sort((a, b) => String(b.e.updated || "").localeCompare(String(a.e.updated || "")));
     const order = [...Object.values(GROUP), "Other", ARCHIVED].filter((g) => groups.has(g));
+    // And what they might be tied to and are not (suggest.ts): a tie made, the person drawn again.
+    const sugg = window.Peek ? Peek.suggestions(`e:${chosen}`, api, {
+      open: (id) => peek(id),
+      changed: (r) => { say(r.said || "Done"); drawPerson(); },
+    }) : null;
     return el("section", { class: "part" },
       el("h3", {}, el("span", {}, "Connected")),
-      order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, "Nothing connected yet"));
+      order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, "Nothing connected yet"),
+      sugg);
   }
 
   // ---------------------------------------------------------------- making and removing
