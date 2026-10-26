@@ -30,8 +30,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
-import { listFiles } from "./files.js";
-import { fileText, keepOnly, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
+import { filesVersion, listFiles, type FileRow } from "./files.js";
+import { fileText, keepOnly, keptText, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
@@ -146,6 +146,32 @@ function entityDocs(): Doc[] {
   return out;
 }
 
+/** What says a file changed: its hash, or its size and time; and how files are read (a change there reads each again). */
+const fileStamp = (r: FileRow) => `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r2`;
+
+export type ReadState = "read" | "nowords" | "waiting";
+/**
+ * For the Files panel: each file's words, as far as search knows them — read
+ * (and how much), read and holding none, or not read yet. A file of a kind
+ * with no words to read, a page, or one missing, has no state. With search by
+ * meaning off, nothing is read at all.
+ */
+export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pending: number; indexing: boolean }; read: Record<string, ReadState> } {
+  const s = meaningSettings();
+  const read: Record<string, ReadState> = {};
+  if (!ready(s)) return { reading: { on: false, pending: 0, indexing: false }, read };
+  const ix = load(s.model);
+  let pending = 0;
+  for (const r of rows) {
+    if (r.status.includes("page") || r.status.includes("missing") || !readable(r.name)) continue;
+    const key = `file:${r.key}`;
+    const e = ix.entries.get(key);
+    if (!e || e.doc.stamp !== fileStamp(r)) { read[r.key] = "waiting"; pending++; continue; }
+    read[r.key] = (keptText(key) ?? "").trim() ? "read" : "nowords";
+  }
+  return { reading: { on: true, pending, indexing: status.indexing }, read };
+}
+
 /** Every file with words in it: the folders' (not their pages, which are pages), and those on things. */
 function fileDocs(): Doc[] {
   const out: Doc[] = [];
@@ -153,7 +179,7 @@ function fileDocs(): Doc[] {
     if (r.status.includes("page") || r.status.includes("missing") || !readable(r.name)) continue;
     out.push({ key: `file:${r.key}`, kind: "file", title: r.name, project: r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
       ...(r.sha256 ? { sha256: r.sha256, holder: r.holder } : {}), on: r.on.map((o) => o.id),
-      stamp: `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r2` });
+      stamp: fileStamp(r) });
   }
   return out;
 }
@@ -287,6 +313,13 @@ export function startMeaning(): void {
   setTimeout(tick, 60_000).unref();
   timer = setInterval(tick, 4 * 60_000);
   timer.unref();
+  // A file added, changed or put on a thing: read within half a minute, not at the next pass.
+  let seen = -1;
+  setInterval(() => {
+    const v = filesVersion();
+    if (seen !== -1 && v !== seen) tick();
+    seen = v;
+  }, 30_000).unref();
 }
 
 export function meaningStatus(): { on: boolean; model: string; url: string; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string } {

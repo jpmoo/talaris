@@ -91,3 +91,25 @@ test("a long page is found by the passage that matches", () => {
   assert.ok(parts.length > 1);
   assert.ok(parts.every((p) => p.startsWith("Long page")));
 });
+
+test("files: each not read until a pass reads it, then read — or read and holding no words", async () => {
+  settings({ on: true, url: "http://model", model: "fake" });
+  const files = await import("../src/files.js");
+  const p = projects.createProject("Reading");
+  mkdirSync(join(p.folder, "Files"), { recursive: true });
+  writeFileSync(join(p.folder, "Files", "minutes.txt"), "The board agreed the budget for the garden.");
+  writeFileSync(join(p.folder, "Files", "blank.txt"), "   ");
+  writeFileSync(join(p.folder, "Files", "song.mp3"), "not words");
+  const rows = () => files.listFiles({ project: p.id }).rows;
+  const before = meaning.fileReadStates(rows());
+  const of = (r: typeof before, name: string) => r.read[rows().find((x) => x.name === name)!.key];
+  assert.equal(of(before, "minutes.txt"), "waiting");
+  assert.equal(of(before, "song.mp3"), undefined, "no words to read in it: no state");
+  assert.ok(before.reading.pending >= 2);
+  await meaning.reindex();
+  const after_ = meaning.fileReadStates(rows());
+  assert.equal(of(after_, "minutes.txt"), "read");
+  assert.equal(of(after_, "blank.txt"), "nowords");
+  assert.equal(after_.reading.pending, 0);
+  assert.ok((await meaning.searchMeaning("garden budget", { kind: "file", floor: 0.1 })).some((f) => f.title === "minutes.txt"), "found by what it says");
+});

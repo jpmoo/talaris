@@ -45,6 +45,9 @@
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
+  // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
+  let readState = {};
+  let reading = { on: false, pending: 0, indexing: false };
   let total = 0;
   let chosen = null;
   let version = -1;
@@ -68,7 +71,8 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder" };
+  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder",
+    unread: "Not read yet" };
   const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "on a task", missing: "missing" };
   const TYPES = [["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
@@ -110,14 +114,17 @@
     const q = new URLSearchParams();
     if (project) q.set("project", project);
     if (filters.q) q.set("q", filters.q);
-    if (filters.status) q.set("status", filters.status);
+    // "Not read yet" is told here, from what the core says of each; the rest it filters itself.
+    if (filters.status && filters.status !== "unread") q.set("status", filters.status);
     if (filters.type) q.set("type", filters.type);
     if (filters.days) q.set("days", String(filters.days));
     for (const t of filters.tags) q.append("tag", t);
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
-    rows = got.rows;
-    total = got.total;
+    readState = got.read || {};
+    reading = got.reading || reading;
+    rows = filters.status === "unread" ? got.rows.filter((r) => readState[r.key] === "waiting") : got.rows;
+    total = filters.status === "unread" ? rows.length : got.total;
     version = got.version;
     if (chosen && !rows.some((r) => r.key === chosen)) chosen = null;
     draw();
@@ -131,8 +138,11 @@
     try {
       const v = await api("GET", "/files/version");
       if (v.version !== version) await load();
+      // Files still to be read: looked at again now and then, to see them read.
+      else if (reading.pending && ++sinceRead >= 5) { sinceRead = 0; await load(); }
     } catch { /* the core is away for a moment */ }
   }, 2000);
+  let sinceRead = 0;
 
   // ---------------------------------------------------------------- drawing
 
@@ -141,6 +151,9 @@
     drawRows();
     drawDetail();
     $("count").textContent = total > rows.length ? `${rows.length} of ${total}` : String(total);
+    // Still to be read, across what is listed: said beside the count.
+    const waiting = rows.filter((r) => readState[r.key] === "waiting").length;
+    if (waiting) $("count").textContent += ` · ${waiting} not read yet`;
   }
 
   function drawSide() {
@@ -194,6 +207,7 @@
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
         ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
+        readState[r.key] === "waiting" ? el("span", { class: "mk unread", title: "Search has not read what it says yet: it will, in the background" }, "not read yet") : null,
         r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
         r.on.length ? el("span", { class: "mk on", title: r.on.map((o) => o.title).join(", ") }, `on ${r.on.length === 1 ? r.on[0].title : `${r.on.length} things`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
@@ -227,6 +241,12 @@
     if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""} — in no folder until it is saved to the project's.`));
     if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing from its folder:"), " moved or deleted."));
     if (r.sealed) said.push(el("span", {}, "Sealed: it opens as a copy, since only Talaris can read it."));
+    // What search knows of what it says.
+    const rs = readState[r.key];
+    if (rs === "read") said.push(el("span", {}, el("b", {}, "Read"), " — found by what it says, by search and Morgan, and suggested with what it is about."));
+    else if (rs === "nowords") said.push(el("span", {}, el("b", {}, "Read, no words in it"), " — found by its name only."));
+    else if (rs === "waiting") said.push(el("span", {}, el("b", {}, "Not read yet"), reading.indexing ? " — being read now." : " — it will be, in the background, in a few minutes."));
+    else if (!reading.on && !s.includes("page") && !s.includes("missing")) said.push(el("span", {}, "Not read: search by meaning is off (Settings, Data)."));
     const lines = [
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
       ["Type", TYPE_WORD[r.type] || "Other"],
