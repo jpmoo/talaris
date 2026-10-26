@@ -379,3 +379,41 @@ test("a note with no title is known by its first line: made so in Talaris, and n
   agreed(made.link, Object.keys(made.values), made.values);
   assert.equal(plan({ started: true, links: p.links }, T2, H, NOTES, newId).writes.length, 0, "no title written into Hermes Notes");
 });
+
+test("mentions go across in each app's own words — Hermes Notes' @Name, Talaris's link — and then rest", () => {
+  const people = [{ kind: "contact", t: "tc1", h: "hc1", base: { title: '"Emily Lucas"' } }];
+  const task = (base) => ({ kind: "task", t: "tt1", h: "ht1", base: { title: JSON.stringify(base) } });
+  const T = (title, extra = []) => env(T_TYPES, [
+    { id: "tc1", type: "t_person", properties: { title: "Emily Lucas" }, version: 1 },
+    { id: "tt1", type: "t_task", properties: { title, status: "not_started" }, version: 1 }, ...extra]);
+  const H = (title, extra = []) => ({ ...env(H_TYPES, [
+    { id: "hc1", type: "h-person", properties: { name: "Emily Lucas" }, version: 1 },
+    { id: "ht1", type: "h-task", properties: { title, status: "not done" }, version: 1 }, ...extra]),
+    relations: [{ from: "ht1", to: "hc1", type: "mentions", via: "inline", field: "title" }] });
+  const titleWrite = (p, side) => p.writes.filter((w) => w.side === side).map((w) => (w.patch ?? w.body)?.set?.title ?? w.body?.properties?.title).filter(Boolean);
+
+  // Written in Hermes Notes, synced before as plain words: Talaris now gets its own link, and Hermes Notes is not touched.
+  const said = "Review @Emily_Lucas suggestions";
+  let p = plan({ started: true, links: [...people, task(said)] }, T(said), H(said), S, newId);
+  assert.deepEqual(titleWrite(p, "talaris"), ["Review [@Emily Lucas](talaris:tc1) suggestions"]);
+  assert.deepEqual(titleWrite(p, "hermes"), []);
+  // Written so, the two agree: nothing goes either way.
+  const agreedOn = JSON.parse(p.writes.find((w) => w.side === "talaris").values.title);
+  p = plan({ started: true, links: [...people, task(agreedOn)] }, T("Review [@Emily Lucas](talaris:tc1) suggestions"), H(said), S, newId);
+  assert.deepEqual(p.writes, [], "the same mention, two spellings: no difference");
+
+  // Written in Talaris: Hermes Notes gets its own @Name.
+  p = plan({ started: true, links: [...people, task(agreedOn)] }, T("Call [@Emily Lucas](talaris:tc1) today"), H(said), S, newId);
+  assert.deepEqual(titleWrite(p, "hermes"), ["Call @Emily_Lucas today"]);
+
+  // Two of that name in Hermes Notes: a name would find either, so it goes as a link by id.
+  const twin = { id: "hc2", type: "h-person", properties: { name: "Emily Lucas" }, version: 1 };
+  p = plan({ started: true, links: [...people, task(agreedOn)] }, T("Call [@Emily Lucas](talaris:tc1) today"), H(said, [twin]), S, newId);
+  assert.deepEqual(titleWrite(p, "hermes"), ["Call [Emily Lucas](block:hc1) today"]);
+
+  // A mention of something the sync has not paired: its words, both ways.
+  p = plan({ started: true, links: [...people, task("Read @Nobody_Here")] }, T("Read @Nobody_Here"), H("Read @Nobody_Here"), S, newId);
+  assert.deepEqual(p.writes, []);
+  p = plan({ started: true, links: [...people, task("Read @Nobody_Here")] }, T("Read [@A page](talaris:p_only)"), H("Read @Nobody_Here"), S, newId);
+  assert.deepEqual(titleWrite(p, "hermes"), ["Read @A page"], "a Talaris link to what Hermes Notes has not: its label, not its markup");
+});

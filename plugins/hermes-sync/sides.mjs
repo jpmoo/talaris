@@ -71,6 +71,28 @@ export function firstLine(text) {
   return line ? line.slice(0, 120) : null;
 }
 
+/*
+ * Mentions, in each app's own words — and carried between them here, never
+ * by either app. Talaris writes one as a link, `[@Emily Lucas](talaris:<id>)`;
+ * Hermes Notes as a name after an `@`, `@Emily_Lucas` (its title, spaces as
+ * underscores), found by that name, or as a link by id, `[label](block:<id>)`.
+ * Each side's words are read into one form to compare: a mention of a thing
+ * the sync has paired becomes a marker naming the pair, so the same mention
+ * written two ways is the same words; one of a thing not paired, its words
+ * (a Talaris link as its label). Written, the form goes out as the side
+ * writes mentions: so each app keeps its own way, and the two never trade
+ * a mention back and forth for being spelled differently.
+ */
+const TEXT = new Set(["title", "body"]);
+const MARK = "\u2063";
+const marker = (key) => `${MARK}@${key}${MARK}`;
+const MARKED = new RegExp(`${MARK}@([^${MARK}]+)${MARK}`, "g");
+const TALARIS_LINK = /\[([^\]\n]*)\]\(talaris:([A-Za-z0-9_-]+)\)/g;
+const BLOCK_LINK = /\[([^\]\n]*)\]\(block:([0-9a-fA-F-]{36})\)/g;
+const AT_NAME = /(^|\s)@([A-Za-z0-9][\w-]*)/g;
+/** A title as Hermes Notes writes it after an `@` (its own asAtName), lowercased to match as it matches. */
+const atName = (title) => String(title ?? "").trim().replace(/ /g, "_");
+
 /** A date or time as one string to compare: to the minute, in UTC, where it can be read; as written where not. */
 function sameTime(v) {
   if (v === null) return null;
@@ -89,6 +111,10 @@ export class Side {
     this.name = name;
     this.types = new Map((env.types ?? []).map((t) => [t.id, t]));
     this.objects = new Map((env.objects ?? []).map((o) => [o.id, o]));
+    // Which mentions each thing makes, as the side said (the format's inline relations): what an `@name` points at.
+    this.mentions = new Map();
+    for (const r of env.relations ?? []) if (r.type === "mentions") this.mentions.set(r.from, [...(this.mentions.get(r.from) ?? []), r.to]);
+    this.writesAt = name !== "Talaris";
     /** States as both sides can say them (`collapser`); set by the plan once it has read both. */
     this.collapse = (x) => x;
   }
@@ -103,6 +129,47 @@ export class Side {
     const states = map.states ?? {};
     const labels = f?.["talaris:labels"] ?? {};
     return { options, states, unmapped: options.filter((o) => !STATES.includes(states[o])).map((o) => labels[o] ?? o) };
+  }
+
+  /** A thing's title, through whichever profile it has one in. */
+  titleOf(o) {
+    const kind = this.kindOf(o);
+    const map = profileOf(this.types.get(o?.type), kind);
+    const v = typeof map?.title === "string" ? o.properties?.[map.title] : o?.properties?.title;
+    return typeof v === "string" ? v : "";
+  }
+
+  /** Words in the form both sides compare in: each mention of a paired thing a marker naming the pair (`key`). */
+  common(o, text, key) {
+    if (this.writesAt) {
+      let out = text.replace(BLOCK_LINK, (m, label, id) => { const k = key(id); return k ? marker(k) : m; });
+      const said = this.mentions.get(o.id) ?? [];
+      return out.replace(AT_NAME, (m, pre, name) => {
+        const want = name.toLowerCase();
+        // As Hermes Notes resolves it: what this thing says it mentions first, else the one thing of that name.
+        const named = (ids) => ids.filter((id) => atName(this.titleOf(this.objects.get(id))).toLowerCase() === want);
+        let hit = named(said);
+        if (hit.length !== 1) hit = named([...this.objects.keys()]);
+        const k = hit.length === 1 ? key(hit[0]) : null;
+        return k ? `${pre}${marker(k)}` : m;
+      });
+    }
+    return text.replace(TALARIS_LINK, (m, label, id) => { const k = key(id); return k ? marker(k) : label; });
+  }
+
+  /** Words in the common form written as this side writes mentions (`id(key)`: this side's thing for a pair). */
+  spoken(text, id) {
+    return text.replace(MARKED, (m, k) => {
+      const mine = id(k);
+      const o = mine ? this.objects.get(mine) : null;
+      const title = o ? this.titleOf(o) : "";
+      if (!mine) return "";
+      if (!this.writesAt) return `[@${title.replace(/[[\]]/g, "")}](talaris:${mine})`;
+      // A name Hermes Notes will find again, and only that one thing, as a name; otherwise a link by id.
+      const at = atName(title);
+      const alone = /^[A-Za-z0-9][\w-]*$/.test(at) && [...this.objects.values()].filter((x) => atName(this.titleOf(x)).toLowerCase() === at.toLowerCase()).length === 1;
+      return alone ? `@${at}` : `[${title.replace(/[[\]]/g, "")}](block:${mine})`;
+    });
   }
 
   /** What a task's status means, by its type's own `states`; null where it says nothing. */
@@ -208,6 +275,7 @@ export class Side {
     }
     // An organization kept as a thing of its own is not words to copy: left alone.
     if (slot === "organization" && field(this.types.get(o.type), profileOf(this.types.get(o.type), kind)?.organization)?.kind === "reference") return null;
+    if (TEXT.has(slot) && typeof v === "string" && key) return this.common(o, v, key);
     return typeof v === "string" ? v : JSON.stringify(v);
   }
 
@@ -287,6 +355,8 @@ export class Side {
     }
     const spec = map[slot];
     if (spec === undefined || spec === null) return null;
+    // Words go as this side writes mentions (`spoken`), from the form both compare in.
+    if (TEXT.has(slot) && typeof value === "string") rawFrom = this.spoken(value, id);
     // The body slot, as the format now lets a patch write it: beside `set`, removed by unset.
     if (spec === "content") return rawFrom === null || rawFrom === undefined ? { unset: ["content"] } : { content: String(rawFrom) };
     const key = typeof spec === "string" ? spec : spec.field;
