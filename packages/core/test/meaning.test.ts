@@ -113,3 +113,15 @@ test("files: each not read until a pass reads it, then read — or read and hold
   assert.equal(after_.reading.pending, 0);
   assert.ok((await meaning.searchMeaning("garden budget", { kind: "file", floor: 0.1 })).some((f) => f.title === "minutes.txt"), "found by what it says");
 });
+
+test("a file that gave no words: listed, and read again when asked", async () => {
+  const rows = (await import("../src/files.js")).listFiles().rows;
+  const blank = rows.find((r) => r.name === "blank.txt")!;
+  assert.ok(meaning.filesWithNoWords().some((f) => f.key === blank.key));
+  writeFileSync(blank.abs!, "Now it says something about compost.");
+  // Changed, it would be read again by itself; asked, it is read again even unchanged in size and time.
+  assert.equal(meaning.readAgain([blank.key]), 1);
+  assert.equal(meaning.fileReadStates((await import("../src/files.js")).listFiles().rows).read[blank.key], "waiting");
+  await meaning.reindex();
+  assert.ok(!meaning.filesWithNoWords().some((f) => f.key === blank.key));
+});

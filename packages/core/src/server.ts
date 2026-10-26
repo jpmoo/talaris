@@ -306,6 +306,15 @@ route("GET", "/meaning", async (_r, _p, q) => meaning.searchMeaning(q.get("q") ?
 route("GET", "/meaning/status", () => meaning.meaningStatus());
 // Files looked at for anything new or changed, now (Settings, Data, Scan now).
 route("POST", "/meaning/scan", async () => meaning.scanFiles());
+// The files that gave no words when read; some (or all) read again, now.
+route("GET", "/meaning/nowords", () => meaning.filesWithNoWords());
+route("POST", "/meaning/read-again", async (req) => {
+  const b = await json<{ keys?: string[] }>(req);
+  const keys = b.keys?.length ? b.keys : meaning.filesWithNoWords().map((f) => f.key);
+  const again = meaning.readAgain(keys);
+  const r = await meaning.scanFiles();
+  return { again, read: r.read };
+});
 // Away, or back: Talaris's hypridle says (power.py) — what "while idle" reads files by.
 route("POST", "/meaning/idle", async (req) => { meaning.setIdle((await json<{ idle?: boolean }>(req)).idle !== false); return { ok: true }; });
 route("POST", "/meaning/reindex", async () => ({ embedded: await meaning.reindex() }));

@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
-import { fileText, keepOnly, keptText, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
+import { fileText, forgetText, keepOnly, keptText, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
@@ -183,6 +183,31 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
     read[r.key] = (keptText(key) ?? "").trim() ? "read" : "nowords";
   }
   return { reading: { on: true, pending, indexing: status.indexing }, read };
+}
+
+/** The files read that gave no words: which, and where — for Settings, to see and to have read again. */
+export function filesWithNoWords(): { key: string; name: string; project: string; projectName: string; path?: string; abs?: string; on: string[]; type: string }[] {
+  const rows = listFiles().rows;
+  const states = fileReadStates(rows).read;
+  const names = new Map<string, string>([[UNDATED, "Unaffiliated pages"], ...listProjects().map((p) => [p.id, p.name] as [string, string])]);
+  return rows.filter((r) => states[r.key] === "nowords")
+    .map((r) => ({ key: r.key, name: r.name, project: r.project, projectName: names.get(r.project) ?? r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
+      on: r.on.map((o) => o.title), type: r.type }));
+}
+
+/** Files read again: what each said forgotten, and its entry, so the next pass reads it afresh (Settings: Read again). */
+export function readAgain(keys: string[]): number {
+  const s = meaningSettings();
+  if (!ready(s)) return 0;
+  const ix = load(s.model);
+  let n = 0;
+  for (const k of keys) {
+    forgetText(`file:${k}`);
+    if (ix.entries.delete(`file:${k}`)) n++;
+  }
+  if (n) save(ix);
+  saveFileText();
+  return n;
 }
 
 /** The files search knows of: read with words, read with none, waiting. */

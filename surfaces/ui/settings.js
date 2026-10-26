@@ -1359,6 +1359,7 @@ async function drawMeaning() {
 const SCAN = [["change", "As they change"], ["idle", "While idle"], ["schedule", "Once a day"], ["manual", "Only when asked"]];
 const KIND_READ = { file: "file", page: "page", task: "task", person: "person", project: "project", event: "event" };
 let readingTimer = null;
+let noWordsOpen = false;   // the list of files that gave no words, shown
 async function drawReading() {
   const host = $("reading");
   if (!host) return;
@@ -1389,10 +1390,31 @@ async function drawReading() {
         try { const r = await core("POST", "/meaning/scan"); say(`${r.read} read${r.changed ? `, ${r.changed} linked or changed` : ""}`); } catch (x) { say(x.message, true); }
         drawReading();
       } }, "Scan now"));
+  // The files that gave no words: listed on asking, each (or all) read again.
+  const again = async (keys, label) => {
+    say(`Reading ${label} again…`);
+    setTimeout(drawReading, 600);
+    try { const r = await core("POST", "/meaning/read-again", keys ? { keys } : {}); say(`${r.again} read again`); } catch (x) { say(x.message, true); }
+    drawReading();
+  };
+  let noWords = null;
+  if (noWordsOpen && f.nowords) { try { noWords = await core("GET", "/meaning/nowords"); } catch { noWords = []; } }
+  const noWordsRow = f.nowords && m.on ? pel("div", { class: "row" },
+    pel("span", { class: "name" }, "Files that gave no words", pel("small", {}, "Pictures with no writing, drawings, or files that could not be read — found by their names only")),
+    pel("span", { class: "what" },
+      pel("button", { class: "t-btn", onclick: () => { noWordsOpen = !noWordsOpen; drawReading(); } }, noWordsOpen ? "Hide" : `Show ${f.nowords}`),
+      pel("button", { class: "t-btn", disabled: busy ? "" : null, onclick: () => again(null, `all ${f.nowords}`) }, "Read all again"))) : null;
+  const where = (x) => [x.path ? `${x.projectName} / ${x.path}` : x.abs ? x.abs.replace(/^\/home\/[^/]+/, "~") : `Stored in ${x.projectName}`,
+    x.on.length ? `on ${x.on.join(", ")}` : ""].filter(Boolean).join(" · ");
+  const noWordsList = noWords ? noWords.map((x) => pel("div", { class: "row rd-file" },
+    pel("span", { class: "name" }, x.name, pel("small", {}, where(x))),
+    pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: busy ? "" : null, onclick: () => again([x.key], x.name) }, "Read again")))) : [];
   host.replaceChildren(...[
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Look for new and changed files", pel("small", {}, hint)), pel("span", { class: "what" }, pick)),
     scan === "schedule" ? pel("div", { class: "row" }, pel("span", { class: "name" }, "At"), pel("span", { class: "what" }, at)) : null,
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Stopped: ${st.error}` : !m.on ? "Search by meaning is off, above" : counts)), progress),
+    noWordsRow,
+    ...noWordsList,
   ].filter(Boolean));
   // Drawn again while it reads, or files wait, and Data is on show.
   if ((busy || f.waiting) && $("data").classList.contains("on")) readingTimer = setTimeout(drawReading, busy ? 1000 : 5000);

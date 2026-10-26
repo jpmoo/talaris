@@ -178,6 +178,11 @@ export async function fileText(key: string, stamp: string, read: () => Promise<s
   return text;
 }
 
+/** What a file said, forgotten: read from it again next time (a file that gave no words, asked again). */
+export function forgetText(key: string): void {
+  if (loadCache().delete(key)) dirty = true;
+}
+
 /** Forget the files no longer there. */
 export function keepOnly(keys: Set<string>): void {
   const c = loadCache();
