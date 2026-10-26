@@ -326,28 +326,6 @@
   // ---------------------------------------------------------------- loading
 
   /*
-   * Files that are in no folder, across every task: linked files missing from
-   * their folders, and files from Hermes Notes stored only in Talaris. Said in
-   * the header, so they are found without opening each task.
-   */
-  async function drawUnbacked() {
-    const b = $("unbacked");
-    if (!b) return;
-    const rows = await api("GET", "/files/unbacked").catch(() => []);
-    const gone = rows.reduce((k, r) => k + r.missing.length, 0), stored = rows.reduce((k, r) => k + r.onlyHere.length, 0);
-    const files = (n) => `${n} file${n === 1 ? "" : "s"}`;
-    b.hidden = !(gone + stored);
-    b.textContent = `⚠ ${[gone ? `${files(gone)} missing from ${gone === 1 ? "its folder" : "their folders"}` : "", stored ? `${files(stored)} from Hermes Notes not in a folder` : ""].filter(Boolean).join(" · ")}`;
-    b.onclick = (e) => {
-      const r = e.currentTarget.getBoundingClientRect();
-      menuAt(r.left, r.bottom + 4, rows.map((x) => ({
-        label: `${x.title} — ${[x.missing.length ? `${x.missing.length} missing from ${x.missing.length === 1 ? "its folder" : "their folders"}` : "", x.onlyHere.length ? `${x.onlyHere.length} not in a folder` : ""].filter(Boolean).join(", ")}`,
-        act: () => openTask(x.id),
-      })));
-    };
-  }
-
-  /*
    * What plugins ask here rather than in Settings (which of Hermes Notes'
    * collections to sync, where a card moved on both sides goes): a button in
    * the header while any wait, and a chooser under it — grouped, each group
@@ -388,7 +366,6 @@
   }
 
   async function loadSide() {
-    drawUnbacked();
     drawAsks();
     const [l, p, c] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => [])]);
     lists = l || [];
@@ -1070,7 +1047,7 @@
     // Where else it lives (a sync's way back), beside its own buttons.
     // And what plugins put on a task (Sync now).
     // A plugin's button done (a file restored, say): the task read again, so what changed shows.
-    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => { loadEditing(); drawUnbacked(); })] : []));
+    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing())] : []));
   }
 
   // Title and notes are the editor, so @ names anything in them (mentions.js);
