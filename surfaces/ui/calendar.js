@@ -54,6 +54,15 @@ function showDeclined(on) {
   drawSide();
   draw();
 }
+// Tasks above the day (their days, available to due), and those past due on today: each shown or not, this page's preference.
+let tasksShown = true, overdueShown = true;
+try { tasksShown = localStorage.getItem("talaris.calendar.tasks") !== "0"; overdueShown = localStorage.getItem("talaris.calendar.overdue") !== "0"; } catch { /* fine */ }
+function showTasks(which, on) {
+  if (which === "tasks") tasksShown = on; else overdueShown = on;
+  try { localStorage.setItem(`talaris.calendar.${which}`, on ? "1" : "0"); } catch { /* fine */ }
+  if (!tasksShown && !overdueShown) { tasks = []; draw(); } else fetchTasks();
+  drawSide();
+}
 function mute(id) {
   if (muted.has(id)) muted.delete(id); else muted.add(id);
   try { localStorage.setItem("talaris.calendar.muted", JSON.stringify([...muted])); } catch { /* fine */ }
@@ -123,10 +132,10 @@ function core(method, path, body) {
 }
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function fetchTasks() {
-  if (!bridge || typeof bridge.core !== "function" || mode === "month") return;
+  if (!bridge || typeof bridge.core !== "function" || mode === "month" || (!tasksShown && !overdueShown)) return;
   const [a, b] = span();
   const asked = `${iso(a)}/${iso(b)}`;
-  core("GET", `/tasks/days?from=${iso(a)}&to=${iso(b)}`).then((rows) => {
+  core("GET", `/tasks/days?from=${iso(a)}&to=${iso(b)}${overdueShown ? "&overdue=1" : ""}`).then((rows) => {
     const [x, y] = span();
     if (asked !== `${iso(x)}/${iso(y)}`) return; // moved on meanwhile
     tasks = rows || [];
@@ -135,14 +144,23 @@ function fetchTasks() {
 }
 const dayWord = (s) => new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-/** The tasks' row: bars packed into as few lines as they fit, each spanning its days. */
+/**
+ * The tasks' row: bars packed into as few lines as they fit, each spanning its
+ * days. Those past due first, on top, on today and stretching back to the day
+ * they were due; the rest from available to due — each kind as Show says.
+ */
 function taskRow(days) {
-  const first = iso(days[0]), last = iso(days[days.length - 1]);
+  const first = iso(days[0]), last = iso(days[days.length - 1]), today = iso(new Date());
+  const late = (t) => overdueShown && t.overdue && !t.complete && t.due;
+  const spans = tasks.flatMap((t) => {
+    if (late(t)) return [{ t, lo: t.due.slice(0, 10), hi: today, late: true }];
+    if (!tasksShown) return [];
+    const a = (t.start || t.due).slice(0, 10), b = (t.due || t.start).slice(0, 10);
+    return [{ t, lo: a <= b ? a : b, hi: a <= b ? b : a, late: false }];
+  }).sort((x, y) => Number(y.late) - Number(x.late));
   const lanes = [];
   const bars = [];
-  for (const t of tasks) {
-    const a = (t.start || t.due).slice(0, 10), b = (t.due || t.start).slice(0, 10);
-    const [lo, hi] = a <= b ? [a, b] : [b, a];
+  for (const { t, lo, hi } of spans) {
     if (hi < first || lo > last) continue;
     const s = Math.max(0, days.findIndex((d) => iso(d) >= lo));
     let e = days.length - 1;
@@ -229,7 +247,16 @@ function drawSide() {
   ]), el("h3", {}, "Show"),
   el("div", { class: "cal" + (declinedShown ? " on" : " muted"), style: "--c:var(--muted)" },
     el("button", { class: "sw", title: declinedShown ? "Hide declined events" : "Show declined events", onclick: () => showDeclined(!declinedShown) }),
-    el("span", {}, "Declined")),
+    el("span", {}, "Declined events")),
+  // Tasks are drawn in Day and Week only, so they are offered there only.
+  ...(mode === "month" ? [] : [
+    el("div", { class: "cal" + (tasksShown ? " on" : " muted"), style: "--c:var(--accent)" },
+      el("button", { class: "sw", title: tasksShown ? "Hide tasks on their days" : "Show tasks on their days", onclick: () => showTasks("tasks", !tasksShown) }),
+      el("span", {}, "Available/Due Tasks")),
+    el("div", { class: "cal" + (overdueShown ? " on" : " muted"), style: "--c:#d0564b" },
+      el("button", { class: "sw", title: overdueShown ? "Hide overdue tasks" : "Show overdue tasks on today", onclick: () => showTasks("overdue", !overdueShown) }),
+      el("span", {}, "Overdue Tasks")),
+  ]),
   el("h3", {}, "Accounts"), el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Accounts…"));
 }
 

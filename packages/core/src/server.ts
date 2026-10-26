@@ -577,7 +577,7 @@ route("POST", "/tasks", async (req) => {
 route("GET", "/tasks/days", (_r, _p, q) => {
   const from = q.get("from") ?? "", to = q.get("to") ?? "";
   if (!/^\d{4}-\d\d-\d\d$/.test(from) || !/^\d{4}-\d\d-\d\d$/.test(to)) throw new BadRequest("from and to, as dates");
-  return lists.tasksOnDays(from, to);
+  return lists.tasksOnDays(from, to, q.get("overdue") === "1");
 });
 route("POST", "/tasks/:id/done", async (req, [id]) => tasks.setDone(id!, (await json<{ done?: boolean }>(req)).done !== false));
 route("POST", "/tasks/:id/shift", async (req, [id]) => tasks.shiftTask(id!, Number((await json<{ days?: number }>(req)).days)));

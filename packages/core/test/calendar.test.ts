@@ -46,3 +46,14 @@ test("ticked done and opened again by what the type says; moved by whole days, t
   tasks.shiftTask(t.id, -1);
   assert.deepEqual(tasks.spanOf(entities.getEntity(t.id)), { start: "2026-12-01", due: "2026-12-02T09:30" });
 });
+
+test("asked for, an open task past its due comes too, wherever its dates fall; a done one does not", () => {
+  const late = tasks.createTask({ title: "Long overdue", start: "2020-01-01", due: "2020-01-03" });
+  const doneLate = tasks.createTask({ title: "Done long ago", due: "2020-01-02" });
+  tasks.setDone(doneLate.id, true);
+  const far = "2099-01-01", farther = "2099-01-08";
+  assert.equal(lists.tasksOnDays(far, farther).some((r) => r.id === late.id), false, "not unless asked");
+  const got = lists.tasksOnDays(far, farther, true);
+  assert.equal(got.find((r) => r.id === late.id)?.overdue, true);
+  assert.equal(got.some((r) => r.id === doneLate.id), false);
+});

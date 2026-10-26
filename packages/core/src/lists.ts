@@ -497,9 +497,11 @@ function rowOf(o: Entity, position: string, region: string | undefined, today: s
 /**
  * Tasks on the days from `from` to `to` (dates; `to` not included), for the
  * calendar: each whose span — available to due, or the one of them it has —
- * touches them. Open and done alike; put away, not.
+ * touches them. Open and done alike; put away, not. With `overdue`, every
+ * open task past its due as well, wherever its dates fall (the calendar
+ * draws those on today).
  */
-export function tasksOnDays(from: string, to: string): Row[] {
+export function tasksOnDays(from: string, to: string, overdue = false): Row[] {
   const today = resolveDate("today"), now = resolveDate("now");
   return allRecords().map((r) => r.object).flatMap((o) => {
     if (o.stub || o.archived) return [];
@@ -509,7 +511,9 @@ export function tasksOnDays(from: string, to: string): Row[] {
     const a = (s.start ?? s.due)?.slice(0, 10), b = (s.due ?? s.start)?.slice(0, 10);
     if (!a || !b) return [];
     const [lo, hi] = a <= b ? [a, b] : [b, a];
-    return lo < to && hi >= from ? [rowOf(o, "", undefined, today, now)] : [];
+    if (lo < to && hi >= from) return [rowOf(o, "", undefined, today, now)];
+    const row = overdue ? rowOf(o, "", undefined, today, now) : null;
+    return row?.overdue ? [row] : [];
   }).sort((x, y) => String(x.start ?? x.due).localeCompare(String(y.start ?? y.due)) || x.title.localeCompare(y.title));
 }
 

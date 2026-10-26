@@ -354,7 +354,7 @@ class CalendarService(QObject):
 
 
 #: What the page may ask the core for: the tasks on the days on show, ticking one done, moving its dates.
-TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
+TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
 
 
 class CalendarBridge(Bridge):
