@@ -45,6 +45,8 @@ function core<T>(method: string, path: string, body?: unknown): Promise<T> {
 
 interface Summary { id: string; title: string; kinds: string[]; stub?: boolean }
 interface Connection { by: string; name: string; via?: string; entity: Summary }
+interface ContextItem { id: string; title: string; kind: string; due?: string; done?: boolean; start?: string }
+interface Context { query: string; hits: ContextItem[]; about: { focus: ContextItem; related: (ContextItem & { how: string; incoming: boolean })[]; more: number }[] }
 interface Read { entity: Record<string, unknown> & { properties: Record<string, unknown> }; title: string; kinds: string[]; out: Connection[]; in: Connection[] }
 
 const KINDS = ["contact", "event", "note", "task", "project"];
@@ -104,6 +106,23 @@ const TOOLS: Tool[] = [
       const q = new URLSearchParams({ q: str(a.query), limit: String(Number(a.limit) || 20), ...(kind ? { kind } : {}) });
       const found = await core<Summary[]>("GET", `/entities?${q}`);
       return found.length ? found.map(line).join("\n") : "Nothing in Talaris matches that.";
+    },
+  },
+  {
+    name: "talaris_context",
+    description: "Everything Talaris knows around some words: the people, tasks, notes, events and projects that hold them, and for each one they name (\"Rich\" names Rich Gelson), everything connected to it — the tasks that mention him, the notes about him, the meetings he was at — though those never say the words. Use it first for \"what do I have on…\", \"anything about…\", or to know the background before answering about a person, project or event.",
+    inputSchema: { type: "object", properties: { query: { type: "string", description: "A name or a few words." } }, required: ["query"] },
+    annotations: { readOnlyHint: true, title: "Context from Talaris" },
+    run: async (a) => {
+      const c = await core<Context>("GET", `/context?q=${encodeURIComponent(str(a.query))}`);
+      if (!c.hits.length) return "Nothing in Talaris holds those words.";
+      const said = (i: ContextItem) => `- ${i.title} (${i.kind}${i.kind === "task" ? (i.done ? ", done" : i.due ? `, due ${i.due}` : "") : i.kind === "event" && i.start ? `, ${i.start}` : ""}) [${i.id}]`;
+      const out = [`Holding "${c.query}" (${c.hits.length}):`, ...c.hits.map(said)];
+      for (const a of c.about) {
+        out.push("", `Connected to ${a.focus.title} (${a.related.length + a.more}${a.more ? `, the ${a.related.length} most current shown` : ""}):`);
+        out.push(...(a.related.length ? a.related.map((r) => `${said(r)} — ${r.incoming ? `its ${r.how}: ${a.focus.title}` : `${a.focus.title}'s ${r.how}`}`) : ["- nothing yet"]));
+      }
+      return out.join("\n");
     },
   },
   {
@@ -322,7 +341,7 @@ async function answer(m: Message): Promise<void> {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
         capabilities: { tools: { listChanged: true } },
         serverInfo: { name: "talaris", version: "0.1.0" },
-        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: find with talaris_find, then talaris_read for everything connected to one. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
+        instructions: "Talaris is the user's desktop. It keeps their people, events (mirrored from their calendars, with invitees as people), notes, tasks and projects, all connected: talaris_context for everything around a name or some words, talaris_find to look one up, talaris_read for one thing whole. It also knows what is on the screen — talaris_now answers \"what am I looking at\", \"this canvas\", \"this page\" without a screenshot — and does what the user would: go to a project, open things, launch applications, write pages and build canvases (talaris_canvas_read, then talaris_canvas_edit).",
       });
     case "ping":
       return reply(m.id, {});

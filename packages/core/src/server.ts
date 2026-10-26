@@ -56,6 +56,7 @@ import * as tagsM from "./tags.js";
 import * as links from "./links.js";
 import * as files from "./files.js";
 import * as meaning from "./meaning.js";
+import { contextFor } from "./context.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -360,6 +361,8 @@ route("GET", "/entities", (_r, _p, q) => {
   return near ? found.map((s) => ({ ...s, near: near.has(s.id) })) : found;
 });
 route("POST", "/entities", async (req) => entities.createEntity(await json<entities.NewEntity>(req)));
+// Context for what was typed (context.ts): what holds its words, and everything the things it names touch.
+route("GET", "/context", (_r, _p, q) => contextFor(q.get("q") ?? "", { limit: Number(q.get("limit") ?? 20) }));
 route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
 route("POST", "/entities/mirror/events", async (req) => {
   const b = await json<{ events?: entities.MirroredEvent[] }>(req);

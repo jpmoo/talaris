@@ -52,7 +52,7 @@ let talked = { query: "", results: [] };
 // What is nearest the query in meaning (the core's meaning.ts), for the query it answered.
 let meant = { query: "", results: [] };
 // Tasks, people, notes and events holding the query's words (launcher.py, _ThingSearch), for the query it answered.
-let named = { query: "", results: [] };
+let named = { query: "", results: [], about: [] };
 // `#tag`: what carries it, asked of the core as it is typed (launcher.py, tagged).
 let tagCache = new Map();
 let talkSoon = null;
@@ -259,18 +259,40 @@ function draw() {
     shown.unshift({ kind: "sum", title: figure(worked), sub: "Enter copies it", act: { kind: "copy", text: plain } });
   }
   // By their words: tasks, people, notes and events — after what the launcher has of its own, before what is near in meaning.
+  // Under each thing the words name whole, what is connected to it, whether or not it says them (the core's context).
   if (query.trim() && !tagAsked && named.query === query.trim().replace(/\s+/g, " ")) {
     const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
+    const ids = new Set();
     const dayOf = (s) => new Date(s.length > 10 ? s : `${s}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const detail = (r) => r.kind === "task" ? (r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task")
+      : r.kind === "person" ? "Person"
+      : r.kind === "note" ? (r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page")
+      : `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`;
+    const row = (r, sub = detail(r)) => {
+      ids.add(r.id || `${r.calendar}:${r.uid}`);
+      const key = r.kind === "event" ? `event:${r.calendar}:${r.uid}` : `${r.kind}:${r.id}`;
+      const act = r.kind === "task" || r.kind === "person" ? { kind: "entity", id: r.id, as: r.kind }
+        : r.kind === "note" ? { kind: "page", project: r.project, path: r.path }
+        : { kind: "event", calendar: r.calendar, uid: r.uid, start: r.start };
+      return { kind: r.kind, key, title: r.kind === "event" ? r.title || "(no title)" : r.title, sub, act };
+    };
     for (const r of named.results) {
       if (r.kind === "note" && have.has(`page:${r.title}`.toLowerCase())) continue;
-      if (r.kind === "task") shown.push({ kind: "task", key: `task:${r.id}`, title: r.title, sub: r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task", act: { kind: "entity", id: r.id, as: "task" } });
-      else if (r.kind === "person") shown.push({ kind: "person", key: `person:${r.id}`, title: r.title, sub: "Person", act: { kind: "entity", id: r.id, as: "person" } });
-      else if (r.kind === "note") shown.push({ kind: "note", key: `note:${r.id}`, title: r.title, sub: r.project === "notes" ? "Unaffiliated note" : r.path.startsWith("Daily/") ? "Daily note" : "Page",
-        act: { kind: "page", project: r.project, path: r.path } });
-      else if (r.kind === "event") shown.push({ kind: "event", key: `event:${r.calendar}:${r.uid}`, title: r.title || "(no title)",
-        sub: `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`,
-        act: { kind: "event", calendar: r.calendar, uid: r.uid, start: r.start } });
+      shown.push(row(r));
+    }
+    // How a thing touches the one named, said from the thing's side: "Mentions Rich Gelson", "With Rich Gelson".
+    const how = (r, focus) => {
+      const h = r.how.toLowerCase();
+      if (!r.incoming) return h === "attendees" ? `${focus}'s guest` : h === "organizer" ? `Organized ${focus}` : `${focus}'s ${h}`;
+      return h === "mentions" ? `Mentions ${focus}` : h === "attendees" ? `With ${focus}` : h === "organizer" ? `Organized by ${focus}`
+        : h === "project" ? `In ${focus}` : h === "people" || h === "about" ? `About ${focus}` : `${focus} · ${h}`;
+    };
+    for (const a of named.about || []) {
+      const rows = a.related.filter((r) => !ids.has(r.id || `${r.calendar}:${r.uid}`))
+        .map((r) => ({ ...row(r, `${how(r, a.title)} · ${detail(r)}`), related: true }));
+      if (!rows.length) continue;
+      const at = shown.findIndex((x) => x.key && x.key.endsWith(`:${a.focus}`));
+      shown.splice(at < 0 ? shown.length : at + 1, 0, ...rows);
     }
   }
   // By meaning: pages, notes, tasks and people about what was typed, below what matched its words — each once.
@@ -302,7 +324,7 @@ function draw() {
   const list = $("list");
   list.replaceChildren(...shown.map((x, i) => {
     const row = document.createElement("div");
-    row.className = "item" + (i === at ? " on" : "") + (armed === x.key ? " armed" : "");
+    row.className = "item" + (i === at ? " on" : "") + (armed === x.key ? " armed" : "") + (x.related ? " related" : "");
     const icon = document.createElement("span");
     icon.className = "icon";
     if (x.img) {

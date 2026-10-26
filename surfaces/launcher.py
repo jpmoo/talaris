@@ -134,11 +134,27 @@ class _MeaningSearch(QRunnable):
         self.bridge.meaningFound.emit(json.dumps({"query": self.query, "results": results if isinstance(results, list) else []}))
 
 
+def _row(it: dict) -> dict | None:
+    """A thing of the core's context as the launcher opens it; None for one it has no place to open."""
+    kind = it.get("kind")
+    base = {"kind": kind, "id": it.get("id", ""), "title": it.get("title", "")}
+    if kind == "task":
+        return {**base, "done": bool(it.get("done")), "due": it.get("due", "")}
+    if kind == "person":
+        return base
+    if kind == "note" and it.get("path"):
+        return {**base, "project": it.get("project", ""), "path": it["path"]}
+    if kind == "event" and it.get("uid") and it.get("start"):
+        return {**base, "calendar": it.get("calendar", ""), "uid": it["uid"], "start": it["start"], "allDay": bool(it.get("allDay")), "location": ""}
+    return None
+
+
 class _ThingSearch(QRunnable):
     """
-    Tasks, people, notes and events whose words hold what was typed, off the
-    screen's thread: the core's search for the first three (each opened where
-    it lives — a note on its page), the calendar's for events.
+    Context for what was typed, off the screen's thread: tasks, people, notes
+    and events whose words hold it, and for each thing it names whole,
+    everything connected to it (the core's /context; a note opened on its
+    page), with the calendar's own search for events the core does not keep.
     """
 
     def __init__(self, bridge: "LauncherBridge", query: str) -> None:
@@ -150,21 +166,25 @@ class _ThingSearch(QRunnable):
         from urllib.parse import quote
         q = quote(self.query)
         found: list[dict] = []
-        tasks = _json(f"/tasks/find?text={q}&limit=12", [])
-        # Open ones before done ones, and no more than a handful.
-        for t in sorted(tasks if isinstance(tasks, list) else [], key=lambda t: bool(t.get("complete")))[:6]:
-            found.append({"kind": "task", "id": t["id"], "title": t.get("title", ""), "done": bool(t.get("complete")), "due": t.get("due", "")})
-        for p in _json(f"/entities?q={q}&kind=contact&limit=5", []) or []:
-            found.append({"kind": "person", "id": p["id"], "title": p.get("title", "")})
-        for n in _json(f"/entities?q={q}&kind=note&limit=6", []) or []:
-            place = _json(f"/entities/{quote(n['id'])}/place", None)
-            if place and place.get("kind") == "page":
-                found.append({"kind": "note", "id": n["id"], "title": n.get("title", ""), "project": place.get("project", ""), "path": place.get("where", "")})
+        # The core's context (context.ts): what holds the words, and for what they name, everything it touches.
+        ctx = _json(f"/context?q={q}&limit=20", None) or {"hits": [], "about": []}
+        hits = [h for h in ctx.get("hits", []) if _row(h)]
+        # Open tasks before done ones; no more than a handful of each kind.
+        hits.sort(key=lambda h: bool(h.get("done")))
+        counts: dict[str, int] = {}
+        for h in hits:
+            counts[h["kind"]] = counts.get(h["kind"], 0) + 1
+            if counts[h["kind"]] <= {"task": 6, "person": 5, "note": 6, "event": 5}.get(h["kind"], 0):
+                found.append(_row(h))
+        about = [{"focus": a["focus"]["id"], "title": a["focus"]["title"], "more": a.get("more", 0),
+                  "related": [dict(_row(r), how=r.get("how", ""), incoming=bool(r.get("incoming"))) for r in a.get("related", []) if _row(r)]}
+                 for a in ctx.get("about", [])]
         service = getattr(self.bridge.owner.desktop, "calendar_service", None)
-        for e in (service.find_events(self.query) if service else [])[:5]:
+        mirrored = {r.get("uid") for r in found if r["kind"] == "event"}
+        for e in [e for e in (service.find_events(self.query) if service else []) if e.get("uid") not in mirrored][:5]:
             found.append({"kind": "event", "calendar": e.get("calendar", ""), "uid": e.get("uid", ""), "title": e.get("title", ""),
                           "start": datetime.fromtimestamp(e["start"] / 1000).isoformat(), "allDay": bool(e.get("allDay")), "location": e.get("location", "")})
-        self.bridge.thingsFound.emit(json.dumps({"query": self.query, "results": found}))
+        self.bridge.thingsFound.emit(json.dumps({"query": self.query, "results": found, "about": about}))
 
 
 class LauncherBridge(Bridge):
