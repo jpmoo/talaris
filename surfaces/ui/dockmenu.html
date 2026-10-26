@@ -31,6 +31,7 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
 <div class="menu" id="menu">
   <div class="hint" id="wins-hint" hidden>Its windows</div>
   <div id="wins"></div>
+  <div id="goto"></div>
   <div class="menu-sep" id="wins-sep" hidden></div>
   <div class="hint" id="name"></div>
   <button class="menu-item" data-verb="show">Show</button>
@@ -134,8 +135,16 @@ function onState(s) {
       return b;
     })];
   }));
+  // The other projects it is open or kept in: each gone to by a press.
+  document.getElementById("goto").replaceChildren(...(s.goTo || []).map((p) => {
+    const b = document.createElement("button");
+    b.className = "menu-item";
+    b.textContent = `Go to ${p.name}`;
+    b.addEventListener("click", () => bridge && bridge.act(`project:${p.id}`, key));
+    return b;
+  }));
   document.getElementById("wins-hint").hidden = all.length < 2;
-  document.getElementById("wins-sep").hidden = all.length < 2;
+  document.getElementById("wins-sep").hidden = all.length < 2 && !(s.goTo || []).length;
   // What a press does when it is open only in another project: ticked as it is now; the one ticked, pressed, goes back to the default.
   const choose = !doc && !!it.id;
   document.getElementById("choose").hidden = !choose;

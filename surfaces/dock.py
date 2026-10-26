@@ -158,11 +158,25 @@ class DockMenu(QObject):
                 "oneWindow": bool(self.key and keeps_one_window(self.key)),
                 # One that opens new windows has more than one to bring: the menu says which ("its last window").
                 "manyWindows": bool(self.key and not self.key.startswith(("doc:", "class:")) and opens_new_windows(self.key)),
+                # The other projects it is open or kept in, to go to ("Go to Coding").
+                "goTo": self._go_to(item),
                 # Kept in another project: its name, for "New window in …".
                 "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else ""}
 
     #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
     everywhere: list = []
+
+    def _go_to(self, item: dict) -> list:
+        here = self.desktop.project.get("id", "")
+        ids = [w["projectId"] for w in self.everywhere if not w["hidden"] and not w["here"] and w.get("projectId")]
+        if item.get("keptIn") and not item.get("keptHere"):
+            ids.append(item["keptIn"])
+        names = {}
+        for pid in ids:
+            name = self.dock._project_name(pid)
+            if pid != here and name != pid:
+                names[pid] = name
+        return [{"id": pid, "name": name} for pid, name in names.items()]
 
     def _everywhere(self, key: str) -> list:
         now = hypr.windows()
@@ -172,6 +186,7 @@ class DockMenu(QObject):
             if _key(self.dock.apps.lookup(w["class"]), w["class"]) != key:
                 continue
             out.append({"address": w["address"], "title": w["title"], "hidden": w["hidden"], "here": w["workspace"] == now["active"],
+                        "projectId": desks.get(w["workspace"], ""),
                         "project": self.dock._project_name(desks.get(w["workspace"], "")) if desks.get(w["workspace"]) else ""})
         return out
 
@@ -191,6 +206,7 @@ class DockMenu(QObject):
         # A row for each window listed (two or more), and one for each place they are grouped under.
         places = {"hidden" if x["hidden"] else "here" if x["here"] else x["project"] for x in self.everywhere}
         rows = len(self.everywhere) + len(places) + 1 if len(self.everywhere) > 1 else 0
+        rows += len(self._go_to(item))
         w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120)
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
@@ -217,6 +233,10 @@ class DockMenu(QObject):
     def act(self, verb: str, key: str) -> None:
         found = self.found
         self.file_away()
+        if verb.startswith("project:"):
+            # One of the projects it is open or kept in, gone to.
+            self.desktop.go_to_project(verb[len("project:"):], announce=True)
+            return
         if verb.startswith("go:"):
             # One of its windows, chosen from the list: shown, or gone to where it is (its project with it).
             address = verb[3:]
@@ -428,15 +448,26 @@ class Dock(QObject):
         """
         What a press does with an application open in another project and not
         here (the menu's choice for it): `bring` its window here, `go` to it,
-        or open a `new` window here. Unchosen, an application its desktop
-        file says opens new windows (a "new window" action: a browser, a
-        terminal) opens a new one here; any other follows the rule in Settings
-        ("") — most say nothing either way, and are taken as keeping one.
+        or open a `new` window here — what the menu ticks, and what a press
+        does. Chosen, that. Unchosen: an application its desktop file says
+        opens new windows (a "new window" action: a browser, a terminal) opens
+        a new one here; one kept in another project is gone to; any other
+        follows the rule in Settings (most say nothing either way, and are
+        taken as keeping one window). "" for a document, or a window with no
+        application to know it by.
         """
-        chosen = self.desktop.config["dock"].get("elsewhere", {}).get(key, "")
+        if key.startswith(("doc:", "class:")):
+            return ""
+        cfg = self.desktop.config
+        chosen = cfg["dock"].get("elsewhere", {}).get(key, "")
         if chosen:
             return chosen
-        return "new" if not key.startswith(("doc:", "class:")) and opens_new_windows(key) else ""
+        if opens_new_windows(key):
+            return "new"
+        kept = cfg["dock"].get("stays", {}).get(key)
+        if kept and kept != self.desktop.project.get("id", ""):
+            return "go"
+        return "go" if cfg["launcher"].get("singleWindow", "bring") == "go" else "bring"
 
     def new_window(self, app_id: str) -> None:
         """A new window of an application, here: by its own "new window" action where it has one (a browser's), else started again."""
@@ -453,21 +484,22 @@ class Dock(QObject):
         if not item:
             return
         windows = item["windows"]
-        if not windows and item.get("keptIn") and not item.get("keptHere"):
-            self.go_kept(item)
-            return
-        # Open only in another project: as its menu says — brought here, gone to, or a new window here.
-        choice = self.elsewhere(key)
+        # Open only in another project: as its menu says — a new window here, brought here, or gone to.
         # (A hidden window counts as here: pressed, it is shown.)
-        if choice and item["id"] and not item.get("doc") and not any(w.get("here") or w["hidden"] for w in windows):
-            if choice == "new":
+        choice = self.elsewhere(key)
+        if choice and item["id"] and not any(w.get("here") or w["hidden"] for w in windows):
+            mine = self.desktop.launcher._app_windows(item["id"])
+            if mine and choice == "new":
                 self.new_window(item["id"])
                 return
-            mine = self.desktop.launcher._app_windows(item["id"])
             if mine:
                 now = hypr.windows()
                 self.desktop.launcher._bring(item["id"], (now["active"], now["activeTarget"]), go=choice == "go")
                 return
+        # Open nowhere, and kept in another project: started there.
+        if not windows and item.get("keptIn") and not item.get("keptHere"):
+            self.go_kept(item)
+            return
         if not windows:
             if item.get("doc"):
                 self.call_doc(item)

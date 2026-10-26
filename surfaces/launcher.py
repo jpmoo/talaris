@@ -463,6 +463,9 @@ class Launcher(QObject):
             return False
         mine = self._app_windows(app_id)
         visible = [w for w in mine if not w["hidden"]]
+        # Told in its menu to be brought, or a new window opened here: that, while it is open somewhere.
+        if visible and cfg["dock"].get("elsewhere", {}).get(app_id) in ("bring", "new"):
+            return False
         if visible:
             hypr.focus(visible[0]["address"])
             log(f"launcher: gone to {app_id}, kept where it is")
