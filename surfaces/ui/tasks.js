@@ -938,13 +938,17 @@
   async function loadEditing() {
     const id = editing;
     if (!id) return;
-    const [got, r] = await Promise.all([api("GET", `/entities/${enc(id)}`),
-      api("GET", `/tasks/${enc(id)}/recurrence`).catch(() => ({ rule: null, summary: "" }))]);
+    const [got, r, f] = await Promise.all([api("GET", `/entities/${enc(id)}`),
+      api("GET", `/tasks/${enc(id)}/recurrence`).catch(() => ({ rule: null, summary: "" })),
+      api("GET", `/entities/${enc(id)}/folder`).catch(() => ({ folder: "" }))]);
     if (editing !== id) return;
     entity = got.entity;
+    taskFolder = (f && f.folder) || "";
     rec = r || { rule: null, summary: "" };
     paintSheet();
   }
+  // The folder of the project the task is filed under: a file linked from inside it is the project's.
+  let taskFolder = "";
   const props = () => (entity && entity.properties) || {};
   const focused = (id) => document.activeElement === $(id);
   const spanNow = () => (shape && shape.spanKey ? props()[shape.spanKey] : null) || {};
@@ -1006,38 +1010,62 @@
       const files = Array.isArray(p[fk]) ? p[fk] : [];
       const id = editing;
       const after = () => { loadEditing(); refresh(); };
+      /*
+       * Where each file is, one of three: stored on this task only (a copy
+       * Talaris keeps — removing it deletes it); in this project's folder (a
+       * link to the file there); or linked from another folder. A linked
+       * file gone from its folder is said so. Right-click moves it between
+       * them; removing one stored on the task only asks first.
+       */
+      const placeOf = (a) => {
+        const link = a["talaris:link"];
+        if (!link) return "task";
+        return taskFolder && link.path.startsWith(taskFolder.replace(/\/$/, "") + "/") ? "project" : "elsewhere";
+      };
+      const dirOf = (p) => p.replace(/\/[^/]*$/, "").replace(/^\/home\/[^/]+/, "~");
       const fileMenu = (e, a) => {
         e.preventDefault();
         e.stopPropagation();
         const link = a["talaris:link"];
+        const toTask = { label: "Store on this task only", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) };
         menuAt(e.clientX, e.clientY, link ? [
-          { label: "Store it in Talaris instead", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/snapshot`).then(after).catch(failed) },
+          ...(a["talaris:missing"] ? [] : [toTask]),
           { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
         ] : [
-          { label: "Save to the project folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
+          { label: "Save to this project's folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
         ]);
       };
+      const ICON = { task: Icons.clip, project: Icons.folder, elsewhere: Icons.linked };
+      const icon = (svg) => { const s = el("span", { class: "fic" }); s.innerHTML = svg(); return s; };
       $("s-files").replaceChildren(
         ...files.map((a) => {
-          const link = a["talaris:link"], missing = a["talaris:missing"];
-          // From Hermes Notes, stored only in Talaris (in no folder): warned about, and one right-click from being saved to the project folder.
-          const onlyHere = !link && a["hermes-sync:origin"];
-          return el("span", { class: "chip-p" + (link ? " linked" : "") + (missing ? " missing" : "") + (onlyHere ? " only-here" : ""),
-            title: link ? (missing ? `${a.filename} is missing from its folder (${link.path}). Restore missing files puts it back from Hermes Notes` : `Open ${link.path}`)
-              : onlyHere ? `${a.filename} came from Hermes Notes and is stored in Talaris, not in a folder. Right-click to save it to the project folder`
-              : `Open ${a.filename} (stored in Talaris)`,
+          const link = a["talaris:link"], missing = a["talaris:missing"], where = placeOf(a);
+          const said = missing ? `${a.filename} — missing from ${dirOf(link.path)}. Restore missing files puts it back`
+            : where === "task" ? `${a.filename} — stored on this task only. Right-click to save it to this project's folder`
+            : where === "project" ? `${a.filename} — in this project's folder (${dirOf(link.path)})`
+            : `${a.filename} — linked from ${dirOf(link.path)}`;
+          // Removing one stored on the task only deletes it: the × asks once more ("Delete?") before it does.
+          let armed = 0;
+          const x = el("button", { title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task (the file stays in its folder)", onclick: (e) => {
+            e.stopPropagation();
+            if (where === "task" && !armed) {
+              x.textContent = "Delete?";
+              x.classList.add("arming");
+              armed = setTimeout(() => { armed = 0; x.textContent = "×"; x.classList.remove("arming"); }, 3000);
+              return;
+            }
+            clearTimeout(armed);
+            api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
+          } }, "×");
+          return el("span", { class: `chip-p at-${where}` + (missing ? " missing" : ""), title: said,
             onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
             oncontextmenu: (e) => fileMenu(e, a) },
-            missing || onlyHere ? el("span", { class: "warn-mark" }, "⚠") : null,
-            link ? el("span", { class: "link-mark" }, "↗") : null,
+            missing ? el("span", { class: "warn-mark" }, "⚠") : icon(ICON[where]),
             el("span", { class: "fname" }, a.filename),
-            el("button", { title: link ? "Take the link off the task (the file stays)" : "Take off the task", onclick: (e) => {
-              e.stopPropagation();
-              api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
-            } }, "×"));
+            x);
         }),
-        el("button", { class: "add", title: "Attach files (stored in Talaris)", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
-        el("button", { class: "add link-add", title: "Link files (opened from their folders)", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
+        el("button", { class: "add", title: "Attach files (stored on this task)", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
+        el("button", { class: "add link-add", title: "Link files where they are", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
         el("span", { id: "s-files-note" }));
     }
     if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");

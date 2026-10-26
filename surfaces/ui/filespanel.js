@@ -68,8 +68,8 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored in Talaris", missing: "Missing from its folder" };
-  const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "in Talaris", missing: "missing" };
+  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder" };
+  const MARK = { page: "page", shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "on a task", missing: "missing" };
   const TYPES = [["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
@@ -224,7 +224,7 @@
     if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
     if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", by a shortcut there" : ""}.`));
     if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked on a task"), " from where it lives, outside every project."));
-    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored in Talaris"), `${r.fromHermes ? ", from Hermes Notes" : ""} — not in any folder until it is saved to the project folder.`));
+    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""} — in no folder until it is saved to the project's.`));
     if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing from its folder:"), " moved or deleted."));
     if (r.sealed) said.push(el("span", {}, "Sealed: it opens as a copy, since only Talaris can read it."));
     const lines = [

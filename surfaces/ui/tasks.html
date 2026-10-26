@@ -138,14 +138,15 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-notes:empty::before, #s-notes .cm-content:only-child:empty::before { content: attr(data-placeholder); color: var(--muted); }
 .s-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 #s-elsewhere { display: flex; gap: 6px; }
-/* A linked file (↗): the file itself, where it is; one gone from there, said. */
-.chip-p.linked .link-mark { color: var(--accent); margin-right: 3px; }
+/* Where a file is (tasks.js): stored on the task only (a paperclip), in this project's folder (a folder), or
+   linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
+.chip-p .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
+.chip-p .fic .ic { width: 13px; height: 13px; }
+.chip-p.at-project .fic, .chip-p.at-elsewhere .fic { color: var(--accent); }
+.chip-p.at-task { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 .chip-p.missing .fname { text-decoration: line-through; opacity: .6; }
-/* In no folder: a red mark for a linked file missing from its folder, an amber one for a file from Hermes Notes stored only in Talaris. */
-.chip-p .warn-mark { margin-right: 3px; font-weight: 600; }
-.chip-p.missing .warn-mark { color: var(--danger, #e06c6c); }
-.chip-p.only-here { box-shadow: inset 0 0 0 1px #d9a13b; }
-.chip-p.only-here .warn-mark { color: #d9a13b; }
+.chip-p .warn-mark { margin-right: 3px; font-weight: 600; color: var(--danger, #e06c6c); }
+.chip-p button.arming { color: var(--danger, #e06c6c) !important; font-weight: 600; }
 #s-elsewhere:empty { display: none; }
 .s-foot .spacer { flex: 1; }
 #s-done { color: var(--muted); font-size: 11.5px; }
