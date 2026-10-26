@@ -274,7 +274,7 @@
       act("Rename", () => inline("rename", r));
       act("Move", () => inline("move", r));
     }
-    if (s.includes("shortcut") && !s.includes("missing")) act("Move it in…", () => bringIn([r.abs], "move", r.project));
+    if (s.includes("shortcut") && !s.includes("missing")) act("Move it in…", () => bringIn([r.abs], "move", r.project, null, true));
     if (s.includes("linked") && !s.includes("missing")) act("Make it a shortcut here", () => api("POST", "/files/shortcut", { project: r.project, path: r.abs }).then(reload, failed));
     if (s.includes("snapshot")) act("Save to the project folder", () => api("POST", "/files/snapshot/save", { holder: r.holder, sha256: r.sha256, project: r.project })
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
@@ -295,6 +295,8 @@
     // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
     const gkey = glanceKey(r);
     if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, (k) => bridge.glanceAt(k)));
+    // What takes something away, last: delete, the trash, a shortcut removed.
+    acts.sort((a, b) => Number(a.classList.contains("danger")) - Number(b.classList.contains("danger")));
     const sugg = gkey && window.Peek ? Peek.suggestions(gkey, api, {
       open: (id) => Peek.show(id, api, { openTask: (t) => bridge.openTask(t), openPerson: (p) => bridge.openPerson(p),
         openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), openEvent: (c, u, st) => bridge.openEvent(c, u, st), openUrl: (u) => bridge.openUrl(u) }),
@@ -444,7 +446,8 @@
     sheet.hidden = false;
   }
 
-  async function bringIn(paths, how = "", into = null, folder = null) {
+  // `shortcutAlready`: moving in what is a shortcut here now — so "Shortcuts instead" would only be Cancel.
+  async function bringIn(paths, how = "", into = null, folder = null, shortcutAlready = false) {
     const to = into || project || surface.project;
     if (!paths.length) return;
     if (!to) { say("Choose a project on the left first: that is where they go", true); return; }
@@ -488,7 +491,7 @@
         c.error ? el("ul", {}, el("li", {}, c.error))
           : c.warnings.length ? el("ul", {}, ...c.warnings.map((w) => el("li", {}, w.text))) : el("ul", { class: "fine" }, el("li", {}, "Nothing else is disturbed.")))),
       el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
-        el("button", { class: "t-btn", onclick: () => { close(); bringIn(ok.map((c) => c.path), "shortcut", to); } }, "Shortcuts instead"),
+        shortcutAlready ? null : el("button", { class: "t-btn", onclick: () => { close(); bringIn(ok.map((c) => c.path), "shortcut", to); } }, "Shortcuts instead"),
         ok.length ? el("button", { class: "t-btn primary", onclick: async () => {
           close();
           let moved = 0;
