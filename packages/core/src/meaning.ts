@@ -7,9 +7,10 @@
  *
  * **What is embedded**: every writing page — each project's, the unaffiliated
  * notes, Home's daily notes — in passages of a few paragraphs; and tasks,
- * people and projects, each as one passage of what it says. Not events (the
- * calendar's are many and say little) and not files (their names are found by
- * words already).
+ * people, projects and events, each as one passage of what it says; and
+ * files — a project folder's, and those on things — by their text, read by
+ * filetext.ts (PDFs, documents, spreadsheets, slides, pictures of words), in
+ * passages like a page's.
  *
  * **By a model server**, the one Morgan's memory uses unless Settings says
  * otherwise (Ollama's `/api/embed`, or the OpenAI-style `/v1/embeddings`).
@@ -28,7 +29,10 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { allRecords, profilesOf, titleOf, type Entity } from "./entities.js";
+import { allRecords, getFile, profilesOf, titleOf, type Entity } from "./entities.js";
+import { listFiles } from "./files.js";
+import { fileText, keepOnly, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
+import { linkedBytes } from "./links.js";
 import { CONFIG_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
@@ -49,12 +53,17 @@ export function meaningSettings(): MeaningSettings {
 /** One thing that can be found: a page or an entity, and how it opens. */
 export interface Doc {
   key: string;
-  kind: "page" | "task" | "person" | "project";
+  kind: "page" | "task" | "person" | "project" | "event" | "file";
   title: string;
   /** For a page: its project (`notes` for an unaffiliated note) and path. For an entity: its id. */
   project?: string;
   path?: string;
   id?: string;
+  /** For a file: where it is on disk, or the copy kept (its hash, and a thing it is on); the things it is on. */
+  abs?: string;
+  sha256?: string;
+  holder?: string;
+  on?: string[];
   /** What says whether it changed: a page's modified time, an entity's version. */
   stamp: string;
 }
@@ -124,7 +133,7 @@ function pageDocs(): Doc[] {
   return out;
 }
 
-const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project" };
+const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project", event: "event" };
 function entityDocs(): Doc[] {
   const out: Doc[] = [];
   for (const { object: o } of allRecords()) {
@@ -134,6 +143,27 @@ function entityDocs(): Doc[] {
     out.push({ key: `e:${o.id}`, kind, title: titleOf(o), id: o.id, stamp: String(o.version) });
   }
   return out;
+}
+
+/** Every file with words in it: the folders' (not their pages, which are pages), and those on things. */
+function fileDocs(): Doc[] {
+  const out: Doc[] = [];
+  for (const r of listFiles().rows) {
+    if (r.status.includes("page") || r.status.includes("missing") || !readable(r.name)) continue;
+    out.push({ key: `file:${r.key}`, kind: "file", title: r.name, project: r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
+      ...(r.sha256 ? { sha256: r.sha256, holder: r.holder } : {}), on: r.on.map((o) => o.id),
+      stamp: r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}` });
+  }
+  return out;
+}
+
+/** A file's text: read from where it is, or from the copy kept. */
+export async function docText(d: Doc): Promise<string> {
+  return fileText(d.key, d.stamp, async () => {
+    if (d.abs) return textOf(d.abs, d.title);
+    const bytes = d.sha256 ? getFile(d.sha256) ?? linkedBytes(d.sha256) : null;
+    return bytes ? textOfBytes(bytes, d.title) : "";
+  });
 }
 
 /** What an entity says, as words: its title, and every text it holds. */
@@ -195,7 +225,8 @@ export async function reindex(most = 400): Promise<number> {
   status.indexing = true;
   try {
     const ix = load(s.model);
-    const docs = [...pageDocs(), ...entityDocs()];
+    const docs = [...pageDocs(), ...entityDocs(), ...fileDocs()];
+    keepOnly(new Set(docs.filter((d) => d.kind === "file").map((d) => d.key)));
     const live = new Set(docs.map((d) => d.key));
     let dirty = false;
     for (const k of [...ix.entries.keys()]) if (!live.has(k)) { ix.entries.delete(k); dirty = true; }
@@ -209,6 +240,8 @@ export async function reindex(most = 400): Promise<number> {
         let words = "";
         try { words = readPage(d.project!, d.path!); } catch { continue; }
         texts = passages(d.title, words);
+      } else if (d.kind === "file") {
+        texts = passages(d.title, await docText(d));
       } else {
         const o = byId.get(d.id!);
         if (!o) continue;
@@ -228,6 +261,7 @@ export async function reindex(most = 400): Promise<number> {
       if (done && done % 50 === 0) save(ix);
     }
     if (dirty) save(ix);
+    saveFileText();
     status.last = new Date().toISOString();
     status.error = "";
     return done;
@@ -296,3 +330,39 @@ function snippet(text: string, title: string): string {
 
 /** For tests and the status line: the words a page was last embedded from changed? */
 export const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
+
+/**
+ * What is nearest in meaning to one thing already in the index (`key`): each
+ * other thing once, by its closest pair of passages, nearest first, above the
+ * floor. What suggests a thing's likely ties (suggest.ts).
+ */
+export function nearTo(key: string, options: { limit?: number; floor?: number } = {}): Found[] {
+  const s = meaningSettings();
+  if (!ready(s)) return [];
+  const ix = load(s.model);
+  const me = ix.entries.get(key);
+  if (!me) return [];
+  const floor = options.floor ?? 0.62;
+  const mine = me.chunks.slice(0, 8);
+  const best: Found[] = [];
+  for (const e of ix.entries.values()) {
+    if (e.doc.key === key) continue;
+    let top = -1, at: Chunk | null = null;
+    for (const c of e.chunks.slice(0, 12)) {
+      for (const m of mine) {
+        if (c.vec.length !== m.vec.length) continue;
+        let dot = 0;
+        for (let i = 0; i < c.vec.length; i++) dot += c.vec[i]! * m.vec[i]!;
+        if (dot > top) { top = dot; at = c; }
+      }
+    }
+    if (top >= floor && at) best.push({ ...e.doc, score: Math.round(top * 1000) / 1000, passage: snippet(at.text, e.doc.title) });
+  }
+  return best.sort((a, b) => b.score - a.score).slice(0, options.limit ?? 10);
+}
+
+/** A thing's entry in the index, by key: for a file, what it was read as. */
+export function indexed(key: string): Doc | null {
+  const s = meaningSettings();
+  return s.model ? load(s.model).entries.get(key)?.doc ?? null : null;
+}

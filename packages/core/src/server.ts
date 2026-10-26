@@ -57,6 +57,9 @@ import * as links from "./links.js";
 import * as files from "./files.js";
 import * as meaning from "./meaning.js";
 import { contextFor } from "./context.js";
+import { mergeEntities, mergedInto } from "./merge.js";
+import * as suggest from "./suggest.js";
+import { saveFileText } from "./filetext.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -429,11 +432,48 @@ route("POST", "/entities/people/known", async (req) => {
   for (const e of b.emails ?? []) { const p = entities.byEmail(e); if (p) out[e.toLowerCase()] = entities.summary(p); }
   return out;
 });
-route("GET", "/entities/:id", (_r, [id]) => {
+route("GET", "/entities/:id", (_r, [asked]) => {
+  // One merged away (merge.ts) is read as the one it became.
+  let id = asked!;
+  try { entities.getEntity(id); } catch (e) { const to = mergedInto(id); if (!to) throw e; id = to; }
   // Its linked files looked at as it is opened: changed or gone since, said (links.ts).
-  links.refreshLinks([id!]);
-  const { entity, out, in: incoming } = entities.connections(id!);
-  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming };
+  links.refreshLinks([id]);
+  const { entity, out, in: incoming } = entities.connections(id);
+  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming, ...(id !== asked ? { mergedFrom: asked } : {}) };
+});
+// Two of one kind made one (merge.ts): this one into `into`.
+route("POST", "/entities/:id/merge", async (req, [id]) => {
+  const b = await json<{ into?: string }>(req);
+  if (!b.into) throw new Conflict("merged into what?");
+  return mergeEntities(id!, b.into);
+});
+// Suggested ties (suggest.ts): for a thing by its glance key; one taken, one turned down; a thing told to stop.
+route("GET", "/suggestions", (_r, _p, q) => suggest.suggestionsFor(need(q, "key"), { limit: Number(q.get("limit") ?? 12) }));
+route("POST", "/suggestions/accept", async (req) => {
+  const b = await json<{ key?: string; other?: string; way?: suggest.Way }>(req);
+  if (!b.key || !b.other || !b.way?.how) throw new Conflict("a suggestion is taken with its key, the other's, and a way");
+  return { ok: true, said: suggest.accept(b.key, b.other, b.way) };
+});
+route("POST", "/suggestions/dismiss", async (req) => {
+  const b = await json<{ key?: string; other?: string }>(req);
+  if (!b.key || !b.other) throw new Conflict("a suggestion is turned down with its key and the other's");
+  suggest.dismiss(b.key, b.other);
+  return { ok: true };
+});
+route("PUT", "/suggestions/quiet", async (req) => {
+  const b = await json<{ key?: string; quiet?: boolean }>(req);
+  if (!b.key) throw new Conflict("which thing?");
+  return { quiet: suggest.setQuiet(b.key, b.quiet !== false) };
+});
+// What a file says, as read for search (filetext.ts): by its glance key.
+route("GET", "/files/text", async (_r, _p, q) => {
+  const t = suggest.thing(need(q, "key"));
+  if (!t.file) throw new Conflict(`${t.title} is not a file`);
+  const doc = meaning.indexed(t.meaning!) ?? { key: t.meaning!, kind: "file" as const, title: t.file.name, ...(t.file.abs ? { abs: t.file.abs } : {}),
+    ...(t.file.sha256 ? { sha256: t.file.sha256 } : {}), stamp: t.file.sha256 ?? `${t.file.size ?? ""}|${t.file.mtime ?? ""}` };
+  const text = await meaning.docText(doc);
+  saveFileText();
+  return { name: t.file.name, project: t.file.project, text };
 });
 route("PATCH", "/entities/:id", async (req, [id]) => {
   const patch = await json<entities.Patch>(req);
