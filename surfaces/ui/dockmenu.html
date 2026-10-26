@@ -136,6 +136,8 @@ function onState(s) {
     const now = s.elsewhere || (it.rule === "go" ? "go" : "bring");
     // One that keeps a single window cannot have another.
     document.querySelector('[data-choice="new"]').hidden = !!s.oneWindow;
+    // Of an app with many windows, a press brings the one last used, not all of it.
+    document.querySelector('[data-choice="bring"]').textContent = s.manyWindows ? "Brings its last window here" : "Brings it here";
     for (const c of ["new", "bring", "go"]) {
       const b = document.querySelector(`[data-choice="${c}"]`);
       b.classList.toggle("on", now === c);

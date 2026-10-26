@@ -156,6 +156,8 @@ class DockMenu(QObject):
                 "everywhere": self.everywhere, "elsewhere": self.dock.elsewhere(self.key) if self.key else "",
                 "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
                 "oneWindow": bool(self.key and keeps_one_window(self.key)),
+                # One that opens new windows has more than one to bring: the menu says which ("its last window").
+                "manyWindows": bool(self.key and not self.key.startswith(("doc:", "class:")) and opens_new_windows(self.key)),
                 # Kept in another project: its name, for "New window in …".
                 "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else ""}
 
