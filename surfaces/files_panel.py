@@ -29,7 +29,7 @@ from views import log
 from overlay import Overlay
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
-ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+/links$")
+ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+(/place)?$|^/entities/[A-Za-z0-9_.:%-]+/links$")
 HOME = os.path.expanduser("~")
 
 

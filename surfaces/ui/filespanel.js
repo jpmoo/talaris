@@ -267,7 +267,7 @@
     if (s.includes("linked") && !s.includes("missing")) act("Make it a shortcut here", () => api("POST", "/files/shortcut", { project: r.project, path: r.abs }).then(reload, failed));
     if (s.includes("snapshot")) act("Save to the project folder", () => api("POST", "/files/snapshot/save", { holder: r.holder, sha256: r.sha256, project: r.project })
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
-    if (r.abs && !s.includes("missing") && !s.includes("page")) act("Attach to a task…", () => inline("attach", r));
+    if (r.abs && !s.includes("missing") && !s.includes("page")) act("Connect to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
     if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
     if (s.includes("shortcut")) act(armed === r.key ? "Yes, take the shortcut away" : "Remove the shortcut", () => {
@@ -281,6 +281,15 @@
       api("POST", "/files/trash", { project: r.project, path: r.path }).then(() => { say(`${r.name} is in the trash`); chosen = null; return load(); }).catch(failed);
     }, `danger${armed === r.key ? " armed" : ""}`);
 
+    // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
+    const gkey = glanceKey(r);
+    if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, (k) => bridge.glanceAt(k)));
+    const sugg = gkey && window.Peek ? Peek.suggestions(gkey, api, {
+      open: (id) => Peek.show(id, api, { openTask: (t) => bridge.openTask(t), openPerson: (p) => bridge.openPerson(p),
+        openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), openEvent: (c, u, st) => bridge.openEvent(c, u, st), openUrl: (u) => bridge.openUrl(u) }),
+      changed: (res) => { say(res.said || "Done"); reload(); },
+    }) : null;
+
     const taggable = (s.includes("folder") && !s.includes("page")) || s.includes("shortcut");
     $("detail").replaceChildren(...[
       el("h2", {}, r.name),
@@ -292,7 +301,16 @@
       taggable ? tagEditor(r) : null,
       el("div", { class: "d-sub" }, "Do"),
       el("div", { class: "d-acts" }, ...acts),
-      el("div", { id: "inline" })].filter(Boolean));
+      el("div", { id: "inline" }),
+      sugg].filter(Boolean));
+  }
+
+  /** What Glance knows a file by: a folder's by its place, a page as a page, a shortcut by its entity, anything else by its row. */
+  function glanceKey(r) {
+    if (r.status.includes("page") && r.path) return `page:${r.project}/${r.path.replace(/^Writing\//, "").replace(/\.md$/, "")}`;
+    if (r.status.includes("folder") && r.path) return `file:${r.project}/${r.path}`;
+    if (r.status.includes("shortcut") && r.entity) return `e:${r.entity}`;
+    return r.status.includes("missing") ? "" : `att:${r.key}`;
   }
 
   function tagEditor(r) {
