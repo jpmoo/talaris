@@ -7,6 +7,8 @@ settings under `~/.local/share/talaris-demo`. Chosen by a mark in the
 person's own settings folder, which `talaris-surfaces` and the core read as
 they start; so entering it, leaving it and making it afresh are each the
 mark (or the demo's own folders) changed, then Talaris started again.
+Entering always starts it afresh: a demo shows what Talaris does with a world
+nobody has touched yet, not what was done in the last one.
 """
 
 from __future__ import annotations
@@ -35,6 +37,8 @@ def _restart() -> None:
 
 
 def enter() -> None:
+    """Into the demo, always as it was made: what was added, tied or changed there last time is gone."""
+    _wipe()
     os.makedirs(os.path.dirname(MARK), exist_ok=True)
     with open(MARK, "w") as f:
         f.write("Talaris starts in its demo world while this file is here (Settings, Data).\n")
@@ -50,7 +54,13 @@ def leave() -> None:
 
 
 def reset() -> None:
-    """The made-up world made afresh at the next start: only the demo's own folder is touched, and only in it."""
+    """The made-up world made afresh, now: Talaris started again into it."""
+    _wipe()
+    _restart()
+
+
+def _wipe() -> None:
+    """The made-up world taken away, to be made afresh at the next start: only the demo's own folder is touched, and only in it."""
     root = os.path.realpath(ROOT)
     if os.path.basename(root) != "talaris-demo" or not root.startswith(os.path.realpath(_data) + os.sep):
         return
@@ -60,4 +70,3 @@ def reset() -> None:
             shutil.rmtree(path)
         elif os.path.lexists(path):
             os.remove(path)
-    _restart()

@@ -45,3 +45,29 @@ test("the demo world is made once: projects, people, tasks in every state, colle
   assert.ok(existsSync(join(sandbox, "seeded")));
   assert.ok(tasks.shapeOf(entities.getEntity(all[0]!.id)));
 });
+
+test("the demo is made to show ties: each planted one is suggested", async () => {
+  const suggest = await import("../src/suggest.js");
+  const filetext = await import("../src/filetext.js");
+  const id = (title: string, kind?: string) => entities.findEntities({ q: title, ...(kind ? { kind } : {}) }).find((s) => s.title === title)!.id;
+  const offered = (key: string) => suggest.suggestionsFor(key).suggestions;
+  const has = (key: string, title: string, how: string) => offered(key).some((s) => s.title === title && s.ways.some((w) => w.how === how));
+
+  const priya = `e:${id("Call Priya about the donate button on phones")}`;
+  assert.ok(has(priya, "Priya Raman", "mention"), "a plain name: a mention offered");
+  const daniel = offered(`e:${id("Send Daniel the board packet")}`).filter((s) => s.kind === "person").map((s) => s.title).sort();
+  assert.deepEqual(daniel, ["Daniel Okafor", "Daniel Park"], "one of two Daniels");
+  const sams = entities.findEntities({ q: "Sam Whitaker", kind: "contact" });
+  assert.equal(sams.length, 2);
+  assert.ok(has(`e:${sams[0]!.id}`, "Sam Whitaker", "merge"), "Sam twice: merge");
+  assert.ok(has(`e:${id("M. Bell", "contact")}`, "Marcus Bell", "merge"), "one address, two names: merge");
+  const compost = entities.findEntities({ q: "Fix the compost bin latch", kind: "task" });
+  assert.equal(compost.length, 2);
+  assert.ok(has(`e:${compost[0]!.id}`, "Fix the compost bin latch", "merge"), "a task twice: merge");
+  assert.ok(has("page:notes/Maya", "Maya Chen", "connect"), "a page called by her name: about her");
+  assert.ok(offered("page:notes/Spring fundraiser").some((s) => s.title.startsWith("Daniel")), "a name in a page of no project");
+  const minutes = projects.listProjects().find((p) => p.name === "Board Report")!;
+  assert.ok(offered(`file:${minutes.id}/Files/March minutes.md`).some((s) => s.title === "Lena Novak"), "a file names a person");
+  const kitchen = projects.listProjects().find((p) => p.name === "Kitchen Remodel")!;
+  assert.match(await filetext.textOf(join(kitchen.folder, "Files", "Permit checklist.pdf")), /Sam Whitaker will pull the permit/, "the PDF reads");
+});

@@ -37,7 +37,7 @@ import {
   allRecords, bodyOf, bySource, connect, connections, getEntity, onChange, profilesOf, titleOf, types, updateEntity, type Entity,
 } from "./entities.js";
 import { listFiles, type FileRow } from "./files.js";
-import { keptText } from "./filetext.js";
+import { keptText, plainText } from "./filetext.js";
 import { linkFile } from "./links.js";
 import { mergeEntities, syncedBy } from "./merge.js";
 import { indexed, nearTo } from "./meaning.js";
@@ -154,7 +154,9 @@ export function thing(key: string, rows = fileRows()): Thing {
     const row = key.startsWith("file:") ? rows.get(`p:${key.slice(5)}`) : rows.get(key.slice(4));
     if (!row) throw new NotFound(`no file ${key}`);
     const mk = `file:${row.key}`;
-    return { key, kind: "file", title: row.name, text: `${row.name}\n${keptText(mk) ?? ""}`, meaning: mk, file: row };
+    // Its words as read in the background; a plain-text one not read yet, read now.
+    const words = keptText(mk) ?? (row.abs ? plainText(row.abs, row.name) : "");
+    return { key, kind: "file", title: row.name, text: `${row.name}\n${words}`, meaning: mk, file: row };
   }
   throw new NotFound(`nothing is known by ${key}`);
 }

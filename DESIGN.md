@@ -1245,8 +1245,26 @@ calendar shows the demo's own events (`calendar.json`, read by the calendar
 process in place of the accounts), and finds no one in the address books;
 the launcher does not search Morgan's past conversations, which are the
 person's. Its dates count from the day it was made and its events from the
-day they are shown (`demo-seed.ts`), so a demo is always of this week; Reset
-makes it afresh. The bar says DEMO beside the project's name throughout.
+day they are shown (`demo-seed.ts`), so a demo is always of this week.
+**Entered, it is always made afresh** (2026-10-26): what was added, tied or
+changed in the last demo is gone, so every demo shows Talaris meeting a
+world nobody has touched; Reset does the same without leaving. The bar says
+DEMO beside the project's name throughout.
+
+**Made to show ties being found** (*Context, Glance on anything, and suggested
+ties*): names written plainly in tasks, pages and files ("Call Priya", "Send
+Daniel" with two Daniels to choose from); a person entered twice, and one
+known by the same address under another name; a task written twice; a page
+called by a person's name; pages and tasks of no project plainly about one;
+and a PDF, Markdown and text files whose words name people — each of which
+Glance and Morgan offer to tie.
+
+**Morgan remembers nothing said in it.** Talaris asks Morgan to hold its
+memory (`memory.hold`, heymorgan's protocol 1.6) on each connection and every
+half hour, two hours at a time, and lets go out of the demo: no notes,
+documents or pictures kept, no tidying, and Morgan says it can't remember
+while the demo is on. What it knew before is still there to answer from.
+Its conversations are still recorded as they always are.
 
 ### Morgan
 

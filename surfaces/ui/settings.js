@@ -1363,7 +1363,7 @@ function drawDemo() {
     const d = JSON.parse(text || "{}");
     $("demo-note").textContent = d.on
       ? "This is the demo: everything here is made up, and none of it is yours. Yours is as you left it."
-      : "A made-up world of projects, tasks, people, notes and events, to show Talaris off. Yours is not touched, and no plugin runs there.";
+      : "A made-up world of projects, tasks, people, pages, files and events, to show Talaris off — fresh each time it is entered. Yours is not touched, and no plugin runs there.";
     $("demo-what").textContent = d.on ? "On — Talaris restarts to leave" : "Off — Talaris restarts to enter";
     const ask = (label, sure, verb) => {
       const b = el("button", { class: "t-btn" }, label);

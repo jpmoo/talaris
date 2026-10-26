@@ -33,6 +33,7 @@ import os
 import re
 import shutil
 import socket
+import threading
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
@@ -102,9 +103,23 @@ class Link(QObject):
         self._stream = QLocalSocket(self)
         self._stream.readyRead.connect(self._read)
         self._stream.connected.connect(lambda: self._stream.write(b"watch\n"))
+        # In the demo, Morgan remembers nothing said (its `memory.hold`): asked on each connection — the daemon may have
+        # restarted and let go — and again every half hour, each time for two hours, so a demo that ends without
+        # saying so leaves Morgan forgetful for two hours at most. Out of the demo, let go of at once.
+        self._stream.connected.connect(self._hold)
+        self._holding = QTimer(self)
+        self._holding.setInterval(30 * 60 * 1000)
+        self._holding.timeout.connect(self._hold)
+        if os.environ.get("TALARIS_DEMO"):
+            self._holding.start()
         self._stream.disconnected.connect(self._lost)
         self._stream.errorOccurred.connect(lambda _e: self._lost())
         self._follow()
+
+    def _hold(self) -> None:
+        on = bool(os.environ.get("TALARIS_DEMO"))
+        line = "admin " + json.dumps({"op": "memory.hold", "args": {"on": on, "hours": 2}})
+        threading.Thread(target=lambda: command(line, timeout=10), daemon=True).start()
 
     def _follow(self) -> None:
         if self._stream.state() == QLocalSocket.LocalSocketState.UnconnectedState:

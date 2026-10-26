@@ -11,6 +11,14 @@
  *
  * Made-up, all of it: the people at `example.org` addresses, the places
  * nowhere in particular.
+ *
+ * Made to show off how things tie together (suggest.ts, Glance), so it holds
+ * on purpose what suggests a tie and has none yet: names written plainly, not
+ * as mentions ("Call Priya", two people called Daniel); a person entered
+ * twice, and one known by the same address under another name; a task
+ * written twice; a page called by a person's name; pages and files of no
+ * project that are plainly about one; a PDF and text files whose words name
+ * people and projects.
  */
 
 import { existsSync, writeFileSync } from "node:fs";
@@ -34,6 +42,26 @@ function day(n: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** A one-page PDF of these lines, by hand: enough for `pdftotext` to read, so the demo has a PDF found by its words. */
+function pdf(lines: string[]): Buffer {
+  const esc = (t: string) => t.replace(/[\\()]/g, (c) => `\\${c}`);
+  const text = `BT /F1 13 Tf 72 740 Td 16 TL ${lines.map((l) => `(${esc(l)}) Tj T*`).join(" ")} ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let out = "%PDF-1.4\n";
+  const at: number[] = [];
+  objects.forEach((o, i) => { at.push(Buffer.byteLength(out)); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = Buffer.byteLength(out);
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${at.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+
 /** The demo world made, once: answers whether it was made now. */
 export function seedDemo(): boolean {
   if (existsSync(SEEDED())) return false;
@@ -47,6 +75,11 @@ export function seedDemo(): boolean {
   const sam = person("Sam Whitaker", { emails: ["sam@whitakerbuild.example.org"], organization: "Whitaker Build", role: "Contractor", phones: ["555-0187"] });
   const lena = person("Lena Novak", { emails: ["lena.novak@example.org"], organization: "Riverbend Commons", role: "Volunteer coordinator" });
   const marcus = person("Marcus Bell", { emails: ["marcus@bellaccounts.example.org"], role: "Accountant" });
+  // Ties to be found: a second Daniel (so "Daniel" is one of two); Sam twice, as an address book and a phone might each have him;
+  // Marcus again by his address, as an invitation names him.
+  person("Daniel Park", { emails: ["dpark@example.org"], organization: "Park & Sons Hardware", role: "Shop owner" });
+  person("Sam Whitaker", { phones: ["555-0187"], notes: "Met at the hardware store" });
+  person("M. Bell", { emails: ["marcus@bellaccounts.example.org"] });
   const m = (p: { id: string; properties: Record<string, unknown> }) => `[@${String(p.properties.title)}](talaris:${p.id})`;
 
   // ---- projects, each with its task-side self
@@ -86,7 +119,17 @@ export function seedDemo(): boolean {
     tiles: task("Pick backsplash tiles", kitchen, { start: 3, due: 10, tags: ["defer"] }),
     permit: task("Check whether the electrical work needs a permit", kitchen, { due: 4 }),
     lighting: task("Compare under-cabinet lighting", kitchen, { due: -10, status: "wont_do" }),
+    // Names written plainly, not yet mentions: each a suggestion to make one.
+    priya: task("Call Priya about the donate button on phones", web, { due: 1, tags: ["do"] }),
+    lena: task("Ask Lena for the volunteer sign-up sheet", garden, { due: 2 }),
+    daniel: task("Send Daniel the board packet", board, { start: 4, due: 7 }),
+    island: task("Measure for the island with Sam Whitaker", kitchen, { due: 3 }),
   };
+  // The same task twice — once in its project, once caught on the run with no project: one to merge.
+  createTask({ title: "Fix the compost bin latch", due: day(1) });
+  // Of no project, but plainly about one: to be filed.
+  createTask({ title: "Buy cedar boards for the raised beds", due: day(2) });
+  createTask({ title: "Find a printer for the annual report charts", due: day(5) });
   setRecurrence(t.water.id, { anchor: "schedule", freq: "daily", interval: 2, end: { type: "never" } });
 
   // ---- writing, files: each project's
@@ -103,10 +146,26 @@ export function seedDemo(): boolean {
   putProjectFile(folder(board), "budget.csv", Buffer.from("Item,Planned,Actual\nPrograms,42000,39850\nOutreach,8000,8420\nAdmin,12000,11760\n"));
   putProjectFile(folder(garden), "volunteers.txt", Buffer.from("Saturday workday\n\n9:00 Setup\n10:00 Beds\n12:00 Lunch\n"));
   attachFile(t.budget.id, Buffer.from("Item,Q1,Q2,Q3\nPrograms,10400,9800,10150\nOutreach,1900,2210,2050\n"), "quarterly.csv", "text/csv");
+  // Files whose words name people and projects: read for search, and suggested where they belong.
+  putProjectFile(folder(board), "March minutes.md", Buffer.from("# Board meeting — March\n\nPresent: Daniel Okafor (chair), Lena Novak, Marcus Bell.\n\n"
+    + "- Marcus Bell walked through the budget: programs under plan, outreach slightly over.\n- The Website Refresh should launch before the annual report goes out.\n"
+    + "- Lena Novak asked for more volunteers for the Community Garden workday.\n"));
+  putProjectFile(folder(web), "Donate button notes.txt", Buffer.from("Donate button\n\nOn phones the button sits below the fold. Priya Raman suggests a sticky bar;\n"
+    + "Maya Chen wants it in the header instead. Decide at the design review.\n"));
+  putProjectFile(folder(kitchen), "Permit checklist.pdf", pdf(["Kitchen permit checklist", "", "Electrical: new circuit for the island needs a permit.",
+    "Plumbing: moving the sink 30cm does not.", "Sam Whitaker will pull the permit once the quote is signed."]));
+  attachFile(t.quote.id, Buffer.from("Island: 240 x 90 cm\nClearance to the range: 105 cm\nMeasured with Sam Whitaker.\n"), "island measurements.txt", "text/plain");
 
   // ---- notes of no project, and daily notes
   createNote(newId("e"), "Reading list", "# Reading list\n\n- *The Design of Everyday Things*\n- *Braiding Sweetgrass*\n- *Four Thousand Weeks*\n");
   createNote(newId("e"), "Ideas", `# Ideas\n\n- A tool library for the neighborhood\n- Ask ${m(daniel)} about a spring fundraiser\n`);
+  // A page called by a person's name: likely about them, and not yet said to be.
+  createNote(newId("e"), "Maya", "# Maya\n\nDesigner at Brightline Studio. Prefers sketches on paper before Figma. Coffee, not tea. Ask about her pottery class.\n");
+  // Of no project, and plainly about one: to be filed, or tied.
+  createNote(newId("e"), "Raised bed lumber", "# Raised bed lumber\n\nCedar lasts longest. Two beds of 1.2 x 2.4 m need about twelve boards.\n"
+    + "Lena thinks the hardware store will donate some for the Community Garden.\n");
+  createNote(newId("e"), "Spring fundraiser", "# Spring fundraiser\n\nA dinner in the garden, tickets sold through the new website.\n"
+    + "Daniel wants a number for the annual report: the board meets next week.\n");
   createNote(newId("e"), "Lemon pasta", "# Lemon pasta\n\nZest two lemons into butter, add pasta water, parmesan, lots of pepper. Ten minutes.\n");
   createDay(newId("e"), day(-1), `Good call with ${m(maya)} about the mockups. Garden bin latch still broken.`);
   createDay(newId("e"), day(0), "- Seed catalogue today\n- Budget with Marcus this week\n");

@@ -110,6 +110,12 @@ export async function textOf(path: string, name = basename(path)): Promise<strin
   return textOfBytes(bytes, name);
 }
 
+/** A plain-text file's words, read at once (no program to run): for what is asked before the background has read it. */
+export function plainText(path: string, name = basename(path)): string {
+  if (!TEXT.has(extname(name).toLowerCase())) return "";
+  try { return tidy(readBytes(path).subarray(0, 200_000).toString("utf8")); } catch { return ""; }
+}
+
 /** The text of a file held only as bytes (a snapshot on a task), by its name. */
 export async function textOfBytes(bytes: Buffer, name: string): Promise<string> {
   const e = extname(name).toLowerCase();
