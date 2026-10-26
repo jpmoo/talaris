@@ -1195,6 +1195,11 @@ is asked to make is an unaffiliated page. Hermes Notes' own word is kept when
 its side is meant. Still called notes, being something else: a field of notes
 on a task, an event or a person; a note card on a canvas; Morgan's memory.
 
+**People, not cards.** An address book's entry is shown as a person, "in your
+address books" — likely the same person, no longer in your address books —
+never as a card. "Card" is kept for what is placed on a canvas, and for the
+Cards style of a list. (In code and the format, a vCard is still a card.)
+
 ### Context, Glance on anything, and suggested ties (2026-10-26)
 
 **The launcher is context, not only words.** What was typed finds what holds

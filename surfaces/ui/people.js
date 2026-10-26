@@ -255,7 +255,7 @@
     return el("div", { class: "prow" + (p.id === chosen ? " on" : ""), "data-id": p.id, onclick: () => { choose(p.id); $("list").focus(); } },
       avatar(p.id, p.title, p.image),
       el("div", { class: "p-main" }, el("div", { class: "p-name" }, p.title), sub ? el("div", { class: "p-sub" }, sub) : null),
-      !p.ties.length && !p.noContact ? el("span", { class: "untied", title: "Not tied to a contact" }) : null);
+      !p.ties.length && !p.noContact ? el("span", { class: "untied", title: "Not tied to anyone in your address books" }) : null);
   }
   function toggleGroup(g) {
     if (shut.has(g)) shut.delete(g); else shut.add(g);
@@ -625,7 +625,7 @@
   // What a contact has that this person doesn't yet: only that is offered, and copied.
   function copyCard(c) {
     const out = newFrom(c);
-    if (!Object.keys(out).length) { say("Nothing on that contact that isn't here already"); return; }
+    if (!Object.keys(out).length) { say("Nothing there that isn't here already"); return; }
     setProps(out).then(() => { drawPerson(); say("Copied in"); });
   }
   function newFrom(c) {
@@ -653,7 +653,7 @@
     const key = cardKeyOf(c);
     if (c.gone) {
       return el("div", { class: "card gone" },
-        el("div", { class: "c-main" }, el("div", { class: "c-name" }, "This card is no longer in your contacts")),
+        el("div", { class: "c-main" }, el("div", { class: "c-name" }, "No longer in your address books")),
         el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Untie")));
     }
     return el("div", { class: "card" },
@@ -695,7 +695,7 @@
     const likelyHost = el("div", {});
     const keys = ties();
     if (keys.length) {
-      tiedHost.append(el("div", { class: "hint" }, "Reading the cards…"));
+      tiedHost.append(el("div", { class: "hint" }, "Reading your address books…"));
       api("GET", `/contacts/cards?keys=${enc(keys.join(","))}`).then((cards) => {
         if (id !== chosen) return;
         tiedHost.replaceChildren(...(cards || []).map(tiedCard));
@@ -705,10 +705,10 @@
     const off = noContact();
     const sw = el("button", { class: "switch" + (off ? " on" : ""), title: off ? "On" : "Off" });
     return el("section", { class: "part" },
-      el("h3", {}, el("span", {}, "Contacts")),
+      el("h3", {}, el("span", {}, "In your address books")),
       tiedHost, likelyHost,
       el("label", { class: "nocontact", onclick: () => patch({ "talaris:noContact": off ? null : true }).then(drawPerson).catch(failed) },
-        sw, el("span", {}, "Don't look for a contact")));
+        sw, el("span", {}, "Don't look for them in address books")));
   }
 
   function drawLikely(host, id, tied) {
@@ -717,7 +717,7 @@
     const emails = asList(emailKey() ? p[emailKey()] : []).filter((x) => x.includes("@"));
     const asks = [name.trim(), ...emails].filter((q) => q.trim().length >= 2);
     const list = el("div", {}, el("div", { class: "hint" }, "Looking…"));
-    const find = el("input", { type: "text", id: "card-q", placeholder: "Find a card by name or address", spellcheck: "false" });
+    const find = el("input", { type: "text", id: "card-q", placeholder: "Find someone by name or address", spellcheck: "false" });
     const found = el("div", {});
     let timer = null;
     find.addEventListener("input", () => {
@@ -727,17 +727,17 @@
       timer = setTimeout(() => api("GET", `/contacts/cards?q=${enc(q)}`).then((cards) => {
         if (id !== chosen || find.value.trim() !== q) return;
         const rows = (cards || []).filter((c) => !c.gone && !tied.includes(cardKeyOf(c))).slice(0, 8);
-        found.replaceChildren(...(rows.length ? rows.map(likelyCard) : [el("div", { class: "hint" }, "No card by that")]));
+        found.replaceChildren(...(rows.length ? rows.map(likelyCard) : [el("div", { class: "hint" }, "No one by that")]));
       }).catch((e) => found.replaceChildren(el("div", { class: "hint err" }, e.message))), 250);
     });
     find.addEventListener("keydown", (e) => { if (e.key === "Escape" && find.value) { e.preventDefault(); e.stopPropagation(); find.value = ""; found.replaceChildren(); } });
-    host.append(el("div", { class: "sub-h" }, "Likely cards"), list, find, found);
+    host.append(el("div", { class: "sub-h" }, "Likely the same person"), list, find, found);
     Promise.all(asks.map((q) => api("GET", `/contacts/cards?q=${enc(q)}`).catch(() => []))).then((answers) => {
       if (id !== chosen) return;
       const byKey = new Map();
       for (const c of answers.flat()) if (c && !c.gone && !tied.includes(cardKeyOf(c)) && !byKey.has(cardKeyOf(c))) byKey.set(cardKeyOf(c), c);
       const best = rank([...byKey.values()], name, emails).slice(0, 6);
-      list.replaceChildren(...(best.length ? best.map(likelyCard) : [el("div", { class: "hint" }, tied.length ? "No other likely cards" : "No likely cards in your contacts")]));
+      list.replaceChildren(...(best.length ? best.map(likelyCard) : [el("div", { class: "hint" }, tied.length ? "No one else likely" : "No one likely in your address books")]));
     });
   }
 
