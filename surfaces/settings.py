@@ -174,6 +174,8 @@ def _checked(c: dict) -> str:
         return "Search by meaning needs an http(s) address and a model's name"
     if meaning.get("scan", "change") not in ("change", "idle", "schedule", "manual") or not re.fullmatch(r"\d{2}:\d{2}", meaning.get("at", "03:00") or ""):
         return "Files are read as they change, while idle, once a day at a time, or only when asked"
+    if not isinstance(meaning.get("describe", True), bool):
+        return "Describing pictures is on or off"
     stays = c["dock"].get("stays", {})
     if not isinstance(stays, dict) or not all(isinstance(k, str) and isinstance(v, str) and v.startswith("prj_") for k, v in stays.items()):
         return "Something kept in a project names the project"

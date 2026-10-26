@@ -32,7 +32,8 @@ import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
-import { fileText, forgetText, keepOnly, keptText, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
+import { Unavailable, fileText, forgetText, keepOnly, keptText, readable, saveFileText, setDescriber, textOf, textOfBytes } from "./filetext.js";
+import { morganDescribe } from "./morgan-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
@@ -44,6 +45,8 @@ import type { PageNode } from "@talaris/model";
 
 export interface MeaningSettings {
   on?: boolean; url?: string; model?: string;
+  /** Pictures with no words in them described by Morgan (its `describe`); false: left with none. */
+  describe?: boolean;
   /**
    * When files are looked at for anything new or changed to read (Settings,
    * Data, Reading files): `change` — as they change, within a minute or so;
@@ -86,7 +89,7 @@ interface Index { model: string; entries: Map<string, Entry> }
 const FILE = () => join(DATA_DIR, "meaning.sealed");
 let index: Index | null = null;
 /** How the index stands, and — while a pass runs — what it is reading and how far through the pass it is. */
-let status = { indexing: false, last: "", error: "", pending: 0, doing: "", doingKind: "", done: 0, of: 0 };
+let status = { indexing: false, last: "", error: "", pending: 0, doing: "", doingKind: "", done: 0, of: 0, morganAway: false };
 
 // ------------------------------------------------------------ kept
 
@@ -160,7 +163,7 @@ function entityDocs(): Doc[] {
 }
 
 /** What says a file changed: its hash, or its size and time; and how files are read (a change there reads each again). */
-const fileStamp = (r: FileRow) => `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r2`;
+const fileStamp = (r: FileRow) => `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r3`;
 
 export type ReadState = "read" | "nowords" | "waiting";
 /**
@@ -302,6 +305,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
   const s = meaningSettings();
   if (!ready(s) || status.indexing) return 0;
   status.indexing = true;
+  setDescriber(s.describe === false ? null : morganDescribe);
+  status.morganAway = false;
   try {
     const ix = load(s.model);
     const docs = [...pageDocs(), ...entityDocs(), ...fileDocs()];
@@ -325,7 +330,12 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
         try { words = readPage(d.project!, d.path!); } catch { continue; }
         texts = passages(d.title, words);
       } else if (d.kind === "file") {
-        texts = passages(d.title, await docText(d));
+        // A picture to be described, and Morgan not answering: left waiting, to be tried again.
+        try { texts = passages(d.title, await docText(d)); } catch (e) {
+          if (!(e instanceof Unavailable)) throw e;
+          status.morganAway = true; status.pending--; status.done++;
+          continue;
+        }
       } else {
         const o = byId.get(d.id!);
         if (!o) continue;
@@ -391,8 +401,10 @@ export async function scanFiles(): Promise<{ read: number; changed: number }> {
     const changed = watchLinked();
     let read = 0;
     for (let i = 0; i < 50; i++) {
-      read += await reindex(400, { files: true });
-      if (!status.pending || status.error) break;
+      const now = await reindex(400, { files: true });
+      read += now;
+      // Done, stopped, or nothing more to be had for now (pictures waiting on Morgan).
+      if (!status.pending || status.error || !now) break;
     }
     writeJson(SCANNED(), { at: new Date().toISOString(), day: today() });
     return { read, changed };
@@ -437,7 +449,7 @@ export function startMeaning(): void {
   }, 30_000).unref();
 }
 export function meaningStatus(): { on: boolean; model: string; url: string; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string;
-  doing: string; doingKind: string; done: number; of: number; scan: string; at: string; lastScan: string; idle: boolean; scanning: boolean; files: { read: number; nowords: number; waiting: number } } {
+  doing: string; doingKind: string; done: number; of: number; morganAway: boolean; scan: string; at: string; lastScan: string; idle: boolean; scanning: boolean; files: { read: number; nowords: number; waiting: number } } {
   const s = meaningSettings();
   const ix = s.model ? load(s.model) : null;
   return { on: Boolean(s.on), model: s.model ?? "", url: s.url ?? "", items: ix?.entries.size ?? 0,

@@ -301,6 +301,19 @@
       changed: (res) => { say(res.said || "Done"); reload(); },
     }) : null;
 
+    // What it was read as, once read: a picture's description, or the start of a document's words.
+    const readHost = rs === "read" && gkey ? el("div", { class: "d-read" }) : null;
+    if (readHost) {
+      api("GET", `/files/text?key=${enc(gkey)}`).then((t) => {
+        const text = String((t && t.text) || "").trim();
+        if (!text || chosen !== r.key) return;
+        const picture = text.startsWith("Picture: ");
+        const body = picture ? text.slice(9) : text;
+        readHost.replaceChildren(el("div", { class: "d-sub" }, picture ? "What it shows" : "What it says"),
+          el("div", { class: "d-said" }, body.length > 900 ? `${body.slice(0, 900)}…` : body));
+      }).catch(() => {});
+    }
+
     const taggable = (s.includes("folder") && !s.includes("page")) || s.includes("shortcut");
     $("detail").replaceChildren(...[
       el("h2", {}, r.name),
@@ -313,6 +326,7 @@
       el("div", { class: "d-sub" }, "Do"),
       el("div", { class: "d-acts" }, ...acts),
       el("div", { id: "inline" }),
+      readHost,
       sugg].filter(Boolean));
   }
 

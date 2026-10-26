@@ -622,8 +622,20 @@ async function mgModels() {
     const chat = (m.ollama || {}).model, embed = m.embedModel;
     const missing = (list, name, strip) => name && !list.some((x) => (strip ? x.name.replace(/:latest$/, "") : x.name) === name)
       ? [el("p", { class: "note" }, `Set: ${name}, which this server does not have`)] : [];
+    // The model that looks (Morgan's visionModel): the chat model unless one of its own is chosen — and a warning when what looks cannot see.
+    const vision = m.visionModel || "";
+    const chatSees = (r.chat || []).find((x) => x.name === chat);
+    const blind = !vision && chatSees && chatSees.sees === false;
+    const visionChips = el("div", { class: "mg-chips" },
+      el("button", { class: "mg-chip" + (!vision ? " on" : ""), onclick: () => vision ? setConfig({ visionModel: "" }) : null }, "Same as the chat model"),
+      ...(r.vision || []).map((x) => el("button", { class: "mg-chip" + (x.name === vision ? " on" : ""), onclick: () => x.name !== vision ? setConfig({ visionModel: x.name }) : null },
+        x.name, el("small", {}, `${x.gb} GB`))));
     models.replaceChildren(
       el("h3", {}, "Chat model"), chips(r.chat || [], chat, "ollama.model", false), ...missing(r.chat || [], chat, false),
+      el("h3", {}, "Vision model"), el("p", { class: blind ? "note err" : "note", style: "margin:0 0 6px" },
+        blind ? `${chat} cannot see: Morgan cannot look at the screen, the camera or pictures, nor describe them for Talaris, until a vision model is chosen.`
+          : "What Morgan looks with — the screen, the camera, the clipboard, pictures it reads, and pictures Talaris asks it to describe. Only models that can see are listed."),
+      visionChips,
       el("h3", {}, "Embedding model"), el("p", { class: "note", style: "margin:0 0 6px" }, "For finding earlier conversations. Changing it re-reads the whole transcript."),
       chips(r.embedding || [], embed, "embedModel", true), ...missing(r.embedding || [], embed, true));
   };
@@ -1409,8 +1421,15 @@ async function drawReading() {
   const noWordsList = noWords ? noWords.map((x) => pel("div", { class: "row rd-file" },
     pel("span", { class: "name" }, x.name, pel("small", {}, where(x))),
     pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: busy ? "" : null, onclick: () => again([x.key], x.name) }, "Read again")))) : [];
+  // Pictures with no words in them, described by Morgan's vision model (heymorgan's `describe`).
+  const describeRow = pel("div", { class: "row" },
+    pel("span", { class: "name" }, "Describe pictures through Morgan", pel("small", { class: st.morganAway ? "err" : "" },
+      st.morganAway ? "Morgan is not answering (or is too old to describe): those pictures wait, and are tried again"
+        : "A picture, or a scanned page, with no words OCR can read: described by Morgan's vision model (Morgan, Models), and found by what it shows")),
+    pel("span", { class: "what" }, mgSwitch(m.describe !== false, (on) => save({ meaning: { ...m, describe: on } }))));
   host.replaceChildren(...[
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Look for new and changed files", pel("small", {}, hint)), pel("span", { class: "what" }, pick)),
+    describeRow,
     scan === "schedule" ? pel("div", { class: "row" }, pel("span", { class: "name" }, "At"), pel("span", { class: "what" }, at)) : null,
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Stopped: ${st.error}` : !m.on ? "Search by meaning is off, above" : counts)), progress),
     noWordsRow,

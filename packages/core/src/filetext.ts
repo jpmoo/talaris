@@ -15,7 +15,10 @@
  * - documents, spreadsheets, slides: LibreOffice, headless, with a profile of
  *   its own (so a LibreOffice the person has open is not disturbed), to text,
  *   to CSV, or to PDF and then text;
- * - images: `tesseract`.
+ * - images: `tesseract`; and a picture (or a scanned PDF's first page) in
+ *   which it finds no words, described instead (`setDescriber`: Morgan's
+ *   `describe`, morgan-describe.ts) — what it is and shows, and any writing
+ *   OCR could not read. Kept as "Picture: …", and found by it.
  *
  * Nothing else is read (audio, video, archives). A program that is missing is
  * a file with no text, not an error.
@@ -32,6 +35,18 @@ import { seal, unseal } from "./seal.js";
 import { STATE_DIR } from "./paths.js";
 import { readBytes, writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
+
+/** Said when a picture's describer could not be asked: the file waits, and is tried again, rather than kept as one with no words. */
+export class Unavailable extends Error {}
+/** What describes a picture with no words in it (meaning.ts sets Morgan's, as Settings says); none: no description. */
+let describer: ((bytes: Buffer, name: string) => Promise<string | null>) | null = null;
+export function setDescriber(f: typeof describer): void { describer = f; }
+async function described(bytes: Buffer, name: string): Promise<string> {
+  if (!describer) return "";
+  const said = await describer(bytes, name);
+  if (said === null) throw new Unavailable("Morgan is not answering");
+  return said ? tidy(`Picture: ${said}`) : "";
+}
 
 /** At most this much of a file's text is kept: enough to say what it is about. */
 const MOST = 120_000;
@@ -83,7 +98,7 @@ async function office(file: string, to: string): Promise<string | null> {
   }
 }
 
-async function pdf(file: string): Promise<string> {
+async function pdf(file: string, name = basename(file)): Promise<string> {
   const text = tidy(await run("pdftotext", ["-q", "-layout", file, "-"]));
   if (text.replace(/\s/g, "").length > 40) return text;
   // A scan: its first pages, read as pictures.
@@ -93,7 +108,9 @@ async function pdf(file: string): Promise<string> {
     const pages = readdirSync(dir).filter((n) => n.endsWith(".png")).sort();
     const read: string[] = [];
     for (const p of pages) read.push(await run("tesseract", [join(dir, p), "-", "--psm", "3"], 60_000));
-    return wordsOnly(tidy(read.join("\n\n")));
+    const words = wordsOnly(tidy(read.join("\n\n")));
+    // No words even so (a drawing, a photograph, handwriting): its first page described.
+    return words || (pages[0] ? described(readFileSync(join(dir, pages[0])), name) : "");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -125,11 +142,12 @@ export async function textOfBytes(bytes: Buffer, name: string): Promise<string> 
   const file = join(dir, `file${e}`);
   try {
     writeFileSync(file, bytes, { mode: 0o600 });
-    if (e === ".pdf") return await pdf(file);
-    if (IMAGE.has(e)) return wordsOnly(tidy(await run("tesseract", [file, "-", "--psm", "3"])));
+    if (e === ".pdf") return await pdf(file, name);
+    // Words in a picture, read; none, the picture described.
+    if (IMAGE.has(e)) return wordsOnly(tidy(await run("tesseract", [file, "-", "--psm", "3"]))) || await described(bytes, name);
     if (WRITER.has(e)) { const t = await office(file, "txt:Text"); return t ? tidy(readFileSync(t, "utf8")) : ""; }
     if (CALC.has(e)) { const t = await office(file, "csv"); return t ? tidy(readFileSync(t, "utf8")) : ""; }
-    if (IMPRESS.has(e)) { const t = await office(file, "pdf"); return t ? await pdf(t) : ""; }
+    if (IMPRESS.has(e)) { const t = await office(file, "pdf"); return t ? await pdf(t, name) : ""; }
     return "";
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -162,7 +180,7 @@ export function saveFileText(): void {
 
 /** What a file said when last read, if it has not changed since (by `stamp`). */
 // How files are read: a change here reads each again, once.
-const READER = "r2";
+const READER = "r3";
 export function keptText(key: string, stamp?: string): string | null {
   const had = loadCache().get(key);
   return had && (stamp === undefined || had.stamp === `${stamp}|${READER}`) ? had.text : null;

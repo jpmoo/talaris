@@ -108,3 +108,13 @@ test("what OCR reads is kept only if it is words", () => {
   assert.equal(filetext.wordsOnly("lth hy\n40 Nyda T\nWhy"), "");
   assert.match(filetext.wordsOnly("Minutes of the meeting: the board agreed the budget for next year."), /board/);
 });
+
+test("a picture with no words in it: described, and kept as what it shows; the describer away, it waits", async () => {
+  const png = Buffer.from("not really a picture");
+  filetext.setDescriber(async () => "A green raised bed with seedlings.");
+  assert.equal(await filetext.textOfBytes(png, "bed.png"), "Picture: A green raised bed with seedlings.");
+  filetext.setDescriber(async () => null);
+  await assert.rejects(filetext.textOfBytes(png, "bed.png"), filetext.Unavailable);
+  filetext.setDescriber(null);
+  assert.equal(await filetext.textOfBytes(png, "bed.png"), "");
+});

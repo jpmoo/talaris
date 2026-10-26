@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
+
+/**
+ * A picture described by Morgan (heymorgan's protocol 1.7, `describe`): what
+ * it is, what it shows, any text in it — by the model Morgan looks with. Asked
+ * on Morgan's own socket, as Talaris's other Morgan calls are; nothing said,
+ * kept, remembered or recorded on its side. For a picture, or a scanned page,
+ * in which OCR found no words (filetext.ts).
+ *
+ * Answers the description; "" when Morgan saw nothing to say; null when Morgan
+ * could not be asked (not running, too old to know `describe`), so the file
+ * waits and is tried again rather than taken for one with no words.
+ */
+
+import { createConnection } from "node:net";
+import { join } from "node:path";
+
+const SOCKET = () => process.env.HEYMORGAN_SOCKET || join(process.env.XDG_RUNTIME_DIR || "/tmp", "heymorgan.sock");
+/** Larger than this is not sent: a picture that size is a photograph, and Morgan's side reads it whole. */
+const LARGEST = 20 * 1024 * 1024;
+
+export function morganDescribe(bytes: Buffer, name: string): Promise<string | null> {
+  if (bytes.length > LARGEST) return Promise.resolve("");
+  return new Promise((ok) => {
+    const chunks: Buffer[] = [];
+    let done = false;
+    const finish = (v: string | null) => { if (!done) { done = true; ok(v); } };
+    const sock = createConnection(SOCKET());
+    sock.setTimeout(240_000, () => { sock.destroy(); finish(null); });
+    sock.on("error", () => finish(null));
+    sock.on("data", (c) => chunks.push(c));
+    sock.on("end", () => {
+      try {
+        const r = JSON.parse(Buffer.concat(chunks).toString("utf8").trim().split("\n").pop() || "{}") as { ok?: boolean; text?: string; error?: string };
+        // An older Morgan answers "unknown command": not asked, then.
+        finish(r.ok ? String(r.text ?? "").trim() : null);
+      } catch { finish(null); }
+    });
+    sock.on("connect", () => sock.end(`describe ${JSON.stringify({ image: bytes.toString("base64"), question: `It is a file called ${name}.` })}\n`));
+  });
+}

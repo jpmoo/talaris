@@ -966,7 +966,10 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
   things — read by `filetext.ts` with what is on the machine: `pdftotext`
   (a scan's pages through `tesseract`), LibreOffice headless with a profile of
   its own (documents to text, sheets to CSV, slides to PDF), `tesseract` for
-  pictures, and kept only if what it read is words. What was read is kept
+  pictures, and kept only if what it read is words. A picture, or a scanned
+  page, with no words in it is described by Morgan instead (heymorgan's
+  `describe`, by its Vision model; Settings, Data, Describe pictures), kept as
+  "Picture: …" and shown in Files; Morgan not answering, it waits. What was read is kept
   sealed (`filetext.sealed`) and read again only when the file changes.
   Every file is read again as it changes: a folder's as Files watches it; a
   page by when it was written; a file linked from elsewhere looked at each
