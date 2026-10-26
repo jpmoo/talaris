@@ -32,7 +32,8 @@ new window here, brings its window here, or goes to it. Unchosen, an
 application whose desktop file has a "new window" action (a browser, a
 terminal) opens a new window here; the rest follow the rule in Settings. The
 menu also lists each of its windows on every desktop, with its project, to go
-to one, and opens a new window here.
+to one, and opens a new window here — and, for one kept in a project, a new
+window there (that project gone to).
 
 **Kept in a project**: anything pinned can be (its menu, "Keep in this
 project"). Pressed in another project, its project is gone to and it is shown
@@ -154,7 +155,9 @@ class DockMenu(QObject):
         return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
                 "everywhere": self.everywhere, "elsewhere": self.dock.elsewhere(self.key) if self.key else "",
                 "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
-                "oneWindow": bool(self.key and keeps_one_window(self.key))}
+                "oneWindow": bool(self.key and keeps_one_window(self.key)),
+                # Kept in another project: its name, for "New window in …".
+                "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else ""}
 
     #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
     everywhere: list = []
@@ -534,6 +537,10 @@ class Dock(QObject):
             for w in item["windows"]:
                 hypr.close(w["address"])
         elif verb == "new" and item["id"]:
+            self.new_window(item["id"])
+        elif verb == "new-kept" and item["id"] and item.get("keptIn"):
+            # A new window in the project it is kept in: that project gone to, and the window opened there.
+            self.desktop.go_to_project(item["keptIn"], announce=True)
             self.new_window(item["id"])
         elif verb.startswith("elsewhere-") and item["id"] and not item.get("doc"):
             # Its choice for when it is open in another project; "elsewhere-rule" back to Settings' rule.

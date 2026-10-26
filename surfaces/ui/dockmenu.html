@@ -34,6 +34,7 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <button class="menu-item" data-verb="hide">Hide</button>
   <button class="menu-item" data-verb="open">Open</button>
   <button class="menu-item" data-verb="new">New window here</button>
+  <button class="menu-item" data-verb="new-kept">New window in its project</button>
   <button class="menu-item" data-verb="pin-here">Pin to this project</button>
   <button class="menu-item" data-verb="pin-all">Pin to all projects</button>
   <button class="menu-item" data-verb="unpin">Unpin</button>
@@ -77,6 +78,9 @@ function onState(s) {
   // A document opens; an application starts a new window.
   show("open", doc && !it.doc.missing);
   show("new", !doc && !!it.id);
+  // Kept in another project: a new window there, too — that project gone to.
+  show("new-kept", !doc && !!it.id && !!s.keptName);
+  if (s.keptName) document.querySelector('[data-verb="new-kept"]').textContent = `New window in ${s.keptName}`;
   // Pinned in one way, it can be moved to the other.
   show("pin-here", (doc || !!it.id) && it.pinnedWhere !== "here");
   show("pin-all", (doc || !!it.id) && it.pinnedWhere !== "all");
