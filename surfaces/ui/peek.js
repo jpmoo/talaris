@@ -109,7 +109,7 @@ window.Peek = (() => {
   }
   // Glance on a thing (glance_panel.py, open_on): what it is tied to, and what it might be. `go` is the page's bridge's glanceAt.
   function glanceButton(key, go, cls = "t-btn") {
-    return go ? el("button", { class: cls, title: "What it is tied to, and might be", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
+    return go ? el("button", { class: cls, title: "Its connections, and possible ones", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
   }
   // What a card's links are grouped by: what the other thing is.
   const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
@@ -218,10 +218,10 @@ window.Peek = (() => {
     let armed = "";
     const draw = (list) => {
       if (!list.length) { host.replaceChildren(); return; }
-      host.replaceChildren(el("div", { class: "peek-label" }, `Might be tied · ${list.length}`), ...list.map((s) => el("div", { class: "peek-srow" },
+      host.replaceChildren(el("div", { class: "peek-label" }, `Possible connections · ${list.length}`), ...list.map((s) => el("div", { class: "peek-srow" },
         el("div", { class: "peek-stop" },
           el("button", { class: "peek-item", title: "Open it", onclick: () => s.id && opts.open && opts.open(s.id, s) }, el("span", { class: "peek-t" }, s.title)),
-          el("button", { class: "icon-btn peek-no", title: "Not tied — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
+          el("button", { class: "icon-btn peek-no", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
         el("div", { class: "peek-why" }, s.why.join(" · ")),
         el("div", { class: "peek-ways" }, s.ways.map((w) => {
           const id = `${s.key}|${w.how}|${w.text || ""}`;

@@ -268,7 +268,7 @@ function bareAt(text: string, words: string): number {
 
 /** The mention way, where a thing's words can be written. */
 function mention(t: Thing, text: string): Way[] {
-  return t.writes ? [{ how: "mention", label: `Make “${text}” a mention`, text }] : [];
+  return t.writes ? [{ how: "mention", label: `Connect “${text}” as a mention`, text }] : [];
 }
 
 // ------------------------------------------------------------ the same thing twice
@@ -309,15 +309,11 @@ function waysBetween(a: Thing, b: Thing): Way[] {
     const [file, other] = a.kind === "file" ? [a, b] : [b, a];
     if (other.kind === "file") return out;
     const canHold = other.entity ? ATTACHES(other.entity) : false;
-    if (canHold && (file.file?.abs || file.file?.sha256)) out.push({ how: "attach", label: a.kind === "file" ? `Attach to ${b.title}` : `Attach ${b.title} here` });
+    if (canHold && (file.file?.abs || file.file?.sha256)) out.push({ how: "attach", label: `Connect to ${b.title}` });
     return out;
   }
-  const label = b.kind === "project" ? `File under ${b.title}`
-    : b.kind === "person" && (a.kind === "note" || a.kind === "page") ? `About ${b.title}`
-    : a.kind === "person" && (b.kind === "note" || b.kind === "page") ? `It is about them`
-    : a.kind === "project" ? `File here`
-    : `Link to ${b.title}`;
-  out.push({ how: "connect", label });
+  // One word for it everywhere: connect. (Where it goes — a note's people, a task's project — is the core's to choose.)
+  out.push({ how: "connect", label: `Connect to ${b.title}` });
   return out;
 }
 
@@ -415,7 +411,7 @@ function entityFor(t: Thing): Entity {
     const { project, path } = (t.writes as { page: { project: string; path: string } }).page;
     return placeEntity("page", project, path, t.title);
   }
-  throw new Conflict(`${t.title} cannot be tied that way`);
+  throw new Conflict(`${t.title} cannot be connected that way`);
 }
 
 /** Whether `from`'s type declares a field for things of `to`'s type. */
@@ -489,5 +485,5 @@ function tie(key: string, other: string, way: Way): string | { said: string; kep
   else if (declares(eb, ea)) connect(eb.id, ea.id);
   else if (RANK.indexOf(a.kind) <= RANK.indexOf(b.kind)) connect(ea.id, eb.id, { type: "about" });
   else connect(eb.id, ea.id, { type: "about" });
-  return `${a.title} and ${b.title} are tied now.`;
+  return `${a.title} and ${b.title} are connected now.`;
 }

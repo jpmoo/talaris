@@ -27,7 +27,7 @@ const VERBS = [
   { name: "canvas", title: "Canvas", sub: "Pull out the canvas drawer" },
   { name: "writing", title: "Writing", sub: "Pull out the writing drawer" },
   { name: "file-all", title: "Put the drawers away" },
-  { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a graph of how it is tied" },
+  { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a graph of how it is connected" },
   { name: "archive", title: "Archive", sub: "Archived projects: browse them, search them, bring one back" },
   { name: "settings", title: "Settings", sub: "Appearance, layout, keys, Morgan" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },

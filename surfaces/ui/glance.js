@@ -128,7 +128,7 @@
 
   function drawProject() {
     const p = (data && data.project) || surface.project || {};
-    $("proj").replaceChildren(p.name || "", p.code ? el("span", { class: "code" }, p.code) : null);
+    $("proj").replaceChildren(...[p.name || "", p.code ? el("span", { class: "code" }, p.code) : null].filter((x) => x !== null));
     // The way here, each step a way back; the last is where it is.
     const box = $("trail");
     box.hidden = !from;
@@ -629,9 +629,10 @@
       if (n === hover) return;
       hover = n;
       const tip = $("gtip");
-      if (n) tip.replaceChildren(el("div", {}, n.title || "Untitled"), n.sugOnly ? el("div", { class: "how" }, "Might be tied") : null,
+      // Only the lines it has: replaceChildren writes a left-out one as the word "null".
+      if (n) tip.replaceChildren(...[el("div", {}, n.title || "Untitled"), n.sugOnly ? el("div", { class: "how" }, "Possible connection") : null,
         n.how && !isRoot(n) ? el("div", { class: "how" }, n.how) : null,
-        n.beyond ? el("div", { class: "how" }, further(n.beyond)) : null);
+        n.beyond ? el("div", { class: "how" }, further(n.beyond)) : null].filter(Boolean));
       else tip.hidden = true;
       cv.classList.toggle("over", Boolean(n));
       need();
@@ -804,7 +805,7 @@
     const have = new Set(data.nodes.map((n) => n.key));
     for (const s of sugg.list) {
       if (!have.has(s.key)) data.nodes.push(nodeFor(s));
-      data.edges.push({ from: data.root, to: s.key, how: s.why[0] || "might be tied", suggested: true });
+      data.edges.push({ from: data.root, to: s.key, how: s.why[0] || "possible connection", suggested: true });
     }
   }
   async function loadSuggestions(seq) {
@@ -828,9 +829,9 @@
     const fresh = sugg.key === data.root;
     const n = fresh ? sugg.list.length : 0;
     const head = el("div", { class: "shead" },
-      el("span", { class: "t", title: suggFold ? "Show what it might be tied to" : "Fold away", onclick: () => { suggFold = !suggFold; store.set("talaris.glance.suggFold", suggFold); drawSugg(); } },
-        `Might be tied${n ? ` · ${n}` : ""}`),
-      fresh ? el("button", { class: "t-btn", title: sugg.quiet ? "Suggest ties for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
+      el("span", { class: "t", title: suggFold ? "Show possible connections" : "Fold away", onclick: () => { suggFold = !suggFold; store.set("talaris.glance.suggFold", suggFold); drawSugg(); } },
+        `Possible connections${n ? ` · ${n}` : ""}`),
+      fresh ? el("button", { class: "t-btn", title: sugg.quiet ? "Suggest connections for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
     const body = el("div", { class: "sbody" },
       !fresh ? el("div", { class: "none" }, "Looking…")
         : sugg.quiet ? el("div", { class: "none" }, "Not suggesting for this.")
@@ -845,7 +846,7 @@
     return el("div", { class: "srow" },
       el("div", { class: "top" }, ki,
         el("button", { class: "title", title: `${s.title} — click to put it in the middle; double-click to open it`, onclick: () => walkTo(node()), ondblclick: () => open(node()) }, s.title || "Untitled"),
-        el("button", { class: "no", title: "Not tied — don't suggest it again", onclick: () => dismiss(s) }, "×")),
+        el("button", { class: "no", title: "Not connected — don't suggest it again", onclick: () => dismiss(s) }, "×")),
       el("div", { class: "why" }, s.why.join(" · ")),
       el("div", { class: "ways" }, s.ways.map((w) => {
         const id = `${s.key}|${w.how}|${w.text || ""}`;
@@ -894,7 +895,7 @@
   let steps = Number(store.get("talaris.glance.steps", 1)) || 1;
   function drawSteps() {
     $("steps").replaceChildren(el("span", { class: "steps-l" }, "Steps"), ...[1, 2, 3].map((n) =>
-      el("button", { class: n === steps ? "on" : "", title: n === 1 ? (from ? "What it is tied to" : "What the project's own things touch") : `${n} steps out`,
+      el("button", { class: n === steps ? "on" : "", title: n === 1 ? (from ? "What it is connected to" : "What the project's own things touch") : `${n} steps out`,
         onclick: () => { if (n === steps) return; steps = n; store.set("talaris.glance.steps", n); drawSteps(); load(); } }, String(n))));
   }
   drawSteps();

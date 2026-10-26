@@ -216,6 +216,10 @@ button.danger:hover { color: var(--danger); border-color: var(--danger); }
 .confirm .buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .confirm .buttons .danger { border-color: var(--danger); color: var(--danger); }
 .context { position: fixed; z-index: 50; min-width: 150px; }
+/* Connect to…: a box to find what to connect the page to, its finds below. */
+.cn-menu { width: 300px; }
+.cn-q { width: calc(100% - 8px); margin: 4px; padding: 4px 8px; font: inherit; font-size: 12.5px; box-sizing: border-box; }
+.cn-menu .menu-item .tg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* A long list (every tag) scrolls rather than running off the screen. */
 .tag-filter { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context.scrolls { overflow-y: auto; overflow-x: hidden; max-width: 260px; }

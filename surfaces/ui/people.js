@@ -255,7 +255,7 @@
     return el("div", { class: "prow" + (p.id === chosen ? " on" : ""), "data-id": p.id, onclick: () => { choose(p.id); $("list").focus(); } },
       avatar(p.id, p.title, p.image),
       el("div", { class: "p-main" }, el("div", { class: "p-name" }, p.title), sub ? el("div", { class: "p-sub" }, sub) : null),
-      !p.ties.length && !p.noContact ? el("span", { class: "untied", title: "Not tied to anyone in your address books" }) : null);
+      !p.ties.length && !p.noContact ? el("span", { class: "untied", title: "Not connected to anyone in your address books" }) : null);
   }
   function toggleGroup(g) {
     if (shut.has(g)) shut.delete(g); else shut.add(g);
@@ -654,7 +654,7 @@
     if (c.gone) {
       return el("div", { class: "card gone" },
         el("div", { class: "c-main" }, el("div", { class: "c-name" }, "No longer in your address books")),
-        el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Untie")));
+        el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Disconnect")));
     }
     return el("div", { class: "card" },
       el("div", { class: "c-main" },
@@ -664,14 +664,14 @@
       el("div", { class: "c-acts" },
         // Only when it has something this person doesn't.
         Object.keys(newFrom(c)).length ? el("button", { class: "t-btn", title: `Add what Talaris doesn't have yet (${Object.keys(newFrom(c)).map(lower).join(", ")}); nothing is overwritten`, onclick: () => copyCard(c) }, "Copy into Talaris") : null,
-        el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Untie")));
+        el("button", { class: "t-btn", onclick: () => tie(key, false) }, "Disconnect")));
   }
   function likelyCard(c) {
     return el("div", { class: "card likely" },
       el("div", { class: "c-main" },
         el("div", { class: "c-name" }, c.name || "No name", el("span", { class: "hint" }, `  ${c.bookName || c.book}`)),
         cardLines(c)),
-      el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(cardKeyOf(c), true) }, "Tie")));
+      el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(cardKeyOf(c), true) }, "Connect")));
   }
 
   // Ranked: the same address, then the name exactly, then a name that holds theirs (or theirs it).

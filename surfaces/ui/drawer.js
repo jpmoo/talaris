@@ -862,9 +862,12 @@ async function loadWriting() {
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
       " ", el("button", { onclick: () => transfer(false) }, `Move to ${other}`),
-      " ", el("button", { onclick: () => transfer(true) }, `Copy to ${other}`),
+      // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
+      " ", el("button", { title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
       " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
   }
+  // Glance on the page open: what it is connected to, and possible connections.
+  if (open && window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`page:${wpid()}/${open}`, (k) => bridge.glanceAt(k), ""));
   $("actions").replaceChildren(...actions);
   // A day with no note yet reads as empty; the file appears when you write.
   if (open) text = await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "");
@@ -1120,6 +1123,53 @@ const TEXT_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b
   "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
 let menu = null;
 function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+
+/*
+ * Connect to…: the page open tied to something else — found as an @ finds it
+ * (the core's /mentionables), this project's things first — in the field a
+ * page declares for it (a person, a project), else as a link. The page's own
+ * entity, and a page or canvas chosen, are made as they are needed.
+ */
+const KIND_WORD = { contact: "Person", task: "Task", event: "Event", note: "Page", page: "Page", canvas: "Canvas", project: "Project" };
+function connectMenu(anchor) {
+  closeMenu();
+  const q = el("input", { type: "text", class: "cn-q", placeholder: "Find a person, task, page, project…", spellcheck: "false" });
+  const list = el("div", {});
+  menu = el("div", { class: "context scrolls cn-menu" }, q, list);
+  const r = anchor.getBoundingClientRect();
+  menu.style.left = `${Math.min(r.left, innerWidth - 300)}px`;
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.maxHeight = `${Math.max(180, innerHeight - r.bottom - 16)}px`;
+  document.body.append(menu);
+  q.focus();
+  let asked = 0;
+  const find = async () => {
+    const mine = ++asked;
+    const rows = await core("GET", `/mentionables?q=${encodeURIComponent(q.value.trim())}&project=${encodeURIComponent(wpid())}&limit=14`).catch(() => []);
+    if (mine !== asked || !menu) return;
+    const shown = (rows || []).filter((x) => !(x.kind === "page" && x.project === wpid() && x.where === open));
+    list.replaceChildren(...(shown.length ? shown.map((x) => el("button", { class: "menu-item", title: x.projectName ? `${x.title} — ${x.projectName}` : x.title,
+      onclick: () => { closeMenu(); connectPage(x); } }, el("span", { class: "tg" }, x.title), el("span", { class: "n" }, KIND_WORD[x.kind] || "Thing")))
+      : [el("div", { class: "menu-item off" }, "Nothing by that name")]));
+  };
+  let timer = null;
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, 150); });
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMenu(); }
+    if (e.key === "Enter") { e.preventDefault(); const first = list.querySelector("button"); if (first) first.click(); }
+  });
+  find();
+}
+async function connectPage(x) {
+  try {
+    const me = await core("POST", "/entities/place", { kind: "page", project: wpid(), where: open, title: open.split("/").pop() });
+    let to = x.id;
+    if (!to && (x.kind === "page" || x.kind === "canvas")) to = (await core("POST", "/entities/place", { kind: x.kind, project: x.project, where: x.where, title: x.title })).id;
+    if (!to) throw new Error("that cannot be connected to");
+    await core("POST", `/entities/${encodeURIComponent(me.id)}/connect`, { to, type: "about" });
+    status(`CONNECTED TO ${String(x.title).toUpperCase().slice(0, 50)}`);
+  } catch (e) { status(String(e.message || e).toUpperCase().slice(0, 70)); }
+}
 addEventListener("contextmenu", (e) => {
   e.preventDefault();
   closeMenu();

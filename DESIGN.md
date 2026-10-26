@@ -1195,6 +1195,14 @@ is asked to make is an unaffiliated page. Hermes Notes' own word is kept when
 its side is meant. Still called notes, being something else: a field of notes
 on a task, an event or a person; a note card on a canvas; Morgan's memory.
 
+**Connect, one word.** Whatever ties two things — a field, a link, a page
+about a person, a file on a task — is a connection, and making one is
+connecting: "Connect to Rich Gelson", "Possible connections", "Not
+connected", a person's address-book entry connected or disconnected. A page
+is connected to what it is about (the writing drawer's "Connect to…"), not
+copied there. Only a mention ("Connect “Rich” as a mention") and a merge are
+named for what they do besides.
+
 **People, not cards.** An address book's entry is shown as a person, "in your
 address books" — likely the same person, no longer in your address books —
 never as a card. "Card" is kept for what is placed on a canvas, and for the

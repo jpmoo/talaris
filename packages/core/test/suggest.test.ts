@@ -34,7 +34,7 @@ test("a name in the words: each person it may be, a mention offered, and taken",
   assert.ok(of(gelson.id) && of(wiener.id), "both Riches");
   assert.match(of(gelson.id)!.why[0]!, /one of 2/);
   const way = of(gelson.id)!.ways.find((w) => w.how === "mention")!;
-  assert.equal(way.label, "Make “Rich” a mention");
+  assert.equal(way.label, "Connect “Rich” as a mention");
   assert.match(suggest.accept(`e:${t.id}`, `e:${gelson.id}`, way).said, /mention/);
   assert.equal(entities.getEntity(t.id).properties.title, `Connect [@Rich](talaris:${gelson.id}) about the retreat`);
   assert.ok(entities.connections(t.id).out.some((c) => c.entity.id === gelson.id), "a mention is a tie");
@@ -47,7 +47,7 @@ test("a note called by a person's name: about them, connected in its people fiel
   const s = suggest.suggestionsFor(`e:${note.id}`).suggestions.find((x) => x.id === ann.id)!;
   assert.deepEqual(s.why, ["Named Annabel Price"]);
   const way = s.ways.find((w) => w.how === "connect")!;
-  assert.equal(way.label, "About Annabel Price");
+  assert.equal(way.label, "Connect to Annabel Price");
   suggest.accept(`e:${note.id}`, `e:${ann.id}`, way);
   assert.ok(entities.connections(ann.id).in.some((c) => c.entity.id === note.id && c.by === "field"));
 });
