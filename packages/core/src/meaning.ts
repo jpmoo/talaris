@@ -30,18 +30,30 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
-import { filesVersion, listFiles, type FileRow } from "./files.js";
+import { execFileSync } from "node:child_process";
+import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
 import { fileText, keepOnly, keptText, readable, saveFileText, textOf, textOfBytes } from "./filetext.js";
 import { linkedBytes } from "./links.js";
-import { CONFIG_DIR } from "./paths.js";
+import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
 import { seal, unseal } from "./seal.js";
-import { readJson, writeAtomic } from "./store.js";
+import { readJson, writeAtomic, writeJson } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import type { PageNode } from "@talaris/model";
 
-export interface MeaningSettings { on?: boolean; url?: string; model?: string }
+export interface MeaningSettings {
+  on?: boolean; url?: string; model?: string;
+  /**
+   * When files are looked at for anything new or changed to read (Settings,
+   * Data, Reading files): `change` — as they change, within a minute or so;
+   * `idle` — while the computer is idle (away a few minutes, or locked);
+   * `schedule` — once a day, at `at`; `manual` — only when Scan now is
+   * pressed. Pages, tasks and people are read as they change whatever this says.
+   */
+  scan?: "change" | "idle" | "schedule" | "manual";
+  at?: string;
+}
 export function meaningSettings(): MeaningSettings {
   try {
     return readJson<{ meaning?: MeaningSettings }>(join(CONFIG_DIR, "config.json")).meaning ?? {};
@@ -73,7 +85,8 @@ interface Index { model: string; entries: Map<string, Entry> }
 
 const FILE = () => join(DATA_DIR, "meaning.sealed");
 let index: Index | null = null;
-let status = { indexing: false, last: "", error: "", pending: 0 };
+/** How the index stands, and — while a pass runs — what it is reading and how far through the pass it is. */
+let status = { indexing: false, last: "", error: "", pending: 0, doing: "", doingKind: "", done: 0, of: 0 };
 
 // ------------------------------------------------------------ kept
 
@@ -172,6 +185,15 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
   return { reading: { on: true, pending, indexing: status.indexing }, read };
 }
 
+/** The files search knows of: read with words, read with none, waiting. */
+function fileCounts(): { read: number; nowords: number; waiting: number } {
+  const out = { read: 0, nowords: 0, waiting: 0 };
+  try {
+    for (const v of Object.values(fileReadStates(listFiles().rows).read)) out[v === "read" ? "read" : v === "nowords" ? "nowords" : "waiting"]++;
+  } catch { /* the store locked for now */ }
+  return out;
+}
+
 /** Every file with words in it: the folders' (not their pages, which are pages), and those on things. */
 function fileDocs(): Doc[] {
   const out: Doc[] = [];
@@ -251,7 +273,7 @@ function unit(v: number[] | Float32Array): Float32Array {
 const ready = (s: MeaningSettings): s is Required<Pick<MeaningSettings, "url" | "model">> & MeaningSettings => Boolean(s.on && s.url && s.model);
 
 /** One pass: what changed, embedded again; what is gone, forgotten. Answers how many were embedded. */
-export async function reindex(most = 400): Promise<number> {
+export async function reindex(most = 400, options: { files?: boolean } = {}): Promise<number> {
   const s = meaningSettings();
   if (!ready(s) || status.indexing) return 0;
   status.indexing = true;
@@ -262,11 +284,16 @@ export async function reindex(most = 400): Promise<number> {
     const live = new Set(docs.map((d) => d.key));
     let dirty = false;
     for (const k of [...ix.entries.keys()]) if (!live.has(k)) { ix.entries.delete(k); dirty = true; }
-    const stale = docs.filter((d) => ix.entries.get(d.key)?.doc.stamp !== d.stamp);
+    // Files only when it is their time (`scan`): kept as they are meanwhile, neither read again nor forgotten.
+    const stale = docs.filter((d) => ix.entries.get(d.key)?.doc.stamp !== d.stamp && (options.files !== false || d.kind !== "file"));
     status.pending = stale.length;
+    status.done = 0;
+    status.of = Math.min(stale.length, most);
     const byId = new Map(allRecords().map((r) => [r.object.id, r.object]));
     let done = 0;
     for (const d of stale.slice(0, most)) {
+      status.doing = d.title;
+      status.doingKind = d.kind;
       let texts: string[];
       if (d.kind === "page") {
         let words = "";
@@ -289,6 +316,7 @@ export async function reindex(most = 400): Promise<number> {
       } else ix.entries.set(d.key, { ...ix.entries.get(d.key)!, doc: d });
       dirty = true;
       status.pending--;
+      status.done++;
       // Kept as it goes, a while apart, so a long first pass is not lost to a restart.
       if (done && done % 50 === 0) save(ix);
     }
@@ -302,32 +330,94 @@ export async function reindex(most = 400): Promise<number> {
     return 0;
   } finally {
     status.indexing = false;
+    status.doing = "";
+    status.doingKind = "";
   }
 }
 
 let timer: NodeJS.Timeout | null = null;
-/** From now on: a pass a minute after start, then every few minutes. */
-export function startMeaning(): void {
-  if (timer) return;
-  // More left than a pass takes (a folder of files just linked): the next pass soon after, not minutes later.
-  const tick = () => { void reindex().then(() => { if (status.pending > 0 && !status.error) setTimeout(tick, 5_000).unref(); }); };
-  setTimeout(tick, 60_000).unref();
-  timer = setInterval(tick, 4 * 60_000);
-  timer.unref();
-  // A file added, changed or put on a thing: read within half a minute, not at the next pass.
-  let seen = -1;
-  setInterval(() => {
-    const v = filesVersion();
-    if (seen !== -1 && v !== seen) tick();
-    seen = v;
-  }, 30_000).unref();
+
+// ------------------------------------------------------------ when files are read
+
+/** Told by Talaris's hypridle (power.py): away a few minutes, or back. */
+let idleSince = 0;
+export function setIdle(idle: boolean): void { idleSince = idle ? Date.now() : 0; }
+/** Idle: as hypridle says, or the screen locked (hyprlock running) whoever locked it. */
+function idleNow(): boolean {
+  if (idleSince) return true;
+  try { execFileSync("pidof", ["hyprlock"], { stdio: "ignore", timeout: 2000 }); return true; } catch { return false; }
 }
 
-export function meaningStatus(): { on: boolean; model: string; url: string; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string } {
+const SCANNED = () => join(STATE_DIR, "meaning-scan.json");
+const lastScan = (): { at: string; day: string } => { try { return readJson<{ at: string; day: string }>(SCANNED()); } catch { return { at: "", day: "" }; } };
+let scanning = false;
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+/**
+ * Files looked at for anything new or changed (Scan now, or as `scan` says):
+ * linked files and linked folders looked at again (files.ts), then every
+ * file not read since it changed read, pass after pass until none waits.
+ * Answers how many were read.
+ */
+export async function scanFiles(): Promise<{ read: number; changed: number }> {
+  if (scanning) return { read: 0, changed: 0 };
+  scanning = true;
+  try {
+    const changed = watchLinked();
+    let read = 0;
+    for (let i = 0; i < 50; i++) {
+      read += await reindex(400, { files: true });
+      if (!status.pending || status.error) break;
+    }
+    writeJson(SCANNED(), { at: new Date().toISOString(), day: today() });
+    return { read, changed };
+  } finally {
+    scanning = false;
+  }
+}
+
+/**
+ * From now on. Pages, tasks and people: a pass a minute after start, then
+ * every few minutes, and soon after a pass that left some waiting. Files: as
+ * `scan` says — as they change (looked at each minute, and when Files says one
+ * changed), while idle, once a day, or only when asked.
+ */
+export function startMeaning(): void {
+  if (timer) return;
+  const things = () => { void reindex(400, { files: false }).then(() => { if (status.pending > 0 && !status.error && !scanning) setTimeout(things, 5_000).unref(); }); };
+  setTimeout(things, 60_000).unref();
+  timer = setInterval(things, 4 * 60_000);
+  timer.unref();
+  let seen = -1, lastIdleScan = 0, lastChangeScan = 0;
+  setInterval(() => {
+    const s = meaningSettings();
+    if (!ready(s)) return;
+    const when = s.scan ?? "change";
+    const v = filesVersion();
+    const changed = seen !== -1 && v !== seen;
+    seen = v;
+    // As they change: when Files says one did, and each minute or two besides (a linked file, a linked folder).
+    if (when === "change") { if (changed || Date.now() - lastChangeScan > 90_000) { lastChangeScan = Date.now(); void scanFiles(); } return; }
+    if (when === "idle") {
+      // Idle: a scan, and again every ten minutes while it lasts.
+      if (idleNow() && Date.now() - lastIdleScan > 10 * 60_000) { lastIdleScan = Date.now(); void scanFiles(); }
+      return;
+    }
+    if (when === "schedule") {
+      const [h, m] = (s.at ?? "03:00").split(":").map(Number);
+      const now = new Date();
+      const due = now.getHours() * 60 + now.getMinutes() >= (h ?? 3) * 60 + (m ?? 0);
+      if (due && lastScan().day !== today()) void scanFiles();
+    }
+  }, 30_000).unref();
+}
+export function meaningStatus(): { on: boolean; model: string; url: string; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string;
+  doing: string; doingKind: string; done: number; of: number; scan: string; at: string; lastScan: string; idle: boolean; scanning: boolean; files: { read: number; nowords: number; waiting: number } } {
   const s = meaningSettings();
   const ix = s.model ? load(s.model) : null;
   return { on: Boolean(s.on), model: s.model ?? "", url: s.url ?? "", items: ix?.entries.size ?? 0,
-    passages: ix ? [...ix.entries.values()].reduce((n, e) => n + e.chunks.length, 0) : 0, ...status };
+    passages: ix ? [...ix.entries.values()].reduce((n, e) => n + e.chunks.length, 0) : 0, ...status,
+    scan: s.scan ?? "change", at: s.at ?? "03:00", lastScan: lastScan().at, idle: idleNow(), scanning, files: fileCounts() };
 }
 
 // ------------------------------------------------------------ finding

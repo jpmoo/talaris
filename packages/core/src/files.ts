@@ -179,8 +179,7 @@ export function startWatching(): void {
   watchProjects();
   started = setInterval(() => {
     try { watchProjects(); } catch { /* a project unreadable for now */ }
-    // Files linked from elsewhere, and folders linked whole: changes, and new files, taken up.
-    try { watchLinked(); } catch { /* the store locked for now */ }
+    // Files linked from elsewhere, and folders linked whole, are looked at when search reads files (meaning.ts, scanFiles).
   }, 60_000);
   started.unref();
 }

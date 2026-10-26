@@ -973,6 +973,12 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
   minute (its new contents' hash, which a sync also carries); and a folder
   linked whole (Files, Add from elsewhere, A folder) is remembered and looked
   at each minute for files new in it, which are linked too.
+- **When files are read is a setting** (Settings, Data, Reading files): as
+  they change (the default), while idle — five minutes away, told by
+  Talaris's hypridle, or the screen locked — once a day at a time, or only
+  when Scan now is pressed. Pages, tasks and people are read as they change
+  whatever it says. The panel says how many files are read, have no words, or
+  wait, and while it reads, which one and how far through.
 - **By a model server** — Morgan's, unless Settings, Data says another (Ollama's
   `/api/embed`, or the OpenAI-style `/v1/embeddings`). Off until it is turned
   on there, and nothing goes anywhere while it is off.

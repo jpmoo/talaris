@@ -304,6 +304,10 @@ route("POST", "/files/open-copy", async (req) => ({ path: files.openableCopy(awa
 route("GET", "/meaning", async (_r, _p, q) => meaning.searchMeaning(q.get("q") ?? "", { limit: Number(q.get("limit") ?? 20),
   ...(q.get("kind") ? { kind: q.get("kind")! } : {}), ...(q.get("project") ? { project: q.get("project")! } : {}), ...(q.get("floor") ? { floor: Number(q.get("floor")) } : {}) }));
 route("GET", "/meaning/status", () => meaning.meaningStatus());
+// Files looked at for anything new or changed, now (Settings, Data, Scan now).
+route("POST", "/meaning/scan", async () => meaning.scanFiles());
+// Away, or back: Talaris's hypridle says (power.py) — what "while idle" reads files by.
+route("POST", "/meaning/idle", async (req) => { meaning.setIdle((await json<{ idle?: boolean }>(req)).idle !== false); return { ok: true }; });
 route("POST", "/meaning/reindex", async () => ({ embedded: await meaning.reindex() }));
 route("GET", "/meaning/models", async (_r, _p, q) => {
   // The models a server offers that make vectors, for Settings to choose from.

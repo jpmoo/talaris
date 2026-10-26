@@ -1351,6 +1351,51 @@ async function drawMeaning() {
         drawMeaning();
       } }, "Index now"))));
   if (m.url) listModels();
+  drawReading();
+}
+
+// Data → Reading files: when files are looked at for anything new or changed (meaning.ts, `scan`), Scan now,
+// and how far it is — drawn again every second or so while it reads, so the bar moves.
+const SCAN = [["change", "As they change"], ["idle", "While idle"], ["schedule", "Once a day"], ["manual", "Only when asked"]];
+const KIND_READ = { file: "file", page: "page", task: "task", person: "person", project: "project", event: "event" };
+let readingTimer = null;
+async function drawReading() {
+  const host = $("reading");
+  if (!host) return;
+  clearTimeout(readingTimer);
+  const m = cfg.meaning || {};
+  let st = null;
+  try { st = await core("GET", "/meaning/status"); } catch { /* the core is away for a moment */ }
+  if (!st) { host.replaceChildren(pel("p", { class: "note" }, "The core is not answering just now.")); return; }
+  const scan = m.scan || "change";
+  const pick = pel("span", { class: "seg" }, ...SCAN.map(([k, label]) => pel("button", { class: k === scan ? "on" : "", onclick: () => k !== scan && save({ meaning: { ...m, scan: k } }) }, label)));
+  const at = pel("input", { type: "time", value: m.at || "03:00", style: "width:auto" });
+  at.addEventListener("change", () => save({ meaning: { ...m, scan: "schedule", at: at.value || "03:00" } }));
+  const managed = Boolean((cfg.power || {}).managed);
+  const hint = scan === "change" ? "Each minute or so, and as soon as a file changes in a project's folder"
+    : scan === "idle" ? (managed ? "After five minutes away, or with the screen locked; again every ten minutes while you are away" : "With the screen locked (Talaris is not managing power, so it does not know when you are away)")
+    : scan === "schedule" ? "Once a day, at the time below — or as soon after it as the computer is on"
+    : "Only when Scan now is pressed";
+  const busy = st.indexing || st.scanning;
+  const f = st.files || { read: 0, nowords: 0, waiting: 0 };
+  const counts = `${f.read} read · ${f.nowords} with no words · ${f.waiting} waiting${st.lastScan ? ` · last looked ${when(st.lastScan)}` : ""}`;
+  const progress = busy && st.of
+    ? pel("span", { class: "what", style: "flex-direction:column;align-items:stretch;min-width:260px" },
+        pel("span", { class: "rd-doing" }, st.doing ? `Reading ${KIND_READ[st.doingKind] || "thing"}: ${st.doing}` : "Reading…", ` — ${st.done} of ${st.of}`),
+        pel("span", { class: "rd-bar" }, pel("i", { style: `width:${Math.round((100 * st.done) / Math.max(1, st.of))}%` })))
+    : pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: !m.on || !m.model ? "" : null, onclick: async (e) => {
+        e.target.disabled = true; say("Looking for new and changed files…");
+        setTimeout(drawReading, 600);
+        try { const r = await core("POST", "/meaning/scan"); say(`${r.read} read${r.changed ? `, ${r.changed} linked or changed` : ""}`); } catch (x) { say(x.message, true); }
+        drawReading();
+      } }, "Scan now"));
+  host.replaceChildren(...[
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Look for new and changed files", pel("small", {}, hint)), pel("span", { class: "what" }, pick)),
+    scan === "schedule" ? pel("div", { class: "row" }, pel("span", { class: "name" }, "At"), pel("span", { class: "what" }, at)) : null,
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Stopped: ${st.error}` : !m.on ? "Search by meaning is off, above" : counts)), progress),
+  ].filter(Boolean));
+  // Drawn again while it reads, or files wait, and Data is on show.
+  if ((busy || f.waiting) && $("data").classList.contains("on")) readingTimer = setTimeout(drawReading, busy ? 1000 : 5000);
 }
 
 /*
