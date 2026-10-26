@@ -1353,12 +1353,42 @@ async function drawMeaning() {
   if (m.url) listModels();
 }
 
+/*
+ * Demo mode (demo.py, the core's demo.ts): a made-up world — projects,
+ * tasks, people, notes, events — to show Talaris off, kept apart from yours.
+ * Each button starts Talaris again, so each asks once more first.
+ */
+function drawDemo() {
+  bridge.demo((text) => {
+    const d = JSON.parse(text || "{}");
+    $("demo-note").textContent = d.on
+      ? "This is the demo: everything here is made up, and none of it is yours. Yours is as you left it."
+      : "A made-up world of projects, tasks, people, notes and events, to show Talaris off. Yours is not touched, and no plugin runs there.";
+    $("demo-what").textContent = d.on ? "On — Talaris restarts to leave" : "Off — Talaris restarts to enter";
+    const ask = (label, sure, verb) => {
+      const b = el("button", { class: "t-btn" }, label);
+      b.addEventListener("click", () => {
+        if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = sure; setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000); return; }
+        b.disabled = true;
+        b.textContent = "Restarting…";
+        bridge.demoMode(verb);
+      });
+      return b;
+    };
+    $("demo-buttons").replaceChildren(...(d.on
+      ? [ask("Leave demo", "Leave and restart?", "leave"), ask("Reset demo", "Make it afresh?", "reset")]
+      : [ask("Enter demo", "Restart into the demo?", "enter")]));
+  });
+}
+
 function drawData() {
+  drawDemo();
   const v = vaultNow;
   if (!v) return;
   drawMeaning();
   $("data-where").className = "note";
   $("data-where").textContent = "People, events, notes, tasks and projects, kept encrypted in ~/.local/share/talaris.";
+  bridge.demo((text) => { if (JSON.parse(text || "{}").on) $("data-where").textContent = "The demo's people, events, notes, tasks and projects, made up, in ~/.local/share/talaris-demo."; });
   $("data-locked").hidden = !v.locked;
   $("data-open").hidden = !!v.locked;
   if (v.locked) { $("data-locked-why").textContent = v.locked; return; }

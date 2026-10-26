@@ -68,6 +68,13 @@ function onState(s) {
   }
   // Its tip says it in full, whichever the bar shows.
   $("where").title = `${p.name || "Home"}${p.code ? ` · ${p.code}` : ""} — projects`;
+  if (s.demo) {
+    const badge = document.createElement("span");
+    badge.className = "demo-badge";
+    badge.textContent = "DEMO";
+    badge.title = "The demo: made up, none of it yours (Settings, Data to leave)";
+    $("where").append(badge);
+  }
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
   const now = s.morgan || "absent";
   $("morgan").dataset.state = now;

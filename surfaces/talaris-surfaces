@@ -22,4 +22,17 @@ if [ "$#" -eq 0 ]; then
   # renderers rather than taking one each — some twenty pages, 100–150 MB apiece.
   export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:-} --disable-smooth-scrolling --process-per-site"
 fi
+# Demo mode (the core's demo.ts): the mark in the person's own settings folder
+# puts the surfaces in the demo world too — its settings, its Projects folder —
+# and tells the calendar to show the demo's events, not the accounts'.
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/talaris"
+if [ -f "$CONF/demo" ] && [ -z "${TALARIS_CONFIG_DIR:-}" ]; then
+  export TALARIS_DEMO=1
+  export TALARIS_DEMO_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/talaris-demo"
+  export TALARIS_CONFIG_DIR="$TALARIS_DEMO_ROOT/config"
+  export TALARIS_PROJECTS="$TALARIS_DEMO_ROOT/Projects"
+  mkdir -p "$TALARIS_CONFIG_DIR"
+  # The demo looks as Talaris does here: the person's settings, copied the first time.
+  [ -f "$TALARIS_CONFIG_DIR/config.json" ] || { [ -f "$CONF/config.json" ] && cp "$CONF/config.json" "$TALARIS_CONFIG_DIR/config.json"; } || true
+fi
 exec python3 "$HERE/surfaces.py" "$@"

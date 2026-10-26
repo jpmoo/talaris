@@ -195,6 +195,17 @@ class SettingsBridge(Bridge):
         """Every application a menu would show: for choosing one to keep in a project."""
         return json.dumps([{"id": a["id"], "name": a["name"]} for a in self.owner.desktop.apps.launchable()])
 
+    # ---- demo mode (demo.py): a made-up world to show Talaris off; each of these starts Talaris again
+    @Slot(result=str)
+    def demo(self) -> str:
+        import demo
+        return json.dumps({"on": demo.on(), "root": demo.ROOT})
+
+    @Slot(str)
+    def demoMode(self, verb: str) -> None:  # noqa: N802 — called from the page by this name
+        import demo
+        {"enter": demo.enter, "leave": demo.leave, "reset": demo.reset}.get(verb, lambda: None)()
+
     @Slot(result=str)
     def config(self) -> str:
         return json.dumps({"config": self.owner.desktop.config, "fonts": FONTS,

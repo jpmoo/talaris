@@ -39,8 +39,10 @@ local midnights, the end the day after its last.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
+from datetime import datetime
 
 import gi
 
@@ -579,7 +581,168 @@ class Calendars:
             self.delete(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg.get("which", "all"))
 
 
+class DemoCalendars:
+    """
+    Demo mode's calendar (the core's demo.ts): the demo's own events, from
+    `calendar.json` beside its store (made by the core's demo-seed.ts) —
+    nothing of the accounts read or written. A made-up event says which day
+    it falls on as days from today (`day`), or that it falls on every weekday
+    (`weekdays`), so a demo is always of this week; one made or changed while
+    showing it off is kept as it was made, by its times, in `made`.
+    """
+
+    def __init__(self, root: str) -> None:
+        self.file = os.path.join(root, "calendar.json")
+        try:
+            with open(self.file) as f:
+                self.data = json.load(f)
+        except (OSError, ValueError):
+            self.data = {"calendars": [], "events": [], "made": []}
+        self.data.setdefault("made", [])
+
+    def _save(self) -> None:
+        tmp = f"{self.file}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(self.data, f)
+        os.replace(tmp, self.file)
+
+    def tell_calendars(self) -> None:
+        say({"calendars": [{**c, "writable": True} for c in self.data["calendars"]]})
+
+    @staticmethod
+    def _item(e: dict, start: datetime, end: datetime, all_day: bool, rid: str = "") -> dict:
+        return {"calendar": e["calendar"], "uid": e["uid"], "rid": rid, "title": e.get("title", ""), "location": e.get("location", ""),
+                "notes": e.get("notes", ""), "start": int(start.timestamp() * 1000), "end": int(end.timestamp() * 1000),
+                "allDay": all_day, "recurring": bool(rid), "attendees": [], "mine": "", "organizer": ""}
+
+    def _instances(self, start_ms: int, end_ms: int) -> list:
+        from datetime import timedelta
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        lo, hi = datetime.fromtimestamp(start_ms / 1000), datetime.fromtimestamp(end_ms / 1000)
+        out = []
+
+        def at(day: datetime, e: dict) -> tuple:
+            if e.get("allDay"):
+                return day, day + timedelta(days=int(e.get("days", 1))), True
+            h, m = (int(x) for x in str(e.get("at", "09:00")).split(":"))
+            start = day.replace(hour=h, minute=m)
+            return start, start + timedelta(minutes=int(e.get("minutes", 60))), False
+
+        for e in self.data["events"]:
+            if e.get("weekdays"):
+                d = max(lo.replace(hour=0, minute=0, second=0, microsecond=0), today - timedelta(days=400))
+                while d < hi:
+                    rid = d.strftime("%Y%m%d")
+                    if d.weekday() < 5 and rid not in e.get("skip", []):
+                        s, t, all_day = at(d, e)
+                        if s < hi and t > lo:
+                            out.append(self._item(e, s, t, all_day, rid))
+                    d += timedelta(days=1)
+            else:
+                s, t, all_day = at(today + timedelta(days=int(e.get("day", 0))), e)
+                if s < hi and t > lo:
+                    out.append(self._item(e, s, t, all_day))
+        for e in self.data["made"]:
+            s, t = datetime.fromtimestamp(e["start"] / 1000), datetime.fromtimestamp(e["end"] / 1000)
+            if s < hi and t > lo:
+                out.append(self._item(e, s, t, bool(e.get("allDay"))))
+        return out
+
+    def range(self, req: int, start_ms: int, end_ms: int) -> None:
+        items = sorted(self._instances(start_ms, end_ms), key=lambda e: (e["start"], not e["allDay"]))
+        say({"events": {"req": req, "items": items}})
+
+    def search(self, req: int, query: str) -> None:
+        words = [w for w in query.lower().split() if w]
+        now = int(time.time() * 1000)
+        year = 366 * 86400 * 1000
+        found: dict = {}
+        for e in self._instances(now - year, now + year) if words else []:
+            if not all(w in f"{e['title']} {e['location']} {e['notes']}".lower() for w in words):
+                continue
+            rank = lambda x: (x["end"] < now, abs(x["start"] - now))  # noqa: E731
+            if (e["calendar"], e["uid"]) not in found or rank(e) < rank(found[(e["calendar"], e["uid"])]):
+                found[(e["calendar"], e["uid"])] = e
+        items = sorted(found.values(), key=lambda e: (e["end"] < now, e["start"] if e["end"] >= now else -e["start"]))[:150]
+        say({"events": {"req": req, "items": items, "search": query}})
+
+    def _changed(self, req: int, uid: str = "") -> None:
+        self._save()
+        say({"done": {"req": req, "error": "", **({"uid": uid} if uid else {})}})
+        say({"changed": True})
+
+    def _find(self, uid: str):
+        for where in ("made", "events"):
+            for e in self.data[where]:
+                if e["uid"] == uid:
+                    return where, e
+        return None, None
+
+    def do(self, msg: dict) -> None:
+        import uuid
+        verb, req = msg.get("do"), int(msg.get("req", 0))
+        if verb == "range":
+            self.range(req, int(msg["from"]), int(msg["to"]))
+        elif verb == "search":
+            self.search(req, str(msg.get("q", ""))[:200])
+        elif verb == "create":
+            ev = msg["event"]
+            uid = str(uuid.uuid4())
+            self.data["made"].append({"calendar": str(msg["calendar"]), "uid": uid, **{k: ev.get(k) for k in ("title", "location", "notes", "start", "end", "allDay")}})
+            self._changed(req, uid)
+        elif verb == "update":
+            where, e = self._find(str(msg["uid"]))
+            if not e:
+                say({"done": {"req": req, "error": "No such event"}})
+                return
+            ev = msg["event"]
+            fresh = {"calendar": e["calendar"], "uid": e["uid"], **{k: ev.get(k) for k in ("title", "location", "notes", "start", "end", "allDay")}}
+            # A made-up one changed: kept by its times from now on (one of every weekday's: that day's, the rest as they were).
+            if where == "events" and e.get("weekdays") and msg.get("which") == "this" and msg.get("rid"):
+                e.setdefault("skip", []).append(str(msg["rid"]))
+                fresh["uid"] = str(uuid.uuid4())
+            else:
+                self.data[where].remove(e)
+            self.data["made"].append(fresh)
+            self._changed(req)
+        elif verb == "delete":
+            where, e = self._find(str(msg["uid"]))
+            if e and e.get("weekdays") and msg.get("which") == "this" and msg.get("rid"):
+                e.setdefault("skip", []).append(str(msg["rid"]))
+            elif e:
+                self.data[where].remove(e)
+            self._changed(req)
+        elif verb == "color":
+            for c in self.data["calendars"]:
+                if c["id"] == msg.get("calendar"):
+                    c["color"] = str(msg.get("color", c.get("color")))
+            self._save()
+            self.tell_calendars()
+            say({"done": {"req": req, "error": ""}})
+        elif verb == "respond":
+            say({"done": {"req": req, "error": ""}})
+        elif verb == "people":
+            say({"people": {"req": req, "items": []}})
+        elif verb == "cards":
+            say({"cards": {"req": req, "items": []}})
+
+
+def demo_main(root: str) -> int:
+    """Demo mode: the demo's calendar answering, line by line, as the real one does."""
+    cals = DemoCalendars(root)
+    say({"ready": True})
+    cals.tell_calendars()
+    for line in sys.stdin:
+        try:
+            cals.do(json.loads(line))
+        except (ValueError, KeyError, TypeError) as e:
+            sys.stderr.write(f"calendar (demo): {e}\n")
+    return 0
+
+
 def main() -> int:
+    if os.environ.get("TALARIS_DEMO") and os.environ.get("TALARIS_DEMO_ROOT"):
+        return demo_main(os.environ["TALARIS_DEMO_ROOT"])
     try:
         cals = Calendars()
     except GLib.Error as e:

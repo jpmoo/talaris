@@ -10,6 +10,8 @@
  * cleanly so the next start finds nothing stale.
  */
 
+// First: in demo mode it says where every folder is, before any module decides (demo.ts).
+import { inDemo } from "./demo.js";
 import { chmodSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR, SOCKET, STATE_DIR, projectsRoot } from "./paths.js";
@@ -52,8 +54,13 @@ function keepPrivate(): void {
 async function main(): Promise<void> {
   keepPrivate();
   const home = ensureHome();
+  // The demo world made the first time (demo-seed.ts); and no backups of it.
+  if (inDemo) {
+    const { seedDemo } = await import("./demo-seed.js");
+    try { if (seedDemo()) console.log("talaris-core: demo world made"); } catch (e) { console.log(`talaris-core: demo not made: ${(e as Error).stack}`); }
+  }
   startSealing();
-  startSchedule();
+  if (!inDemo) startSchedule();
   // Files: every project's folder read once, then followed (files.ts).
   try { startWatching(); } catch (e) { console.log(`talaris-core: files not watched yet: ${(e as Error).message}`); }
   // Search by meaning: kept current in the background, when a model server is set (meaning.ts).

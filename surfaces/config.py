@@ -15,8 +15,11 @@ import json
 import os
 import tempfile
 
+# The core's folder for it when it has one (demo mode: the demo's own; talaris-surfaces says so).
 CONFIG = os.path.join(
-    (os.environ.get("XDG_CONFIG_HOME") or "").strip() or os.path.expanduser("~/.config"), "talaris", "config.json"
+    (os.environ.get("TALARIS_CONFIG_DIR") or "").strip()
+    or os.path.join((os.environ.get("XDG_CONFIG_HOME") or "").strip() or os.path.expanduser("~/.config"), "talaris"),
+    "config.json",
 )
 
 DEFAULTS = {

@@ -193,6 +193,9 @@ class LauncherBridge(Bridge):
     def morganSearch(self, query: str) -> None:  # noqa: N802 — called from the page by this name
         """Past conversations with Morgan for what was typed. Nothing is embedded here: Morgan does it, where it runs."""
         query = " ".join(query.split())[:200]
+        # Not in the demo: Morgan's past conversations are the person's own, and a demo is shown to others.
+        if os.environ.get("TALARIS_DEMO"):
+            return
         if len(query) >= 3 and self.owner.desktop.morgan_link.now != "absent":
             self.owner.searches.start(_MorganSearch(self, query))
 

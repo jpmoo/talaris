@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { DEMO_ROOT, inDemo } from "./demo.js";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
@@ -479,6 +480,8 @@ route("POST", "/entities/:id/files", async (req, [id]) => {
 route("GET", "/entity-types", () => entities.types());
 route("GET", "/interchange/export", () => exportEnvelope());
 // Plugins (plugins.ts): installed, enabled, set, supervised; their tools, for Talaris's MCP.
+// Whether this is the demo world (demo.ts): the surfaces say so, and Settings offers the way back.
+route("GET", "/demo", () => ({ on: inDemo, root: inDemo ? DEMO_ROOT : null }));
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());

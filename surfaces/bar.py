@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import os
 import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
@@ -524,6 +525,8 @@ class Bar(QObject):
         return {
             "edge": self.edge,
             "project": self.desktop.project,
+            # Demo mode (demo.py): the bar says so, so a made-up world is never taken for the real one.
+            "demo": bool(os.environ.get("TALARIS_DEMO")),
             "theme": self.desktop.config["theme"],
             # The clear room below (or above) the bar, in the page's pixels.
             "room": round(getattr(self, "room", 0) / (zoom_of("bar") or 1), 3),

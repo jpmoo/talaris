@@ -1168,6 +1168,30 @@ imports — the same import as any other, so every revival is also a test that
 the round trip loses nothing. Project folders are not in it: they are folders,
 for whatever already backs up folders.
 
+### Demo
+
+A made-up world to show Talaris off — projects with writing and files,
+people, tasks in every state (overdue, today, spanning days, repeating,
+waiting, done), a matrix, a board, a table and a list, notes, daily notes, and
+a week of events — entered from Settings, Data, and kept wholly apart from
+the person's own. A mark, `~/.config/talaris/demo`, chooses it; the core
+(`demo.ts`, the first module it loads) and `talaris-surfaces` read it as they
+start and root every folder in `~/.local/share/talaris-demo` instead: its
+own store, under its own key (no keyring, no recovery key), its own Projects
+folder, its own settings (copied from the person's the first time, so it
+looks the same). Entering, leaving and Reset each change the mark or the
+demo's own folders and start Talaris again; nothing of the person's is read
+or written meanwhile.
+
+Nothing reaches past it. No plugins run (none is installed there), so no
+sync can carry a made-up task into another app; no backups are made; the
+calendar shows the demo's own events (`calendar.json`, read by the calendar
+process in place of the accounts), and finds no one in the address books;
+the launcher does not search Morgan's past conversations, which are the
+person's. Its dates count from the day it was made and its events from the
+day they are shown (`demo-seed.ts`), so a demo is always of this week; Reset
+makes it afresh. The bar says DEMO beside the project's name throughout.
+
 ### Morgan
 
 **Morgan reaches entities through Talaris's MCP server** (`talaris-core mcp`),
