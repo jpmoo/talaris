@@ -212,7 +212,66 @@ function taskBar(t, s, e, lane, fromBefore, goesOn, cols) {
 
 // ---------------------------------------------------------------- drawing
 
+// ---------------------------------------------------------------- search
+//
+// Events a year either side of now holding every word typed (the calendar
+// process looks), and tasks holding them (the core): in place of the days
+// while there are any. A press on an event opens it on its day; on a task, in
+// Tasks. Escape, or emptying it, goes back.
+
+let searching = "";
+let found = { events: null, tasks: null };
+let searchReq = 0;
+function search(q) {
+  searching = q;
+  found = { events: null, tasks: null };
+  if (q) {
+    if (bridge && status.ready) bridge.ask(JSON.stringify({ do: "search", req: (searchReq = ++req), q }));
+    else found.events = [];
+    if (bridge && typeof bridge.core === "function") core("GET", `/tasks/find?text=${encodeURIComponent(q)}&limit=100`).then((rows) => { if (searching === q) { found.tasks = rows || []; draw(); } }).catch(() => { found.tasks = []; draw(); });
+    else found.tasks = [];
+  }
+  draw();
+}
+const whenWords = (e) => {
+  const d = new Date(e.start);
+  const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) });
+  return e.allDay ? `${day} · all day` : `${day} · ${clock(e.start)}`;
+};
+function drawFound(view) {
+  const now = Date.now();
+  const events = (found.events || []).filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar));
+  const hit = (e) => el("div", { class: "hit", style: `--c:${colorOf(e.calendar)}`, title: e.title, onclick: () => {
+    const at = new Date(e.start);
+    search("");
+    $("search").value = "";
+    focus = startOfDay(at);
+    if (mode === "month") mode = "week";
+    draw(); fetchRange();
+    edit(e);
+  } }, el("span", { class: "sw" }), el("span", { class: "when" }, whenWords(e)), el("span", { class: "what" }, e.title || "(no title)", e.location ? el("small", {}, e.location) : ""));
+  const taskHit = (t) => el("div", { class: "hit" + (t.complete ? " done" : ""), style: "--c:var(--accent)", title: t.title, onclick: () => bridge.openTask(t.id) },
+    el("span", { class: "sw" }), el("span", { class: "when" }, t.due ? `due ${dayWord(t.due)}` : t.start ? `available ${dayWord(t.start)}` : "no date"),
+    el("span", { class: "what" }, t.title || "(untitled)"));
+  const coming = events.filter((e) => e.end >= now), past = events.filter((e) => e.end < now);
+  const tasksFound = (found.tasks || []).slice().sort((a, b) => Number(Boolean(a.complete)) - Number(Boolean(b.complete)));
+  const waiting = found.events === null || found.tasks === null;
+  const box = el("div", { class: "found" },
+    coming.length ? el("h3", {}, "Coming up") : null, ...coming.map(hit),
+    past.length ? el("h3", {}, "Past") : null, ...past.map(hit),
+    tasksFound.length ? el("h3", {}, "Tasks") : null, ...tasksFound.map(taskHit),
+    !waiting && !events.length && !tasksFound.length ? el("div", { class: "none" }, "Nothing holds those words") : null,
+    waiting ? el("div", { class: "none" }, "Looking…") : null);
+  view.replaceChildren(box);
+}
+
 function draw() {
+  if (searching) {
+    $("title").textContent = `“${searching}”`;
+    drawSide();
+    drawFound($("view"));
+    return;
+  }
   $("title").textContent = title();
   seg("mode", [["day", "Day"], ["week", "Week"], ["month", "Month"]], mode, (m) => {
     mode = m; try { localStorage.setItem("talaris.calendar.mode", m); } catch { /* fine */ }
@@ -660,6 +719,11 @@ $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(
 // button closes it.
 $("grow").addEventListener("click", () => bridge && bridge.grow());
 $("close").addEventListener("click", () => bridge && bridge.closeWindow());
+// Search (drawFound): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
+let searchTimer = 0;
+$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search($("search").value.trim()), 300); });
+$("search").addEventListener("keydown", (e) => { if (e.key === "Escape" && $("search").value) { e.stopPropagation(); $("search").value = ""; search(""); } });
+document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); $("search").select(); } });
 $("grow").innerHTML = Icons.grow();
 $("grow").title = "Make it a window";
 $("grow").hidden = WINDOW;
@@ -723,7 +787,12 @@ Surface.connect({ onState }).then((b) => {
   b.hello(hello);
   b.status.connect((text) => { status = JSON.parse(text); draw(); fetchRange(); });
   b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
-  b.events.connect((text) => { const got = JSON.parse(text); if (got.req !== wanted) return; events = got.items; draw(); seek(); });
+  b.events.connect((text) => {
+    const got = JSON.parse(text);
+    if (got.req === searchReq && searching) { found.events = got.items; draw(); return; }
+    if (got.req !== wanted) return;
+    events = got.items; draw(); seek();
+  });
   b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
   if (b.coreReply) b.coreReply.connect((text) => {
     const r = JSON.parse(text);

@@ -37,6 +37,7 @@ header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; borde
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
+#search { width: 190px; flex: 0 1 190px; min-width: 90px; padding: 4px 10px; font-size: 12.5px; }
 header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
 header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
 header .icon-btn.on { color: var(--accent) !important; }
@@ -229,6 +230,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <span id="count"></span>
   <span id="msg"></span>
   <span class="spacer"></span>
+  <input type="search" id="search" placeholder="Search tasks" spellcheck="false" title="Search every task (Ctrl+F)">
   <button class="t-btn" id="asks" hidden title="Waiting for you to choose"></button>
   <span id="list-actions"></span>
   <button class="t-btn" id="edit-list" hidden>Edit collection</button>

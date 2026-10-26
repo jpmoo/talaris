@@ -23,6 +23,9 @@ screen up.
   {"changed": true}                       — something changed: read the range again
 **In** (stdin):
   {"do": "range", "req": n, "from": ms, "to": ms}
+  {"do": "search", "req": n, "q": words}    — events within a year either side holding
+                                              every word: answered as {"events": …}, the
+                                              nearest occurrence of each repeating one
   {"do": "create", "req": n, "calendar": id, "event": {title, location, notes, start, end, allDay}}
   {"do": "update", "req": n, "calendar": id, "uid": …, "rid": …, "event": {…}, "which": "this"|"all"}
   {"do": "delete", "req": n, "calendar": id, "uid": …, "rid": …, "which": "this"|"all"}
@@ -201,6 +204,30 @@ class Calendars:
     # -------------------------------------------------- reading
 
     def range(self, req: int, start_ms: int, end_ms: int) -> None:
+        items = self._instances(start_ms, end_ms)
+        items.sort(key=lambda e: (e["start"], not e["allDay"]))
+        say({"events": {"req": req, "items": items}})
+
+    def search(self, req: int, query: str) -> None:
+        """Events holding every word typed (title, place, notes), a year either side of now: upcoming first, then past, nearest first."""
+        words = [w for w in query.lower().split() if w]
+        now = int(time.time() * 1000)
+        year = 366 * 86400 * 1000
+        found: dict[tuple, dict] = {}
+        for e in self._instances(now - year, now + year) if words else []:
+            hay = f"{e['title']} {e['location']} {e['notes']}".lower()
+            if not all(w in hay for w in words):
+                continue
+            # A repeating one, once: its occurrence nearest now, the next one before any past.
+            key = (e["calendar"], e["uid"])
+            best = found.get(key)
+            rank = lambda x: (x["end"] < now, abs(x["start"] - now))  # noqa: E731
+            if best is None or rank(e) < rank(best):
+                found[key] = e
+        items = sorted(found.values(), key=lambda e: (e["end"] < now, e["start"] if e["end"] >= now else -e["start"]))[:150]
+        say({"events": {"req": req, "items": items, "search": query}})
+
+    def _instances(self, start_ms: int, end_ms: int) -> list:
         items = []
         start, end = int(start_ms // 1000), int(end_ms // 1000)
         for uid, client in list(self.clients.items()):
@@ -221,8 +248,7 @@ class Calendars:
                 client.generate_instances_sync(start, end, None, one)
             except (GLib.Error, TypeError) as e:
                 sys.stderr.write(f"calendar {uid}: {e}\n")
-        items.sort(key=lambda e: (e["start"], not e["allDay"]))
-        say({"events": {"req": req, "items": items}})
+        return items
 
     @staticmethod
     def _rrule(icomp) -> str:
@@ -535,6 +561,8 @@ class Calendars:
         verb, req = msg.get("do"), int(msg.get("req", 0))
         if verb == "range":
             self.range(req, int(msg["from"]), int(msg["to"]))
+        elif verb == "search":
+            self.search(req, str(msg.get("q", ""))[:200])
         elif verb == "create":
             self.create(req, str(msg["calendar"]), msg["event"])
         elif verb == "update":

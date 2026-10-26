@@ -407,6 +407,8 @@
     await refresh();
   }
   function showThing(kind, id) {
+    // Going somewhere ends a search.
+    if (searching) { searching = ""; $("search").value = ""; }
     current = { kind, id };
     store.set("talaris.tasks.shown", current);
     closeSheet();
@@ -730,7 +732,29 @@
 
   const ctx = () => ({ api, openTask, refresh, status, update, setStatus, newTask, taskType: type, projects });
 
+  /*
+   * Search: every task, open or done, whose words hold all of those typed
+   * (title, fields, notes) — in place of what is shown while there are any;
+   * the open ones first. Escape, or emptying it, goes back.
+   */
+  let searching = "";
+  let searchAsked = 0;
+  async function drawSearch() {
+    const q = searching, mine = ++searchAsked;
+    const found = await api("GET", `/tasks/find?text=${enc(q)}&limit=200`).catch((e) => { failed(e); return []; });
+    if (mine !== searchAsked || q !== searching) return;
+    const rows = (found || []).sort((a, b) => Number(Boolean(a.complete)) - Number(Boolean(b.complete)));
+    $("title").textContent = `“${q}”`;
+    $("count").textContent = String(rows.length);
+    $("edit-list").hidden = true;
+    const host = $("rows");
+    if (!rows.length) { host.replaceChildren(el("div", { class: "empty" }, "No task has those words")); return; }
+    let n = 0;
+    host.replaceChildren(el("div", { class: "list fmt-checklist" }, ...rows.map((r) => rowEl(r, "checklist", ++n, true))));
+  }
+
   function drawView() {
+    if (searching) { drawSearch(); return; }
     const kept = current && current.kind === "list";
     $("title").textContent = shown ? shown.list.name : "";
     $("count").textContent = shown ? String(shown.rows.length) : "";
@@ -808,18 +832,20 @@
   // A card's excerpt: the words, not the Markdown marks around them.
   const excerpt = (text) => String(text).replace(/[#>*_`[\]]+/g, "").replace(/\s+/g, " ").trim().slice(0, 180);
 
-  function rowEl(r, fmt, n) {
+  /** A row; `plain` (a search's): not arranged by dragging, and its menu only its status. */
+  function rowEl(r, fmt, n, plain = false) {
     const task = isTask(r);
     const control = !task ? el("span", { class: "nostat" }) : fmt === "checklist" ? checkEl(r) : chipEl(r);
     const row = el("div", { class: "row" + (r.complete ? " done" : "") + (editing === r.id ? " on" : ""), "data-id": r.id,
       onclick: () => { if (task) openTask(r.id); },
-      oncontextmenu: (e) => rowMenu(e, r) },
+      oncontextmenu: (e) => { if (!plain) { rowMenu(e, r); return; } e.preventDefault(); if (isTask(r)) menuAt(e.clientX, e.clientY, statusItems(r)); } },
       fmt === "numbered" ? el("span", { class: "num" }, `${n}.`) : null,
       control,
       el("div", { class: "r-main" },
         el("div", { class: "r-title" }, r.title || "Untitled"),
         fmt === "cards" && r.body ? el("div", { class: "r-body" }, excerpt(r.body)) : null,
         metaEl(r)));
+    if (plain) return row;
     if (shown.manual && current.kind === "list") {
       const listId = shown.list.id;
       sortable(row, r.id, "rows", (object, after, before) =>
@@ -1149,6 +1175,23 @@
   });
   $("s-close").innerHTML = Icons.close();
   $("s-close").addEventListener("click", closeSheet);
+
+  // Search (drawSearch): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
+  let searchTimer = 0;
+  $("search").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { searching = $("search").value.trim(); drawView(); }, 250);
+  });
+  $("search").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !$("search").value) return;
+    e.stopPropagation();
+    $("search").value = "";
+    searching = "";
+    drawView();
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); $("search").select(); }
+  });
 
   $("s-archive").addEventListener("click", () => { if (entity) update(editing, { archived: !entity.archived }).catch(failed); });
 

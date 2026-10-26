@@ -354,7 +354,7 @@ class CalendarService(QObject):
 
 
 #: What the page may ask the core for: the tasks on the days on show, ticking one done, moving its dates.
-TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
+TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/find\?text=[^&]*&limit=\d+$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
 
 
 class CalendarBridge(Bridge):
@@ -377,7 +377,7 @@ class CalendarBridge(Bridge):
     def ask(self, request: str) -> None:
         """`{do: range|create|update|delete, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
-        if msg.get("do") in ("range", "create", "update", "delete", "respond", "people"):
+        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people"):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)

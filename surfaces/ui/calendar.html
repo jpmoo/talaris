@@ -39,6 +39,18 @@ header .seg { flex: none; }
 body.no-side #side { display: none; }
 
 header .spacer { flex: 1; }
+#search { width: 180px; flex: 0 1 180px; min-width: 80px; padding: 4px 10px; font-size: 12.5px; }
+/* What a search found (calendar.js, drawFound): events coming up, then past, then tasks. */
+.found { flex: 1; overflow: auto; padding: 6px 18px 18px; }
+.found h3 { font-size: 11px; font-weight: 500; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
+.found .hit { display: grid; grid-template-columns: 10px 170px 1fr; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: var(--radius-row); cursor: pointer; }
+.found .hit:hover { background: var(--accent-wash); }
+.found .hit .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--c); align-self: center; }
+.found .hit .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.found .hit .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found .hit .what small { color: var(--muted); margin-left: 8px; }
+.found .hit.done .what { text-decoration: line-through; opacity: .6; }
+.found .none { color: var(--muted); padding: 20px 8px; }
 /* The header's icon buttons are the shared ones (controls.css .icon-btn). */
 header .icon-btn[hidden] { display: none !important; }
 header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
@@ -167,6 +179,7 @@ body { position: relative; }
   <h1 id="title"></h1>
   <span id="msg"></span>
   <span class="spacer"></span>
+  <input type="search" id="search" placeholder="Search" spellcheck="false" title="Search events a year either side, and tasks (Ctrl+F)">
   <span class="seg" id="mode"></span>
   <button class="t-btn" id="new">New event</button>
   <button class="icon-btn" id="grow" title="Full screen"></button>
