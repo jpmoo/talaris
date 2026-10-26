@@ -844,7 +844,7 @@
     const node = () => (data && data.nodes.find((x) => x.key === s.key)) || nodeFor(s);
     return el("div", { class: "srow" },
       el("div", { class: "top" }, ki,
-        el("button", { class: "title", title: `${s.title} — walk to it; twice, open it`, onclick: () => walkTo(node()), ondblclick: () => open(node()) }, s.title || "Untitled"),
+        el("button", { class: "title", title: `${s.title} — click to put it in the middle; double-click to open it`, onclick: () => walkTo(node()), ondblclick: () => open(node()) }, s.title || "Untitled"),
         el("button", { class: "no", title: "Not tied — don't suggest it again", onclick: () => dismiss(s) }, "×")),
       el("div", { class: "why" }, s.why.join(" · ")),
       el("div", { class: "ways" }, s.ways.map((w) => {

@@ -203,7 +203,6 @@ window.Peek = (() => {
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, place.kind === "page" ? "Open page" : "Open canvas") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
       order.map((name) => group(name, groups.get(name), api, opts)),
-      groups.size ? null : el("div", { class: "peek-line" }, "Nothing connected yet"),
     ].flat().filter((x) => x != null));
   }
 
@@ -263,7 +262,8 @@ window.Peek = (() => {
     .peek-sugg:not(:empty) { margin-top: 12px; }
     .peek-srow { padding: 4px 0 6px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
     .peek-stop { display: flex; align-items: center; gap: 4px; }
-    .peek-no { flex: none; font-size: 14px; line-height: 1; padding: 0 4px !important; }
+    .peek-no.icon-btn { flex: none; width: auto; height: auto; min-width: 0; font-size: 14px; line-height: 1; padding: 0 4px !important; border: 0 !important; background: none !important; color: var(--muted); }
+    .peek-no.icon-btn:hover { color: var(--danger); }
     .peek-why { color: var(--muted); font-size: 11px; margin: 0 6px 4px; }
     .peek-ways { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 6px; }
     .peek-ways .t-btn { font-size: 11px; padding: 0 8px; }

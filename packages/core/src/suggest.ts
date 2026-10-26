@@ -402,7 +402,8 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
     out.push({ key: k, ...(other.entity ? { id: other.entity.id } : {}), title: other.title, kind: other.kind, why: f.why, score: Math.round(f.score * 100) / 100,
       ways: fitting.sort((a, b) => (a.how === "merge" ? -1 : 0) - (b.how === "merge" ? -1 : 0)) });
   }
-  return { quiet: false, suggestions: out.sort((a, b) => b.score - a.score).slice(0, options.limit ?? 12) };
+  // Surest first; of two as sure, the one with more reasons, then by name — so the order never shuffles.
+  return { quiet: false, suggestions: out.sort((a, b) => b.score - a.score || b.why.length - a.why.length || a.title.localeCompare(b.title)).slice(0, options.limit ?? 12) };
 }
 
 // ------------------------------------------------------------ tying

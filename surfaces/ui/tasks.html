@@ -137,8 +137,12 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-notes { width: 100%; min-height: 110px; font-size: 12.5px; }
 #s-notes .cm-content { padding: 6px 8px; min-height: 96px; }
 #s-notes:empty::before, #s-notes .cm-content:only-child:empty::before { content: attr(data-placeholder); color: var(--muted); }
-.s-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-#s-elsewhere { display: flex; gap: 6px; }
+/* The task's own buttons: a row of their own under a rule, apart from the suggestions above; each on one line, the row wrapping. */
+.s-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.s-foot .t-btn { white-space: nowrap; }
+#s-elsewhere { display: contents; }
+.s-foot { justify-content: flex-end; }
+#s-sugg:empty { display: none; }
 /* Where a file is (tasks.js): stored on the task only (a paperclip), in this project's folder (a folder), or
    linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
 .chip-p .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
