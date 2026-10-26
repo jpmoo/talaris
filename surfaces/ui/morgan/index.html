@@ -410,7 +410,7 @@ function replied(id, status, text) {
 }
 const enc = encodeURIComponent;
 
-const MENTION = /\[@([^\]\n]*)\]\(talaris:([A-Za-z0-9_]+)\)/g;
+const MENTION = /\[@([^\]\n]*)\]\(talaris:([A-Za-z0-9_-]+)\)/g;
 const named = (text) => text.replace(MENTION, "$1");
 // Where the user's words ended and what Talaris added began, in messages from
 // before linked things went as attachments: the record keeps both, so a

@@ -429,7 +429,7 @@ export function titleOf(o: Entity): string {
 }
 
 /** A mention (`[@Name](talaris:id)`) read as the words it shows. */
-const plainText = (t: string) => t.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1");
+const plainText = (t: string) => t.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1");
 
 /** Its body: where its type's note profile says, else the reserved `content`. */
 export function bodyOf(o: Entity): string {

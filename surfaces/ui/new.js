@@ -626,7 +626,7 @@
   // ---------------------------------------------------------------- making
 
   // A mention's words, for a title that must be plain (an event's, which a calendar shows as it is).
-  const plain = (s) => (s || "").replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1").replace(/^@/, "").trim();
+  const plain = (s) => (s || "").replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1").replace(/^@/, "").trim();
   const localAt = (d, m) => `${isoDay(d)}T${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 
   /** The type's fields as properties, from what was entered; what cannot be read says so. */

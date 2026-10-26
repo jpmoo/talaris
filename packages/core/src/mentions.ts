@@ -19,7 +19,7 @@ import { allRecords, bySource, createEntity, getEntity, onChange, setInlineRelat
  * the text on every change: a mention deleted from a sentence is an edge gone.
  */
 
-const MENTION = () => /\[([^\]\n]*)\]\(talaris:([A-Za-z0-9_]+)\)/g;
+const MENTION = () => /\[([^\]\n]*)\]\(talaris:([A-Za-z0-9_-]+)\)/g;
 
 /** Every entity a text names, in order, once each. */
 export function mentionsIn(text: string): { id: string; label: string }[] {

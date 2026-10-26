@@ -114,3 +114,8 @@ test("a board is made bound to its field, its columns that field's options", () 
   assert.equal(l["talaris:bind"], "status");
   assert.notDeepEqual(l.placement?.regions, ["ignored"], "not regions of its own");
 });
+
+test("a mention of a thing whose id has dashes (one from another app) is a mention: its title reads plain", () => {
+  const text = "Ask [@Emily Lucas](talaris:c1e7fcda-0acc-4f11-93bf-fe975dbbf796) today";
+  assert.equal(entities.titleOf({ id: "x", type: "", properties: { title: text } } as never), "Ask @Emily Lucas today");
+});

@@ -194,7 +194,7 @@ window.Peek = (() => {
         el("span", { class: "peek-title" }, got.title),
         el("button", { class: "icon-btn", title: "Close", onclick: close }, "×")),
       Array.isArray(props.emails) && props.emails.length ? el("div", { class: "peek-line" }, props.emails.join(", ")) : null,
-      note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_]+\)/g, "$1").slice(0, 300)) : null,
+      note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1").slice(0, 300)) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, place.kind === "page" ? "Open page" : "Open canvas") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
