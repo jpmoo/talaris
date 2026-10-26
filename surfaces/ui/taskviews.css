@@ -104,8 +104,9 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-card .tv-sdot { margin-top: 3px; }
 .tv-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tv-card .tv-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv-meta .tv-proj { min-width: 0; }
+/* The dates whole; what is left of the line, the project, cut short. */
+.tv-meta > span { flex: none; white-space: nowrap; }
+.tv-meta .tv-proj { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tv-meta { display: flex; gap: 8px; font-size: 11.5px; color: var(--muted); min-width: 0; }
 .tv-proj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-x { display: none; border: 0 !important; padding: 0 4px !important; color: var(--muted) !important; line-height: 1; font-size: 14px; }
@@ -126,7 +127,7 @@ th.tv-num { padding: 7px 10px !important; }
 /* ---- matrix -------------------------------------------------------------- */
 
 .tv-matrix { flex: 1; min-height: 0; display: flex; }
-.tv-matrix-grid { flex: 1; display: grid; grid-auto-rows: minmax(160px, 1fr); gap: 10px; padding: 10px; }
+.tv-matrix-grid { flex: 1; min-width: 0; display: grid; grid-auto-rows: minmax(160px, 1fr); gap: 10px; padding: 10px; }
 .tv-region { display: flex; flex-direction: column; min-height: 0; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line));
              border-radius: var(--radius-control); background: color-mix(in srgb, var(--c) 7%, transparent); }
 .tv-region > header .tv-col-label { color: var(--c); flex: 1; }
@@ -134,14 +135,16 @@ th.tv-num { padding: 7px 10px !important; }
 /* What entering does, said quietly: a small mark, its words on hover. */
 .tv-enter { display: inline-flex; color: var(--muted); opacity: .7; }
 .tv-enter:hover { opacity: 1; color: var(--accent); }
-.tv-drawer { flex: 0 0 230px; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
+/* Its width its own: a card's one-line title is cut to it, never widens it. */
+.tv-drawer { flex: 0 0 230px; width: 230px; min-width: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
+.tv-card { min-width: 0; }
 .tv-drawer > header .tv-shut { display: inline-block; }
 /* Where the drawer sits (the collection's view): beside the grid, or above or below it, its cards then in a row. */
 .tv-matrix.drawer-left { flex-direction: row-reverse; }
 .tv-matrix.drawer-left .tv-drawer { border-left: 0; border-right: 1px solid var(--line); }
 .tv-matrix.drawer-top { flex-direction: column-reverse; }
 .tv-matrix.drawer-bottom { flex-direction: column; }
-.tv-matrix.drawer-top .tv-drawer, .tv-matrix.drawer-bottom .tv-drawer { flex: 0 0 auto; max-height: 34%; border-left: 0; }
+.tv-matrix.drawer-top .tv-drawer, .tv-matrix.drawer-bottom .tv-drawer { flex: 0 0 auto; width: auto; max-height: 34%; border-left: 0; }
 .tv-matrix.drawer-top .tv-drawer { border-bottom: 1px solid var(--line); }
 .tv-matrix.drawer-bottom .tv-drawer { border-top: 1px solid var(--line); }
 .tv-matrix.drawer-top .tv-drawer-list, .tv-matrix.drawer-bottom .tv-drawer-list { flex-direction: row; flex-wrap: wrap; align-content: flex-start; }
