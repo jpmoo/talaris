@@ -367,7 +367,9 @@
 
   async function loadSide() {
     drawAsks();
-    const [l, p, c] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => [])]);
+    const [l, p, c, oc] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => []),
+      api("GET", "/tasks/open-counts").catch(() => ({}))]);
+    openCounts = oc || {};
     lists = l || [];
     projects = p || [];
     column = c || [];
@@ -433,6 +435,7 @@
     api("PATCH", `/entities/${enc(p.id)}`, { "talaris:group": group || null }).then(loadSide).catch(failed);
   }
 
+  let openCounts = {};   // project id → how many open tasks it has
   function projectRow(p, inGroup, on) {
     const row = el("div", { class: "item proj" + (inGroup ? " in-group" : "") + (on ? " on" : ""), "data-id": p.id, title: p.title,
       onclick: () => showThing("project", p.id),
@@ -441,6 +444,8 @@
         p.group ? { label: "Ungroup", act: () => setGroup(p, null) } : null,
       ].filter(Boolean)); } },
       el("span", { class: "name" }, p.title),
+      // How many tasks it has open (the core's /tasks/open-counts).
+      openCounts[p.id] ? el("span", { class: "n", title: `${openCounts[p.id]} open` }, String(openCounts[p.id])) : null,
       el("button", { class: "more", title: "Properties", onclick: (e) => { e.stopPropagation(); editProject(p); } }, "…"));
     draggable(row, p.id, "project");
     dropOn(row, { kind: "project", id: p.id, group: p.group || null });

@@ -243,6 +243,8 @@ route("GET", "/files", (_r, _p, q) => {
   return { ...got, ...meaning.fileReadStates(got.rows) };
 });
 route("GET", "/files/version", () => ({ version: files.filesVersion() }));
+// How many of each thing Files' left side lists (files.ts): projects, and in the project chosen, statuses, types, tags.
+route("GET", "/files/counts", (_r, _p, q) => files.fileCounts(q.get("project") || undefined));
 // Linked folders (files.ts): what one holds, before linking it; linked, and watched; no longer watched; those watched.
 route("GET", "/files/folder", (_r, _p, q) => { const f = files.folderFiles(need(q, "path")); return { folder: f.folder, count: f.paths.length, most: f.most }; });
 route("POST", "/files/folder", async (req) => {
@@ -643,6 +645,12 @@ route("PUT", "/tasks/projects/order", async (req) => {
 });
 // The column as one list — groups and ungrouped projects in one order — read and arranged whole.
 route("GET", "/tasks/column", () => tasks.projectColumn());
+// How many open tasks each project has: for the numbers in Tasks' list of projects.
+route("GET", "/tasks/open-counts", () => {
+  const out: Record<string, number> = {};
+  for (const r of lists.findTasks({ status: "open" })) for (const p of r.projects ?? []) out[p.id] = (out[p.id] ?? 0) + 1;
+  return out;
+});
 route("PUT", "/tasks/column", async (req) => tasks.arrangeColumn((await json<{ entries?: Parameters<typeof tasks.arrangeColumn>[0] }>(req)).entries ?? []));
 route("GET", "/tasks/groups/order", () => tasks.groupOrder());
 route("PUT", "/tasks/groups/order", async (req) => tasks.setGroupOrder((await json<{ names?: string[] }>(req)).names ?? []));

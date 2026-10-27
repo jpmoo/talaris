@@ -51,7 +51,8 @@
   const picked = new Set();
   let anchor = null;
   let order = [];   // the keys as drawn, top to bottom: what Shift picks between
-  let watched = [];   // the folders linked into the project shown, watched for new files
+  let watched = [];
+  let counts = null;  // how many of each thing the left side lists (/files/counts)   // the folders linked into the project shown, watched for new files
   // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
   let readState = {};
   let readAbout = {};   // what each read file is about (its description, or its first words): the book's tip
@@ -132,6 +133,7 @@
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
     watched = project && project !== "notes" ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
+    counts = await api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts);
     readState = got.read || {};
     readAbout = got.about || {};
     reading = got.reading || reading;
@@ -173,13 +175,16 @@
 
   function drawSide() {
     const here = surface.project;
-    const item = (label, on, onclick, extra) => el("button", { class: `s-item${on ? " on" : ""}`, onclick }, el("span", { class: "nm" }, label), extra);
+    // Each with how many there are (the core's /files/counts): in each project; and, in the project chosen, of each kind.
+    const item = (label, on, onclick, extra, count) => el("button", { class: `s-item${on ? " on" : ""}`, onclick }, el("span", { class: "nm" }, label), extra,
+      count !== undefined ? el("span", { class: "n" }, String(count)) : null);
+    const c = counts || { all: undefined, projects: {}, status: {}, type: {}, tags: {} };
     const tagsHere = [...new Set(rows.flatMap((r) => r.tags))].sort();
     const shown = [...new Set([...tagsHere, ...filters.tags])];
     $("side").replaceChildren(...[
       el("div", { class: "s-head" }, "Projects"),
-      item("All projects", project === "", () => setProject("")),
-      ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null)),
+      item("All projects", project === "", () => setProject(""), null, c.all),
+      ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0)),
       // The folders linked into this project, watched for new files: each let go of by its ×.
       watched.length ? el("div", { class: "s-head" }, "Watched folders") : null,
       ...watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
@@ -192,11 +197,11 @@
       ...shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
         reload();
-      })),
+      }, null, c.tags[t] ?? 0)),
       el("div", { class: "s-head" }, "What it is"),
-      ...Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); })),
+      ...Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0)),
       el("div", { class: "s-head" }, "Type"),
-      ...TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); })),
+      ...TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); }, null, c.type[k] ?? 0)),
       el("div", { class: "s-head" }, "Kept views"),
       ...kept.map((k, i) => item(k.name, false, () => useKept(k), el("span", { class: "x", title: "Forget it", onclick: (e) => {
         e.stopPropagation(); kept.splice(i, 1); store.set("talaris.files.kept", kept); drawSide();

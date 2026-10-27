@@ -399,6 +399,26 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
   return { rows: rows.slice(0, query.limit ?? 2000), total, version, unwatched: [...indexes.values()].filter((ix) => !ix.watched).map((ix) => ix.id) };
 }
 
+/**
+ * How many there are of each thing Files' left side lists: in each project
+ * (and all), and — in the project chosen, or all — of each status, type and
+ * tag. A page is counted as a page, and as in the folder, as Files filters.
+ */
+export function fileCounts(projectId?: string): { all: number; projects: Record<string, number>; status: Record<string, number>; type: Record<string, number>; tags: Record<string, number> } {
+  const rows = allRows();
+  const projects: Record<string, number> = {};
+  for (const r of rows) projects[r.project] = (projects[r.project] ?? 0) + 1;
+  const status: Record<string, number> = {}, type: Record<string, number> = {}, tags: Record<string, number> = {};
+  const add = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
+  for (const r of rows) {
+    if (projectId && r.project !== projectId) continue;
+    for (const s of new Set(r.status.map((x) => (x === "page" ? "folder" : x)))) add(status, s);
+    add(type, r.status.includes("page") ? "page" : r.type);
+    for (const t of r.tags) add(tags, t);
+  }
+  return { all: rows.length, projects, status, type, tags };
+}
+
 /** What git ignores in a project, named: the folders and files Files does not list. */
 export function ignoredIn(projectId: string): string[] {
   return indexOf(projectId).ignored;

@@ -211,6 +211,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #side .item.grp .caret { flex: none; font-size: 9px; transition: transform .12s; overflow: visible; }
 #side .item.grp.folded .caret { transform: rotate(-90deg); }
 #side .item.grp .n { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; }
+#side .item.proj .n { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 4px; }
+#side .item.proj.on .n { color: inherit; }
 #side .item.in-group { padding-left: 22px; }
 .drop-in { background: var(--accent-wash) !important; box-shadow: inset 0 0 0 1px var(--accent); }
 /* Below the last of the column: a place to drop something last, in no group. */
