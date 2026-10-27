@@ -197,48 +197,71 @@
     if (waiting) $("count").textContent += ` · ${waiting} not read yet`;
   }
 
+  // Sections of the left side folded away, and lists folded on the lists inside them: kept between visits.
+  const folded = new Set(store.get("talaris.files.folded", []));
+  function fold(key) {
+    if (folded.has(key)) folded.delete(key); else folded.add(key);
+    store.set("talaris.files.folded", [...folded]);
+    drawSide();
+  }
+
   function drawSide() {
     const here = surface.project;
     // Each with how many there are (the core's /files/counts): in each project; and, in the project chosen, of each kind.
     const item = (label, on, onclick, extra, count) => el("button", { class: `s-item${on ? " on" : ""}`, onclick }, el("span", { class: "nm" }, label), extra,
       count !== undefined ? el("span", { class: "n" }, String(count)) : null);
+    // A section: its heading folds it; folded, only what is chosen in it still shows, so a filter on is never out of sight.
+    const section = (key, title, items, extra = null) => {
+      const shut = folded.has(key);
+      const head = el("div", { class: `s-head fold${shut ? " shut" : ""}`, title: shut ? "Show" : "Fold away", onclick: () => fold(key) },
+        el("span", { class: "tw" }, "›"), el("span", { class: "s-title" }, title), extra);
+      return [head, ...(shut ? items.filter((x) => x && x.classList.contains("on")) : items)];
+    };
     const c = counts || { all: undefined, projects: {}, status: {}, type: {}, tags: {} };
     const tagsHere = [...new Set(rows.flatMap((r) => r.tags))].sort();
     const shown = [...new Set([...tagsHere, ...filters.tags])];
+    // Lists inside a folded list are not shown; the folded one says so with its twist.
+    const listRows = [];
+    const walkLists = (nodes, depth) => {
+      for (const l of nodes) {
+        const has = l.children.length > 0;
+        const shut = folded.has(`list:${l.id}`);
+        const tw = el("span", { class: `tw${has ? "" : " none"}`, onclick: has ? (e) => { e.stopPropagation(); fold(`list:${l.id}`); } : null }, has ? "›" : "");
+        if (has && !shut) tw.classList.add("open");
+        const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
+        b.prepend(tw);
+        b.style.paddingLeft = `${8 + depth * 14}px`;
+        dropOnList(b, { ...l, depth });
+        listRows.push(b);
+        if (has && !shut) walkLists(l.children, depth + 1);
+      }
+    };
+    if (project) walkLists(lists, 0);
     $("side").replaceChildren(...[
-      el("div", { class: "s-head" }, "Projects"),
-      item("All projects", project === "", () => setProject(""), null, c.all),
-      ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0)),
+      ...section("projects", "Projects", [
+        item("All projects", project === "", () => setProject(""), null, c.all),
+        ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
       // The folders linked into this project, watched for new files: each let go of by its ×.
-      watched.length ? el("div", { class: "s-head" }, "Watched folders") : null,
-      ...watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
+      ...(watched.length ? section("watched", "Watched folders", watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
         el("span", { class: "nm" }, f.folder.replace(/^\/home\/[^/]+/, "~")),
         el("button", { class: "s-x", title: "Stop watching it (what is linked stays)", onclick: async () => {
           try { await api("DELETE", `/files/folder?project=${enc(f.project)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} no longer watched; what was linked stays`); } catch (e) { failed(e); }
           reload();
-        } }, "×"))),
+        } }, "×")))) : []),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
-      project ? el("div", { class: "s-head" }, "Lists", el("button", { class: "s-add", title: "A new list", onclick: () => newList(null) }, "+")) : null,
-      ...(project ? flat(lists) : []).map((l) => {
-        const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
-        b.style.paddingLeft = `${12 + l.depth * 14}px`;
-        dropOnList(b, l);
-        return b;
-      }),
-      shown.length ? el("div", { class: "s-head" }, "Tags") : null,
-      ...shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
+      ...(project ? section("lists", "Lists", listRows,
+        el("button", { class: "s-add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
+      ...(shown.length ? section("tags", "Tags", shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
         reload();
-      }, null, c.tags[t] ?? 0)),
-      el("div", { class: "s-head" }, "What it is"),
-      ...Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0)),
-      el("div", { class: "s-head" }, "Type"),
-      ...TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); }, null, c.type[k] ?? 0)),
-      el("div", { class: "s-head" }, "Kept views"),
-      ...kept.map((k, i) => item(k.name, false, () => useKept(k), el("span", { class: "x", title: "Forget it", onclick: (e) => {
-        e.stopPropagation(); kept.splice(i, 1); store.set("talaris.files.kept", kept); drawSide();
-      } }, "×"))),
-      el("button", { class: "t-btn s-keep", onclick: keepView }, "+ Keep this view")].filter(Boolean));
+      }, null, c.tags[t] ?? 0))) : []),
+      ...section("status", "What it is", Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0))),
+      ...section("type", "Type", TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); }, null, c.type[k] ?? 0))),
+      ...section("kept", "Kept views", [
+        ...kept.map((k, i) => item(k.name, false, () => useKept(k), el("span", { class: "x", title: "Forget it", onclick: (e) => {
+          e.stopPropagation(); kept.splice(i, 1); store.set("talaris.files.kept", kept); drawSide();
+        } }, "×"))),
+        el("button", { class: "t-btn s-keep", onclick: keepView }, "+ Keep this view")])].filter(Boolean));
   }
 
   function groupsOf(list) {
