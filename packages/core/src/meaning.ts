@@ -588,7 +588,7 @@ export async function scanFiles(): Promise<{ read: number; changed: number }> {
   if (scanning) return { read: 0, changed: 0 };
   scanning = true;
   try {
-    const changed = watchLinked();
+    const changed = await watchLinked();
     let read = 0;
     for (let i = 0; i < 50; i++) {
       const now = await reindex(400, { files: true });

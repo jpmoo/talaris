@@ -105,14 +105,14 @@ test("renamed or moved, its tags and the links to it follow; a writing page is W
   assert.throws(() => files.renameFile(alpha.id, "Writing/Camp rules.md", "x.md"), /Writing/);
 });
 
-test("from elsewhere: a shortcut is a record, never a file; a link outside every project shows on its task's project; a snapshot too", () => {
+test("from elsewhere: a shortcut is a record, never a file; a link outside every project shows on its task's project; a snapshot too", async () => {
   const outside = join(sandbox, "Downloads", "Receipt.pdf");
   write(outside, "receipt");
-  const s = files.makeShortcut(alpha.id, outside);
+  const s = await files.makeShortcut(alpha.id, outside);
   assert.deepEqual(s.status, ["shortcut"]);
   assert.equal(s.abs, outside);
   assert.ok(!existsSync(join(alpha.folder, "Receipt.pdf")), "nothing made on disk");
-  assert.throws(() => files.makeShortcut(alpha.id, outside), /already has a shortcut/);
+  await assert.rejects(() => files.makeShortcut(alpha.id, outside), /already has a shortcut/);
   // A task in Beta linking a file outside, and one keeping a copy.
   const betaEntity = entities.bySource({ kind: "talaris-project", key: beta.id }) ?? (tasks.taskProjects(), entities.bySource({ kind: "talaris-project", key: beta.id }))!;
   const t = tasks.createTask({ title: "File the receipt" });
@@ -146,11 +146,11 @@ test("from elsewhere: a shortcut is a record, never a file; a link outside every
   assert.ok(rows(home.id).some((r) => r.name === "loose.txt"));
 });
 
-test("moving a file in says what it would disturb, and keeps a shortcut's tags", () => {
+test("moving a file in says what it would disturb, and keeps a shortcut's tags", async () => {
   const outside = join(sandbox, "Desktop", "Plan.odt");
   write(outside, "plan");
   write(join(beta.folder, "Plan.odt"), "another");
-  const s = files.makeShortcut(beta.id, outside);
+  const s = await files.makeShortcut(beta.id, outside);
   entities.updateEntity(s.entity!, { tags: ["planning"] });
   const checked = files.checkBringIn(outside, beta.id);
   assert.equal(checked.name, "Plan 2.odt");
@@ -173,14 +173,14 @@ test("a snapshot opens as a read-only copy", () => {
 test("one file in several projects: a shortcut in each other one, and each row says where else it is", async () => {
   write(join(alpha.folder, "Shared plan.odt"));
   await wait(700);
-  files.makeShortcut(beta.id, join(alpha.folder, "Shared plan.odt"));
-  files.makeShortcut(home.id, join(alpha.folder, "Shared plan.odt"));
+  await files.makeShortcut(beta.id, join(alpha.folder, "Shared plan.odt"));
+  await files.makeShortcut(home.id, join(alpha.folder, "Shared plan.odt"));
   assert.deepEqual(find(alpha.id, "Shared plan.odt")!.alsoIn!.sort(), [beta.id, home.id].sort());
   const there = find(beta.id, "Shared plan.odt")!;
   assert.deepEqual(there.status, ["shortcut"]);
   assert.deepEqual(there.livesIn, { project: alpha.id, path: "Shared plan.odt" });
   assert.deepEqual(there.alsoIn!.sort(), [alpha.id, home.id].sort());
-  assert.throws(() => files.makeShortcut(alpha.id, join(alpha.folder, "Shared plan.odt")), /already in this project's folder/);
+  await assert.rejects(() => files.makeShortcut(alpha.id, join(alpha.folder, "Shared plan.odt")), /already in this project's folder/);
 });
 
 test("a folder linked: every file in it a shortcut, hidden ones aside; watched for new files; a file changed, read anew", async () => {
@@ -194,7 +194,7 @@ test("a folder linked: every file in it a shortcut, hidden ones aside; watched f
   writeFileSync(join(dir, ".cache", "no.txt"), "no");
   writeFileSync(join(dir, "node_modules", "no.js"), "no");
   assert.equal(files.folderFiles(dir).paths.length, 2, "two files, hidden and machinery aside");
-  const got = files.linkFolder(p.id, dir);
+  const got = await files.linkFolder(p.id, dir);
   assert.deepEqual([got.made, got.skipped], [2, 0]);
   assert.deepEqual(files.foldersLinked(p.id).map((f) => f.folder), [dir]);
   const shortcuts = () => files.listFiles({ project: p.id }).rows.filter((r) => r.status.includes("shortcut"));
@@ -202,22 +202,23 @@ test("a folder linked: every file in it a shortcut, hidden ones aside; watched f
   // A file added later: linked at the next look.
   writeFileSync(join(dir, "2026", "c.csv"), "a,b");
   const before = files.filesVersion();
-  assert.ok(files.watchLinked() >= 1);
+  assert.ok(await files.watchLinked() >= 1);
   assert.equal(shortcuts().length, 3);
   assert.ok(files.filesVersion() > before, "a change says so, so search reads it");
   // A file changed: its new contents' hash taken, so search reads it again.
   const sha = () => shortcuts().find((r) => r.name === "a.txt")!;
   const was = JSON.stringify(sha());
   writeFileSync(join(dir, "a.txt"), "second, and longer");
-  files.watchLinked();
+  await files.watchLinked();
+  await links.rehashed();
   assert.notEqual(JSON.stringify(sha()), was);
   // One taken out by hand: not linked again by the watch.
   const out = shortcuts().find((r) => r.name === "c.csv")!;
   assert.equal(files.removeShortcut(out.entity!).fromWatched, true);
-  files.watchLinked();
+  await files.watchLinked();
   assert.ok(!shortcuts().some((r) => r.name === "c.csv"), "stays out");
   // Linked again on purpose: what was taken out comes back with it; nothing twice.
-  assert.equal(files.linkFolder(p.id, dir).made, 1);
+  assert.equal((await files.linkFolder(p.id, dir)).made, 1);
   files.unlinkFolder(p.id, dir);
   assert.deepEqual(files.foldersLinked(p.id), []);
   assert.equal(shortcuts().length, 3, "no longer watched; its shortcuts stay");

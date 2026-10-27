@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jeff Moore
 
 import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, renameSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, basename, join } from "node:path";
 import { randomBytes } from "node:crypto";
 
@@ -48,6 +49,12 @@ export function readText(path: string): string {
 /** A file's bytes, opened first if sealed: an attachment, which is not text. */
 export function readBytes(path: string): Buffer {
   const data = readFileSync(path);
+  return sealer && sealer.isSealed(data) ? sealer.open(data) : data;
+}
+
+/** readBytes, read off the core's thread: a file on a cloud folder is fetched whole as it is read. */
+export async function readBytesAsync(path: string): Promise<Buffer> {
+  const data = await readFile(path);
   return sealer && sealer.isSealed(data) ? sealer.open(data) : data;
 }
 

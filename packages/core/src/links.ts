@@ -24,7 +24,8 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, createReadStream, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { allRecords, forgetFiles, getEntity, getFile, putFile, trusted, types, updateEntity as storeUpdate, type Entity } from "./entities.js";
@@ -82,15 +83,30 @@ export function filesField(o: Entity): string {
 }
 const valuesIn = (v: unknown): Value[] => (Array.isArray(v) ? v : v ? [v] : []).filter((x): x is Value => Boolean(x) && typeof x === "object" && (x as Value).kind === "attachment");
 
-/** A file in the home folder, linked on a thing: its hash now, and where it is. */
-export function linkFile(entityId: string, path: string): Value {
+/**
+ * A file's hash, read off the core's thread: a file on a cloud folder (rclone,
+ * a Drive) is fetched whole as it is read, and the core keeps answering while
+ * it is.
+ */
+export function hashFile(path: string): Promise<string> {
+  return new Promise((ok, fail) => {
+    const h = createHash("sha256");
+    createReadStream(path).on("data", (c) => h.update(c)).on("error", fail).on("end", () => ok(h.digest("hex")));
+  });
+}
+
+/** linkFile, its hash read off the core's thread: for files that may be on a cloud folder, and for many at once. */
+export async function linkFileAsync(entityId: string, path: string): Promise<Value> {
   const full = inHome(path);
-  if (!existsSync(full) || !statSync(full).isFile()) throw new NotFound(`no file at ${full}`);
-  const st = statSync(full);
-  const bytes = readFileSync(full);
+  const st = await stat(full).catch(() => null);
+  if (!st || !st.isFile()) throw new NotFound(`no file at ${full}`);
+  const sha256 = await hashFile(full);
+  return linked(entityId, full, sha256, st.size, st.mtimeMs);
+}
+
+function linked(entityId: string, full: string, sha256: string, size: number, mtime: number): Value {
   const filename = basename(full);
-  const value: Value = { kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256: hashOf(bytes),
-    [LINK]: { path: full, size: st.size, mtime: st.mtimeMs } };
+  const value: Value = { kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256, [LINK]: { path: full, size, mtime } };
   const o = getEntity(entityId);
   const key = filesField(o);
   const now = valuesIn(o.properties[key]);
@@ -98,6 +114,14 @@ export function linkFile(entityId: string, path: string): Value {
   if (now.some((a) => a[LINK]?.path === full || a.sha256 === value.sha256)) return now.find((a) => a[LINK]?.path === full || a.sha256 === value.sha256)!;
   updateEntity(entityId, { properties: { [key]: [...now, value] } });
   return value;
+}
+
+/** A file in the home folder, linked on a thing: its hash now, and where it is. */
+export function linkFile(entityId: string, path: string): Value {
+  const full = inHome(path);
+  if (!existsSync(full) || !statSync(full).isFile()) throw new NotFound(`no file at ${full}`);
+  const st = statSync(full);
+  return linked(entityId, full, hashOf(readFileSync(full)), st.size, st.mtimeMs);
 }
 
 /**
@@ -121,15 +145,42 @@ export function refreshLinks(ids?: string[]): number {
         if (!homeHolds(link.path) || !existsSync(link.path)) { if (a[MISSING]) return a; dirty = true; return { ...a, [MISSING]: true }; }
         const st = statSync(link.path);
         if (st.size === link.size && st.mtimeMs === link.mtime && !a[MISSING]) return a;
+        // Changed: its new hash read off the core's thread, and written when it is known (a cloud folder fetches it whole).
+        rehash(o.id, link.path);
+        if (!a[MISSING]) return a;
         dirty = true;
         const { [MISSING]: _gone, ...rest } = a;
-        return { ...rest, sha256: hashOf(readFileSync(link.path)), [LINK]: { path: link.path, size: st.size, mtime: st.mtimeMs } } as Value;
+        return rest as Value;
       });
       props[key] = Array.isArray(v) ? next : next[0];
     }
     if (dirty) { updateEntity(o.id, { properties: props }); changed++; }
   }
   return changed;
+}
+
+/** Links being read again, by path: each once at a time. */
+const rehashing = new Map<string, Promise<void>>();
+/** Every link being read again, read: for what must see the new hashes (a test, a sync about to export). */
+export async function rehashed(): Promise<void> { await Promise.all([...rehashing.values()]); }
+function rehash(entityId: string, path: string): void {
+  if (rehashing.has(path)) return;
+  rehashing.set(path, (async () => {
+    try {
+      const st = await stat(path);
+      const sha256 = await hashFile(path);
+      const o = getEntity(entityId);
+      const props: Record<string, unknown> = {};
+      for (const [key, v] of Object.entries(o.properties ?? {})) {
+        const list = valuesIn(v);
+        if (!list.some((a) => a[LINK]?.path === path)) continue;
+        const next = list.map((a) => (a[LINK]?.path === path ? { ...a, sha256, [LINK]: { path, size: st.size, mtime: st.mtimeMs } } : a));
+        props[key] = Array.isArray(v) ? next : next[0];
+      }
+      if (Object.keys(props).length) updateEntity(entityId, { properties: props });
+    } catch { /* gone, or changed again: looked at next time */ }
+    finally { rehashing.delete(path); }
+  })());
 }
 
 /** The bytes of a linked file with this hash, read from where it is — and only if they still are that file. */

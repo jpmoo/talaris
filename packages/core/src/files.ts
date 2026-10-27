@@ -31,7 +31,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
-import { LINK, homeHolds, linkFile, real, refreshLinks, toLink } from "./links.js";
+import { LINK, homeHolds, linkFile, linkFileAsync, real, refreshLinks, toLink } from "./links.js";
 import { seal, unseal } from "./seal.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
@@ -667,7 +667,7 @@ const inHome = (path: string) => {
 };
 
 /** A shortcut: a record of a file elsewhere, shown in the project. Nothing is made on disk. */
-export function makeShortcut(projectId: string, path: string): FileRow {
+export async function makeShortcut(projectId: string, path: string): Promise<FileRow> {
   findProject(projectId);
   const abs = inHome(path);
   if (!existsSync(abs) || !statSync(abs).isFile()) throw new NotFound(`no file at ${abs}`);
@@ -677,7 +677,7 @@ export function makeShortcut(projectId: string, path: string): FileRow {
     if (o[SHORTCUT] === projectId && valuesIn(o.properties.file)[0]?.[LINK]?.path === abs) throw new Conflict("this project already has a shortcut to it");
   }
   const e = createEntity({ type: typeFor("file").id, properties: { title: basename(abs) }, [SHORTCUT]: projectId });
-  linkFile(e.id, abs);
+  try { await linkFileAsync(e.id, abs); } catch (err) { deleteEntity(e.id); throw err; }
   version++;
   return listFiles({ project: projectId }).rows.find((r) => r.entity === e.id)!;
 }
@@ -736,7 +736,15 @@ export function folderFiles(path: string): { folder: string; paths: string[]; mo
 }
 
 /** Shortcuts in a project to each of these files not already there or in its folder: how many made, how many not. */
-export function linkPaths(projectId: string, paths: string[]): { made: number; skipped: number } {
+export function linkPaths(projectId: string, paths: string[]): Promise<{ made: number; skipped: number }> {
+  // One at a time: a folder linked while the watch is looking at it would otherwise link its files twice.
+  const run = linking.then(() => linkPathsNow(projectId, paths));
+  linking = run.catch(() => undefined);
+  return run;
+}
+let linking: Promise<unknown> = Promise.resolve();
+
+async function linkPathsNow(projectId: string, paths: string[]): Promise<{ made: number; skipped: number }> {
   findProject(projectId);
   const have = new Set<string>();
   for (const { object: o } of allRecords()) {
@@ -749,7 +757,8 @@ export function linkPaths(projectId: string, paths: string[]): { made: number; s
       const abs = inHome(path);
       if (have.has(abs) || placeOf(abs)?.project === projectId || !existsSync(abs) || !statSync(abs).isFile()) { skipped++; continue; }
       const e = createEntity({ type: typeFor("file").id, properties: { title: basename(abs) }, [SHORTCUT]: projectId });
-      linkFile(e.id, abs);
+      // Its hash read off the core's thread: a cloud folder fetches each file whole as it is read.
+      try { await linkFileAsync(e.id, abs); } catch (err) { deleteEntity(e.id); throw err; }
       have.add(abs);
       made++;
     } catch { skipped++; }
@@ -759,7 +768,7 @@ export function linkPaths(projectId: string, paths: string[]): { made: number; s
 }
 
 /** A folder linked into a project: what is in it linked now, and it watched from now on. */
-export function linkFolder(projectId: string, path: string): { folder: string; made: number; skipped: number; most: boolean } {
+export async function linkFolder(projectId: string, path: string): Promise<{ folder: string; made: number; skipped: number; most: boolean }> {
   findProject(projectId);
   const { folder, paths: all, most } = folderFiles(path);
   // Linked again on purpose: what was taken out of it by hand is linked again too.
@@ -769,7 +778,7 @@ export function linkFolder(projectId: string, path: string): { folder: string; m
   const l = linkedFolders();
   l[projectId] = [...new Set([...(l[projectId] ?? []), folder])];
   saveLinkedFolders(l);
-  return { folder, most, ...linkPaths(projectId, paths) };
+  return { folder, most, ...(await linkPaths(projectId, paths)) };
 }
 
 /** A folder no longer watched for a project. Its shortcuts stay; nothing new is linked from it. */
@@ -792,7 +801,7 @@ export function foldersLinked(projectId?: string): { project: string; folder: st
  * search reads again; gone: missing), and every linked folder (a file new in
  * it: linked). Answers how many things changed.
  */
-export function watchLinked(): number {
+export async function watchLinked(): Promise<number> {
   let changed = refreshLinks();
   for (const { project, folder, exists } of foldersLinked()) {
     if (!exists) continue;
@@ -800,7 +809,7 @@ export function watchLinked(): number {
       if (!listProjects().some((p) => p.id === project)) continue;
       // What was taken out of it by hand stays out.
       const out = new Set(skipped()[project] ?? []);
-      changed += linkPaths(project, folderFiles(folder).paths.filter((p) => !out.has(p))).made;
+      changed += (await linkPaths(project, folderFiles(folder).paths.filter((p) => !out.has(p)))).made;
     } catch { /* unreadable for now */ }
   }
   if (changed) version++;

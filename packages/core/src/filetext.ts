@@ -33,7 +33,7 @@ import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { seal, unseal } from "./seal.js";
 import { STATE_DIR } from "./paths.js";
-import { readBytes, writeAtomic } from "./store.js";
+import { readBytes, readBytesAsync, writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 
 /** Said when a picture's describer could not be asked: the file waits, and is tried again, rather than kept as one with no words. */
@@ -134,7 +134,7 @@ export async function textOf(path: string, name = basename(path)): Promise<strin
   if (!readable(name)) return "";
   // A sealed file (a project's sealed folder) is opened here, and read from a private copy.
   let bytes: Buffer;
-  try { bytes = readBytes(path); } catch { return ""; }
+  try { bytes = await readBytesAsync(path); } catch { return ""; }
   if (TEXT.has(e)) return tidy(e === ".html" || e === ".htm" ? visibleText(bytes.toString("utf8")) : bytes.toString("utf8"));
   return textOfBytes(bytes, name);
 }

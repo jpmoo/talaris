@@ -546,6 +546,8 @@ test("links: a file in the home folder linked where it is, served from there, fo
   // Changed where it is: a new hash on the next look.
   writeFileSync(file, "second draft, longer");
   links.refreshLinks([t.id]);
+  // Read off the core's thread (a cloud folder fetches it whole): known a moment later.
+  await links.rehashed();
   const key = links.filesField(entities.getEntity(t.id));
   const now = () => (entities.getEntity(t.id).properties[key] as Record<string, unknown>[])[0]!;
   assert.notEqual(now().sha256, v.sha256);
