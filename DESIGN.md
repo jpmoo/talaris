@@ -1299,6 +1299,16 @@ something with no date is never too old. The connections route names what is
 left out (`?shown=1`, `hidden`) rather than dropping it, since the same reply
 draws a thing's own fields.
 
+### A project in Tasks (2026-10-27)
+
+A project chosen in Tasks' left column shows its tasks, and itself on the
+right, where a task's sheet goes: its name (renamed there), its open tasks,
+its description — Morgan's from its tasks or yours, saved when you leave the
+box, cleared to have Morgan write it again — what it might be connected to,
+Glance, a plugin's buttons, and More… for its group, wallpaper and archiving.
+A task opened takes the right side; closed, the project comes back. The
+row's "…" is gone; its right-click menu stays.
+
 ### A press, Shift-press and Ctrl-press on the dock (2026-10-27)
 
 An app open in another project can be pressed three ways, and each does a

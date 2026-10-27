@@ -106,10 +106,10 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .nostat { width: 16px; flex: none; }
 
 /* The task's sheet: beside the list, not over everything. */
-#sheet { width: 340px; flex: none; border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;
+#sheet, #psheet { width: 340px; flex: none; border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;
          background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); }
-#sheet[hidden], #rep[hidden], .s-row[hidden], #sheet [hidden] { display: none !important; }
-@media (max-width: 760px) { #sheet { position: absolute; right: 0; top: 0; bottom: 0; z-index: 5; background: var(--surface); box-shadow: var(--menu-shadow); } }
+#sheet[hidden], #psheet[hidden], #rep[hidden], .s-row[hidden], #sheet [hidden], #psheet [hidden] { display: none !important; }
+@media (max-width: 760px) { #sheet, #psheet { position: absolute; right: 0; top: 0; bottom: 0; z-index: 5; background: var(--surface); box-shadow: var(--menu-shadow); } }
 .s-head { display: flex; align-items: center; gap: 8px; }
 .s-head input { flex: 1; font-size: 14px; padding: 5px 8px; }
 .s-row { display: flex; gap: 8px; align-items: center; }
@@ -143,6 +143,10 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-elsewhere { display: contents; }
 .s-foot { justify-content: flex-end; }
 #s-sugg:empty { display: none; }
+#p-desc { width: 100%; min-height: 90px; font-size: 12.5px; flex: none; }
+#p-desc .cm-content { padding: 6px 8px; min-height: 76px; }
+#p-sugg:empty { display: none; }
+#p-name:disabled { background: none; border-color: transparent; color: inherit; }
 /* Where a file is (tasks.js): stored on the task only (a paperclip), in this project's folder (a folder), or
    linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
 .chip-p .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
@@ -274,6 +278,18 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
     <div id="s-notes" class="ed-field" data-placeholder="Notes"></div>
     <div id="s-sugg"></div>
     <div class="s-foot"><span id="s-done"></span><span class="spacer"></span><span id="s-elsewhere"></span><button class="t-btn" id="s-archive">Archive</button></div>
+  </aside>
+  <!-- A project chosen on the left: itself — its description, what it might be connected to, Glance. -->
+  <aside id="psheet" hidden>
+    <div class="s-head">
+      <input type="text" id="p-name" spellcheck="false" title="Its name: Enter keeps it">
+      <button class="icon-btn" id="p-close" title="Close"></button>
+    </div>
+    <div class="s-row"><span class="lab">Open tasks</span><span class="sum" id="p-open"></span></div>
+    <div class="s-row"><span class="lab">About it</span><span class="sum" id="p-who"></span></div>
+    <div id="p-desc" class="ed-field"></div>
+    <div id="p-sugg"></div>
+    <div class="s-foot"><span id="p-acts"></span><span class="spacer"></span><button class="t-btn" id="p-more" title="Its group, wallpaper, and archiving it">More…</button></div>
   </aside>
 </main>
 <div id="pop" class="menu" hidden></div>

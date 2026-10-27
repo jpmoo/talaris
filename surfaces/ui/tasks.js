@@ -374,6 +374,8 @@
     projects = p || [];
     column = c || [];
     drawSide();
+    // The project shown on the right, read again with the rest (its name, its count, its description).
+    if (current && current.kind === "project" && !editing && !projectShut) openProject(current.id);
   }
   // What was shown last, if it is still there; else the starter Today; else the first list.
   function chooseCurrent() {
@@ -413,6 +415,7 @@
     if (searching) { searching = ""; $("search").value = ""; }
     current = { kind, id };
     store.set("talaris.tasks.shown", current);
+    if (kind !== "project") closeProject();
     closeSheet();
     shown = null;
     drawView();
@@ -445,8 +448,7 @@
       ].filter(Boolean)); } },
       el("span", { class: "name" }, p.title),
       // How many tasks it has open (the core's /tasks/open-counts).
-      openCounts[p.id] ? el("span", { class: "n", title: `${openCounts[p.id]} open` }, String(openCounts[p.id])) : null,
-      el("button", { class: "more", title: "Properties", onclick: (e) => { e.stopPropagation(); editProject(p); } }, "…"));
+      openCounts[p.id] ? el("span", { class: "n", title: `${openCounts[p.id]} open` }, String(openCounts[p.id])) : null);
     draggable(row, p.id, "project");
     dropOn(row, { kind: "project", id: p.id, group: p.group || null });
     return row;
@@ -952,6 +954,8 @@
   }
 
   function openTask(id) {
+    // A task opened takes the right side; closed, the project comes back.
+    $("psheet").hidden = true;
     editing = id;
     entity = null;
     closeRep();
@@ -965,7 +969,81 @@
     popAway();
     $("sheet").hidden = true;
     for (const r of document.querySelectorAll(".row.on")) r.classList.remove("on");
+    if (current && current.kind === "project" && !projectShut) openProject(current.id);
   }
+
+  // ---------------------------------------------------------------- a project, on the right
+  //
+  // A project chosen on the left is shown on the right as itself: its name,
+  // its description — Morgan's from its tasks, or yours, written here
+  // (project-describe.ts) — what it might be connected to (suggest.ts, by
+  // what its description says), Glance, and More… for its group, wallpaper
+  // and archiving (editProject). Closed, it stays closed until a project is
+  // chosen again.
+  let projectOn = null, projectAbout = "", projectEd = null, projectShut = false, projectSuggFor = null;
+  function openProject(id) {
+    const p = projects.find((x) => x.id === id);
+    if (!p) { closeProject(); return; }
+    projectShut = false;
+    const fresh = projectOn !== id;
+    projectOn = id;
+    $("psheet").hidden = false;
+    if (!$("p-name").matches(":focus")) $("p-name").value = p.title;
+    // One with no Talaris project (no folder of its own) has no name to change here.
+    $("p-name").disabled = !p.workspace;
+    $("p-open").textContent = openCounts[p.id] ? String(openCounts[p.id]) : "None";
+    paintProjectAbout(p, fresh);
+    const key = p.workspace ? `project:${p.workspace}` : `e:${p.id}`;
+    $("p-acts").replaceChildren(...(window.Peek ? [Peek.glanceButton(key, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null),
+      Peek.actionButtons("project", p.id, api, "t-btn", () => loadSide())].filter(Boolean) : []));
+    if (window.Peek && projectSuggFor !== id) {
+      projectSuggFor = id;
+      $("p-sugg").replaceChildren(Peek.suggestions(key, api, { open: (eid) => openMention(eid), openPlace: (x) => bridge && bridge.openPlace(x.kind, x.project, x.where),
+        changed: (r) => { say(r.said || "Done"); projectSuggFor = null; loadSide().catch(failed); } }));
+    }
+  }
+  function closeProject() {
+    projectOn = null;
+    projectSuggFor = null;
+    $("psheet").hidden = true;
+  }
+  async function paintProjectAbout(p, fresh) {
+    // Written where its type keeps its description (the core says which, and whose it is); a project with no folder, as before.
+    const got = p.workspace ? await api("GET", `/projects/${enc(p.workspace)}/about`).catch(() => null) : null;
+    if (projectOn !== p.id) return;
+    projectAbout = got ? got.about : (p.description || "");
+    $("p-who").textContent = got ? (got.aboutByYou ? "Yours" : got.about ? "Morgan's, from its tasks" : "None yet — Morgan writes one from its tasks") : "";
+    if (projectEd && (fresh || !$("p-desc").contains(document.activeElement)) && projectEd.text !== projectAbout) projectEd.set(projectAbout);
+  }
+  async function saveProjectAbout() {
+    const p = projects.find((x) => x.id === projectOn);
+    if (!p || !projectEd) return;
+    const v = projectEd.text;
+    if (v.trim() === (projectAbout || "").trim()) return;
+    try {
+      if (p.workspace) await api("PUT", `/projects/${enc(p.workspace)}/about`, { about: v });
+      else await api("PATCH", `/entities/${enc(p.id)}`, { properties: { description: v.trim() ? v : null } });
+      projectAbout = v;
+      projectSuggFor = null;
+      $("p-who").textContent = v.trim() ? "Yours — saved" : "Cleared — Morgan writes one from its tasks";
+      say("Description saved; what it might be connected to is read again with it");
+      await loadSide();
+    } catch (e) { failed(e); }
+  }
+  async function saveProjectName() {
+    const p = projects.find((x) => x.id === projectOn);
+    const name = $("p-name").value.trim();
+    if (!p || !p.workspace || !name || name === p.title) { if (p) $("p-name").value = p.title; return; }
+    try { await api("PUT", `/projects/${enc(p.workspace)}/name`, { name }); await refresh(); } catch (e) { failed(e); $("p-name").value = p.title; }
+  }
+  $("p-close").innerHTML = Icons.close();
+  $("p-close").addEventListener("click", () => { projectShut = true; closeProject(); });
+  $("p-more").addEventListener("click", () => { const p = projects.find((x) => x.id === projectOn); if (p) editProject(p); });
+  $("p-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); $("p-name").blur(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); const p = projects.find((x) => x.id === projectOn); if (p) $("p-name").value = p.title; $("p-name").blur(); }
+  });
+  $("p-name").addEventListener("blur", saveProjectName);
   async function loadEditing() {
     const id = editing;
     if (!id) return;
@@ -1177,6 +1255,9 @@
     quickEd = m.createEditor($("quick"), "", { live: true, compact: true, singleLine: true, placeholder: "Add a task", mentions, onEnter: () => { addQuick(); } });
     titleEd = m.createEditor($("s-title"), "", { live: true, compact: true, singleLine: true, mentions, onEnter: () => { saveTitle(); $("s-title").querySelector(".cm-content")?.blur(); } });
     notesEd = m.createEditor($("s-notes"), "", { live: true, compact: true, mentions });
+    projectEd = m.createEditor($("p-desc"), "", { live: true, compact: true, mentions, placeholder: "What the project is for" });
+    $("p-desc").addEventListener("focusout", saveProjectAbout);
+    if (projectOn) { const p = projects.find((x) => x.id === projectOn); if (p) paintProjectAbout(p, true); }
     $("s-title").addEventListener("focusout", saveTitle);
     $("s-notes").addEventListener("focusout", saveNotes);
     if (entity) paintSheet();

@@ -49,7 +49,17 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   100% { background: transparent; border-color: transparent; transform: none; box-shadow: none; }
 }
 #where.flash { animation: where-flash 1.8s ease-out; }
-#where.flash .code { color: inherit; }
+/* The code lit with the name, and faded back to its own dim colour by the end: not left bright, then snapped back. */
+@keyframes where-flash-code {
+  0%, 35% { color: var(--surface); }
+  100% { color: var(--muted); }
+}
+#where.flash .code { animation: where-flash-code 1.8s ease-out; }
+#where.flash .code.alone { animation-name: where-flash-code-alone; }
+@keyframes where-flash-code-alone {
+  0%, 35% { color: var(--surface); }
+  100% { color: var(--text); }
+}
 #where .code.alone { margin-left: 0; color: var(--text); }
 /* Demo mode: a made-up world, said where the project's name is (bar.js). */
 #where .demo-badge { margin-left: 10px; padding: 1px 6px; border-radius: 4px; font-size: .78em; letter-spacing: 1.5px; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
