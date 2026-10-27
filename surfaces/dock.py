@@ -28,9 +28,12 @@ its tip says what it is and what it opens in. Which document a window shows is
 looked for, not guessed (docs.py); where it cannot be told, nothing is offered.
 
 **Open only in another project**, a press does as its menu says: opens a
-new window here, brings its window here, or goes to it. Unchosen, an
+new window here, brings its window here, or goes to it — and Shift- and
+Ctrl-press each do one of the other two (`clicks`: the app's own choice in its
+menu's "When pressed…", else the default in Settings, Dock). Unchosen, an
 application whose desktop file has a "new window" action (a browser, a
-terminal) opens a new window here; the rest follow the rule in Settings. The
+terminal) opens a new window here; the rest follow the rule in Settings.
+Shift and Ctrl do theirs wherever its windows are, here too. The
 menu also lists each of its windows on every desktop, with its project, to go
 to one, and opens a new window here — and, for one kept in a project, a new
 window there (that project gone to).
@@ -84,6 +87,18 @@ from views import make_view, zoom
 DOCK_ROOM = 26
 #: The item menu's size.
 MENU = (220, 310)
+#: A press, with Shift, with Ctrl: each does one of `new`, `bring`, `go` (Dock.clicks).
+PRESSES = ("click", "shift", "ctrl")
+
+
+def valid_clicks(c, one_window: bool) -> bool:
+    """Three presses, each a different one of the three — or, for an app that keeps one window, two of bring and go and an empty third."""
+    if not isinstance(c, dict) or any(p not in c for p in PRESSES):
+        return False
+    got = [c[p] for p in PRESSES]
+    if one_window:
+        return sorted(got) == ["", "bring", "go"] and got[2] == ""
+    return sorted(got) == ["bring", "go", "new"]
 
 
 def _key(app: dict, wm_class: str) -> str:
@@ -102,6 +117,16 @@ class DockBridge(Bridge):
     @Slot(str)
     def press(self, key: str) -> None:
         self.owner.press(key)
+
+    @Slot(str, str)
+    def pressWith(self, key: str, mod: str) -> None:  # noqa: N802 — called from the page by this name
+        """A press with Shift or Ctrl held: what that does for it (`clicks`)."""
+        self.owner.press(key, mod if mod in ("shift", "ctrl") else "")
+
+    @Slot(str, str)
+    def setClicks(self, key: str, clicks: str) -> None:  # noqa: N802 — called from the page by this name
+        """The menu's chooser: an app's own clicks, or (empty) back to the default. The menu stays up, to show it."""
+        self.owner.set_clicks(key, json.loads(clicks) if clicks else None)
 
     @Slot(str)
     def order(self, keys: str) -> None:
@@ -155,6 +180,9 @@ class DockMenu(QObject):
         return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
                 "everywhere": self.everywhere, "elsewhere": self.dock.elsewhere(self.key) if self.key else "",
                 "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
+                # Its three presses, and whether they are its own or the default's (the chooser).
+                "clicks": self.dock.clicks(self.key) if self.key else {},
+                "clicksOwn": bool(self.key and self.key in self.desktop.config["dock"].get("clicks", {})),
                 "oneWindow": bool(self.key and keeps_one_window(self.key)),
                 # One that opens new windows has more than one to bring: the menu says which ("its last window").
                 "manyWindows": bool(self.key and not self.key.startswith(("doc:", "class:")) and opens_new_windows(self.key)),
@@ -295,8 +323,13 @@ class DockMenu(QObject):
         if self.key:
             self.idle.start(10000)
 
-    def press(self, key: str) -> None:
+    def press(self, key: str, mod: str = "") -> None:
         pass
+
+    def set_clicks(self, key: str, clicks: dict | None) -> None:
+        self.dock.set_clicks(key, clicks)
+        # Chosen in the menu: it stays up a while longer, to see it.
+        self.idle.start(10000)
 
     def reorder(self, keys: list) -> None:
         pass
@@ -517,15 +550,75 @@ class Dock(QObject):
         elif self.apps.is_launchable(app_id):
             hypr.ask(f"/dispatch exec gtk-launch {shlex.quote(app_id)}")
 
-    def press(self, key: str) -> None:
-        """A press: the window last used; again, the next; a pin with nothing open is started."""
+    def clicks(self, key: str) -> dict:
+        """
+        What a press does, with Shift, with Ctrl: each one of `new` (a new
+        window here), `bring` (its last window brought here) and `go` (gone
+        to), every one reachable. The app's own (its menu's "When pressed…"),
+        else the default in Settings, Dock — an app's older one-choice
+        exception still says what a plain press does — else a plain press
+        as `elsewhere` says, and the other two in that order. One that keeps
+        a single window has no `new`: its third is "". {} for a document.
+        """
+        if key.startswith(("doc:", "class:")):
+            return {}
+        cfg = self.desktop.config["dock"]
+        one = keeps_one_window(key)
+
+        def whole(first: str, order: list) -> dict:
+            rest = [a for a in order if a != first and not (one and a == "new")]
+            got = [first, *rest, "", ""][:3]
+            return dict(zip(PRESSES, got))
+
+        own = cfg.get("clicks", {}).get(key)
+        if valid_clicks(own, one):
+            return dict(own)
+        base = cfg.get("clicksDefault")
+        legacy = cfg.get("elsewhere", {}).get(key, "")
+        if valid_clicks(base, False):
+            order = [base[p] for p in PRESSES]
+            first = legacy or order[0]
+            if one and first == "new":
+                first = next(a for a in order if a != "new")
+            return whole(first, order)
+        first = self.elsewhere(key)
+        if one and first == "new":
+            first = "bring"
+        return whole(first, ["new", "bring", "go"])
+
+    def set_clicks(self, key: str, clicks: dict | None) -> None:
+        cfg = self.desktop.config["dock"]
+        mine = {k: v for k, v in cfg.get("clicks", {}).items() if k != key}
+        if clicks is not None:
+            if not valid_clicks(clicks, keeps_one_window(key)):
+                return
+            mine[key] = {p: clicks[p] for p in PRESSES}
+            # The older one-choice exception is taken up in it.
+            cfg["elsewhere"] = {k: v for k, v in cfg.get("elsewhere", {}).items() if k != key}
+        cfg["clicks"] = mine
+        save_config(self.desktop.config)
+        if self.menu.key == key:
+            self.menu.bridge.state.emit(json.dumps(self.menu.describe()))
+
+    def press(self, key: str, mod: str = "") -> None:
+        """A press: the window last used; again, the next; a pin with nothing open is started. With Shift or Ctrl: as `clicks` says."""
         item = self.items.get(key)
         if not item:
             return
         windows = item["windows"]
+        # Shift or Ctrl: its own one of the three, wherever its windows are.
+        if mod and item["id"]:
+            act = self.clicks(key).get(mod, "")
+            if act == "new":
+                self.new_window(item["id"])
+                return
+            if act and self.desktop.launcher._app_windows(item["id"]):
+                now = hypr.windows()
+                self.desktop.launcher._bring(item["id"], (now["active"], now["activeTarget"]), go=act == "go")
+                return
         # Open only in another project: as its menu says — a new window here, brought here, or gone to.
         # (A hidden window counts as here: pressed, it is shown.)
-        choice = self.elsewhere(key)
+        choice = self.clicks(key).get("click", "") if item["id"] else ""
         if choice and item["id"] and not any(w.get("here") or w["hidden"] for w in windows):
             mine = self.desktop.launcher._app_windows(item["id"])
             if mine and choice == "new":

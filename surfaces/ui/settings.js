@@ -118,6 +118,19 @@ function draw() {
   slider("dock-mag", cfg.dock.magnify ?? 100, (v) => (Number(v) <= 100 ? "Off" : `${v}%`), (v) => save({ dock: { magnify: v } }));
   seg("dock-scope", [["desktop", "This project"], ["all", "All"]], cfg.dock.scope || "desktop", (scope) => save({ dock: { scope } }));
   seg("dock-groups", [["one", "One dock"], ["pills", "Pills"]], cfg.dock.groups || "one", (groups) => save({ dock: { groups } }));
+  // A click, Shift-click and Ctrl-click: each one of the three, a choice for one swapping with the press that had it.
+  const rule = cfg.launcher.singleWindow === "go" ? "go" : "bring";
+  const presses = cfg.dock.clicksDefault || { click: rule, shift: "new", ctrl: rule === "go" ? "bring" : "go" };
+  for (const p of ["click", "shift", "ctrl"]) {
+    seg(`press-${p}`, [["new", "New window here"], ["bring", "Bring it here"], ["go", "Go to it"]], presses[p], (a) => {
+      const next = { ...presses };
+      const had = ["click", "shift", "ctrl"].find((x) => next[x] === a);
+      if (had) next[had] = next[p];
+      next[p] = a;
+      save({ dock: { clicksDefault: next } });
+    });
+  }
+  $("press-note").textContent = cfg.dock.clicksDefault ? "" : "Not set yet: apps that open new windows, like a browser, open one on a click; the rest bring or go as Keys says.";
   // Four margins, each its own slider; saved as the whole set, as the bar reads them.
   const inset = cfg.bar.inset ?? 8;
   const m = { top: inset, right: inset, bottom: inset, left: inset, ...(cfg.bar.margins || {}) };

@@ -23,6 +23,15 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
 .menu-item.on::before { content: "✓"; display: inline-block; width: 1.2em; margin-left: -1.2em; color: var(--accent); }
 .menu-item.choice { padding-left: 1.6em !important; }
 #wins:empty, #wins-hint[hidden], #choose[hidden] { display: none; }
+#presses[hidden], #menu[hidden] { display: none; }
+#presses { padding: 6px 8px; }
+#presses .p-row { margin: 6px 0 2px; }
+#presses .p-seg { display: flex; gap: 4px; }
+#presses .p-seg button { flex: 1; padding: 3px 0; border: 1px solid var(--line, rgba(128,128,128,.35)); border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+#presses .p-seg button.on { border-color: var(--accent); color: var(--accent); }
+#presses .p-seg button:disabled { opacity: .35; cursor: default; }
+#presses .p-what { margin-top: 8px; opacity: .7; line-height: 1.5; text-transform: none !important; letter-spacing: 0 !important; }
+#presses .p-foot { display: flex; justify-content: space-between; margin-top: 8px; }
 .doc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none !important; letter-spacing: 0 !important; }
 .doc-name[hidden] { display: none; }
 </style>
@@ -47,10 +56,7 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <button class="menu-item" data-verb="bring-here">Always bring here</button>
   <button class="menu-item" data-verb="unbring">Stop always bringing here</button>
   <div id="choose" hidden>
-    <div class="hint">Open in another project, a press…</div>
-    <button class="menu-item choice" data-verb="elsewhere-new" data-choice="new">Opens a new window here</button>
-    <button class="menu-item choice" data-verb="elsewhere-bring" data-choice="bring">Sends it to where you are</button>
-    <button class="menu-item choice" data-verb="elsewhere-go" data-choice="go">Goes to it</button>
+    <button class="menu-item" id="presses-open" data-verb="">When pressed…</button>
   </div>
   <button class="menu-item" data-verb="send">Send to…</button>
   <button class="menu-item" data-verb="send-follow">Send to… and follow</button>
@@ -60,6 +66,16 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <div class="menu-sep" id="sep"></div>
   <button class="menu-item" data-verb="close">Close window</button>
   <button class="menu-item" data-verb="close-all">Close all windows</button>
+</div>
+<!-- What a press, Shift-press and Ctrl-press do: each one of the three, every one reachable. -->
+<div class="menu" id="presses" hidden>
+  <div class="hint" id="p-name"></div>
+  <div id="p-rows"></div>
+  <div class="hint p-what" id="p-what"></div>
+  <div class="p-foot">
+    <button class="menu-item" id="p-default" style="width:auto">Use the default</button>
+    <button class="menu-item" id="p-back" style="width:auto">Back</button>
+  </div>
 </div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="surface.js"></script>
@@ -71,7 +87,8 @@ const show = (verb, yes) => { document.querySelector(`[data-verb="${verb}"]`).hi
 // Only what can be done to this item: Show only if something is hidden, Pin
 // only with a launcher to start it again by, Close all only with two or more.
 function onState(s) {
-  if (!s.up) return;
+  // Put away: opened again, it opens on the menu, not the chooser.
+  if (!s.up) { showPresses(false); return; }
   const it = s.item || {};
   key = it.key || "";
   const doc = !!it.doc;
@@ -147,22 +164,12 @@ function onState(s) {
   }));
   document.getElementById("wins-hint").hidden = all.length < 2;
   document.getElementById("wins-sep").hidden = all.length < 2 && !(s.goTo || []).length;
-  // What a press does when it is open only in another project: ticked as it is now; the one ticked, pressed, goes back to the default.
+  // What a press, Shift-press and Ctrl-press do: one item here, the chooser in its place when pressed.
   const choose = !doc && !!it.id;
   document.getElementById("choose").hidden = !choose;
-  if (choose) {
-    const now = s.elsewhere || (it.rule === "go" ? "go" : "bring");
-    // One that keeps a single window cannot have another.
-    document.querySelector('[data-choice="new"]').hidden = !!s.oneWindow;
-    // Of an app with many windows, a press brings the one last used, not all of it.
-    // Moved, not copied: its window leaves its project's desktop for yours.
-    document.querySelector('[data-choice="bring"]').textContent = s.manyWindows ? "Sends its last window to where you are" : "Sends it to where you are";
-    for (const c of ["new", "bring", "go"]) {
-      const b = document.querySelector(`[data-choice="${c}"]`);
-      b.classList.toggle("on", now === c);
-      b.dataset.verb = now === c && s.chosen === c ? "elsewhere-rule" : `elsewhere-${c}`;
-    }
-  }
+  last = s;
+  if (choose) drawPresses(s);
+  else showPresses(false);
   // Not pinned: its window sent to another project's desktop (Home among them), chosen in the carousel — there, or with you following.
   show("send", !!s.canSend);
   show("send-follow", !!s.canSend);
@@ -170,7 +177,52 @@ function onState(s) {
   show("close-all", wins.length > 1);
   document.getElementById("sep").hidden = !wins.length;
 }
-for (const b of document.querySelectorAll(".menu-item")) b.addEventListener("click", () => bridge && bridge.act(b.dataset.verb, key));
+for (const b of document.querySelectorAll("#menu .menu-item")) b.addEventListener("click", () => { if (b.dataset.verb && bridge) bridge.act(b.dataset.verb, key); });
+
+let last = null;
+const ACTS = [["new", "New"], ["bring", "Bring"], ["go", "Go"]];
+const PRESS = [["click", "Click"], ["shift", "Shift-click"], ["ctrl", "Ctrl-click"]];
+function showPresses(on) {
+  document.getElementById("menu").hidden = on;
+  document.getElementById("presses").hidden = !on;
+}
+// Each press one of the three; one chosen for a press swaps with the press that had it, so all three stay reachable.
+function drawPresses(s) {
+  const it = s.item || {};
+  const c = s.clicks || {};
+  const one = !!s.oneWindow;
+  document.getElementById("p-name").textContent = `${it.name || ""} — when pressed${s.clicksOwn ? "" : " (the default)"}`;
+  document.getElementById("p-rows").replaceChildren(...PRESS.flatMap(([p, label]) => {
+    const head = document.createElement("div");
+    head.className = "hint p-row";
+    head.textContent = label;
+    const seg = document.createElement("div");
+    seg.className = "p-seg";
+    for (const [a, word] of ACTS) {
+      const b = document.createElement("button");
+      b.textContent = word;
+      b.className = c[p] === a ? "on" : "";
+      // One that keeps a single window has no new one, and so only two presses.
+      b.disabled = one && (a === "new" || p === "ctrl");
+      b.addEventListener("click", () => {
+        if (c[p] === a || !bridge) return;
+        const next = { ...c };
+        const had = PRESS.map(([x]) => x).find((x) => next[x] === a);
+        if (had) next[had] = next[p];
+        next[p] = a;
+        bridge.setClicks(key, JSON.stringify(next));
+      });
+      seg.append(b);
+    }
+    return [head, seg];
+  }));
+  document.getElementById("p-what").textContent = `New: a new window here. Bring: ${s.manyWindows ? "its last window" : "it"}, brought here. Go: to where it is.`
+    + (one ? " It keeps one window, so it has no new one." : "");
+  document.getElementById("p-default").hidden = !s.clicksOwn;
+}
+document.getElementById("presses-open").addEventListener("click", () => { if (last) { drawPresses(last); showPresses(true); } });
+document.getElementById("p-back").addEventListener("click", () => showPresses(false));
+document.getElementById("p-default").addEventListener("click", () => bridge && bridge.setClicks(key, ""));
 addEventListener("keydown", (e) => { if (e.key === "Escape" && bridge) bridge.file(); });
 addEventListener("blur", () => { if (bridge) bridge.file(); });
 Surface.connect({ onState }).then((b) => { bridge = b; });

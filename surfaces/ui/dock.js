@@ -67,7 +67,13 @@ function item(app, pinned) {
   app.windows.slice(0, 3).forEach((w) => dots.append(el("i", w.focused ? "on" : "")));
   b.append(dots);
 
-  b.addEventListener("click", () => { if (!dragged && bridge) bridge.press(app.key); });
+  // Shift and Ctrl each do one of the three a press can (its menu's "When pressed…").
+  b.addEventListener("click", (e) => {
+    if (dragged || !bridge) return;
+    const mod = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : "";
+    if (mod && bridge.pressWith) bridge.pressWith(app.key, mod);
+    else bridge.press(app.key);
+  });
   b.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const r = b.getBoundingClientRect();

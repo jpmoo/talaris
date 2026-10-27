@@ -1299,6 +1299,19 @@ something with no date is never too old. The connections route names what is
 left out (`?shown=1`, `hidden`) rather than dropping it, since the same reply
 draws a thing's own fields.
 
+### A press, Shift-press and Ctrl-press on the dock (2026-10-27)
+
+An app open in another project can be pressed three ways, and each does a
+different one of three things — a new window here, its last window brought
+here, or gone to — so all three are always a press away. Settings, Dock,
+*When pressed* sets the default; an app's own is set from its menu's one
+item, *When pressed…*, which turns the menu into the chooser in place (the
+menu does not grow: the three ticked items it had are that one item now).
+Choosing one for a press swaps it with the press that had it. An app that
+keeps one window has two. Unset, a plain press does as before (an app that
+opens new windows opens one; the rest bring or go as Keys says); Shift and
+Ctrl do theirs wherever its windows are, here too (`dock.py`, `clicks`).
+
 ### A project in the Library (2026-10-27)
 
 A project chosen in the Library's left side, and nothing in it chosen, is

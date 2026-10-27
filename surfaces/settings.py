@@ -183,6 +183,9 @@ def _checked(c: dict) -> str:
     stays = c["dock"].get("stays", {})
     if not isinstance(stays, dict) or not all(isinstance(k, str) and isinstance(v, str) and v.startswith("prj_") for k, v in stays.items()):
         return "Something kept in a project names the project"
+    presses = c["dock"].get("clicksDefault")
+    if presses is not None and (not isinstance(presses, dict) or sorted(presses.get(p, "") for p in ("click", "shift", "ctrl")) != ["bring", "go", "new"]):
+        return "Each press does a different one of the three"
     if not isinstance(c["dock"].get("brings", []), list):
         return "Not a list of things brought"
     return ""
