@@ -60,6 +60,7 @@ from notifications import Notifications
 import docs
 import thumbs
 from osd import Osd
+from fullscreen import Fullscreen
 from pins import Pins
 from tip import Tip
 import desktop_api
@@ -266,6 +267,8 @@ class Desktop(QObject):
         self.events.workspace.connect(self._workspace_changed)
         # Pinned windows carried from desktop to desktop instead, so they take clicks (pins.py).
         self.pins = Pins(self)
+        # A window fullscreen in front: logged, and the bar brought out over it from the edge (fullscreen.py).
+        self.fullscreen = Fullscreen(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
         try:
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))

@@ -482,6 +482,8 @@ class Bar(QObject):
         self.view = make_view(profile, "bar", "talaris-ui://ui/bar.html", self.bridge, self, area="bar")
         self.surface = LayerSurface(self.view, "talaris-bar")
         self.popup = Popup(profile, self)
+        #: A fullscreen window covers the top layer: the bar hides, and comes out over it from the edge (fullscreen.py).
+        self.covered = False
         self.hider = Autohide(profile, "bar", self.view, self._show, self._hide,
                               busy=lambda: bool(self.popup.kind), parent=self)
         desktop.machine.changed.connect(self._reading)
@@ -500,15 +502,24 @@ class Bar(QObject):
 
     def place(self) -> None:
         """Along its edge — or, set to hide, away until the edge is touched."""
+        if self.covered:
+            self.hider.set(True, self.edge, OVERLAY)
+            return
         hide = bool(self.desktop.config["bar"].get("autohide"))
         self.hider.set(hide, self.edge)
         if not hide:
             self._show()
 
+    def cover(self, covered: bool) -> None:
+        """A fullscreen window in front, or none any more: the bar placed for it."""
+        if covered != self.covered:
+            self.covered = covered
+            self.place()
+
     def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_BOTTOM if self.edge == "bottom" else ANCHOR_TOP
-        hide = bool(self.desktop.config["bar"].get("autohide"))
+        hide = bool(self.desktop.config["bar"].get("autohide")) or self.covered
         # A hiding bar reserves nothing: the windows keep the space, and it
         # comes out over them.
         look = self.desktop.config["bar"]
@@ -529,7 +540,7 @@ class Bar(QObject):
             tall = total
         self.room = room
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
+        self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_NONE, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 

@@ -310,6 +310,20 @@ clear of it.
 fiddly thing a shell does, and Qt offers no host for either. Which applications
 here actually need one is the question to answer before building it.
 
+**Over a fullscreen window** (decided 2026-10-27). An application can make
+its own window fullscreen in Hyprland's sense, which covers the wallpaper and
+the top layer the bar lives on. Zoom's meeting window came back from a breakout
+room that way, and the screen was the meeting and nothing else. Talaris did not
+crash; it simply could not be seen. Now, while a window is fullscreen on the
+desktop in front, the bar hides as if set to, and its edge sensor moves to the
+overlay layer above the window. Touching the edge brings the bar out over the
+window, the way a Mac's menu bar comes out over a fullscreen app, and it goes
+again when the pointer leaves. When nothing is fullscreen any more, the bar is
+as Settings has it. Each change is logged with the application, its title, the
+desktop and its mode (`fullscreen:` in the journal), so the next time the screen
+is taken, the log says by what. Talaris's own key for filling the screen
+(Super+Shift+F) maximizes instead, which never covered the bar.
+
 ### The dock
 
 Along the bottom: open applications, grouped by the project whose workspace

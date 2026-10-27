@@ -51,6 +51,8 @@ class EdgeSensor(QObject):
         self.edge = edge
         self.on_touch = on_touch
         self.up = False
+        #: The top layer, under the drawers; the overlay while a fullscreen window covers the top (fullscreen.py).
+        self.layer = TOP
         # Disarmed, a touch does nothing until the pointer has left the strip:
         # put away with the pointer still at the edge, a drawer would otherwise
         # come straight back out under it.
@@ -63,10 +65,12 @@ class EdgeSensor(QObject):
     def describe(self) -> dict:
         return {}
 
-    def show(self, edge: str | None = None) -> None:
+    def show(self, edge: str | None = None, layer: int | None = None) -> None:
         if edge and edge != self.edge:
             self.edge = edge
             self.surface.placement = None
+        if layer is not None:
+            self.layer = layer
         screen = QApplication.primaryScreen().geometry()
         across = self.edge in ("left", "right")
         thick = int(TARGET["thick"])
@@ -77,7 +81,7 @@ class EdgeSensor(QObject):
         # centered along it by the compositor.
         anchors = EDGE_ANCHOR[self.edge] | (EDGE_SPAN[self.edge] if share >= 1 else 0)
         self.surface.placement = None
-        self.surface.apply(Placement(TOP, anchors, w, h, KEYBOARD_NONE))
+        self.surface.apply(Placement(self.layer, anchors, w, h, KEYBOARD_NONE))
         self.up = True
 
     def hide(self) -> None:
@@ -269,13 +273,13 @@ class Autohide(QObject):
         self._away.timeout.connect(self._gone)
         Hover(view, self._hover)
 
-    def set(self, on: bool, edge: str) -> None:
-        """Turned on or off, or moved to another edge."""
+    def set(self, on: bool, edge: str, layer: int = TOP) -> None:
+        """Turned on or off, or moved to another edge or layer."""
         self.on = on
         if on:
             self.out = False
             self._conceal()
-            self.sensor.show(edge)
+            self.sensor.show(edge, layer)
         else:
             self.sensor.hide()
             self._away.stop()

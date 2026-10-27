@@ -258,6 +258,8 @@ class Events(QObject):
     closed = Signal(str)
     #: A window pinned (shown on every workspace) or unpinned: its address, and whether it now is.
     pinned = Signal(str, bool)
+    #: The workspace in front gained or lost a fullscreen window (which, and how, is asked: fullscreen.py).
+    fullscreen = Signal()
 
     WATCH = ("workspace", "openwindow", "closewindow", "movewindow", "focusedmon", "activespecial")
     WINDOWS = WATCH + ("activewindow", "windowtitle", "renameworkspace", "createworkspace", "destroyworkspace")
@@ -281,6 +283,8 @@ class Events(QObject):
                 self.urgent.emit("0x" + line.split(b">>", 1)[1].decode("ascii", "replace").strip())
             if name == "workspace":
                 self.workspace.emit(line.split(b">>", 1)[1].decode("utf-8", "replace"))
+            if name == "fullscreen":
+                self.fullscreen.emit()
             if name == "pin":
                 addr, _, state = line.split(b">>", 1)[1].decode("ascii", "replace").partition(",")
                 self.pinned.emit("0x" + addr.strip(), state.strip() == "1")
