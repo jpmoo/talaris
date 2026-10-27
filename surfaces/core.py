@@ -179,9 +179,13 @@ class Bridge(QObject):
 
     @Slot(str, str, str)
     def openPlace(self, kind: str, project: str, where: str) -> None:  # noqa: N802 — called from the page by this name
-        """A page or a canvas a mention points at, opened where it lives — in its project."""
+        """A page or a canvas a mention points at, opened where it lives — in its project; one of Morgan's threads, as its conversation."""
         desktop = getattr(self.owner, "desktop", None)
-        if desktop and kind in ("page", "canvas"):
+        if desktop and kind == "thread":
+            if getattr(self.owner, "NAME", "") != "morgan" and hasattr(self.owner, "file_away"):
+                self.owner.file_away()
+            desktop.morgan.show_conversation(where)
+        elif desktop and kind in ("page", "canvas"):
             # Asked from a panel (Tasks, New): it goes, so what opens is seen.
             if getattr(self.owner, "NAME", "") not in ("canvas", "writing") and hasattr(self.owner, "file_away"):
                 self.owner.file_away()

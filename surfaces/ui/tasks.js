@@ -1138,7 +1138,7 @@
     // What it might be tied to and is not (suggest.ts): asked once each time another task is opened, and after a tie.
     if (window.Peek && suggFor !== editing) {
       suggFor = editing;
-      $("s-sugg").replaceChildren(Peek.suggestions(`e:${editing}`, api, { open: (id) => openMention(id),
+      $("s-sugg").replaceChildren(Peek.suggestions(`e:${editing}`, api, { open: (id) => openMention(id), openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where),
         changed: (r) => { say(r.said || "Done"); suggFor = null; loadEditing(); } }));
     }
     $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing()),

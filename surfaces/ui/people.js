@@ -804,6 +804,7 @@
     // And what they might be tied to and are not (suggest.ts): a tie made, the person drawn again.
     const sugg = window.Peek ? Peek.suggestions(`e:${chosen}`, api, {
       open: (id) => peek(id),
+      openPlace,
       changed: (r) => { say(r.said || "Done"); drawPerson(); },
     }) : null;
     return el("section", { class: "part" },

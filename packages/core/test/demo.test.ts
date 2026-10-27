@@ -24,7 +24,7 @@ const tasks = await import("../src/tasks.js");
 
 after(() => rmSync(sandbox, { recursive: true, force: true }));
 
-test("the demo world is made once: projects, people, tasks in every state, collections, notes, events", () => {
+test("the demo world is made once: projects, people, tasks in every state, collections, notes, events", async () => {
   projects.ensureHome();
   assert.equal(seedDemo(), true);
   assert.equal(seedDemo(), false, "made once; Reset makes it again");
@@ -40,6 +40,14 @@ test("the demo world is made once: projects, people, tasks in every state, colle
   assert.deepEqual(kinds, ["board", "list", "matrix", "table"]);
   const matrix = lists.allLists().find((l) => l.kind === "matrix")!;
   assert.ok(lists.showList(matrix.id).rows.length >= 8, "cards placed");
+  // Morgan's threads, made up; and the garden's list, holding its canvas, a file, and a thread brought in by a shortcut.
+  const { threads } = await import("../src/threads.js");
+  const { listTree } = await import("../src/filelists.js");
+  assert.equal(threads().length, 4);
+  const garden = projects.listProjects().find((p) => p.name === "Community Garden")!;
+  const tree = listTree(garden.id);
+  assert.equal(tree[0]!.name, "Workday");
+  assert.equal(tree[0]!.count, 3);
   const cal = JSON.parse(readFileSync(join(sandbox, "calendar.json"), "utf8"));
   assert.ok(cal.calendars.length && cal.events.length);
   assert.ok(existsSync(join(sandbox, "seeded")));

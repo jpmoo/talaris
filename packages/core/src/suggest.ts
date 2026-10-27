@@ -43,7 +43,7 @@ import { mergeEntities, syncedBy } from "./merge.js";
 import { indexed, nearTo } from "./meaning.js";
 import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
-import { canvasWords, projectCanvases } from "./canvases.js";
+import { canvasName, canvasWords, projectCanvases } from "./canvases.js";
 import { threadById, threadEntity, threadText } from "./threads.js";
 import { readPage, writePage } from "./pages.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
@@ -151,7 +151,7 @@ export function thing(key: string, rows = fileRows()): Thing {
     const doc = projectCanvases(project).find((c) => c.id === id);
     if (!doc) throw new NotFound(`no canvas ${key}`);
     const e = bySource(placeSource("canvas", project, id)) ?? undefined;
-    return { key, kind: "canvas", title: doc.title, ...(e ? { entity: e } : {}), text: canvasWords(doc), meaning: key };
+    return { key, kind: "canvas", title: canvasName(project, doc), ...(e ? { entity: e } : {}), text: canvasWords(doc), meaning: key };
   }
   if (key.startsWith("thread:")) {
     const [home, id] = splitKey(key);

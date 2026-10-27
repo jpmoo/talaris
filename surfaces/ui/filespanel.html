@@ -51,6 +51,11 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 /* The left: projects, tags, kept views. */
 #side { width: 200px; flex: none; border-right: 1px solid var(--line); overflow: auto; padding: 6px 0 10px; }
 .s-head { padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.s-head { display: flex; align-items: center; }
+.s-add { margin-left: auto; background: none; border: 0; color: var(--muted); font: inherit; font-size: 14px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.s-add:hover { color: var(--accent); }
+.d-lists { margin-top: 6px; }
+.d-lists .d-sub { width: 100%; }
 .s-item { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 14px; color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .s-item:hover { background: var(--accent-wash); }
 .s-item.on { color: var(--accent); background: var(--accent-wash); }

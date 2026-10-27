@@ -144,6 +144,9 @@ def _row(it: dict) -> dict | None:
         return base
     if kind == "note" and it.get("path"):
         return {**base, "project": it.get("project", ""), "path": it["path"]}
+    if kind == "conversation" and it.get("thread"):
+        # One of Morgan's threads (the core's threads.ts): opened as its conversation.
+        return {**base, "thread": it["thread"], "updated": it.get("updated", "")}
     if kind == "event" and it.get("uid") and it.get("start"):
         return {**base, "calendar": it.get("calendar", ""), "uid": it["uid"], "start": it["start"], "allDay": bool(it.get("allDay")), "location": ""}
     return None
@@ -174,7 +177,7 @@ class _ThingSearch(QRunnable):
         counts: dict[str, int] = {}
         for h in hits:
             counts[h["kind"]] = counts.get(h["kind"], 0) + 1
-            if counts[h["kind"]] <= {"task": 6, "person": 5, "note": 6, "event": 5}.get(h["kind"], 0):
+            if counts[h["kind"]] <= {"task": 6, "person": 5, "note": 6, "event": 5, "conversation": 4}.get(h["kind"], 0):
                 found.append(_row(h))
         about = [{"focus": a["focus"]["id"], "title": a["focus"]["title"], "more": a.get("more", 0),
                   "related": [dict(_row(r), how=r.get("how", ""), incoming=bool(r.get("incoming"))) for r in a.get("related", []) if _row(r)]}
@@ -374,6 +377,9 @@ class Launcher(QObject):
             hypr.focus(r["address"])
         elif kind == "project":
             self.desktop.go_to_project(str(r["id"]))
+        elif kind == "canvas" and r.get("project"):
+            # A canvas wherever it is, found by what it says: opened in its project.
+            self.desktop.open_place("canvas", str(r["project"]), str(r["id"]))
         elif kind == "canvas":
             self.desktop.show_in_drawer("canvas", {"canvas": str(r["id"])})
         elif kind == "page" and r.get("project"):

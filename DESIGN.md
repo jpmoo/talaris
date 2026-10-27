@@ -1267,6 +1267,41 @@ from elsewhere, or kept as a copy).
   or merges only when told (`talaris_tie`, `talaris_merge`); it reads a file's
   words with `talaris_file_read`.
 
+### Canvases, Morgan's threads, and lists in Files (2026-10-27)
+
+**A canvas is a thing like a page.** Files lists each project's canvases
+(Type: Canvases). Its words — its regions' titles, then each note's words and
+each card's or child's title, top to bottom and left to right — are read for
+search, described by Morgan, embedded, and suggested with what it is about;
+connected, it gets an entity as a page does. One with nothing on it is read
+and empty, and suggested for nothing. A project's top canvas is called
+"Canvas", which says nothing out of its project: there it is "Coding canvas".
+
+**Morgan's threads are things that live in Home.** Morgan cuts each ended
+conversation into threads — the exchanges about one thing, titled and summed
+up. Talaris keeps a copy of the list (`threads.ts`, asked every five minutes;
+heymorgan protocol 1.8 gives each thread's id): each is a row in Home's Files
+(Type: Conversations), read by Morgan's summary (which is its description
+until written over), embedded, suggested, connected, opened as its
+conversation, and found by the launcher by its title as well as by Morgan's
+own search. When Morgan merges two threads, one id goes; it is found again by
+the exchange it began with, and what was tied to it follows (merge.ts). In
+demo the person's conversations are never asked for: the demo's are made up.
+
+**Where a thing lives is one place; lists are not that.** A file lives in its
+folder, a page under its parent page, a canvas under its parent canvas, a
+thread in Home — each has one parent, and moving it really moves it. A canvas
+or a thread is brought into another project as a shortcut, as a file is.
+
+A **list** (`filelists.ts`) is a project's own grouping of what Files shows of
+it: named, ordered, inside other lists to any depth. It holds references only
+— a thing can be in any number of lists, adding moves and copies nothing,
+taking out and deleting a list delete nothing — and only what is in its
+project: something from elsewhere comes in by a shortcut first. Kept in the
+project's folder (`.talaris/file-lists.json`, sealed with the project), so the
+lists go with it. A file or page moved or renamed keeps its places in lists.
+Lists are not Hermes' collections, which belong to no project.
+
 ### Demo
 
 A made-up world to show Talaris off — projects with writing and files,

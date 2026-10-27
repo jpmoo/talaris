@@ -14,6 +14,13 @@
 
 window.Peek = (() => {
   const KIND = { contact: "Person", event: "Event", task: "Task", note: "Page", project: "Project" };
+  // A page, a canvas or one of Morgan's threads by its glance key (`page:<project>/<path>`…), for one with no entity yet.
+  const placeOfKey = (key) => {
+    const m = /^(page|canvas|thread):([^/]+)\/(.+)$/.exec(String(key));
+    return m ? { kind: m[1], project: m[2], where: m[3] } : null;
+  };
+  // What an entity standing for a place is: a canvas, or one of Morgan's threads (a page is a Page already).
+  const PLACE = { canvas: "Canvas", thread: "Conversation" };
   // A link read from the far end, in words: a person is invited to the event that lists them.
   const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
   // A link read from this end: an event's attendees are invited; what a page mentions is mentioned.
@@ -194,13 +201,13 @@ window.Peek = (() => {
     // Flattened: replaceChildren takes nodes, and would write an array of groups out as text.
     card.replaceChildren(...[
       el("div", { class: "peek-head" },
-        el("span", { class: "peek-kind" }, kindOf(got.kinds)),
+        el("span", { class: "peek-kind" }, place && place.kind !== "page" ? PLACE[place.kind] || kindOf(got.kinds) : kindOf(got.kinds)),
         el("span", { class: "peek-title" }, got.title),
         el("button", { class: "icon-btn", title: "Close", onclick: close }, "×")),
       Array.isArray(props.emails) && props.emails.length ? el("div", { class: "peek-line" }, props.emails.join(", ")) : null,
       note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1").slice(0, 300)) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
-      place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, place.kind === "page" ? "Open page" : "Open canvas") : null,
+      place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, { page: "Open page", canvas: "Open canvas", thread: "Open the conversation" }[place.kind] || "Open") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
       order.map((name) => group(name, groups.get(name), api, opts)),
     ].flat().filter((x) => x != null));
@@ -224,7 +231,8 @@ window.Peek = (() => {
       if (!list.length) { host.replaceChildren(...(dismissed ? [el("div", { class: "peek-label peek-shead" }, "Possible connections", reset())] : [])); return; }
       host.replaceChildren(el("div", { class: "peek-label peek-shead" }, `Possible connections · ${list.length}`, reset()), ...list.map((s) => el("div", { class: "peek-srow" },
         el("div", { class: "peek-stop" },
-          el("button", { class: "peek-item", title: "Open it", onclick: () => s.id && opts.open && opts.open(s.id, s) }, el("span", { class: "peek-t" }, s.title)),
+          el("button", { class: "peek-item", title: "Open it", onclick: () => (s.id ? opts.open && opts.open(s.id, s) : placeOfKey(s.key) && opts.openPlace && opts.openPlace(placeOfKey(s.key))) },
+            el("span", { class: "peek-t" }, s.title)),
           el("button", { class: "icon-btn peek-no", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
         el("div", { class: "peek-why" }, s.why.join(" · ")),
         el("div", { class: "peek-ways" }, s.ways.map((w) => {

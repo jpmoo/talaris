@@ -41,7 +41,10 @@
   // What is shown: a project ("" is all of them), a view, and the filters.
   let view = store.get("talaris.files.view", "folders");
   let project = null;
-  let filters = { q: "", status: "", type: "", days: 0, tags: [] };
+  let filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
+  // The chosen project's lists (the core's filelists.ts), as a tree; and the lists of each project asked for, by id.
+  let lists = [];
+  const listsOf = new Map();
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
@@ -80,16 +83,21 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder" };
+  const STATUS = { folder: "In the folder", page: "A writing page", canvas: "A canvas", conversation: "A conversation with Morgan", shortcut: "Shortcut", linked: "Linked on a task",
+    snapshot: "Stored on a task", missing: "Missing from its folder" };
   // A row says only where its file really is, when that is not simply the project's folder: a shortcut, a link, a copy
   // stored on a task, gone missing. A page is plain from its group (Writing) and Open; what it is on, and whether it is
   // read, are the details' to say, not the list's.
   const MARK = { shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "stored on a task", missing: "missing" };
-  const TYPES = [["page", "Pages"], ["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
+  const TYPES = [["page", "Pages"], ["canvas", "Canvases"], ["conversation", "Conversations"], ["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
+  const TYPE_ONE = { page: "Page", canvas: "Canvas", conversation: "Conversation", document: "Document", spreadsheet: "Spreadsheet", presentation: "Presentation",
+    pdf: "PDF", image: "Image", audio: "Audio", video: "Video", code: "Code", archive: "Archive", other: "Other" };
+  // A canvas or a thread is not a file: its row's mark says what it is, as an extension does a file's.
+  const MARK_OF = { canvas: "CNV", conversation: "TLK" };
   const TYPE_COLOR = { document: "#7f9fbf", spreadsheet: "#8aa878", presentation: "#c98a5b", pdf: "#c26b6b", image: "#b97f8e", audio: "#5fa4b5",
-    video: "#6c7277", code: "#868c92", archive: "#c7a55a", other: "#9a9a9a" };
+    video: "#6c7277", code: "#868c92", archive: "#c7a55a", other: "#9a9a9a", canvas: "#8f86c4", conversation: "#5f9e8f" };
   const ON_KIND = { task: "task", contact: "person", event: "event", note: "note", project: "project", thing: "thing" };
   const projectName = (id) => (projects.find((p) => p.id === id) || {}).name || "a project";
   const size = (n) => (n == null ? "" : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
@@ -115,6 +123,17 @@
     return "";
   }
 
+  /** A tree of lists, flat: each with its depth and the names it is inside. */
+  function flat(tree, depth = 0, path = []) {
+    return tree.flatMap((l) => [{ ...l, depth, path }, ...flat(l.children, depth + 1, [...path, l.name])]);
+  }
+  /** A project's lists, asked once and kept until the next load. */
+  async function listsFor(projectId) {
+    if (!listsOf.has(projectId)) listsOf.set(projectId, await api("GET", `/files/lists?project=${enc(projectId)}`).catch(() => []));
+    return listsOf.get(projectId);
+  }
+  const listName = (id) => (flat(lists).find((l) => l.id === id) || {}).name || "the list";
+
   // ---------------------------------------------------------------- loading
 
   async function loadProjects() {
@@ -130,10 +149,15 @@
     if (filters.type) q.set("type", filters.type);
     if (filters.days) q.set("days", String(filters.days));
     for (const t of filters.tags) q.append("tag", t);
+    const inProject = project && project !== "notes";
+    if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
     watched = project && project !== "notes" ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
     counts = await api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts);
+    lists = inProject ? await api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [];
+    if (inProject) listsOf.set(project, lists);
+    if (filters.list && !flat(lists).some((l) => l.id === filters.list)) filters.list = "";
     readState = got.read || {};
     readAbout = got.about || {};
     reading = got.reading || reading;
@@ -193,6 +217,13 @@
           try { await api("DELETE", `/files/folder?project=${enc(f.project)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} no longer watched; what was linked stays`); } catch (e) { failed(e); }
           reload();
         } }, "×"))),
+      // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
+      project && project !== "notes" ? el("div", { class: "s-head" }, "Lists", el("button", { class: "s-add", title: "A new list", onclick: () => newList(null) }, "+")) : null,
+      ...(project && project !== "notes" ? flat(lists) : []).map((l) => {
+        const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
+        b.style.paddingLeft = `${12 + l.depth * 14}px`;
+        return b;
+      }),
       shown.length ? el("div", { class: "s-head" }, "Tags") : null,
       ...shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
@@ -219,6 +250,9 @@
       if (view === "type") put(TYPE_WORD[r.type] || "Other", r, [TYPES.findIndex((t) => t[0] === r.type)]);
       else if (view === "date") put(dateGroup(r.mtime), r, [DATES.indexOf(dateGroup(r.mtime))]);
       // By folder, project by project in their order: the top first, the folders by name, then what is not in the folder.
+      else if (filters.list) put(listName(filters.list), r, [0]);
+      else if (r.status.includes("canvas")) put(`${pre}Canvases`, r, [pIndex(r.project), 3, ""]);
+      else if (r.status.includes("conversation")) put(`${pre}Conversations with Morgan`, r, [pIndex(r.project), 4, ""]);
       else if (!r.path) put(`${pre}From elsewhere`, r, [pIndex(r.project), 2, ""]);
       else put(`${pre}${whereOf(r) || "Top"}`, r, [pIndex(r.project), whereOf(r) ? 1 : 0, whereOf(r).toLowerCase()]);
     }
@@ -231,7 +265,7 @@
     const where = view === "folders" ? "" : (project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`);
     return el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
       onclick: (e) => pick(r.key, e), ondblclick: () => open(r) },
-      el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
+      el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, MARK_OF[r.type] || (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
         ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
@@ -239,7 +273,7 @@
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
       book(r),
       // What kind of file, in the words of the Type list on the left: a page is a page.
-      el("span", { class: "type" }, r.status.includes("page") ? "Page" : TYPE_WORD[r.type] ? TYPE_WORD[r.type].replace(/s$/, "") : "Other"),
+      el("span", { class: "type" }, r.status.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
   }
@@ -257,7 +291,9 @@
 
   function drawRows() {
     if (!rows.length) {
-      $("rows").replaceChildren(el("div", { class: "empty" }, filters.q || filters.status || filters.type || filters.days || filters.tags.length
+      $("rows").replaceChildren(el("div", { class: "empty" }, filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
+        ? `Nothing in ${listName(filters.list)} yet. Choose a file, then Add to a list.`
+        : filters.q || filters.status || filters.type || filters.days || filters.tags.length
         ? "Nothing like that." : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
@@ -294,12 +330,16 @@
   function drawDetail() {
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     const r = rows.find((x) => x.key === chosen);
+    if (!r && filters.list) { drawList(); return; }
     if (!r) { $("detail").replaceChildren(el("div", { class: "empty" }, "Choose a file to see what it is and what can be done with it.")); return; }
     const s = r.status;
     const said = [];
     if (s.includes("folder")) said.push(el("span", {}, el("b", {}, "In the folder"), ` of ${projectName(r.project)}.`));
     if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A writing page"), " — Writing opens it, and moves and renames it with its children."));
-    if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
+    if (s.includes("canvas")) said.push(el("span", {}, el("b", {}, "A canvas"), ` of ${projectName(r.project)}.`));
+    if (s.includes("conversation")) said.push(el("span", {}, el("b", {}, "A conversation with Morgan"), ", as Morgan filed it. It lives in Home."));
+    if (s.includes("shortcut") && r.thing) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a ${r.type === "canvas" ? "canvas" : "conversation with Morgan"} that lives in ${projectName((r.alsoIn || [])[0])}.`));
+    else if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
     if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", by a shortcut there" : ""}.`));
     if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked on a task"), " from where it lives, outside every project."));
     if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""} — in no folder until it is saved to the project's.`));
@@ -313,14 +353,22 @@
     else if (!reading.on && !s.includes("page") && !s.includes("missing")) said.push(el("span", {}, "Not read: search by meaning is off (Settings, Data)."));
     const lines = [
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
-      ["Type", TYPE_WORD[r.type] || "Other"],
+      ["Type", s.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"],
       r.size != null ? ["Size", size(r.size)] : null,
       r.mtime ? ["Changed", new Date(r.mtime).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })] : null,
     ].filter(Boolean);
     const acts = [];
     const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
     if (s.includes("page")) act("Open in Writing", () => bridge.page(r.project, r.path));
+    else if (r.thing && !s.includes("missing")) act(r.type === "conversation" ? "Open the conversation" : "Open the canvas", () => open(r));
     else if (!s.includes("missing")) act(s.includes("snapshot") || r.sealed ? "Open a copy" : "Open", () => open(r));
+    // A canvas or a conversation, in another project too: a shortcut there; one there already, gone to.
+    if (r.thing && !s.includes("shortcut")) act("Also in another project…", () => inline("also-thing", r));
+    if (r.thing && s.includes("shortcut") && r.alsoIn && r.alsoIn[0]) act(`Go to it in ${projectName(r.alsoIn[0])}`, () => {
+      project = r.alsoIn[0]; chosen = r.type === "conversation" ? `t:${r.thing.split("/").pop()}` : `v:${r.thing.slice(7)}`; filters.list = ""; reload();
+    });
+    // In this project's lists (a list holds only what is in its project).
+    if (r.project !== "notes" && !s.includes("missing")) act("Add to a list…", () => inline("list", r));
     if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Pin to the dock", () => { bridge.pin(r.abs, r.name); say(`${r.name} pinned to the dock, in this project`); });
     if (s.includes("folder") && !s.includes("page")) {
@@ -353,6 +401,7 @@
     const sugg = gkey && window.Peek ? Peek.suggestions(gkey, api, {
       open: (id) => Peek.show(id, api, { openTask: (t) => bridge.openTask(t), openPerson: (p) => bridge.openPerson(p),
         openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), openEvent: (c, u, st) => bridge.openEvent(c, u, st), openUrl: (u) => bridge.openUrl(u) }),
+      openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where),
       changed: (res) => { say(res.said || "Done"); reload(); },
     }) : null;
 
@@ -362,10 +411,10 @@
     const textKey = s.includes("shortcut") ? `att:${r.key}` : gkey;
     const readHost = rs === "read" && gkey ? el("div", { class: "d-read" }) : null;
     // A page: its description alone (its words are Writing's to show), as written by Morgan or by you.
-    if (readHost && s.includes("page")) {
+    if (readHost && (s.includes("page") || r.thing)) {
       api("GET", `/files/page-about?key=${enc(gkey)}`).then((t) => {
         if (chosen !== r.key || !t || !t.read) return;
-        readHost.replaceChildren(...aboutEditor("About it", t.about, t.aboutByYou, "What the page is, and what it is about — being described…",
+        readHost.replaceChildren(...aboutEditor("About it", t.about, t.aboutByYou, `What the ${r.type === "conversation" ? "conversation" : r.type === "canvas" ? "canvas" : "page"} is, and what it is about — being described…`,
           (about) => api("PUT", "/files/page-about", { key: gkey, about })));
       }).catch(() => {});
     } else if (readHost) {
@@ -395,6 +444,14 @@
     }
 
     const taggable = (s.includes("folder") && !s.includes("page")) || s.includes("shortcut");
+    // The lists it is in, each to take it out of.
+    const inLists = r.project !== "notes" ? el("div", { class: "chips d-lists" }) : null;
+    if (inLists) api("GET", `/files/lists/holding?project=${enc(r.project)}&key=${enc(r.key)}`).then((held) => {
+      if (chosen !== r.key || !held.length) return;
+      inLists.replaceChildren(el("div", { class: "d-sub" }, "In lists"), ...held.map((l) => el("span", { class: "chip" }, l.name,
+        el("button", { title: "Take it out of this list (nothing is deleted)", onclick: () => api("DELETE", `/files/lists/${enc(l.id)}/items`, { project: r.project, keys: [r.key] })
+          .then(() => { say(`Out of ${l.name}`); return load(); }).catch(failed) }, "×"))));
+    }).catch(() => {});
     $("detail").replaceChildren(...[
       el("h2", {}, r.name),
       el("div", { class: "d-status" }, ...said.flatMap((x, i) => (i ? [" ", x] : [x]))),
@@ -403,6 +460,7 @@
       ...r.on.map((o) => el("button", { class: "on-item", onclick: () => bridge.thing(o.kind === "contact" ? "person" : o.kind, o.id) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
       taggable ? el("div", { class: "d-sub" }, "Tags") : null,
       taggable ? tagEditor(r) : null,
+      inLists,
       el("div", { class: "d-sub" }, "Do"),
       el("div", { class: "d-acts" }, ...acts),
       el("div", { id: "inline" }),
@@ -412,6 +470,7 @@
 
   /** What Glance knows a file by: a folder's by its place, a page as a page, a shortcut by its entity, anything else by its row. */
   function glanceKey(r) {
+    if (r.thing && !r.status.includes("missing")) return r.thing;
     if (r.status.includes("page") && r.path) return `page:${r.project}/${r.path.replace(/^Writing\//, "").replace(/\.md$/, "")}`;
     if (r.status.includes("folder") && r.path) return `file:${r.project}/${r.path}`;
     if (r.status.includes("shortcut") && r.entity) return `e:${r.entity}`;
@@ -446,6 +505,11 @@
     });
     if (linkable.length) act(`Connect to a task…${of(linkable)}`, () => inlineMany("attach", linkable));
     if (taggable.length) act(`Add a tag…${of(taggable)}`, () => inlineMany("tag", taggable));
+    // Into a list: all of one project's, since a list holds only its project's.
+    const theirs = [...new Set(list.map((r) => r.project))];
+    if (theirs.length === 1 && theirs[0] !== "notes") act("Add to a list…", () => { const host = $("inline"); host.className = "inline"; listPicker(host, theirs[0], list); });
+    if (filters.list) act(`Take out of ${listName(filters.list)}`, () => done(`out of ${listName(filters.list)}; nothing deleted`,
+      [() => api("DELETE", `/files/lists/${enc(filters.list)}/items`, { project, keys: list.map((r) => r.key) })]));
     if (shortcuts.length) act(armed === "many-sc" ? `Yes, take ${shortcuts.length} shortcuts away` : `Remove the shortcuts${of(shortcuts)}`, () => {
       if (armed !== "many-sc") { armed = "many-sc"; drawDetail(); return; }
       armed = "";
@@ -465,6 +529,72 @@
       el("div", { class: "d-sub" }, "Do, to all of them"),
       el("div", { class: "d-acts" }, ...acts),
       el("div", { id: "inline" }));
+  }
+
+  /** The lists of a project to put things in: each a button, and one more made by name. */
+  async function listPicker(host, projectId, list) {
+    const all = flat(await listsFor(projectId));
+    const put = (id, name) => api("POST", `/files/lists/${enc(id)}/items`, { project: projectId, keys: list.map((r) => r.key) }).then((x) => {
+      say(`${x.added ? `${x.added === 1 && list.length === 1 ? list[0].name : `${x.added}`} in ${name}` : `Already in ${name}`}${x.refused.length ? `; ${x.refused.length} not in ${projectName(projectId)}, so not` : ""}`);
+      listsOf.delete(projectId);
+      return load();
+    }).catch(failed);
+    const name = el("input", { type: "text", placeholder: "A new list, then Enter", spellcheck: "false" });
+    name.addEventListener("keydown", async (e) => {
+      if (e.key !== "Enter" || !name.value.trim()) return;
+      try { const l = await api("POST", "/files/lists", { project: projectId, name: name.value.trim() }); await put(l.id, l.name); } catch (err) { failed(err); }
+    });
+    host.replaceChildren(all.length ? el("div", { class: "pick-list" }, ...all.map((l) => el("button", { class: "t-btn", onclick: () => put(l.id, l.name) }, [...l.path, l.name].join(" › ")))) : null, name);
+    name.focus();
+  }
+
+  /** A new list, at the top or inside another, named where it will be. */
+  function newList(parent) {
+    const host = $("detail");
+    const name = el("input", { type: "text", placeholder: parent ? `A list inside ${listName(parent)}` : `A new list in ${projectName(project)}`, spellcheck: "false" });
+    const go = () => name.value.trim() && api("POST", "/files/lists", { project, name: name.value.trim(), parent }).then((l) => { filters.list = l.id; chosen = null; say(`${l.name} made: add to it from any file's details`); return load(); }).catch(failed);
+    name.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") drawDetail(); });
+    host.replaceChildren(el("h2", {}, parent ? `A list inside ${listName(parent)}` : "A new list"),
+      el("div", { class: "d-status" }, "A list holds things of this project's without moving them: a file can be in any number of lists."),
+      el("div", { class: "inline" }, name, el("button", { class: "t-btn", onclick: go }, "Make it")));
+    name.focus();
+  }
+
+  /** The list chosen, with nothing in it chosen: what it is, and renaming, a list inside, moving it, deleting it. */
+  function drawList() {
+    const all = flat(lists);
+    const l = all.find((x) => x.id === filters.list);
+    if (!l) return;
+    const acts = [];
+    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
+    act("Rename", () => {
+      const host = $("inline"); host.className = "inline";
+      const name = el("input", { type: "text", value: l.name, spellcheck: "false" });
+      const go = () => api("PUT", `/files/lists/${enc(l.id)}`, { project, name: name.value }).then(reload, failed);
+      name.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+      host.replaceChildren(name, el("button", { class: "t-btn", onclick: go }, "Rename"));
+      name.focus(); name.select();
+    });
+    act("A list inside it…", () => newList(l.id));
+    act("Move it…", () => {
+      const host = $("inline"); host.className = "inline";
+      // Anywhere but inside itself.
+      const inside = new Set([l.id, ...flat(l.children).map((x) => x.id)]);
+      const to = (parent) => api("PUT", `/files/lists/${enc(l.id)}`, { project, parent }).then(reload, failed);
+      host.replaceChildren(el("div", { class: "pick-list" }, l.parent ? el("button", { class: "t-btn", onclick: () => to(null) }, "To the top") : null,
+        ...all.filter((x) => !inside.has(x.id) && x.id !== l.parent).map((x) => el("button", { class: "t-btn", onclick: () => to(x.id) }, `Inside ${[...x.path, x.name].join(" › ")}`))));
+    });
+    act(armed === `list:${l.id}` ? `Yes, delete ${l.name}${l.children.length ? " and the lists in it" : ""}` : "Delete the list…", () => {
+      if (armed !== `list:${l.id}`) { armed = `list:${l.id}`; drawDetail(); return; }
+      armed = "";
+      api("DELETE", `/files/lists/${enc(l.id)}?project=${enc(project)}`).then(() => { say(`${l.name} deleted; what it held is where it was`); filters.list = ""; return load(); }).catch(failed);
+    }, `danger${armed === `list:${l.id}` ? " armed" : ""}`);
+    $("detail").replaceChildren(...[
+      el("h2", {}, l.name),
+      el("div", { class: "d-status" }, `${l.count} thing${l.count === 1 ? "" : "s"}${l.children.length ? `, with ${l.children.length} list${l.children.length === 1 ? "" : "s"} inside it` : ""}${l.path.length ? `. Inside ${l.path.join(" › ")}.` : "."} A list holds without moving: deleting it, or taking something out, deletes nothing.`),
+      el("div", { class: "d-sub" }, "Do"),
+      el("div", { class: "d-acts" }, ...acts),
+      el("div", { id: "inline" })]);
   }
 
   /** A description, editable: its label (and whose it is), the box, and Save once it is changed; `put` saves it. */
@@ -570,6 +700,13 @@
       host.replaceChildren(left.length ? el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/shortcut", { project: p.id, path: r.abs })
         .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name)))
         : el("span", { class: "hint" }, "It is in every project already."));
+    } else if (what === "also-thing") {
+      // A shortcut in the project chosen: the canvas or conversation stays where it lives, and is in that one too.
+      const left = projects.filter((p) => p.id !== r.project && !p.pagesOnly);
+      host.replaceChildren(el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/thing-shortcut", { project: p.id, key: r.thing })
+        .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name))));
+    } else if (what === "list") {
+      listPicker(host, r.project, [r]);
     } else if (what === "attach") {
       const q = el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" });
       const found = el("div", { style: "width:100%" });
@@ -592,6 +729,11 @@
 
   function open(r) {
     if (r.status.includes("page")) { bridge.page(r.project, r.path); return; }
+    if (r.thing && !r.status.includes("missing")) {
+      const kind = r.thing.slice(0, r.thing.indexOf(":")), rest = r.thing.slice(kind.length + 1), at = rest.indexOf("/");
+      bridge.openPlace(kind, rest.slice(0, at), rest.slice(at + 1));
+      return;
+    }
     if (r.status.includes("missing")) { say(`${r.name} is missing from its folder`, true); return; }
     if (r.status.includes("snapshot") || r.sealed) {
       api("POST", "/files/open-copy", r.sha256 ? { sha256: r.sha256, name: r.name } : { project: r.project, path: r.path })
@@ -711,6 +853,8 @@
   function setProject(id) {
     project = id;
     chosen = null;
+    // A list is one project's: another project, no list.
+    filters.list = "";
     reload();
   }
   function keepView() {

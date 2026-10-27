@@ -91,9 +91,9 @@
   // The header's order for the chips; the list's own order differs (LIST_ORDER), as asked.
   const GROUPS = [
     ["page", "Pages"], ["canvas", "Canvases"], ["task", "Tasks"], ["file", "Files"], ["contact", "People"],
-    ["event", "Events"], ["project", "Projects"], ["other", "Other"],
+    ["event", "Events"], ["conversation", "Conversations"], ["project", "Projects"], ["other", "Other"],
   ];
-  const LIST_ORDER = ["page", "canvas", "task", "file", "event", "contact", "project", "other"];
+  const LIST_ORDER = ["page", "canvas", "task", "file", "event", "contact", "conversation", "project", "other"];
   const NAME = Object.fromEntries(GROUPS);
   const KNOWN = new Set(GROUPS.map(([k]) => k));
   // A note is a page, wherever it is written: one group, one name.
@@ -106,6 +106,7 @@
   const KIND_ICON = {
     page: ic('<path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3M6 8.5h4M6 11h4"/>'),
     canvas: ic('<rect x="2" y="2" width="12" height="12" rx="2"/><rect x="4.5" y="5" width="4.5" height="3.5" rx=".6"/>'),
+    conversation: ic('<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>'),
     task: ic('<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 8.2 7.3 10l3.4-4"/>'),
     file: ic('<path d="M11 6.5 7 10.5a1.4 1.4 0 0 1-2-2l4.6-4.6a2.6 2.6 0 0 1 3.7 3.7L8.6 12.3a3.9 3.9 0 0 1-5.5-5.5L6.5 3.4"/>'),
     contact: ic('<circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>'),
@@ -201,7 +202,7 @@
     // A project — this one or another tied to it — is gone to: its desktop.
     if (n.kind === "project") { if (n.projectId) bridge.goProject(n.projectId); return; }
     if (n.key && n.key.startsWith("att:")) { bridge.openFile(n.abs || "", n.sha256 || "", n.title || ""); return; }
-    if (n.place && (n.place.kind === "page" || n.place.kind === "canvas")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
+    if (n.place && (n.place.kind === "page" || n.place.kind === "canvas" || n.place.kind === "thread")) { bridge.openPlace(n.place.kind, n.place.project, n.place.where); return; }
     if (n.path && data) { bridge.openProjectFile(n.fileProject || data.project.id, n.path); return; }
     if (n.kind === "task" && n.id) { bridge.openTask(n.id); return; }
     if (n.id) Peek.show(n.id, api, { openPlace: (p) => bridge.openPlace(p.kind, p.project, p.where), openTask: (id) => bridge.openTask(id),
@@ -612,8 +613,8 @@
     }
 
     // "3 people, 1 task further": what the spikes stand for, in words.
-    const ONE = { page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", event: "event", note: "note", project: "project", other: "other" };
-    const MANY = { page: "pages", canvas: "canvases", task: "tasks", file: "files", contact: "people", event: "events", note: "notes", project: "projects", other: "others" };
+    const ONE = { page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", event: "event", note: "note", conversation: "conversation", project: "project", other: "other" };
+    const MANY = { page: "pages", canvas: "canvases", task: "tasks", file: "files", contact: "people", event: "events", note: "notes", conversation: "conversations", project: "projects", other: "others" };
     const further = (b) => Object.entries(b).map(([k, c]) => `${c} ${(c === 1 ? ONE : MANY)[KNOWN.has(k) ? k : "other"]}`).join(", ") + " further";
 
     function placeTip() {
@@ -786,7 +787,7 @@
   // ---------------------------------------------------------------- suggested ties
 
   // The core's kinds for a suggestion, as the glance's.
-  const SUG_KIND = { person: "contact", page: "page", note: "page", task: "task", event: "event", file: "file", project: "project" };
+  const SUG_KIND = { person: "contact", page: "page", note: "page", task: "task", event: "event", file: "file", project: "project", canvas: "canvas", conversation: "conversation" };
   /** A node for a key not in the glance: enough to walk to it and open it. */
   function nodeFor(s) {
     const body = s.key.slice(s.key.indexOf(":") + 1);

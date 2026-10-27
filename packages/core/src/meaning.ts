@@ -38,7 +38,7 @@ import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
-import { canvasTree, canvasWords, projectCanvases } from "./canvases.js";
+import { canvasName, canvasTree, canvasWords, projectCanvases } from "./canvases.js";
 import { homeId, threadById, threadText, threads } from "./threads.js";
 import type { CanvasNode } from "@talaris/model";
 import { seal, unseal } from "./seal.js";
@@ -152,14 +152,14 @@ function pageDocs(): Doc[] {
   return out;
 }
 
-/** Every project's canvases. */
+/** Every project's canvases. The "c2": how a canvas is read changed once (its title no longer twice, an empty one empty): each read again. */
 function canvasDocs(): Doc[] {
   const out: Doc[] = [];
   for (const p of listProjects()) {
     let top: CanvasNode;
     try { top = canvasTree(p.id); } catch { continue; }
     const walk = (n: CanvasNode) => {
-      out.push({ key: `canvas:${p.id}/${n.id}`, kind: "canvas", title: n.title, project: p.id, path: n.id, stamp: String(n.modified ?? "") });
+      out.push({ key: `canvas:${p.id}/${n.id}`, kind: "canvas", title: canvasName(p.id, n), project: p.id, path: n.id, stamp: `${n.modified ?? ""}|c2` });
       n.children.forEach(walk);
     };
     walk(top);
@@ -173,10 +173,10 @@ function threadDocs(): Doc[] {
   return threads().map((t) => ({ key: `thread:${home}/${t.id}`, kind: "thread" as const, title: t.title, project: home, path: t.id, stamp: fingerprint(threadText(t)) }));
 }
 
-/** A canvas's words, as it is now; "" if it is gone. */
+/** A canvas's words, as it is now, but its title (which leads each passage); "" if it is gone or has nothing on it. */
 function canvasText(d: Doc): string {
   const doc = projectCanvases(d.project!).find((c) => c.id === d.path);
-  return doc ? canvasWords(doc) : "";
+  return doc ? canvasWords(doc, false) : "";
 }
 
 const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project", event: "event" };
@@ -459,7 +459,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
       } else if (d.kind === "canvas") {
         const about = pageAbout(d.key, d.stamp);
         const words = canvasText(d);
-        texts = passages(d.title, about ? `About: ${about}\n\n${words}` : words);
+        // Nothing on it: kept with no passages, so it is known as read and empty, and is near nothing.
+        texts = words.trim() ? passages(d.title, about ? `About: ${about}\n\n${words}` : words) : [];
       } else if (d.kind === "thread") {
         // Morgan's summary is its description; one written by the person stands in its place.
         const t = threadById(d.path!);
@@ -557,8 +558,8 @@ async function describeFiles(most = 150, minutes = 10): Promise<number> {
     } else if (e.doc.kind === "canvas") {
       if (pageAbout(e.doc.key, e.doc.stamp) !== undefined) continue;
       try { text = canvasText(e.doc); } catch { continue; }
-      // A canvas of a title and nothing on it has nothing to describe.
-      if (text.trim() === e.doc.title.trim()) continue;
+      // A canvas with nothing on it has nothing to describe.
+      if (!text.trim()) continue;
     } else continue;
     if (!text.trim()) continue;
     status.doing = e.doc.title;

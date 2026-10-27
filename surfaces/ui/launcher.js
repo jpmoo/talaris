@@ -267,12 +267,14 @@ function draw() {
     const dayOf = (s) => new Date(s.length > 10 ? s : `${s}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const detail = (r) => r.kind === "task" ? (r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task")
       : r.kind === "person" ? "Person"
+      : r.kind === "conversation" ? `Conversation with Morgan${r.updated ? ` · ${dayOf(r.updated)}` : ""}`
       : r.kind === "note" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
       : `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`;
     const row = (r, sub = detail(r)) => {
       ids.add(r.id || `${r.calendar}:${r.uid}`);
-      const key = r.kind === "event" ? `event:${r.calendar}:${r.uid}` : `${r.kind}:${r.id}`;
+      const key = r.kind === "event" ? `event:${r.calendar}:${r.uid}` : r.kind === "conversation" ? `conversation:${r.thread}` : `${r.kind}:${r.id}`;
       const act = r.kind === "task" || r.kind === "person" ? { kind: "entity", id: r.id, as: r.kind }
+        : r.kind === "conversation" ? { kind: "conversation", id: r.thread }
         : r.kind === "note" ? { kind: "page", project: r.project, path: r.path }
         : { kind: "event", calendar: r.calendar, uid: r.uid, start: r.start };
       return { kind: r.kind, key, title: r.kind === "event" ? r.title || "(no title)" : r.title, sub, act };
@@ -307,7 +309,15 @@ function draw() {
       // A file by what it says: one in a folder opened from there; one only on things, in Glance with them. An event, in Glance too.
       if (r.kind === "file" && !(r.key.startsWith("file:p:") && r.path)) continue;
       const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
-        : { task: "Task", person: "Person", file: "File", event: "Event" }[r.kind] || "Thing";
+        : { task: "Task", person: "Person", file: "File", event: "Event", canvas: "Canvas", thread: "Conversation with Morgan" }[r.kind] || "Thing";
+      // A canvas opened in its project; one of Morgan's threads, as its conversation — once, whichever way it was found.
+      if (r.kind === "thread" && shown.some((x) => x.key === `conversation:${r.path}`)) continue;
+      if (r.kind === "canvas" || r.kind === "thread") {
+        shown.push({ kind: r.kind === "canvas" ? "canvas" : "conversation", key: r.kind === "thread" ? `conversation:${r.path}` : `meaning:${r.key}`, title: r.title,
+          sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
+          act: r.kind === "canvas" ? { kind: "canvas", project: r.project, id: r.path } : { kind: "conversation", id: r.path } });
+        continue;
+      }
       shown.push({ kind: r.kind === "file" ? "file" : "page", key: `meaning:${r.key}`, title: r.title, sub: `By meaning · ${where}${r.passage ? ` · “${r.passage.slice(0, 70)}”` : ""}`,
         act: r.kind === "page" ? { kind: "page", project: r.project, path: r.path } : r.kind === "file" ? { kind: "file", project: r.project, path: r.path }
           : r.kind === "event" ? { kind: "glance", key: `e:${r.id}` } : { kind: "entity", id: r.id, as: AS[r.kind] || "" } });
@@ -316,6 +326,7 @@ function draw() {
   // A tag search is a question about tags: past conversations that happen to hold the word are not an answer to it.
   if (query.trim() && !tagAsked && talked.query === query.trim().replace(/\s+/g, " ")) {
     for (const r of talked.results.slice(0, TALKED)) {
+      if (shown.some((x) => x.key === `conversation:${r.id}`)) continue;
       shown.push({ kind: "conversation", key: `conversation:${r.id}`, title: r.title, sub: `${r.when}${r.said ? ` · “${r.said.slice(0, 80)}”` : ""}`,
         act: { kind: "conversation", id: r.id } });
     }

@@ -46,6 +46,7 @@ meaning.setEmbedder(async (_s, texts) => texts.map((t) => {
 
 const home = projects.ensureHome();
 const garden = projects.createProject("Garden");
+const bare = projects.createProject("Bare");
 const T = 1792900000000;
 const thread = (n: number, title: string, summary: string, ts: number[]) => ({ id: `${ts[0]}-${n}`, t0: ts[0]!, t1: ts.at(-1)!, title, summary, exchanges: ts.length, ts });
 
@@ -59,7 +60,7 @@ test("a canvas's words, read top to bottom and left to right", () => {
 });
 
 test("canvases and threads are rows in Files: canvases in their project, threads in Home", () => {
-  threads.setThreads([thread(0, "Tomato blight", "Tomato seedlings wilted in the raised beds; order compost.", [T, T + 1000]),
+  threads.setThreads([thread(0, "Garden canvas talk", "Tomato seedlings wilted in the raised beds; order compost.", [T, T + 1000]),
     thread(1, "Dinner plans", "Pasta on Friday.", [T + 5000])]);
   const rows = files.listFiles().rows;
   const canvas = rows.find((r) => r.type === "canvas" && r.project === garden.id)!;
@@ -79,6 +80,11 @@ test("canvases and threads are read and embedded; a thread's description is Morg
   const canvas = rows.find((r) => r.type === "canvas" && r.project === garden.id)!;
   assert.equal(states.read[canvas.key], "read");
   assert.equal(states.read[`t:${T}-0`], "read");
+  // A canvas with nothing on it: read, nothing in it — and near nothing, so suggested for nothing.
+  const empty = rows.find((r) => r.type === "canvas" && r.project === bare.id)!;
+  assert.equal(states.read[empty.key], "nowords");
+  assert.equal(suggest.suggestionsFor(empty.thing!).suggestions.length, 0);
+  assert.equal(suggest.thing(empty.thing!).title, "Bare canvas");
   assert.match(states.about[`t:${T}-0`]!, /wilted/);
   const key = `thread:${home.id}/${T}-0`;
   assert.ok(meaning.editPageDescription(key, "Blight, and what to do about it"));

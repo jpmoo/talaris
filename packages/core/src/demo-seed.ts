@@ -31,6 +31,10 @@ import { createPage, writePage } from "./pages.js";
 import { putProjectFile } from "./projects.js";
 import { attachFile, createTask, createTaskProject, setRecurrence } from "./tasks.js";
 import { newId } from "./store.js";
+import { canvasTree, readCanvas, writeCanvas } from "./canvases.js";
+import { addToList, createList as createFileList } from "./filelists.js";
+import { homeId, setThreads } from "./threads.js";
+import { makeThingShortcut } from "./files.js";
 
 const SEEDED = () => join(DEMO_ROOT, "seeded");
 
@@ -144,7 +148,7 @@ export function seedDemo(): boolean {
   page(kitchen, "Ideas", `# Kitchen\n\n- Open shelving on the window wall\n- Keep the old pantry door\n- ${m(sam)} thinks the island can be moved 30cm\n`);
   putProjectFile(folder(web), "sitemap.md", Buffer.from("# Sitemap\n\n- Home\n- About\n- Programs\n- Events\n- Donate\n"));
   putProjectFile(folder(board), "budget.csv", Buffer.from("Item,Planned,Actual\nPrograms,42000,39850\nOutreach,8000,8420\nAdmin,12000,11760\n"));
-  putProjectFile(folder(garden), "volunteers.txt", Buffer.from("Saturday workday\n\n9:00 Setup\n10:00 Beds\n12:00 Lunch\n"));
+  const volunteers = putProjectFile(folder(garden), "volunteers.txt", Buffer.from("Saturday workday\n\n9:00 Setup\n10:00 Beds\n12:00 Lunch\n"));
   attachFile(t.budget.id, Buffer.from("Item,Q1,Q2,Q3\nPrograms,10400,9800,10150\nOutreach,1900,2210,2050\n"), "quarterly.csv", "text/csv");
   // Files whose words name people and projects: read for search, and suggested where they belong.
   putProjectFile(folder(board), "March minutes.md", Buffer.from("# Board meeting — March\n\nPresent: Daniel Okafor (chair), Lena Novak, Marcus Bell.\n\n"
@@ -189,6 +193,41 @@ export function seedDemo(): boolean {
   createList({ name: "This week", kind: "table", query: { kind: "group", match: "all", items: [...open.items, { kind: "property", key: "schedule.end", op: "lt", value: "today+7" }] },
     order: { sort: [{ by: { field: "schedule", part: "end" }, direction: "ascending" }] } });
   createList({ name: "Done recently", kind: "list", query: { kind: "group", match: "all", items: [{ kind: "profile", profile: "task" }, { kind: "state", value: "complete" }] } });
+
+  // ---- the garden's canvas, with something on it to read: the workday, as planned on it
+  const gardenCanvas = readCanvas(folder(garden), canvasTree(folder(garden)).id);
+  gardenCanvas.items.push(
+    { id: newId("it"), x: 40, y: 40, w: 220, h: 90, text: "Workday plan\n\nSetup at nine, beds at ten, lunch at noon." },
+    { id: newId("it"), x: 300, y: 40, w: 220, h: 90, text: "Raised beds: cedar, two of 1.2 x 2.4 m, about twelve boards." },
+    { id: newId("it"), x: 40, y: 170, w: 220, h: 90, text: "Ask Park & Sons Hardware to donate the lumber." },
+    { id: newId("it"), x: 300, y: 170, w: 220, h: 90, text: "Compost bin latch is broken: bring a new one." });
+  writeCanvas(folder(garden), gardenCanvas);
+
+  // ---- Morgan's threads (threads.ts): made up, as Morgan files them; in demo the real Morgan is never asked for its own
+  const hours = (h: number) => Date.now() - h * 3_600_000;
+  const thread = (n: number, title: string, summary: string, at: number, exchanges: number) => {
+    const ts = Array.from({ length: exchanges }, (_, i) => at + i * 60_000);
+    return { id: `${ts[0]}-${n}`, t0: ts[0]!, t1: ts.at(-1)!, title, summary, exchanges, ts };
+  };
+  const threads = [
+    thread(0, "Donate button: header or sticky bar", "Talked through where the donate button should go on phones. Priya Raman wants a sticky bar; "
+      + "Maya Chen wants it in the header. Morgan suggested trying both at the design review and keeping whichever gets more taps.", hours(30), 4),
+    thread(1, "Lumber for the raised beds", "Worked out how much cedar the two raised beds need for the garden workday: about twelve boards. "
+      + "Lena Novak thinks Park & Sons Hardware might donate them.", hours(20), 5),
+    thread(2, "Kitchen island clearance", "Checked whether 105 cm between the island and the range is enough. Morgan said 100 to 120 cm is usual; "
+      + "Sam Whitaker should confirm before the quote is signed.", hours(8), 3),
+    thread(3, "Numbers for the annual report", "Gathered what Daniel Okafor needs for the board: program spending under plan, outreach slightly over, "
+      + "and a figure from Marcus Bell before the board meets.", hours(3), 6),
+  ];
+  setThreads(threads);
+
+  // ---- a list in the garden's Files: the workday, and what to bring to it
+  const workday = createFileList(folder(garden), "Workday");
+  const supplies = createFileList(folder(garden), "Supplies", workday.id);
+  addToList(folder(garden), workday.id, [`v:${folder(garden)}/${gardenCanvas.id}`, `p:${folder(garden)}/${volunteers.path}`], () => true);
+  // The lumber talk, brought into the garden by a shortcut (it lives in Home), and listed there.
+  const lumber = makeThingShortcut(folder(garden), `thread:${homeId()}/${threads[1]!.id}`);
+  addToList(folder(garden), supplies.id, [lumber.key], () => true);
 
   // ---- the calendar's, read by the surfaces (calendard.py, demo): days counted from the day shown
   writeFileSync(join(DEMO_ROOT, "calendar.json"), JSON.stringify({

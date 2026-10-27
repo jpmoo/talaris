@@ -339,12 +339,22 @@ export function projectCanvases(projectId: string): CanvasDocument[] {
 
 
 /**
+ * A canvas's name where it is seen apart from its project (search, suggestions):
+ * a project's top canvas is called "Canvas", which says nothing there, so it
+ * is called by its project's name.
+ */
+export function canvasName(projectId: string, doc: { title: string; parent: string | null }): string {
+  if (doc.parent || doc.title.trim().toLowerCase() !== "canvas") return doc.title;
+  try { return `${findProject(projectId).name} canvas`; } catch { return doc.title; }
+}
+
+/**
  * What a canvas says, as words to read (meaning.ts): its title, its regions'
  * titles, then each thing on it — a note's words, a card's or a child's
  * title — top to bottom and left to right, so it reads about as it is laid out.
  */
-export function canvasWords(doc: CanvasDocument): string {
-  const bits = [doc.title];
+export function canvasWords(doc: CanvasDocument, withTitle = true): string {
+  const bits = withTitle ? [doc.title] : [];
   for (const r of doc.regions ?? []) if (r.title?.trim()) bits.push(r.title.trim());
   // Rows: things whose tops are within half a typical height of each other read left to right.
   const items = [...(doc.items ?? [])].sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y));

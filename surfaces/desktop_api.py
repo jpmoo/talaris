@@ -114,12 +114,16 @@ def show(desktop, panel: str) -> dict:
         if not ws.up:
             ws.toggle()
         return {"ok": True}
+    if panel == "files":
+        if not desktop.files_panel.up:
+            desktop.files_panel.open()
+        return {"ok": True}
     if panel in PANELS:
         thing = getattr(desktop, panel)
         if not thing.up:
             thing.open()
         return {"ok": True}
-    return {"ok": False, "error": f"no panel called {panel}: one of canvas, writing, {', '.join(PANELS)}"}
+    return {"ok": False, "error": f"no panel called {panel}: one of canvas, writing, files, {', '.join(PANELS)}"}
 
 
 def opened(desktop, req: dict) -> dict:
