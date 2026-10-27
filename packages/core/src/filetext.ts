@@ -78,6 +78,18 @@ export function wordsOnly(text: string): string {
   return words.length >= 6 && words.length / tokens.length >= 0.55 ? text : "";
 }
 
+/** A web page's words as a reader sees them: no scripts, styles or tags, its entities read. */
+export function visibleText(html: string): string {
+  return html
+    .replace(/<(script|style|noscript|template|svg)\b[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_m, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/[ \t]+/g, " ");
+}
+
 const tidy = (s: string) => s.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MOST);
 
 /** LibreOffice's own profile, apart from the person's: the first run makes it. */
@@ -123,7 +135,7 @@ export async function textOf(path: string, name = basename(path)): Promise<strin
   // A sealed file (a project's sealed folder) is opened here, and read from a private copy.
   let bytes: Buffer;
   try { bytes = readBytes(path); } catch { return ""; }
-  if (TEXT.has(e)) return tidy(bytes.toString("utf8"));
+  if (TEXT.has(e)) return tidy(e === ".html" || e === ".htm" ? visibleText(bytes.toString("utf8")) : bytes.toString("utf8"));
   return textOfBytes(bytes, name);
 }
 
@@ -137,7 +149,7 @@ export function plainText(path: string, name = basename(path)): string {
 export async function textOfBytes(bytes: Buffer, name: string): Promise<string> {
   const e = extname(name).toLowerCase();
   if (!readable(name)) return "";
-  if (TEXT.has(e)) return tidy(bytes.toString("utf8"));
+  if (TEXT.has(e)) return tidy(e === ".html" || e === ".htm" ? visibleText(bytes.toString("utf8")) : bytes.toString("utf8"));
   const dir = mkdtempSync(join(tmpdir(), "talaris-read-"));
   const file = join(dir, `file${e}`);
   try {
@@ -231,5 +243,15 @@ export function forgetText(key: string): void {
 /** Forget the files no longer there. */
 export function keepOnly(keys: Set<string>): void {
   const c = loadCache();
-  for (const k of [...c.keys()]) if (!keys.has(k)) { c.delete(k); dirty = true; }
+  for (const k of [...c.keys()]) if (k.startsWith("file:") && !keys.has(k)) { c.delete(k); dirty = true; }
+}
+
+/** A page's description, kept by what says it changed (its modified time): undefined if none, or the page changed since. */
+export function pageAbout(key: string, stamp: string): string | undefined {
+  const had = loadCache().get(key);
+  return had && (had.aboutByYou || had.stamp === stamp) ? had.about : undefined;
+}
+export function setPageAbout(key: string, stamp: string, about: string): void {
+  loadCache().set(key, { stamp, text: "", about });
+  dirty = true;
 }

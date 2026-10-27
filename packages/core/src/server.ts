@@ -281,7 +281,7 @@ route("POST", "/files/shortcut", async (req) => {
   if (!b.project || !b.path) throw new BadRequest("the project and the file");
   return files.makeShortcut(b.project, b.path);
 });
-route("DELETE", "/files/shortcut/:id", (_r, [id]) => { files.removeShortcut(id!); return { ok: true }; });
+route("DELETE", "/files/shortcut/:id", (_r, [id]) => ({ ok: true, ...files.removeShortcut(id!) }));
 route("POST", "/files/bring-in/check", async (req) => {
   const b = await json<{ project?: string; path?: string; dir?: string }>(req);
   if (!b.project || !b.path) throw new BadRequest("the project and the file");

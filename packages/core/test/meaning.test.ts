@@ -104,7 +104,7 @@ test("files: each not read until a pass reads it, then read — or read and hold
   const before = meaning.fileReadStates(rows());
   const of = (r: typeof before, name: string) => r.read[rows().find((x) => x.name === name)!.key];
   assert.equal(of(before, "minutes.txt"), "waiting");
-  assert.equal(of(before, "song.mp3"), undefined, "no words to read in it: no state");
+  assert.equal(of(before, "song.mp3"), "unreadable", "of a kind with no words to read: said so");
   assert.ok(before.reading.pending >= 2);
   await meaning.reindex();
   const after_ = meaning.fileReadStates(rows());

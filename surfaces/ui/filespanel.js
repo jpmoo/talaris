@@ -236,7 +236,7 @@
   function book(r) {
     const st = readState[r.key];
     const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet: it will be, as Settings, Data says"
-      : st === "nowords" ? "Read, but nothing in it to find it by" : "" });
+      : st === "nowords" ? "Read, but nothing in it to find it by" : st === "unreadable" ? "Can't be read for search: found by its name only" : "" });
     if (st) b.innerHTML = BOOK;
     return b;
   }
@@ -299,7 +299,7 @@
     if (s.includes("shortcut")) act(armed === r.key ? "Yes, take the shortcut away" : "Remove the shortcut", () => {
       if (armed !== r.key) { armed = r.key; drawDetail(); return; }
       armed = "";
-      api("DELETE", `/files/shortcut/${enc(r.entity)}`).then(() => { say("Shortcut removed; the file is where it was"); return load(); }).catch(failed);
+      api("DELETE", `/files/shortcut/${enc(r.entity)}`).then((x) => { say(x && x.fromWatched ? "Shortcut removed, and not linked again from its watched folder; the file is where it was" : "Shortcut removed; the file is where it was"); return load(); }).catch(failed);
     }, `danger${armed === r.key ? " armed" : ""}`);
     if (s.includes("folder") && !s.includes("page")) act(armed === r.key ? "Yes, to the trash" : "Delete…", () => {
       if (armed !== r.key) { armed = r.key; drawDetail(); return; }

@@ -209,8 +209,13 @@ test("a folder linked: every file in it a shortcut, hidden ones aside; watched f
   writeFileSync(join(dir, "a.txt"), "second, and longer");
   files.watchLinked();
   assert.notEqual(JSON.stringify(sha()), was);
-  // Linked again: nothing twice.
-  assert.equal(files.linkFolder(p.id, dir).made, 0);
+  // One taken out by hand: not linked again by the watch.
+  const out = shortcuts().find((r) => r.name === "c.csv")!;
+  assert.equal(files.removeShortcut(out.entity!).fromWatched, true);
+  files.watchLinked();
+  assert.ok(!shortcuts().some((r) => r.name === "c.csv"), "stays out");
+  // Linked again on purpose: what was taken out comes back with it; nothing twice.
+  assert.equal(files.linkFolder(p.id, dir).made, 1);
   files.unlinkFolder(p.id, dir);
   assert.deepEqual(files.foldersLinked(p.id), []);
   assert.equal(shortcuts().length, 3, "no longer watched; its shortcuts stay");

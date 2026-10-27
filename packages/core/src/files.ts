@@ -570,6 +570,16 @@ const LINKED_FOLDERS = () => join(DATA_DIR, "linked-folders.sealed");
 const SKIP_DIRS = new Set(["node_modules", "__pycache__", ".git", "venv", ".venv", "dist", "build", "target"]);
 export const MOST_FROM_A_FOLDER = 2000;
 
+/** Files taken out of a watched folder's shortcuts by hand, per project: not linked again by the watch. */
+const SKIPPED = () => join(DATA_DIR, "linked-folders-skipped.sealed");
+function skipped(): Record<string, string[]> {
+  if (!existsSync(SKIPPED())) return {};
+  try { return JSON.parse(unseal(storeKey(), readFileSync(SKIPPED())).toString("utf8")) as Record<string, string[]>; } catch { return {}; }
+}
+function saveSkipped(l: Record<string, string[]>): void {
+  writeAtomic(SKIPPED(), seal(storeKey(), JSON.stringify(l)));
+}
+
 function linkedFolders(): Record<string, string[]> {
   if (!existsSync(LINKED_FOLDERS())) return {};
   try { return JSON.parse(unseal(storeKey(), readFileSync(LINKED_FOLDERS())).toString("utf8")) as Record<string, string[]>; } catch { return {}; }
@@ -626,7 +636,11 @@ export function linkPaths(projectId: string, paths: string[]): { made: number; s
 /** A folder linked into a project: what is in it linked now, and it watched from now on. */
 export function linkFolder(projectId: string, path: string): { folder: string; made: number; skipped: number; most: boolean } {
   findProject(projectId);
-  const { folder, paths, most } = folderFiles(path);
+  const { folder, paths: all, most } = folderFiles(path);
+  // Linked again on purpose: what was taken out of it by hand is linked again too.
+  const sk = skipped();
+  if (sk[projectId]) { sk[projectId] = sk[projectId].filter((p) => !p.startsWith(folder + "/")); saveSkipped(sk); }
+  const paths = all;
   const l = linkedFolders();
   l[projectId] = [...new Set([...(l[projectId] ?? []), folder])];
   saveLinkedFolders(l);
@@ -657,18 +671,33 @@ export function watchLinked(): number {
   let changed = refreshLinks();
   for (const { project, folder, exists } of foldersLinked()) {
     if (!exists) continue;
-    try { if (!listProjects().some((p) => p.id === project)) continue; changed += linkPaths(project, folderFiles(folder).paths).made; } catch { /* unreadable for now */ }
+    try {
+      if (!listProjects().some((p) => p.id === project)) continue;
+      // What was taken out of it by hand stays out.
+      const out = new Set(skipped()[project] ?? []);
+      changed += linkPaths(project, folderFiles(folder).paths.filter((p) => !out.has(p))).made;
+    } catch { /* unreadable for now */ }
   }
   if (changed) version++;
   return changed;
 }
 
 /** A shortcut taken away: the record, never the file. */
-export function removeShortcut(entityId: string): void {
+export function removeShortcut(entityId: string): { fromWatched: boolean } {
   const o = getEntity(entityId);
   if (typeof o[SHORTCUT] !== "string") throw new Conflict("not a shortcut");
+  // From a folder the project watches: remembered, so the watch does not link it again.
+  const project = o[SHORTCUT] as string;
+  const path = valuesIn(o.properties.file)[0]?.[LINK]?.path;
+  const fromWatched = Boolean(path && foldersLinked(project).some((f) => path.startsWith(f.folder + "/")));
+  if (fromWatched) {
+    const sk = skipped();
+    sk[project] = [...new Set([...(sk[project] ?? []), path!])];
+    saveSkipped(sk);
+  }
   deleteEntity(entityId);
   version++;
+  return { fromWatched };
 }
 
 export interface Warning { code: "open" | "synced" | "repository" | "drive" | "name" | "referred"; text: string }

@@ -131,3 +131,10 @@ test("a description: a picture's is its own; one written by the person stands, f
   filetext.setAbout("k-doc", "Board minutes from March.");
   assert.equal(filetext.keptAbout("k-doc"), "Board minutes from March.");
 });
+
+test("a web page read as what a reader sees: no scripts, styles or tags", () => {
+  const t = filetext.visibleText("<html><head><style>p{color:red}</style><script>var x=1;</script></head><body><h1>Garden</h1><p>Beds &amp; paths</p></body></html>");
+  assert.ok(!/color|var x|</.test(t));
+  assert.match(t, /Garden/);
+  assert.match(t, /Beds & paths/);
+});
