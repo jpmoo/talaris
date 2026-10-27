@@ -88,6 +88,11 @@ async function withWords(d: Detail): Promise<Detail> {
   const e = d.entity as { id?: string; properties?: Record<string, unknown>; "talaris:textElsewhere"?: boolean };
   if (!e["talaris:textElsewhere"] || !e.id) return d;
   const place = await ask<{ kind: string; project: string; where: string } | null>("GET", `/entities/${encodeURIComponent(e.id)}/place`).catch(() => null);
+  // One of Morgan's threads: its card says what it was about, as Morgan summed it up.
+  if (place?.kind === "thread") {
+    const t = await ask<{ summary?: string } | null>("GET", `/threads/${encodeURIComponent(place.where)}`).catch(() => null);
+    return { ...d, entity: { ...e, properties: { ...(e.properties ?? {}), body: t?.summary ?? "" } } };
+  }
   if (place?.kind !== "page") return d;
   const words = await ask<string>("GET", `/projects/${encodeURIComponent(place.project)}/page?path=${encodeURIComponent(place.where)}`).catch(() => "");
   return { ...d, entity: { ...e, properties: { ...(e.properties ?? {}), body: typeof words === "string" ? words : "" } } };

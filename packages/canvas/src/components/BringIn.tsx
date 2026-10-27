@@ -4,8 +4,9 @@
 /*
  * "Bring in…": find an entity in the core and put it on the canvas as a card.
  * What can be found is what an @ finds (`/mentionables`): people, tasks,
- * events, and every project's pages and canvases — this canvas's project's
- * first. A page or a canvas becomes an entity when it is brought in.
+ * events, every project's pages and canvases — this canvas's project's
+ * first — and Morgan's conversations. A page, a canvas or a conversation
+ * becomes an entity when it is brought in.
  *
  * A search box opened where the canvas was right-clicked, so what is chosen
  * lands where the pointer already said. Drawn in the page rather than as a
@@ -210,7 +211,8 @@ export function BringIn({
           setFound((rows ?? []).map((m) => ({
             id: m.id, title: m.title, kinds: [m.kind],
             ...(m.id ? {} : { place: { kind: m.kind, project: m.project, where: m.where } }),
-            ...(m.kind === "page" || m.kind === "canvas" ? { detail: m.here ? m.kind : `${m.kind} · ${m.projectName ?? ""}` } : {}),
+            ...(m.kind === "thread" ? { detail: "conversation with Morgan" }
+              : m.kind === "page" || m.kind === "canvas" ? { detail: m.here ? m.kind : `${m.kind} · ${m.projectName ?? ""}` } : {}),
           })));
           setAt(0);
         },

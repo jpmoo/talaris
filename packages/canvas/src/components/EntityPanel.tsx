@@ -3,7 +3,7 @@
  * listing what one is connected to. Both are drawn in the node menu's own
  * style, opened where the menu was, so they read as the menu's second page.
  */
-import { Calendar, CheckSquare, FileText, Folder, User } from "lucide-react";
+import { Calendar, CheckSquare, FileText, Folder, MessageSquare, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { entityDetail, findEntities, type Detail, type Summary } from "../entities.ts";
 
@@ -17,6 +17,7 @@ const MARKS = [
   ["event", Calendar, "Event"],
   ["task", CheckSquare, "Task"],
   ["project", Folder, "Project"],
+  ["thread", MessageSquare, "Conversation with Morgan"],
   ["note", FileText, "Note"],
 ] as const;
 

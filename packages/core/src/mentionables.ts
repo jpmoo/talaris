@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jeff Moore
 
 import { canvasTree } from "./canvases.js";
+import { homeId, threads } from "./threads.js";
 import { bySource, createEntity, findEntities, getEntity, typeFor, updateEntity, type Entity } from "./entities.js";
 import { pageTree } from "./pages.js";
 import { listProjects } from "./projects.js";
@@ -93,6 +94,16 @@ export function findMentionables(q: string, here: string, limit = 12, near?: Set
       cwalk(canvasTree(p.id));
     } catch {
       // A project that cannot be read (locked, gone) offers nothing.
+    }
+  }
+  // Morgan's threads (threads.ts), once something is typed: a conversation is mentioned by what it was about.
+  if (words.length) {
+    const home = homeId();
+    for (const t of threads()) {
+      const sc = score(t.title, words);
+      if (!sc) continue;
+      const e = bySource(placeSource("thread", home, t.id));
+      found.push({ m: { id: e?.id ?? "", title: t.title, kind: "thread", project: home, projectName: "Morgan", where: t.id, here: false }, s: sc * 2 });
     }
   }
   found.sort((a, b) => b.s - a.s || a.m.title.localeCompare(b.m.title));

@@ -165,6 +165,14 @@ test("a summary names the person throughout: their own name ties a thread to no 
   assert.ok(!s.some((x) => jeffs.some((j) => j.id === x.id)), "neither Jeff");
 });
 
+test("an @ finds a conversation by what it was about", async () => {
+  const { findMentionables } = await import("../src/mentionables.js");
+  const m = findMentionables("dinner", garden.id).find((x) => x.kind === "thread")!;
+  assert.equal(m.where, `${T + 5000}-1`);
+  assert.equal(m.projectName, "Morgan");
+  assert.equal(findMentionables("", garden.id).filter((x) => x.kind === "thread").length, 0, "not before something is typed");
+});
+
 test("Morgan away: the copy is kept, and why it was not asked is said", async () => {
   const r = await threads.syncThreads();
   assert.equal(r.ok, false);

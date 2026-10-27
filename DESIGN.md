@@ -1284,7 +1284,9 @@ heymorgan protocol 1.8 gives each thread's id): each is a row in Home's Files
 (Type: Conversations), read by Morgan's summary (which is its description
 until written over), embedded, suggested, connected, opened as its
 conversation, and found by the launcher by its title as well as by Morgan's
-own search. When Morgan merges two threads, one id goes; it is found again by
+own search. An @ finds one by its title, and a canvas's Bring in puts one on
+the canvas as a card showing Morgan's summary; either opens the conversation.
+When Morgan merges two threads, one id goes; it is found again by
 the exchange it began with, and what was tied to it follows (merge.ts). In
 demo the person's conversations are never asked for: the demo's are made up.
 

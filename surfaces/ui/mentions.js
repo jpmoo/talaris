@@ -27,7 +27,7 @@
 window.TalarisMentions = (api, open, opts) => {
   const o = () => opts || window.talarisMentionDefaults || {};
   const project = () => (o().project ? o().project() || "" : "");
-  const WORD = { page: "page", canvas: "canvas" };
+  const WORD = { page: "page", canvas: "canvas", thread: "conversation" };
   return {
     async search(query) {
       let [found, people] = await Promise.all([
@@ -35,7 +35,8 @@ window.TalarisMentions = (api, open, opts) => {
         query.trim().length >= 2 ? api("GET", `/people/find?q=${encodeURIComponent(query.trim())}`).catch(() => []) : [],
       ]);
       const out = (found || []).map((f) => {
-        const detail = WORD[f.kind] ? (f.here ? WORD[f.kind] : `${WORD[f.kind]} · ${f.projectName || "another project"}`) : undefined;
+        const detail = f.kind === "thread" ? "conversation with Morgan"
+          : WORD[f.kind] ? (f.here ? WORD[f.kind] : `${WORD[f.kind]} · ${f.projectName || "another project"}`) : undefined;
         if (f.id) return { id: f.id, title: f.title, kind: f.kind, detail };
         return {
           id: "", title: f.title, kind: f.kind, detail,

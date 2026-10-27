@@ -253,6 +253,13 @@ route("POST", "/files/thing-shortcut", async (req) => {
 });
 // Morgan's threads (threads.ts): asked for again now, and how the copy stands.
 route("POST", "/threads/sync", () => threads.syncThreads());
+// One thread, by its id (one merged away leads to where it went): what a canvas card of it shows.
+route("GET", "/threads/:id", (_r, [id]) => {
+  const t = threads.threadById(id!);
+  if (!t) throw new NotFound(`no thread ${id}`);
+  const { ts: _ts, ...rest } = t;
+  return rest;
+});
 route("GET", "/threads", () => ({ ...threads.threadsStatus(), threads: threads.threads().map(({ ts: _ts, ...t }) => t) }));
 // Lists (filelists.ts): a project's, as a tree with counts; made, renamed, moved, deleted; things put in and taken out, and ordered.
 route("GET", "/files/lists", (_r, _p, q) => filelists.listTree(need(q, "project")));
@@ -455,7 +462,8 @@ route("GET", "/mentionables", (_r, _p, q) =>
 // A page or a canvas, as the entity that stands for it (made the first time it is linked).
 route("POST", "/entities/place", async (req) => {
   const b = await json<{ kind?: string; project?: string; where?: string; title?: string }>(req);
-  if ((b.kind !== "page" && b.kind !== "canvas") || !b.project || !b.where) throw new BadRequest("a place is a page or a canvas, in a project");
+  if (b.kind === "thread" && b.where) return threads.threadEntity(b.where);
+  if ((b.kind !== "page" && b.kind !== "canvas") || !b.project || !b.where) throw new BadRequest("a place is a page, a canvas, or one of Morgan's threads");
   return placeEntity(b.kind, b.project, b.where, b.title ?? "");
 });
 // Where an entity standing for a page or a canvas points, to open it there; null for any other.
