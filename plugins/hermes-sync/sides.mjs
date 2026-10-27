@@ -12,7 +12,7 @@
 export const KINDS = {
   project: ["title", "body", "files", "tags"],
   contact: ["title", "email", "phone", "organization", "role", "body", "files", "tags"],
-  task: ["title", "status", "complete", "start", "due", "project", "files", "tags"],
+  task: ["title", "status", "complete", "start", "due", "project", "body", "files", "tags"],
   note: ["title", "body", "files", "tags"],
   // The page for a day: known by its date, which is its identity on both sides; its words are the note's.
   journal: ["date", "body", "files", "tags"],

@@ -136,8 +136,9 @@ export const BUILT_IN: EntityType[] = [
   },
   {
     // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
-    // Version 5: the task profile says which field is its project.
-    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 5,
+    // Version 5: the task profile says which field is its project. Version 6:
+    // and which is its notes (`body`), so a sync carries them.
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 6,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
@@ -159,7 +160,7 @@ export const BUILT_IN: EntityType[] = [
     profiles: {
       task: {
         title: "title", start: { field: "schedule", part: "start" }, due: { field: "schedule", part: "end" },
-        status: "status", completeValues: ["done", "archived", "wont_do"], project: "project",
+        status: "status", completeValues: ["done", "archived", "wont_do"], project: "project", body: "description",
       },
     },
   },
@@ -314,7 +315,10 @@ function load(): Index {
       // A field a person set (its statuses, say: talaris:edited) stays theirs.
       const theirs = new Map((had?.fields ?? []).filter((f) => f["talaris:edited"]).map((f) => [f.key, f]));
       const fields = t.fields.map((f) => theirs.get(f.key) ?? f);
-      const merged = had ? { ...t, name: had.name, fields: [...fields, ...had.fields.filter((f) => !mine.has(f.key))] } : t;
+      // Its profiles: a slot new in the built-in added, every slot already there kept as it was (its statuses, set by hand).
+      const profiles = had ? { ...(had.profiles ?? {}), ...Object.fromEntries(Object.entries(t.profiles ?? {}).map(([n, m]) => [n, { ...m, ...(had.profiles?.[n] ?? {}) }])) } : t.profiles;
+      const merged = had ? { ...t, name: had.name, fields: [...fields, ...had.fields.filter((f) => !mine.has(f.key))], ...(profiles ? { profiles } : {}),
+        ...(had["talaris:defaultStatus"] !== undefined ? { "talaris:defaultStatus": had["talaris:defaultStatus"] } : {}) } : t;
       writeSealed(join(dir("types"), safe(t.id)), merged);
       ix.types.set(t.id, merged);
     }

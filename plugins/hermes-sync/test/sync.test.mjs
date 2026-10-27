@@ -417,3 +417,19 @@ test("mentions go across in each app's own words — Hermes Notes' @Name, Talari
   p = plan({ started: true, links: [...people, task("Read @Nobody_Here")] }, T("Read [@A page](talaris:p_only)"), H("Read @Nobody_Here"), S, newId);
   assert.deepEqual(titleWrite(p, "hermes"), ["Read @A page"], "a Talaris link to what Hermes Notes has not: its label, not its markup");
 });
+
+test("a task's notes: carried once both sides say where they are, and not before", () => {
+  const withBody = (types, type, field) => types.map((t) => (t.id === type
+    ? { ...t, fields: [...t.fields, { key: field, kind: "richtext" }], profiles: { task: { ...t.profiles.task, body: field } } } : t));
+  const links = [{ kind: "task", t: "tt1", h: "ht1", base: { title: '"Call about laptops"' } }];
+  const tObj = { id: "tt1", type: "t_task", properties: { title: "Call about laptops", description: "Take-home policy\nParent tools" }, version: 2 };
+  const hObj = { id: "ht1", type: "h-task", properties: { title: "Call about laptops", status: "not done" }, version: 1 };
+  // Hermes' task naming no notes: nothing to carry them to.
+  const before = plan({ started: true, links }, env(withBody(T_TYPES, "t_task", "description"), [tObj]), env(H_TYPES, [hObj]), S, newId);
+  assert.ok(!before.writes.some((w) => w.side === "hermes" && JSON.stringify(w).includes("Take-home")));
+  // Both naming them, each in its own field: Talaris's description is Hermes' notes.
+  const p = plan({ started: true, links }, env(withBody(T_TYPES, "t_task", "description"), [tObj]), env(withBody(H_TYPES, "h-task", "notes"), [hObj]), S, newId);
+  const toH = p.writes.find((w) => w.side === "hermes" && w.id === "ht1");
+  assert.ok(toH, "written to Hermes");
+  assert.match(JSON.stringify(toH), /"notes":"Take-home policy\\nParent tools"/);
+});
