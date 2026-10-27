@@ -111,10 +111,16 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;
 }
 #bell.unread .dot { display: block; }
-/* A timer of Morgan's running: the bell in the accent, and the next one's time left beside it within the hour. */
-#bell.timing #bell-ic { color: var(--accent); }
-#bell-left { margin-left: 4px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
-#bell-left[hidden] { display: none; }
+/* Any of Morgan's timers or reminders set: a dot at the other shoulder that
+   pulses slowly; how many, and the next, are in the bell's tip and its list. */
+#bell .timing-dot {
+  position: absolute; top: 5px; left: 5px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;
+  animation: timing-pulse 2s ease-in-out infinite;
+}
+#bell.timing .timing-dot { display: block; }
+@keyframes timing-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { #bell .timing-dot { animation: none; } }
 </style>
 </head>
 <body data-edge="top">
@@ -139,7 +145,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
     <button id="bat" class="bar-item" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></button>
     <button id="settings" class="bar-item" title="Settings"></button>
-    <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span id="bell-left" hidden></span><span class="dot"></span></button>
+    <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span class="timing-dot"></span><span class="dot"></span></button>
     <button id="power" class="bar-item" title="Power"></button>
   </div>
 </div>

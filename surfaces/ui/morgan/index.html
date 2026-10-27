@@ -187,6 +187,7 @@
 .timer.soon .when { opacity: 1; font-weight: 600; }
 .timer button { border: 0; background: none; color: inherit; opacity: .55; cursor: pointer; font-size: 15px; padding: 0 4px; }
 .timer button:hover { opacity: 1; }
+.timer button.armed { opacity: 1; font-size: 12px; font-weight: 600; color: var(--accent, currentColor); }
 /* The time left, as a bar that empties. */
 .timer .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: color-mix(in srgb, currentColor 12%, transparent); position: relative; overflow: hidden; }
 .timer .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--left, 0) * 100%); background: var(--accent, currentColor); transition: width 1s linear; }
@@ -526,6 +527,8 @@ async function linked(text) {
 // minute — one cancelled by voice says nothing; counted down here each second.
 
 let timers = [];
+// The one whose × was pressed once: asking "Cancel?" until pressed again, or until it waits too long.
+let cancelling = "", disarm = null;
 function loadTimers() {
   bridge.call("reminders", (answer) => {
     try { const r = JSON.parse(answer); timers = r.ok ? r.reminders || [] : []; } catch { timers = []; }
@@ -554,9 +557,21 @@ function drawTimers() {
     const row = el("div", "timer");
     row.dataset.at = t.at;
     row.dataset.made = t.made || "";
-    const cancel = el("button", "", "×");
-    cancel.title = "Cancel it";
-    cancel.onclick = () => bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers);
+    // Asked twice: × first only asks "Cancel?"; a second press cancels. Let alone, it goes back to × after a few seconds.
+    const armed = cancelling === t.id;
+    const cancel = el("button", armed ? "armed" : "", armed ? "Cancel?" : "×");
+    cancel.title = armed ? "Press again to cancel it" : "Cancel it";
+    cancel.onclick = () => {
+      if (cancelling !== t.id) {
+        cancelling = t.id;
+        clearTimeout(disarm);
+        disarm = setTimeout(() => { cancelling = ""; drawTimers(); }, 4000);
+        return drawTimers();
+      }
+      cancelling = "";
+      clearTimeout(disarm);
+      bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers);
+    };
     row.append(el("i", "ti", glyph(t.text ? "bell" : "hourglass")), el("span", "what", t.text || "Timer"), el("span", "when"), el("span", "bar"), cancel);
     return row;
   }));
