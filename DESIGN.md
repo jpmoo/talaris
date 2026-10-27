@@ -1791,6 +1791,15 @@ of it and comes out at the end.
     images too; how long it is kept and where (sealed, as entities are, since
     passwords get copied); leaving out what a password manager marks as
     secret; whether Morgan may read it.
+20. **A log of what is done in Talaris, read by Morgan for the way you work**
+    (asked for 2026-10-27; not started). Every action across the surfaces —
+    opening, moving, pinning, sending to a project, connecting, listing,
+    finishing a task — kept as a sealed log, and Morgan reading it now and then
+    to suggest how the work could go: a habit worth a verb, a window always
+    sent to the same project, things always opened together. Questions first:
+    what counts as an action and at what grain; how long it is kept; where a
+    suggestion is shown and how one is turned down for good; whether it leaves
+    the machine (Morgan's brain is on the home server).
 
 ## What did not come from Talaria
 
