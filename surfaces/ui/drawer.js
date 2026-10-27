@@ -694,20 +694,23 @@ const DAILY = "Daily";
 
 /*
  * Three sets of notes, a tab each (DESIGN, Writing):
- *   Project — this project's own pages (Home's own, in Home);
- *   Undated — notes of no project, the same from every project (the core's
- *             `notes`, kept in ~/Projects/Notes);
+ *   Project — this project's own pages (Home's own, in Home: not its Pages
+ *             or its Daily, which have tabs of their own);
+ *   Pages   — the pages of no other project: Home's `Pages`, the same from
+ *             every project (scope `undated`; kept in Home/Writing/Pages,
+ *             and in Hermes Notes as its notes);
  *   Daily   — Home's daily notes, the only ones there are: from any other
  *             project they are said to be Home's, plainly, so a day written
  *             there is not mistaken for this project's.
- * A note moves or is copied between Project and Undated, either way; a daily
+ * A note moves or is copied between Project and Pages, either way; a daily
  * note stays where it is. Which tab was last chosen is this page's to keep.
  */
+const PAGES = "Pages";
 const SCOPE_KEY = "talaris.writing.scope";
 let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) || "project"; } catch { return "project"; } })();
 let homeId = "";
 const openIn = { project: new Map(), undated: null }; // the page last open in each, per project for Project
-const wpid = () => (scope === "undated" ? "notes" : scope === "daily" ? homeId : state.project.id);
+const wpid = () => (scope === "undated" || scope === "daily" ? homeId : state.project.id);
 const inHome = () => Boolean(state.project.home);
 async function setScope(next) {
   if (next === scope) return;
@@ -779,7 +782,7 @@ function pageHeading() {
     // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
     return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
-  return `${scope === "undated" ? "Unaffiliated · " : ""}${open.split("/").join(" / ")}`.toUpperCase();
+  return (scope === "undated" ? `Pages · ${open.slice(PAGES.length + 1).split("/").join(" / ")}${inHome() ? "" : " · in Home"}` : open.split("/").join(" / ")).toUpperCase();
 }
 
 async function loadWriting() {
@@ -792,8 +795,12 @@ async function loadWriting() {
   const filterPaths = filterTag
     ? new Set((await core("GET", `/tags/things?tag=${encodeURIComponent(filterTag)}&kind=page`).catch(() => [])).filter((x) => x.page && x.page.project === wpid()).map((x) => x.page.path))
     : null;
-  // Home's own pages hold its daily notes too: shown on their own tab, not among its pages.
-  const pages = dailyOn ? [] : (await core("GET", `/projects/${wpid()}/pages`)).filter((n) => !(scope === "project" && inHome() && n.path === DAILY));
+  // Home's own pages hold its daily notes and its Pages too: each shown on its own tab, not among its pages.
+  const all = dailyOn ? [] : await core("GET", `/projects/${wpid()}/pages`);
+  const pages = scope === "undated" ? ((all.find((n) => n.path === PAGES) || {}).children || [])
+    : all.filter((n) => !(scope === "project" && inHome() && (n.path === DAILY || n.path === PAGES)));
+  // Where the tree's top is: Pages, for its tab.
+  const root = scope === "undated" ? PAGES : "";
   const shut = shutSet(WRITING_SHUT);
   let count = 0;
   const pid = wpid();
@@ -821,44 +828,44 @@ async function loadWriting() {
   const tabs = el("div", { class: "wtabs", role: "tablist" },
     tab("project", inHome() ? "Home" : state.project.name, "This project's own pages"),
     tab("daily", "Daily", "Home's daily pages"),
-    tab("undated", "Unaffiliated", "Pages that belong to no project — the same from every project"));
+    tab("undated", "Pages", "Home's pages of no other project — the same from every project"));
   // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
   const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, state.project.name), "'s")
+    : scope === "undated" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " pages — not ", el("b", {}, state.project.name), "'s")
     : "";
-  const tree = el("div", { class: "tree" + (scope !== "project" && !(scope === "daily" && inHome()) ? " away" : "") },
+  const tree = el("div", { class: "tree" + (scope !== "project" && !inHome() ? " away" : "") },
     tabs, whose,
     dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
     !dailyOn && (pages.length || filterTag) ? (() => { const head = sortButton("writing", loadWriting); head.append(tagFilterButton()); return head; })() : "",
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
-      : pages.length ? branch(pages, "") : el("div", { class: "empty" }, scope === "undated" ? "No unaffiliated pages yet" : "No pages yet"));
+      : pages.length ? branch(pages, root) : el("div", { class: "empty" }, "No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
   // a thing done to the page, so apart from the ways of seeing it.
-  // Undated notes belong to no project's folder, so have none to keep files in (yet).
-  const attach = scope === "undated" ? "" : el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "ATTACH");
+  const attach = el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "ATTACH");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
   $("body").replaceChildren(tree, pane);
-  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "UNAFFILIATED" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
+  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
-  if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(null) }, "New page"));
+  if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(scope === "undated" ? PAGES : null) }, "New page"));
   // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
   if (scope === "undated" && window.Peek) {
     actions.push(" ", Peek.actionButtons("notes", null, core, ""));
-    if (open) actions.push(" ", Peek.actionButtons("note", `notes/${open}`, core, ""));
+    if (open) actions.push(" ", Peek.actionButtons("note", `${homeId}/${open}`, core, ""));
   }
   // And on the daily notes as a whole (Sync all with Hermes Notes).
   if (scope === "daily" && window.Peek) actions.push(" ", Peek.actionButtons("daily", null, core, ""));
   if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
-    // Across: from this project to the undated notes, or from them into this project.
-    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Unaffiliated";
+    // Across: from this project to Home's Pages, or from them into this project.
+    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Pages";
     actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
       " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
       " ", el("button", { onclick: () => transfer(false) }, `Move to ${other}`),
@@ -974,10 +981,10 @@ function renamePage(n) {
 async function transfer(copy) {
   if (!open) return;
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
-  const from = wpid(), to = scope === "undated" ? state.project.id : "notes";
+  const from = wpid(), to = scope === "undated" ? state.project.id : homeId;
   try {
-    const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, copy });
-    status(`${copy ? "COPIED" : "MOVED"} TO ${(scope === "undated" ? (inHome() ? "HOME" : state.project.name) : "UNDATED").toUpperCase()}`);
+    const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, parent: scope === "undated" ? null : PAGES, copy });
+    status(`${copy ? "COPIED" : "MOVED"} TO ${(scope === "undated" ? (inHome() ? "HOME" : state.project.name) : "PAGES").toUpperCase()}`);
     // Moved, it is followed there; copied, this one stays open.
     if (!copy) {
       if (editor) { editor.destroy(); editor = null; }

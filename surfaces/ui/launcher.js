@@ -244,7 +244,7 @@ function draw() {
       if (!tagCache.has(t)) bridge.tagged(t, (text) => { tagCache.set(t, JSON.parse(text || "[]")); draw(); });
       const AS = { task: "task", contact: "person", event: "event" };
       shown = (tagCache.get(t) || []).map((x) => x.page
-        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.project === "notes" ? "Unaffiliated page" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
+        ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.path.startsWith("Pages/") ? "Page in Home" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
           act: { kind: "page", project: x.page.project, path: x.page.path } }
         : { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${(x.kinds || [])[0] || "thing"}`,
           act: { kind: "entity", id: x.id, as: AS[(x.kinds || []).find((k) => AS[k])] || "" } });
@@ -268,7 +268,7 @@ function draw() {
     const detail = (r) => r.kind === "task" ? (r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task")
       : r.kind === "person" ? "Person"
       : r.kind === "conversation" ? `Conversation with Morgan${r.updated ? ` · ${dayOf(r.updated)}` : ""}`
-      : r.kind === "note" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
+      : r.kind === "note" ? (r.path.startsWith("Pages/") ? "Page in Home" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
       : `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`;
     const row = (r, sub = detail(r)) => {
       ids.add(r.id || `${r.calendar}:${r.uid}`);
@@ -308,7 +308,7 @@ function draw() {
       if (have.has(`page:${r.title}`.toLowerCase()) || have.has(`entity:${r.title}`.toLowerCase())) continue;
       // A file by what it says: one in a folder opened from there; one only on things, in Glance with them. An event, in Glance too.
       if (r.kind === "file" && !(r.key.startsWith("file:p:") && r.path)) continue;
-      const where = r.kind === "page" ? (r.project === "notes" ? "Unaffiliated page" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
+      const where = r.kind === "page" ? (r.path.startsWith("Pages/") ? "Page in Home" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
         : { task: "Task", person: "Person", file: "File", event: "Event", canvas: "Canvas", thread: "Conversation with Morgan" }[r.kind] || "Thing";
       // A canvas opened in its project; one of Morgan's threads, as its conversation — once, whichever way it was found.
       if (r.kind === "thread" && shown.some((x) => x.key === `conversation:${r.path}`)) continue;

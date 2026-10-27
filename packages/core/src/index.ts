@@ -23,6 +23,8 @@ import { startSchedule } from "./backup.js";
 import { startWatching } from "./files.js";
 import { startMeaning } from "./meaning.js";
 import { startThreads } from "./threads.js";
+import { movePagesIntoHome } from "./pages-home.js";
+import { ensurePagesFolder } from "./notes.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
 
@@ -55,6 +57,9 @@ function keepPrivate(): void {
 async function main(): Promise<void> {
   keepPrivate();
   const home = ensureHome();
+  // The pages of no other project, once a place of their own, moved into Home's Pages (pages-home.ts); and that folder there.
+  try { movePagesIntoHome(); } catch (e) { console.log(`talaris-core: the pages of no project not moved into Home: ${(e as Error).stack}`); }
+  ensurePagesFolder();
   // The demo world made the first time (demo-seed.ts); and no backups of it.
   if (inDemo) {
     const { seedDemo } = await import("./demo-seed.js");

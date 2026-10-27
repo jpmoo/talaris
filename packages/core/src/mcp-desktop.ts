@@ -78,8 +78,8 @@ export function desktopTools(core: Core): DesktopTool[] {
       return all.find((p) => p.id === here) ?? all.find((p) => p.home) ?? all[0]!;
     }
     const l = n.toLowerCase();
-    // The unaffiliated pages: a place of their own, in no project's list.
-    if (l === "notes" || l === "unaffiliated") return { ...(all.find((p) => p.home) ?? all[0]!), id: "notes", name: "Unaffiliated pages", code: "", home: false };
+    // The pages of no other project are Home's (its Pages): asked for as "notes" or "unaffiliated", Home.
+    if (l === "notes" || l === "unaffiliated") return all.find((p) => p.home) ?? all[0]!;
     const hit = all.find((p) => p.id === n) ?? all.find((p) => p.name.toLowerCase() === l || p.code.toLowerCase() === l)
       ?? all.find((p) => p.name.toLowerCase().includes(l));
     if (!hit) throw new Error(`no project called ${n}; there are ${all.map((p) => p.name).join(", ")}`);
@@ -325,7 +325,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ tags
     {
       name: "talaris_tags",
-      description: "Every tag in use in Talaris — on pages, unaffiliated pages (of no project), tasks and people — with how many things carry each, the most used first.",
+      description: "Every tag in use in Talaris — on pages, Home's pages of no other project, tasks and people — with how many things carry each, the most used first.",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true, title: "Tags in use" },
       run: async () => {
@@ -335,7 +335,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     },
     {
       name: "talaris_tagged",
-      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), unaffiliated pages (of no project), files, tasks, people. Optionally only one kind: page, file, task, contact.",
+      description: "Everything carrying a tag — or any of several, or (all) every one of them: pages (with their project and path), Home's pages of no other project, files, tasks, people. Optionally only one kind: page, file, task, contact.",
       inputSchema: { type: "object", properties: {
         tags: { type: "array", items: { type: "string" } }, all: { type: "boolean" }, kind: { type: "string", enum: ["page", "file", "task", "contact", "event"] },
       }, required: ["tags"] },
@@ -346,20 +346,20 @@ export function desktopTools(core: Core): DesktopTool[] {
         if (a.kind) q.set("kind", str(a.kind));
         const rows = await core<{ id: string; title: string; kinds: string[]; tags: string[]; page?: { project: string; path: string }; file?: { project: string; path?: string; abs?: string } }[]>("GET", `/tags/things?${q}`);
         if (!rows.length) return "Nothing carries that.";
-        return rows.map((r) => `- ${r.title} — ${r.page ? (r.page.project === "notes" ? `unaffiliated page (path: ${r.page.path})` : `page in project ${r.page.project} (path: ${r.page.path})`) : r.file ? `file in project ${r.file.project} (${r.file.path ? `path: ${r.file.path}` : `a shortcut to ${r.file.abs}`})` : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
+        return rows.map((r) => `- ${r.title} — ${r.page ? `page in project ${r.page.project} (path: ${r.page.path})` : r.file ? `file in project ${r.file.project} (${r.file.path ? `path: ${r.file.path}` : `a shortcut to ${r.file.abs}`})` : r.kinds[0] ?? "thing"} ${r.tags.map((t) => `#${t}`).join(" ")} [${r.id}]`).join("\n");
       },
     },
     {
       name: "talaris_page_tags",
-      description: "Change a writing page's tags — add some, take some off, or (set) replace them all. No project: the current one; project \"notes\": an unaffiliated page (one of no project). No path: the page the writing drawer shows.",
+      description: "Change a writing page's tags — add some, take some off, or (set) replace them all. No project: the current one; the pages of no other project are Home's, under Pages/. No path: the page the writing drawer shows.",
       inputSchema: { type: "object", properties: {
         project: { type: "string" }, path: { type: "string" },
         add: { type: "array", items: { type: "string" } }, remove: { type: "array", items: { type: "string" } }, set: { type: "array", items: { type: "string" } },
       } },
       annotations: { readOnlyHint: false, title: "Tag a page" },
       run: async (a) => {
-        const pid = str(a.project) === "notes" ? "notes" : (await project(a.project)).id;
-        const n = pid === "notes" ? null : await now();
+        const pid = (await project(a.project)).id;
+        const n = await now();
         const path = str(a.path) || (n && n.project.id === pid ? n.drawers.writing?.page?.path ?? "" : "");
         if (!path) throw new Error("which page? give its path");
         const q = `path=${encodeURIComponent(path)}`;
@@ -374,19 +374,19 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ meaning
     {
       name: "talaris_search_meaning",
-      description: "Find Talaris's pages (a project's, unaffiliated, daily — what the user may call notes), tasks, people, projects, events and files (by their contents) by what they are about — not only the words used: \"what did I write about distributed practice\", \"notes on the budget fight\". Nearest first, each with the passage that matched. Only kind (page, task, person, project, event, file) or one project (an id, a name, \"here\", or \"notes\" for unaffiliated pages) if asked. Empty when search by meaning is off (Settings, Data).",
+      description: "Find Talaris's pages (a project's, Home's pages of no other project, daily — what the user may call notes), tasks, people, projects, events and files (by their contents) by what they are about — not only the words used: \"what did I write about distributed practice\", \"notes on the budget fight\". Nearest first, each with the passage that matched. Only kind (page, task, person, project, event, file) or one project (an id, a name, or \"here\") if asked. Empty when search by meaning is off (Settings, Data).",
       inputSchema: { type: "object", properties: { q: { type: "string" }, kind: { type: "string", enum: ["page", "task", "person", "project", "event", "file"] }, project: { type: "string" }, limit: { type: "number", description: "Default 10." } }, required: ["q"] },
       annotations: { readOnlyHint: true, title: "Search by meaning" },
       run: async (a) => {
         const q = new URLSearchParams({ q: str(a.q), limit: String(typeof a.limit === "number" ? a.limit : 10) });
         if (str(a.kind)) q.set("kind", str(a.kind));
-        if (str(a.project)) q.set("project", str(a.project) === "notes" ? "notes" : (await project(str(a.project) === "here" ? undefined : a.project)).id);
+        if (str(a.project)) q.set("project", (await project(str(a.project) === "here" ? undefined : a.project)).id);
         const rows = await core<{ key: string; kind: string; title: string; project?: string; path?: string; id?: string; score: number; passage: string }[]>("GET", `/meaning?${q}`);
         if (!rows.length) {
           const st = await core<{ on: boolean; items: number }>("GET", "/meaning/status");
           return st.on ? "Nothing near that in meaning." : "Search by meaning is off (Settings, Data).";
         }
-        return rows.map((r) => `- ${r.title} — ${r.kind === "page" ? (r.project === "notes" ? `unaffiliated page (path: ${r.path})` : `page in project ${r.project} (path: ${r.path})`) : r.kind === "file" ? `file — read it with talaris_file_read, key ${r.key.startsWith("file:p:") ? `file:${r.key.slice(7)}` : `att:${r.key.slice(5)}`}` : `${r.kind} [${r.id}]`} · ${r.score}\n  “${r.passage}”`).join("\n");
+        return rows.map((r) => `- ${r.title} — ${r.kind === "page" ? `page in project ${r.project} (path: ${r.path})` : r.kind === "file" ? `file — read it with talaris_file_read, key ${r.key.startsWith("file:p:") ? `file:${r.key.slice(7)}` : `att:${r.key.slice(5)}`}` : `${r.kind} [${r.id}]`} · ${r.score}\n  “${r.passage}”`).join("\n");
       },
     },
     // ------------------------------------------------------------ files
@@ -480,7 +480,7 @@ export function desktopTools(core: Core): DesktopTool[] {
         "Operations: {op:\"note\", text, x?, y?, w?, h?, fill?} a note (Markdown; fill a #rrggbb color) — without x,y it goes to the right of what is there;",
         "{op:\"card\", entity, x?, y?} a card showing an entity (a person, task or event id from talaris_find);",
         "{op:\"tasks\", project?, all?} a card for each of a project's open tasks (all: done ones too), in a grid right of what is there, skipping those already on it — use this rather than a card each;",
-        "{op:\"tagged\", tags, all?} a card for everything carrying one of the tags (all: every one of them) — pages, unaffiliated pages, tasks, people — the same way;",
+        "{op:\"tagged\", tags, all?} a card for everything carrying one of the tags (all: every one of them) — pages, tasks, people — the same way;",
         "{op:\"update\", item, text?, x?, y?, w?, h?, fill?}; {op:\"remove\", item} (also takes its links);",
         "{op:\"link\", from, to} an arrow between two items; {op:\"unlink\", link};",
         "{op:\"canvas\", title, x?, y?} a new canvas inside this one, as a card.",
@@ -564,7 +564,7 @@ export function desktopTools(core: Core): DesktopTool[] {
               break;
             }
             case "tagged": {
-              // Everything carrying the tags (tags.ts): pages and unaffiliated pages by the entities that hold their tags.
+              // Everything carrying the tags (tags.ts): pages by the entities that hold their tags.
               const want = (Array.isArray(op.tags) ? op.tags : [op.tags ?? op.tag]).map(str).filter(Boolean);
               if (!want.length) throw new Error("tagged needs tags");
               const q = new URLSearchParams(want.map((t) => ["tag", t]));

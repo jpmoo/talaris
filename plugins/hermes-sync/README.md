@@ -53,14 +53,14 @@ changed, not only that one thing: a sync of one alone would move the cursor past
 what it did not look at. It says Done, what went wrong, or how many decisions
 wait in Settings, Plugins.
 
-**Notes**, when the Notes setting says so: Talaris's unaffiliated notes (the
-Writing drawer's Undated tab, `~/Projects/Notes`) and Hermes Notes' notes —
+**Notes**, when the Notes setting says so: Talaris's pages of no other project (the
+Writing drawer's Pages tab: Home's `Writing/Pages`) and Hermes Notes' notes —
 all of them, or, on either side, only those wearing a tag named in Note tags
 (tag a Talaris note in the writing drawer to share it); never a day's
 page (a type that declares the format's `journal`, and carries its day). A
 note's words travel as its body: Hermes Notes keeps them in the body slot,
 Talaris in its Note type's `body` field, and the profiles say which. Where a
-note sits among the unaffiliated notes is Talaris's alone: Hermes Notes' are flat,
+note sits among them is Talaris's alone: Hermes Notes' are flat,
 and one made there arrives at the top. A note made in Hermes Notes from
 Talaris, in tagged mode, wears the first tag named.
 

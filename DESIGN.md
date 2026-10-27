@@ -838,13 +838,21 @@ note only once something is written, so opening an empty day makes no file.
 **Only Home keeps daily notes.**
 
 **Three sets of notes, a tab each** at the top of the writing drawer (decided
-2026-10-25): **Project** — this project's own pages; **Unaffiliated** (called
-Undated at first, and still `undated` in the code) — notes of no
-project, the same from every project, kept in `~/Projects/Notes` (the core's
-`notes`, so every page call works on them unchanged); **Daily** — Home's daily
-notes, editable from any project and said plainly to be Home's there. A page
-(with everything beneath it) moves or is copied between Project and Unaffiliated,
-either way; a daily note is never moved or copied.
+2026-10-25): **Project** — this project's own pages; **Pages** (called Undated,
+then Unaffiliated, and still `undated` in the code) — the pages of no other
+project, the same from every project; **Daily** — Home's daily notes, editable
+from any project and said plainly to be Home's there. A page (with everything
+beneath it) moves or is copied between Project and Pages, either way; a daily
+note is never moved or copied.
+
+**The pages of no other project are Home's** (2026-10-27). They were a place of
+their own, `~/Projects/Notes`; now they are Home's `Writing/Pages`, beside its
+`Daily`, so they are Home's everywhere — in Files (and its lists), Glance,
+search. In Home's own tab neither Pages nor Daily is listed: each has its tab.
+`Pages` itself stays; what is in it moves freely. They are still the notes
+Hermes Notes keeps in step: each keeps its entity and its mark when moved
+(`pages-home.ts`, once, with a copy of before kept beside the store), and
+until every one is at its new address none is tidied away.
 
 ### Starting a file in a project
 
@@ -958,8 +966,8 @@ practice" finds the page about spiraling — beside, never instead of, finding
 by words. In the launcher, below what matched the words (marked "By meaning",
 with the passage that matched); and for Morgan (`talaris_search_meaning`).
 
-- **What is embedded:** every writing page — each project's, the unaffiliated
-  notes, Home's daily notes — in passages of a few paragraphs, each led by its
+- **What is embedded:** every writing page — each project's, Home's Pages and
+  daily notes — in passages of a few paragraphs, each led by its
   page's title; tasks, people, projects and events, as what they write (not
   their statuses, choices or dates, which make all of a kind alike); and
   **files, by their contents** (2026-10-26) — a project folder's and those on
@@ -1206,12 +1214,11 @@ for whatever already backs up folders.
 ### Pages, not notes (2026-10-26)
 
 **What is written is a page, everywhere it is named.** A project's pages, the
-unaffiliated pages (of no project), Home's daily pages; New makes a page;
+pages of no other project (Home's Pages), Home's daily pages; New makes a page;
 Glance, the cards and the launcher group and label them as pages, whatever
 kind of thing stands for them underneath (`note` stays the format's profile
-name, and the unaffiliated pages' place is still `notes` on disk and in the
-API). Morgan is told the user may say "note" and means a page, and a note it
-is asked to make is an unaffiliated page. Hermes Notes' own word is kept when
+name). Morgan is told the user may say "note" and means a page, and a note it
+is asked to make is one of Home's Pages. Hermes Notes' own word is kept when
 its side is meant. Still called notes, being something else: a field of notes
 on a task, an event or a person; a note card on a canvas; Morgan's memory.
 

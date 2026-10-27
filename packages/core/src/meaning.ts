@@ -5,8 +5,8 @@
  * Search by meaning (DESIGN, *Search by meaning*): what is written, found by
  * what it is about rather than by the words typed.
  *
- * **What is embedded**: every writing page — each project's, the unaffiliated
- * notes, Home's daily notes — in passages of a few paragraphs; and tasks,
+ * **What is embedded**: every writing page — each project's, Home's Pages and
+ * daily notes — in passages of a few paragraphs; and tasks,
  * people, projects and events, each as one passage of what it says; and
  * files — a project folder's, and those on things — by their text, read by
  * filetext.ts (PDFs, documents, spreadsheets, slides, pictures of words), in
@@ -36,7 +36,7 @@ import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, k
 import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
-import { UNDATED, listProjects } from "./projects.js";
+import { listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
 import { canvasName, canvasTree, canvasWords, projectCanvases } from "./canvases.js";
 import { homeId, threadById, threadText, threads } from "./threads.js";
@@ -73,7 +73,7 @@ export interface Doc {
   key: string;
   kind: "page" | "task" | "person" | "project" | "event" | "file" | "canvas" | "thread";
   title: string;
-  /** For a page: its project (`notes` for an unaffiliated note) and path; for a canvas, its project and id (as `path`); for a thread, Home and its id. For an entity: its id. */
+  /** For a page: its project and path; for a canvas, its project and id (as `path`); for a thread, Home and its id. For an entity: its id. */
   project?: string;
   path?: string;
   id?: string;
@@ -137,7 +137,7 @@ export function passages(title: string, text: string): string[] {
 
 function pageDocs(): Doc[] {
   const out: Doc[] = [];
-  const places = [...listProjects().map((p) => p.id), UNDATED];
+  const places = listProjects().map((p) => p.id);
   for (const project of places) {
     let tree: PageNode[] = [];
     try { tree = pageTree(project); } catch { continue; }
@@ -263,7 +263,7 @@ export function thingDescription(key: string): { about: string; aboutByYou: bool
 export function filesWithNoWords(): { key: string; name: string; project: string; projectName: string; path?: string; abs?: string; on: string[]; type: string }[] {
   const rows = listFiles().rows;
   const states = fileReadStates(rows).read;
-  const names = new Map<string, string>([[UNDATED, "Unaffiliated pages"], ...listProjects().map((p) => [p.id, p.name] as [string, string])]);
+  const names = new Map<string, string>(listProjects().map((p) => [p.id, p.name] as [string, string]));
   return rows.filter((r) => states[r.key] === "nowords")
     .map((r) => ({ key: r.key, name: r.name, project: r.project, projectName: names.get(r.project) ?? r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
       on: r.on.map((o) => o.title), type: r.type }));
@@ -724,6 +724,23 @@ export function nearTo(key: string, options: { limit?: number; floor?: number } 
     if (top >= floor && at) best.push({ ...e.doc, score: Math.round(top * 1000) / 1000, passage: snippet(at.text, e.doc.title) });
   }
   return best.sort((a, b) => b.score - a.score).slice(0, options.limit ?? 10);
+}
+
+/** Entries moved to new keys, as `to` says (null leaves one), with their pages' places in them: kept, not read again. */
+export function renameIndexed(to: (key: string) => string | null, place: (doc: Doc) => Partial<Doc> = () => ({})): number {
+  const s = meaningSettings();
+  if (!s.model) return 0;
+  const ix = load(s.model);
+  let n = 0;
+  for (const [k, e] of [...ix.entries]) {
+    const next = to(k);
+    if (next === null || next === k) continue;
+    ix.entries.delete(k);
+    ix.entries.set(next, { ...e, doc: { ...e.doc, key: next, ...place(e.doc) } });
+    n++;
+  }
+  if (n) save(ix);
+  return n;
 }
 
 /** A thing's entry in the index, by key: for a file, what it was read as. */

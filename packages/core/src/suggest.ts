@@ -367,6 +367,15 @@ export function undismiss(key: string): number {
   if (k.no.length !== before) saveKept();
   return before - k.no.length;
 }
+/** What was said no to, and things told to be quiet, moved to new keys (a page moved whole): kept as they were. */
+export function renameSuggestKeys(to: (key: string) => string | null): void {
+  const k = keptState();
+  const swap = (x: string) => to(x) ?? x;
+  k.no = k.no.map((p) => { const [a, b] = p.split("\u0000"); return pair(swap(a!), swap(b!)); });
+  k.quiet = k.quiet.map(swap);
+  saveKept();
+}
+
 /** A thing told to stop suggesting (or to start again). */
 export function setQuiet(key: string, quiet: boolean): boolean {
   const k = keptState();

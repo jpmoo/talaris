@@ -512,12 +512,15 @@ test("tags: a page tagged gets an entity; renames and copies keep its tags; a ta
   assert.deepEqual(tags.setPageTags(p.id, "Budget notes", ["#finance", " board ", "finance"]), ["finance", "board"], "trimmed, # dropped, once each");
   pagesM.movePage(p.id, "Budget notes", null, "Budget, FY27");
   assert.deepEqual(tags.pageTags(p.id, "Budget, FY27"), ["finance", "board"], "renamed, its tags go with it");
-  pagesM.transferPage(p.id, "Budget, FY27", projectsM.UNDATED, null, true);
-  assert.deepEqual(tags.pageTags(projectsM.UNDATED, "Budget, FY27"), ["finance", "board"], "a copy wears them too");
+  // Copied into Home's Pages (the pages of no other project).
+  const H = projectsM.ensureHome().id;
+  (await import("../src/notes.js")).ensurePagesFolder();
+  pagesM.transferPage(p.id, "Budget, FY27", H, "Pages", true);
+  assert.deepEqual(tags.pageTags(H, "Pages/Budget, FY27"), ["finance", "board"], "a copy wears them too");
   tasks.createTask({ title: "Pay the auditors", tags: ["finance"] });
   const found = tags.tagged(["finance"]);
   assert.deepEqual(found.map((x) => x.title).sort(), ["Budget, FY27", "Budget, FY27", "Pay the auditors"]);
-  assert.ok(found.some((x) => x.page?.project === projectsM.UNDATED), "an undated note says where it is");
+  assert.ok(found.some((x) => x.page?.project === H && x.page.path === "Pages/Budget, FY27"), "one in Home's Pages says where it is");
   assert.equal(tags.tagged(["finance", "board"], { all: true }).length, 2, "every tag asked for: the two pages");
   assert.ok(tags.allTags().some((t) => t.tag === "finance" && t.count >= 3));
   pagesM.deletePage(p.id, "Budget, FY27");
@@ -612,31 +615,34 @@ test("undated notes through the live binding: their file is the truth, renamed a
   const pagesM = await import("../src/pages.js");
   const projectsM = await import("../src/projects.js");
   const notes = await import("../src/notes.js");
-  pagesM.createPage(projectsM.UNDATED, null, "Shared plan");
-  pagesM.writePage(projectsM.UNDATED, "Shared plan", "first words");
+  // The undated notes are Home's Pages.
+  const H = projectsM.ensureHome().id;
+  notes.ensurePagesFolder();
+  pagesM.createPage(H, "Pages", "Shared plan");
+  pagesM.writePage(H, "Pages/Shared plan", "first words");
   const read = live.readEnvelope();
   const note = (read.objects ?? []).find((o) => o[notes.MARK] === true && o.properties.title === "Shared plan");
   assert.ok(note, "an undated note is in the envelope, marked");
   assert.equal(note!.properties.body, "first words", "its words where the note profile puts them");
   // A write goes to the file: renamed where it is, its words replaced.
   live.patchObject(note!.id, { set: { title: "Shared plan, revised", body: "second words" }, version: note!.version });
-  assert.equal(pagesM.readPage(projectsM.UNDATED, "Shared plan, revised"), "second words");
+  assert.equal(pagesM.readPage(H, "Pages/Shared plan, revised"), "second words");
   // Edited outside Talaris, seen on the next read.
-  pagesM.writePage(projectsM.UNDATED, "Shared plan, revised", "third words");
+  pagesM.writePage(H, "Pages/Shared plan, revised", "third words");
   assert.equal(entities.getEntity(note!.id).properties.body, "second words");
   live.readEnvelope();
   assert.equal(entities.getEntity(note!.id).properties.body, "third words");
   // Made through the binding: a page in the undated notes, at the id asked for.
   const made = live.createObject("e_made_note", { type: "t_note", properties: { title: "From elsewhere", body: "its words", "acme:kept": true } });
   assert.ok(made.created);
-  assert.equal(pagesM.readPage(projectsM.UNDATED, "From elsewhere"), "its words");
+  assert.equal(pagesM.readPage(H, "Pages/From elsewhere"), "its words");
   assert.equal(entities.getEntity("e_made_note").properties["acme:kept"], true, "what it came with stays");
   // Moved into a project, no longer undated; deleted, gone.
   const p = projectsM.createProject("Takes a note");
-  pagesM.transferPage(projectsM.UNDATED, "From elsewhere", p.id, null, false);
+  pagesM.transferPage(H, "Pages/From elsewhere", p.id, null, false);
   live.readEnvelope();
   assert.equal(entities.getEntity("e_made_note")[notes.MARK] ?? null, null);
-  pagesM.deletePage(projectsM.UNDATED, "Shared plan, revised");
+  pagesM.deletePage(H, "Pages/Shared plan, revised");
   live.readEnvelope();
   assert.throws(() => entities.getEntity(note!.id));
 });

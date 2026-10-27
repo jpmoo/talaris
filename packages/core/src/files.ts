@@ -35,7 +35,7 @@ import { LINK, homeHolds, linkFile, real, refreshLinks, toLink } from "./links.j
 import { seal, unseal } from "./seal.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
-import { Conflict, NotFound, findProject, listProjects, UNDATED, notesFolder } from "./projects.js";
+import { Conflict, NotFound, findProject, listProjects } from "./projects.js";
 import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
 import { canvasTree } from "./canvases.js";
@@ -165,8 +165,7 @@ function settle(ix: ProjectIndex): void {
 /** Every project in use, indexed and watched; one archived or gone, let go. */
 export function watchProjects(): void {
   const now = new Set<string>();
-  // The unaffiliated pages' folder too (projects.ts, `notes`): pages of no project, but files on disk all the same.
-  const places = [...listProjects().map((p) => ({ id: p.id, folder: p.folder })), ...(existsSync(notesFolder()) ? [{ id: UNDATED, folder: notesFolder() }] : [])];
+  const places = listProjects().map((p) => ({ id: p.id, folder: p.folder }));
   for (const p of places) {
     now.add(p.id);
     const had = indexes.get(p.id);
@@ -305,8 +304,8 @@ function allRows(only?: string): FileRow[] {
     if (only && ix.id !== only) continue;
     if (!ix.watched) scan(ix);
     for (const [rel, seen] of ix.files) {
-      // A page: in a project's Writing; anywhere in the unaffiliated pages' folder.
-      const page = rel.endsWith(".md") && (ix.id === UNDATED || rel.startsWith(`${WRITING}/`));
+      // A page: in a project's Writing (Home's pages of no other project among them, in Writing/Pages).
+      const page = rel.endsWith(".md") && rel.startsWith(`${WRITING}/`);
       const abs = join(ix.root, rel);
       rows.set(`p:${ix.id}/${rel}`, { key: `p:${ix.id}/${rel}`, project: ix.id, name: basename(rel), path: rel, abs, type: page ? "document" : typeOfName(rel),
         size: seen.size, mtime: new Date(seen.mtime).toISOString(), status: [page ? "page" : "folder"], on: [], tags: [],
@@ -498,7 +497,8 @@ export function fileCounts(projectId?: string): { all: number; projects: Record<
   const add = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
   for (const r of rows) {
     if (projectId && r.project !== projectId) continue;
-    for (const s of new Set(r.status.map((x) => (x === "page" ? "folder" : x)))) add(status, s);
+    // A page is a writing page, and in the folder too (as the filter takes it).
+    for (const s of new Set(r.status.flatMap((x) => (x === "page" ? ["page", "folder"] : [x])))) add(status, s);
     add(type, r.status.includes("page") ? "page" : r.type);
     for (const t of r.tags) add(tags, t);
   }

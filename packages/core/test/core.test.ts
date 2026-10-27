@@ -168,31 +168,35 @@ test("a canvas goes with everything inside it when asked to, each kept in its ve
   assert.ok(canvases.canvasVersions(p.id, a1.id).length >= 1);
 });
 
-test("undated notes: their own folder, the same pages; moved and copied to and from a project; daily notes Home's only", () => {
+test("pages of no other project: Home's Pages, which stays; moved and copied to and from a project; daily notes Home's only", async () => {
   const p = projects.createProject("Notes test");
-  assert.equal(projects.folderName("Notes"), "Notes project", "the undated notes' folder is not a project's to take");
-  const plan = pages.createPage(projects.UNDATED, null, "Plan");
-  pages.writePage(projects.UNDATED, plan.path, "the plan");
-  pages.createPage(projects.UNDATED, plan.path, "Step");
-  assert.ok(existsSync(join(projects.notesFolder(), "Plan.md")), "straight in Notes, no Writing folder");
-  assert.ok(!projects.listProjects().some((x) => x.folder === projects.notesFolder()), "Notes is not a project");
+  assert.equal(projects.folderName("Notes"), "Notes project", "the old undated notes' folder name is not a project's to take");
+  const home = projects.ensureHome();
+  (await import("../src/notes.js")).ensurePagesFolder();
+  assert.ok(pages.pageTree(home.id).some((n) => n.path === "Pages"), "a folder in Home's writing, as Daily is");
+  const top = pages.createPage(home.id, "Pages", "Plan");
+  pages.writePage(home.id, top.path, "the plan");
+  pages.createPage(home.id, top.path, "Step");
+  assert.ok(existsSync(join(home.folder, "Writing", "Pages", "Plan.md")), "in Home's Writing/Pages");
+  // Pages itself stays: not renamed, moved or deleted.
+  assert.throws(() => pages.movePage(home.id, "Pages", null, "Elsewhere"), /stays/);
+  assert.throws(() => pages.deletePage(home.id, "Pages", { withChildren: true }), /stays/);
+  assert.throws(() => pages.transferPage(home.id, "Pages", p.id, null, false), /stays/);
   // Copied into the project: both have it, the copy with its child.
-  pages.transferPage(projects.UNDATED, "Plan", p.id, null, true);
+  pages.transferPage(home.id, "Pages/Plan", p.id, null, true);
   assert.equal(pages.readPage(p.id, "Plan"), "the plan");
   assert.ok(pages.pagesBelow(p.id, "Plan").includes("Plan/Step"));
-  assert.equal(pages.readPage(projects.UNDATED, "Plan"), "the plan");
-  // Moved back out: a fresh name beside the original, and gone from the project.
-  const back = pages.transferPage(p.id, "Plan", projects.UNDATED, null, false);
+  assert.equal(pages.readPage(home.id, "Pages/Plan"), "the plan");
+  // Moved back into Pages: a fresh name beside the original, and gone from the project.
+  const back = pages.transferPage(p.id, "Plan", home.id, "Pages", false);
   assert.equal(back.title, "Plan 2");
   assert.ok(!existsSync(join(p.folder, "Writing", "Plan.md")));
-  assert.ok(pages.pageTree(projects.UNDATED).some((n) => n.title === "Plan 2"));
+  assert.ok(pages.pagesBelow(home.id, "Pages").includes("Pages/Plan 2"));
   // Daily notes: Home's alone, and going nowhere.
   assert.equal(pages.dailyEnabled(p.id), false);
-  assert.equal(pages.dailyEnabled(projects.UNDATED), false);
-  const home = projects.listProjects().find((x) => x.home)!;
   assert.equal(pages.dailyEnabled(home.id), true);
   pages.writePage(home.id, "Daily/2027-01-05", "a day");
-  assert.throws(() => pages.transferPage(home.id, "Daily/2027-01-05", projects.UNDATED, null, true), /daily note stays/);
+  assert.throws(() => pages.transferPage(home.id, "Daily/2027-01-05", p.id, null, true), /daily note stays/);
 });
 
 test("a page goes with the pages beneath it when asked to, each kept in its versions", () => {

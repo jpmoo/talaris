@@ -50,21 +50,22 @@ export const ARCHIVED = "Archived";
 export const archiveRoot = () => join(projectsRoot(), ARCHIVED);
 
 /*
- * Undated notes: pages of no project, seen from every one, kept in
- * `<projects>/Notes` — the pages straight in it, its order and versions in
- * its `.talaris`, as a project's are. Asked for as the project `notes`, so
- * every page call works on them unchanged (`pagesPlace`).
+ * Undated notes — the pages of no other project, the ones Hermes Notes keeps
+ * in step — are Home's: its writing's `Pages` folder, beside its `Daily`
+ * (notes.ts). Until 2026-10-27 they were a place of their own, `<projects>/Notes`,
+ * asked for as the project `notes`; they were moved into Home once
+ * (pages-home.ts), and `notes` is still taken — from Morgan, from a page's
+ * old address — to mean Home's Pages.
  */
 export const NOTES = "Notes";
 export const UNDATED = "notes";
+/** Where they were, before Home: read only to move them from. */
 export const notesFolder = () => join(projectsRoot(), NOTES);
+/** Home's folder of them, in its writing: `Pages/<title>`. */
+export const PAGES = "Pages";
 
-/** Where a project's pages are — or, for `notes`, the undated ones. */
+/** Where a project's pages are. */
 export function pagesPlace(projectId: string, write = false): { folder: string; id: string } {
-  if (projectId === UNDATED) {
-    mkdirSync(join(notesFolder(), MACHINERY), { recursive: true });
-    return { folder: notesFolder(), id: UNDATED };
-  }
   const p = write ? writableProject(projectId) : findProject(projectId);
   return { folder: p.folder, id: p.id };
 }

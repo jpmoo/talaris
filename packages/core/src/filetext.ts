@@ -255,3 +255,18 @@ export function setPageAbout(key: string, stamp: string, about: string, byYou = 
   loadCache().set(key, { stamp, text: "", about, ...(byYou ? { aboutByYou: true } : {}) });
   dirty = true;
 }
+
+/** Kept words and descriptions moved to new keys (`to` answers a key's new one, or null to leave it): a page moved whole, say. */
+export function renameKept(to: (key: string) => string | null): number {
+  const c = loadCache();
+  let n = 0;
+  for (const [k, v] of [...c]) {
+    const next = to(k);
+    if (next === null || next === k) continue;
+    c.delete(k);
+    c.set(next, v);
+    n++;
+  }
+  if (n) { dirty = true; saveFileText(); }
+  return n;
+}

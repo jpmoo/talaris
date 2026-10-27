@@ -4,10 +4,10 @@
 /*
  * Undated notes, for the live binding (interchange.ts) and so for a sync.
  *
- * A note's words live in its file in ~/Projects/Notes (pages.ts, as the
- * project `notes`), and the file is the truth. What the binding hands out is
- * an entity standing for it — the same one that holds its mentions (a page's
- * source, `notes/<path>`) — carrying its title, its words where the note
+ * A note's words live in its file in Home's `Writing/Pages` (pages.ts: Home's
+ * page `Pages/<title>`), and the file is the truth. What the binding hands out
+ * is an entity standing for it — the same one that holds its mentions (a
+ * page's source, `<home>/Pages/<path>`) — carrying its title, its words where the note
  * profile puts a body (Talaris's own Note type: its `body` field; `content`
  * for a type that says so) and a mark, `talaris:undated`, so that a sync can tell an
  * undated note from every other note-shaped thing in the store (a page's or
@@ -26,17 +26,22 @@
  * binding is made at the top of the undated notes, at the id asked for.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, typeFor, types, updateEntity, type Entity } from "./entities.js";
-import { Conflict, UNDATED, listProjects, pagesPlace } from "./projects.js";
+import { Conflict, PAGES, UNDATED, ensureHome, listProjects, pagesPlace } from "./projects.js";
 import { DAILY, createPage, movePage, pageTree, readPage, writePage } from "./pages.js";
 import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
 
 export const MARK = "talaris:undated";
-const PREFIX = `${UNDATED}/`;
-const sourceOf = (path: string) => ({ kind: "page", key: `${PREFIX}${path}` });
+/** A note's page source, `<home>/Pages/`, and its path below it. */
+const prefix = () => `${homeId()}/${PAGES}/`;
+/** Their old address, before they were Home's (pages-home.ts): never written, only refused. */
+const LEGACY = `${UNDATED}/`;
+const sourceOf = (path: string) => ({ kind: "page", key: `${prefix()}${path}` });
+/** A note's path below Pages as Home's page path, and back. */
+const inHome = (path: string) => `${PAGES}/${path}`;
 const titleOf = (path: string) => path.split("/").pop() ?? path;
 const pageSource = (e: Entity) => ((e["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "page");
 
@@ -58,15 +63,17 @@ const wordsAt = (typeId: string | undefined, text: string) => { const k = bodyKe
 function allPaths(): string[] {
   const out: string[] = [];
   const walk = (nodes: PageNode[]) => { for (const n of nodes) { out.push(n.path); walk(n.children); } };
-  walk(pageTree(UNDATED));
-  return out;
+  const pages = pageTree(homeId()).find((n) => n.path === PAGES);
+  // Paths below Pages: what a note is known by.
+  walk(pages?.children ?? []);
+  return out.map((p) => p.slice(PAGES.length + 1));
 }
 
 /** An undated note's entity brought up to date with its file — made, if it has none; `id` only when it is made. */
 function mirror(path: string, id?: string): Entity {
   const title = titleOf(path);
   let text = "";
-  try { text = readPage(UNDATED, path); } catch { /* a folder with no page of its own: a note with no words */ }
+  try { text = readPage(homeId(), inHome(path)); } catch { /* a folder with no page of its own: a note with no words */ }
   const e = bySource(sourceOf(path));
   if (!e) {
     const type = typeFor("note");
@@ -93,7 +100,8 @@ function mirror(path: string, id?: string): Entity {
  */
 export const DAY_MARK = "talaris:daily";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const homeId = () => listProjects().find((p) => p.home)?.id ?? "";
+// Home, made if it is not yet: the project that is always there, and where the undated notes and daily notes are.
+const homeId = () => listProjects().find((p) => p.home)?.id ?? ensureHome().id;
 const daySource = (date: string) => ({ kind: "page", key: `${homeId()}/${DAILY}/${date}` });
 
 function dayDates(): string[] {
@@ -152,6 +160,12 @@ export function createDay(id: string, date: string, words: string): Entity {
 /** Every undated note's entity as its file is; any that stood for one gone or moved into a project, said so. */
 export function reconcileNotes(): void {
   reconcileDays();
+  // Any note still at its old address: not moved into Home yet (pages-home.ts) — tidying now would take it for gone.
+  if (allRecords().some((r) => r.object[MARK] === true && pageSource(r.object)?.key.startsWith(LEGACY))) {
+    console.log("talaris-core: undated notes not yet moved into Home; not reconciled");
+    return;
+  }
+  const PREFIX = prefix();
   const paths = new Set(allPaths());
   for (const p of paths) mirror(p);
   for (const r of allRecords()) {
@@ -184,26 +198,35 @@ export function isUndated(id: string): boolean {
 export function writeNote(id: string, set: Record<string, unknown>, content: string | undefined): Entity {
   const e = getEntity(id);
   const src = pageSource(e);
+  const PREFIX = prefix();
   if (!src?.key.startsWith(PREFIX)) throw new Error(`${id} is not an undated note`);
   let path = src.key.slice(PREFIX.length);
   const key = titleKey(e.type);
   const title = typeof set[key] === "string" ? (set[key] as string).trim() : "";
   if (title && title !== titleOf(path)) {
     const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : null;
-    path = movePage(UNDATED, path, parent, title).path;
+    path = movePage(homeId(), inHome(path), parent ? inHome(parent) : PAGES, title).path.slice(PAGES.length + 1);
   }
   const k = bodyKey(e.type);
   const words = k === "content" ? content : typeof set[k] === "string" ? (set[k] as string) : k in set && set[k] === null ? "" : undefined;
-  if (words !== undefined) writePage(UNDATED, path, words);
+  if (words !== undefined) writePage(homeId(), inHome(path), words);
   return mirror(path);
+}
+
+/** Home's Pages folder, made if there is none yet: where an undated note is made. */
+export function ensurePagesFolder(): void {
+  const home = homeId();
+  if (home) mkdirSync(join(pagesPlace(home, true).folder, WRITING, PAGES), { recursive: true });
 }
 
 /** A note made through the binding: at the top of the undated notes, at the id asked for. */
 export function createNote(id: string, title: string, content: string): Entity {
-  const page = createPage(UNDATED, null, title);
-  if (content) writePage(UNDATED, page.path, content);
+  ensurePagesFolder();
+  const page = createPage(homeId(), PAGES, title);
+  if (content) writePage(homeId(), page.path, content);
+  const path = page.path.slice(PAGES.length + 1);
   // Made by the page calls above with an id of their own, if it mentions anything: given the one asked for instead.
-  const made = bySource(sourceOf(page.path));
+  const made = bySource(sourceOf(path));
   if (made && made.id !== id) deleteEntity(made.id);
-  return mirror(page.path, id);
+  return mirror(path, id);
 }

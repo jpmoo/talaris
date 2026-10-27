@@ -72,8 +72,9 @@ test("the demo is made to show ties: each planted one is suggested", async () =>
   const compost = entities.findEntities({ q: "Fix the compost bin latch", kind: "task" });
   assert.equal(compost.length, 2);
   assert.ok(has(`e:${compost[0]!.id}`, "Fix the compost bin latch", "merge"), "a task twice: merge");
-  assert.ok(has("page:notes/Maya", "Maya Chen", "connect"), "a page called by her name: about her");
-  assert.ok(offered("page:notes/Spring fundraiser").some((s) => s.title.startsWith("Daniel")), "a name in a page of no project");
+  const H = projects.listProjects().find((p) => p.home)!.id;
+  assert.ok(has(`page:${H}/Pages/Maya`, "Maya Chen", "connect"), "a page called by her name: about her");
+  assert.ok(offered(`page:${H}/Pages/Spring fundraiser`).some((s) => s.title.startsWith("Daniel")), "a name in a page of no project");
   const minutes = projects.listProjects().find((p) => p.name === "Board Report")!;
   assert.ok(offered(`file:${minutes.id}/Files/March minutes.md`).some((s) => s.title === "Lena Novak"), "a file names a person");
   const kitchen = projects.listProjects().find((p) => p.name === "Kitchen Remodel")!;

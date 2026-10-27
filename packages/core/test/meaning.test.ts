@@ -51,10 +51,10 @@ test("nothing is embedded, and nothing found, until it is on with a model server
   assert.equal(calls, 0, "nothing went to the model server");
 });
 
-test("on: pages, unaffiliated notes and tasks are embedded, and found by what they are about", async () => {
+test("on: pages, Home's pages of no other project and tasks are embedded, and found by what they are about", async () => {
   settings({ on: true, url: "http://model.test", model: "nomic-embed-text" });
   pages.writePage(school.id, "Recess", "Kids need more time outside; students focus better after recess.");
-  pages.writePage("notes", "Reading list", "Books to read this winter.");
+  pages.writePage(home.id, "Pages/Reading list", "Books to read this winter.");
   tasks.createTask({ title: "Ask the board about spending on the lab" });
   const n = await meaning.reindex();
   assert.ok(n >= 4, `embedded ${n}`);

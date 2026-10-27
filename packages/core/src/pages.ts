@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING, stamp } from "./paths.js";
-import { Conflict, NotFound, UNDATED, findProject, notesFolder, pagesPlace } from "./projects.js";
+import { Conflict, NotFound, PAGES, findProject, pagesPlace } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { membersMoved } from "./filelists.js";
@@ -64,8 +64,7 @@ export function setPageLook(projectId: string, path: string, look: { paper?: str
 }
 
 function writingDir(folder: string): string {
-  // The undated notes are the folder itself; a project keeps its pages in `Writing/`.
-  return folder === notesFolder() ? folder : join(folder, WRITING);
+  return join(folder, WRITING);
 }
 
 /** A page path, checked: no escaping `Writing/`, no hidden names. */
@@ -221,6 +220,7 @@ export function createPage(projectId: string, parent: string | null, title: stri
 export function movePage(projectId: string, path: string, newParent: string | null, newTitle?: string): PageNode {
   const { folder } = pagesPlace(projectId, true);
   const from = safe(path);
+  keepPagesRoot(projectId, from);
   const fromParent = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
   const oldTitle = from.slice(fromParent ? fromParent.length + 1 : 0);
   const toParent = newParent ? safe(newParent) : "";
@@ -277,7 +277,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
   movedText({ kind: "page", key: `${projectId}/${from}` }, { kind: "page", key: `${projectId}/${to}` });
   starredPageMoved(projectId, from, to);
   // Its place in the project's lists (filelists.ts), and its children's.
-  if (projectId !== UNDATED) {
+  {
     const was = `p:${projectId}/${WRITING}/${from}`, now = `p:${projectId}/${WRITING}/${to}`;
     membersMoved((k) => (k === `${was}.md` ? `${now}.md` : k.startsWith(`${was}/`) ? now + k.slice(was.length) : null));
   }
@@ -305,6 +305,7 @@ export function reorderPage(projectId: string, path: string, index: number): voi
 export function deletePage(projectId: string, path: string, options: { withChildren?: boolean } = {}): void {
   const { folder } = pagesPlace(projectId, true);
   const p = safe(path);
+  keepPagesRoot(projectId, p);
   const dir = childDir(folder, p);
   const below = pagesBelow(projectId, p);
   if (below.length && !options.withChildren) throw new Conflict(`"${p}" still has pages beneath it`);
@@ -378,10 +379,14 @@ export function pageLocation(projectId: string, path: string): string {
 export const DAILY = "Daily";
 
 export function dailyEnabled(projectId: string): boolean {
-  if (projectId === UNDATED) return false;
   return findProject(projectId).home;
 }
-const isDaily = (projectId: string, path: string) => projectId !== UNDATED && findProject(projectId).home && (path === DAILY || path.startsWith(`${DAILY}/`));
+const isDaily = (projectId: string, path: string) => findProject(projectId).home && (path === DAILY || path.startsWith(`${DAILY}/`));
+/** Home's `Pages` folder itself (notes.ts): what is in it can go anywhere; it stays. */
+const isPagesRoot = (projectId: string, path: string) => path === PAGES && findProject(projectId).home;
+function keepPagesRoot(projectId: string, path: string): void {
+  if (isPagesRoot(projectId, path)) throw new Conflict("Home's Pages holds the pages of no other project: it stays where it is, as it is");
+}
 
 /**
  * A page — and everything beneath it — moved or copied between a project and
@@ -394,6 +399,7 @@ const isDaily = (projectId: string, path: string) => projectId !== UNDATED && fi
  */
 export function transferPage(fromProject: string, path: string, toProject: string, toParent: string | null, copy: boolean): PageNode {
   const from = safe(path);
+  if (!copy) keepPagesRoot(fromProject, from);
   if (isDaily(fromProject, from)) throw new Conflict("a daily note stays where it is: it is not moved or copied");
   const under = toParent ? safe(toParent) : "";
   if (under && isDaily(toProject, under)) throw new Conflict("nothing goes in among the daily notes");

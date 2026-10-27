@@ -621,7 +621,7 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     if (body.tags?.length) updateEntity(made.id, { tags: body.tags });
     return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
-  // A note made through the binding is an undated note: a page in ~/Projects/Notes, at the id asked for (notes.ts).
+  // A note made through the binding is an undated note: one of Home's Pages, at the id asked for (notes.ts).
   const noteTitle = types().find((t) => t.id === body.type)?.profiles?.note?.title;
   if (typeof noteTitle === "string" && !types().find((t) => t.id === body.type)?.profiles?.task) {
     const bodyField = types().find((t) => t.id === body.type)?.profiles?.note?.body;

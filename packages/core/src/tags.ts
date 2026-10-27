@@ -21,7 +21,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, summary, titleOf, typeFor, updateEntity, type Entity, type Summary } from "./entities.js";
-import { UNDATED, findProject, notesFolder } from "./projects.js";
+import { findProject } from "./projects.js";
 import { pageLocation } from "./pages.js";
 import { fileOf } from "./files.js";
 
@@ -110,7 +110,7 @@ export function tagged(tags: string[], options: { all?: boolean; kind?: string }
 export function pageExists(p: { project: string; path: string }): boolean {
   try {
     const rel = pageLocation(p.project, p.path);
-    const base = p.project === UNDATED ? notesFolder() : findProject(p.project).folder;
+    const base = findProject(p.project).folder;
     return existsSync(join(base, rel)) || existsSync(join(base, rel.replace(/\.md$/, "")));
   } catch {
     return false;

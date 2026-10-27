@@ -137,8 +137,8 @@
   // ---------------------------------------------------------------- loading
 
   async function loadProjects() {
-    // The unaffiliated pages too: a place of their own (the core's `notes`), listed after the projects; moved to, never.
-    projects = [...await api("GET", "/projects"), { id: "notes", name: "Unaffiliated pages", code: "", pagesOnly: true }];
+    // The pages of no other project are Home's, in its Pages.
+    projects = await api("GET", "/projects");
   }
 
   async function load() {
@@ -149,11 +149,11 @@
     if (filters.type) q.set("type", filters.type);
     if (filters.days) q.set("days", String(filters.days));
     for (const t of filters.tags) q.append("tag", t);
-    const inProject = project && project !== "notes";
+    const inProject = Boolean(project);
     if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
-    watched = project && project !== "notes" ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
+    watched = project ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
     counts = await api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts);
     lists = inProject ? await api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [];
     if (inProject) listsOf.set(project, lists);
@@ -218,8 +218,8 @@
           reload();
         } }, "×"))),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
-      project && project !== "notes" ? el("div", { class: "s-head" }, "Lists", el("button", { class: "s-add", title: "A new list", onclick: () => newList(null) }, "+")) : null,
-      ...(project && project !== "notes" ? flat(lists) : []).map((l) => {
+      project ? el("div", { class: "s-head" }, "Lists", el("button", { class: "s-add", title: "A new list", onclick: () => newList(null) }, "+")) : null,
+      ...(project ? flat(lists) : []).map((l) => {
         const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
         b.style.paddingLeft = `${12 + l.depth * 14}px`;
         dropOnList(b, l);
@@ -521,7 +521,7 @@
       project = r.alsoIn[0]; chosen = r.type === "conversation" ? `t:${r.thing.split("/").pop()}` : `v:${r.thing.slice(7)}`; filters.list = ""; reload();
     });
     // In this project's lists (a list holds only what is in its project).
-    if (r.project !== "notes" && !s.includes("missing")) act("Add to a list…", () => inline("list", r));
+    if (!s.includes("missing")) act("Add to a list…", () => inline("list", r));
     if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Pin to the dock", () => { bridge.pin(r.abs, r.name); say(`${r.name} pinned to the dock, in this project`); });
     if (s.includes("folder") && !s.includes("page")) {
@@ -598,8 +598,8 @@
 
     const taggable = (s.includes("folder") && !s.includes("page")) || s.includes("shortcut");
     // The lists it is in, each to take it out of.
-    const inLists = r.project !== "notes" ? el("div", { class: "chips d-lists" }) : null;
-    if (inLists) api("GET", `/files/lists/holding?project=${enc(r.project)}&key=${enc(r.key)}`).then((held) => {
+    const inLists = el("div", { class: "chips d-lists" });
+    api("GET", `/files/lists/holding?project=${enc(r.project)}&key=${enc(r.key)}`).then((held) => {
       if (chosen !== r.key || !held.length) return;
       inLists.replaceChildren(el("div", { class: "d-sub" }, "In lists"), ...held.map((l) => el("span", { class: "chip" }, l.name,
         el("button", { title: "Take it out of this list (nothing is deleted)", onclick: () => api("DELETE", `/files/lists/${enc(l.id)}/items`, { project: r.project, keys: [r.key] })
@@ -660,7 +660,7 @@
     if (taggable.length) act(`Add a tag…${of(taggable)}`, () => inlineMany("tag", taggable));
     // Into a list: all of one project's, since a list holds only its project's.
     const theirs = [...new Set(list.map((r) => r.project))];
-    if (theirs.length === 1 && theirs[0] !== "notes") act("Add to a list…", () => { const host = $("inline"); host.className = "inline"; listPicker(host, theirs[0], list); });
+    if (theirs.length === 1) act("Add to a list…", () => { const host = $("inline"); host.className = "inline"; listPicker(host, theirs[0], list); });
     if (filters.list) act(`Take out of ${listName(filters.list)}`, () => done(`out of ${listName(filters.list)}; nothing deleted`,
       [() => api("DELETE", `/files/lists/${enc(filters.list)}/items`, { project, keys: list.map((r) => r.key) })]));
     if (shortcuts.length) act(armed === "many-sc" ? `Yes, take ${shortcuts.length} shortcuts away` : `Remove the shortcuts${of(shortcuts)}`, () => {
@@ -905,7 +905,7 @@
    * folder watched from then on for files new in it (the core's files.ts).
    */
   async function linkFolder(path) {
-    const to = project && project !== "notes" ? project : surface.project;
+    const to = project || surface.project;
     if (!to) { say("Choose a project on the left first: that is where they go", true); return; }
     let f;
     try { f = await api("GET", `/files/folder?path=${enc(path)}`); } catch (e) { failed(e); return; }
