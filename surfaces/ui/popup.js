@@ -154,9 +154,11 @@ function drawSys(r) {
   if (Date.now() - sysAt > 3000) { sysSeen.cpu = []; sysSeen.mem = []; }
   sysAt = Date.now();
   for (const [k, v] of [["cpu", r.cpu], ["mem", memPct]]) { sysSeen[k].push(v); if (sysSeen[k].length > SYS_N) sysSeen[k].shift(); }
-  $("sys-cpu-v").textContent = `${Math.round(r.cpu)}%`;
-  $("sys-mem-v").textContent = `${gb(r.mem.used)} of ${gb(r.mem.total)}`;
-  $("sys-swap-v").textContent = r.swap.total ? `${mb(r.swap.used)} of ${gb(r.swap.total)}` : "None";
+  $("sys-cpu-v").textContent = `${Math.round(r.cpu)}% busy`;
+  // What is in use, of all there is; how much is free, in its tip.
+  $("sys-mem-v").textContent = `${gb(r.mem.used)} used of ${gb(r.mem.total)}`;
+  $("sys-mem-v").title = `${gb(r.mem.total - r.mem.used)} free`;
+  $("sys-swap-v").textContent = r.swap.total ? `${mb(r.swap.used)} used of ${gb(r.swap.total)}` : "None";
   // The load beside the cores it is shared among: above that, things wait.
   $("sys-load-v").textContent = `${r.load[0].toFixed(2)} · ${r.cores} cores`;
   $("sys-load-v").title = `Over 1, 5 and 15 minutes: ${r.load.join(", ")}`;
