@@ -28,6 +28,7 @@ const suggest = await import("../src/suggest.js");
 const entities = await import("../src/entities.js");
 const filelists = await import("../src/filelists.js");
 const context = await import("../src/context.js");
+const tasks = await import("../src/tasks.js");
 
 after(() => { files.stopAll(); rmSync(sandbox, { recursive: true, force: true }); });
 
@@ -193,4 +194,18 @@ test("Morgan away: the copy is kept, and why it was not asked is said", async ()
   assert.equal(r.ok, false);
   assert.equal(threads.threads().length, 3);
   assert.match(threads.threadsStatus().error, /could not be asked/);
+});
+
+test("a name filed as an address book files it is the same name: Groninger, Margaret is Margaret Groninger", async () => {
+  const filed = entities.createEntity({ role: "person", properties: { title: "Groninger, Margaret", emails: ["mg@school.example"] } });
+  const said = entities.createEntity({ role: "person", properties: { title: "Margaret Groninger" } });
+  const same = suggest.suggestionsFor(`e:${said.id}`).suggestions.find((x) => x.id === filed.id);
+  assert.ok(same, "offered");
+  assert.ok(same!.why.includes("The same name"));
+  assert.ok(same!.ways.some((w) => w.how === "merge"), "as one to merge");
+  // And found in words as it is said, by her first name too — not as "Groninger,".
+  const t = tasks.createTask({ title: "Debrief with Margaret about the framework" });
+  const s = suggest.suggestionsFor(`e:${t.id}`).suggestions;
+  assert.ok(!s.some((x) => x.why.some((w) => w.includes("Groninger,"))));
+  assert.ok(s.some((x) => x.id === filed.id && x.why.some((w) => w.includes("Margaret"))));
 });

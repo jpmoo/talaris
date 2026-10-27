@@ -212,6 +212,16 @@ interface Name { key: string; id: string; title: string; kind: "person" | "proje
 let names: { at: number; list: Name[] } | null = null;
 // A person or project made, renamed or gone: the names read again (deletions run no hook, so they age out too).
 onChange((_b, after) => { if (names && profilesOf(after).some((k) => k === "contact" || k === "project")) names = null; });
+/**
+ * A person's name as it is said: "Groninger, Margaret" — as an address book
+ * files it — is Margaret Groninger. Only a name of two parts with one comma
+ * is turned round; anything else is as written.
+ */
+export function spokenName(title: string): string {
+  const m = /^([^,]+),\s*([^,]+)$/.exec(title.trim());
+  return m ? `${m[2]!.trim()} ${m[1]!.trim()}` : title.trim();
+}
+
 function nameList(): Name[] {
   if (names && Date.now() - names.at < 20_000) return names.list;
   const list: Name[] = [];
@@ -222,8 +232,10 @@ function nameList(): Name[] {
     if (!kind) continue;
     const title = titleOf(o).trim();
     if (title.length < 3 || title.includes("@")) continue;
-    const parts = title.split(/\s+/);
-    list.push({ key: keyOfEntity(o), id: o.id, title, kind, full: title,
+    // Looked for as it is said: "Groninger, Margaret" is found as Margaret Groninger, and her first name is Margaret.
+    const full = kind === "person" ? spokenName(title) : title;
+    const parts = full.split(/\s+/);
+    list.push({ key: keyOfEntity(o), id: o.id, title, kind, full,
       ...(kind === "person" && parts.length >= 2 && parts[0]!.length >= 3 && /^\p{Lu}/u.test(parts[0]!) ? { first: parts[0] } : {}) });
   }
   names = { at: Date.now(), list };
@@ -242,11 +254,11 @@ function byName(t: Thing, add: (key: string, why: string, score: number, ways: W
   const text = bare(t.kind === "person" || t.kind === "project" ? t.text.replace(own0, " ") : t.text);
   // A person: the notes called by their name are likely about them (the other way round from a note's own).
   if (t.kind === "person" && t.entity) {
-    const first = own0.split(/\s+/)[0] ?? "";
+    const first = spokenName(own0).split(/\s+/)[0] ?? "";
     for (const { object: o } of allRecords()) {
       if (o.archived || o.stub || !profilesOf(o).includes("note") || profilesOf(o).includes("contact")) continue;
       const title = titleOf(o).trim();
-      if (title.toLowerCase() === own0.toLowerCase()) add(keyOfEntity(o), `Called ${title}`, 0.85, []);
+      if (title.toLowerCase() === own0.toLowerCase() || title.toLowerCase() === spokenName(own0).toLowerCase()) add(keyOfEntity(o), `Called ${title}`, 0.85, []);
       else if (first.length >= 3 && own0.includes(" ") && title === first) add(keyOfEntity(o), `Called ${title}`, 0.6, []);
     }
   }
@@ -298,12 +310,14 @@ const MERGEABLE = new Set(["person", "task", "note"]);
 
 function twice(t: Thing, add: (key: string, why: string, score: number, ways: Way[]) => void): void {
   if (!t.entity || !MERGEABLE.has(t.kind) && t.kind !== "page") return;
-  const mine = norm(t.title);
+  // A person by their name as it is said: "Groninger, Margaret" and "Margaret Groninger" are one name.
+  const said = (title: string) => norm(t.kind === "person" ? spokenName(title) : title);
+  const mine = said(t.title);
   if (!mine) return;
   const emails = new Set(emailsOf(t.entity));
   for (const { object: o } of allRecords()) {
     if (o.id === t.entity.id || o.archived || o.stub || o.type !== t.entity.type) continue;
-    const same = norm(titleOf(o)) === mine;
+    const same = said(titleOf(o)) === mine;
     const shared = emailsOf(o).some((e) => emails.has(e));
     if (same || shared) add(keyOfEntity(o), shared ? "The same address" : "The same name", shared ? 0.95 : 0.8, []);
   }

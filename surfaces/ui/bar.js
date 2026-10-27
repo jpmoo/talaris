@@ -17,7 +17,7 @@ $("power").innerHTML = Icons.power();
 $("bell-ic").innerHTML = Icons.bell();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power"];
+const BAR_ITEMS = ["ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "where", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
