@@ -90,7 +90,7 @@ export function findMentionables(q: string, here: string, limit = 12, near?: Set
     try {
       const walk = (nodes: PageNode[]) => { for (const n of nodes) { add("page", n.path, n.title); walk(n.children); } };
       walk(pageTree(p.id));
-      const cwalk = (n: CanvasNode) => { add("canvas", n.id, n.title); n.children.forEach(cwalk); };
+      const cwalk = (n: CanvasNode) => { if (n.empty) return; add("canvas", n.id, n.title); n.children.forEach(cwalk); };
       cwalk(canvasTree(p.id));
     } catch {
       // A project that cannot be read (locked, gone) offers nothing.

@@ -80,11 +80,12 @@ test("canvases and threads are read and embedded; a thread's description is Morg
   const canvas = rows.find((r) => r.type === "canvas" && r.project === garden.id)!;
   assert.equal(states.read[canvas.key], "read");
   assert.equal(states.read[`t:${T}-0`], "read");
-  // A canvas with nothing on it: read, nothing in it — and near nothing, so suggested for nothing.
-  const empty = rows.find((r) => r.type === "canvas" && r.project === bare.id)!;
-  assert.equal(states.read[empty.key], "nowords");
-  assert.equal(suggest.suggestionsFor(empty.thing!).suggestions.length, 0);
-  assert.equal(suggest.thing(empty.thing!).title, "Bare canvas");
+  // A canvas with nothing on it: not listed, not read, and suggested for nothing; still named by its project.
+  assert.ok(!rows.some((r) => r.type === "canvas" && r.project === bare.id));
+  const bareKey = `canvas:${bare.id}/${canvases.canvasTree(bare.id).id}`;
+  assert.equal(meaning.indexed(bareKey), null);
+  assert.equal(suggest.suggestionsFor(bareKey).suggestions.length, 0);
+  assert.equal(suggest.thing(bareKey).title, "Bare canvas");
   assert.match(states.about[`t:${T}-0`]!, /wilted/);
   const key = `thread:${home.id}/${T}-0`;
   assert.ok(meaning.editPageDescription(key, "Blight, and what to do about it"));

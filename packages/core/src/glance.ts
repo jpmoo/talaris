@@ -4,7 +4,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import type { CanvasNode, PageNode } from "@talaris/model";
-import { canvasTree, projectCanvases } from "./canvases.js";
+import { canvasIsEmpty, canvasTree, projectCanvases } from "./canvases.js";
 import { currentId, homeId, threadById, threads } from "./threads.js";
 import { allRecords, bySource, connections, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
 import { placeOf, placeSource, type PlaceKind } from "./mentionables.js";
@@ -177,8 +177,10 @@ class Walk {
           own: project === this.here, depth, how, place: { kind: "page", project, where: path } };
       } else if (key.startsWith("canvas:")) {
         const [project, cid] = split(key);
-        const doc = projectCanvases(project).find((d) => d.id === cid);
-        if (!doc) return null;
+        const docs = projectCanvases(project);
+        const doc = docs.find((d) => d.id === cid);
+        // An empty canvas is not a thing to show, unless it is the one the glance is of.
+        if (!doc || (depth > 0 && canvasIsEmpty(doc, docs))) return null;
         n = { key, id: bySource(placeSource("canvas", project, cid))?.id, title: doc.title, kind: "canvas", updated: "",
           own: project === this.here, depth, how, place: { kind: "canvas", project, where: cid } };
       } else if (key.startsWith("thread:")) {

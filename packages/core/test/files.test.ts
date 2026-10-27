@@ -47,8 +47,8 @@ test("everything in a project's folder is listed, but its machinery, dot-files, 
   files.startWatching();
   const names = rows(alpha.id).filter((r) => r.path).map((r) => r.path).sort();
   assert.deepEqual(names, ["Budget.ods", "Notes/plan.md", "Writing/Camp rules.md"]);
-  // And its canvas, which is not a file in the folder but is listed with them.
-  assert.deepEqual(rows(alpha.id).filter((r) => !r.path).map((r) => r.status), [["canvas"]]);
+  // Its canvas has nothing on it: not listed (one with something on it is, as a canvas: things.test.ts).
+  assert.deepEqual(rows(alpha.id).filter((r) => !r.path).map((r) => r.status), []);
   assert.deepEqual(find(alpha.id, "Budget.ods")!.status, ["folder"]);
   assert.equal(find(alpha.id, "Budget.ods")!.type, "spreadsheet");
   assert.deepEqual(find(alpha.id, "Camp rules.md")!.status, ["page"]);

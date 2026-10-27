@@ -252,6 +252,12 @@ test("@ finds pages and canvases with entities, this project's first; a place is
   assert.equal(a.id, b.id, "one entity for one page");
   assert.deepEqual(m.placeOf(a), { kind: "page", project: here.id, where: "Planting list" });
   assert.equal(m.findMentionables("planting", here.id)[0]!.id, a.id, "and the page is listed with it now");
+  // A canvas with nothing on it is not offered; with something on it, it is.
+  assert.ok(!m.findMentionables("canvas", here.id, 40).some((f) => f.kind === "canvas" && f.project === here.id), "an empty canvas, not");
+  const canvases = await import("../src/canvases.js");
+  const top = canvases.readCanvas(here.id, canvases.canvasTree(here.id).id);
+  top.items.push({ id: "n1", x: 0, y: 0, w: 100, h: 60, text: "Beds" });
+  canvases.writeCanvas(here.id, top);
   assert.ok(m.findMentionables("canvas", here.id, 40).some((f) => f.kind === "canvas" && f.project === here.id && f.here), "a project's canvases, by their titles");
 });
 
@@ -319,10 +325,15 @@ test("a project at a glance: its pages, canvases, filed things and files, and on
   pages.writePage(p.id, page.path, `For [@Opening night](talaris:${show.id}), see [poster.png](talaris-file:${encodeURI(file.path)}).`);
   const projectEntity = tasks.taskProjects().find((x) => x.workspace === p.id)!;
   const task = tasks.createTask({ title: "Print programs", projects: [projectEntity.id] });
+  assert.ok(!glance(p.id).nodes.some((n) => n.kind === "canvas"), "an empty canvas is not shown");
+  const canvases = await import("../src/canvases.js");
+  const top = canvases.readCanvas(p.id, canvases.canvasTree(p.id).id);
+  top.items.push({ id: "n1", x: 0, y: 0, w: 100, h: 60, text: "Seating plan" });
+  canvases.writeCanvas(p.id, top);
   const g = glance(p.id);
   const by = (k: string) => g.nodes.find((n) => n.key === k);
   assert.equal(by(`page:${p.id}/Program`)?.own, true);
-  assert.ok(g.nodes.some((n) => n.kind === "canvas" && n.own), "its top canvas");
+  assert.ok(g.nodes.some((n) => n.kind === "canvas" && n.own), "its top canvas, once something is on it");
   assert.equal(by(`e:${task.id}`)?.how, "filed here");
   assert.equal(by(`file:${p.id}/${file.path}`)?.own, true, "the file, in its folder");
   assert.ok(g.edges.some((e) => e.from === `page:${p.id}/Program` && e.to === `file:${p.id}/${file.path}` && e.how === "links"), "the page links the file");

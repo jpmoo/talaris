@@ -121,6 +121,8 @@ export interface CanvasNode {
   modified?: string;
   /** Kept at the top of its list. */
   starred?: boolean;
+  /** Nothing on it, and nothing on any canvas inside it: not shown as a thing (Files, Glance, an @, search). */
+  empty?: boolean;
 }
 
 /** A place that links to a canvas: a `canvas-link` item on some canvas. */

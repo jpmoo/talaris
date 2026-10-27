@@ -159,6 +159,7 @@ function canvasDocs(): Doc[] {
     let top: CanvasNode;
     try { top = canvasTree(p.id); } catch { continue; }
     const walk = (n: CanvasNode) => {
+      if (n.empty) return;
       out.push({ key: `canvas:${p.id}/${n.id}`, kind: "canvas", title: canvasName(p.id, n), project: p.id, path: n.id, stamp: `${n.modified ?? ""}|c2` });
       n.children.forEach(walk);
     };

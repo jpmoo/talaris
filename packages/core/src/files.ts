@@ -425,7 +425,8 @@ function thingRows(rows: Map<string, FileRow>, only?: string): void {
     if (only && p.id !== only) continue;
     let top: CanvasNode;
     try { top = canvasTree(p.id); } catch { continue; }
-    const walk = (n: CanvasNode) => { const r = canvasRow(p.id, n); rows.set(r.key, r); n.children.forEach(walk); };
+    // An empty canvas (nothing on it, nor inside it) is not listed: there is nothing of it to find.
+    const walk = (n: CanvasNode) => { if (n.empty) return; const r = canvasRow(p.id, n); rows.set(r.key, r); n.children.forEach(walk); };
     walk(top);
   }
   if (only && only !== homeId()) return;

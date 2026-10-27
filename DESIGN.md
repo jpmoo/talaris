@@ -1273,8 +1273,9 @@ from elsewhere, or kept as a copy).
 (Type: Canvases). Its words — its regions' titles, then each note's words and
 each card's or child's title, top to bottom and left to right — are read for
 search, described by Morgan, embedded, and suggested with what it is about;
-connected, it gets an entity as a page does. One with nothing on it is read
-and empty, and suggested for nothing. A project's top canvas is called
+connected, it gets an entity as a page does. One with nothing on it, nor on
+any canvas inside it, is not shown as a thing at all — not in Files, Glance,
+an @ or search — though the drawer still opens it. A project's top canvas is called
 "Canvas", which says nothing out of its project: there it is "Coding canvas".
 
 **Morgan's threads are things that live in Home.** Morgan cuts each ended

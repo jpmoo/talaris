@@ -79,6 +79,14 @@ function listed(folder: string, id: string, change: (l: Listed) => void): void {
   writeJson(join(machinery(folder), LIST), all);
 }
 
+/** Nothing drawn on a canvas, and no titled region: its own children aside. */
+const bare = (d: CanvasDocument) => !(d.items ?? []).length && !(d.regions ?? []).some((r) => r.title?.trim());
+
+/** A canvas with nothing on it, nor on any canvas inside it (of `docs`, its project's): not shown as a thing. */
+export function canvasIsEmpty(doc: CanvasDocument, docs: CanvasDocument[]): boolean {
+  return bare(doc) && docs.filter((c) => c.parent === doc.id).every((c) => canvasIsEmpty(c, docs));
+}
+
 export function canvasTree(projectId: string): CanvasNode {
   const { folder } = findProject(projectId);
   const top = readProject(folder).topCanvas;
@@ -97,11 +105,13 @@ export function canvasTree(projectId: string): CanvasNode {
     const order = l.childOrder ?? [];
     const rank = (c: CanvasDocument) => (order.includes(c.id) ? order.indexOf(c.id) : order.length);
     const t = times(d.id);
+    const children = docs.filter((c) => c.parent === d.id).sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title)).map(node);
     return {
       id: d.id,
       title: d.title,
       parent: d.parent,
-      children: docs.filter((c) => c.parent === d.id).sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title)).map(node),
+      children,
+      ...(bare(d) && children.every((c) => c.empty) ? { empty: true } : {}),
       created: l.created ?? t.created,
       modified: t.modified,
       ...(l.starred ? { starred: true } : {}),
