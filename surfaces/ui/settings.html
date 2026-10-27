@@ -358,6 +358,11 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">Outline</span><span class="what"><span class="seg" id="outline"></span></span></div>
       <div class="row"><span class="name">Shadow</span><span class="what"><button class="switch" id="shadow"></button></span></div>
       <div class="row"><span class="name">Opacity<small>Everything that opens from the bar, dropdowns too; the writing page, the canvas and Morgan's messages stay solid</small></span><span class="what"><input type="range" id="panels-op" min="30" max="100" step="5"><span class="n" id="panels-op-n"></span></span></div>
+      <h3>What is shown</h3>
+      <p class="note">Left out of Glance, of what something is connected to, and of what it might be connected to. Nothing is changed: the launcher, @ and search still find it, and a list says how many it left out.</p>
+      <div class="row"><span class="name">Finished tasks<small>Hidden</small></span><span class="what"><button class="switch" id="shown-done"></button></span></div>
+      <div class="row"><span class="name">Archived<small>Hidden</small></span><span class="what"><button class="switch" id="shown-archived"></button></span></div>
+      <div class="row"><span class="name">Older than<small>Hidden when it last changed before this</small></span><span class="what"><span class="seg" id="shown-older"></span></span></div>
     </section>
     <section id="windows">
       <h2>Windows</h2>

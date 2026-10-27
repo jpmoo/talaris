@@ -14,6 +14,7 @@ import { MACHINERY, WRITING } from "./paths.js";
 import { archivedProjects, findProject } from "./projects.js";
 import { taskProjects } from "./tasks.js";
 import { listFiles, type FileRow } from "./files.js";
+import { leavesOut, leftOut, shownSettings, tooOld, type Shown } from "./shown.js";
 
 /**
  * Glance (ui/glance.html): a thing and what it is tied to, as things (nodes)
@@ -76,6 +77,8 @@ export interface Glance {
   root: string;
   nodes: GlanceNode[];
   edges: GlanceEdge[];
+  /** How many met on the walk were left out, as Settings says (shown.ts). */
+  hidden?: number;
 }
 
 /** Files looked at in a project's folder, at most: a glance, not an index. */
@@ -137,7 +140,12 @@ class Walk {
     }
   }
 
-  constructor(readonly here: string) {
+  /** Left out as Settings says (shown.ts): complete, archived, too old — never the middle. Null: nothing is. */
+  private shown: Shown | null;
+  hidden = new Set<string>();
+
+  constructor(readonly here: string, shown: Shown | null = null) {
+    this.shown = shown && leavesOut(shown) ? shown : null;
     for (const p of taskProjects()) if (p.workspace) this.projectEntities.set(p.id, p.workspace);
   }
 
@@ -163,6 +171,7 @@ class Walk {
   node(key: string, depth: number, how: string): GlanceNode | null {
     const had = this.nodes.get(key);
     if (had) return had;
+    if (this.hidden.has(key)) return null;
     let n: GlanceNode | null = null;
     // A project's own things — itself, its pages, canvases and files — are gone from view while it is archived.
     if (!key.startsWith("e:") && this.archived.has(key.startsWith("project:") ? key.slice(8) : split(key)[0])) return null;
@@ -214,8 +223,15 @@ class Walk {
     } catch {
       return null;
     }
+    if (n && depth > 0 && this.shown && this.leaves(key, n)) { this.hidden.add(key); return null; }
     if (n) this.nodes.set(key, n);
     return n;
+  }
+
+  /** Left out: an entity as it is (complete, archived, too old); anything else by when it last changed. */
+  private leaves(key: string, n: GlanceNode): boolean {
+    if (key.startsWith("e:")) { try { return leftOut(getEntity(key.slice(2)), this.shown!); } catch { return false; } }
+    return tooOld(n.updated, this.shown!);
   }
 
   private filedUnder(o: Entity, project: string): boolean {
@@ -453,9 +469,10 @@ export function nearProject(projectId: string): Set<string> {
 export function glance(projectId: string, steps = 1, from = ""): Glance {
   steps = Math.max(1, Math.min(MOST_STEPS, Math.floor(steps) || 1));
   const p = findProject(projectId);
-  const walk = new Walk(projectId);
+  const walk = new Walk(projectId, shownSettings());
   const start = from || `project:${projectId}`;
   // From a project, its own things are a step of their own before `steps` more.
   walk.run(start, start.startsWith("project:") ? steps + 1 : steps);
-  return { project: { id: projectId, name: p.name, code: p.code }, root: start, nodes: [...walk.nodes.values()], edges: walk.edges };
+  return { project: { id: projectId, name: p.name, code: p.code }, root: start, nodes: [...walk.nodes.values()], edges: walk.edges,
+    ...(walk.hidden.size ? { hidden: walk.hidden.size } : {}) };
 }

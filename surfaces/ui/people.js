@@ -335,7 +335,7 @@
     const want = ++loadSeq;
     if (!id) { got = null; drawPerson(); return; }
     let g;
-    try { g = await api("GET", `/entities/${enc(id)}`); } catch (e) {
+    try { g = await api("GET", `/entities/${enc(id)}?shown=1`); } catch (e) {
       if (want !== loadSeq) return;
       // Gone since: the first there is instead.
       chosen = null; got = null;
@@ -792,8 +792,10 @@
       if (had) { if (!had.how.includes(how)) had.how.push(how); return; }
       byId.set(e.id, { e, how: [how] });
     };
-    for (const c of got.out || []) touch(c.entity, OUT[c.name] || lower(c.name));
-    for (const c of got.in || []) touch(c.entity, BACK[c.name] || `${lower(c.name)} of`);
+    // Less what Settings leaves out of connections (complete, archived, too old): said how many.
+    const hide = new Set(got.hidden || []);
+    for (const c of got.out || []) if (!hide.has(c.entity.id)) touch(c.entity, OUT[c.name] || lower(c.name));
+    for (const c of got.in || []) if (!hide.has(c.entity.id)) touch(c.entity, BACK[c.name] || `${lower(c.name)} of`);
     const groups = new Map();
     for (const r of byId.values()) {
       const g = r.e.archived ? ARCHIVED : GROUP[(r.e.kinds || []).find((k) => GROUP[k])] || "Other";
@@ -809,7 +811,8 @@
     }) : null;
     return el("section", { class: "part" },
       el("h3", {}, el("span", {}, "Connected")),
-      order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, "Nothing connected yet"),
+      order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, hide.size ? "Nothing connected shown" : "Nothing connected yet"),
+      hide.size > 0 && window.Peek ? el("div", { class: "hint" }, Peek.hiddenSaid(hide.size)) : null,
       sugg);
   }
 

@@ -1285,6 +1285,20 @@ a shortcut. The inspector's **Projects** line names every project a thing is
 in, where it lives first, each a press away; a canvas or conversation brought
 into another project by a shortcut is in that one too.
 
+### What is shown (2026-10-27)
+
+Settings, Panels, *What is shown*: finished tasks, archived things, and what
+has not changed in a month, three, six, a year or two — each left out of
+Glance, of a thing's connections (Peek, People, the canvas's panel) and of its
+suggestions (`shown.ts`, config `shown`). Nothing is changed; the launcher, @
+and search still find it, the middle of a glance is always shown, and each
+list says how many it left out. Finished is as the type says (its task
+profile's `completeValues`); the date is when it last changed — an entity's
+`updated`, a page's or file's modified time, a conversation's last exchange;
+something with no date is never too old. The connections route names what is
+left out (`?shown=1`, `hidden`) rather than dropping it, since the same reply
+draws a thing's own fields.
+
 ### A project described by its tasks (2026-10-27)
 
 A project with no description is given one by Morgan

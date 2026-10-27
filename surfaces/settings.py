@@ -176,6 +176,10 @@ def _checked(c: dict) -> str:
         return "Files are read as they change, while idle, once a day at a time, or only when asked"
     if not isinstance(meaning.get("describe", True), bool):
         return "Describing pictures is on or off"
+    shown = c.get("shown", {})
+    if not isinstance(shown.get("done", False), bool) or not isinstance(shown.get("archived", False), bool) \
+            or shown.get("olderThan", 0) not in (0, 30, 90, 180, 365, 730):
+        return "Not a choice of what is shown"
     stays = c["dock"].get("stays", {})
     if not isinstance(stays, dict) or not all(isinstance(k, str) and isinstance(v, str) and v.startswith("prj_") for k, v in stays.items()):
         return "Something kept in a project names the project"
@@ -626,7 +630,7 @@ class Settings(QObject):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "meaning"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "meaning", "shown"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

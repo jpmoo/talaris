@@ -118,12 +118,16 @@ def show(desktop, panel: str) -> dict:
         if not desktop.files_panel.up:
             desktop.files_panel.open()
         return {"ok": True}
+    # Settings, at one of its pages: "settings" or "settings/<page>".
+    if panel == "settings" or panel.startswith("settings/"):
+        desktop.settings.open(panel.partition("/")[2])
+        return {"ok": True}
     if panel in PANELS:
         thing = getattr(desktop, panel)
         if not thing.up:
             thing.open()
         return {"ok": True}
-    return {"ok": False, "error": f"no panel called {panel}: one of canvas, writing, files, {', '.join(PANELS)}"}
+    return {"ok": False, "error": f"no panel called {panel}: one of canvas, writing, files, settings, {', '.join(PANELS)}"}
 
 
 def opened(desktop, req: dict) -> dict:

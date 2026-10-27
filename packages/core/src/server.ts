@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { leavesOut, leftOut, shownSettings } from "./shown.js";
 import { describeProjects } from "./project-describe.js";
 import { DEMO_ROOT, inDemo } from "./demo.js";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -515,14 +516,18 @@ route("POST", "/entities/people/known", async (req) => {
   for (const e of b.emails ?? []) { const p = entities.byEmail(e); if (p) out[e.toLowerCase()] = entities.summary(p); }
   return out;
 });
-route("GET", "/entities/:id", (_r, [asked]) => {
+route("GET", "/entities/:id", (_r, [asked], q) => {
   // One merged away (merge.ts) is read as the one it became.
   let id = asked!;
   try { entities.getEntity(id); } catch (e) { const to = mergedInto(id); if (!to) throw e; id = to; }
   // Its linked files looked at as it is opened: changed or gone since, said (links.ts).
   links.refreshLinks([id]);
   const { entity, out, in: incoming } = entities.connections(id);
-  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming, ...(id !== asked ? { mergedFrom: asked } : {}) };
+  // Asked with `?shown=1`, the ones Settings leaves out of a list of connections (shown.ts): the list leaves them out,
+  // and says how many. Everything is still here, for what shows its fields.
+  const s = q.get("shown") ? shownSettings() : {};
+  const hidden = leavesOut(s) ? [...new Set([...out, ...incoming].map((c) => c.entity.id))].filter((x) => { try { return leftOut(entities.getEntity(x), s); } catch { return false; } }) : [];
+  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming, ...(hidden.length ? { hidden } : {}), ...(id !== asked ? { mergedFrom: asked } : {}) };
 });
 // Two of one kind made one (merge.ts): this one into `into`.
 route("POST", "/entities/:id/merge", async (req, [id]) => {

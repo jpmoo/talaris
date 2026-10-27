@@ -775,7 +775,8 @@
       if (seq !== loadSeq) return;
       data = { project: got.project || p, root: got.root, nodes: got.nodes || [], edges: got.edges || [] };
       showing = new Map();
-      say("");
+      // What Settings leaves out (finished, archived, older), said, so a thing missing is not taken for a tie that is not there.
+      say(got.hidden ? `${got.hidden} not shown — finished, archived or older, as Settings says` : "");
       if (sugg.key === data.root) withSuggested();
       Graph.load(data);
       drawAll();

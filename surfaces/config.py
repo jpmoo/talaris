@@ -85,6 +85,10 @@ DEFAULTS = {
     # The edge you touch to bring out a hidden bar or dock, or a drawer set to
     # touch-to-show: how thick (Qt units) and how much of the edge (percent).
     "touch": {"thick": 6, "length": 100},
+    # Left out of Glance, a thing's connections and its suggestions (the core's
+    # shown.ts): finished tasks, archived things, and what has not changed in
+    # this many days (0: no limit). Found still by the launcher, @ and search.
+    "shown": {"done": False, "archived": False, "olderThan": 0},
     # Text size per area (small, medium or large): interface, dock, launcher,
     # morgan, writing, canvas. One not set takes theme.fontSize.
     "text": {},

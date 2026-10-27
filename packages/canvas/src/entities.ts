@@ -38,6 +38,8 @@ export interface Detail {
   kinds: string[];
   out: Connection[];
   in: Connection[];
+  /** Asked for a list of connections: the ones Settings leaves out of it (complete, archived, too old). */
+  hidden?: string[];
 }
 
 /** What "Make it" offers, in the core's words for each. */
@@ -90,6 +92,8 @@ export const findEntities = (q: string, kind?: string, near?: string) => {
 };
 
 export const entityDetail = (id: string) => ask<Detail>("GET", `/entities/${encodeURIComponent(id)}`);
+/** The same, for listing its connections: with those Settings leaves out named. */
+export const entityConnections = (id: string) => ask<Detail>("GET", `/entities/${encodeURIComponent(id)}?shown=1`);
 
 export const connectEntities = (from: string, to: string) =>
   ask<Connection>("POST", `/entities/${encodeURIComponent(from)}/connect`, { to });

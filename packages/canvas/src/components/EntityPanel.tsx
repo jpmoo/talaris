@@ -5,7 +5,7 @@
  */
 import { Calendar, CheckSquare, FileText, Folder, MessageSquare, User } from "lucide-react";
 import { useEffect, useState } from "react";
-import { entityDetail, findEntities, type Detail, type Summary } from "../entities.ts";
+import { entityConnections, findEntities, type Detail, type Summary } from "../entities.ts";
 
 /*
  * One mark per kind, looked up by profile. An entity can carry more than one —
@@ -103,7 +103,7 @@ export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows:
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
-    entityDetail(id).then(
+    entityConnections(id).then(
       (d) => live && setDetail(d),
       () => live && setFailed(true),
     );
@@ -124,8 +124,10 @@ export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows:
       if (!had.how.includes(how)) had.how.push(how);
     } else byId.set(p.entity.id, { ...p, how: [how] });
   };
-  for (const c of detail.out) add({ entity: c.entity, outgoing: true }, OUT[c.name] ?? words(c.name));
-  for (const c of detail.in) add({ entity: c.entity, outgoing: false }, BACK[c.name] ?? `${words(c.name)} of`);
+  // Less what Settings leaves out (complete, archived, too old): said how many, below.
+  const hide = new Set(detail.hidden ?? []);
+  for (const c of detail.out) if (!hide.has(c.entity.id)) add({ entity: c.entity, outgoing: true }, OUT[c.name] ?? words(c.name));
+  for (const c of detail.in) if (!hide.has(c.entity.id)) add({ entity: c.entity, outgoing: false }, BACK[c.name] ?? `${words(c.name)} of`);
   const all = [...byId.values()];
   const groups = new Map<string, (Placement & { how: string[] })[]>();
   for (const p of all) {
@@ -147,10 +149,11 @@ export function EntityConnections({ id, onPlace }: { id: string; onPlace: (rows:
           </button>
         )}
       </div>
-      {all.length === 0 && <div className="hint cv-entity-none">No connections</div>}
+      {all.length === 0 && <div className="hint cv-entity-none">{hide.size ? "No connections shown" : "No connections"}</div>}
       {order.map((label) => (
         <Group key={label} label={label} rows={groups.get(label)!} onPlace={onPlace} />
       ))}
+      {hide.size > 0 && <div className="hint cv-entity-none">{`${hide.size} more not shown — finished, archived or older, as Settings says`}</div>}
     </div>
   );
 }

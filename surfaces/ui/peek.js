@@ -147,7 +147,7 @@ window.Peek = (() => {
 
   async function show(id, api, opts = {}) {
     let got;
-    try { got = await api("GET", `/entities/${encodeURIComponent(id)}`); } catch { return; }
+    try { got = await api("GET", `/entities/${encodeURIComponent(id)}?shown=1`); } catch { return; }
     if (!card) {
       card = el("div", { class: "peek", role: "dialog" });
       document.body.append(card);
@@ -186,8 +186,10 @@ window.Peek = (() => {
       if (had) { if (!had.how.includes(how)) had.how.push(how); return; }
       byId.set(e.id, { e, how: [how] });
     };
-    for (const c of got.out || []) touch(c.entity, OUT[c.name] || words(c.name));
-    for (const c of got.in || []) touch(c.entity, BACK[c.name] || `${words(c.name)} of`);
+    // Less what Settings leaves out (complete, archived, too old): said how many, below.
+    const hide = new Set(got.hidden || []);
+    for (const c of got.out || []) if (!hide.has(c.entity.id)) touch(c.entity, OUT[c.name] || words(c.name));
+    for (const c of got.in || []) if (!hide.has(c.entity.id)) touch(c.entity, BACK[c.name] || `${words(c.name)} of`);
     const groups = new Map();
     // What lives in an archived project is kept apart, folded: still true, not current.
     for (const row of byId.values()) {
@@ -210,6 +212,7 @@ window.Peek = (() => {
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, { page: "Open page", canvas: "Open canvas", thread: "Open the conversation" }[place.kind] || "Open") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
       order.map((name) => group(name, groups.get(name), api, opts)),
+      hide.size ? el("div", { class: "peek-line peek-hidden" }, hiddenSaid(hide.size)) : null,
     ].flat().filter((x) => x != null));
   }
 
@@ -220,6 +223,9 @@ window.Peek = (() => {
    * opens one chosen (its id), `opts.changed` redraws after a tie is made.
    * Nothing at all is drawn when there is nothing to suggest.
    */
+  /** How many connections a list leaves out, as Settings says (Panels, What is shown). */
+  const hiddenSaid = (n) => `${n} more not shown — finished, archived or older, as Settings says`;
+
   function suggestions(key, api, opts = {}) {
     const host = el("div", { class: "peek-sugg" });
     let armed = "";
@@ -285,5 +291,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, suggestions };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, suggestions, hiddenSaid };
 })();

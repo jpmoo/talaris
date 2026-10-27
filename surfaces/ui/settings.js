@@ -100,6 +100,11 @@ function draw() {
   $("shadow").classList.toggle("on", !!p.shadow);
   const pct = (v) => `${v}%`;
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
+  const sh = cfg.shown || {};
+  $("shown-done").classList.toggle("on", !!sh.done);
+  $("shown-archived").classList.toggle("on", !!sh.archived);
+  seg("shown-older", [[0, "Show all"], [30, "A month"], [90, "3 months"], [180, "6 months"], [365, "A year"], [730, "2 years"]], sh.olderThan || 0,
+    (olderThan) => save({ shown: { olderThan } }));
   seg("bar-shape", [["strip", "Strip"], ["floating", "Floating"]], cfg.bar.shape, (shape) => save({ bar: { shape } }));
   const edgeMotion = [["slide", "Slide"], ["none", "None"]];
   const outlines = [["accent", "Accent"], ["line", "Line"], ["none", "None"]];
@@ -193,6 +198,8 @@ function draw() {
 }
 
 $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));
+$("shown-done").addEventListener("click", () => save({ shown: { done: !(cfg.shown || {}).done } }));
+$("shown-archived").addEventListener("click", () => save({ shown: { archived: !(cfg.shown || {}).archived } }));
 for (const part of ["bar", "dock"]) $(`${part}-shadow`).addEventListener("click", () => save({ [part]: { shadow: !cfg[part].shadow } }));
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));

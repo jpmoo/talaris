@@ -45,7 +45,8 @@ import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
 import { canvasName, canvasWords, projectCanvases } from "./canvases.js";
 import { threadById, threadEntity, threadWordsForNames } from "./threads.js";
-import { readPage, writePage } from "./pages.js";
+import { pageModified, readPage, writePage } from "./pages.js";
+import { leavesOut, leftOut, shownSettings, tooOld, type Shown } from "./shown.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
@@ -425,9 +426,11 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
     }
   }
   const out: Suggestion[] = [];
+  const shown = shownSettings();
   for (const [k, f] of found) {
     let other: Thing;
     try { other = thing(k, rows); } catch { continue; }
+    if (leavesOut(shown) && hidden(other, shown)) continue;
     const ways = [...f.ways.filter((w) => w.how === "mention"), ...waysBetween(t, other)];
     // Merge is offered only where the two look like one thing.
     const looksSame = f.why.some((w) => w.startsWith("The same") || w === "Nearly the same");
@@ -438,6 +441,18 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
   }
   // Surest first; of two as sure, the one with more reasons, then by name — so the order never shuffles.
   return { quiet: false, dismissed: dismissedFor(key), suggestions: out.sort((a, b) => b.score - a.score || b.why.length - a.why.length || a.title.localeCompare(b.title)).slice(0, options.limit ?? 12) };
+}
+
+/** Left out as Settings says (shown.ts): an entity as it is; a page, a file or a conversation by when it last changed. */
+function hidden(t: Thing, s: Shown): boolean {
+  if (t.key.startsWith("e:") && t.entity) return leftOut(t.entity, s);
+  if (t.file) return tooOld(t.file.mtime, s);
+  const at = t.key.indexOf("/");
+  try {
+    if (t.key.startsWith("page:")) return tooOld(pageModified(t.key.slice(5, at), t.key.slice(at + 1)), s);
+    if (t.key.startsWith("thread:")) { const th = threadById(t.key.slice(at + 1)); return Boolean(th && tooOld(new Date(th.t1).toISOString(), s)); }
+  } catch { /* gone: not suggested anyway */ }
+  return false;
 }
 
 // ------------------------------------------------------------ tying
