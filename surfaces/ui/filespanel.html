@@ -64,7 +64,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #rows { flex: 1; min-width: 0; overflow: auto; outline: none; padding-bottom: 12px; }
 .g-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; gap: 6px; align-items: baseline; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .g-head .n { letter-spacing: 0; }
-.row { display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 18px 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
+.row { user-select: none; display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 18px 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
 .row:hover { background: var(--accent-wash); }
 .row.on { background: var(--accent-wash); box-shadow: inset 2px 0 0 var(--accent); }
 .row .ic { width: 16px; height: 16px; border-radius: 3px; font-size: 9px; display: grid; place-items: center; color: var(--surface); font-weight: 600; }
@@ -154,6 +154,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
   <input type="text" id="q" placeholder="Find by name" spellcheck="false">
   <span class="seg" id="view"></span>
   <span class="seg" id="days" title="When it changed"></span>
+  <span class="seg" id="readf" title="Whether it is read for search: green, or grey and red"></span>
   <span id="msg"></span>
   <span class="spacer"></span>
   <button class="t-btn" id="bring" title="Files from anywhere in your home folder: as shortcuts (left where they are), or moved into the project">Add from elsewhere…</button>

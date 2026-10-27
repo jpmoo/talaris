@@ -45,6 +45,12 @@
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
+  // Read or not: all, read (green), or not (grey waiting, red unreadable or with nothing in it).
+  let readFilter = store.get("talaris.files.read", "all");
+  // Picked with Shift or Ctrl (or ⌘): several at once, acted on together; the last picked plainly, the anchor for Shift.
+  const picked = new Set();
+  let anchor = null;
+  let order = [];   // the keys as drawn, top to bottom: what Shift picks between
   let watched = [];   // the folders linked into the project shown, watched for new files
   // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
   let readState = {};
@@ -73,8 +79,7 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder",
-    unread: "Not read yet" };
+  const STATUS = { folder: "In the folder", page: "A writing page", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder" };
   // A row says only where its file really is, when that is not simply the project's folder: a shortcut, a link, a copy
   // stored on a task, gone missing. A page is plain from its group (Writing) and Open; what it is on, and whether it is
   // read, are the details' to say, not the list's.
@@ -120,8 +125,7 @@
     const q = new URLSearchParams();
     if (project) q.set("project", project);
     if (filters.q) q.set("q", filters.q);
-    // "Not read yet" is told here, from what the core says of each; the rest it filters itself.
-    if (filters.status && filters.status !== "unread") q.set("status", filters.status);
+    if (filters.status) q.set("status", filters.status);
     if (filters.type) q.set("type", filters.type);
     if (filters.days) q.set("days", String(filters.days));
     for (const t of filters.tags) q.append("tag", t);
@@ -131,8 +135,11 @@
     readState = got.read || {};
     readAbout = got.about || {};
     reading = got.reading || reading;
-    rows = filters.status === "unread" ? got.rows.filter((r) => readState[r.key] === "waiting") : got.rows;
-    total = filters.status === "unread" ? rows.length : got.total;
+    // Read or not (the book's colour): green, or grey and red — told here, from what the core says of each.
+    const readOk = (r) => readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
+    rows = got.rows.filter(readOk);
+    total = readFilter === "all" ? got.total : rows.length;
+    for (const k of [...picked]) if (!rows.some((r) => r.key === k)) picked.delete(k);
     version = got.version;
     if (chosen && !rows.some((r) => r.key === chosen)) chosen = null;
     draw();
@@ -217,8 +224,8 @@
   function rowEl(r) {
     const gone = r.status.includes("missing");
     const where = view === "folders" ? "" : (project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`);
-    return el("div", { class: `row${r.key === chosen ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
-      onclick: () => { chosen = r.key; drawRows(); drawDetail(); }, ondblclick: () => open(r) },
+    return el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
+      onclick: (e) => pick(r.key, e), ondblclick: () => open(r) },
       el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
@@ -247,14 +254,38 @@
         ? "Nothing like that." : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
-    $("rows").replaceChildren(...groupsOf(rows).flatMap(([name, list]) => [
+    const groups = groupsOf(rows);
+    order = groups.flatMap(([, list]) => list.map((r) => r.key));
+    $("rows").replaceChildren(...groups.flatMap(([name, list]) => [
       el("div", { class: "g-head" }, name, el("span", { class: "n" }, String(list.length))), ...list.map(rowEl)]));
+  }
+
+  /** A row pressed: alone; with Ctrl (or ⌘) added or taken out; with Shift, everything from the last one picked to it. */
+  function pick(key, e) {
+    if (e.shiftKey && anchor && order.includes(anchor)) {
+      const [a, b] = [order.indexOf(anchor), order.indexOf(key)].sort((x, y) => x - y);
+      if (!e.ctrlKey && !e.metaKey) picked.clear();
+      for (const k of order.slice(a, b + 1)) picked.add(k);
+    } else if (e.ctrlKey || e.metaKey) {
+      if (!picked.size && chosen) picked.add(chosen);
+      if (picked.has(key)) picked.delete(key); else picked.add(key);
+      anchor = key;
+    } else {
+      picked.clear();
+      anchor = key;
+    }
+    chosen = picked.size === 1 ? [...picked][0] : picked.size ? null : key;
+    if (picked.size === 1) picked.clear();
+    armed = "";
+    drawRows();
+    drawDetail();
   }
 
   // ---------------------------------------------------------------- the one chosen
 
   let armed = "";
   function drawDetail() {
+    if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     const r = rows.find((x) => x.key === chosen);
     if (!r) { $("detail").replaceChildren(el("div", { class: "empty" }, "Choose a file to see what it is and what can be done with it.")); return; }
     const s = r.status;
@@ -371,6 +402,100 @@
     if (r.status.includes("folder") && r.path) return `file:${r.project}/${r.path}`;
     if (r.status.includes("shortcut") && r.entity) return `e:${r.entity}`;
     return r.status.includes("missing") ? "" : `att:${r.key}`;
+  }
+
+  /**
+   * Several picked: what they are, and what can be done to them together — each action saying how many of them it
+   * applies to (a shortcut can be taken away, a folder's file trashed, a readable file read again). What takes
+   * something away asks once more, and comes last.
+   */
+  function drawMany(list) {
+    const n = (f) => list.filter(f);
+    const readable = n((r) => readState[r.key] && readState[r.key] !== "unreadable" && !r.status.includes("page") && !r.status.includes("missing"));
+    const linkable = n((r) => r.abs && !r.status.includes("missing") && !r.status.includes("page"));
+    const taggable = n((r) => (r.status.includes("folder") && !r.status.includes("page")) || r.status.includes("shortcut"));
+    const shortcuts = n((r) => r.status.includes("shortcut"));
+    const trashable = n((r) => r.status.includes("folder") && !r.status.includes("page"));
+    const of = (part) => (part.length === list.length ? "" : ` (${part.length} of them)`);
+    const acts = [];
+    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
+    const done = async (word, jobs) => {
+      let ok = 0;
+      for (const j of jobs) { try { await j(); ok++; } catch (e) { failed(e); } }
+      say(`${ok} ${word}`);
+      picked.clear();
+      return load();
+    };
+    if (readable.length) act(`Read again${of(readable)}`, async () => {
+      try { const r = await api("POST", "/meaning/read-again", { keys: readable.map((x) => x.key) }); say(`${r.again} read again`); } catch (e) { failed(e); }
+      reload();
+    });
+    if (linkable.length) act(`Connect to a task…${of(linkable)}`, () => inlineMany("attach", linkable));
+    if (taggable.length) act(`Add a tag…${of(taggable)}`, () => inlineMany("tag", taggable));
+    if (shortcuts.length) act(armed === "many-sc" ? `Yes, take ${shortcuts.length} shortcuts away` : `Remove the shortcuts${of(shortcuts)}`, () => {
+      if (armed !== "many-sc") { armed = "many-sc"; drawDetail(); return; }
+      armed = "";
+      done("shortcuts removed; the files are where they were", shortcuts.map((r) => () => api("DELETE", `/files/shortcut/${enc(r.entity)}`)));
+    }, `danger${armed === "many-sc" ? " armed" : ""}`);
+    if (trashable.length) act(armed === "many-tr" ? `Yes, ${trashable.length} to the trash` : `Delete…${of(trashable)}`, () => {
+      if (armed !== "many-tr") { armed = "many-tr"; drawDetail(); return; }
+      armed = "";
+      done("in the trash", trashable.map((r) => () => api("POST", "/files/trash", { project: r.project, path: r.path })));
+    }, `danger${armed === "many-tr" ? " armed" : ""}`);
+    act("Clear the selection", () => { picked.clear(); chosen = null; drawRows(); drawDetail(); });
+    const names = list.slice(0, 8).map((r) => el("div", { class: "d-line" }, el("span", { class: "v" }, r.name)));
+    $("detail").replaceChildren(
+      el("h2", {}, `${list.length} files`),
+      el("div", { class: "d-status" }, "Shift picks a run of them, Ctrl (or ⌘) one more or one less."),
+      ...names, list.length > 8 ? el("div", { class: "d-line" }, el("span", { class: "v" }, `and ${list.length - 8} more`)) : null,
+      el("div", { class: "d-sub" }, "Do, to all of them"),
+      el("div", { class: "d-acts" }, ...acts),
+      el("div", { id: "inline" }));
+  }
+
+  /** Connect several to one task, or put one tag on several: found or typed once. */
+  function inlineMany(what, list) {
+    const host = $("inline");
+    host.className = "inline";
+    if (what === "attach") {
+      const q = el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" });
+      const found = el("div", { style: "width:100%" });
+      let timer = 0;
+      q.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          try {
+            const got = await api("GET", `/tasks/find?text=${enc(q.value)}&limit=8`);
+            const tasks = Array.isArray(got) ? got : got.tasks || got.rows || [];
+            found.replaceChildren(...tasks.map((t) => el("button", { class: "on-item", onclick: async () => {
+              let ok = 0;
+              for (const r of list) { try { await api("POST", `/entities/${enc(t.id)}/links`, { path: r.abs }); ok++; } catch (e) { failed(e); } }
+              say(`${ok} connected to ${t.title}`);
+              picked.clear();
+              load();
+            } }, t.title)));
+          } catch (e) { failed(e); }
+        }, 200);
+      });
+      host.replaceChildren(q, found);
+      q.focus();
+    } else if (what === "tag") {
+      const q = el("input", { type: "text", placeholder: "A tag, then Enter", spellcheck: "false" });
+      q.addEventListener("keydown", async (e) => {
+        if (e.key !== "Enter") return;
+        const tag = q.value.trim().replace(/^#/, "");
+        if (!tag) return;
+        let ok = 0;
+        for (const r of list) {
+          const tags = [...new Set([...(r.tags || []), tag])];
+          try { await api("PUT", "/files/tags", r.entity && r.status.includes("shortcut") ? { entity: r.entity, tags } : { project: r.project, path: r.path, tags }); ok++; } catch (err) { failed(err); }
+        }
+        say(`#${tag} on ${ok}`);
+        load();
+      });
+      host.replaceChildren(q);
+      q.focus();
+    }
   }
 
   function tagEditor(r) {
@@ -578,6 +703,7 @@
   function drawControls() {
     seg("view", [["folders", "Folders"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any time"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
+    seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Not read"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
   }
 
   let typing = 0;

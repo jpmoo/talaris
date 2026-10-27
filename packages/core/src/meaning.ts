@@ -169,7 +169,7 @@ export type ReadState = "read" | "nowords" | "waiting" | "unreadable";
 /** What a read file is about, for its tip in Files: its description, else the start of its words. */
 function aboutOf(key: string, about = keptAbout(key)): string {
   // A description, or word that one is coming: never the file's own first words, which say little of what it is.
-  return about ? about.slice(0, 400) : about === "" ? "Read — Morgan had nothing to say of it" : "Read — being described";
+  return about ? about : about === "" ? "Read — Morgan had nothing to say of it" : "Read — being described";
 }
 /**
  * For the Files panel: each file's words, as far as search knows them — read
