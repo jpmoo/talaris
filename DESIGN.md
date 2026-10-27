@@ -1357,6 +1357,12 @@ keeps one window has two. Unset, a plain press does as before (an app that
 opens new windows opens one; the rest bring or go as Keys says); Shift and
 Ctrl do theirs wherever its windows are, here too (`dock.py`, `clicks`).
 
+**In the launcher too** (2026-10-27). An application open only in another
+project shows where ("Open in Home"), and, when chosen, its three as buttons in
+the dock's order for it: Go to it, Bring here, New here. Enter, Shift+Enter and
+Ctrl+Enter are the dock's press, Shift-press and Ctrl-press, so the launcher and
+the dock never disagree about what calling it does.
+
 ### A project in the Library (2026-10-27)
 
 A project chosen in the Library's left side, and nothing in it chosen, is

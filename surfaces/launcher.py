@@ -339,6 +339,28 @@ class Launcher(QObject):
                             "icon": app["icon"], "where": names.get(w["workspace"], str(w["workspace"])),
                             "recent": w["recent"]})
         self._windows = {w["address"] for w in windows}
+        # An application open only in another project: where, and what a press, Shift-press and Ctrl-press do with it
+        # (the dock's, as its menu or Settings, Dock says) — offered in the launcher as all three.
+        away: dict[str, dict] = {}
+        here_apps = set()
+        # A project's desktop is named by its id; Home's are the numbered ones.
+        named = {p["id"]: p["name"] for p in projects}
+        home = next((p["name"] for p in projects if p.get("home")), "Home")
+        place = lambda ws: (lambda n: named.get(n) or (home if n.isdigit() else n))(names.get(ws, str(ws)))
+        for w in now["windows"]:
+            app_id = self.apps.lookup(w["class"]).get("id")
+            if not app_id:
+                continue
+            if w["workspace"] == now["active"] or w["hidden"]:
+                here_apps.add(app_id)
+            else:
+                if app_id not in away or w["recent"] < away[app_id]["recent"]:
+                    away[app_id] = {"where": place(w["workspace"]), "recent": w["recent"]}
+        apps = []
+        for a in self.apps.launchable():
+            where = away.get(a["id"]) if a["id"] not in here_apps else None
+            presses = self.desktop.dock.clicks(a["id"]) if where else {}
+            apps.append({**a, "away": where["where"] if where else "", "presses": presses})
         return {
             "project": project,
             "projects": [{"id": p["id"], "title": p["name"], "code": p["code"]} for p in projects],
@@ -347,7 +369,7 @@ class Launcher(QObject):
             "pages": pages,
             "files": _files(here["folder"]) if here else [],
             "windows": windows,
-            "apps": self.apps.launchable(),
+            "apps": apps,
             "morgan": self.desktop.morgan_link.now != "absent",
         }
 
@@ -370,7 +392,10 @@ class Launcher(QObject):
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
                 return "No such application"
-            self.call_app(r["id"], there=bool(r.get("there")))
+            if r.get("how") in ("new", "bring", "go"):
+                self.call_app_as(r["id"], r["how"])
+            else:
+                self.call_app(r["id"], there=bool(r.get("there")))
         elif kind == "window":
             if r["address"] not in self._windows:
                 return "That window has gone"
@@ -458,6 +483,17 @@ class Launcher(QObject):
         # once it has shown no new window in the time given.
         self._pending[app_id] = (before, here, go)
         self._look(app_id, FOLLOW_MS)
+
+    def call_app_as(self, app_id: str, how: str) -> None:
+        """One of the dock's three, chosen in the launcher: a `new` window here, its last window brought here, or gone to."""
+        if how == "new":
+            self.desktop.dock.new_window(app_id)
+            return
+        if not self._app_windows(app_id):
+            self.call_app(app_id)
+            return
+        now = hypr.windows()
+        self._bring(app_id, (now["active"], now["activeTarget"]), go=how == "go")
 
     def kept(self, app_id: str) -> bool:
         """

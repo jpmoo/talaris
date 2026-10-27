@@ -50,6 +50,13 @@ body { background: rgba(0, 0, 0, .32); cursor: pointer; }
 .item .kind { font-size: 10px; letter-spacing: 2px; color: var(--muted); flex: none; }
 .item.on .kind { color: var(--accent); }
 .item.armed .title { color: var(--danger); }
+/* An application open in another project, chosen: the dock's three, each with its key. */
+.item .presses { display: flex; gap: 4px; flex: none; }
+.item .press { display: flex; align-items: center; gap: 5px; font: inherit; font-size: 11.5px; color: var(--text); background: none;
+  border: 1px solid var(--line); border-radius: var(--radius-row); padding: 2px 7px; cursor: pointer; }
+.item .press:first-child { border-color: var(--accent); }
+.item .press:hover { background: var(--accent-wash); color: var(--accent); }
+.item .press kbd { font: inherit; font-size: 10px; color: var(--muted); }
 #foot { display: flex; justify-content: space-between; padding: 6px 14px; border-top: 1px solid var(--line); font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 #foot .err { color: var(--danger); letter-spacing: 1px; text-transform: none; font-size: 12px; }
 </style>

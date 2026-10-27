@@ -76,7 +76,8 @@ function build(c) {
       recent: w.recent, act: { kind: "window", address: w.address } })),
     ...c.canvases.map((x) => ({ kind: "canvas", key: `canvas:${x.id}`, title: x.title, sub: x.where, act: { kind: "canvas", id: x.id } })),
     ...c.pages.map((x) => ({ kind: "page", key: `page:${x.path}`, title: x.title, sub: x.where, act: { kind: "page", path: x.path } })),
-    ...c.apps.map((a) => ({ kind: "app", key: `app:${a.id}`, title: a.name, also: a.also, img: icon(a.icon), act: { kind: "app", id: a.id } })),
+    ...c.apps.map((a) => ({ kind: "app", key: `app:${a.id}`, title: a.name, also: a.also, img: icon(a.icon), act: { kind: "app", id: a.id },
+      sub: a.away ? `Open in ${a.away}` : "", presses: a.away ? a.presses : null })),
     ...VERBS.map((v) => ({ kind: "verb", key: `verb:${v.name}`, title: v.title, sub: v.sub || "", ask: v.ask, act: { kind: "verb", name: v.name } })),
     ...c.files.map((f) => ({ kind: "file", key: `file:${f.path}`, title: f.title, sub: f.where, act: { kind: "file", path: f.path } })),
   ];
@@ -356,7 +357,10 @@ function draw() {
       : mark(armed === x.key ? `${x.title} — Enter again` : x.title, query));
     if (x.sub) text.append(Object.assign(document.createElement("span"), { className: "sub", textContent: x.sub }));
     const kind = Object.assign(document.createElement("span"), { className: "kind", textContent: KIND[x.kind] });
-    row.append(icon, text, kind);
+    row.append(icon, text);
+    // An application open only in another project: the dock's three, in its order, each with its key — the one chosen shows them.
+    if (x.presses && i === at) row.append(pressChoices(x));
+    else row.append(kind);
     row.addEventListener("mousemove", () => { if (at !== i) { at = i; draw(); } });
     row.addEventListener("click", (e) => choose(i, e.shiftKey));
     if (glanceKey(x)) row.title = "Shift+Enter: in Glance";
@@ -364,6 +368,25 @@ function draw() {
   }));
   const on = list.children[at];
   if (on) on.scrollIntoView({ block: "nearest" });
+}
+
+// The dock's three for an application open elsewhere, as words and the key each is on (Enter, Shift+Enter, Ctrl+Enter).
+const HOW = { go: "Go to it", bring: "Bring here", new: "New here" };
+const KEYS = { click: "↵", shift: "⇧↵", ctrl: "Ctrl ↵" };
+function pressChoices(x) {
+  const box = Object.assign(document.createElement("span"), { className: "presses" });
+  for (const [press, how] of Object.entries(x.presses)) {
+    if (!how) continue;
+    const b = Object.assign(document.createElement("button"), { className: "press", title: `${HOW[how]} (${KEYS[press]})` });
+    b.append(HOW[how], Object.assign(document.createElement("kbd"), { textContent: KEYS[press] }));
+    b.addEventListener("click", (e) => { e.stopPropagation(); chooseHow(x, how); });
+    box.append(b);
+  }
+  return box;
+}
+function chooseHow(x, how) {
+  if (x.key) remember(x.key);
+  bridge.act(JSON.stringify({ ...x.act, how }), (error) => { if (error) say(error, true); });
 }
 
 function say(text, error = false) {
@@ -412,7 +435,14 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); bridge.file(); }
   else if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) { e.preventDefault(); if (n) { at = (at + 1) % n; armed = null; draw(); } }
   else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) { e.preventDefault(); if (n) { at = (at - 1 + n) % n; armed = null; draw(); } }
-  else if (e.key === "Enter") { e.preventDefault(); choose(at, e.shiftKey); }
+  else if (e.key === "Enter") {
+    e.preventDefault();
+    // An application open elsewhere: Enter, Shift+Enter and Ctrl+Enter are the dock's press, Shift-press and Ctrl-press.
+    const x = shown[at];
+    const how = x && x.presses && x.presses[e.ctrlKey ? "ctrl" : e.shiftKey ? "shift" : "click"];
+    if (how) chooseHow(x, how);
+    else choose(at, e.shiftKey);
+  }
 });
 // A press outside the box puts it away — heard here, and from Qt (sensor.Presses).
 addEventListener("pointerdown", (e) => { if (bridge && state.up && !e.target.closest("#box")) bridge.file(); });
