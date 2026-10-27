@@ -49,7 +49,7 @@ export interface Thread {
   ts: number[];
 }
 
-interface Kept { threads: Thread[]; moved: Record<string, string>; at: string; error?: string }
+interface Kept { threads: Thread[]; moved: Record<string, string>; at: string; error?: string; /** What Morgan calls the person (its `userName`): in every summary, and no one else. */ user?: string }
 const FILE = () => join(DATA_DIR, "threads.sealed");
 let kept: Kept | null = null;
 let version = 0;
@@ -87,6 +87,19 @@ export function threadById(id: string): Thread | null {
   return state().threads.find((t) => t.id === now) ?? null;
 }
 
+/** What Morgan calls the person, as last asked: "" if it was not said. */
+export const morganUser = (): string => state().user ?? "";
+
+/** A thread's words with the person's own name taken out: a summary names them throughout, which ties it to no one. */
+export function threadWordsForNames(t: Thread): string {
+  const user = morganUser().trim();
+  let text = threadText(t);
+  if (!user) return text;
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const w of [user, user.split(/\s+/)[0]!]) text = text.replace(new RegExp(`(^|[^\\p{L}])${esc(w)}(?=$|[^\\p{L}])`, "gu"), "$1 ");
+  return text;
+}
+
 /** A thread's words, as it is read: its title and Morgan's summary of it. */
 export const threadText = (t: Thread) => `${t.title}\n\n${t.summary}`.trim();
 
@@ -101,7 +114,8 @@ export function threadEntity(id: string): Entity {
 export const threadsStatus = () => ({ count: state().threads.length, at: state().at, error: state().error ?? "" });
 
 /** For tests and the demo: the list as given, as though Morgan had said it. */
-export function setThreads(list: Thread[]): { moved: number } {
+export function setThreads(list: Thread[], user?: string): { moved: number } {
+  if (user !== undefined) state().user = user;
   return take(list);
 }
 
@@ -118,6 +132,10 @@ export async function syncThreads(): Promise<{ ok: boolean; count: number; moved
   const { moved } = take(list.map((t) => ({ id: String(t.id), t0: Number(t.t0), t1: Number(t.t1 ?? t.t0), title: String(t.title ?? ""),
     summary: String(t.summary ?? ""), exchanges: Number(t.exchanges ?? (t.ts ?? []).length), ts: (t.ts ?? []).map(Number) })));
   delete state().error;
+  // What Morgan calls the person, for leaving their name out of what a summary is taken to name.
+  const cfg = await morganCommand(`admin ${JSON.stringify({ op: "config.get", args: {} })}`, 20_000);
+  const user = cfg?.ok ? String((cfg as { userName?: unknown }).userName ?? (cfg as { config?: { userName?: unknown } }).config?.userName ?? "") : null;
+  if (user !== null && user !== (state().user ?? "")) { state().user = user; save(); }
   return { ok: true, count: state().threads.length, moved };
 }
 

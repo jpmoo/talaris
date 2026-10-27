@@ -33,7 +33,7 @@ export interface FileList {
   /** Its members, in order: Files row keys. */
   items: string[];
 }
-export interface ListNode { id: string; name: string; parent: string | null; count: number; children: ListNode[] }
+export interface ListNode { id: string; name: string; parent: string | null; count: number; /** Its own members, in order (not its lists'). */ items: string[]; children: ListNode[] }
 
 const FILE = (projectId: string) => join(findProject(projectId).folder, MACHINERY, "file-lists.json");
 
@@ -63,7 +63,7 @@ function below(lists: FileList[], id: string): FileList[] {
 /** A project's lists as a tree, each with how many things it holds (its own and its lists'). */
 export function listTree(projectId: string): ListNode[] {
   const lists = read(projectId);
-  const node = (l: FileList): ListNode => ({ id: l.id, name: l.name, parent: l.parent, count: members(projectId, l.id).length,
+  const node = (l: FileList): ListNode => ({ id: l.id, name: l.name, parent: l.parent, count: members(projectId, l.id).length, items: l.items,
     children: lists.filter((c) => c.parent === l.id).map(node) });
   return lists.filter((l) => !l.parent || !lists.some((p) => p.id === l.parent)).map(node);
 }

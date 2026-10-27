@@ -222,6 +222,7 @@
       ...(project && project !== "notes" ? flat(lists) : []).map((l) => {
         const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
         b.style.paddingLeft = `${12 + l.depth * 14}px`;
+        dropOnList(b, l);
         return b;
       }),
       shown.length ? el("div", { class: "s-head" }, "Tags") : null,
@@ -263,8 +264,8 @@
   function rowEl(r) {
     const gone = r.status.includes("missing");
     const where = view === "folders" ? "" : (project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`);
-    return el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
-      onclick: (e) => pick(r.key, e), ondblclick: () => open(r) },
+    const row = el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key, draggable: "true",
+      onclick: (e) => pick(r.key, e), ondblclick: () => open(r), ondragstart: (e) => dragStart(e, r) },
       el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, MARK_OF[r.type] || (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
@@ -276,6 +277,8 @@
       el("span", { class: "type" }, r.status.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
+    if (filters.list) dropToOrder(row, r);
+    return row;
   }
 
   // Whether search has read it: a small book — grey waiting, green read (its tip what it is about), red read with
@@ -283,7 +286,7 @@
   const BOOK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/></svg>';
   function book(r) {
     const st = readState[r.key];
-    const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet: it will be, as Settings, Data says"
+    const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet. Set reading interval/schedule in Settings."
       : st === "nowords" ? "Read, but nothing in it to find it by" : st === "unreadable" ? "Can't be read for search: found by its name only" : "" });
     if (st) b.innerHTML = BOOK;
     return b;
@@ -292,15 +295,165 @@
   function drawRows() {
     if (!rows.length) {
       $("rows").replaceChildren(el("div", { class: "empty" }, filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
-        ? `Nothing in ${listName(filters.list)} yet. Choose a file, then Add to a list.`
+        ? `Nothing in ${listName(filters.list)} yet. Drag things onto it on the left, or choose one and Add to a list.`
         : filters.q || filters.status || filters.type || filters.days || filters.tags.length
         ? "Nothing like that." : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
+    // Where each lives, nested — but a list is its own order, so it is shown as one.
+    if (view === "tree" && !filters.list) { drawTree(); return; }
     const groups = groupsOf(rows);
     order = groups.flatMap(([, list]) => list.map((r) => r.key));
     $("rows").replaceChildren(...groups.flatMap(([name, list]) => [
       el("div", { class: "g-head" }, name, el("span", { class: "n" }, String(list.length))), ...list.map(rowEl)]));
+  }
+
+  // ---------------------------------------------------------------- the tree
+
+  // What is open in the tree, by key: kept between visits.
+  const openNodes = new Set(store.get("talaris.files.open", []));
+  function toggle(key) {
+    if (openNodes.has(key)) openNodes.delete(key); else openNodes.add(key);
+    store.set("talaris.files.open", [...openNodes]);
+    drawRows();
+  }
+
+  /**
+   * Where each thing lives, nested: in each project its folders and their files,
+   * a page under the page it is in (its children live in a folder of its name),
+   * a canvas under its canvas; Morgan's conversations, and what lives elsewhere
+   * (shortcuts, links, copies kept on tasks), each apart at the end.
+   */
+  function treeOf(list) {
+    const roots = [];
+    const nodes = new Map();
+    const node = (key, name, into, extra = {}) => {
+      let n = nodes.get(key);
+      if (!n) { n = { key, name, kids: [], ...extra }; nodes.set(key, n); into.push(n); }
+      return n;
+    };
+    const byKey = new Map(list.map((r) => [r.key, r]));
+    const pIndex = (id) => { const i = projects.findIndex((x) => x.id === id); return i < 0 ? projects.length : i; };
+    const mine = new Map();
+    for (const r of list) mine.set(r.project, [...(mine.get(r.project) || []), r]);
+    for (const p of [...mine.keys()].sort((a, b) => pIndex(a) - pIndex(b))) {
+      // One project chosen: its things at the top. All of them: each project a folder of its own.
+      const top = project ? roots : node(`d:${p}`, projectName(p), roots, { dir: true }).kids;
+      const container = (dir) => {
+        if (!dir) return top;
+        const page = byKey.get(`p:${p}/${dir}.md`);
+        if (page && page.status.includes("page")) return place(page).kids;
+        const at = dir.lastIndexOf("/");
+        return node(`d:${p}/${dir}`, dir.slice(at + 1), container(at < 0 ? "" : dir.slice(0, at)), { dir: true }).kids;
+      };
+      const place = (r) => {
+        if (nodes.has(r.key)) return nodes.get(r.key);
+        let into;
+        if (r.path) { const at = r.path.lastIndexOf("/"); into = container(at < 0 ? "" : r.path.slice(0, at)); }
+        else if (r.under && byKey.has(r.under)) into = place(byKey.get(r.under)).kids;
+        else if (r.status.includes("canvas")) into = top;
+        else if (r.status.includes("conversation")) into = node(`d:${p}/~talk`, "Conversations with Morgan", top, { dir: true, last: 2 }).kids;
+        else into = node(`d:${p}/~elsewhere`, "From elsewhere", top, { dir: true, last: 1 }).kids;
+        return node(r.key, r.name, into, { row: r });
+      };
+      for (const r of mine.get(p)) place(r);
+    }
+    // Folders first, then what is in them, by name; the apart ones last. Each folder counts what is under it.
+    const tidy = (list) => {
+      list.sort((a, b) => (a.last || 0) - (b.last || 0) || Number(Boolean(b.dir)) - Number(Boolean(a.dir))
+        || a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
+      let n = 0;
+      for (const x of list) { x.count = tidy(x.kids); n += x.count + (x.row ? 1 : 0); }
+      return n;
+    };
+    tidy(roots);
+    return roots;
+  }
+
+  // A folder, drawn as one: the twist before it is what opens it.
+  const dirIcon = () => { const i = el("span", { class: "ic dir-ic" }); i.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg>'; return i; };
+  function drawTree() {
+    const out = [];
+    order = [];
+    // Looking for something: everything open, so it is seen where it is.
+    const looking = Boolean(filters.q || filters.status || filters.type || filters.days || filters.tags.length || readFilter !== "all");
+    const walk = (list, depth) => {
+      for (const n of list) {
+        const has = n.kids.length > 0;
+        const open = looking || openNodes.has(n.key);
+        const tw = el("span", { class: `tw${has ? "" : " none"}${open ? " open" : ""}`, onclick: has ? (e) => { e.stopPropagation(); toggle(n.key); } : null }, has ? "›" : "");
+        const indent = `padding-left:${8 + depth * 16}px`, pad = `${8 + depth * 16}px`;
+        if (n.dir) {
+          out.push(el("div", { class: "row tree dir", style: indent, onclick: () => toggle(n.key) }, tw,
+            dirIcon(), el("span", { class: "nm" }, n.name), el("span", { class: "n" }, String(n.count))));
+        } else {
+          const r = rowEl(n.row);
+          r.classList.add("tree");
+          r.style.paddingLeft = pad;
+          r.prepend(tw);
+          out.push(r);
+          order.push(n.row.key);
+        }
+        if (has && open) walk(n.kids, depth + 1);
+      }
+    };
+    walk(treeOf(rows), 0);
+    $("rows").replaceChildren(...out);
+  }
+
+  // ---------------------------------------------------------------- dragging
+
+  // What is dragged from the list: the row, or every row picked if it is one of them.
+  const DRAG = "application/x-talaris-rows";
+  function dragStart(e, r) {
+    const keys = picked.has(r.key) ? [...picked] : [r.key];
+    e.dataTransfer.setData(DRAG, JSON.stringify({ project: r.project, keys }));
+    e.dataTransfer.effectAllowed = "copyMove";
+  }
+  const dragged = (e) => { try { return JSON.parse(e.dataTransfer.getData(DRAG) || "null"); } catch { return null; } };
+  const isOurs = (e) => [...(e.dataTransfer?.types || [])].includes(DRAG);
+
+  /** Dropped on a list on the left: put in it (a list holds only its project's). */
+  function dropOnList(target, l) {
+    target.addEventListener("dragover", (e) => { if (!isOurs(e)) return; e.preventDefault(); target.classList.add("drop"); });
+    target.addEventListener("dragleave", () => target.classList.remove("drop"));
+    target.addEventListener("drop", (e) => {
+      target.classList.remove("drop");
+      const d = dragged(e);
+      if (!d) return;
+      e.preventDefault();
+      api("POST", `/files/lists/${enc(l.id)}/items`, { project, keys: d.keys }).then((x) => {
+        say(`${x.added ? `${x.added} in ${l.name}` : `Already in ${l.name}`}${x.refused.length ? `; ${x.refused.length} not in ${projectName(project)}, so not` : ""}`);
+        return load();
+      }).catch(failed);
+    });
+  }
+
+  /** In a list shown, its own things dragged into an order: dropped before the one under the pointer. */
+  function dropToOrder(target, r) {
+    const l = flat(lists).find((x) => x.id === filters.list);
+    if (!l || !l.items.includes(r.key)) return;
+    target.addEventListener("dragover", (e) => {
+      if (!isOurs(e)) return;
+      e.preventDefault();
+      const below = e.offsetY > target.offsetHeight / 2;
+      target.classList.toggle("drop-after", below);
+      target.classList.toggle("drop-before", !below);
+    });
+    target.addEventListener("dragleave", () => target.classList.remove("drop-before", "drop-after"));
+    target.addEventListener("drop", (e) => {
+      const after = target.classList.contains("drop-after");
+      target.classList.remove("drop-before", "drop-after");
+      const d = dragged(e);
+      if (!d) return;
+      e.preventDefault();
+      const moving = d.keys.filter((k) => l.items.includes(k) && k !== r.key);
+      if (!moving.length) return;
+      const rest = l.items.filter((k) => !moving.includes(k));
+      const at = rest.indexOf(r.key) + (after ? 1 : 0);
+      rest.splice(at, 0, ...moving);
+      api("PUT", `/files/lists/${enc(l.id)}/order`, { project, keys: rest }).then(reload, failed);
+    });
   }
 
   /** A row pressed: alone; with Ctrl (or ⌘) added or taken out; with Shift, everything from the last one picked to it. */
@@ -349,7 +502,7 @@
     const rs = readState[r.key];
     if (rs === "read") said.push(el("span", {}, el("b", {}, "Read"), " — found by what it says, by search and Morgan, and suggested with what it is about."));
     else if (rs === "nowords") said.push(el("span", {}, el("b", {}, "Read, no words in it"), " — found by its name only."));
-    else if (rs === "waiting") said.push(el("span", {}, el("b", {}, "Not read yet"), reading.indexing ? " — being read now." : " — it will be, in the background, in a few minutes."));
+    else if (rs === "waiting") said.push(el("span", {}, "Not read yet. Set reading interval/schedule in Settings."));
     else if (!reading.on && !s.includes("page") && !s.includes("missing")) said.push(el("span", {}, "Not read: search by meaning is off (Settings, Data)."));
     const lines = [
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
@@ -874,7 +1027,7 @@
   }
 
   function drawControls() {
-    seg("view", [["folders", "Folders"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
+    seg("view", [["folders", "Folders"], ["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any time"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
     seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Not read"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
   }
@@ -913,7 +1066,7 @@
     if (inField) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      const order = [...document.querySelectorAll("#rows .row")].map((x) => x.dataset.key);
+      const order = [...document.querySelectorAll("#rows .row[data-key]")].map((x) => x.dataset.key);
       const at = order.indexOf(chosen);
       chosen = order[Math.max(0, Math.min(order.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))] ?? null;
       drawRows(); drawDetail();

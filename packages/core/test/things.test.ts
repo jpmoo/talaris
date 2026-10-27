@@ -155,9 +155,19 @@ test("the launcher's context finds threads by their titles", () => {
   assert.equal(hit?.thread, `${T + 5000}-1`);
 });
 
+test("a summary names the person throughout: their own name ties a thread to no one", () => {
+  const jeffs = [entities.createEntity({ role: "person", properties: { title: "Jeff Moore" } }), entities.createEntity({ role: "person", properties: { title: "Jeff Bender" } })];
+  const ana = entities.createEntity({ role: "person", properties: { title: "Ana Silva" } });
+  const list = [...threads.threads().map((t) => ({ ...t })), thread(2, "Seed swap", "Jeff asked Morgan when Ana Silva's seed swap is; Jeff will bring beans.", [T + 20000])];
+  threads.setThreads(list, "Jeff");
+  const s = suggest.suggestionsFor(`thread:${home.id}/${T + 20000}-2`).suggestions;
+  assert.ok(s.some((x) => x.id === ana.id), "Ana, named");
+  assert.ok(!s.some((x) => jeffs.some((j) => j.id === x.id)), "neither Jeff");
+});
+
 test("Morgan away: the copy is kept, and why it was not asked is said", async () => {
   const r = await threads.syncThreads();
   assert.equal(r.ok, false);
-  assert.equal(threads.threads().length, 2);
+  assert.equal(threads.threads().length, 3);
   assert.match(threads.threadsStatus().error, /could not be asked/);
 });

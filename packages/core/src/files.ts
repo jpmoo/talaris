@@ -253,6 +253,8 @@ export interface FileRow {
   livesIn?: { project: string; path: string };
   /** A canvas, one of Morgan's threads, or a shortcut to one: the thing, by its glance key (`canvas:<project>/<id>`, `thread:<home>/<id>`). */
   thing?: string;
+  /** A canvas inside another: that one's row key (Files' tree). */
+  under?: string;
 }
 
 const fileSource = (projectId: string, rel: string) => ({ kind: "file", key: `${projectId}/${rel}` });
@@ -408,7 +410,7 @@ function thingRow(key: string): FileRow | null {
 const canvasRow = (project: string, n: CanvasNode): FileRow => {
   const e = bySource(placeSource("canvas", project, n.id));
   return { key: `v:${project}/${n.id}`, project, name: n.title, type: "canvas", ...(n.modified ? { mtime: n.modified } : {}), status: ["canvas"], on: [],
-    tags: e?.tags ?? [], ...(e ? { entity: e.id } : {}), thing: `canvas:${project}/${n.id}` };
+    tags: e?.tags ?? [], ...(e ? { entity: e.id } : {}), thing: `canvas:${project}/${n.id}`, ...(n.parent ? { under: `v:${project}/${n.parent}` } : {}) };
 };
 const threadRow = (t: { id: string; title: string; t1: number }): FileRow => {
   const home = homeId();

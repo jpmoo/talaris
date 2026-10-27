@@ -44,7 +44,7 @@ import { indexed, nearTo } from "./meaning.js";
 import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
 import { canvasName, canvasWords, projectCanvases } from "./canvases.js";
-import { threadById, threadEntity, threadText } from "./threads.js";
+import { threadById, threadEntity, threadWordsForNames } from "./threads.js";
 import { readPage, writePage } from "./pages.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { seal, unseal } from "./seal.js";
@@ -160,7 +160,8 @@ export function thing(key: string, rows = fileRows()): Thing {
     // Known by where it is now, if Morgan has merged it into another since.
     const now = `thread:${home}/${t.id}`;
     const e = bySource(placeSource("thread", home, t.id)) ?? undefined;
-    return { key: now, kind: "conversation", title: t.title, ...(e ? { entity: e } : {}), text: threadText(t), meaning: now };
+    // Its words without the person's own name (Morgan's summaries say it throughout); its meaning as it is.
+    return { key: now, kind: "conversation", title: t.title, ...(e ? { entity: e } : {}), text: threadWordsForNames(t), meaning: now };
   }
   if (key.startsWith("project:")) {
     const id = key.slice(8);
