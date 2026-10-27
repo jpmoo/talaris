@@ -253,6 +253,11 @@ async function once(force) {
         ? await tal(w.op === "put" ? "PUT" : "PATCH", `/interchange/objects/${encodeURIComponent(w.id)}`, w.op === "put" ? w.body : w.patch)
         : await hermes(w.op === "put" ? "PUT" : "PATCH", `/interchange/objects/${encodeURIComponent(w.id)}`, w.op === "put" ? w.body : w.patch);
       if (answer && answer.ok === false) throw new Error(answer.conflict ? "changed meanwhile" : (answer.reports ?? []).join(", ") || "refused");
+      // Filed away (or brought back) as asked, seen in the answer — not taken on trust: a side from before the format
+      // could say so answers ok and drops the flag, and agreeing on it then would bring the thing back next time.
+      if (typeof w.patch?.archived === "boolean" && answer?.object && Boolean(answer.object.archived) !== w.patch.archived) {
+        throw new Error(`${w.side === "hermes" ? "Hermes Notes" : "Talaris"} did not ${w.patch.archived ? "archive" : "bring back"} it (too old to be asked?)`);
+      }
       agreed(w.link, w.slots ?? Object.keys(w.values), w.values);
       done++;
     } catch (e) {

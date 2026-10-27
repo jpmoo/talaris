@@ -215,7 +215,32 @@ export function plan(state, T, H, s, newId) {
         });
         continue;
       }
-      if (a.archived || b.archived || a.stub) continue;
+      if (a.stub) continue;
+      /*
+       * Filed away on one side and not the other: carried, from whichever moved
+       * since the two last agreed (its base, `archived`), or the winner's in
+       * Replace. Never agreed on (a pair from before this was carried): the
+       * archived one wins — put away is the safer way to be wrong, and brought
+       * back is one press. The rest of the pair waits for the next sync, when
+       * both are in the same state; two filed away are left alone, as before.
+       *
+       * Tasks only. A project archived in Talaris is its folder moved and its
+       * desktop gone (archive.ts), which a flag written over the binding would
+       * not do; until that is its own write, an archived project, or any other
+       * kind, is left alone on both sides as it always was.
+       */
+      const filedT = a.archived === true, filedH = b.archived === true;
+      if (kind !== "task" && (filedT || filedH)) continue;
+      if (filedT !== filedH) {
+        const was = l.base.archived;
+        const toHermes = winner ? winner === "talaris" : was === undefined ? filedT : json(filedT) !== was;
+        const [side, obj, value] = toHermes ? ["hermes", b, filedT] : ["talaris", a, filedH];
+        writes.push({ side, op: "patch", id: obj.id, patch: { archived: value, version: obj.version }, link: l, slots: ["archived"], values: { archived: json(value) } });
+        summary[toHermes ? "toHermes" : "toTalaris"]++;
+        continue;
+      }
+      l.base.archived = json(filedT);
+      if (filedT) continue;
       const tv = valuesT(a, kind), hv = valuesH(b, kind);
       const toH = [], toT = [];
       const merged = {};

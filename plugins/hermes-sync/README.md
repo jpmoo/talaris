@@ -25,6 +25,12 @@ plan is put to you: how many matched, how many to make on each side.
   once before it starts deciding that way.
 - **Nothing is ever deleted.** Something deleted on one side is asked about:
   make it again on the other, or keep it where it is and stop syncing it.
+- **A task archived on one side is archived on the other**, and one brought
+  back is brought back: from whichever side changed since they last agreed (a
+  pair that never agreed on it: the archived one wins). Only tasks: an archived
+  project in Talaris is its folder put away, which this cannot do yet, so a
+  project archived on either side is left alone, as before. Needs a Hermes Notes
+  that understands `archived` in a patch; an older one is noticed, not trusted.
 
 **What goes where.** Talaris's people go to Hermes Notes only if *People* says
 *Everyone* (Talaris keeps whole address books); otherwise the people Hermes

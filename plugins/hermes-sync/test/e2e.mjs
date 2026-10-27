@@ -82,6 +82,15 @@ try {
   check(t3?.properties.title === "Lunch, there", "the person kept Hermes', and Talaris has it");
   const h3 = (await hermes("GET", "/test/all")).find((o) => o.id === "22222222-2222-4222-8222-222222222222");
   check(h3?.properties.title === "Lunch, there", "and Hermes still has it");
+  // Archived in Hermes: filed away in Talaris too. Brought back in Talaris: brought back in Hermes.
+  await hermes("POST", "/test/set", { id: "22222222-2222-4222-8222-222222222222", archived: true });
+  await call("POST", "/plugins/hermes-sync/call", { tool: "sync_now", arguments: {} });
+  const t4 = await until(async () => (await call("GET", "/interchange?profile=task")).objects.find((o) => o.id === "22222222-2222-4222-8222-222222222222" && o.archived), "the archive to reach Talaris");
+  check(t4?.archived === true, "archived in Hermes, archived in Talaris");
+  await call("PATCH", `/interchange/objects/22222222-2222-4222-8222-222222222222`, { archived: false, version: t4.version });
+  await call("POST", "/plugins/hermes-sync/call", { tool: "sync_now", arguments: {} });
+  const h4 = await until(async () => (await hermes("GET", "/test/all")).find((o) => o.id === "22222222-2222-4222-8222-222222222222" && !o.archived), "it to come back in Hermes");
+  check(h4 && !h4.archived, "brought back in Talaris, brought back in Hermes");
   const row = (await call("GET", "/plugins"))[0];
   console.log("     status:", row.status, "| decisions left:", row.decisions.length);
 } finally {

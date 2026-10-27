@@ -98,6 +98,31 @@ test("merge: a change on one side is carried; on both, it is asked; the person's
   assert.equal(p3.links[0].base.title, '"Book a room"', "what they now agree on");
 });
 
+test("archived: carried from the side that filed it away or brought it back; never agreed on, the archived one wins", () => {
+  const t = (archived) => ({ id: "tt1", type: "t_task", properties: { title: "Pack coffee", status: "in_progress" }, version: 4, ...(archived ? { archived: true } : {}) });
+  const h = (archived) => ({ id: "ht1", type: "h-task", properties: { title: "Pack coffee", status: "not done" }, version: 9, ...(archived ? { archived: true } : {}) });
+  const base = { title: '"Pack coffee"', complete: "false", start: null, due: null, project: null };
+  const run = (T, H, extra = {}, s = S) => plan({ started: true, links: [{ kind: "task", t: "tt1", h: "ht1", base: { ...base, ...extra } }] }, env(T_TYPES, [T]), env(H_TYPES, [H]), s, newId);
+  // Archived in Hermes Notes, never agreed on: filed away in Talaris too, and nothing else written this time.
+  const p = run(t(false), h(true));
+  assert.deepEqual(p.writes.map((w) => [w.side, w.patch]), [["talaris", { archived: true, version: 4 }]]);
+  agreed(p.writes[0].link, p.writes[0].slots, p.writes[0].values);
+  assert.equal(p.links[0].base.archived, "true");
+  // Archived in Talaris since they agreed it was not: filed away in Hermes Notes.
+  assert.deepEqual(run(t(true), h(false), { archived: "false" }).writes.map((w) => [w.side, w.patch]), [["hermes", { archived: true, version: 9 }]]);
+  // Brought back in Hermes Notes since they agreed it was archived: brought back in Talaris.
+  assert.deepEqual(run(t(true), h(false), { archived: "true" }).writes.map((w) => [w.side, w.patch]), [["talaris", { archived: false, version: 4 }]]);
+  // Replace: the winner's, whichever way.
+  assert.deepEqual(run(t(false), h(true), {}, { ...S, mode: "talaris" }).writes.map((w) => [w.side, w.patch]), [["hermes", { archived: false, version: 9 }]]);
+  // Both filed away: left alone, a change of title and all.
+  assert.equal(run({ ...t(true), properties: { title: "Other", status: "in_progress" } }, h(true)).writes.length, 0);
+  // A project filed away on one side: left alone, as before (Talaris's archive is its folder moved, not a flag).
+  const pt = { id: "tp1", type: "t_project", properties: { title: "Retreat" }, version: 2, archived: true };
+  const ph = { id: "hp1", type: "h-project", properties: { title: "Retreat" }, version: 3 };
+  const pp = plan({ started: true, links: [{ kind: "project", t: "tp1", h: "hp1", base: { title: '"Retreat"', body: null } }] }, env(T_TYPES, [pt]), env(H_TYPES, [ph]), S, newId);
+  assert.equal(pp.writes.length, 0);
+});
+
 test("matched the first time, one side empty: the gap is filled, not asked about", () => {
   const T = env(T_TYPES, [{ id: "tc1", type: "t_person", properties: { title: "Rosa Diaz", emails: ["rosa@99.example"] }, version: 1 }]);
   const H = env(H_TYPES, [{ id: "hc1", type: "h-person", properties: { name: "Rosa Diaz", mail: "rosa@99.example" }, version: 1 }]);

@@ -453,6 +453,21 @@ test("an archived project leaves every list, is read and not written, and comes 
   assert.throws(() => projects.findProject(p.id), /no project/, "and the archived one is gone, folded in");
 });
 
+test("the live binding files a thing away and brings it back; a patch not naming it leaves it (fixtures/archive.json)", async () => {
+  const live = await import("../src/interchange.js");
+  live.createObject("e_arch_1", { type: "t_event", properties: { title: "Archive test" } });
+  assert.equal(live.patchObject("e_arch_1", { archived: true }).object?.archived, true);
+  assert.equal(entities.getEntity("e_arch_1").archived, true);
+  assert.equal(live.patchObject("e_arch_1", { set: { title: "Renamed" } }).object?.archived, true, "a title changed is not brought back");
+  assert.ok(!live.patchObject("e_arch_1", { archived: false }).object?.archived);
+  const v = entities.getEntity("e_arch_1").version;
+  assert.equal(live.patchObject("e_arch_1", { archived: true, version: v - 1 }).ok, false, "a stale patch files nothing away");
+  assert.ok(!entities.getEntity("e_arch_1").archived);
+  // The rule alone, as the fixtures put it.
+  assert.equal(live.applyPatch({ properties: {}, archived: true }, { set: { title: "x" } }).object?.archived, true);
+  assert.equal(live.applyPatch({ properties: {}, archived: true }, { archived: false }).object?.archived, false);
+});
+
 test("the live binding writes bodies and hands files over by hash; a file goes when nothing names it", async () => {
   const live = await import("../src/interchange.js");
   const { createHash } = await import("node:crypto");

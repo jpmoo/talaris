@@ -49,12 +49,16 @@ http.createServer(async (req, res) => {
     const b = await body(req); const o = objects.get(m[1]);
     if (!o) return send(res, 404, { error: "no" });
     if (b.version !== undefined && b.version !== o.version) return send(res, 409, { ok: false, conflict: true, object: o, fidelity: "full", reports: [] });
-    Object.assign(o.properties, b.set ?? {}); for (const k of b.unset ?? []) delete o.properties[k]; o.version++; changed(o.id, "update");
+    Object.assign(o.properties, b.set ?? {}); for (const k of b.unset ?? []) delete o.properties[k];
+    if (typeof b.archived === "boolean") { if (b.archived) o.archived = true; else delete o.archived; }
+    o.version++; changed(o.id, "update");
     return send(res, 200, { ok: true, object: o, fidelity: "full", reports: [] });
   }
   // The test's own door: change something "in Hermes".
   if (url.pathname === "/test/set" && req.method === "POST") {
-    const b = await body(req); const o = objects.get(b.id); Object.assign(o.properties, b.set); o.version++; changed(o.id, "update"); return send(res, 200, o);
+    const b = await body(req); const o = objects.get(b.id); Object.assign(o.properties, b.set ?? {});
+    if (typeof b.archived === "boolean") { if (b.archived) o.archived = true; else delete o.archived; }
+    o.version++; changed(o.id, "update"); return send(res, 200, o);
   }
   if (url.pathname === "/test/all") return send(res, 200, [...objects.values()]);
   send(res, 404, { error: `no ${req.method} ${url.pathname}` });

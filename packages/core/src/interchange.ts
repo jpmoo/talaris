@@ -406,6 +406,8 @@ export interface WritePatch {
   version?: number | string;
   /** The body (*The body*): beside `set`, replaced whole; `unset: ["content"]` removes it. */
   content?: string;
+  /** Filed away (`true`) or brought back (`false`), beside `set`; untouched when not named (fixtures/archive.json). */
+  archived?: boolean;
 }
 
 /** What a patch asks of the body: replaced, removed, or — named by neither — kept. */
@@ -432,7 +434,7 @@ export interface WriteAnswer {
  * refused rather than merged. Pure, so the fixtures measure the rule the
  * route applies (measure.ts).
  */
-export function applyPatch(object: { properties?: Record<string, unknown>; tags?: string[]; version?: number | string; content?: string | null }, p: WritePatch): WriteAnswer {
+export function applyPatch(object: { properties?: Record<string, unknown>; tags?: string[]; version?: number | string; content?: string | null; archived?: boolean }, p: WritePatch): WriteAnswer {
   const add = p.addTags ?? [];
   const drop = p.removeTags ?? [];
   if (add.some((t) => drop.includes(t))) return { ok: false, object, fidelity: "full", reports: ["tags.added-and-removed"] };
@@ -452,7 +454,8 @@ export function applyPatch(object: { properties?: Record<string, unknown>; tags?
     for (const t of add) if (!next.includes(t)) next.push(t);
     tags = next;
   }
-  return { ok: true, object: { ...rest, properties, ...(content !== undefined && content !== null ? { content } : {}), ...(tags !== undefined ? { tags } : {}) }, fidelity: "full", reports: [] };
+  const archived = typeof p.archived === "boolean" ? { archived: p.archived } : {};
+  return { ok: true, object: { ...rest, properties, ...(content !== undefined && content !== null ? { content } : {}), ...(tags !== undefined ? { tags } : {}), ...archived }, fidelity: "full", reports: [] };
 }
 
 /**
@@ -542,6 +545,7 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
     if (Object.keys(rest).length || p.addTags?.length || p.removeTags?.length) {
       updateEntity(id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}) });
     }
+    if (typeof p.archived === "boolean") updateEntity(id, { archived: p.archived });
     release();
     return { ok: true, created: false, object: getEntity(id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
@@ -554,6 +558,7 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
     if (Object.keys(rest).length || p.addTags?.length || p.removeTags?.length) {
       updateEntity(id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}) });
     }
+    if (typeof p.archived === "boolean") updateEntity(id, { archived: p.archived });
     release();
     return { ok: true, object: getEntity(id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
@@ -568,6 +573,8 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
     properties,
     ...(body.body === "set" ? { content: body.content } : body.body === "clear" ? { content: null } : {}),
     ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}),
+    // Filed away or brought back, in the same version-checked write.
+    ...(typeof p.archived === "boolean" ? { archived: p.archived } : {}),
     version: now.version,
   });
   release();
