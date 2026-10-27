@@ -38,6 +38,9 @@ import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
+import { canvasTree, canvasWords, projectCanvases } from "./canvases.js";
+import { homeId, threadById, threadText, threads } from "./threads.js";
+import type { CanvasNode } from "@talaris/model";
 import { seal, unseal } from "./seal.js";
 import { readJson, writeAtomic, writeJson } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
@@ -68,9 +71,9 @@ export function meaningSettings(): MeaningSettings {
 /** One thing that can be found: a page or an entity, and how it opens. */
 export interface Doc {
   key: string;
-  kind: "page" | "task" | "person" | "project" | "event" | "file";
+  kind: "page" | "task" | "person" | "project" | "event" | "file" | "canvas" | "thread";
   title: string;
-  /** For a page: its project (`notes` for an unaffiliated note) and path. For an entity: its id. */
+  /** For a page: its project (`notes` for an unaffiliated note) and path; for a canvas, its project and id (as `path`); for a thread, Home and its id. For an entity: its id. */
   project?: string;
   path?: string;
   id?: string;
@@ -149,6 +152,33 @@ function pageDocs(): Doc[] {
   return out;
 }
 
+/** Every project's canvases. */
+function canvasDocs(): Doc[] {
+  const out: Doc[] = [];
+  for (const p of listProjects()) {
+    let top: CanvasNode;
+    try { top = canvasTree(p.id); } catch { continue; }
+    const walk = (n: CanvasNode) => {
+      out.push({ key: `canvas:${p.id}/${n.id}`, kind: "canvas", title: n.title, project: p.id, path: n.id, stamp: String(n.modified ?? "") });
+      n.children.forEach(walk);
+    };
+    walk(top);
+  }
+  return out;
+}
+
+/** Morgan's threads, in Home: what each was about, as Morgan summed it up. */
+function threadDocs(): Doc[] {
+  const home = homeId();
+  return threads().map((t) => ({ key: `thread:${home}/${t.id}`, kind: "thread" as const, title: t.title, project: home, path: t.id, stamp: fingerprint(threadText(t)) }));
+}
+
+/** A canvas's words, as it is now; "" if it is gone. */
+function canvasText(d: Doc): string {
+  const doc = projectCanvases(d.project!).find((c) => c.id === d.path);
+  return doc ? canvasWords(doc) : "";
+}
+
 const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project", event: "event" };
 function entityDocs(): Doc[] {
   const out: Doc[] = [];
@@ -204,7 +234,28 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
     read[r.key] = said ? "read" : "nowords";
     if (said) about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp));
   }
+  // Canvases and threads, by the thing they are: read when in the index; a thread's description is Morgan's summary.
+  for (const r of rows) {
+    if (!r.thing || r.status.includes("missing")) continue;
+    const e = ix.entries.get(r.thing);
+    if (!e) { read[r.key] = "waiting"; continue; }
+    const said = e.chunks.some((c) => c.text.trim().length > e.doc.title.length + 2);
+    read[r.key] = said ? "read" : "nowords";
+    if (!said) continue;
+    if (e.doc.kind === "thread") about[r.key] = thingDescription(r.thing).about || "Read";
+    else about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp));
+  }
   return { reading: { on: true, pending, indexing: status.indexing }, read, about };
+}
+
+/** A canvas's or a thread's description, as Files shows and edits it: a thread's is Morgan's summary until the person writes one. */
+export function thingDescription(key: string): { about: string; aboutByYou: boolean; read: boolean } {
+  if (key.startsWith("thread:")) {
+    const t = threadById(key.slice(key.indexOf("/") + 1));
+    const mine = aboutIsYours(key) ? pageAbout(key, t ? fingerprint(threadText(t)) : "") : undefined;
+    return { about: mine ?? t?.summary ?? "", aboutByYou: mine !== undefined, read: Boolean(t) };
+  }
+  return pageDescription(key);
 }
 
 /** The files read that gave no words: which, and where — for Settings, to see and to have read again. */
@@ -217,12 +268,24 @@ export function filesWithNoWords(): { key: string; name: string; project: string
       on: r.on.map((o) => o.title), type: r.type }));
 }
 
+/**
+ * A thing let go of in the index, to be read again: and if a pass is reading
+ * now, it does not put back what it read before this (an older description),
+ * and another pass follows it.
+ */
+const letGo = new Set<string>();
+let again = false;
+function forget(ix: Index, key: string): boolean {
+  if (status.indexing) { letGo.add(key); again = true; }
+  return ix.entries.delete(key);
+}
+
 /** A file's description written by the person (Files): kept, and the file read again with it, now. */
 export function editDescription(meaningKey: string, about: string): boolean {
   if (!editAbout(meaningKey, about)) return false;
   saveFileText();
   const s = meaningSettings();
-  if (ready(s)) { const ix = load(s.model); if (ix.entries.delete(meaningKey)) save(ix); }
+  if (ready(s)) { const ix = load(s.model); if (forget(ix, meaningKey)) save(ix); }
   void reindex(400, { files: true });
   return true;
 }
@@ -236,6 +299,17 @@ export function pageDescription(key: string): { about: string; aboutByYou: boole
 }
 /** A page's description written by the person (Files): it stands, and the page is read again with it. */
 export function editPageDescription(key: string, about: string): boolean {
+  // A thread's: written over Morgan's summary (the summary stays Morgan's); cleared, the summary again.
+  if (key.startsWith("thread:")) {
+    const t = threadById(key.slice(key.indexOf("/") + 1));
+    if (!t) return false;
+    setPageAbout(key, fingerprint(threadText(t)), about.trim(), about.trim() !== "");
+    saveFileText();
+    const s = meaningSettings();
+    if (ready(s)) { const ix = load(s.model); if (forget(ix, key)) save(ix); }
+    void reindex(400, { files: false });
+    return true;
+  }
   const s = meaningSettings();
   if (!ready(s)) return false;
   const ix = load(s.model);
@@ -243,7 +317,7 @@ export function editPageDescription(key: string, about: string): boolean {
   if (!e) return false;
   setPageAbout(key, e.doc.stamp, about.trim(), true);
   saveFileText();
-  ix.entries.delete(key);
+  forget(ix, key);
   save(ix);
   void reindex(400, { files: false });
   return true;
@@ -257,7 +331,7 @@ export function readAgain(keys: string[]): number {
   let n = 0;
   for (const k of keys) {
     forgetText(`file:${k}`);
-    if (ix.entries.delete(`file:${k}`)) n++;
+    if (forget(ix, `file:${k}`)) n++;
   }
   if (n) save(ix);
   saveFileText();
@@ -360,7 +434,7 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
   status.morganAway = false;
   try {
     const ix = load(s.model);
-    const docs = [...pageDocs(), ...entityDocs(), ...fileDocs()];
+    const docs = [...pageDocs(), ...canvasDocs(), ...threadDocs(), ...entityDocs(), ...fileDocs()];
     keepOnly(new Set(docs.filter((d) => d.kind === "file").map((d) => d.key)));
     const live = new Set(docs.map((d) => d.key));
     let dirty = false;
@@ -382,6 +456,16 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
         // Its description, once there is one, leads: what it is found by first.
         const about = pageAbout(d.key, d.stamp);
         texts = passages(d.title, about ? `About: ${about}\n\n${words}` : words);
+      } else if (d.kind === "canvas") {
+        const about = pageAbout(d.key, d.stamp);
+        const words = canvasText(d);
+        texts = passages(d.title, about ? `About: ${about}\n\n${words}` : words);
+      } else if (d.kind === "thread") {
+        // Morgan's summary is its description; one written by the person stands in its place.
+        const t = threadById(d.path!);
+        if (!t) continue;
+        const mine = aboutIsYours(d.key) ? pageAbout(d.key, d.stamp) : undefined;
+        texts = passages(d.title, mine ? `About: ${mine}\n\n${t.summary}` : t.summary);
       } else if (d.kind === "file") {
         // A picture to be described, and Morgan not answering: left waiting, to be tried again.
         // What it is about, once described, leads its words: what it is found by first.
@@ -396,6 +480,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
         texts = [entityText(o)];
       }
       // A thing whose words are the same as when last embedded (a version moved for a tag): kept as it was.
+      // Let go of while this was reading it: what was read is older than that; the pass after reads it again.
+      if (letGo.has(d.key)) continue;
       const sameWords = ix.entries.get(d.key)?.chunks.map((c) => c.text).join("\u0000") === texts.join("\u0000");
       if (!sameWords) {
         const vecs: Float32Array[] = [];
@@ -421,6 +507,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
     status.indexing = false;
     status.doing = "";
     status.doingKind = "";
+    letGo.clear();
+    if (again) { again = false; setTimeout(() => void reindex(most, options), 0).unref(); }
   }
 }
 
@@ -466,13 +554,18 @@ async function describeFiles(most = 150, minutes = 10): Promise<number> {
     } else if (e.doc.kind === "page") {
       if (pageAbout(e.doc.key, e.doc.stamp) !== undefined) continue;
       try { text = readPage(e.doc.project!, e.doc.path!); } catch { continue; }
+    } else if (e.doc.kind === "canvas") {
+      if (pageAbout(e.doc.key, e.doc.stamp) !== undefined) continue;
+      try { text = canvasText(e.doc); } catch { continue; }
+      // A canvas of a title and nothing on it has nothing to describe.
+      if (text.trim() === e.doc.title.trim()) continue;
     } else continue;
     if (!text.trim()) continue;
     status.doing = e.doc.title;
     status.doingKind = e.doc.kind;
     const about = await morganDescribeText(text, e.doc.title);
     if (about === null) { status.morganAway = true; break; }
-    if (e.doc.kind === "page") setPageAbout(e.doc.key, e.doc.stamp, about);
+    if (e.doc.kind === "page" || e.doc.kind === "canvas") setPageAbout(e.doc.key, e.doc.stamp, about);
     else setAbout(e.doc.key, about);
     ix.entries.delete(e.doc.key);
     n++;

@@ -5,8 +5,9 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import type { CanvasNode, PageNode } from "@talaris/model";
 import { canvasTree, projectCanvases } from "./canvases.js";
+import { currentId, homeId, threadById, threads } from "./threads.js";
 import { allRecords, bySource, connections, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
-import { placeOf, placeSource } from "./mentionables.js";
+import { placeOf, placeSource, type PlaceKind } from "./mentionables.js";
 import { mentionsIn } from "./mentions.js";
 import { pageModified, pageTree, readPage } from "./pages.js";
 import { MACHINERY, WRITING } from "./paths.js";
@@ -49,7 +50,7 @@ export interface GlanceNode {
   depth: number;
   /** How it came in, in words: "in the project", "mentioned in Budget". */
   how: string;
-  place?: { kind: "page" | "canvas"; project: string; where: string };
+  place?: { kind: PlaceKind; project: string; where: string };
   /** A file's path in its project's folder, and that project. */
   path?: string;
   fileProject?: string;
@@ -180,6 +181,12 @@ class Walk {
         if (!doc) return null;
         n = { key, id: bySource(placeSource("canvas", project, cid))?.id, title: doc.title, kind: "canvas", updated: "",
           own: project === this.here, depth, how, place: { kind: "canvas", project, where: cid } };
+      } else if (key.startsWith("thread:")) {
+        const [home, tid] = split(key);
+        const t = threadById(tid);
+        if (!t) return null;
+        n = { key, id: bySource(placeSource("thread", home, t.id))?.id, title: t.title, kind: "conversation", updated: new Date(t.t1).toISOString(),
+          own: home === this.here, depth, how, place: { kind: "thread", project: home, where: t.id } };
       } else if (key.startsWith("file:")) {
         const [project, rel] = split(key);
         let updated = "";
@@ -278,6 +285,8 @@ class Walk {
         }
       }
       for (const rel of this.folder(id)) out.push({ key: `file:${id}/${rel}`, how: "in the folder" });
+      // Home: Morgan's threads live there.
+      if (id === homeId()) for (const t of threads()) out.push({ key: `thread:${id}/${t.id}`, how: "in the project" });
     } else if (key.startsWith("page:")) {
       const [project, path] = split(key);
       out.push({ key: `project:${project}`, how: "in the project", back: true });
@@ -301,6 +310,11 @@ class Walk {
       }
       this.fromWords(this.text("canvas", project, cid), project, out);
       const e = bySource(placeSource("canvas", project, cid));
+      if (e) this.ofEntity(e.id, out);
+    } else if (key.startsWith("thread:")) {
+      const [home, tid] = split(key);
+      out.push({ key: `project:${home}`, how: "in the project", back: true });
+      const e = bySource(placeSource("thread", home, currentId(tid)));
       if (e) this.ofEntity(e.id, out);
     } else if (key.startsWith("file:")) {
       const [project, rel] = split(key);

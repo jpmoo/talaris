@@ -337,3 +337,22 @@ export function projectCanvases(projectId: string): CanvasDocument[] {
   return allCanvases(findProject(projectId).folder);
 }
 
+
+/**
+ * What a canvas says, as words to read (meaning.ts): its title, its regions'
+ * titles, then each thing on it — a note's words, a card's or a child's
+ * title — top to bottom and left to right, so it reads about as it is laid out.
+ */
+export function canvasWords(doc: CanvasDocument): string {
+  const bits = [doc.title];
+  for (const r of doc.regions ?? []) if (r.title?.trim()) bits.push(r.title.trim());
+  // Rows: things whose tops are within half a typical height of each other read left to right.
+  const items = [...(doc.items ?? [])].sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y));
+  for (const i of items) {
+    const kind = i.kind ?? "note";
+    const said = kind === "note" ? String(i.text ?? "").replace(/<[^>]+>/g, " ") : String(i.seen?.title ?? i.text ?? "");
+    const t = said.replace(/[ \t]+/g, " ").trim();
+    if (t) bits.push(t);
+  }
+  return bits.join("\n\n");
+}

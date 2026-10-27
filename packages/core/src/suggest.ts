@@ -42,7 +42,9 @@ import { linkFile } from "./links.js";
 import { mergeEntities, syncedBy } from "./merge.js";
 import { indexed, nearTo } from "./meaning.js";
 import { mentionsIn } from "./mentions.js";
-import { placeEntity, placeOf } from "./mentionables.js";
+import { placeEntity, placeOf, placeSource } from "./mentionables.js";
+import { canvasWords, projectCanvases } from "./canvases.js";
+import { threadById, threadEntity, threadText } from "./threads.js";
 import { readPage, writePage } from "./pages.js";
 import { Conflict, NotFound, findProject } from "./projects.js";
 import { seal, unseal } from "./seal.js";
@@ -97,7 +99,7 @@ export function keyOfEntity(o: Entity): string {
 
 /** A meaning-index key as a glance key. */
 function glanceKey(meaningKey: string): string | null {
-  if (meaningKey.startsWith("page:")) return meaningKey;
+  if (meaningKey.startsWith("page:") || meaningKey.startsWith("canvas:") || meaningKey.startsWith("thread:")) return meaningKey;
   if (meaningKey.startsWith("e:")) {
     try { return keyOfEntity(getEntity(meaningKey.slice(2))); } catch { return null; }
   }
@@ -143,6 +145,22 @@ export function thing(key: string, rows = fileRows()): Thing {
     try { text = readPage(project, path); } catch { /* sealed and locked, or gone */ }
     const e = bySource({ kind: "page", key: `${project}/${path}` }) ?? undefined;
     return { key, kind: "page", title: path.split("/").pop() || path, ...(e ? { entity: e } : {}), text, writes: { page: { project, path } }, meaning: key };
+  }
+  if (key.startsWith("canvas:")) {
+    const [project, id] = splitKey(key);
+    const doc = projectCanvases(project).find((c) => c.id === id);
+    if (!doc) throw new NotFound(`no canvas ${key}`);
+    const e = bySource(placeSource("canvas", project, id)) ?? undefined;
+    return { key, kind: "canvas", title: doc.title, ...(e ? { entity: e } : {}), text: canvasWords(doc), meaning: key };
+  }
+  if (key.startsWith("thread:")) {
+    const [home, id] = splitKey(key);
+    const t = threadById(id);
+    if (!t) throw new NotFound(`no thread ${key}`);
+    // Known by where it is now, if Morgan has merged it into another since.
+    const now = `thread:${home}/${t.id}`;
+    const e = bySource(placeSource("thread", home, t.id)) ?? undefined;
+    return { key: now, kind: "conversation", title: t.title, ...(e ? { entity: e } : {}), text: threadText(t), meaning: now };
   }
   if (key.startsWith("project:")) {
     const id = key.slice(8);
@@ -421,6 +439,8 @@ function entityFor(t: Thing): Entity {
     const { project, path } = (t.writes as { page: { project: string; path: string } }).page;
     return placeEntity("page", project, path, t.title);
   }
+  if (t.kind === "canvas") { const [project, id] = splitKey(t.key); return placeEntity("canvas", project, id, t.title); }
+  if (t.kind === "conversation") return threadEntity(splitKey(t.key)[1]);
   throw new Conflict(`${t.title} cannot be connected that way`);
 }
 
@@ -428,7 +448,7 @@ function entityFor(t: Thing): Entity {
 const declares = (from: Entity, to: Entity) =>
   types().find((x) => x.id === from.type)?.fields.some((f) => f.kind === "reference" && f.targetType === to.type) ?? false;
 // Which end a plain link starts from: the thing that is about the other.
-const RANK = ["page", "note", "task", "file", "event", "person", "project"];
+const RANK = ["conversation", "page", "canvas", "note", "task", "file", "event", "person", "project"];
 
 /** A suggestion taken: the two tied the way chosen. Answers what was done, in words, and after a merge the key of the one kept. */
 export function accept(key: string, other: string, way: Way): { said: string; kept?: string } {

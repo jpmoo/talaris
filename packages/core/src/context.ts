@@ -13,11 +13,12 @@
  * notes and tasks that point at them; a project's tasks; an event's people.
  */
 
-import { connections, findEntities, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
-import { placeOf } from "./mentionables.js";
+import { bySource, connections, findEntities, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
+import { placeOf, placeSource } from "./mentionables.js";
+import { currentId, homeId, threads } from "./threads.js";
 import { isComplete, shapeOf, spanOf } from "./tasks.js";
 
-export type Kind = "person" | "task" | "note" | "event" | "project" | "thing";
+export type Kind = "person" | "task" | "note" | "event" | "project" | "conversation" | "thing";
 
 export interface Item {
   id: string;
@@ -31,6 +32,8 @@ export interface Item {
   allDay?: boolean;
   calendar?: string;
   uid?: string;
+  /** One of Morgan's threads (threads.ts): its id, to open the conversation by. */
+  thread?: string;
   /** A note's page: its project and path. */
   project?: string;
   path?: string;
@@ -47,7 +50,7 @@ export interface Context {
 }
 
 // Who is asked about first: a person or project named is more often the point than a task with the name in it.
-const ORDER: Kind[] = ["person", "project", "event", "note", "task", "thing"];
+const ORDER: Kind[] = ["person", "project", "event", "note", "task", "conversation", "thing"];
 const FOCUSES = 4;
 const RELATED = 15;
 
@@ -74,6 +77,7 @@ export function item(o: Entity): Item {
   }
   const place = placeOf(o);
   if (place?.kind === "page") { it.project = place.project; it.path = place.where; }
+  if (place?.kind === "thread") { it.kind = "conversation"; it.thread = currentId(place.where); }
   return it;
 }
 
@@ -94,7 +98,15 @@ export function contextFor(query: string, options: { limit?: number } = {}): Con
   if (!q) return { query: q, hits: [], about: [] };
   const words = q.toLowerCase().split(" ");
   const hits = findEntities({ q, limit: options.limit ?? 20 }).map((s) => item(getEntity(s.id)));
-  const named = hits.filter((h) => names(h.title, words))
+  // Morgan's threads whose titles hold every word: the conversations about it (those tied to something are entities, above).
+  const had = new Set(hits.map((h) => h.thread).filter(Boolean));
+  for (const t of threads()) {
+    if (had.has(t.id) || !words.every((w) => t.title.toLowerCase().includes(w))) continue;
+    const e = bySource(placeSource("thread", homeId(), t.id));
+    hits.push(e ? item(e) : { id: `thread:${t.id}`, title: t.title, kind: "conversation", thread: t.id, updated: new Date(t.t1).toISOString() });
+    if (hits.length >= (options.limit ?? 20) + 5) break;
+  }
+  const named = hits.filter((h) => names(h.title, words) && !h.id.startsWith("thread:"))
     .sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
     .slice(0, FOCUSES);
   const now = Date.now();

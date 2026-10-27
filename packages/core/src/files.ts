@@ -38,10 +38,17 @@ import { FILES, MACHINERY, WRITING } from "./paths.js";
 import { Conflict, NotFound, findProject, listProjects, UNDATED, notesFolder } from "./projects.js";
 import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
+import { canvasTree } from "./canvases.js";
+import { homeId, threadById, threads, threadsVersion } from "./threads.js";
+import { placeSource } from "./mentionables.js";
+import { members, membersMoved } from "./filelists.js";
+import type { CanvasNode } from "@talaris/model";
 
 const MISSING = "talaris:missing";
 const FROM_HERMES = "hermes-sync:origin";
 export const SHORTCUT = "talaris:shortcut";
+/** A shortcut to a canvas or a thread rather than a file: what it leads to, by its glance key. */
+export const SHORTCUT_TO = "talaris:shortcutTo";
 /** More folders than this in one project, and it is read when asked rather than watched. */
 const MOST_WATCHED = 4000;
 const home = () => resolve(process.env.TALARIS_LINK_HOME ?? homedir());
@@ -65,7 +72,7 @@ interface ProjectIndex {
 const indexes = new Map<string, ProjectIndex>();
 let version = 0;
 /** Goes up whenever anything listed changes: the panel asks it to know when to look again. */
-export const filesVersion = () => version;
+export const filesVersion = () => version + threadsVersion();
 
 const hidden = (rel: string) => rel.split("/").some((p) => p.startsWith(".")) || rel === MACHINERY || rel.startsWith(`${MACHINERY}/`);
 const isIgnored = (ix: ProjectIndex, rel: string) => ix.ignored.some((g) => (g.endsWith("/") ? rel.startsWith(g) || `${rel}/` === g : rel === g));
@@ -201,7 +208,7 @@ function indexOf(projectId: string): ProjectIndex {
 
 // ------------------------------------------------------------ what a file is
 
-export type FileType = "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "audio" | "video" | "code" | "archive" | "other";
+export type FileType = "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "audio" | "video" | "code" | "archive" | "other" | "canvas" | "conversation";
 const BY_EXT: Record<string, FileType> = {};
 const put = (t: FileType, exts: string) => { for (const e of exts.split(" ")) BY_EXT[`.${e}`] = t; };
 put("document", "odt ott doc docx rtf txt md markdown pages tex epub");
@@ -215,7 +222,7 @@ put("code", "js mjs cjs ts tsx jsx py rs go java c h cpp hpp cs rb php sh bash z
 put("archive", "zip tar gz tgz bz2 xz 7z rar zst deb");
 export const typeOfName = (name: string): FileType => BY_EXT[extname(name).toLowerCase()] ?? "other";
 
-export type Status = "folder" | "page" | "shortcut" | "linked" | "snapshot" | "missing";
+export type Status = "folder" | "page" | "shortcut" | "linked" | "snapshot" | "missing" | "canvas" | "conversation";
 
 export interface On { id: string; title: string; kind: string }
 export interface FileRow {
@@ -244,6 +251,8 @@ export interface FileRow {
   alsoIn?: string[];
   /** A shortcut to a file in another project's folder: that project, and its place there. */
   livesIn?: { project: string; path: string };
+  /** A canvas, one of Morgan's threads, or a shortcut to one: the thing, by its glance key (`canvas:<project>/<id>`, `thread:<home>/<id>`). */
+  thing?: string;
 }
 
 const fileSource = (projectId: string, rel: string) => ({ kind: "file", key: `${projectId}/${rel}` });
@@ -302,6 +311,7 @@ function allRows(only?: string): FileRow[] {
         ...((rel.startsWith(`${WRITING}/`) || rel.startsWith(`${FILES}/`)) && isSealedFile(abs) ? { sealed: true } : {}) });
     }
   }
+  thingRows(rows, only);
   const { of } = projectsByEntity();
   // Every shortcut's file, first: a file in one project's folder is also in each project with a shortcut to it.
   const shortcutsTo = new Map<string, string[]>();
@@ -324,6 +334,14 @@ function allRows(only?: string): FileRow[] {
       continue;
     }
     const shortcutIn = typeof o[SHORTCUT] === "string" ? (o[SHORTCUT] as string) : null;
+    if (shortcutIn && typeof o[SHORTCUT_TO] === "string") {
+      if (only && shortcutIn !== only) continue;
+      const to = thingRow(o[SHORTCUT_TO] as string);
+      rows.set(`s:${o.id}`, { ...(to ?? { name: titleOf(o), type: "other" as FileType, status: ["missing"] as Status[], on: [] }), key: `s:${o.id}`, project: shortcutIn,
+        status: to ? ["shortcut"] : ["shortcut", "missing"], tags: o.tags ?? [], entity: o.id, thing: o[SHORTCUT_TO] as string,
+        ...(to ? { alsoIn: [to.project] } : {}) });
+      continue;
+    }
     if (shortcutIn) {
       if (only && shortcutIn !== only) continue;
       const v = valuesIn(o.properties.file)[0];
@@ -368,6 +386,64 @@ function allRows(only?: string): FileRow[] {
   return [...rows.values()];
 }
 
+/** A canvas's row, or a thread's, by its glance key; null if it is gone. */
+function thingRow(key: string): FileRow | null {
+  const at = key.indexOf("/");
+  const kind = key.slice(0, key.indexOf(":")), project = key.slice(key.indexOf(":") + 1, at), where = key.slice(at + 1);
+  if (kind === "thread") {
+    const t = threadById(where);
+    return t ? threadRow(t) : null;
+  }
+  if (kind === "canvas") {
+    try {
+      let found: CanvasNode | null = null;
+      const walk = (n: CanvasNode) => { if (n.id === where) found = n; n.children.forEach(walk); };
+      walk(canvasTree(project));
+      return found ? canvasRow(project, found) : null;
+    } catch { return null; }
+  }
+  return null;
+}
+
+const canvasRow = (project: string, n: CanvasNode): FileRow => {
+  const e = bySource(placeSource("canvas", project, n.id));
+  return { key: `v:${project}/${n.id}`, project, name: n.title, type: "canvas", ...(n.modified ? { mtime: n.modified } : {}), status: ["canvas"], on: [],
+    tags: e?.tags ?? [], ...(e ? { entity: e.id } : {}), thing: `canvas:${project}/${n.id}` };
+};
+const threadRow = (t: { id: string; title: string; t1: number }): FileRow => {
+  const home = homeId();
+  const e = bySource(placeSource("thread", home, t.id));
+  return { key: `t:${t.id}`, project: home, name: t.title, type: "conversation", mtime: new Date(t.t1).toISOString(), status: ["conversation"], on: [],
+    tags: e?.tags ?? [], ...(e ? { entity: e.id } : {}), thing: `thread:${home}/${t.id}` };
+};
+
+/** Each project's canvases, and Morgan's threads in Home: things Files lists that are not files. */
+function thingRows(rows: Map<string, FileRow>, only?: string): void {
+  for (const p of listProjects()) {
+    if (only && p.id !== only) continue;
+    let top: CanvasNode;
+    try { top = canvasTree(p.id); } catch { continue; }
+    const walk = (n: CanvasNode) => { const r = canvasRow(p.id, n); rows.set(r.key, r); n.children.forEach(walk); };
+    walk(top);
+  }
+  if (only && only !== homeId()) return;
+  for (const t of threads()) { const r = threadRow(t); rows.set(r.key, r); }
+}
+
+/** A canvas or a thread brought into another project: a shortcut to it there. */
+export function makeThingShortcut(projectId: string, key: string): FileRow {
+  findProject(projectId);
+  const to = thingRow(key);
+  if (!to) throw new NotFound(`nothing is known by ${key}`);
+  if (to.project === projectId) throw new Conflict("it is already in this project");
+  for (const { object: o } of allRecords()) {
+    if (o[SHORTCUT] === projectId && o[SHORTCUT_TO] === key) throw new Conflict("this project already has a shortcut to it");
+  }
+  const e = createEntity({ type: typeFor("file").id, properties: { title: to.name }, [SHORTCUT]: projectId, [SHORTCUT_TO]: key });
+  version++;
+  return listFiles({ project: projectId }).rows.find((r) => r.entity === e.id)!;
+}
+
 export interface Query {
   project?: string;
   q?: string;
@@ -378,6 +454,8 @@ export interface Query {
   days?: number;
   sort?: "name" | "date";
   limit?: number;
+  /** In one of the project's lists (filelists.ts), by its id: what it holds, in its order. */
+  list?: string;
 }
 
 /** The rows asked for: in a project or all, matching a name, of a type, a status, carrying tags, changed lately. */
@@ -392,7 +470,12 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
     && (!query.status || r.status.includes(query.status as Status) || (query.status === "folder" && r.status.includes("page")))
     && (!tags.length || tags.every((t) => r.tags.includes(t)))
     && (!since || (r.mtime ? Date.parse(r.mtime) >= since : false)));
-  rows = query.sort === "date"
+  if (query.list && query.project) {
+    const order = new Map(members(query.project, query.list).map((k, i) => [k, i]));
+    rows = rows.filter((r) => order.has(r.key));
+    if (query.sort !== "date") rows.sort((a, b) => order.get(a.key)! - order.get(b.key)!);
+    else rows.sort((a, b) => (b.mtime ?? "").localeCompare(a.mtime ?? ""));
+  } else rows = query.sort === "date"
     ? rows.sort((a, b) => (b.mtime ?? "").localeCompare(a.mtime ?? ""))
     : rows.sort((a, b) => (a.path ?? a.name).localeCompare(b.path ?? b.name, undefined, { sensitivity: "base", numeric: true }));
   const total = rows.length;
@@ -467,6 +550,9 @@ function moved(fromAbs: string, toAbs: string): void {
   }
   const from = placeOf(fromAbs), to = placeOf(toAbs);
   if (!from) return;
+  // Its place in lists, kept.
+  const fromKey = `p:${from.project}/${from.rel}`, toKey = to ? `p:${to.project}/${to.rel}` : "";
+  membersMoved((k) => (k === fromKey ? toKey : null));
   const e = bySource(fileSource(from.project, from.rel));
   if (!e) return;
   // Sources are only ever added, so the entity is made again under its new name, tags and all.

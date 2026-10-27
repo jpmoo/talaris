@@ -31,12 +31,19 @@ export function morganDescribeText(text: string, name: string): Promise<string |
 }
 
 function ask(body: Record<string, unknown>): Promise<string | null> {
+  return morganCommand(`describe ${JSON.stringify(body)}`).then((r) =>
+    // An older Morgan answers "unknown command": not asked, then.
+    r?.ok ? String(r.text ?? "").trim() : null);
+}
+
+/** One command on Morgan's socket, and its one line of answer; null when Morgan could not be asked. */
+export function morganCommand(line: string, timeout = 240_000): Promise<Record<string, unknown> | null> {
   return new Promise((ok) => {
     const chunks: Buffer[] = [];
     let done = false;
-    const finish = (v: string | null) => { if (!done) { done = true; ok(v); } };
+    const finish = (v: Record<string, unknown> | null) => { if (!done) { done = true; ok(v); } };
     const sock = createConnection({ path: SOCKET(), allowHalfOpen: false });
-    sock.setTimeout(240_000, () => { sock.destroy(); finish(null); });
+    sock.setTimeout(timeout, () => { sock.destroy(); finish(null); });
     sock.on("error", () => finish(null));
     sock.on("data", (c) => {
       chunks.push(c);
@@ -45,12 +52,10 @@ function ask(body: Record<string, unknown>): Promise<string | null> {
     });
     sock.on("end", () => {
       try {
-        const r = JSON.parse(Buffer.concat(chunks).toString("utf8").trim().split("\n").pop() || "{}") as { ok?: boolean; text?: string; error?: string };
-        // An older Morgan answers "unknown command": not asked, then.
-        finish(r.ok ? String(r.text ?? "").trim() : null);
+        finish(JSON.parse(Buffer.concat(chunks).toString("utf8").trim().split("\n").pop() || "{}") as Record<string, unknown>);
       } catch { finish(null); }
     });
     // Written, and the connection left open: Morgan drops one half-closed before it answers.
-    sock.on("connect", () => sock.write(`describe ${JSON.stringify(body)}\n`));
+    sock.on("connect", () => sock.write(`${line}\n`));
   });
 }

@@ -45,8 +45,10 @@ test("everything in a project's folder is listed, but its machinery, dot-files, 
   write(join(alpha.folder, "node_modules", "x", "index.js"));
   write(join(alpha.folder, "debug.log"));
   files.startWatching();
-  const names = rows(alpha.id).map((r) => r.path).sort();
+  const names = rows(alpha.id).filter((r) => r.path).map((r) => r.path).sort();
   assert.deepEqual(names, ["Budget.ods", "Notes/plan.md", "Writing/Camp rules.md"]);
+  // And its canvas, which is not a file in the folder but is listed with them.
+  assert.deepEqual(rows(alpha.id).filter((r) => !r.path).map((r) => r.status), [["canvas"]]);
   assert.deepEqual(find(alpha.id, "Budget.ods")!.status, ["folder"]);
   assert.equal(find(alpha.id, "Budget.ods")!.type, "spreadsheet");
   assert.deepEqual(find(alpha.id, "Camp rules.md")!.status, ["page"]);

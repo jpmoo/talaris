@@ -55,6 +55,8 @@ import * as lists from "./lists.js";
 import * as tagsM from "./tags.js";
 import * as links from "./links.js";
 import * as files from "./files.js";
+import * as filelists from "./filelists.js";
+import * as threads from "./threads.js";
 import * as meaning from "./meaning.js";
 import { contextFor } from "./context.js";
 import { mergeEntities, mergedInto } from "./merge.js";
@@ -238,11 +240,53 @@ route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFil
 route("GET", "/files", (_r, _p, q) => {
   const got = files.listFiles({ project: q.get("project") ?? "", q: q.get("q") ?? "", type: q.get("type") ?? "",
     status: q.get("status") ?? "", tags: q.getAll("tag"), days: Number(q.get("days") ?? 0) || undefined,
-    sort: q.get("sort") === "date" ? "date" : "name", limit: Number(q.get("limit") ?? 2000) });
+    sort: q.get("sort") === "date" ? "date" : "name", limit: Number(q.get("limit") ?? 2000), ...(q.get("list") ? { list: q.get("list")! } : {}) });
   // How far search has read each (meaning.ts): what the panel marks as not read yet.
   return { ...got, ...meaning.fileReadStates(got.rows) };
 });
 route("GET", "/files/version", () => ({ version: files.filesVersion() }));
+// A canvas or one of Morgan's threads brought into another project: a shortcut there (files.ts).
+route("POST", "/files/thing-shortcut", async (req) => {
+  const b = await json<{ project?: string; key?: string }>(req);
+  if (!b.project || !b.key) throw new BadRequest("a project, and the canvas or thread to bring into it");
+  return files.makeThingShortcut(b.project, b.key);
+});
+// Morgan's threads (threads.ts): asked for again now, and how the copy stands.
+route("POST", "/threads/sync", () => threads.syncThreads());
+route("GET", "/threads", () => ({ ...threads.threadsStatus(), threads: threads.threads().map(({ ts: _ts, ...t }) => t) }));
+// Lists (filelists.ts): a project's, as a tree with counts; made, renamed, moved, deleted; things put in and taken out, and ordered.
+route("GET", "/files/lists", (_r, _p, q) => filelists.listTree(need(q, "project")));
+route("GET", "/files/lists/holding", (_r, _p, q) => filelists.listsHolding(need(q, "project"), need(q, "key")));
+route("POST", "/files/lists", async (req) => {
+  const b = await json<{ project?: string; name?: string; parent?: string | null }>(req);
+  if (!b.project || !b.name) throw new BadRequest("a project, and the list's name");
+  return filelists.createList(b.project, b.name, b.parent ?? null);
+});
+route("PUT", "/files/lists/:id", async (req, [id]) => {
+  const b = await json<{ project?: string; name?: string; parent?: string | null; index?: number }>(req);
+  if (!b.project) throw new BadRequest("the list's project");
+  if (b.name !== undefined) filelists.renameList(b.project, id!, b.name);
+  if (b.parent !== undefined) filelists.moveList(b.project, id!, b.parent, b.index);
+  return { ok: true };
+});
+route("DELETE", "/files/lists/:id", (_r, [id], q) => ({ ok: true, gone: filelists.deleteList(need(q, "project"), id!) }));
+route("POST", "/files/lists/:id/items", async (req, [id]) => {
+  const b = await json<{ project?: string; keys?: string[] }>(req);
+  if (!b.project || !Array.isArray(b.keys)) throw new BadRequest("the list's project, and what to put in it");
+  const mine = new Set(files.listFiles({ project: b.project }).rows.map((r) => r.key));
+  return filelists.addToList(b.project, id!, b.keys, (k) => mine.has(k));
+});
+route("DELETE", "/files/lists/:id/items", async (req, [id]) => {
+  const b = await json<{ project?: string; keys?: string[] }>(req);
+  if (!b.project || !Array.isArray(b.keys)) throw new BadRequest("the list's project, and what to take out of it");
+  return { ok: true, removed: filelists.removeFromList(b.project, id!, b.keys) };
+});
+route("PUT", "/files/lists/:id/order", async (req, [id]) => {
+  const b = await json<{ project?: string; keys?: string[] }>(req);
+  if (!b.project || !Array.isArray(b.keys)) throw new BadRequest("the list's project, and its order");
+  filelists.orderList(b.project, id!, b.keys);
+  return { ok: true };
+});
 // How many of each thing Files' left side lists (files.ts): projects, and in the project chosen, statuses, types, tags.
 route("GET", "/files/counts", (_r, _p, q) => files.fileCounts(q.get("project") || undefined));
 // Linked folders (files.ts): what one holds, before linking it; linked, and watched; no longer watched; those watched.
@@ -499,11 +543,11 @@ route("PUT", "/suggestions/quiet", async (req) => {
   return { quiet: suggest.setQuiet(b.key, b.quiet !== false) };
 });
 // A page's description, as read and as written by the person (Files): by its glance key, page:<project>/<path>.
-route("GET", "/files/page-about", (_r, _p, q) => meaning.pageDescription(need(q, "key")));
+route("GET", "/files/page-about", (_r, _p, q) => meaning.thingDescription(need(q, "key")));
 route("PUT", "/files/page-about", async (req) => {
   const b = await json<{ key?: string; about?: string }>(req);
-  if (!b.key?.startsWith("page:") || typeof b.about !== "string") throw new BadRequest("a page, and what it is about");
-  if (!meaning.editPageDescription(b.key, b.about)) throw new Conflict("only a page already read can be described");
+  if (!/^(page|canvas|thread):/.test(b.key ?? "") || typeof b.about !== "string") throw new BadRequest("a page, canvas or thread, and what it is about");
+  if (!meaning.editPageDescription(b.key!, b.about)) throw new Conflict("only something already read can be described");
   return { ok: true };
 });
 // A file's description, written by the person (Files): by its glance key.

@@ -8,6 +8,7 @@ import { MACHINERY, WRITING, stamp } from "./paths.js";
 import { Conflict, NotFound, UNDATED, findProject, notesFolder, pagesPlace } from "./projects.js";
 import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
+import { membersMoved } from "./filelists.js";
 import { starredPageMoved } from "./starred.js";
 import { forgetPages, pageTags, setPageTags } from "./tags.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
@@ -275,6 +276,11 @@ export function movePage(projectId: string, path: string, newParent: string | nu
   }
   movedText({ kind: "page", key: `${projectId}/${from}` }, { kind: "page", key: `${projectId}/${to}` });
   starredPageMoved(projectId, from, to);
+  // Its place in the project's lists (filelists.ts), and its children's.
+  if (projectId !== UNDATED) {
+    const was = `p:${projectId}/${WRITING}/${from}`, now = `p:${projectId}/${WRITING}/${to}`;
+    membersMoved((k) => (k === `${was}.md` ? `${now}.md` : k.startsWith(`${was}/`) ? now + k.slice(was.length) : null));
+  }
   return { path: to, title, children: [] };
 }
 

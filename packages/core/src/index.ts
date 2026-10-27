@@ -22,6 +22,7 @@ import { startSealing } from "./sealed-projects.js";
 import { startSchedule } from "./backup.js";
 import { startWatching } from "./files.js";
 import { startMeaning } from "./meaning.js";
+import { startThreads } from "./threads.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
 
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
   try { startWatching(); } catch (e) { console.log(`talaris-core: files not watched yet: ${(e as Error).message}`); }
   // Search by meaning: kept current in the background, when a model server is set (meaning.ts).
   startMeaning();
+  startThreads();
   // People once made from calendars' own addresses, put right (entities.ts).
   try {
     const n = forgetNonPeople();

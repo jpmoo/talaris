@@ -27,15 +27,17 @@ export interface Mentionable {
   here: boolean;
 }
 
+/** A page, a canvas, or one of Morgan's threads (threads.ts, in Home): what an entity can stand for, by where it is. */
+export type PlaceKind = "page" | "canvas" | "thread";
 /** Where a page or a canvas is, as an entity standing for it is known. */
-export const placeSource = (kind: "page" | "canvas", project: string, where: string) => ({ kind, key: `${project}/${where}` });
+export const placeSource = (kind: PlaceKind, project: string, where: string) => ({ kind, key: `${project}/${where}` });
 
 /**
  * The entity standing for a page or a canvas, made if there is none yet: a
  * note whose words stay where they are (`talaris:textElsewhere`), titled as
  * the place is. Pages with mentions already have one (mentions.ts, syncText).
  */
-export function placeEntity(kind: "page" | "canvas", project: string, where: string, title: string): Entity {
+export function placeEntity(kind: PlaceKind, project: string, where: string, title: string): Entity {
   const source = placeSource(kind, project, where);
   const known = bySource(source);
   if (known) return known.properties.title === title || !title ? known : updateEntity(known.id, { properties: { title: title.slice(0, 120) } });
@@ -43,9 +45,9 @@ export function placeEntity(kind: "page" | "canvas", project: string, where: str
 }
 
 /** Where a page or canvas entity points, if it stands for one. */
-export function placeOf(o: Entity): { kind: "page" | "canvas"; project: string; where: string } | null {
+export function placeOf(o: Entity): { kind: PlaceKind; project: string; where: string } | null {
   for (const s of (o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []) {
-    if (s.kind !== "page" && s.kind !== "canvas") continue;
+    if (s.kind !== "page" && s.kind !== "canvas" && s.kind !== "thread") continue;
     const at = s.key.indexOf("/");
     if (at > 0) return { kind: s.kind, project: s.key.slice(0, at), where: s.key.slice(at + 1) };
   }
