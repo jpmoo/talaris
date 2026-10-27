@@ -57,7 +57,7 @@
   let rep = null;      // the rule being written in Repeat's editor
   let renaming = null; // a list whose name is being typed
   let addingProject = false;
-  let onWallpaper = null; // the open project sheet's ear for wallpaperChanged
+  let onWallpaper = null; // the project panel's ear for wallpaperChanged
 
   // ---------------------------------------------------------------- the core
 
@@ -442,10 +442,8 @@
   function projectRow(p, inGroup, on) {
     const row = el("div", { class: "item proj" + (inGroup ? " in-group" : "") + (on ? " on" : ""), "data-id": p.id, title: p.title,
       onclick: () => showThing("project", p.id),
-      oncontextmenu: (e) => { e.preventDefault(); menuAt(e.clientX, e.clientY, [
-        { label: "Properties", act: () => editProject(p) },
-        p.group ? { label: "Ungroup", act: () => setGroup(p, null) } : null,
-      ].filter(Boolean)); } },
+      // Its properties are the panel on the right; the menu keeps only what is quicker here.
+      oncontextmenu: (e) => { e.preventDefault(); if (p.group) menuAt(e.clientX, e.clientY, [{ label: "Ungroup", act: () => setGroup(p, null) }]); else showThing("project", p.id); } },
       el("span", { class: "name" }, p.title),
       // How many tasks it has open (the core's /tasks/open-counts).
       openCounts[p.id] ? el("span", { class: "n", title: `${openCounts[p.id]} open` }, String(openCounts[p.id])) : null);
@@ -548,158 +546,6 @@
     return el("div", { class: "item" }, input);
   }
 
-  // ---------------------------------------------------------------- a project's properties
-  //
-  // The list editor's sheet look (listeditor.css). Name, group and description
-  // are kept on Done; the wallpaper is the desktop's and changes as chosen —
-  // the bridge answers on wallpaperChanged, so Cancel does not undo it.
-
-  let projSheet = null; // the open one's put-away
-  function editProject(p) {
-    if (projSheet) projSheet();
-    popAway();
-    const ws = p.workspace;
-    let group = p.group || null;
-    let closed = false;
-    let descEd = null;
-    const dim = el("div", { class: "le-dim" });
-    const sheet = el("div", { class: "le-sheet ps", role: "dialog" });
-    const err = el("div", { class: "le-err" });
-    // The name is the Talaris project's; one without a workspace has none to rename here.
-    const name = el("input", { type: "text", class: "le-name", value: p.title, spellcheck: "false", disabled: ws ? null : "" });
-    const groupHost = el("span", { class: "le-val" });
-    const descHost = el("div", { class: "ed-field ps-desc" });
-    const wall = el("span", { class: "le-val ps-wall" });
-    const row = (label, val) => el("div", { class: "le-row" }, el("span", { class: "le-label" }, label), val);
-
-    const close = () => {
-      if (closed) return;
-      closed = true;
-      popAway();
-      if (descEd && descEd.destroy) descEd.destroy();
-      dim.remove();
-      removeEventListener("keydown", esc, true);
-      onWallpaper = null;
-      projSheet = null;
-    };
-    projSheet = close;
-    // Captured ahead of the page's own Escape, which would put the panel away.
-    const esc = (e) => {
-      if (e.key !== "Escape") return;
-      if (descHost.contains(e.target) && document.querySelector(".cm-tooltip-autocomplete")) return; // the @ picker's
-      e.preventDefault(); e.stopPropagation();
-      if (!$("pop").hidden) { popAway(); return; }
-      if (e.target.classList && e.target.classList.contains("ps-new")) { e.target.dataset.cancel = "1"; drawGroup(); return; }
-      close();
-    };
-
-    function drawGroup() {
-      groupHost.replaceChildren(el("button", { type: "button", class: "le-pick" + (group ? "" : " none"), onclick: (e) => groupMenu(e.currentTarget) }, group || "No group"));
-    }
-    function groupMenu(anchor) {
-      if (popFor === anchor) { popAway(); return; }
-      const names = [...new Set([...groupNames(), ...(group ? [group] : [])])].sort(byName);
-      const item = (label, on, act) => el("button", { class: "menu-item" + (on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); act(); } }, label);
-      popUnder(anchor, el("div", { class: "menu-list" },
-        names.map((g) => item(g, g === group, () => { group = g; drawGroup(); })),
-        names.length ? el("div", { class: "menu-sep" }) : null,
-        item("New group…", false, newGroup),
-        item("No group", !group, () => { group = null; drawGroup(); })));
-    }
-    // "New group…" is the chip become a field; Enter or leaving it keeps the name.
-    function newGroup() {
-      const input = el("input", { type: "text", class: "ps-new", placeholder: "Group", spellcheck: "false" });
-      let done = false;
-      const finish = () => {
-        if (done || input.dataset.cancel) return;
-        done = true;
-        const v = input.value.trim();
-        if (v) group = v;
-        drawGroup();
-      };
-      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); finish(); } });
-      input.addEventListener("blur", finish);
-      groupHost.replaceChildren(input);
-      setTimeout(() => input.focus(), 0);
-    }
-
-    function drawWall(w) {
-      if (closed || !w || w.project !== ws) return;
-      const own = Boolean(w.own);
-      wall.replaceChildren(
-        el("img", { class: "ps-thumb", alt: "", src: `talaris-ui://wallpaper/?project=${enc(ws)}&t=${Date.now()}` }),
-        el("span", { class: "ps-wall-side" },
-          el("span", { class: "le-muted" }, own ? "Its own" : "The default"),
-          el("span", { class: "ps-wall-acts" },
-            el("button", { type: "button", class: "t-btn", onclick: () => { err.textContent = ""; bridge.chooseWallpaper(ws); } }, "Choose…"),
-            own ? el("button", { type: "button", class: "t-btn", onclick: () => { err.textContent = ""; bridge.defaultWallpaper(ws); } }, "Use the default") : null)));
-      if (w.error) err.textContent = w.error;
-    }
-    const hasWall = Boolean(ws && bridge && typeof bridge.wallpaperOf === "function");
-
-    async function save() {
-      err.textContent = "";
-      sheet.classList.add("busy");
-      try {
-        const title = name.value.trim();
-        if (ws && title && title !== p.title) await api("PUT", `/projects/${enc(ws)}/name`, { name: title });
-        const patch = {};
-        if ((group || null) !== (p.group || null)) patch["talaris:group"] = group || null;
-        const desc = descEd ? descEd.text : (p.description || "");
-        if (desc.trim() !== (p.description || "").trim()) patch.properties = { description: desc.trim() ? desc : null };
-        if (Object.keys(patch).length) await api("PATCH", `/entities/${enc(p.id)}`, patch);
-        close();
-        await refresh();
-      } catch (e) {
-        err.textContent = e.message;
-        sheet.classList.remove("busy");
-      }
-    }
-
-    name.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
-    sheet.append(
-      el("div", { class: "title le-title" }, "Project"),
-      row("Name", el("span", { class: "le-val" }, name)),
-      row("Group", groupHost),
-      row("Description", el("span", { class: "le-val" }, descHost)),
-      hasWall ? row("Wallpaper", wall) : null,
-      err,
-      el("div", { class: "le-acts" },
-        // Archived: its folder to the archive, and out of every list — browsed and brought back from the archive.
-        ws && bridge && typeof bridge.archiveProject === "function" ? (() => {
-          const b = el("button", { type: "button", class: "t-btn danger" }, "Archive");
-          b.addEventListener("click", () => {
-            if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Archive it?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Archive"; }, 4000); return; }
-            sheet.classList.add("busy");
-            bridge.archiveProject(ws, (error) => {
-              if (error) { err.textContent = error; sheet.classList.remove("busy"); return; }
-              close();
-              refresh();
-            });
-          });
-          return b;
-        })() : null,
-        // What plugins put on a project (Sync now).
-        window.Peek ? Peek.actionButtons("project", p.id, api) : null,
-        el("span", { class: "spacer" }),
-        el("button", { type: "button", class: "t-btn", onclick: close }, "Cancel"),
-        el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Done")));
-    dim.append(sheet);
-    dim.addEventListener("pointerdown", (e) => { if (e.target === dim) close(); });
-    addEventListener("keydown", esc, true);
-    document.body.append(dim);
-    drawGroup();
-    if (hasWall) {
-      onWallpaper = drawWall;
-      bridge.wallpaperOf(ws, (text) => { try { drawWall(JSON.parse(text)); } catch (e) { err.textContent = e.message; } });
-    }
-    import("./editor.js").then((m) => {
-      if (closed) return;
-      descEd = m.createEditor(descHost, p.description || "", { live: true, compact: true, mentions: TalarisMentions(api, openMention), placeholder: "Description" });
-    }).catch((e) => { err.textContent = e.message; });
-    setTimeout(() => { if (!ws) return; name.focus(); name.select(); }, 0);
-  }
-
   // Gone for good: the list only, never what is in it — nor, for a synced one, the collection on the other side.
   function deleteList(l) {
     api("DELETE", `/lists/${enc(l.id)}`).then(() => {
@@ -765,9 +611,8 @@
     const kept = current && current.kind === "list";
     $("title").textContent = shown ? shown.list.name : "";
     $("count").textContent = shown ? String(shown.rows.length) : "";
-    const proj = current && current.kind === "project" && projects.find((p) => p.id === current.id);
-    $("edit-list").hidden = !(shown && (kept ? window.ListEditor : proj));
-    $("edit-list").textContent = proj ? "Edit project" : "Edit collection";
+    // A project is edited in its panel on the right; a collection, in the list editor.
+    $("edit-list").hidden = !(shown && kept && window.ListEditor);
     const host = $("rows");
     if (!shown) { host.replaceChildren(current ? "" : el("div", { class: "empty" }, "No collections")); return; }
     const kind = shown.list.kind || "list";
@@ -976,10 +821,10 @@
   //
   // A project chosen on the left is shown on the right as itself: its name,
   // its description — Morgan's from its tasks, or yours, written here
-  // (project-describe.ts) — what it might be connected to (suggest.ts, by
-  // what its description says), Glance, and More… for its group, wallpaper
-  // and archiving (editProject). Closed, it stays closed until a project is
-  // chosen again.
+  // (project-describe.ts) — its group and wallpaper, what it might be
+  // connected to (suggest.ts, by what its description says), Glance, and
+  // archiving it. Each kept as it is changed. Closed, it stays closed until a
+  // project is chosen again.
   let projectOn = null, projectAbout = "", projectEd = null, projectShut = false, projectSuggFor = null;
   function openProject(id) {
     const p = projects.find((x) => x.id === id);
@@ -993,6 +838,8 @@
     $("p-name").disabled = !p.workspace;
     $("p-open").textContent = openCounts[p.id] ? String(openCounts[p.id]) : "None";
     paintProjectAbout(p, fresh);
+    drawProjectGroup(p);
+    if (fresh) drawProjectWall(p);
     const key = p.workspace ? `project:${p.workspace}` : `e:${p.id}`;
     $("p-acts").replaceChildren(...(window.Peek ? [Peek.glanceButton(key, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null),
       Peek.actionButtons("project", p.id, api, "t-btn", () => loadSide())].filter(Boolean) : []));
@@ -1002,7 +849,77 @@
         changed: (r) => { say(r.said || "Done"); projectSuggFor = null; loadSide().catch(failed); } }));
     }
   }
+  // Its group: Tasks' own arrangement of the column, kept as it is chosen.
+  function drawProjectGroup(p) {
+    const b = el("button", { type: "button", class: "le-pick" + (p.group ? "" : " none"), onclick: (e) => groupMenu(p, e.currentTarget) }, p.group || "No group");
+    $("p-group").replaceChildren(b);
+  }
+  function groupMenu(p, anchor) {
+    if (popFor === anchor) { popAway(); return; }
+    const names = [...new Set([...groupNames(), ...(p.group ? [p.group] : [])])].sort(byName);
+    const item = (label, on, act) => el("button", { class: "menu-item" + (on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); act(); } }, label);
+    popUnder(anchor, el("div", { class: "menu-list" },
+      names.map((g) => item(g, g === p.group, () => setGroup(p, g))),
+      names.length ? el("div", { class: "menu-sep" }) : null,
+      item("New group…", false, () => newGroup(p)),
+      item("No group", !p.group, () => setGroup(p, null))));
+  }
+  // "New group…": the chip become a field; Enter or leaving it keeps the name, Escape does not.
+  function newGroup(p) {
+    const input = el("input", { type: "text", class: "ps-new", placeholder: "Group", spellcheck: "false" });
+    let done = false;
+    const finish = (keep) => {
+      if (done) return;
+      done = true;
+      const v = input.value.trim();
+      if (keep && v) setGroup(p, v); else drawProjectGroup(p);
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); }
+    });
+    input.addEventListener("blur", () => finish(true));
+    $("p-group").replaceChildren(input);
+    setTimeout(() => input.focus(), 0);
+  }
+  // Its wallpaper: the desktop's, changed as it is chosen (the bridge answers on wallpaperChanged).
+  function drawProjectWall(p) {
+    const ws = p.workspace;
+    const can = Boolean(ws && bridge && typeof bridge.wallpaperOf === "function");
+    $("p-wall-row").hidden = !can;
+    if (!can) { onWallpaper = null; return; }
+    const draw = (w) => {
+      if (projectOn !== p.id || !w || w.project !== ws) return;
+      const own = Boolean(w.own);
+      $("p-wall").replaceChildren(
+        el("img", { class: "ps-thumb", alt: "", src: `talaris-ui://wallpaper/?project=${enc(ws)}&t=${Date.now()}` }),
+        el("span", { class: "ps-wall-side" },
+          el("span", { class: "le-muted" }, own ? "Its own" : "The default"),
+          el("span", { class: "ps-wall-acts" },
+            el("button", { type: "button", class: "t-btn", onclick: () => bridge.chooseWallpaper(ws) }, "Choose…"),
+            own ? el("button", { type: "button", class: "t-btn", onclick: () => bridge.defaultWallpaper(ws) }, "Use the default") : null)));
+      if (w.error) failed(new Error(w.error));
+    };
+    onWallpaper = draw;
+    bridge.wallpaperOf(ws, (text) => { try { draw(JSON.parse(text)); } catch (e) { failed(e); } });
+  }
+  // Archived: its folder to the archive, and out of every list — browsed and brought back from the archive. Asked twice.
+  function archiveProject() {
+    const p = projects.find((x) => x.id === projectOn);
+    const b = $("p-archive");
+    if (!p || !p.workspace || !bridge || typeof bridge.archiveProject !== "function") return;
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Archive it?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Archive"; }, 4000); return; }
+    delete b.dataset.armed;
+    b.textContent = "Archive";
+    bridge.archiveProject(p.workspace, (error) => {
+      if (error) { failed(new Error(error)); return; }
+      closeProject();
+      refresh();
+    });
+  }
+
   function closeProject() {
+    onWallpaper = null;
     projectOn = null;
     projectSuggFor = null;
     $("psheet").hidden = true;
@@ -1038,7 +955,7 @@
   }
   $("p-close").innerHTML = Icons.close();
   $("p-close").addEventListener("click", () => { projectShut = true; closeProject(); });
-  $("p-more").addEventListener("click", () => { const p = projects.find((x) => x.id === projectOn); if (p) editProject(p); });
+  $("p-archive").addEventListener("click", archiveProject);
   $("p-name").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); $("p-name").blur(); }
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); const p = projects.find((x) => x.id === projectOn); if (p) $("p-name").value = p.title; $("p-name").blur(); }
@@ -1463,7 +1380,6 @@
   $("edit-list").addEventListener("click", () => {
     if (!shown || !current) return;
     if (current.kind === "list") editList(shown.list);
-    else { const p = projects.find((x) => x.id === current.id); if (p) editProject(p); }
   });
 
   // The left column, out or away — this page's own preference, kept.

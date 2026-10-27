@@ -1304,10 +1304,12 @@ draws a thing's own fields.
 A project chosen in Tasks' left column shows its tasks, and itself on the
 right, where a task's sheet goes: its name (renamed there), its open tasks,
 its description — Morgan's from its tasks or yours, saved when you leave the
-box, cleared to have Morgan write it again — what it might be connected to,
-Glance, a plugin's buttons, and More… for its group, wallpaper and archiving.
-A task opened takes the right side; closed, the project comes back. The
-row's "…" is gone; its right-click menu stays.
+box, cleared to have Morgan write it again — its group and wallpaper, each
+kept as it is chosen, what it might be connected to, Glance, a plugin's
+buttons, and Archive (asked twice). A task opened takes the right side;
+closed, the project comes back. There is no project sheet any more: the
+row's "…" and "Edit project" are gone, and its right-click menu is only
+Ungroup.
 
 ### A press, Shift-press and Ctrl-press on the dock (2026-10-27)
 
