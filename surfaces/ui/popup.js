@@ -133,8 +133,51 @@ function showNotices(list) {
 }
 $("notice-clear").addEventListener("click", () => bridge && bridge.clearNotices());
 
+// ---------------------------------------------------------------- how the machine is doing
+//
+// Read each second while the power menu is open (bar.py, system → sysmon.py), and the last minute drawn.
+const SYS_N = 60;
+const sysSeen = { cpu: [], mem: [] };
+let sysTimer = 0, sysAt = 0;
+const gb = (b) => `${(b / 2 ** 30).toFixed(1)} GB`;
+const mb = (b) => (b >= 2 ** 30 ? gb(b) : `${Math.round(b / 2 ** 20)} MB`);
+function spark(id, values) {
+  const svg = $(id);
+  const pts = values.map((v, i) => `${(i + SYS_N - values.length).toFixed(1)},${(20 - (v / 100) * 19.5).toFixed(2)}`);
+  svg.querySelector("polyline").setAttribute("points", pts.join(" "));
+  svg.querySelector("polygon").setAttribute("points", pts.length ? `${SYS_N - values.length},20 ${pts.join(" ")} ${SYS_N - 1},20` : "");
+}
+function drawSys(r) {
+  if (!r || r.error) { $("sys-cpu-v").textContent = r && r.error ? "Can't read" : ""; return; }
+  const memPct = r.mem.total ? (100 * r.mem.used) / r.mem.total : 0;
+  // Closed a while: its minute starts again, rather than joining the old one across the gap.
+  if (Date.now() - sysAt > 3000) { sysSeen.cpu = []; sysSeen.mem = []; }
+  sysAt = Date.now();
+  for (const [k, v] of [["cpu", r.cpu], ["mem", memPct]]) { sysSeen[k].push(v); if (sysSeen[k].length > SYS_N) sysSeen[k].shift(); }
+  $("sys-cpu-v").textContent = `${Math.round(r.cpu)}%`;
+  $("sys-mem-v").textContent = `${gb(r.mem.used)} of ${gb(r.mem.total)}`;
+  $("sys-swap-v").textContent = r.swap.total ? `${mb(r.swap.used)} of ${gb(r.swap.total)}` : "None";
+  // The load beside the cores it is shared among: above that, things wait.
+  $("sys-load-v").textContent = `${r.load[0].toFixed(2)} · ${r.cores} cores`;
+  $("sys-load-v").title = `Over 1, 5 and 15 minutes: ${r.load.join(", ")}`;
+  spark("sys-cpu", sysSeen.cpu);
+  spark("sys-mem", sysSeen.mem);
+  const cell = (cls, text) => { const d = document.createElement("span"); d.className = cls; d.textContent = text; return d; };
+  $("sys-top").replaceChildren(cell("n head", "Busiest"), cell("c head", "CPU"), cell("m head", "Memory"),
+    ...r.top.flatMap((p) => [cell("n", p.name), cell("c", `${p.cpu < 10 ? p.cpu.toFixed(1) : Math.round(p.cpu)}%`), cell("m", mb(p.mem))]));
+}
+function sysTick() {
+  if (!bridge || !bridge.system) return;
+  bridge.system((text) => { try { drawSys(JSON.parse(text)); } catch { /* the next one */ } });
+}
+function watchSys(on) {
+  if (on && !sysTimer) { sysTick(); sysTimer = setInterval(sysTick, 1000); }
+  if (!on && sysTimer) { clearInterval(sysTimer); sysTimer = 0; }
+}
+
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
+  watchSys(s.popup === "power");
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }

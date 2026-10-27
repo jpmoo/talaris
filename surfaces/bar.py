@@ -42,6 +42,7 @@ from layershell import (
     whole,
 )
 from machine import Machine
+from sysmon import monitor
 from sensor import Autohide, Catcher
 from views import log, make_view, zoom, zoom_of
 
@@ -241,6 +242,14 @@ class BarBridge(Bridge):
     @Slot(str)
     def volume(self, change: str) -> None:
         self.owner.desktop.machine.volume(change)
+
+    @Slot(result=str)
+    def system(self) -> str:
+        """How the machine is doing, for the power menu's graphs (sysmon.py): asked each second while it is open."""
+        try:
+            return json.dumps(monitor.read())
+        except OSError as e:
+            return json.dumps({"error": str(e)})
 
     @Slot(str)
     def power(self, verb: str) -> None:

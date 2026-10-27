@@ -33,6 +33,18 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 .bat-big { display: flex; align-items: baseline; gap: 10px; padding: 2px 10px 6px; }
 #bat-level { font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
 #bat-when { font-size: 12px; color: var(--muted); }
+.sys { padding: 0 10px 4px; font-size: 12px; }
+.sys-row { display: flex; justify-content: space-between; margin-top: 4px; }
+.sys-l { color: var(--muted); }
+.sys-v { font-variant-numeric: tabular-nums; }
+.spark { display: block; width: 100%; height: 26px; margin-top: 2px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 10%, transparent); }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.spark polygon { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: none; }
+.sys-top { margin-top: 6px; display: grid; grid-template-columns: 1fr auto auto; gap: 1px 10px; font-variant-numeric: tabular-nums; }
+.sys-top .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sys-top .m { color: var(--muted); text-align: right; }
+.sys-top .c { text-align: right; }
+.sys-top .head { color: var(--muted); font-size: 11px; }
 #bat-rows .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 10px; font-size: 12.5px; }
 #bat-rows .kv span:first-child { color: var(--muted); }
 #bat-profiles { display: flex; gap: 4px; padding: 6px 10px 2px; }
@@ -117,6 +129,18 @@ input[type="range"]::-webkit-slider-thumb {
 </head>
 <body data-popup="">
 <div class="panel menu" id="power">
+  <!-- How the machine is doing: the last minute, read each second while this is open (sysmon.py). -->
+  <div class="hint"><span>This machine</span></div>
+  <div class="sys" id="sys">
+    <div class="sys-row"><span class="sys-l">CPU</span><span class="sys-v" id="sys-cpu-v"></span></div>
+    <svg class="spark" id="sys-cpu" viewBox="0 0 60 20" preserveAspectRatio="none"><polygon></polygon><polyline></polyline></svg>
+    <div class="sys-row"><span class="sys-l">Memory</span><span class="sys-v" id="sys-mem-v"></span></div>
+    <svg class="spark" id="sys-mem" viewBox="0 0 60 20" preserveAspectRatio="none"><polygon></polygon><polyline></polyline></svg>
+    <div class="sys-row"><span class="sys-l">Swap</span><span class="sys-v" id="sys-swap-v"></span></div>
+    <div class="sys-row"><span class="sys-l">Load</span><span class="sys-v" id="sys-load-v"></span></div>
+    <div class="sys-top" id="sys-top"></div>
+  </div>
+  <div class="menu-sep"></div>
   <div class="hint"><span>Power</span></div>
   <button class="menu-item" data-verb="lock">Lock</button>
   <button class="menu-item" data-verb="suspend">Suspend</button>
