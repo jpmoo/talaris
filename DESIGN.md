@@ -1299,6 +1299,16 @@ something with no date is never too old. The connections route names what is
 left out (`?shown=1`, `hidden`) rather than dropping it, since the same reply
 draws a thing's own fields.
 
+### A project in the Library (2026-10-27)
+
+A project chosen in the Library's left side, and nothing in it chosen, is
+shown on the right as itself: its description — Morgan's from its tasks, or
+yours, edited there (`/projects/:id/about`; written over, it is yours;
+cleared, Morgan writes it again) — what of it is in the Library, Glance a
+press away, and its **possible connections**, suggested by what its
+description says. The bar's button for the Library is a card catalog: it
+holds no work of its own, and says where each thing is.
+
 ### A project described by its tasks (2026-10-27)
 
 A project with no description is given one by Morgan

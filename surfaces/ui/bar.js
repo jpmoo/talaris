@@ -179,7 +179,7 @@ $("theme").addEventListener("click", () => bridge && bridge.themeMode());
 $("morgan").addEventListener("click", () => bridge && bridge.morgan());
 // The canvas, the writing surface, People, Tasks and New: panels from the bar like the rest.
 $("people").innerHTML = Icons.people();
-$("files").innerHTML = Icons.folder();
+$("files").innerHTML = Icons.library();
 $("tasks").innerHTML = Icons.tasks();
 $("new").innerHTML = Icons.plus();
 $("new").addEventListener("click", () => bridge && bridge.openPanel("new"));

@@ -77,3 +77,22 @@ export async function describeProjects(): Promise<{ described: number; morganAwa
   }
   return { described };
 }
+
+/** A project's description as the Library shows it: whose it is, and whether it can be written at all (Home has none). */
+export function projectAbout(projectId: string): { entity?: string; about: string; aboutByYou: boolean; can: boolean } {
+  const e = bySource({ kind: "talaris-project", key: projectId });
+  const key = e && bodyKey(e);
+  if (!e || !key) return { about: "", aboutByYou: false, can: false };
+  const v = e.properties[key];
+  const about = typeof v === "string" ? v : "";
+  return { entity: e.id, about, aboutByYou: Boolean(about) && about !== e[BY_MORGAN], can: true };
+}
+
+/** Written by the person: theirs from now on. Cleared, it is Morgan's to write again from the tasks. */
+export function setProjectAbout(projectId: string, about: string): ReturnType<typeof projectAbout> {
+  const e = bySource({ kind: "talaris-project", key: projectId });
+  const key = e && bodyKey(e);
+  if (!e || !key) throw new Error("this project keeps no description");
+  updateEntity(e.id, { properties: { [key]: about.trim() || null }, [BY_MORGAN]: null });
+  return projectAbout(projectId);
+}

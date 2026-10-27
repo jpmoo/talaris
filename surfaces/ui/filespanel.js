@@ -508,6 +508,42 @@
   // ---------------------------------------------------------------- the one chosen
 
   let armed = "";
+  /**
+   * A project chosen and nothing in it: the project itself — what it is about (Morgan's, from its tasks, or yours,
+   * edited here), what is in it, and what it might be connected to (suggest.ts, by its description), with Glance a
+   * press away.
+   */
+  function drawProject() {
+    const id = project;
+    const key = `project:${id}`;
+    const p = projects.find((x) => x.id === id) || {};
+    const c = counts || { projects: {} };
+    const aboutHost = el("div", { class: "d-read" });
+    api("GET", `/projects/${enc(id)}/about`).then((t) => {
+      if (project !== id || chosen) return;
+      if (!t.can) { aboutHost.replaceChildren(el("div", { class: "d-sub" }, p.home ? "Home: what is in no other project" : "")); return; }
+      aboutHost.replaceChildren(...aboutEditor("About it", t.about, t.aboutByYou,
+        "What the project is for — Morgan writes it from the project's tasks, or write it yourself",
+        (about) => api("PUT", `/projects/${enc(id)}/about`, { about })));
+    }).catch(() => {});
+    const acts = [];
+    if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k)));
+    const sugg = window.Peek ? Peek.suggestions(key, api, {
+      open: (eid) => Peek.show(eid, api, { openTask: (t) => bridge.openTask(t), openPerson: (x) => bridge.openPerson(x),
+        openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where), openEvent: (cal, u, st) => bridge.openEvent(cal, u, st), openUrl: (u) => bridge.openUrl(u) }),
+      openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where),
+      changed: (res) => { say(res.said || "Done"); reload(); },
+    }) : null;
+    $("detail").replaceChildren(...[
+      el("h2", {}, p.name || "A project"),
+      el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
+      aboutHost,
+      acts.length ? el("div", { class: "d-sub" }, "Do") : null,
+      acts.length ? el("div", { class: "d-acts" }, ...acts) : null,
+      sugg,
+    ].filter(Boolean));
+  }
+
   /** The projects a thing is in, each to go to; only Home's, said so. */
   function projectsOf(r) {
     const home = (projects.find((p) => p.home) || {}).id;
@@ -522,6 +558,7 @@
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     const r = rows.find((x) => x.key === chosen);
     if (!r && filters.list) { drawList(); return; }
+    if (!r && oneProject()) { drawProject(); return; }
     if (!r) { $("detail").replaceChildren(el("div", { class: "empty" }, "Choose a file to see what it is and what can be done with it.")); return; }
     const s = r.status;
     const said = [];

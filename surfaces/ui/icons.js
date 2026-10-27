@@ -91,6 +91,8 @@ const Icons = (() => {
 
   // People: a head and shoulders.
   const folder = () => svg('<path d="M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z"/>');
+  // The Library: a card catalog's two drawers. It holds no work of its own; it says where each thing is.
+  const library = () => svg('<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M2.5 8h11M6.5 5.2h3M6.5 10.8h3"/>');
   // A file kept on a task itself: a paperclip. One linked from a folder elsewhere: out of a box.
   const clip = () => svg('<path d="M10.5 5v5.5a2.5 2.5 0 0 1-5 0V4.5a1.6 1.6 0 0 1 3.2 0v5.8a.7.7 0 0 1-1.4 0V5.5"/>');
   const linked = () => svg('<path d="M9.5 2.5h4v4M13.5 2.5 8 8"/><path d="M11.5 9.5v4h-9v-9h4"/>');
@@ -114,5 +116,5 @@ const Icons = (() => {
   // Notifications: a bell. With some unread the bar sets a dot at its shoulder
   // (bar.html's #bell .dot), a thing of its own so it keeps its color and place.
   const bell = () => svg('<path d="M4 11V7.4a4 4 0 0 1 8 0V11l1.2 1.5H2.8z"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>');
-  return { sideList, folder, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();
