@@ -133,6 +133,42 @@ function showNotices(list) {
 }
 $("notice-clear").addEventListener("click", () => bridge && bridge.clearNotices());
 
+// Morgan's timers and reminders still to come, above the notifications: what
+// each is, how long is left (counted down each second while the list is out),
+// and a Cancel asked twice. Asked for when the list opens and again whenever
+// Morgan says one was set, changed or went off (bar.py).
+let timers = [];
+let timerTick = null;
+function drawTimers(answer) {
+  timers = answer && answer.ok ? (answer.reminders || []) : [];
+  $("timers").hidden = !timers.length;
+  showTimers();
+  clearInterval(timerTick);
+  timerTick = timers.length ? setInterval(() => {
+    if (document.body.dataset.popup !== "notifications") { clearInterval(timerTick); return; }
+    showTimers();
+  }, 1000) : null;
+}
+/** "4:32" under an hour, "1:04:32" under a day, the time of day after. */
+function timeLeft(at) {
+  const s = Math.max(0, Math.round((at - Date.now()) / 1000));
+  if (s >= 86400) return new Date(at).toLocaleDateString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+function showTimers() {
+  $("timer-list").replaceChildren(...timers.map((t) => {
+    const d = Object.assign(document.createElement("div"), { className: "timer" });
+    d.insertAdjacentHTML("beforeend", t.text ? Icons.clock() : Icons.timer());
+    const what = Object.assign(document.createElement("div"), { className: "what", textContent: t.text || "Timer" });
+    what.append(Object.assign(document.createElement("small"), {
+      textContent: new Date(t.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) }));
+    d.append(what, Object.assign(document.createElement("span"), { className: "left", textContent: timeLeft(t.at) }),
+      twice("Cancel", `timer-${t.id}`, () => bridge.cancelReminder(t.id)));
+    return d;
+  }));
+}
+
 // ---------------------------------------------------------------- how the machine is doing
 //
 // Read each second while the power menu is open (bar.py, system → sysmon.py), and the last minute drawn.
@@ -183,7 +219,7 @@ function onState(s) {
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
-  if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); }
+  if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); bridge.remindersRead(); }
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
   // Two frames on, said: a page that is not being drawn never gets there, and the process mends it (bar.py, _check_drawn).
@@ -478,4 +514,5 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.trayMenu.connect((text) => drawTrayMenu(JSON.parse(text)));
   b.tray.connect((text) => drawTrayIcons(JSON.parse(text)));
   b.notices.connect((text) => { if (document.body.dataset.popup === "notifications") showNotices(JSON.parse(text)); });
+  b.reminders.connect((text) => { try { drawTimers(JSON.parse(text)); } catch { drawTimers(null); } });
 });

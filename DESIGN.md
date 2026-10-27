@@ -366,6 +366,14 @@ canvas like any floating thing and **Morgan can say it**. The spec is not small
 holds the bus; the bus name is the whole interface, so nothing else changes
 when Talaris takes it.
 
+**Timers and reminders in the bell's list** (decided 2026-10-27). Morgan's
+timers and reminders that are still to come sit above the notifications, under
+"Coming up". Each shows what it is ("Timer" for a bare one), the time it is due,
+and the time left, counted down each second while the list is open, with a
+Cancel asked twice. The list asks Morgan (`reminders`) when it opens, and again
+whenever Morgan says one was set, changed or went off. A timer that goes off is
+still a notification, as before.
+
 ### The small ones
 
 - **The on-screen display** for volume and brightness: the keys stay compositor

@@ -21,6 +21,7 @@ import dataclasses
 import json
 import math
 import os
+import threading
 import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
@@ -42,6 +43,7 @@ from layershell import (
     whole,
 )
 from machine import Machine
+from morgan import command as morgan_command
 from sysmon import monitor
 from sensor import Autohide, Catcher
 from views import log, make_view, zoom, zoom_of
@@ -185,6 +187,8 @@ class BarBridge(Bridge):
 
     #: Pushed to the popup: the notifications, newest first (the bell's list).
     notices = Signal(str)
+    #: Pushed to the popup: Morgan's timers and reminders still to come, as its `reminders` command answers.
+    reminders = Signal(str)
     #: Pushed to the bar: a project gone to — its name flashes, so where you are is plain.
     flash = Signal()
 
@@ -194,6 +198,15 @@ class BarBridge(Bridge):
         listing = self.owner.desktop.bar.notification_listing()
         self.owner.desktop.notifications.read_all()
         return listing
+
+    @Slot()
+    def remindersRead(self) -> None:  # noqa: N802 — called from the page by this name
+        """Morgan's timers and reminders, asked for; the answer comes as `reminders`."""
+        self.owner.desktop.bar.read_reminders()
+
+    @Slot(str)
+    def cancelReminder(self, rid: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.bar.read_reminders(cancel=rid)
 
     @Slot(int)
     def dismissNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
@@ -472,6 +485,9 @@ class Popup(QObject):
 
 
 class Bar(QObject):
+    #: Morgan's answer about its reminders, from the thread that asked, to the popup on Qt's own thread.
+    _reminders = Signal(str)
+
     def __init__(self, config: dict, profile: QWebEngineProfile, desktop) -> None:
         super().__init__(desktop)
         self.desktop = desktop
@@ -494,6 +510,9 @@ class Bar(QObject):
         desktop.tray.menu.connect(self._tray_menu)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
+        # Timers and reminders, in the bell's list: asked again when Morgan says one was set, changed or went off.
+        self._reminders.connect(self.popup.bridge.reminders.emit)
+        desktop.morgan_link.event.connect(self._morgan_event)
 
     def went(self) -> None:
         """A project gone to: the bar's name of it flashes — the bar brought out a moment first, if it hides."""
@@ -582,6 +601,27 @@ class Bar(QObject):
         """The list of notifications changed: the bell's list, if it is out, drawn again."""
         if self.popup.kind == "notifications":
             self.popup.bridge.notices.emit(self.notification_listing())
+
+    def read_reminders(self, cancel: str = "") -> None:
+        """
+        Morgan's timers and reminders, asked for off Qt's thread (a daemon slow
+        to answer must not hold the bar), and pushed to the popup — one
+        cancelled first, if `cancel` names it. Morgan not running says so.
+        """
+        def ask() -> None:
+            if cancel:
+                answer = morgan_command("admin " + json.dumps({"op": "reminders.cancel", "args": {"id": cancel}}), timeout=8)
+                log(f"bar: reminder {cancel} cancelled" if '"ok":true' in answer.replace(" ", "") else f"bar: reminder {cancel} not cancelled: {answer[:200]}")
+            self._reminders.emit(morgan_command("reminders", timeout=8))
+        threading.Thread(target=ask, daemon=True).start()
+
+    def _morgan_event(self, text: str) -> None:
+        if self.popup.kind == "notifications" and '"reminder"' in text:
+            try:
+                if json.loads(text).get("type") == "reminder":
+                    self.read_reminders()
+            except ValueError:
+                pass
 
     def notification_listing(self) -> str:
         n = self.desktop.notifications
