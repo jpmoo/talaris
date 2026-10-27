@@ -377,7 +377,12 @@ bar that empties, as in Morgan's panel. **On the bell**, while any is set, a dot
 pulses at its upper left; its tip says how many and which is next. The
 countdowns themselves are in the list and Morgan's panel, where there is room
 for several (changed 2026-10-27: a countdown beside the bell showed only one).
-In Morgan's panel, × asks "Cancel?" before it cancels. The bar asks Morgan when it starts, when Morgan says one changed, and each
+In Morgan's panel, × asks "Cancel?" before it cancels. One cancelled anywhere,
+by voice, in the list or in Morgan's panel, goes from all of them at once:
+Morgan says so on its stream (protocol 1.10). Morgan's times are on its own
+clock, a server's, which ran 14 seconds fast here, so a two-minute timer showed
+2:14. Morgan now says its clock with the list, and the times are moved onto
+this machine's. The bar asks Morgan when it starts, when Morgan says one changed, and each
 minute, because one cancelled by voice says nothing.
 
 ### The small ones

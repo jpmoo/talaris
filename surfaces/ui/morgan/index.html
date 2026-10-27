@@ -527,11 +527,17 @@ async function linked(text) {
 // minute — one cancelled by voice says nothing; counted down here each second.
 
 let timers = [];
+// Morgan's times are on its own clock (a server's, which may not agree with this machine's): moved onto ours by the
+// difference, which Morgan says as `now` (protocol 1.10), so a two-minute timer counts down from 2:00 here.
+function onOurClock(r) {
+  const skew = r.now ? r.now - Date.now() : 0;
+  return (r.reminders || []).map((t) => ({ ...t, at: t.at - skew, made: t.made ? t.made - skew : t.made }));
+}
 // The one whose × was pressed once: asking "Cancel?" until pressed again, or until it waits too long.
 let cancelling = "", disarm = null;
 function loadTimers() {
   bridge.call("reminders", (answer) => {
-    try { const r = JSON.parse(answer); timers = r.ok ? r.reminders || [] : []; } catch { timers = []; }
+    try { const r = JSON.parse(answer); timers = r.ok ? onOurClock(r) : []; } catch { timers = []; }
     drawTimers();
   });
 }
@@ -638,7 +644,10 @@ function hear(line) {
       else act(e.done ? "circle-check" : "circle-x", `${e.done ? "Done" : "Not done"}: ${title.toLowerCase()}`, "");
       break;
     }
-    case "reminder": act(e.set ? "bell" : "bell-ringing", e.set ? (e.text ? `Reminder set: ${e.text}` : "Timer set") : "Reminder", e.set ? String(e.when ?? "") : String(e.text ?? "")); break;
+    case "reminder":
+      if (e.cancelled) act("bell-off", e.text ? `Reminder cancelled: ${e.text}` : "Timer cancelled", "");
+      else act(e.set ? "bell" : "bell-ringing", e.set ? (e.text ? `Reminder set: ${e.text}` : "Timer set") : "Reminder", e.set ? String(e.when ?? "") : String(e.text ?? ""));
+      break;
     case "error": act("alert-triangle", "Something went wrong", e.message); break;
     case "continuing": {
       // The earlier conversation showing is carried on: no way "back", and a line where today begins.

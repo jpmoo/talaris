@@ -633,6 +633,14 @@ class Bar(QObject):
             answer = {}
         if answer.get("ok"):
             self.timers_read = True
+            # Morgan's times are on its own clock, a server's maybe, which need not agree with this machine's: moved
+            # onto ours by the difference it says (`now`, protocol 1.10), so a two-minute timer counts down from 2:00.
+            skew = int(answer["now"] - time.time() * 1000) if isinstance(answer.get("now"), (int, float)) else 0
+            for r in answer.get("reminders", []):
+                for k in ("at", "made"):
+                    if isinstance(r.get(k), (int, float)):
+                        r[k] -= skew
+            text = json.dumps(answer)
             timers = [{k: r.get(k) for k in ("id", "at", "made", "text")} for r in answer.get("reminders", [])]
             if timers != self.timers:
                 self.timers = timers

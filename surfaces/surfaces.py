@@ -645,7 +645,7 @@ class Desktop(QObject):
             e = json.loads(text)
         except ValueError:
             return
-        if e.get("type") != "reminder" or e.get("set"):
+        if e.get("type") != "reminder" or e.get("set") or e.get("cancelled"):
             return
         said = str(e.get("text") or "")
         title, body = ("Reminder", said) if said and said != "Your timer is up" else ("Timer", "Your timer is up.")
