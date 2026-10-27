@@ -969,7 +969,13 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
   pictures, and kept only if what it read is words. A picture, or a scanned
   page, with no words in it is described by Morgan instead (heymorgan's
   `describe`, by its Vision model; Settings, Data, Describe pictures), kept as
-  "Picture: …" and shown in Files; Morgan not answering, it waits. What was read is kept
+  "Picture: …" and shown in Files; Morgan not answering, it waits. Every
+  document read is described too (Morgan's `describe` with its words: what it
+  is and what it is about), and the description leads what is embedded. In
+  Files each row wears a small book — grey waiting, green read (its tip the
+  description, or a page's first words), red read with nothing to find it by
+  — and a file's details show its description, which can be edited: yours
+  stands, and is what it is found by, until the file changes. What was read is kept
   sealed (`filetext.sealed`) and read again only when the file changes.
   Every file is read again as it changes: a folder's as Files watches it; a
   page by when it was written; a file linked from elsewhere looked at each
@@ -977,7 +983,7 @@ with the passage that matched); and for Morgan (`talaris_search_meaning`).
   linked whole (Files, Add from elsewhere, A folder) is remembered and looked
   at each minute for files new in it, which are linked too.
 - **When files are read is a setting** (Settings, Data, Reading files): as
-  they change (the default), while idle — five minutes away, told by
+  they change (the default), while idle — two minutes away, told by
   Talaris's hypridle, or the screen locked — once a day at a time, or only
   when Scan now is pressed. Pages, tasks and people are read as they change
   whatever it says. The panel says how many files are read, have no words, or

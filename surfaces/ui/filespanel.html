@@ -64,7 +64,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #rows { flex: 1; min-width: 0; overflow: auto; outline: none; padding-bottom: 12px; }
 .g-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; gap: 6px; align-items: baseline; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .g-head .n { letter-spacing: 0; }
-.row { display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
+.row { display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 18px 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
 .row:hover { background: var(--accent-wash); }
 .row.on { background: var(--accent-wash); box-shadow: inset 2px 0 0 var(--accent); }
 .row .ic { width: 16px; height: 16px; border-radius: 3px; font-size: 9px; display: grid; place-items: center; color: var(--surface); font-weight: 600; }
@@ -83,6 +83,15 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .mk.snapshot { color: #c7a55a; }
 .mk.missing { color: var(--danger); }
 .mk.unread { color: var(--muted); border-style: dashed; }
+.book { width: 16px; height: 16px; display: inline-flex; }
+.d-about { width: 100%; box-sizing: border-box; font: inherit; font-size: 12px; line-height: 1.45; resize: vertical; padding: 6px 8px; }
+.d-about-acts { display: flex; justify-content: flex-end; margin-top: 4px; }
+.d-about-acts:empty, .d-about-acts .t-btn[hidden] { display: none; }
+.d-who { margin-left: 8px; letter-spacing: 0; text-transform: none; color: var(--muted); font-size: 10.5px; }
+.book svg { width: 15px; height: 15px; }
+.book.waiting { color: var(--muted); opacity: .6; }
+.book.read { color: #6aa86a; }
+.book.nowords { color: var(--danger); }
 .d-said { white-space: pre-wrap; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--text) 85%, var(--muted)); max-height: 220px; overflow: auto;
   padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
 .s-watch { display: flex; align-items: center; gap: 4px; cursor: default; }
@@ -135,7 +144,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
   color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border: 2px dashed var(--accent); border-radius: 0 0 12px 12px; pointer-events: none; }
 
 @media (max-width: 1000px) { header .seg#days { display: none; } }
-@media (max-width: 860px) { #detail { width: 240px; } #side { width: 160px; } #q { width: 120px; flex-basis: 120px; } .row { grid-template-columns: 18px minmax(0, 1fr) auto 90px; } .row .size { display: none; } }
+@media (max-width: 860px) { #detail { width: 240px; } #side { width: 160px; } #q { width: 120px; flex-basis: 120px; } .row { grid-template-columns: 18px minmax(0, 1fr) auto 18px 90px; } .row .size { display: none; } }
 </style>
 </head>
 <body>

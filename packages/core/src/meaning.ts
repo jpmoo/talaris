@@ -32,8 +32,8 @@ import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
-import { Unavailable, fileText, forgetText, keepOnly, keptText, readable, saveFileText, setDescriber, textOf, textOfBytes } from "./filetext.js";
-import { morganDescribe } from "./morgan-describe.js";
+import { Unavailable, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, readable, saveFileText, setAbout, setDescriber, textOf, textOfBytes } from "./filetext.js";
+import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { UNDATED, listProjects } from "./projects.js";
@@ -166,16 +166,24 @@ function entityDocs(): Doc[] {
 const fileStamp = (r: FileRow) => `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? ""}`}|r3`;
 
 export type ReadState = "read" | "nowords" | "waiting";
+/** What a read file is about, for its tip in Files: its description, else the start of its words. */
+function aboutOf(key: string): string {
+  const about = keptAbout(key);
+  if (about) return about.slice(0, 400);
+  const text = (keptText(key) ?? "").replace(/\s+/g, " ").trim();
+  return text ? `${text.slice(0, 240)}${text.length > 240 ? "…" : ""}` : "";
+}
 /**
  * For the Files panel: each file's words, as far as search knows them — read
  * (and how much), read and holding none, or not read yet. A file of a kind
  * with no words to read, a page, or one missing, has no state. With search by
  * meaning off, nothing is read at all.
  */
-export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pending: number; indexing: boolean }; read: Record<string, ReadState> } {
+export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pending: number; indexing: boolean }; read: Record<string, ReadState>; about: Record<string, string> } {
   const s = meaningSettings();
   const read: Record<string, ReadState> = {};
-  if (!ready(s)) return { reading: { on: false, pending: 0, indexing: false }, read };
+  const about: Record<string, string> = {};
+  if (!ready(s)) return { reading: { on: false, pending: 0, indexing: false }, read, about };
   const ix = load(s.model);
   let pending = 0;
   for (const r of rows) {
@@ -184,8 +192,19 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
     const e = ix.entries.get(key);
     if (!e || e.doc.stamp !== fileStamp(r)) { read[r.key] = "waiting"; pending++; continue; }
     read[r.key] = (keptText(key) ?? "").trim() ? "read" : "nowords";
+    if (read[r.key] === "read") about[r.key] = aboutOf(key);
   }
-  return { reading: { on: true, pending, indexing: status.indexing }, read };
+  // Pages are read as pages (pageDocs), by their path: read once in the index, their first words their tip.
+  for (const r of rows) {
+    if (!r.status.includes("page") || !r.path) continue;
+    const path = r.path.replace(/^Writing\//, "").replace(/\.md$/, "");
+    const e = ix.entries.get(`page:${r.project}/${path}`);
+    if (!e) { read[r.key] = "waiting"; continue; }
+    const first = snippet(e.chunks[0]?.text ?? "", e.doc.title);
+    read[r.key] = first ? "read" : "nowords";
+    if (first) about[r.key] = first;
+  }
+  return { reading: { on: true, pending, indexing: status.indexing }, read, about };
 }
 
 /** The files read that gave no words: which, and where — for Settings, to see and to have read again. */
@@ -196,6 +215,16 @@ export function filesWithNoWords(): { key: string; name: string; project: string
   return rows.filter((r) => states[r.key] === "nowords")
     .map((r) => ({ key: r.key, name: r.name, project: r.project, projectName: names.get(r.project) ?? r.project, ...(r.path ? { path: r.path } : {}), ...(r.abs ? { abs: r.abs } : {}),
       on: r.on.map((o) => o.title), type: r.type }));
+}
+
+/** A file's description written by the person (Files): kept, and the file read again with it, now. */
+export function editDescription(meaningKey: string, about: string): boolean {
+  if (!editAbout(meaningKey, about)) return false;
+  saveFileText();
+  const s = meaningSettings();
+  if (ready(s)) { const ix = load(s.model); if (ix.entries.delete(meaningKey)) save(ix); }
+  void reindex(400, { files: true });
+  return true;
 }
 
 /** Files read again: what each said forgotten, and its entry, so the next pass reads it afresh (Settings: Read again). */
@@ -331,7 +360,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
         texts = passages(d.title, words);
       } else if (d.kind === "file") {
         // A picture to be described, and Morgan not answering: left waiting, to be tried again.
-        try { texts = passages(d.title, await docText(d)); } catch (e) {
+        // What it is about, once described, leads its words: what it is found by first.
+        try { const words = await docText(d); const about = keptAbout(d.key); texts = passages(d.title, about && !words.startsWith("Picture: ") ? `About: ${about}\n\n${words}` : words); } catch (e) {
           if (!(e instanceof Unavailable)) throw e;
           status.morganAway = true; status.pending--; status.done++;
           continue;
@@ -389,6 +419,35 @@ let scanning = false;
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 /**
+ * The files read whose words are not yet described, described by Morgan — a
+ * few at a time, each scan — and their entries let go, so they are read again
+ * with it. A picture is its own description. Answers how many were described;
+ * stops at the first Morgan cannot answer.
+ */
+async function describeFiles(most = 40): Promise<number> {
+  const s = meaningSettings();
+  if (!ready(s)) return 0;
+  const ix = load(s.model);
+  let n = 0;
+  for (const e of [...ix.entries.values()]) {
+    if (n >= most) break;
+    if (e.doc.kind !== "file" || keptAbout(e.doc.key) !== undefined) continue;
+    const text = keptText(e.doc.key) ?? "";
+    if (!text.trim() || text.startsWith("Picture: ")) continue;
+    status.doing = e.doc.title;
+    status.doingKind = "file";
+    const about = await morganDescribeText(text, e.doc.title);
+    if (about === null) { status.morganAway = true; break; }
+    setAbout(e.doc.key, about);
+    ix.entries.delete(e.doc.key);
+    n++;
+  }
+  status.doing = "";
+  if (n) { save(ix); saveFileText(); }
+  return n;
+}
+
+/**
  * Files looked at for anything new or changed (Scan now, or as `scan` says):
  * linked files and linked folders looked at again (files.ts), then every
  * file not read since it changed read, pass after pass until none waits.
@@ -406,6 +465,8 @@ export async function scanFiles(): Promise<{ read: number; changed: number }> {
       // Done, stopped, or nothing more to be had for now (pictures waiting on Morgan).
       if (!status.pending || status.error || !now) break;
     }
+    // Each file read, described (what it is about), and read again with it: so it is found by that too.
+    if (meaningSettings().describe !== false && await describeFiles()) read += await reindex(400, { files: true });
     writeJson(SCANNED(), { at: new Date().toISOString(), day: today() });
     return { read, changed };
   } finally {

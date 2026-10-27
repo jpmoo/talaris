@@ -48,6 +48,7 @@
   let watched = [];   // the folders linked into the project shown, watched for new files
   // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
   let readState = {};
+  let readAbout = {};   // what each read file is about (its description, or its first words): the book's tip
   let reading = { on: false, pending: 0, indexing: false };
   let total = 0;
   let chosen = null;
@@ -128,6 +129,7 @@
     const got = await api("GET", `/files?${q}`);
     watched = project && project !== "notes" ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
     readState = got.read || {};
+    readAbout = got.about || {};
     reading = got.reading || reading;
     rows = filters.status === "unread" ? got.rows.filter((r) => readState[r.key] === "waiting") : got.rows;
     total = filters.status === "unread" ? rows.length : got.total;
@@ -223,8 +225,20 @@
         ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
         r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
+      book(r),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
+  }
+
+  // Whether search has read it: a small book — grey waiting, green read (its tip what it is about), red read with
+  // nothing in it to find it by. None for what is not read (a page is a page; audio, archives…).
+  const BOOK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/></svg>';
+  function book(r) {
+    const st = readState[r.key];
+    const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet: it will be, as Settings, Data says"
+      : st === "nowords" ? "Read, but nothing in it to find it by" : "" });
+    if (st) b.innerHTML = BOOK;
+    return b;
   }
 
   function drawRows() {
@@ -304,16 +318,34 @@
       changed: (res) => { say(res.said || "Done"); reload(); },
     }) : null;
 
-    // What it was read as, once read: a picture's description, or the start of a document's words.
-    const readHost = rs === "read" && gkey ? el("div", { class: "d-read" }) : null;
+    // What it was read as, once read: what it is about — Morgan's description, or yours, edited here — and, for a
+    // document, the start of its words. The description is what it is found by first; saved, it is read again with it.
+    // A shortcut is known to Glance by its entity; its file, by its row.
+    const textKey = s.includes("shortcut") ? `att:${r.key}` : gkey;
+    const readHost = rs === "read" && gkey && !s.includes("page") ? el("div", { class: "d-read" }) : null;
     if (readHost) {
-      api("GET", `/files/text?key=${enc(gkey)}`).then((t) => {
+      api("GET", `/files/text?key=${enc(textKey)}`).then((t) => {
         const text = String((t && t.text) || "").trim();
         if (!text || chosen !== r.key) return;
         const picture = text.startsWith("Picture: ");
-        const body = picture ? text.slice(9) : text;
-        readHost.replaceChildren(el("div", { class: "d-sub" }, picture ? "What it shows" : "What it says"),
-          el("div", { class: "d-said" }, body.length > 900 ? `${body.slice(0, 900)}…` : body));
+        const about = String((t && t.about) || "");
+        const box = el("textarea", { class: "d-about", rows: "4", spellcheck: "true",
+          placeholder: picture ? "What it shows" : "What it is, and what it is about — being described…" });
+        box.value = about;
+        const saveB = el("button", { class: "t-btn", onclick: async () => {
+          try { await api("PUT", "/files/about", { key: textKey, about: box.value }); say("Description saved; read again with it"); saveB.remove(); who.textContent = "Yours"; }
+          catch (e) { failed(e); }
+        } }, "Save");
+        const who = el("span", { class: "d-who" }, t.aboutByYou ? "Yours" : about ? "Morgan's" : "");
+        // Save, only once something is changed.
+        const acts = el("div", { class: "d-about-acts" });
+        box.addEventListener("input", () => { if (box.value.trim() === about.trim()) saveB.remove(); else if (!saveB.isConnected) acts.append(saveB); });
+        const words = picture ? "" : text.replace(/^About: [^\n]*\n\n/, "");
+        readHost.replaceChildren(...[
+          el("div", { class: "d-sub" }, picture ? "What it shows" : "About it", who),
+          box, acts,
+          words ? el("div", { class: "d-sub" }, "What it says") : null,
+          words ? el("div", { class: "d-said" }, words.length > 900 ? `${words.slice(0, 900)}…` : words) : null].filter(Boolean));
       }).catch(() => {});
     }
 

@@ -157,9 +157,11 @@ export async function textOfBytes(bytes: Buffer, name: string): Promise<string> 
 // ------------------------------------------------------------ kept
 
 const CACHE = () => join(DATA_DIR, "filetext.sealed");
-let cache: Map<string, { stamp: string; text: string }> | null = null;
+/** What a file said when read, and — once Morgan has given one — what it is about, in a sentence or three ("" when it had nothing to say). */
+interface Kept { stamp: string; text: string; about?: string; aboutByYou?: boolean }
+let cache: Map<string, Kept> | null = null;
 
-function loadCache(): Map<string, { stamp: string; text: string }> {
+function loadCache(): Map<string, Kept> {
   if (cache) return cache;
   cache = new Map();
   if (!existsSync(CACHE())) return cache;
@@ -194,6 +196,31 @@ export async function fileText(key: string, stamp: string, read: () => Promise<s
   loadCache().set(key, { stamp: `${stamp}|${READER}`, text });
   dirty = true;
   return text;
+}
+
+/** What a file is about, as described: a picture's description; a document's, once Morgan has said ("" tried, nothing said). */
+export function keptAbout(key: string): string | undefined {
+  const had = loadCache().get(key);
+  if (!had) return undefined;
+  if (had.aboutByYou) return had.about;
+  if (had.text.startsWith("Picture: ")) return had.text.slice(9);
+  return had.about;
+}
+/** Whether a file's description is the person's own (Files, edited): kept, and never described over. */
+export const aboutIsYours = (key: string): boolean => Boolean(loadCache().get(key)?.aboutByYou);
+/** A description written by the person: it stands for the file — a picture's in place of Morgan's — until the file changes. */
+export function editAbout(key: string, about: string): boolean {
+  const had = loadCache().get(key);
+  if (!had) return false;
+  had.about = about.trim();
+  had.aboutByYou = true;
+  if (had.text.startsWith("Picture: ")) had.text = `Picture: ${had.about}`;
+  dirty = true;
+  return true;
+}
+export function setAbout(key: string, about: string): void {
+  const had = loadCache().get(key);
+  if (had) { had.about = about; dirty = true; }
 }
 
 /** What a file said, forgotten: read from it again next time (a file that gave no words, asked again). */

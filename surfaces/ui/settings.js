@@ -1386,7 +1386,7 @@ async function drawReading() {
   at.addEventListener("change", () => save({ meaning: { ...m, scan: "schedule", at: at.value || "03:00" } }));
   const managed = Boolean((cfg.power || {}).managed);
   const hint = scan === "change" ? "Each minute or so, and as soon as a file changes in a project's folder"
-    : scan === "idle" ? (managed ? "After five minutes away, or with the screen locked; again every ten minutes while you are away" : "With the screen locked (Talaris is not managing power, so it does not know when you are away)")
+    : scan === "idle" ? (managed ? "After two minutes away, or with the screen locked; again every ten minutes while you are away" : "With the screen locked (Talaris is not managing power, so it does not know when you are away)")
     : scan === "schedule" ? "Once a day, at the time below — or as soon after it as the computer is on"
     : "Only when Scan now is pressed";
   const busy = st.indexing || st.scanning;

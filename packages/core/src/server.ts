@@ -59,7 +59,7 @@ import * as meaning from "./meaning.js";
 import { contextFor } from "./context.js";
 import { mergeEntities, mergedInto } from "./merge.js";
 import * as suggest from "./suggest.js";
-import { saveFileText } from "./filetext.js";
+import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
@@ -496,6 +496,14 @@ route("PUT", "/suggestions/quiet", async (req) => {
   if (!b.key) throw new Conflict("which thing?");
   return { quiet: suggest.setQuiet(b.key, b.quiet !== false) };
 });
+// A file's description, written by the person (Files): by its glance key.
+route("PUT", "/files/about", async (req) => {
+  const b = await json<{ key?: string; about?: string }>(req);
+  if (!b.key || typeof b.about !== "string") throw new BadRequest("a file, and what it is about");
+  const t = suggest.thing(b.key);
+  if (!t.file || !meaning.editDescription(t.meaning!, b.about)) throw new Conflict("only a file already read can be described");
+  return { ok: true };
+});
 // What a file says, as read for search (filetext.ts): by its glance key.
 route("GET", "/files/text", async (_r, _p, q) => {
   const t = suggest.thing(need(q, "key"));
@@ -504,7 +512,7 @@ route("GET", "/files/text", async (_r, _p, q) => {
     ...(t.file.sha256 ? { sha256: t.file.sha256 } : {}), stamp: t.file.sha256 ?? `${t.file.size ?? ""}|${t.file.mtime ?? ""}` };
   const text = await meaning.docText(doc);
   saveFileText();
-  return { name: t.file.name, project: t.file.project, text };
+  return { name: t.file.name, project: t.file.project, text, about: keptAbout(t.meaning!) ?? "", aboutByYou: aboutIsYours(t.meaning!) };
 });
 route("PATCH", "/entities/:id", async (req, [id]) => {
   const patch = await json<entities.Patch>(req);

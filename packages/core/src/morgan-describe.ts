@@ -22,6 +22,15 @@ const LARGEST = 20 * 1024 * 1024;
 
 export function morganDescribe(bytes: Buffer, _name: string): Promise<string | null> {
   if (bytes.length > LARGEST) return Promise.resolve("");
+  return ask({ image: bytes.toString("base64") });
+}
+
+/** A file's words described by Morgan (its chat model): what the file is and what it is about. Null: Morgan could not be asked. */
+export function morganDescribeText(text: string, name: string): Promise<string | null> {
+  return ask({ text: text.slice(0, 12_000), name });
+}
+
+function ask(body: Record<string, unknown>): Promise<string | null> {
   return new Promise((ok) => {
     const chunks: Buffer[] = [];
     let done = false;
@@ -42,6 +51,6 @@ export function morganDescribe(bytes: Buffer, _name: string): Promise<string | n
       } catch { finish(null); }
     });
     // Written, and the connection left open: Morgan drops one half-closed before it answers.
-    sock.on("connect", () => sock.write(`describe ${JSON.stringify({ image: bytes.toString("base64") })}\n`));
+    sock.on("connect", () => sock.write(`describe ${JSON.stringify(body)}\n`));
   });
 }

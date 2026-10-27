@@ -118,3 +118,16 @@ test("a picture with no words in it: described, and kept as what it shows; the d
   filetext.setDescriber(null);
   assert.equal(await filetext.textOfBytes(png, "bed.png"), "");
 });
+
+test("a description: a picture's is its own; one written by the person stands, for a picture in place of Morgan's", async () => {
+  await filetext.fileText("k-pic", "1", async () => "Picture: A raised bed.");
+  assert.equal(filetext.keptAbout("k-pic"), "A raised bed.");
+  assert.equal(filetext.aboutIsYours("k-pic"), false);
+  filetext.editAbout("k-pic", "The new cedar bed in the community garden");
+  assert.equal(filetext.keptAbout("k-pic"), "The new cedar bed in the community garden");
+  assert.equal(filetext.keptText("k-pic"), "Picture: The new cedar bed in the community garden", "what it is found by, too");
+  await filetext.fileText("k-doc", "1", async () => "Minutes of the board.");
+  assert.equal(filetext.keptAbout("k-doc"), undefined, "not described yet");
+  filetext.setAbout("k-doc", "Board minutes from March.");
+  assert.equal(filetext.keptAbout("k-doc"), "Board minutes from March.");
+});

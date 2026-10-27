@@ -45,7 +45,7 @@ from views import log
 
 IDLE_FILE = os.path.join(os.path.dirname(CONFIG), "hypridle.conf")
 #: Away this long, and the core is told it may read files (Settings, Data: Reading files, While idle).
-IDLE_READ_SECONDS = 300
+IDLE_READ_SECONDS = 120
 LID_ACTIONS = ("suspend", "lock", "screen-off", "nothing")
 #: How often the charger is looked at. A file read; nothing to listen to without D-Bus.
 WATCH_MS = 5000
@@ -94,7 +94,7 @@ def _file(p: dict, plugged: bool) -> str:
     listener(int(t.get("lock", 0)), "loginctl lock-session")
     listener(int(t.get("screenOff", 0)), "hyprctl dispatch dpms off", "hyprctl dispatch dpms on")
     listener(int(t.get("suspend", 0)), "systemctl suspend")
-    # Away five minutes, and back: told to the core, which reads files then if Settings, Data says so ("While idle").
+    # Away two minutes, and back: told to the core, which reads files then if Settings, Data says so ("While idle").
     sock = os.environ.get("TALARIS_SOCKET") or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "talaris.sock")
     tell = lambda idle: f"curl -s -m 5 --unix-socket {sock} -X POST -H 'content-type: application/json' -d '{{\"idle\":{idle}}}' http://talaris/meaning/idle"  # noqa: E731
     listener(IDLE_READ_SECONDS, tell("true"), tell("false"))
