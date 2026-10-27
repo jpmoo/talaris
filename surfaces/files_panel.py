@@ -129,7 +129,7 @@ class FilesBridge(Bridge):
 class FilesPanel(Overlay):
     NAME = "files"
     LAZY = True
-    TITLE = "Files"
+    TITLE = "Library"
     IDLE_MS = 10 * 60 * 1000
 
     def __init__(self, profile: QWebEngineProfile, desktop) -> None:

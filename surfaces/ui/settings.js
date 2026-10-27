@@ -1600,7 +1600,7 @@ $("unlock-go").addEventListener("click", async () => {
 });
 
 // What the bar shows, item by item. Settings is not among them: it is the way back.
-const BAR_SHOWN = [["ask", "Launcher"], ["new", "New"], ["morgan", "Morgan"], ["people", "People"], ["files", "Files"], ["tasks", "Tasks"], ["canvas", "Canvas"],
+const BAR_SHOWN = [["ask", "Launcher"], ["new", "New"], ["morgan", "Morgan"], ["people", "People"], ["files", "Library"], ["tasks", "Tasks"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["where", "Project"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
   ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["bell", "Notifications"], ["power", "Power"]];
 function drawBarShown() {

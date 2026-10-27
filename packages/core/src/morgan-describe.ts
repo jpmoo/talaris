@@ -30,6 +30,15 @@ export function morganDescribeText(text: string, name: string): Promise<string |
   return ask({ text: text.slice(0, 12_000), name });
 }
 
+/**
+ * What is in a project described by Morgan as what the project is for (protocol 1.9). Null: Morgan could not be
+ * asked, or is too old to know a project from a file — which would describe it as a file, and that is not kept.
+ */
+export function morganDescribeProject(text: string, name: string): Promise<string | null> {
+  return morganCommand(`describe ${JSON.stringify({ text: text.slice(0, 12_000), name, what: "project" })}`).then((r) =>
+    r?.ok && r.what === "project" ? String(r.text ?? "").trim() : null);
+}
+
 function ask(body: Record<string, unknown>): Promise<string | null> {
   return morganCommand(`describe ${JSON.stringify(body)}`).then((r) =>
     // An older Morgan answers "unknown command": not asked, then.

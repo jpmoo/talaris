@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { describeProjects } from "./project-describe.js";
 import { DEMO_ROOT, inDemo } from "./demo.js";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
@@ -253,6 +254,8 @@ route("POST", "/files/thing-shortcut", async (req) => {
 });
 // Morgan's threads (threads.ts): asked for again now, and how the copy stands.
 route("POST", "/threads/sync", () => threads.syncThreads());
+// Projects with no description given one by Morgan from their tasks, now (project-describe.ts).
+route("POST", "/projects/describe", () => describeProjects());
 // One thread, by its id (one merged away leads to where it went): what a canvas card of it shows.
 route("GET", "/threads/:id", (_r, [id]) => {
   const t = threads.threadById(id!);

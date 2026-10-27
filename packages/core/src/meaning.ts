@@ -34,6 +34,7 @@ import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
 import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
 import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
+import { describeProjects } from "./project-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { listProjects } from "./projects.js";
@@ -604,6 +605,8 @@ export async function scanFiles(): Promise<{ read: number; changed: number }> {
       read += await reindex(400, { files: true });
     }
     if (meaningSettings().describe !== false && await describeFiles()) read += await reindex(400, { files: true });
+    // A project with no description, given one from its tasks (project-describe.ts).
+    if (meaningSettings().describe !== false) await describeProjects().catch(() => {});
     writeJson(SCANNED(), { at: new Date().toISOString(), day: today() });
     return { read, changed };
   } finally {

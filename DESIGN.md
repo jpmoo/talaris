@@ -1274,6 +1274,31 @@ from elsewhere, or kept as a copy).
   or merges only when told (`talaris_tie`, `talaris_merge`); it reads a file's
   words with `talaris_file_read`.
 
+### The Library, and No project (2026-10-27)
+
+Files is called the **Library** now (the bar's button, the pane's title,
+Morgan's tools): it holds pages, canvases and Morgan's conversations as well
+as files. Code and keys still say `files`. Under All projects, **No project**
+lists what is only in Home — Home's pages, its dailies, Morgan's
+conversations, what is on a thing of no project — and in no other project by
+a shortcut. The inspector's **Projects** line names every project a thing is
+in, where it lives first, each a press away; a canvas or conversation brought
+into another project by a shortcut is in that one too.
+
+### A project described by its tasks (2026-10-27)
+
+A project with no description is given one by Morgan
+(`project-describe.ts`, protocol 1.9 `describe` with `what: "project"`) from
+its tasks, done and still to do — nothing else. No tasks, no description,
+and that is all right. It is written where the project's type keeps its
+description (its `project` profile's `body`), so it is the description
+everywhere, Hermes Notes included, and what the project is found and
+suggested by. Only an empty one is written: cleared, it is written again;
+written over, it is yours. What Morgan wrote is kept beside it
+(`talaris:describedByMorgan`). Done in the reading pass after files are
+described, or now with `POST /projects/describe`. A Morgan older than 1.9
+would describe it as a file; its answer is not kept.
+
 ### Canvases, Morgan's threads, and lists in Files (2026-10-27)
 
 **A canvas is a thing like a page.** Files lists each project's canvases

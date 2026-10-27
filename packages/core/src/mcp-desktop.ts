@@ -392,7 +392,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     // ------------------------------------------------------------ files
     {
       name: "talaris_files",
-      description: "Find files in the projects (Files): every file in a project's folder, and what Talaris holds for it that is not a file there — shortcuts to files elsewhere, task attachments linked from outside every project, snapshots (copies kept on a task or from Hermes Notes), missing ones. Each says which. By name words, type (document, spreadsheet, presentation, pdf, image, audio, video, code, archive, other), status (folder, page, shortcut, linked, snapshot, missing), tags, changed within days. No project: every project; \"here\": the current one.",
+      description: "Find files in the projects (the Library): every file in a project's folder, and what Talaris holds for it that is not a file there — shortcuts to files elsewhere, task attachments linked from outside every project, snapshots (copies kept on a task or from Hermes Notes), missing ones. Each says which. By name words, type (document, spreadsheet, presentation, pdf, image, audio, video, code, archive, other), status (folder, page, shortcut, linked, snapshot, missing), tags, changed within days. No project: every project; \"here\": the current one.",
       inputSchema: { type: "object", properties: {
         project: { type: "string" }, q: { type: "string" }, type: { type: "string" }, status: { type: "string" },
         tags: { type: "array", items: { type: "string" } }, days: { type: "number" }, limit: { type: "number", description: "Default 40." },
@@ -416,7 +416,7 @@ export function desktopTools(core: Core): DesktopTool[] {
     },
     {
       name: "talaris_file_tags",
-      description: "Change a file's tags in Files — a file in a project's folder (project and its path there): add some, take some off, or (set) replace them all.",
+      description: "Change a file's tags in the Library — a file in a project's folder (project and its path there): add some, take some off, or (set) replace them all.",
       inputSchema: { type: "object", properties: {
         project: { type: "string" }, path: { type: "string" },
         add: { type: "array", items: { type: "string" } }, remove: { type: "array", items: { type: "string" } }, set: { type: "array", items: { type: "string" } },
@@ -436,13 +436,13 @@ export function desktopTools(core: Core): DesktopTool[] {
     },
     {
       name: "talaris_file_shortcut",
-      description: "Bring a file from elsewhere in the home folder into a project as a shortcut: a record shown in the project's Files, the file left where it is and nothing made on disk. Moving a file into a project is not done from here: the person does that in the Files panel, which says first what moving it would disturb.",
+      description: "Bring a file from elsewhere in the home folder into a project as a shortcut: a record shown in the project's Library, the file left where it is and nothing made on disk. Moving a file into a project is not done from here: the person does that in the Library, which says first what moving it would disturb.",
       inputSchema: { type: "object", properties: { project: { type: "string" }, path: { type: "string", description: "The file, absolute or ~/…" } }, required: ["path"] },
       annotations: { readOnlyHint: false, title: "Shortcut to a file" },
       run: async (a) => {
         const pid = (await project(a.project)).id;
         const row = await core<{ name: string }>("POST", "/files/shortcut", { project: pid, path: str(a.path) });
-        return `A shortcut to ${row.name} is in the project's Files.`;
+        return `A shortcut to ${row.name} is in the project's Library.`;
       },
     },
     // ------------------------------------------------------------ writing and canvases
