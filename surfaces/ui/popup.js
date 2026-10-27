@@ -149,12 +149,19 @@ function drawTimers(answer) {
     showTimers();
   }, 1000) : null;
 }
-/** "4:32" under an hour, "1:04:32" under a day, the time of day after. */
+/** Within the hour, the time left ("4:32"); further off, when ("2:15 PM", "Thu 9:00 AM"). As Morgan's own panel. */
 function timeLeft(at) {
   const s = Math.max(0, Math.round((at - Date.now()) / 1000));
-  if (s >= 86400) return new Date(at).toLocaleDateString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+  if (s >= 3600) {
+    const d = new Date(at), time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
+  }
+  return s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "now";
+}
+/** How much of a timer is left, 1 to 0, within the hour; none further off. */
+function share(t) {
+  const now = Date.now(), made = t.made || now;
+  return t.at - now < 3600000 && t.at > made ? Math.min(1, Math.max(0, (t.at - now) / (t.at - made))) : 0;
 }
 function showTimers() {
   $("timer-list").replaceChildren(...timers.map((t) => {
@@ -165,6 +172,10 @@ function showTimers() {
       textContent: new Date(t.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) }));
     d.append(what, Object.assign(document.createElement("span"), { className: "left", textContent: timeLeft(t.at) }),
       twice("Cancel", `timer-${t.id}`, () => bridge.cancelReminder(t.id)));
+    const bar = Object.assign(document.createElement("span"), { className: "bar" });
+    bar.style.setProperty("--left", share(t));
+    bar.hidden = t.at - Date.now() >= 3600000;
+    d.append(bar);
     return d;
   }));
 }

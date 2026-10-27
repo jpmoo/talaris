@@ -89,7 +89,9 @@ function onState(s) {
   // The bell wears a dot while anything is unread; its tip says how many.
   const unread = s.unread || 0;
   $("bell").classList.toggle("unread", unread > 0);
-  $("bell").title = unread ? `Notifications · ${unread} unread` : "Notifications";
+  bellUnread = unread;
+  timers = s.timers || [];
+  tickBell();
 }
 
 function onMachine(m) {
@@ -196,6 +198,22 @@ $("clock").addEventListener("click", () => bridge && bridge.calendar());
 const under = (id) => { const r = $(id).getBoundingClientRect(); return r.left + r.width / 2; };
 $("net").addEventListener("click", () => bridge && bridge.popupAt("network", under("net")));
 $("bt").addEventListener("click", () => bridge && bridge.popupAt("bluetooth", under("bt")));
+// Morgan's timers and reminders: while any is set the bell is lit, and the
+// next one due within the hour is counted down beside it, each second.
+let timers = [], bellUnread = 0;
+function tickBell() {
+  const now = Date.now();
+  const next = timers.filter((t) => t.at > now).sort((a, b) => a.at - b.at)[0];
+  const s = next ? Math.round((next.at - now) / 1000) : 0;
+  const soon = next && s < 3600;
+  $("bell").classList.toggle("timing", !!next);
+  $("bell-left").hidden = !soon;
+  if (soon) $("bell-left").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const due = next ? `${next.text || "Timer"} · ${new Date(next.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "";
+  $("bell").title = ["Notifications", bellUnread ? `${bellUnread} unread` : "", due].filter(Boolean).join(" · ");
+}
+setInterval(() => { if (timers.length) tickBell(); }, 1000);
+
 $("bell").addEventListener("click", () => bridge && bridge.popupAt("notifications", under("bell")));
 
 // The tray: running applications' icons. A press opens the application (or,

@@ -510,9 +510,18 @@ class Bar(QObject):
         desktop.tray.menu.connect(self._tray_menu)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
-        # Timers and reminders, in the bell's list: asked again when Morgan says one was set, changed or went off.
-        self._reminders.connect(self.popup.bridge.reminders.emit)
+        # Morgan's timers and reminders: beside the bell, and in its list. Asked when Morgan says one was set, changed
+        # or went off, when its stream comes back, and each minute (one cancelled by voice says nothing).
+        self.timers: list[dict] = []
+        self._reminders.connect(self._got_reminders)
         desktop.morgan_link.event.connect(self._morgan_event)
+        desktop.morgan_link.state.connect(lambda now: self.read_reminders() if now != "absent" and not self.timers_read else None)
+        self.timers_read = False
+        self._timers_poll = QTimer(self)
+        self._timers_poll.setInterval(60_000)
+        self._timers_poll.timeout.connect(self.read_reminders)
+        self._timers_poll.start()
+        QTimer.singleShot(3000, self.read_reminders)
 
     def went(self) -> None:
         """A project gone to: the bar's name of it flashes — the bar brought out a moment first, if it hides."""
@@ -593,6 +602,8 @@ class Bar(QObject):
                            "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
                            "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed)),
                            "files": bool(getattr(self.desktop, "files_panel", None) and (self.desktop.files_panel.up or self.desktop.files_panel.windowed))},
+            # Morgan's timers and reminders, soonest first: the bell counts the next one down within the hour.
+            "timers": getattr(self, "timers", []),
             # The bell's dot: how many notifications have not been seen in its list.
             "unread": self.desktop.notifications.unread() if getattr(self.desktop, "notifications", None) else 0,
         }
@@ -615,8 +626,21 @@ class Bar(QObject):
             self._reminders.emit(morgan_command("reminders", timeout=8))
         threading.Thread(target=ask, daemon=True).start()
 
+    def _got_reminders(self, text: str) -> None:
+        try:
+            answer = json.loads(text)
+        except ValueError:
+            answer = {}
+        if answer.get("ok"):
+            self.timers_read = True
+            timers = [{k: r.get(k) for k in ("id", "at", "made", "text")} for r in answer.get("reminders", [])]
+            if timers != self.timers:
+                self.timers = timers
+                self.bridge.state.emit(json.dumps(self.describe()))
+        self.popup.bridge.reminders.emit(text)
+
     def _morgan_event(self, text: str) -> None:
-        if self.popup.kind == "notifications" and '"reminder"' in text:
+        if '"reminder"' in text:
             try:
                 if json.loads(text).get("type") == "reminder":
                     self.read_reminders()

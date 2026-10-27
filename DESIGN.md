@@ -372,7 +372,11 @@ timers and reminders that are still to come sit above the notifications, under
 and the time left, counted down each second while the list is open, with a
 Cancel asked twice. The list asks Morgan (`reminders`) when it opens, and again
 whenever Morgan says one was set, changed or went off. A timer that goes off is
-still a notification, as before.
+still a notification, as before. Within the hour each is counted down with a
+bar that empties, as in Morgan's panel. **Beside the bell**, while one is set,
+the bell is lit, and the next one due within the hour is counted down next to
+it. The bar asks Morgan when it starts, when Morgan says one changed, and each
+minute, because one cancelled by voice says nothing.
 
 ### The small ones
 
