@@ -538,6 +538,12 @@ class Desktop(QObject):
         else:
             self.osd.announce(found.get("name", ""), found.get("code", ""))
 
+    def workspace_for(self, project_id: str) -> str:
+        """A project's desktop as a dispatcher names it: Home's, the ordinary one last used; any other, by its id."""
+        if project_id == self._home().get("id", ""):
+            return self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
+        return f"name:{project_id}"
+
     def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
         """
         The current project changes: the bar says so, the canvas and the

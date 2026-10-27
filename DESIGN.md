@@ -1675,7 +1675,11 @@ of it and comes out at the end.
    rule, then what else is open — on this desktop, or all (the setting
    becomes "this project" with projects). Items drag to reorder; right-click
    opens a menu just above the item (a surface placed by layer-shell margins)
-   with show, hide, new window, pin, unpin and close. Hiding moves a window to
+   with show, hide, new window, pin, unpin and close — and, for one not
+   pinned, **Send to…** and **Send to… and follow**: the project chosen in the
+   project carousel (Super+Tab's, asking "Send X to", without the project you
+   are in; Home among them), its last-used window moved to that project's
+   desktop, and, following, you with it. Hiding moves a window to
    a special workspace nobody summons, and its item dims. Icons can magnify
    as the pointer passes, up to double.
    **A drawer expands to the desktop** (its header's button, or

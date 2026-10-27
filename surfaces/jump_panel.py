@@ -7,6 +7,10 @@ Super+Tab and Enter is back where you were. Left and Right turn it (Super+Tab
 again, the next one); letters typed narrow it to the projects with them
 anywhere in the name, still most recent first, and it goes the moment one is
 left. Enter or a click goes to the one in front; Escape puts it away.
+
+It also asks which project, for something else to be done there (`pick`):
+the dock's Send to — the same ring, saying what it is for, without the
+project you are in, and choosing does that rather than going.
 """
 
 from __future__ import annotations
@@ -33,8 +37,12 @@ class JumpBridge(Bridge):
 
     @Slot(str)
     def choose(self, project_id: str) -> None:
+        picking, self.owner.picking = self.owner.picking, None
         self.owner.file_away()
-        self.owner.desktop.go_to_project(project_id, announce=True)
+        if picking:
+            picking(project_id)
+        else:
+            self.owner.desktop.go_to_project(project_id, announce=True)
 
 
 class Jump(Overlay):
@@ -48,6 +56,9 @@ class Jump(Overlay):
         self.bridge.owner = self
         self.bridge.setParent(self)
         self.projects: list = []
+        #: Asked for a project for something else (`pick`): what it says, and what is done with the one chosen.
+        self.prompt = ""
+        self.picking = None
         try:
             with open(RECENT, encoding="utf-8") as f:
                 self.recent: list[str] = [x for x in json.load(f) if isinstance(x, str)]
@@ -56,7 +67,7 @@ class Jump(Overlay):
 
     def describe(self) -> dict:
         here = self.desktop.project.get("id", "")
-        return {**super().describe(), "projects": [{**p, "current": p.get("id") == here} for p in self.projects]}
+        return {**super().describe(), "prompt": self.prompt, "projects": [{**p, "current": p.get("id") == here} for p in self.projects]}
 
     def _place(self) -> None:
         # The keyboard is the carousel's while it is out: it was opened by a key, to be answered by keys.
@@ -96,5 +107,16 @@ class Jump(Overlay):
         if self.up:
             self.bridge.step.emit(1)
             return
+        self.prompt, self.picking = "", None
         self.projects = self._ordered()
         self.open()
+
+    def pick(self, prompt: str, then) -> None:
+        """Which project, for `then` (given its id): every one but this, most recent first, saying what it is for."""
+        here = self.desktop.project.get("id", "")
+        self.prompt, self.picking = prompt, then
+        self.projects = [p for p in self._ordered() if p.get("id") != here]
+        if self.up:
+            self.bridge.state.emit(json.dumps(self.describe()))
+        else:
+            self.open()

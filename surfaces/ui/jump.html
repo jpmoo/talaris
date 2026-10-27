@@ -91,7 +91,7 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
     at = n ? ((at % n) + n) % n : 0;
     $("typed").replaceChildren(...(typed
       ? [document.createTextNode(n === 1 ? "1 project" : `${n} projects`), Object.assign(document.createElement("b"), { textContent: typed })]
-      : [document.createTextNode("Projects — type to find one")]));
+      : [document.createTextNode(surface.prompt ? `${surface.prompt} — type to find one` : "Projects — type to find one")]));
     const ring = $("ring");
     const live = new Set(shown.map((p) => p.id));
     for (const [id, c] of cards) if (!live.has(id)) { c.remove(); cards.delete(id); }
@@ -158,7 +158,8 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
       // Fresh each time: nothing typed, turned to the one before this (the current is first).
       typed = "";
       stamp = Date.now();
-      at = (s.projects || []).length > 1 ? 1 : 0;
+      // Asked for something else (Send to…), this project is not among them: the first is the one last used.
+      at = !s.prompt && (s.projects || []).length > 1 ? 1 : 0;
       for (const c of cards.values()) c.remove();
       cards.clear();
       draw();

@@ -52,6 +52,8 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
     <button class="menu-item choice" data-verb="elsewhere-bring" data-choice="bring">Sends it to where you are</button>
     <button class="menu-item choice" data-verb="elsewhere-go" data-choice="go">Goes to it</button>
   </div>
+  <button class="menu-item" data-verb="send">Send to…</button>
+  <button class="menu-item" data-verb="send-follow">Send to… and follow</button>
   <div class="hint doc-name" id="doc-name" hidden></div>
   <button class="menu-item" data-verb="doc-here">Pin this document to this project</button>
   <button class="menu-item" data-verb="doc-all">Pin this document to all projects</button>
@@ -161,6 +163,9 @@ function onState(s) {
       b.dataset.verb = now === c && s.chosen === c ? "elsewhere-rule" : `elsewhere-${c}`;
     }
   }
+  // Not pinned: its window sent to another project's desktop (Home among them), chosen in the carousel — there, or with you following.
+  show("send", !!s.canSend);
+  show("send-follow", !!s.canSend);
   show("close", wins.length === 1);
   show("close-all", wins.length > 1);
   document.getElementById("sep").hidden = !wins.length;

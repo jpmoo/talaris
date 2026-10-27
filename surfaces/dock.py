@@ -161,7 +161,9 @@ class DockMenu(QObject):
                 # The other projects it is open or kept in, to go to ("Go to Coding").
                 "goTo": self._go_to(item),
                 # Kept in another project: its name, for "New window in …".
-                "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else ""}
+                "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else "",
+                # Not pinned, and open: its window can be sent to another project (chosen in the carousel).
+                "canSend": bool(item) and not item.get("pinned") and not item.get("doc") and bool(self.everywhere)}
 
     #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
     everywhere: list = []
@@ -177,6 +179,13 @@ class DockMenu(QObject):
             if pid != here and name != pid:
                 names[pid] = name
         return [{"id": pid, "name": name} for pid, name in names.items()]
+
+    def _window_to_send(self) -> str:
+        """The window a Send to moves: the last used here, else the last used anywhere."""
+        shown = [w for w in self.everywhere if not w["hidden"]]
+        here = [w for w in shown if w["here"]]
+        pick = (here or shown or self.everywhere or [None])[0]
+        return pick["address"] if pick else ""
 
     def _everywhere(self, key: str) -> list:
         now = hypr.windows()
@@ -207,7 +216,7 @@ class DockMenu(QObject):
         places = {"hidden" if x["hidden"] else "here" if x["here"] else x["project"] for x in self.everywhere}
         rows = len(self.everywhere) + len(places) + 1 if len(self.everywhere) > 1 else 0
         rows += len(self._go_to(item))
-        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120)
+        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120 + (52 if not item.get("pinned") and not item.get("doc") and self.everywhere else 0))
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
@@ -232,7 +241,21 @@ class DockMenu(QObject):
 
     def act(self, verb: str, key: str) -> None:
         found = self.found
+        address = self._window_to_send() if verb.startswith("send") else ""
+        name = self.dock.items.get(key, {}).get("name", "it")
         self.file_away()
+        if verb in ("send", "send-follow") and address:
+            # Which project, asked in the carousel; then its window to that project's desktop — and, following, you with it.
+            follow = verb == "send-follow"
+
+            def send(project: str) -> None:
+                hypr.carry(address, self.desktop.workspace_for(project))
+                if follow:
+                    self.desktop.go_to_project(project, announce=True)
+                    hypr.focus(address)
+
+            self.desktop.jump.pick(f"Send {name} and go with it to" if follow else f"Send {name} to", send)
+            return
         if verb.startswith("project:"):
             # One of the projects it is open or kept in, gone to.
             self.desktop.go_to_project(verb[len("project:"):], announce=True)
