@@ -99,7 +99,11 @@
   const TYPE_COLOR = { document: "#7f9fbf", spreadsheet: "#8aa878", presentation: "#c98a5b", pdf: "#c26b6b", image: "#b97f8e", audio: "#5fa4b5",
     video: "#6c7277", code: "#868c92", archive: "#c7a55a", other: "#9a9a9a", canvas: "#8f86c4", conversation: "#5f9e8f" };
   const ON_KIND = { task: "task", contact: "person", event: "event", note: "note", project: "project", thing: "thing" };
-  const projectName = (id) => (projects.find((p) => p.id === id) || {}).name || "a project";
+  // What is only in Home, in no other project: chosen as a project is, below All projects (files.ts, NO_PROJECT).
+  const NONE = "~none";
+  const projectName = (id) => (id === NONE ? "No project" : (projects.find((p) => p.id === id) || {}).name || "a project");
+  /** One project chosen: not all of them, nor what is in none. */
+  const oneProject = () => Boolean(project) && project !== NONE;
   const size = (n) => (n == null ? "" : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
   function when(iso) {
     if (!iso) return "";
@@ -149,11 +153,11 @@
     if (filters.type) q.set("type", filters.type);
     if (filters.days) q.set("days", String(filters.days));
     for (const t of filters.tags) q.append("tag", t);
-    const inProject = Boolean(project);
+    const inProject = oneProject();
     if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
     const got = await api("GET", `/files?${q}`);
-    watched = project ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
+    watched = inProject ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
     counts = await api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts);
     lists = inProject ? await api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [];
     if (inProject) listsOf.set(project, lists);
@@ -236,10 +240,11 @@
         if (has && !shut) walkLists(l.children, depth + 1);
       }
     };
-    if (project) walkLists(lists, 0);
+    if (oneProject()) walkLists(lists, 0);
     $("side").replaceChildren(...[
       ...section("projects", "Projects", [
         item("All projects", project === "", () => setProject(""), null, c.all),
+        item("No project", project === NONE, () => setProject(NONE), null, c.none ?? 0),
         ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
       // The folders linked into this project, watched for new files: each let go of by its ×.
       ...(watched.length ? section("watched", "Watched folders", watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
@@ -249,7 +254,7 @@
           reload();
         } }, "×")))) : []),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
-      ...(project ? section("lists", "Lists", listRows,
+      ...(oneProject() ? section("lists", "Lists", listRows,
         el("button", { class: "s-add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
       ...(shown.length ? section("tags", "Tags", shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
@@ -503,6 +508,16 @@
   // ---------------------------------------------------------------- the one chosen
 
   let armed = "";
+  /** The projects a thing is in, each to go to; only Home's, said so. */
+  function projectsOf(r) {
+    const home = (projects.find((p) => p.home) || {}).id;
+    const lives = r.status.includes("shortcut") ? [...(r.alsoIn || []).slice(0, 1), r.project, ...(r.alsoIn || []).slice(1)] : [r.project, ...(r.alsoIn || [])];
+    const ids = [...new Set(lives.filter(Boolean))];
+    const go = (id) => el("button", { class: "d-proj", title: `Show ${projectName(id)}'s`, onclick: () => { project = id; filters.list = ""; reload(); } }, projectName(id));
+    if (ids.length === 1 && ids[0] === home) return el("span", {}, go(home), el("span", { class: "d-dim" }, " only — in no project"));
+    return el("span", {}, ...ids.flatMap((id, i) => [i ? ", " : null, go(id)]).filter((x) => x !== null));
+  }
+
   function drawDetail() {
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     const r = rows.find((x) => x.key === chosen);
@@ -531,6 +546,8 @@
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
       ["Type", s.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"],
       r.size != null ? ["Size", size(r.size)] : null,
+      // Every project it is in: where it lives, then each with a shortcut to it; each a press away.
+      ["Projects", projectsOf(r)],
       r.mtime ? ["Changed", new Date(r.mtime).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })] : null,
     ].filter(Boolean);
     const acts = [];

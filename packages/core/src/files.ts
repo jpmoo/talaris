@@ -315,14 +315,17 @@ function allRows(only?: string): FileRow[] {
   thingRows(rows, only);
   const { of } = projectsByEntity();
   // Every shortcut's file, first: a file in one project's folder is also in each project with a shortcut to it.
+  // So with a canvas or a thread: in each project with a shortcut to it.
   const shortcutsTo = new Map<string, string[]>();
   for (const { object: o } of allRecords()) {
     if (typeof o[SHORTCUT] !== "string" || o.archived) continue;
+    if (typeof o[SHORTCUT_TO] === "string") { shortcutsTo.set(o[SHORTCUT_TO] as string, [...(shortcutsTo.get(o[SHORTCUT_TO] as string) ?? []), o[SHORTCUT] as string]); continue; }
     const p = valuesIn(o.properties.file)[0]?.[LINK]?.path;
     if (p) shortcutsTo.set(p, [...(shortcutsTo.get(p) ?? []), o[SHORTCUT] as string]);
   }
   for (const r of rows.values()) {
-    const also = r.abs ? (shortcutsTo.get(r.abs) ?? []).filter((p) => p !== r.project) : [];
+    const by = r.thing ?? r.abs;
+    const also = by ? (shortcutsTo.get(by) ?? []).filter((p) => p !== r.project) : [];
     if (also.length) r.alsoIn = [...new Set(also)];
   }
   for (const { object: o } of allRecords()) {
@@ -340,7 +343,7 @@ function allRows(only?: string): FileRow[] {
       const to = thingRow(o[SHORTCUT_TO] as string);
       rows.set(`s:${o.id}`, { ...(to ?? { name: titleOf(o), type: "other" as FileType, status: ["missing"] as Status[], on: [] }), key: `s:${o.id}`, project: shortcutIn,
         status: to ? ["shortcut"] : ["shortcut", "missing"], tags: o.tags ?? [], entity: o.id, thing: o[SHORTCUT_TO] as string,
-        ...(to ? { alsoIn: [to.project] } : {}) });
+        ...(to ? { alsoIn: [...new Set([to.project, ...(shortcutsTo.get(o[SHORTCUT_TO] as string) ?? []).filter((p) => p !== shortcutIn)])] } : {}) });
       continue;
     }
     if (shortcutIn) {
@@ -446,6 +449,14 @@ export function makeThingShortcut(projectId: string, key: string): FileRow {
   return listFiles({ project: projectId }).rows.find((r) => r.entity === e.id)!;
 }
 
+/**
+ * What is in no project: Home's own — what lives there (its pages of no other
+ * project, its dailies, Morgan's threads, what is on a thing of no project)
+ * and is in no other project by a shortcut. Asked for as this project.
+ */
+export const NO_PROJECT = "~none";
+const inNoProject = (r: FileRow, home: string) => r.project === home && !r.alsoIn?.length && !r.status.includes("shortcut");
+
 export interface Query {
   project?: string;
   q?: string;
@@ -465,14 +476,16 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
   const words = (query.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const tags = cleanTags(query.tags ?? []);
   const since = query.days ? Date.now() - query.days * 86_400_000 : 0;
-  let rows = allRows(query.project || undefined).filter((r) =>
+  const none = query.project === NO_PROJECT, home = listProjects().find((p) => p.home)?.id ?? "";
+  let rows = allRows(none ? home : query.project || undefined).filter((r) =>
+    (!none || inNoProject(r, home)) &&
     (!words.length || words.every((w) => `${r.name} ${r.path ?? ""} ${r.abs ?? ""}`.toLowerCase().includes(w)))
     // A page is its own type, as Files lists it: "page" is the pages, and "document" the documents that are not pages.
     && (!query.type || (query.type === "page" ? r.status.includes("page") : r.type === query.type && !r.status.includes("page")))
     && (!query.status || r.status.includes(query.status as Status) || (query.status === "folder" && r.status.includes("page")))
     && (!tags.length || tags.every((t) => r.tags.includes(t)))
     && (!since || (r.mtime ? Date.parse(r.mtime) >= since : false)));
-  if (query.list && query.project) {
+  if (query.list && query.project && !none) {
     const order = new Map(members(query.project, query.list).map((k, i) => [k, i]));
     rows = rows.filter((r) => order.has(r.key));
     if (query.sort !== "date") rows.sort((a, b) => order.get(a.key)! - order.get(b.key)!);
@@ -489,20 +502,22 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
  * (and all), and — in the project chosen, or all — of each status, type and
  * tag. A page is counted as a page, and as in the folder, as Files filters.
  */
-export function fileCounts(projectId?: string): { all: number; projects: Record<string, number>; status: Record<string, number>; type: Record<string, number>; tags: Record<string, number> } {
+export function fileCounts(projectId?: string): { all: number; none: number; projects: Record<string, number>; status: Record<string, number>; type: Record<string, number>; tags: Record<string, number> } {
   const rows = allRows();
+  const home = listProjects().find((p) => p.home)?.id ?? "";
   const projects: Record<string, number> = {};
-  for (const r of rows) projects[r.project] = (projects[r.project] ?? 0) + 1;
+  let none = 0;
+  for (const r of rows) { projects[r.project] = (projects[r.project] ?? 0) + 1; if (inNoProject(r, home)) none++; }
   const status: Record<string, number> = {}, type: Record<string, number> = {}, tags: Record<string, number> = {};
   const add = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
   for (const r of rows) {
-    if (projectId && r.project !== projectId) continue;
+    if (projectId === NO_PROJECT ? !inNoProject(r, home) : projectId && r.project !== projectId) continue;
     // A page is a writing page, and in the folder too (as the filter takes it).
     for (const s of new Set(r.status.flatMap((x) => (x === "page" ? ["page", "folder"] : [x])))) add(status, s);
     add(type, r.status.includes("page") ? "page" : r.type);
     for (const t of r.tags) add(tags, t);
   }
-  return { all: rows.length, projects, status, type, tags };
+  return { all: rows.length, none, projects, status, type, tags };
 }
 
 /** What git ignores in a project, named: the folders and files Files does not list. */

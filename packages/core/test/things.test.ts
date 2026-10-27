@@ -140,6 +140,20 @@ test("a thread brought into a project by a shortcut; lists hold only the project
   assert.throws(() => filelists.moveList(garden.id, reading.id, sub.id), /inside itself/);
 });
 
+test("in no project: what is only in Home; a thing with a shortcut elsewhere is in each, and not", () => {
+  const none = files.listFiles({ project: files.NO_PROJECT }).rows;
+  assert.ok(none.some((r) => r.key === `t:${T + 5000}-1`), "dinner, only in Home");
+  assert.ok(!none.some((r) => r.key === `t:${T + 9000}-0`), "the garden thread, also in Garden");
+  assert.ok(none.every((r) => r.project === home.id));
+  const blight = files.listFiles({ project: home.id }).rows.find((r) => r.key === `t:${T + 9000}-0`)!;
+  assert.deepEqual(blight.alsoIn, [garden.id]);
+  const sc = files.listFiles({ project: garden.id, type: "conversation" }).rows[0]!;
+  assert.deepEqual(sc.alsoIn, [home.id]);
+  const c = files.fileCounts(files.NO_PROJECT);
+  assert.equal(c.none, none.length);
+  assert.equal(c.type.conversation, 1);
+});
+
 test("a page renamed keeps its place in lists", () => {
   pages.writePage(garden.id, "Seeds", "What to sow.");
   const key = `p:${garden.id}/Writing/Seeds.md`;
