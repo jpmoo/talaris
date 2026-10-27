@@ -251,7 +251,7 @@ export function pageAbout(key: string, stamp: string): string | undefined {
   const had = loadCache().get(key);
   return had && (had.aboutByYou || had.stamp === stamp) ? had.about : undefined;
 }
-export function setPageAbout(key: string, stamp: string, about: string): void {
-  loadCache().set(key, { stamp, text: "", about });
+export function setPageAbout(key: string, stamp: string, about: string, byYou = false): void {
+  loadCache().set(key, { stamp, text: "", about, ...(byYou ? { aboutByYou: true } : {}) });
   dirty = true;
 }

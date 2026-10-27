@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./entities.js";
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
-import { Unavailable, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
+import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
 import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
@@ -224,6 +224,28 @@ export function editDescription(meaningKey: string, about: string): boolean {
   const s = meaningSettings();
   if (ready(s)) { const ix = load(s.model); if (ix.entries.delete(meaningKey)) save(ix); }
   void reindex(400, { files: true });
+  return true;
+}
+
+/** A page's description, as Files shows it: what it is about, and whether it is the person's own. */
+export function pageDescription(key: string): { about: string; aboutByYou: boolean; read: boolean } {
+  const s = meaningSettings();
+  const e = ready(s) ? load(s.model).entries.get(key) : undefined;
+  const about = e ? pageAbout(key, e.doc.stamp) : undefined;
+  return { about: about ?? "", aboutByYou: aboutIsYours(key), read: Boolean(e) };
+}
+/** A page's description written by the person (Files): it stands, and the page is read again with it. */
+export function editPageDescription(key: string, about: string): boolean {
+  const s = meaningSettings();
+  if (!ready(s)) return false;
+  const ix = load(s.model);
+  const e = ix.entries.get(key);
+  if (!e) return false;
+  setPageAbout(key, e.doc.stamp, about.trim(), true);
+  saveFileText();
+  ix.entries.delete(key);
+  save(ix);
+  void reindex(400, { files: false });
   return true;
 }
 

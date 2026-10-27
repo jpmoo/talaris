@@ -496,6 +496,14 @@ route("PUT", "/suggestions/quiet", async (req) => {
   if (!b.key) throw new Conflict("which thing?");
   return { quiet: suggest.setQuiet(b.key, b.quiet !== false) };
 });
+// A page's description, as read and as written by the person (Files): by its glance key, page:<project>/<path>.
+route("GET", "/files/page-about", (_r, _p, q) => meaning.pageDescription(need(q, "key")));
+route("PUT", "/files/page-about", async (req) => {
+  const b = await json<{ key?: string; about?: string }>(req);
+  if (!b.key?.startsWith("page:") || typeof b.about !== "string") throw new BadRequest("a page, and what it is about");
+  if (!meaning.editPageDescription(b.key, b.about)) throw new Conflict("only a page already read can be described");
+  return { ok: true };
+});
 // A file's description, written by the person (Files): by its glance key.
 route("PUT", "/files/about", async (req) => {
   const b = await json<{ key?: string; about?: string }>(req);

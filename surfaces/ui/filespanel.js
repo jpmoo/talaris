@@ -233,6 +233,8 @@
         r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
       book(r),
+      // What kind of file, in the words of the Type list on the left: a page is a page.
+      el("span", { class: "type" }, r.status.includes("page") ? "Page" : TYPE_WORD[r.type] ? TYPE_WORD[r.type].replace(/s$/, "") : "Other"),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
   }
@@ -353,8 +355,15 @@
     // document, the start of its words. The description is what it is found by first; saved, it is read again with it.
     // A shortcut is known to Glance by its entity; its file, by its row.
     const textKey = s.includes("shortcut") ? `att:${r.key}` : gkey;
-    const readHost = rs === "read" && gkey && !s.includes("page") ? el("div", { class: "d-read" }) : null;
-    if (readHost) {
+    const readHost = rs === "read" && gkey ? el("div", { class: "d-read" }) : null;
+    // A page: its description alone (its words are Writing's to show), as written by Morgan or by you.
+    if (readHost && s.includes("page")) {
+      api("GET", `/files/page-about?key=${enc(gkey)}`).then((t) => {
+        if (chosen !== r.key || !t || !t.read) return;
+        readHost.replaceChildren(...aboutEditor("About it", t.about, t.aboutByYou, "What the page is, and what it is about — being described…",
+          (about) => api("PUT", "/files/page-about", { key: gkey, about })));
+      }).catch(() => {});
+    } else if (readHost) {
       api("GET", `/files/text?key=${enc(textKey)}`).then((t) => {
         const text = String((t && t.text) || "").trim();
         if (!text || chosen !== r.key) return;
@@ -451,6 +460,21 @@
       el("div", { class: "d-sub" }, "Do, to all of them"),
       el("div", { class: "d-acts" }, ...acts),
       el("div", { id: "inline" }));
+  }
+
+  /** A description, editable: its label (and whose it is), the box, and Save once it is changed; `put` saves it. */
+  function aboutEditor(label, about, byYou, placeholder, put) {
+    about = String(about || "");
+    const box = el("textarea", { class: "d-about", rows: "4", spellcheck: "true", placeholder });
+    box.value = about;
+    const who = el("span", { class: "d-who" }, byYou ? "Yours" : about ? "Morgan's" : "");
+    const acts = el("div", { class: "d-about-acts" });
+    const saveB = el("button", { class: "t-btn", onclick: async () => {
+      try { await put(box.value); say("Description saved; read again with it"); saveB.remove(); who.textContent = "Yours"; about = box.value.trim(); }
+      catch (e) { failed(e); }
+    } }, "Save");
+    box.addEventListener("input", () => { if (box.value.trim() === about.trim()) saveB.remove(); else if (!saveB.isConnected) acts.append(saveB); });
+    return [el("div", { class: "d-sub" }, label, who), box, acts];
   }
 
   /** Connect several to one task, or put one tag on several: found or typed once. */
