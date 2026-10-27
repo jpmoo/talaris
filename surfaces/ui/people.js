@@ -649,8 +649,23 @@
     return out;
   }
 
-  function tiedCard(c) {
+  // Someone else here tied to the same card: one person entered twice — made one here, the one another app keeps in step kept.
+  async function makeOne(other) {
+    try {
+      const r = await api("POST", "/suggestions/accept", { key: `e:${chosen}`, other: `e:${other.id}`, way: { how: "merge", label: `Merge with ${other.title}` } });
+      say(r.said || "Made one");
+      const kept = String(r.kept || "").replace(/^e:/, "") || chosen;
+      await loadPeople();
+      got = null;
+      choose(kept);
+    } catch (err) { failed(err); }
+  }
+
+  function tiedCard(c, others = []) {
     const key = cardKeyOf(c);
+    const also = others.length ? el("div", { class: "c-line c-also" }, `Also ${others.map((o) => o.title).join(", ")} here — the same person? `,
+      ...others.map((o) => el("button", { class: "t-btn", title: `Make ${o.title} and this one one person: what is tied to either is tied to the one kept, and nothing is lost`,
+        onclick: () => makeOne(o) }, others.length > 1 ? `Make one with ${o.title}` : "Make them one"))) : null;
     if (c.gone) {
       return el("div", { class: "card gone" },
         el("div", { class: "c-main" }, el("div", { class: "c-name" }, "No longer in your address books")),
@@ -660,7 +675,7 @@
       el("div", { class: "c-main" },
         el("div", { class: "c-book" }, c.bookName || c.book),
         el("div", { class: "c-name" }, c.name || "No name"),
-        cardLines(c)),
+        cardLines(c), also),
       el("div", { class: "c-acts" },
         // Only when it has something this person doesn't.
         Object.keys(newFrom(c)).length ? el("button", { class: "t-btn", title: `Add what Talaris doesn't have yet (${Object.keys(newFrom(c)).map(lower).join(", ")}); nothing is overwritten`, onclick: () => copyCard(c) }, "Copy into Talaris") : null,
@@ -696,9 +711,9 @@
     const keys = ties();
     if (keys.length) {
       tiedHost.append(el("div", { class: "hint" }, "Reading your address books…"));
-      api("GET", `/contacts/cards?keys=${enc(keys.join(","))}`).then((cards) => {
+      Promise.all([api("GET", `/contacts/cards?keys=${enc(keys.join(","))}`), api("GET", `/people/${enc(id)}/same-card`).catch(() => [])]).then(([cards, same]) => {
         if (id !== chosen) return;
-        tiedHost.replaceChildren(...(cards || []).map(tiedCard));
+        tiedHost.replaceChildren(...(cards || []).map((c) => tiedCard(c, (same || []).filter((o) => o.key === cardKeyOf(c)))));
       }).catch((e) => tiedHost.replaceChildren(el("div", { class: "hint err" }, e.message)));
     }
     if (!noContact()) drawLikely(likelyHost, id, keys);

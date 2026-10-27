@@ -512,6 +512,8 @@ route("POST", "/people/:id/ties", async (req, [id]) => {
   return entities.tieContact(id!, b.key ?? "", true);
 });
 route("DELETE", "/people/:id/ties", (_r, [id], q) => entities.tieContact(id!, need(q, "key"), false));
+// Others tied to a card this person is tied to: the same person twice, to be made one (People).
+route("GET", "/people/:id/same-card", (_r, [id]) => entities.sharingCards(id!));
 // Which of these addresses are people already: an @ picker's address-book finds, told apart from the new.
 route("POST", "/entities/people/known", async (req) => {
   const b = await json<{ emails?: string[] }>(req);

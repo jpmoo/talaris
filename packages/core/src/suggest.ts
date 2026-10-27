@@ -315,13 +315,20 @@ function twice(t: Thing, add: (key: string, why: string, score: number, ways: Wa
   const mine = said(t.title);
   if (!mine) return;
   const emails = new Set(emailsOf(t.entity));
+  const cards = new Set(cardsOf(t.entity));
   for (const { object: o } of allRecords()) {
     if (o.id === t.entity.id || o.archived || o.stub || o.type !== t.entity.type) continue;
     const same = said(titleOf(o)) === mine;
     const shared = emailsOf(o).some((e) => emails.has(e));
+    // Tied to one address-book card: one person, entered twice.
+    const card = cardsOf(o).some((k) => cards.has(k));
+    if (card) add(keyOfEntity(o), "The same contact card", 0.97, []);
     if (same || shared) add(keyOfEntity(o), shared ? "The same address" : "The same name", shared ? 0.95 : 0.8, []);
   }
 }
+
+/** The address-book cards a person is tied to, by key. */
+const cardsOf = (o: Entity): string[] => (((o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).filter((s) => s.kind === "eds-contact").map((s) => s.key));
 
 function emailsOf(o: Entity): string[] {
   const field = types().find((x) => x.id === o.type)?.profiles?.contact?.email;

@@ -209,3 +209,13 @@ test("a name filed as an address book files it is the same name: Groninger, Marg
   assert.ok(!s.some((x) => x.why.some((w) => w.includes("Groninger,"))));
   assert.ok(s.some((x) => x.id === filed.id && x.why.some((w) => w.includes("Margaret"))));
 });
+
+test("two people tied to one address-book card are one person, offered to be made one", () => {
+  const a = entities.createEntity({ role: "person", properties: { title: "Nelson, John" }, sources: [{ kind: "eds-contact", key: "book/card-1" }] });
+  const b = entities.createEntity({ role: "person", properties: { title: "J. Nelson" } });
+  entities.tieContact(b.id, "book/card-1", true);
+  assert.deepEqual(entities.sharingCards(b.id).map((x) => x.id), [a.id]);
+  const s = suggest.suggestionsFor(`e:${b.id}`).suggestions.find((x) => x.id === a.id)!;
+  assert.ok(s.why.includes("The same contact card"));
+  assert.ok(s.ways.some((w) => w.how === "merge"));
+});

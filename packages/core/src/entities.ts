@@ -1047,6 +1047,20 @@ export function tieContact(id: string, key: string, on: boolean): Entity {
   return updateEntity(id, { "talaris:sources": on ? [...sources, { kind: "eds-contact", key }] : sources });
 }
 
+/** The other people tied to a card this one is tied to: the same person twice, each card by its key. */
+export function sharingCards(id: string): { id: string; title: string; key: string }[] {
+  const o = getEntity(id);
+  const mine = new Set(((o["talaris:sources"] as Source[] | undefined) ?? []).filter((s) => s.kind === "eds-contact").map((s) => s.key));
+  if (!mine.size) return [];
+  const out: { id: string; title: string; key: string }[] = [];
+  for (const { object: x } of load().records.values()) {
+    if (x.id === id || x.type !== o.type || x.stub || x.archived) continue;
+    const key = ((x["talaris:sources"] as Source[] | undefined) ?? []).find((s) => s.kind === "eds-contact" && mine.has(s.key))?.key;
+    if (key) out.push({ id: x.id, title: titleOf(x), key });
+  }
+  return out;
+}
+
 /** Cards a person was deleted from: not brought back as people on the next reading. */
 const FORGOTTEN = "forgotten-cards";
 
