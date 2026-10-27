@@ -84,7 +84,7 @@
   // stored on a task, gone missing. A page is plain from its group (Writing) and Open; what it is on, and whether it is
   // read, are the details' to say, not the list's.
   const MARK = { shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "stored on a task", missing: "missing" };
-  const TYPES = [["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
+  const TYPES = [["page", "Pages"], ["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
     ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
   const TYPE_COLOR = { document: "#7f9fbf", spreadsheet: "#8aa878", presentation: "#c98a5b", pdf: "#c26b6b", image: "#b97f8e", audio: "#5fa4b5",

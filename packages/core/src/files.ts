@@ -387,7 +387,8 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
   const since = query.days ? Date.now() - query.days * 86_400_000 : 0;
   let rows = allRows(query.project || undefined).filter((r) =>
     (!words.length || words.every((w) => `${r.name} ${r.path ?? ""} ${r.abs ?? ""}`.toLowerCase().includes(w)))
-    && (!query.type || r.type === query.type)
+    // A page is its own type, as Files lists it: "page" is the pages, and "document" the documents that are not pages.
+    && (!query.type || (query.type === "page" ? r.status.includes("page") : r.type === query.type && !r.status.includes("page")))
     && (!query.status || r.status.includes(query.status as Status) || (query.status === "folder" && r.status.includes("page")))
     && (!tags.length || tags.every((t) => r.tags.includes(t)))
     && (!since || (r.mtime ? Date.parse(r.mtime) >= since : false)));
