@@ -35,7 +35,6 @@ from layershell import (
     ANCHOR_LEFT,
     ANCHOR_RIGHT,
     ANCHOR_TOP,
-    KEYBOARD_EXCLUSIVE,
     KEYBOARD_NONE,
     KEYBOARD_ON_DEMAND,
     OVERLAY,
@@ -391,8 +390,7 @@ class Popup(QObject):
         self.shown_at = self.away.shown()
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
-        # The clipboard's list is typed into as soon as it is out, from its key as from its button.
-        keys = KEYBOARD_EXCLUSIVE if kind == "clipboard" else KEYBOARD_ON_DEMAND
+        keys = KEYBOARD_ON_DEMAND
         # Respecting other surfaces' reserved space puts it just clear of the bar.
         if kind in ("tray", "trayicons") or self.at >= 0:
             # Centered under the icon it belongs to.
