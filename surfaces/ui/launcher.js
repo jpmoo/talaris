@@ -391,9 +391,8 @@ function chooseHow(x, how) {
   bridge.act(JSON.stringify({ ...x.act, how }), (error) => { if (error) say(error, true); });
 }
 
-function say(text, error = false) {
-  $("msg").replaceChildren(text ? Object.assign(document.createElement("span"), { className: error ? "err" : "", textContent: text }) : "");
-}
+// Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
+function say(text, error = false) { Kit.say($("msg"), text, error, 0); }
 
 // The project the catalog is of: where a page or file with no project of its own is.
 let here = "";

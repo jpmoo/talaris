@@ -78,7 +78,8 @@
     });
   }
   const enc = encodeURIComponent;
-  function say(text, error = false) { $("msg").textContent = text || ""; $("msg").className = error ? "err" : ""; }
+  // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
+  function say(text, error = false) { Kit.say($("msg"), text, error, 0); }
   const failed = (e) => say(e.message, true);
 
   // ---------------------------------------------------------------- words

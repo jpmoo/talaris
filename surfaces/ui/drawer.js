@@ -43,7 +43,8 @@ function el(tag, attrs = {}, ...kids) {
   for (const k of kids) if (k != null && k !== false) e.append(k);
   return e;
 }
-function status(text) { $("status").textContent = text; }
+// Said as every page says it (kit.js): sentence case; an error in the danger color, until something else is said.
+function status(text, error = false) { Kit.say($("status"), text, error, 0); }
 
 function applyTheme(theme) {
   const root = document.documentElement;
@@ -303,7 +304,7 @@ async function drawPageTags() {
   if (open !== path) return;
   const save = async (next) => {
     try { await core("PUT", `/projects/${pid}/page/tags?path=${encodeURIComponent(path)}`, { tags: next }); }
-    catch (e) { status(String(e.message || e).toUpperCase().slice(0, 60)); }
+    catch (e) { status(String(e.message || e), true); }
     drawPageTags();
     if (tagFilter.get(pid)) loadWriting();
   };
@@ -420,7 +421,7 @@ window.talarisMentionDefaults = {
   openEvent: (calendar, uid, start) => bridge && bridge.openEvent(calendar, uid, start),
   openUrl: (url) => bridge && bridge.openUrl(url),
 };
-window.talarisStatus = (text) => status(text.toUpperCase().slice(0, 80));
+window.talarisStatus = (text) => status(text);
 
 function pathTo(tree, id, trail = []) {
   if (tree.id === id) return [...trail, tree];
@@ -566,7 +567,7 @@ addEventListener("message", (e) => {
     lastOpened = { id: m.id, at: now };
     return;
   }
-  if (m && m.talaris === "status") { status(String(m.text || "").toUpperCase().slice(0, 90)); return; }
+  if (m && m.talaris === "status") { status(String(m.text || "")); return; }
   if (m && m.talaris === "exported") {
     // Where it went, said once, and a click away from opening.
     const full = `${m.folder}/${m.path}`;
@@ -577,7 +578,7 @@ addEventListener("message", (e) => {
   }
   if (!m || m.talaris !== "open-canvas") return;
   if (m.project && m.project !== state.project.id) {
-    status("OTHER PROJECTS ARRIVE WITH PROJECTS");
+    status("Other projects arrive with projects");
     return;
   }
   view(m.canvas);
@@ -659,7 +660,7 @@ function changed(next) {
   text = next;
   drawPageFiles();
   clearTimeout(saveTimer);
-  status("EDITING");
+  status("Editing");
   saveTimer = setTimeout(save, 600);
 }
 
@@ -972,7 +973,7 @@ async function setPaper(color) {
   if (!open) return;
   wearPaper(color);
   try { await core("PUT", `/projects/${wpid()}/page/look?path=${encodeURIComponent(open)}`, { paper: color }); }
-  catch (e) { status(String(e.message || e).toUpperCase().slice(0, 60)); }
+  catch (e) { status(String(e.message || e), true); }
 }
 
 async function save() {
@@ -980,10 +981,10 @@ async function save() {
   if (!open) return;
   try {
     await core("PUT", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`, text);
-    status("SAVED");
+    status("Saved");
     if (isDaily(open)) drawCalendar();
   } catch (e) {
-    status("NOT SAVED");
+    status("Not saved", true);
     console.error(e);
   }
 }
@@ -1020,7 +1021,7 @@ async function transfer(copy) {
   const from = wpid(), to = scope === "undated" ? state.project.id : homeId;
   try {
     const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, parent: scope === "undated" ? null : PAGES, copy });
-    status(`${copy ? "COPIED" : "MOVED"} TO ${(scope === "undated" ? (inHome() ? "HOME" : state.project.name) : "PAGES").toUpperCase()}`);
+    status(`${copy ? "Copied" : "Moved"} to ${scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Pages"}`);
     // Moved, it is followed there; copied, this one stays open.
     if (!copy) {
       if (editor) { editor.destroy(); editor = null; }
@@ -1029,7 +1030,7 @@ async function transfer(copy) {
       open = landed.path;
     }
     loadWriting();
-  } catch (e) { status(String(e.message || e).toUpperCase().slice(0, 70)); }
+  } catch (e) { status(String(e.message || e), true); }
 }
 
 function deletePage() {
@@ -1117,12 +1118,12 @@ function askName(title, value, act) {
 // ---------------------------------------------------------------- the rest
 
 async function load() {
-  if (!state.project.id) { status("CORE NOT ANSWERING"); return; }
+  if (!state.project.id) { status("Core not answering", true); return; }
   try {
     if (state.drawer === "canvas") await loadCanvas();
     else if (state.drawer === "writing") await loadWriting();
   } catch (e) {
-    status("CORE NOT ANSWERING");
+    status("Core not answering", true);
     console.error(e);
   }
 }
@@ -1204,8 +1205,8 @@ async function connectPage(x) {
     if (!to && (x.kind === "page" || x.kind === "canvas")) to = (await core("POST", "/entities/place", { kind: x.kind, project: x.project, where: x.where, title: x.title })).id;
     if (!to) throw new Error("that cannot be connected to");
     await core("POST", `/entities/${encodeURIComponent(me.id)}/connect`, { to, type: "about" });
-    status(`CONNECTED TO ${String(x.title).toUpperCase().slice(0, 50)}`);
-  } catch (e) { status(String(e.message || e).toUpperCase().slice(0, 70)); }
+    status(`Connected to ${x.title}`);
+  } catch (e) { status(String(e.message || e), true); }
 }
 addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -1260,7 +1261,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Files chosen for the page and kept: linked where the cursor is.
   bridge.projectFiles.connect((json) => {
     const r = JSON.parse(json);
-    if (r.error) status(r.error.toUpperCase().slice(0, 80));
+    if (r.error) status(r.error, true);
     if (editor && r.files && r.files.length && r.project === wpid()) {
       editor.insert(r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ") + " ");
     }
