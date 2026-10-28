@@ -28,7 +28,7 @@ body[data-shadow][data-edge="bottom"] #bar { box-shadow: 0 -3px 10px rgba(0, 0, 
    gap keeps; here only the near side and the two ends are the bar's to leave. */
 body[data-shape="floating"] #bar {
   margin: var(--m-top) var(--m-right) 0 var(--m-left); height: calc(100% - var(--m-top) - var(--room, 0px));
-  border: 1px solid var(--frame); border-radius: 12px;
+  border: 1px solid var(--frame); border-radius: 12px; --bar-r: 12px;
 }
 body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--m-right) var(--m-bottom) var(--m-left); height: calc(100% - var(--m-bottom) - var(--room, 0px)); }
 .side { display: flex; align-items: center; gap: var(--bar-gap, 4px); min-width: 0; }
@@ -42,13 +42,15 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 .side:first-child { align-self: stretch; }
 #where { --where-rest: color-mix(in srgb, var(--accent) 13%, transparent);
   cursor: pointer; align-self: stretch; display: flex; align-items: center; padding: 0 14px 0 16px;
-  margin-left: -8px; /* the bar's own padding: the pill starts at its very edge */
-  border: 1px solid transparent; border-radius: 999px; background: var(--where-rest); transition: background .15s, border-color .15s; }
+  margin: -1px 0 -1px -9px; /* over the bar's padding and its frame: the pill is the bar's own edge */
+  border: 1px solid transparent; background: var(--where-rest);
+  /* Its left end the bar's own corner (none, for a strip), so the two are one edge; its right end round. */
+  border-radius: var(--bar-r, 0px) 999px 999px var(--bar-r, 0px); transition: background .15s, border-color .15s; }
 #where:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
 #where { margin-right: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
-#where .code { color: color-mix(in srgb, var(--text) 62%, var(--accent)); margin-left: 10px; letter-spacing: 2px; }
+#where .code { color: color-mix(in srgb, var(--muted) 75%, var(--surface)); margin-left: 10px; letter-spacing: 2px; }
 #where .nm { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A project gone to: its name lit up a moment — the accent filling it, then fading — so where you are is plain. */
 @keyframes where-flash {
@@ -60,7 +62,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 /* The code lit with the name, and faded back to its own dim colour by the end: not left bright, then snapped back. */
 @keyframes where-flash-code {
   0%, 35% { color: var(--surface); }
-  100% { color: color-mix(in srgb, var(--text) 62%, var(--accent)); }
+  100% { color: color-mix(in srgb, var(--muted) 75%, var(--surface)); }
 }
 #where.flash .code { animation: where-flash-code 1.8s ease-out; }
 #where.flash .code.alone { animation-name: where-flash-code-alone; }
@@ -94,7 +96,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 .bar-item .n, #clock span { display: block; line-height: normal; }
 /* In a button the number sat a part pixel low and lost its bottom row: a pixel of room. */
 .bar-item .n { padding-bottom: 2px; font-size: 13px; position: relative; top: 1px; }
-#where { padding-bottom: 2px; }
+/* The name and code sit a little low of center, as the eye reads capitals. */
+#where { padding-top: 2px; padding-bottom: 0; }
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
