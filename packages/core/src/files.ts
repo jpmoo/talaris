@@ -30,12 +30,13 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
-import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, types, updateEntity, profilesOf, type Entity } from "./entities.js";
+import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, updateEntity, profilesOf, type Entity } from "./entities.js";
 import { LINK, homeHolds, linkFile, linkFileAsync, real, refreshLinks, toLink } from "./links.js";
 import { seal, unseal } from "./seal.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
-import { Conflict, NotFound, findProject, listProjects } from "./projects.js";
+import { Conflict, NotFound, ensureHome, findProject, listProjects } from "./projects.js";
+import { folderProjectOf } from "./filing.js";
 import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
 import { canvasTree } from "./canvases.js";
@@ -272,26 +273,9 @@ function placeOf(abs: string): { project: string; rel: string } | null {
   return best && { project: best.project, rel: best.rel };
 }
 
-/** Which project a thing belongs to: the first project it is filed under; else Home. */
+/** Which project a thing belongs to: the first project with a folder it is filed under (filing.ts); else Home. */
 function projectsByEntity(): { of: (o: Entity) => string; home: string } {
-  const byEntity = new Map<string, string>();
-  for (const { object: o } of allRecords()) {
-    const src = sourcesOf(o).find((s) => s.kind === "talaris-project");
-    if (src) byEntity.set(o.id, src.key);
-  }
-  const homeId = listProjects().find((p) => p.home)?.id ?? "";
-  const refFields = new Map(types().map((t) => [t.id, t.fields.filter((f) => f.kind === "reference").map((f) => f.key)]));
-  return {
-    home: homeId,
-    of: (o) => {
-      for (const key of refFields.get(o.type ?? "") ?? []) {
-        for (const ref of Array.isArray(o.properties[key]) ? (o.properties[key] as unknown[]) : [o.properties[key]]) {
-          if (typeof ref === "string" && byEntity.has(ref)) return byEntity.get(ref)!;
-        }
-      }
-      return homeId;
-    },
-  };
+  return { home: ensureHome().id, of: folderProjectOf };
 }
 
 const kindOf = (o: Entity) => ["task", "contact", "event", "note", "project"].find((k) => profilesOf(o).includes(k)) ?? "thing";
@@ -476,7 +460,7 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
   const words = (query.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const tags = cleanTags(query.tags ?? []);
   const since = query.days ? Date.now() - query.days * 86_400_000 : 0;
-  const none = query.project === NO_PROJECT, home = listProjects().find((p) => p.home)?.id ?? "";
+  const none = query.project === NO_PROJECT, home = ensureHome().id;
   let rows = allRows(none ? home : query.project || undefined).filter((r) =>
     (!none || inNoProject(r, home)) &&
     (!words.length || words.every((w) => `${r.name} ${r.path ?? ""} ${r.abs ?? ""}`.toLowerCase().includes(w)))
@@ -504,7 +488,7 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
  */
 export function fileCounts(projectId?: string): { all: number; none: number; projects: Record<string, number>; status: Record<string, number>; type: Record<string, number>; tags: Record<string, number> } {
   const rows = allRows();
-  const home = listProjects().find((p) => p.home)?.id ?? "";
+  const home = ensureHome().id;
   const projects: Record<string, number> = {};
   let none = 0;
   for (const r of rows) { projects[r.project] = (projects[r.project] ?? 0) + 1; if (inNoProject(r, home)) none++; }

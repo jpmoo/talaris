@@ -24,7 +24,9 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEMO_ROOT } from "./demo.js";
-import { createEntity, typeFor } from "./entities.js";
+import { addDays, localDate } from "./localtime.js";
+import { projectIdOf } from "./filing.js";
+import { createEntity, typeFor, type Entity } from "./entities.js";
 import { addMember, createList } from "./lists.js";
 import { createDay, createNote } from "./notes.js";
 import { createPage, writePage } from "./pages.js";
@@ -38,12 +40,9 @@ import { makeThingShortcut } from "./files.js";
 
 const SEEDED = () => join(DEMO_ROOT, "seeded");
 
-const pad = (n: number) => String(n).padStart(2, "0");
 /** A day this many days from today, as a date. */
 function day(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return addDays(localDate(), n);
 }
 
 /** A one-page PDF of these lines, by hand: enough for `pdftotext` to read, so the demo has a PDF found by its words. */
@@ -91,7 +90,7 @@ export function seedDemo(): boolean {
   const garden = createTaskProject("Community Garden");
   const board = createTaskProject("Board Report");
   const kitchen = createTaskProject("Kitchen Remodel");
-  const folder = (e: { [k: string]: unknown }) => ((e["talaris:sources"] as { kind: string; key: string }[]) ?? []).find((s) => s.kind === "talaris-project")!.key;
+  const folder = (e: { [k: string]: unknown }) => projectIdOf(e as Entity)!;
 
   // ---- tasks: overdue, today, spanning days, next week, waiting, done, repeating
   const task = (title: string, project: { id: string }, opts: { start?: number; due?: number; status?: string; tags?: string[]; description?: string } = {}) =>

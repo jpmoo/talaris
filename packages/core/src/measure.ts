@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isCompleteBy, readSlot, type ProfiledObject, type ProfiledType } from "./profile.js";
 import { LIVE_MANIFEST, applyPatch, createRule, fileRule, follow, type WritePatch } from "./interchange.js";
 
 /**
@@ -19,41 +20,18 @@ import { LIVE_MANIFEST, applyPatch, createRule, fileRule, follow, type WritePatc
  * rather than failed, and claims nothing.
  */
 
-type Type = { profiles?: Record<string, Record<string, unknown>> };
-type Obj = { properties?: Record<string, unknown>; content?: string | null };
+type Type = ProfiledType;
+type Obj = ProfiledObject;
 
 const V0 = ["task", "event", "contact", "note", "journal", "project"];
-const blank = (v: unknown) => (v === "" ? undefined : v);
-const STATES = ["not-started", "in-progress", "waiting", "done", "cancelled"];
-function read(type: Type, object: Obj, key: string, profile = "task"): unknown {
-  // A task's state: its status, through the type's own `states`; a status given none reads as none.
-  if (profile === "task" && key === "state") {
-    const status = read(type, object, "status", "task");
-    const state = typeof status === "string" ? (type?.profiles?.task?.states as Record<string, unknown> | undefined)?.[status] : undefined;
-    return STATES.includes(state as string) ? state : undefined;
-  }
-  const spec = type?.profiles?.[profile]?.[key];
-  if (spec === undefined || spec === null) return undefined;
-  if (spec === "content") return blank(object?.content);
-  if (typeof spec === "string") return blank(object?.properties?.[spec]);
-  if (typeof spec === "object" && (spec as { field?: string }).field) {
-    const s = spec as { field: string; part?: string };
-    const v = object?.properties?.[s.field] as Record<string, unknown> | undefined;
-    if (v === null || v === undefined) return undefined;
-    return blank(s.part ? v?.[s.part] : v);
-  }
-  return undefined;
-}
+// The profile reads are the store's own (profile.ts): what is measured is what Talaris runs.
+const read = (type: Type, object: Obj, key: string, profile = "task") => readSlot(type, object, key, profile);
 
 const adapter = {
   conformance: { profiles: LIVE_MANIFEST.profiles, features: LIVE_MANIFEST.features },
   profilesOf: (t: Type) => Object.keys(t?.profiles ?? {}).filter((p) => V0.includes(p)),
   read,
-  isComplete: (t: Type, o: Obj) => {
-    const map = t?.profiles?.task as { status?: unknown; completeValues?: unknown[] } | undefined;
-    if (!map?.status) return false;
-    return (map.completeValues ?? []).includes(read(t, o, "status", "task"));
-  },
+  isComplete: (t: Type, o: Obj) => isCompleteBy(t, o),
   patch: (object: Record<string, unknown>, p: WritePatch) => applyPatch(object as never, p ?? {}),
   // A file by its hash, by the rule /interchange/files applies; `held` stands in for the store's files.
   file: (held: Record<string, string>, args: { op?: string; sha256?: string; bytes?: string }) => {

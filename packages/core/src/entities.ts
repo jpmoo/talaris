@@ -421,6 +421,20 @@ export function profilesOf(o: Entity): string[] {
   return out;
 }
 
+export type EntityKind = "person" | "task" | "event" | "project" | "note" | "thing";
+
+/**
+ * What kind of thing it is, in a word, read from its profiles: a person, a
+ * task, an event, a project, a note — in that order where a type declares
+ * more than one — and a thing when it declares none of them (a file's entity,
+ * a type of the person's own).
+ */
+export function kindOfEntity(o: Entity): EntityKind {
+  const k = profilesOf(o);
+  return k.includes("contact") ? "person" : k.includes("task") ? "task" : k.includes("event") ? "event"
+    : k.includes("project") ? "project" : k.includes("note") ? "note" : "thing";
+}
+
 /** Its title, read through its type's profiles; else the property called title; else its first line. */
 export function titleOf(o: Entity): string {
   const t = o.type ? load().types.get(o.type) : undefined;

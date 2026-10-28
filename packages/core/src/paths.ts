@@ -4,6 +4,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
+import { localMinute } from "./localtime.js";
 
 /**
  * Where things live. The XDG variables are honored, and **unset and empty are
@@ -56,6 +57,5 @@ export const FILES = "Files";
 
 /** A name for something made without one: when it was made, local, "2026-10-25 09:14". */
 export function stamp(at = new Date()): string {
-  const z = (n: number) => String(n).padStart(2, "0");
-  return `${at.getFullYear()}-${z(at.getMonth() + 1)}-${z(at.getDate())} ${z(at.getHours())}:${z(at.getMinutes())}`;
+  return localMinute(at).replace("T", " ");
 }

@@ -34,7 +34,7 @@ import { membersMoved } from "./filelists.js";
 import { mergeEntities } from "./merge.js";
 import { placeEntity, placeSource } from "./mentionables.js";
 import { morganCommand } from "./morgan-describe.js";
-import { listProjects } from "./projects.js";
+import { ensureHome } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
@@ -66,8 +66,8 @@ function state(): Kept {
 }
 const save = () => writeAtomic(FILE(), seal(storeKey(), JSON.stringify(state())));
 
-/** Home's id: where every thread lives. */
-export const homeId = (): string => listProjects().find((p) => p.home)?.id ?? "";
+/** Home's id: where every thread lives (ensureHome: always there, made if it is not). */
+export const homeId = (): string => ensureHome().id;
 
 /** Every thread, newest first. */
 export function threads(): Thread[] {

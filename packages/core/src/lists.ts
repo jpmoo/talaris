@@ -4,7 +4,10 @@
 import { allRecords, getEntity, profilesOf, sealedDrop, sealedList, sealedOnce, sealedPut, titleOf, typeFor, types, updateEntity, type Entity, type EntityType } from "./entities.js";
 import { Conflict, NotFound } from "./projects.js";
 import { newId } from "./store.js";
-import { isComplete, shapeOf, spanOf } from "./tasks.js";
+import { filedUnder } from "./filing.js";
+import { addDays, isOverdue, localDate, localMinute } from "./localtime.js";
+import { readSlot, type Slot } from "./profile.js";
+import { isComplete, notesOf, shapeOf, spanOf, taskShape } from "./tasks.js";
 
 /**
  * Lists: the Tasks panel's saved views — `pkm-interchange` collections, kept
@@ -41,7 +44,9 @@ export type Condition =
   | { kind: "property"; key: string; op: "eq" | "neq" | "contains" | "lt" | "gt" | "empty" | "notEmpty"; value?: string }
   | { kind: "state"; value: "open" | "complete" }
   | { kind: "text"; value: string }
-  | { kind: "hasAttachment"; has: boolean };
+  | { kind: "hasAttachment"; has: boolean }
+  /** Filed under a project (filing.ts). Asked of by Tasks and Morgan; not one a kept list holds (isCondition refuses it). */
+  | { kind: "filed"; project: string };
 
 export type SortKey = { field: string; part?: "start" | "end" } | { meta: "type" | "created" | "updated" };
 
@@ -119,23 +124,37 @@ export function between(a: string | null, b: string | null): string {
 
 // ------------------------------------------------------------ dates in queries
 
-const pad = (n: number) => String(n).padStart(2, "0");
-function localDay(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 /** `today`, `today+N`, `today-N`, `now` — in this machine's time — or the value as it is. */
 export function resolveDate(v: string, asOf = new Date()): string {
   const t = v.trim();
-  if (t === "now") return `${localDay(asOf)}T${pad(asOf.getHours())}:${pad(asOf.getMinutes())}`;
+  if (t === "now") return localMinute(asOf);
   const m = /^today\s*([+-])\s*(\d+)$/.exec(t);
-  if (t === "today") return localDay(asOf);
-  if (m) {
-    const d = new Date(asOf);
-    d.setDate(d.getDate() + (m[1] === "+" ? 1 : -1) * Number(m[2]));
-    return localDay(d);
-  }
+  if (t === "today") return localDate(asOf);
+  if (m) return addDays(localDate(asOf), (m[1] === "+" ? 1 : -1) * Number(m[2]));
   return t;
+}
+
+// ------------------------------------------------------------ a task's slots, as a query names them
+
+const shapeNow = () => taskShape(typeFor("task"));
+/** A slot as a property condition's key: `field`, or `field.part`. */
+const slotKey = (s: Slot) => (s.part ? `${s.field}.${s.part}` : s.field);
+/** A slot as a sort key. */
+const slotSort = (s: Slot): SortKey => ({ field: s.field, ...(s.part ? { part: s.part as "start" | "end" } : {}) });
+function dueSlot(): Slot {
+  const s = shapeNow()?.due;
+  if (!s) throw new Conflict("this kind of task has no due date");
+  return s;
+}
+/** By due date, then title: a task type with no due, by title. */
+const byDue = (): List["order"] => {
+  const due = shapeNow()?.due;
+  return { sort: [...(due ? [{ by: slotSort(due) }] : []), { by: { field: "title" } }] };
+};
+function startSlot(): Slot {
+  const s = shapeNow()?.start;
+  if (!s) throw new Conflict("this kind of task has no available date");
+  return s;
 }
 
 // ------------------------------------------------------------ the query, run
@@ -170,7 +189,8 @@ export function matches(o: Entity, c: Condition, asOf = new Date()): boolean {
       return c.op === "isNot" ? o.type !== c.typeId : o.type === c.typeId;
     case "created":
     case "edited": {
-      const at = (c.kind === "created" ? o.created : o.updated).slice(0, 16);
+      // Kept in UTC; the date asked about is local (localtime.ts): compared as local minutes.
+      const at = localMinute(new Date(c.kind === "created" ? o.created : o.updated));
       const v = resolveDate(c.date, asOf);
       return c.op === "before" ? at < v : at > v;
     }
@@ -205,6 +225,8 @@ export function matches(o: Entity, c: Condition, asOf = new Date()): boolean {
     }
     case "hasAttachment":
       return hasAttachment(o) === c.has;
+    case "filed":
+      return filedUnder(o).includes(c.project);
   }
   return false;
 }
@@ -310,7 +332,7 @@ export function createList(n: NewList): List {
 
 /** A board with nothing said is bound to the task's status; a matrix starts as two by two. */
 function defaultsFor(l: List): void {
-  if (l.kind === "board" && !l["talaris:bind"]) l["talaris:bind"] = "status";
+  if (l.kind === "board" && !l["talaris:bind"]) l["talaris:bind"] = shapeNow()?.statusKey ?? "status";
   if (l.kind === "board") l.placement = { semantic: true, regions: statusRegions(l["talaris:bind"]!) };
   if (l.kind === "matrix" && !l.placement) {
     l.placement = {
@@ -468,16 +490,16 @@ function filesOf(o: Entity): { filename: string; sha256: string; mediaType?: str
   return out;
 }
 
-function rowOf(o: Entity, position: string, region: string | undefined, today: string, now: string): Row {
+function rowOf(o: Entity, position: string, region: string | undefined, asOf: Date): Row {
   const shape = shapeOf(o);
   const span = shape ? spanOf(o, shape) : {};
   const complete = shape ? isComplete(o, shape) : undefined;
   const due = span.due;
-  const overdue = Boolean(shape && !complete && due && (due.length > 10 ? due < now : due < today));
-  const projects = (Array.isArray(o.properties.project) ? o.properties.project : o.properties.project ? [o.properties.project] : [])
-    .filter((x): x is string => typeof x === "string")
-    .map((id) => { try { return { id, title: titleOf(getEntity(id)) }; } catch { return null; } })
-    .filter((x): x is { id: string; title: string } => Boolean(x));
+  const overdue = Boolean(shape && !complete && isOverdue(due, asOf));
+  const projects = filedUnder(o).map((id) => ({ id, title: titleOf(getEntity(id)) }));
+  // Its words where its type keeps them: a task's notes, a project's description.
+  const about = shape ? notesOf(o, shape) : readSlot(types().find((t) => t.id === o.type), o, "body", "project");
+  const notes = typeof about === "string" ? about : "";
   return {
     id: o.id, title: titleOf(o), kinds: profilesOf(o), type: o.type, position,
     ...(shape ? { status: String(o.properties[shape.statusKey] ?? ""), complete } : {}),
@@ -488,7 +510,7 @@ function rowOf(o: Entity, position: string, region: string | undefined, today: s
     ...(o.tags?.length ? { tags: o.tags } : {}),
     ...(o["talaris:series"] ? { recurring: true } : {}),
     ...(filesOf(o).length ? { files: filesOf(o) } : {}),
-    ...(typeof o.properties.description === "string" && o.properties.description ? { body: o.properties.description as string } : {}),
+    ...(notes ? { body: notes } : {}),
     ...(region !== undefined ? { region } : {}),
     fields: o.properties,
   };
@@ -502,7 +524,7 @@ function rowOf(o: Entity, position: string, region: string | undefined, today: s
  * draws those on today).
  */
 export function tasksOnDays(from: string, to: string, overdue = false): Row[] {
-  const today = resolveDate("today"), now = resolveDate("now");
+  const now = new Date();
   return allRecords().map((r) => r.object).flatMap((o) => {
     if (o.stub || o.archived) return [];
     const shape = shapeOf(o);
@@ -511,8 +533,8 @@ export function tasksOnDays(from: string, to: string, overdue = false): Row[] {
     const a = (s.start ?? s.due)?.slice(0, 10), b = (s.due ?? s.start)?.slice(0, 10);
     if (!a || !b) return [];
     const [lo, hi] = a <= b ? [a, b] : [b, a];
-    if (lo < to && hi >= from) return [rowOf(o, "", undefined, today, now)];
-    const row = overdue ? rowOf(o, "", undefined, today, now) : null;
+    if (lo < to && hi >= from) return [rowOf(o, "", undefined, now)];
+    const row = overdue ? rowOf(o, "", undefined, now) : null;
     return row?.overdue ? [row] : [];
   }).sort((x, y) => String(x.start ?? x.due).localeCompare(String(y.start ?? y.due)) || x.title.localeCompare(y.title));
 }
@@ -531,13 +553,13 @@ export function showList(id: string, asOf = new Date()): Shown {
   return show(getList(id), asOf);
 }
 
-/** A project's tasks, as a list that is not kept: everything that names the project. */
+/** A project's tasks, as a list that is not kept: everything filed under the project (filing.ts). */
 export function showProject(projectId: string, asOf = new Date()): Shown {
   const title = titleOf(getEntity(projectId));
   const virtual: List = {
     id: `project:${projectId}`, name: title, kind: "list", members: [],
-    membership: { mode: "query", materialized: false, query: { kind: "group", match: "all", items: [{ kind: "property", key: "project", op: "contains", value: projectId }] } },
-    order: { sort: [{ by: { field: "schedule", part: "end" } }, { by: { field: "title" } }] },
+    membership: { mode: "query", materialized: false, query: { kind: "group", match: "all", items: [{ kind: "filed", project: projectId }] } },
+    order: byDue(),
   };
   const shown = show(virtual, asOf);
   // Dragged into an order: that order, and what was never placed after it, by due date as before.
@@ -566,8 +588,6 @@ export function show(list: List, asOf = new Date()): Shown {
   // A board's columns are its field's options as they are now: statuses
   // added, renamed or recolored since it was made are its columns at once.
   const l: List = list["talaris:bind"] ? { ...list, placement: { semantic: true, regions: statusRegions(list["talaris:bind"]) } } : list;
-  const today = resolveDate("today", asOf);
-  const now = resolveDate("now", asOf);
   const live = l.membership.mode === "query" && !l.membership.materialized;
   let rows: { o: Entity; position: string; region?: string }[];
   let drawer: Entity[] | undefined;
@@ -590,9 +610,9 @@ export function show(list: List, asOf = new Date()): Shown {
   }
   const sorted = sortEntities(rows, l.order) as typeof rows;
   const bind = l["talaris:bind"];
-  const out = sorted.map((r) => rowOf(r.o, r.position, bind ? String(r.o.properties[bind] ?? "") : r.region, today, now));
+  const out = sorted.map((r) => rowOf(r.o, r.position, bind ? String(r.o.properties[bind] ?? "") : r.region, asOf));
   const shown: Shown = { list: l, rows: out, manual: !live && !l.order?.sort?.length };
-  if (drawer) shown.drawer = sortEntities(drawer.map((o) => ({ o, position: "" })), l.order).map((r) => rowOf(r.o, "", undefined, today, now));
+  if (drawer) shown.drawer = sortEntities(drawer.map((o) => ({ o, position: "" })), l.order).map((r) => rowOf(r.o, "", undefined, asOf));
   if (l.order?.groupBy) shown.groups = group(sorted.map((r) => r.o), l.order.groupBy);
   return shown;
 }
@@ -611,7 +631,8 @@ function group(objects: Entity[], by: SortKey): Shown["groups"] {
   const label = (k: string | null) => {
     if (k === null) return "None";
     if ("meta" in by && by.meta === "type") return typeName.get(k) ?? k;
-    if ("field" in by && by.field === "project") { try { return titleOf(getEntity(k)); } catch { return k; } }
+    // A reference (a task's project, say): the title of what it points at.
+    if (field?.kind === "reference") { try { return titleOf(getEntity(k)); } catch { return k; } }
     return labels[k] ?? k;
   };
   const buckets = new Map<string | null, string[]>();
@@ -633,33 +654,36 @@ function group(objects: Entity[], by: SortKey): Shown["groups"] {
 
 const task: Condition = { kind: "profile", profile: "task" };
 const open: Condition = { kind: "state", value: "open" };
-const STARTERS: { key: string; name: string; query: Condition; order: List["order"]; view?: Record<string, unknown> }[] = [
-  {
-    key: "today", name: "Today",
-    query: { kind: "group", match: "all", items: [task, open, { kind: "property", key: "schedule.end", op: "lt", value: "today+1" }] },
-    order: { sort: [{ by: { field: "schedule", part: "end" } }, { by: { field: "title" } }] },
-  },
-  {
-    key: "upcoming", name: "Upcoming",
-    query: { kind: "group", match: "all", items: [task, open, { kind: "property", key: "schedule.end", op: "gt", value: "today" }, { kind: "property", key: "schedule.end", op: "lt", value: "today+8" }] },
-    order: { sort: [{ by: { field: "schedule", part: "end" } }], groupBy: { field: "schedule", part: "end" } },
-  },
-  {
-    key: "available", name: "Available",
-    query: { kind: "group", match: "all", items: [task, open, { kind: "property", key: "schedule.start", op: "lt", value: "today+1" }] },
-    order: { sort: [{ by: { field: "schedule", part: "end" } }, { by: { field: "title" } }] },
-  },
-  {
+type Starter = { key: string; name: string; query: Condition; order: List["order"]; view?: Record<string, unknown> };
+/** The starting lists, written in the task type's own slots as it is when they are made; one its type cannot say is left out. */
+function starters(): Starter[] {
+  const shape = shapeNow();
+  const due = shape?.due, start = shape?.start;
+  const prop = (s: Slot, op: "lt" | "gt" | "empty", value?: string): Condition => ({ kind: "property", key: slotKey(s), op, ...(value !== undefined ? { value } : {}) });
+  const out: Starter[] = [];
+  if (due) {
+    out.push({ key: "today", name: "Today", query: { kind: "group", match: "all", items: [task, open, prop(due, "lt", "today+1")] }, order: byDue() });
+    out.push({
+      key: "upcoming", name: "Upcoming",
+      query: { kind: "group", match: "all", items: [task, open, prop(due, "gt", "today"), prop(due, "lt", "today+8")] },
+      order: { sort: [{ by: slotSort(due) }], groupBy: slotSort(due) },
+    });
+  }
+  if (start) out.push({ key: "available", name: "Available", query: { kind: "group", match: "all", items: [task, open, prop(start, "lt", "today+1")] }, order: byDue() });
+  out.push({
     key: "unscheduled", name: "Unscheduled",
-    query: { kind: "group", match: "all", items: [task, open, { kind: "property", key: "schedule.start", op: "empty" }, { kind: "property", key: "schedule.end", op: "empty" }] },
+    query: { kind: "group", match: "all", items: [task, open, ...[start, due].filter((s): s is Slot => Boolean(s)).map((s) => prop(s, "empty"))] },
     order: { sort: [{ by: { meta: "created" }, direction: "descending" }] },
-  },
-  {
+  });
+  // `done_at` is a local stamp (tasks.ts), so "today-7", resolved locally, is the right thing to compare it with.
+  const done = shape?.doneKey ?? "done_at";
+  out.push({
     key: "done", name: "Done recently",
-    query: { kind: "group", match: "all", items: [task, { kind: "state", value: "complete" }, { kind: "property", key: "done_at", op: "gt", value: "today-7" }] },
-    order: { sort: [{ by: { field: "done_at" }, direction: "descending" }] },
-  },
-];
+    query: { kind: "group", match: "all", items: [task, { kind: "state", value: "complete" }, { kind: "property", key: done, op: "gt", value: "today-7" }] },
+    order: { sort: [{ by: { field: done }, direction: "descending" }] },
+  });
+  return out;
+}
 
 let started = false;
 /** Made once, then the person's own: renamed, changed, deleted like any other. */
@@ -670,7 +694,7 @@ function ensureStarters(): void {
   const lists = sealedList<List>(LISTS);
   if (sealedOnce(LISTS, "starters") || lists.length) return;
   let at: string | null = null;
-  for (const s of STARTERS) {
+  for (const s of starters()) {
     putList({
       id: newId("c"), name: s.name, kind: "list", members: [],
       membership: { mode: "query", materialized: false, query: s.query },
@@ -704,34 +728,46 @@ export function findTasks(q: TaskQuery): Row[] {
   const items: Condition[] = [{ kind: "profile", profile: "task" }];
   const statuses = (q.status ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (statuses.length === 1 && (statuses[0] === "open" || statuses[0] === "complete")) items.push({ kind: "state", value: statuses[0] as "open" | "complete" });
-  else if (statuses.length) items.push({ kind: "group", match: "any", items: statuses.map((s) => ({ kind: "property" as const, key: "status", op: "eq" as const, value: s })) });
-  const end = (op: "lt" | "gt", value: string): Condition => ({ kind: "property", key: "schedule.end", op, value });
+  else if (statuses.length) {
+    const key = shapeNow()?.statusKey;
+    if (!key) throw new Conflict("this kind of task has no status");
+    items.push({ kind: "group", match: "any", items: statuses.map((s) => ({ kind: "property" as const, key, op: "eq" as const, value: s })) });
+  }
+  const end = (op: "lt" | "gt", value: string): Condition => ({ kind: "property", key: slotKey(dueSlot()), op, value });
   const openOnly = () => { if (!statuses.length) items.push({ kind: "state", value: "open" }); };
+  // Overdue is decided by isOverdue, as every row's `overdue` is: the query narrows to what is due by today, the rule decides.
+  let overdueOnly = false;
   switch (q.when) {
     case undefined: case "": break;
-    case "overdue": items.push(end("lt", "today")); openOnly(); break;
+    case "overdue": items.push(end("lt", "today+1")); openOnly(); overdueOnly = true; break;
     case "today": items.push(end("lt", "today+1")); openOnly(); break;
     case "tomorrow": items.push(end("lt", "today+2")); openOnly(); break;
     case "week": items.push(end("lt", "today+7")); openOnly(); break;
-    case "available": items.push({ kind: "property", key: "schedule.start", op: "lt", value: "today+1" }); openOnly(); break;
-    case "unscheduled": items.push({ kind: "property", key: "schedule.start", op: "empty" }, { kind: "property", key: "schedule.end", op: "empty" }); openOnly(); break;
+    case "available": items.push({ kind: "property", key: slotKey(startSlot()), op: "lt", value: "today+1" }); openOnly(); break;
+    case "unscheduled": {
+      const shape = shapeNow();
+      for (const s of [shape?.start, shape?.due]) if (s) items.push({ kind: "property", key: slotKey(s), op: "empty" });
+      openOnly();
+      break;
+    }
     default:
       if (!/^\d{4}-\d\d-\d\d$/.test(q.when)) throw new Conflict("when is overdue, today, tomorrow, week, available, unscheduled or a date");
       items.push(end("lt", resolveDate(`${q.when}`) + "~"));
       openOnly();
   }
-  if (q.project) items.push({ kind: "property", key: "project", op: "contains", value: q.project });
+  if (q.project) items.push({ kind: "filed", project: q.project });
   if (q.tag) items.push({ kind: "tag", tag: q.tag });
   if (q.text) items.push({ kind: "text", value: q.text });
   const query: Condition = { kind: "group", match: "all", items };
-  const order: List["order"] = { sort: [{ by: { field: "schedule", part: "end" } }, { by: { field: "title" } }] };
+  const asOf = new Date();
   let rows: Row[];
   if (q.list) {
-    const shown = showList(q.list);
-    const keep = new Set(runQuery(query).map((o) => o.id));
+    const shown = showList(q.list, asOf);
+    const keep = new Set(runQuery(query, { asOf }).map((o) => o.id));
     rows = shown.rows.filter((r) => keep.has(r.id));
   } else {
-    rows = show({ id: "find", name: "find", kind: "list", members: [], membership: { mode: "query", materialized: false, query }, order }).rows;
+    rows = show({ id: "find", name: "find", kind: "list", members: [], membership: { mode: "query", materialized: false, query }, order: byDue() }, asOf).rows;
   }
+  if (overdueOnly) rows = rows.filter((r) => isOverdue(r.due, asOf));
   return rows.slice(0, q.limit ?? 50);
 }

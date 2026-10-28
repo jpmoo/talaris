@@ -194,7 +194,7 @@ const TOOLS: Tool[] = [
       }
       // A page — a note, as it may be asked for — is one of no other project: Home's, under Pages, as the writing drawer makes one.
       if (a.kind === "page" || a.kind === "note") {
-        const home = (await core<{ id: string; home: boolean }[]>("GET", "/projects")).find((p) => p.home)!;
+        const home = { id: (await project("home")).id! };
         const page = await core<{ path: string }>("POST", `/projects/${home.id}/pages`, { parent: "Pages", title: str(a.title) });
         if (a.body) await core("PUT", `/projects/${home.id}/page?path=${encodeURIComponent(page.path)}`, str(a.body));
         return `Made the page ${page.path} in Home (project "${home.id}", path "${page.path}")`;
@@ -235,7 +235,6 @@ const TOOLS: Tool[] = [
 // ------------------------------------------------------------ tasks
 
 interface TaskRow { id: string; title: string; status?: string; start?: string; due?: string; overdue?: boolean; recurring?: boolean; projects?: { title: string }[]; tags?: string[] }
-const STATUSES = ["not_started", "in_progress", "blocked", "done", "archived", "wont_do"];
 const taskLine = (r: TaskRow) => {
   const bits = [r.status?.replace(/_/g, " ")];
   if (r.start) bits.push(`available ${r.start}`);
@@ -246,20 +245,40 @@ const taskLine = (r: TaskRow) => {
   return `- ${r.title} (${bits.filter(Boolean).join("; ")}) [${r.id}]`;
 };
 
-/** A project named by id or by title (exact, then part of one). */
-async function projectId(name: string): Promise<string> {
-  const all = await core<{ id: string; title: string; workspace?: string }[]>("GET", "/tasks/projects");
-  const n = name.toLowerCase();
-  // Its desktop's id too (prj_…, what talaris_now and the desktop tools name it by): the same project.
-  const hit = all.find((p) => p.id === name) ?? all.find((p) => p.workspace === name) ?? all.find((p) => p.title.toLowerCase() === n) ?? all.find((p) => p.title.toLowerCase().includes(n));
-  if (!hit) throw new Error(`no project called ${name}`);
-  return hit.id;
+/**
+ * The task type's statuses, as the person has set them (tasks.ts,
+ * setStatuses): asked of the core when the tools are listed, never a list
+ * kept here that a status renamed or added would leave behind.
+ */
+async function taskStatuses(): Promise<string[]> {
+  const t = await core<{ shape: { statuses?: string[] } | null }>("GET", "/tasks/types").catch(() => null);
+  return t?.shape?.statuses ?? [];
+}
+function withStatuses<T extends { name: string; inputSchema: Record<string, unknown> }>(t: T, statuses: string[]): T {
+  const props = t.inputSchema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (!statuses.length || !props?.status) return t;
+  // Finding takes open, complete or several; a task is given exactly one.
+  const status = t.name === "talaris_tasks"
+    ? { ...props.status, description: `One of ${statuses.join(", ")}; or open; or complete; or several, separated by commas.` }
+    : { ...props.status, enum: statuses };
+  return { ...t, inputSchema: { ...t.inputSchema, properties: { ...props, status } } };
+}
+
+/** A project as it is named, by the core's one resolver (filing.ts) — the desktop tools ask the same. */
+const project = (name: string) => core<{ id?: string; name: string; home?: boolean; entity?: string }>("GET", `/projects/resolve?name=${encodeURIComponent(name)}`);
+
+/** A project tasks are filed under, by name or id; Home is none (nothing is filed there), null. */
+async function projectId(name: string): Promise<string | null> {
+  const p = await project(name);
+  if (p.home) return null;
+  if (!p.entity) throw new Error(`${p.name} has no tasks`);
+  return p.entity;
 }
 
 TOOLS.push(
   {
     name: "talaris_tasks",
-    description: "Find tasks in Talaris: by when (overdue, today — which includes overdue, tomorrow, week, available, unscheduled, or a YYYY-MM-DD date to mean due by then), status (one of not_started, in_progress, blocked, done, archived, wont_do; or open; or complete), project, tag, words, or a list's id.",
+    description: "Find tasks in Talaris: by when (overdue, today — which includes overdue, tomorrow, week, available, unscheduled, or a YYYY-MM-DD date to mean due by then), status (one of the task statuses; or open; or complete), project, tag, words, or a list's id.",
     inputSchema: { type: "object", properties: {
       when: { type: "string" }, status: { type: "string" }, project: { type: "string", description: "Its name or id — either id, its own or its desktop's (from talaris_now for \"this project\")." },
       tag: { type: "string" }, text: { type: "string" }, list: { type: "string" }, limit: { type: "number" },
@@ -268,7 +287,11 @@ TOOLS.push(
     run: async (a) => {
       const q = new URLSearchParams();
       for (const k of ["when", "status", "tag", "text", "list"]) if (a[k]) q.set(k, str(a[k]));
-      if (a.project) q.set("project", await projectId(str(a.project)));
+      if (a.project) {
+        const id = await projectId(str(a.project));
+        if (!id) throw new Error("Home holds no tasks: a task in no project is filed nowhere");
+        q.set("project", id);
+      }
       q.set("limit", String(Number(a.limit) || 50));
       const rows = await core<TaskRow[]>("GET", `/tasks/find?${q}`);
       return rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.";
@@ -293,13 +316,16 @@ TOOLS.push(
     description: "Make a task in Talaris. Dates are YYYY-MM-DD, or YYYY-MM-DDTHH:mm for a time. Projects by name (made if new) or id.",
     inputSchema: { type: "object", properties: {
       title: { type: "string" }, notes: { type: "string" }, available: { type: "string" }, due: { type: "string" },
-      status: { type: "string", enum: STATUSES }, projects: { type: "array", items: { type: "string" } }, tags: { type: "array", items: { type: "string" } },
+      status: { type: "string" }, projects: { type: "array", items: { type: "string" } }, tags: { type: "array", items: { type: "string" } },
     }, required: ["title"] },
     annotations: { readOnlyHint: false, title: "Create a task in Talaris" },
     run: async (a) => {
       const projects: string[] = [];
       for (const p of (a.projects as string[] | undefined) ?? []) {
-        try { projects.push(await projectId(p)); } catch { projects.push((await core<{ id: string }>("POST", "/tasks/projects", { title: p })).id); }
+        // Not a project yet: made. Home: filed nowhere.
+        let id: string | null;
+        try { id = await projectId(p); } catch { id = (await core<{ id: string }>("POST", "/tasks/projects", { title: p })).id; }
+        if (id) projects.push(id);
       }
       const t = await core<{ id: string }>("POST", "/tasks", {
         title: str(a.title), description: str(a.notes) || undefined, start: str(a.available) || undefined, due: str(a.due) || undefined,
@@ -313,39 +339,24 @@ TOOLS.push(
     description: "Change a Talaris task: its title, notes, available or due date (an empty string clears one), status (done completes it; a recurring task then brings its next), projects to add or remove, tags to add or remove.",
     inputSchema: { type: "object", properties: {
       id: { type: "string" }, title: { type: "string" }, notes: { type: "string" }, available: { type: "string" }, due: { type: "string" },
-      status: { type: "string", enum: STATUSES },
+      status: { type: "string" },
       addProjects: { type: "array", items: { type: "string" } }, removeProjects: { type: "array", items: { type: "string" } },
       addTags: { type: "array", items: { type: "string" } }, removeTags: { type: "array", items: { type: "string" } },
     }, required: ["id"] },
     annotations: { readOnlyHint: false, title: "Update a task in Talaris" },
     run: async (a) => {
-      const id = encodeURIComponent(str(a.id));
-      const now = await core<{ entity: { properties: Record<string, unknown>; tags?: string[] } }>("GET", `/entities/${id}`);
-      const p = now.entity.properties;
-      const props: Record<string, unknown> = {};
-      if (a.title !== undefined) props.title = str(a.title);
-      if (a.notes !== undefined) props.description = str(a.notes);
-      if (a.status !== undefined) props.status = str(a.status);
-      if (a.available !== undefined || a.due !== undefined) {
-        const span = { ...((p.schedule as Record<string, string>) ?? {}) };
-        if (a.available !== undefined) { if (str(a.available)) span.start = str(a.available); else delete span.start; }
-        if (a.due !== undefined) { if (str(a.due)) span.end = str(a.due); else delete span.end; }
-        props.schedule = Object.keys(span).length ? span : null;
-      }
-      if (a.addProjects || a.removeProjects) {
-        const list = new Set(Array.isArray(p.project) ? (p.project as string[]) : []);
-        for (const x of (a.addProjects as string[] | undefined) ?? []) list.add(await projectId(x));
-        for (const x of (a.removeProjects as string[] | undefined) ?? []) list.delete(await projectId(x));
-        props.project = list.size ? [...list] : null;
-      }
-      const patch: Record<string, unknown> = { properties: props };
-      if (a.addTags || a.removeTags) {
-        const tags = new Set(now.entity.tags ?? []);
-        for (const t of (a.addTags as string[] | undefined) ?? []) tags.add(t.toLowerCase());
-        for (const t of (a.removeTags as string[] | undefined) ?? []) tags.delete(t.toLowerCase());
-        patch.tags = [...tags];
-      }
-      await core("PATCH", `/entities/${id}`, patch);
+      // Said by meaning; the core writes each where the task's type keeps it (tasks.ts, updateTask).
+      const ids = async (names: unknown) => {
+        const out: string[] = [];
+        for (const x of (names as string[] | undefined) ?? []) { const id = await projectId(x); if (id) out.push(id); }
+        return out;
+      };
+      const opt = (v: unknown) => (v === undefined ? undefined : str(v));
+      await core("PATCH", `/tasks/${encodeURIComponent(str(a.id))}`, {
+        title: opt(a.title), body: opt(a.notes), start: opt(a.available), due: opt(a.due), status: opt(a.status),
+        addProjects: await ids(a.addProjects), removeProjects: await ids(a.removeProjects),
+        addTags: (a.addTags as string[] | undefined) ?? [], removeTags: (a.removeTags as string[] | undefined) ?? [],
+      });
       return "Updated.";
     },
   },
@@ -398,7 +409,10 @@ async function answer(m: Message): Promise<void> {
     case "ping":
       return reply(m.id, {});
     case "tools/list":
-      return reply(m.id, { tools: [...TOOLS.map(({ run: _run, ...t }) => t), ...(await pluginTools()).map((p) => p.listed)] });
+    {
+      const statuses = await taskStatuses();
+      return reply(m.id, { tools: [...TOOLS.map(({ run: _run, ...t }) => withStatuses(t, statuses)), ...(await pluginTools()).map((p) => p.listed)] });
+    }
     case "tools/call": {
       const tool = TOOLS.find((t) => t.name === m.params?.name);
       if (!tool) {

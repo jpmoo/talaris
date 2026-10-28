@@ -9,6 +9,7 @@ import { createDay, createNote, isDay, isUndated, reconcileNotes, writeDay, writ
 import { keepLinks, linkedBytes, refreshLinks } from "./links.js";
 import { cursor, newEra, since, type Change } from "./feed.js";
 import { createProject, renameProject } from "./projects.js";
+import { PROJECT_SOURCE, projectIdOf } from "./filing.js";
 import { allSeries } from "./tasks.js";
 import { addMember, createList, getList, isCondition, putList, removeMember, show, updateList, type Condition, type List } from "./lists.js";
 import { ENTITIES_DIR } from "./vault.js";
@@ -564,7 +565,7 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
   }
   // A project's name is its project's (the bar, the switcher, Tasks): renamed there, as Tasks' own sheet does,
   // or the store would put the old one back the next time it reads the projects.
-  const ws = ((now["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project")?.key;
+  const ws = projectIdOf(now);
   const titleKey = types().find((t) => t.id === now.type)?.profiles?.project?.title;
   if (ws && typeof titleKey === "string" && typeof p.set?.[titleKey] === "string" && (p.set[titleKey] as string).trim()) renameProject(ws, p.set[titleKey] as string);
   const properties: Record<string, unknown> = { ...(set ?? {}) };
@@ -612,7 +613,7 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     if (!name) return { ok: false, created: false, fidelity: "full", reports: ["create.project-needs-a-name"], cursor: cursor() };
     let folder;
     try { folder = createProject(name); } catch (e) { return { ok: false, created: false, fidelity: "full", reports: [`create.project-refused: ${(e as Error).message}`], cursor: cursor() }; }
-    const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, sources: [{ kind: "talaris-project", key: folder.id }] });
+    const made = createEntity({ id: at, type: body.type, properties: body.properties ?? {}, sources: [{ kind: PROJECT_SOURCE, key: folder.id }] });
     return { ok: true, created: true, object: made as unknown as WriteAnswer["object"], fidelity: "full", reports: [], cursor: cursor() };
   }
   const reports: string[] = [];

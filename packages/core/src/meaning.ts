@@ -37,6 +37,7 @@ import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
 import { describeProjects } from "./project-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
+import { localDate } from "./localtime.js";
 import { listProjects } from "./projects.js";
 import { pageTree, readPage } from "./pages.js";
 import { canvasName, canvasTree, canvasWords, projectCanvases } from "./canvases.js";
@@ -532,7 +533,7 @@ const SCANNED = () => join(STATE_DIR, "meaning-scan.json");
 const HTML_AGAIN = () => join(STATE_DIR, "meaning-html-read-again.json");
 const lastScan = (): { at: string; day: string } => { try { return readJson<{ at: string; day: string }>(SCANNED()); } catch { return { at: "", day: "" }; } };
 let scanning = false;
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const today = () => localDate();
 
 /**
  * The files read whose words are not yet described, described by Morgan — a

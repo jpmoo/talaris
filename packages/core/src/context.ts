@@ -13,7 +13,8 @@
  * notes and tasks that point at them; a project's tasks; an event's people.
  */
 
-import { bySource, connections, findEntities, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
+import { bySource, connections, findEntities, getEntity, kindOfEntity, titleOf, types, type Entity } from "./entities.js";
+import { readSlot } from "./profile.js";
 import { placeOf, placeSource } from "./mentionables.js";
 import { currentId, homeId, threads } from "./threads.js";
 import { isComplete, shapeOf, spanOf } from "./tasks.js";
@@ -54,14 +55,21 @@ const ORDER: Kind[] = ["person", "project", "event", "note", "task", "conversati
 const FOCUSES = 4;
 const RELATED = 15;
 
-function kindOf(o: Entity): Kind {
-  const k = profilesOf(o);
-  return k.includes("contact") ? "person" : k.includes("task") ? "task" : k.includes("event") ? "event"
-    : k.includes("project") ? "project" : k.includes("note") ? "note" : "thing";
+/**
+ * An event's start through its type's `event` profile; all day by its type's
+ * one yes-or-no field — the format names no slot for that, so the field is
+ * found by its kind, never by its name.
+ */
+function eventTimes(o: Entity): { start?: string; allDay?: boolean } {
+  const type = types().find((t) => t.id === o.type);
+  const start = readSlot(type, o, "start", "event");
+  const flags = type?.fields.filter((f) => f.kind === "boolean") ?? [];
+  const allDay = flags.length === 1 && o.properties[flags[0]!.key] === true;
+  return { ...(typeof start === "string" ? { start } : {}), ...(allDay ? { allDay } : {}) };
 }
 
 export function item(o: Entity): Item {
-  const kind = kindOf(o);
+  const kind: Kind = kindOfEntity(o);
   const it: Item = { id: o.id, title: titleOf(o), kind, ...(o.updated ? { updated: String(o.updated) } : {}) };
   if (kind === "task") {
     const shape = shapeOf(o);
@@ -69,8 +77,7 @@ export function item(o: Entity): Item {
     if (span.due) it.due = span.due;
     it.done = isComplete(o, shape);
   } else if (kind === "event") {
-    if (o.properties.start) it.start = String(o.properties.start);
-    if (o.properties.allDay) it.allDay = true;
+    Object.assign(it, eventTimes(o));
     const src = ((o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "eds-event");
     const at = src ? src.key.indexOf("/") : -1;
     if (src && at > 0) { it.calendar = src.key.slice(0, at); it.uid = src.key.slice(at + 1); }

@@ -9,6 +9,7 @@ import { currentId, homeId, threadById, threads } from "./threads.js";
 import { allRecords, bySource, connections, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
 import { placeOf, placeSource, type PlaceKind } from "./mentionables.js";
 import { mentionsIn } from "./mentions.js";
+import { filedUnder, projectEntity } from "./filing.js";
 import { pageModified, pageTree, readPage } from "./pages.js";
 import { MACHINERY, WRITING } from "./paths.js";
 import { archivedProjects, findProject } from "./projects.js";
@@ -179,7 +180,7 @@ class Walk {
       if (key.startsWith("project:")) {
         const id = key.slice(8);
         const p = findProject(id);
-        n = { key, id: bySource({ kind: "talaris-project", key: id })?.id, title: p.name, kind: "project", updated: "", own: id === this.here, depth, how, projectId: id };
+        n = { key, id: projectEntity(id)?.id, title: p.name, kind: "project", updated: "", own: id === this.here, depth, how, projectId: id };
       } else if (key.startsWith("page:")) {
         const [project, path] = split(key);
         n = { key, id: bySource(placeSource("page", project, path))?.id, title: path.split("/").pop() || path, kind: "page", updated: pageModified(project, path),
@@ -236,7 +237,7 @@ class Walk {
 
   private filedUnder(o: Entity, project: string): boolean {
     const e = [...this.projectEntities].find(([, ws]) => ws === project)?.[0];
-    return Boolean(e && JSON.stringify(o.properties).includes(e));
+    return Boolean(e && filedUnder(o).includes(e));
   }
 
   // ------------------------------------------------------------ what a thing is tied to
@@ -299,7 +300,7 @@ class Walk {
       if (entity) {
         for (const r of allRecords()) {
           const o = r.object;
-          if (o.id !== entity && !o.stub && !o.archived && JSON.stringify(o.properties).includes(entity)) out.push({ key: this.keyOf(o), how: "filed here" });
+          if (o.id !== entity && !o.stub && !o.archived && filedUnder(o).includes(entity)) out.push({ key: this.keyOf(o), how: "filed here" });
         }
       }
       for (const rel of this.folder(id)) out.push({ key: `file:${id}/${rel}`, how: "in the folder" });

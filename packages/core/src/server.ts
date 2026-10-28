@@ -9,12 +9,13 @@ import { connect } from "node:net";
 import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
-import { projectsRoot } from "./paths.js";
+import { FILES, projectsRoot } from "./paths.js";
+import { folderProjectOf, projectIdOf, resolveProject } from "./filing.js";
 import { glance, nearProject } from "./glance.js";
 import { archiveProject, archivedContents, listArchive, restoreProject, searchArchive, type Restore } from "./archive.js";
 import { setStarredOrder, starredOrder } from "./starred.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
-import { Conflict, NotFound, adoptFolder, createProject, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
+import { Conflict, NotFound, adoptFolder, createProject, ensureHome, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
   backlinks,
   canvasTree,
@@ -162,6 +163,11 @@ function need(query: URLSearchParams, key: string): string {
 route("GET", "/health", (): Health => ({ ok: true, name: "talaris-core", version: VERSION, projectsRoot: projectsRoot() }));
 
 route("GET", "/projects", () => listProjects());
+// A project as it is named — by Morgan's tools, both sets alike (filing.ts, resolveProject). Before /projects/:id, which would take "resolve" for an id.
+route("GET", "/projects/resolve", (_r, _p, q) => {
+  tasks.taskProjects(); // every project in use has its entity, so a task can be filed under the one found
+  return resolveProject(q.get("name") ?? "");
+});
 // The archive: a project out of every context, browsed and brought back here (archive.ts).
 route("GET", "/archive", () => listArchive());
 route("GET", "/archive/search", (_r, _p, q) => searchArchive(q.get("q") ?? "", Number(q.get("limit") ?? 40)));
@@ -592,8 +598,7 @@ route("GET", "/files/text", async (_r, _p, q) => {
 route("PATCH", "/entities/:id", async (req, [id]) => {
   const patch = await json<entities.Patch>(req);
   // A project's entity archived (Tasks' Archive): the project itself is, folder and all.
-  const project = entities.getEntity(id!)["talaris:sources"] as { kind: string; key: string }[] | undefined;
-  const ws = project?.find((s) => s.kind === "talaris-project")?.key;
+  const ws = projectIdOf(entities.getEntity(id!));
   if (ws && patch.archived !== undefined) {
     if (patch.archived) archiveProject(ws);
     else {
@@ -745,7 +750,9 @@ route("GET", "/tasks/days", (_r, _p, q) => {
   if (!/^\d{4}-\d\d-\d\d$/.test(from) || !/^\d{4}-\d\d-\d\d$/.test(to)) throw new BadRequest("from and to, as dates");
   return lists.tasksOnDays(from, to, q.get("overdue") === "1");
 });
-route("POST", "/tasks/:id/done", async (req, [id]) => tasks.setDone(id!, (await json<{ done?: boolean }>(req)).done !== false));
+// A task changed by what it means (title, notes, dates, status, projects, tags), written where its type keeps each.
+route("PATCH", "/tasks/:id", async (req, [id]) => tasks.updateTask(id!, await json<tasks.TaskPatch>(req)));
+route("POST", "/tasks/:id/done",async (req, [id]) => tasks.setDone(id!, (await json<{ done?: boolean }>(req)).done !== false));
 route("POST", "/tasks/:id/shift", async (req, [id]) => tasks.shiftTask(id!, Number((await json<{ days?: number }>(req)).days)));
 route("GET", "/tasks/find", (_r, _p, q) => lists.findTasks({
   status: q.get("status") ?? undefined, when: q.get("when") ?? undefined, project: q.get("project") ?? undefined,
@@ -787,17 +794,8 @@ links.setFallbackFolder(filesFolderFor);
 route("GET", "/entities/:id/folder", (_r, [id]) => ({ folder: dirname(filesFolderFor(id!)) }));
 /** Where a copy saved to be linked goes: the Files folder of the project the thing is filed under, or Home's. */
 function filesFolderFor(id: string): string {
-  const e = entities.getEntity(id);
-  for (const v of Object.values(e.properties ?? {})) {
-    for (const ref of Array.isArray(v) ? v : [v]) {
-      if (typeof ref !== "string") continue;
-      try {
-        const src = ((entities.getEntity(ref)["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project");
-        if (src) return join(findProject(src.key).folder, "Files");
-      } catch { /* not a thing */ }
-    }
-  }
-  return join(listProjects().find((p) => p.home)!.folder, "Files");
+  const project = folderProjectOf(entities.getEntity(id));
+  try { return join(findProject(project).folder, FILES); } catch { return join(ensureHome().folder, FILES); }
 }
 route("DELETE", "/tasks/:id/attachments/:sha", (_r, [id, sha]) => {
   tasks.detachFile(id!, sha!);
