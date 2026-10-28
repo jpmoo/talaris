@@ -85,7 +85,7 @@ Type=Application
 Name=Talaris
 Comment=The desktop: bar, dock, projects, canvas and writing
 Exec=$ROOT/surfaces/talaris-surfaces
-Icon=$ROOT/surfaces/ui/talaris.svg
+Icon=$ROOT/surfaces/ui/talaria.png
 StartupWMClass=talaris
 NoDisplay=true
 DESKTOP
