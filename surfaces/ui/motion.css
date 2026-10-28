@@ -4,6 +4,12 @@ Copyright (c) 2026 Jeff Moore
 
 Draw (motion.js): lines in the accent, on a layer over the panel.
 */
+/* What arrives (`data-arrives`: a panel's page, the launcher's box, Settings)
+   is unseen until it first does (motion.js marks it `data-arrived`). A page
+   made at start, or on first opening, drew itself whole, and its first showing
+   put that on screen a frame before the arrival hid it to play in: a flash.
+   As a window it is simply there. */
+html:not([data-window]) [data-arrives]:not([data-arrived]) { opacity: 0 !important; }
 .fx { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 20; }
 .fx-seg { position: absolute; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .fx-mark { position: absolute; width: 13px; height: 13px; margin: -6px 0 0 -6px; filter: drop-shadow(0 0 4px var(--accent)); }

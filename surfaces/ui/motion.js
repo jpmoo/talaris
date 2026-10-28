@@ -250,12 +250,13 @@ const Motion = (() => {
 
   function arrive(panel, o) {
     reset(panel, o);
-    // No motion: shown as it is — a panel that starts hidden until it arrives (settings.html) is shown here too.
-    if (still(o)) { panel.style.visibility = ""; settled(o.viewport).then(() => drawn(o)); return; }
+    // No motion: shown as it is — and seen for the first time, if it waited unseen (motion.css, data-arrives).
+    if (still(o)) { panel.style.visibility = ""; panel.dataset.arrived = ""; settled(o.viewport).then(() => drawn(o)); return; }
     const mine = ++arrival;
     panel.style.visibility = "hidden";
     settled(o.viewport).then(() => {
       panel.style.visibility = "";
+      panel.dataset.arrived = "";
       // Gone again, or arriving afresh, before it settled: this arrival is not wanted.
       if (mine === arrival) { play(panel, o); drawn(o); }
     });
