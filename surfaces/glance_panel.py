@@ -25,7 +25,7 @@ import threading
 from PySide6.QtCore import Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call
+from core import Bridge, ask_json
 from overlay import Overlay
 
 #: What the page may ask the core for: the glance, an entity's card, and suggested ties.
@@ -53,8 +53,9 @@ class GlanceBridge(Bridge):
             return
         if sha256:
             def run() -> None:
-                status, text = local_call("POST", "/files/open-copy", json.dumps({"sha256": sha256, "name": name}), timeout=60)
-                copy = json.loads(text).get("path", "") if status == 200 and text else ""
+                # Read as every reply is (core.ask_json): an answer cut short is no copy, not a crash.
+                got, _why = ask_json("POST", "/files/open-copy", json.dumps({"sha256": sha256, "name": name}), timeout=60)
+                copy = (got or {}).get("path", "")
                 if copy:
                     QDesktopServices.openUrl(QUrl.fromLocalFile(copy))
             threading.Thread(target=run, daemon=True).start()

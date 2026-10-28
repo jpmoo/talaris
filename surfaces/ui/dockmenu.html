@@ -122,12 +122,13 @@ function onState(s) {
     document.querySelector('[data-verb="doc-all"]').textContent = "Pin it to all projects";
   }
   show("unpin", !!it.pinned);
-  // Kept in a project: gone to there when called, not brought.
-  // Its exception to the general rule (Settings, Keys): kept where the rule brings, brought where it goes.
-  show("keep-here", !!it.pinned && it.rule === "bring" && !it.keptHere);
-  show("unkeep", !!it.pinned && it.rule === "bring" && !!it.keptIn);
-  show("bring-here", !!it.pinned && it.rule === "go" && !it.brought);
-  show("unbring", !!it.pinned && it.rule === "go" && !!it.brought);
+  // Kept in a project: gone to there when called, not brought — under either rule (dock.py, how). Always brought
+  // here: worth offering only where the rule goes (where it brings, it is brought already). Either one set is
+  // always offered back, whatever the rule now says.
+  show("keep-here", !!it.pinned && !it.keptHere);
+  show("unkeep", !!it.pinned && !!it.keptIn);
+  show("bring-here", !!it.pinned && it.rule === "go" && !it.brought && !it.keptIn);
+  show("unbring", !!it.pinned && !!it.brought);
   if (it.keptIn && !it.keptHere) document.querySelector('[data-verb="unkeep"]').textContent = "Stop keeping it in its project";
   else document.querySelector('[data-verb="unkeep"]').textContent = "Stop keeping it here";
   // Bring and go are one choice now, below; the old exceptions are not offered again.

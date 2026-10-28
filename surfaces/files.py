@@ -21,7 +21,7 @@ from urllib.parse import quote
 
 from PySide6.QtCore import QProcess
 
-from core import call as core_call
+from core import ask_json
 from views import log
 
 #: Sealed files opened, unsealed where only the user can read them and that is
@@ -92,11 +92,11 @@ def send_files(path: str, files: list, extra: dict | None = None) -> tuple[int, 
             errors.append(f"{name}: {e.strerror}")
             continue
         kind = mimetypes.guess_type(name)[0]
-        status, text = core_call("POST", path, json.dumps({"filename": name, "data": data, **({"mediaType": kind} if kind else {}), **(extra or {})}), timeout=120)
-        if status == 200:
-            added += 1
+        _made, why = ask_json("POST", path, json.dumps({"filename": name, "data": data, **({"mediaType": kind} if kind else {}), **(extra or {})}), timeout=120)
+        if why:
+            errors.append(f"{name}: {why[:120]}")
         else:
-            errors.append(f"{name}: {text[:120]}")
+            added += 1
     return added, errors
 
 
@@ -114,11 +114,11 @@ def send_project_files(project: str, files: list) -> dict:
         except OSError as e:
             errors.append(f"{name}: {e.strerror}")
             continue
-        status, text = core_call("POST", f"/projects/{quote(project)}/files", json.dumps({"name": name, "data": data}), timeout=120)
-        if status == 200:
-            kept.append(json.loads(text))
+        made, why = ask_json("POST", f"/projects/{quote(project)}/files", json.dumps({"name": name, "data": data}), timeout=120)
+        if why:
+            errors.append(f"{name}: {why[:120]}")
         else:
-            errors.append(f"{name}: {text[:120]}")
+            kept.append(made)
     return {"files": kept, "error": "; ".join(errors)}
 
 
@@ -139,11 +139,11 @@ def _copy_out(tag: str, filename: str, data: bytes) -> str:
 def open_kept_file(sha: str, filename: str) -> None:
     """A file kept by its hash (a task's attachment), opened in its application from a copy."""
     def run() -> None:
-        status, text = core_call("GET", f"/files/{sha}", timeout=60)
-        if status != 200:
-            log(f"files: could not open {filename}: {text[:120]}")
+        got, why = ask_json("GET", f"/files/{sha}", timeout=60)
+        if why or "data" not in got:
+            log(f"files: could not open {filename}: {(why or 'no file in the answer')[:120]}")
             return
-        _launch(_copy_out(sha[:16], filename, base64.b64decode(json.loads(text)["data"])))
+        _launch(_copy_out(sha[:16], filename, base64.b64decode(got["data"])))
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -155,15 +155,16 @@ def open_project_file(project: str, path: str) -> None:
     """
     def run() -> None:
         where = f"/projects/{quote(project)}/file?path={quote(path)}"
-        status, text = core_call("GET", where, timeout=30)
-        if status != 200:
-            log(f"files: could not open {path}: {text[:120]}")
+        at, why = ask_json("GET", where, timeout=30)
+        if why:
+            log(f"files: could not open {path}: {why[:120]}")
             return
-        at = json.loads(text)
         if not at.get("sealed"):
             _launch(at["abs"])
             return
-        status, text = core_call("GET", f"/projects/{quote(project)}/file/data?path={quote(path)}", timeout=60)
-        if status == 200:
-            _launch(_copy_out(project, path.split("/")[-1], base64.b64decode(json.loads(text)["data"])))
+        got, why = ask_json("GET", f"/projects/{quote(project)}/file/data?path={quote(path)}", timeout=60)
+        if why or "data" not in got:
+            log(f"files: could not open {path}: {(why or 'no file in the answer')[:120]}")
+            return
+        _launch(_copy_out(project, path.split("/")[-1], base64.b64decode(got["data"])))
     threading.Thread(target=run, daemon=True).start()

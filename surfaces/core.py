@@ -61,20 +61,27 @@ def call(method: str, path: str, body: str | None = None, timeout: float = 10) -
             forget_projects()
 
 
-def get_json(path: str, fallback=None, timeout: float = 10):
+def ask_json(method: str, path: str, body: str | None = None, timeout: float = 10) -> tuple:
     """
-    A read from the core, parsed: `fallback` for anything but a 200 with
-    JSON in it — the core away, an error, a reply cut short. Every reading of
-    the core in this process goes through here, so none of them is the one
-    left without its `try`.
+    Anything asked of the core, its answer parsed: `(data, None)` for a 200
+    with JSON in it, else `(None, why)` — the core's own words where it gave
+    some, so a caller that says what went wrong can say it. Every reading of
+    the core in this process goes through here (or `get_json`), so none of
+    them is the one left without its `try`.
     """
-    status, text = call("GET", path, timeout=timeout)
+    status, text = call(method, path, body, timeout=timeout)
     if status != 200:
-        return fallback
+        return None, (text or f"the core answered {status}")[:200]
     try:
-        return json.loads(text)
+        return json.loads(text), None
     except ValueError:
-        return fallback
+        return None, "the core's answer was cut short"
+
+
+def get_json(path: str, fallback=None, timeout: float = 10):
+    """A read from the core, parsed: `fallback` for anything but a 200 with JSON in it (`ask_json`, its reason dropped)."""
+    data, why = ask_json("GET", path, timeout=timeout)
+    return fallback if why else data
 
 
 #: Every project, as the core last listed them, and when (`projects`).
