@@ -168,9 +168,18 @@ class MorganBridge(Bridge):
             return
         super().request(rid, method, path, body)
 
-    @Slot(str, result=str)
-    def call(self, line: str) -> str:
-        return command(line)
+    #: The daemon's answer to `callLater`: `(id, its line)`.
+    answered = Signal(int, str)
+
+    @Slot(int, str)
+    def callLater(self, rid: int, line: str) -> None:  # noqa: N802 — called from the page by this name
+        """
+        One command to the daemon, answered later on `answered`. Never on this
+        thread: asked here, a daemon slow to answer held every surface for up
+        to the command's 20 seconds — the pointer moved and nothing took a
+        press — and the panel asks every minute (2026-10-28).
+        """
+        threading.Thread(target=lambda: self.answered.emit(rid, command(line)), daemon=True).start()
 
     @Slot(result=str)
     def look(self) -> str:

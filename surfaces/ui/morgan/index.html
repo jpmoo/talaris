@@ -752,6 +752,11 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
+  // `bridge.call(line, then)` as it always was, answered later off the process's own thread (morgan.py, callLater).
+  const waiting = new Map();
+  let calls = 0;
+  bridge.answered.connect((id, text) => { const then = waiting.get(id); waiting.delete(id); if (then) then(text); });
+  bridge.call = (line, then) => { const id = ++calls; if (then) waiting.set(id, then); bridge.callLater(id, line); };
   bridge.look((look) => {
     const { accent, font, glyphs, theme } = JSON.parse(look);
     if (theme) Surface.applyTheme(theme);

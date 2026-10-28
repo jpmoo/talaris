@@ -116,6 +116,8 @@ const Icons = (() => {
   // Notifications: a bell. With some unread the bar sets a dot at its shoulder
   // (bar.html's #bell .dot), a thing of its own so it keeps its color and place.
   const bell = () => svg('<path d="M4 11V7.4a4 4 0 0 1 8 0V11l1.2 1.5H2.8z"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>');
+  // Open windows: two windows, one before the other.
+  const windows = () => svg('<rect x="2" y="4.5" width="9" height="8" rx="1.2"/><path d="M5 4.5V3.2A1.2 1.2 0 0 1 6.2 2H13a1 1 0 0 1 1 1v6.8a1.2 1.2 0 0 1-1.2 1.2H11M2 7h9"/>');
   // A book (Library's books, read or waiting).
   const book = () => svg('<path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/>');
   // Before and after (a month, a week): chevrons. A lock (a network with a password).
@@ -138,5 +140,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

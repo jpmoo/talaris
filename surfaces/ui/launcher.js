@@ -387,8 +387,13 @@ let viewing = null;
 let openWindows = [];
 const HINT = "↑↓ choose · Enter open · Esc close";
 
+$("show-windows").innerHTML = Icons.windows();
+// The button beside the box: to Open windows, and back.
+$("show-windows").addEventListener("click", (e) => { e.stopPropagation(); showWindows(!viewing); $("q").focus(); });
+
 function showWindows(on) {
   viewing = on ? "windows" : null;
+  $("show-windows").classList.toggle("on", !!on);
   $("q").value = "";
   at = 0;
   armed = null;
@@ -578,6 +583,7 @@ function onState(s) {
   // Each opening starts clean, with a fresh look at what there is — the tags too.
   $("q").value = "";
   viewing = null;
+  $("show-windows").classList.remove("on");
   $("hint").textContent = HINT;
   tagCache = new Map();
   at = 0;

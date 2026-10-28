@@ -33,6 +33,7 @@ body { background: var(--catch); cursor: pointer; }
   color: var(--text) !important; font-size: 18px; letter-spacing: .3px; padding: 2px 0;
 }
 #q::placeholder { color: var(--muted); }
+#show-windows { flex: none; }
 #scope { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
 
 #list { max-height: 440px; overflow: auto; padding: 4px; }
@@ -67,7 +68,7 @@ body { background: var(--catch); cursor: pointer; }
 </head>
 <body>
 <div id="box" data-arrives>
-  <div id="top"><span id="glass"></span><input id="q" autocomplete="off" spellcheck="false"><span id="scope"></span></div>
+  <div id="top"><span id="glass"></span><input id="q" autocomplete="off" spellcheck="false"><span id="scope"></span><button class="icon-btn" id="show-windows" title="Open windows"></button></div>
   <div id="list"></div>
   <div id="foot"><span id="msg"></span><span id="hint">↑↓ choose · Enter open · Esc close</span></div>
 </div>
