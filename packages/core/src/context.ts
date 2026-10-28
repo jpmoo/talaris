@@ -60,7 +60,7 @@ const RELATED = 15;
  * one yes-or-no field — the format names no slot for that, so the field is
  * found by its kind, never by its name.
  */
-function eventTimes(o: Entity): { start?: string; allDay?: boolean } {
+export function eventTimes(o: Entity): { start?: string; allDay?: boolean } {
   const type = types().find((t) => t.id === o.type);
   const start = readSlot(type, o, "start", "event");
   const flags = type?.fields.filter((f) => f.kind === "boolean") ?? [];

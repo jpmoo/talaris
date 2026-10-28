@@ -61,7 +61,7 @@ import * as files from "./files.js";
 import * as filelists from "./filelists.js";
 import * as threads from "./threads.js";
 import * as meaning from "./meaning.js";
-import { contextFor } from "./context.js";
+import { contextFor, eventTimes } from "./context.js";
 import { mergeEntities, mergedInto } from "./merge.js";
 import * as suggest from "./suggest.js";
 import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
@@ -538,7 +538,11 @@ route("GET", "/entities/:id", (_r, [asked], q) => {
   // and says how many. Everything is still here, for what shows its fields.
   const s = q.get("shown") ? shownSettings() : {};
   const hidden = leavesOut(s) ? [...new Set([...out, ...incoming].map((c) => c.entity.id))].filter((x) => { try { return leftOut(entities.getEntity(x), s); } catch { return false; } }) : [];
-  return { entity, title: entities.titleOf(entity), kinds: entities.profilesOf(entity), out, in: incoming, ...(hidden.length ? { hidden } : {}), ...(id !== asked ? { mergedFrom: asked } : {}) };
+  // An event's start and whether it is all day, read through its type's profile (context.ts): what asks over the
+  // socket (the desktop's tools) need not know the type's field names.
+  const kinds = entities.profilesOf(entity);
+  const when = kinds.includes("event") ? eventTimes(entity) : null;
+  return { entity, title: entities.titleOf(entity), kinds, out, in: incoming, ...(when ? { when } : {}), ...(hidden.length ? { hidden } : {}), ...(id !== asked ? { mergedFrom: asked } : {}) };
 });
 // Two of one kind made one (merge.ts): this one into `into`.
 route("POST", "/entities/:id/merge", async (req, [id]) => {

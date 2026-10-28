@@ -262,14 +262,14 @@ export function desktopTools(core: Core): DesktopTool[] {
           const eid = encodeURIComponent(str(a.id));
           const place = await core<{ kind: string; project: string; where: string }>("GET", `/entities/${eid}/place`).catch(() => null);
           if (place) { await surfaces({ do: "open", ...place }); return "Opened."; }
-          const r = await core<{ kinds: string[]; title: string; entity: Record<string, unknown> & { properties: Record<string, unknown> } }>("GET", `/entities/${eid}`);
+          const r = await core<{ kinds: string[]; title: string; when?: { start?: string }; entity: Record<string, unknown> & { properties: Record<string, unknown> } }>("GET", `/entities/${eid}`);
           if (r.kinds.includes("task")) await surfaces({ do: "open", kind: "task", id: str(a.id) });
           else if (r.kinds.includes("contact")) await surfaces({ do: "open", kind: "person", id: str(a.id) });
           else if (r.kinds.includes("event")) {
             const src = ((r.entity["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "eds-event");
             if (!src) throw new Error(`${r.title} is not on a calendar; read it with talaris_read instead`);
             const at = src.key.indexOf("/");
-            await surfaces({ do: "open", kind: "event", calendar: src.key.slice(0, at), uid: src.key.slice(at + 1), start: str(r.entity.properties.start) });
+            await surfaces({ do: "open", kind: "event", calendar: src.key.slice(0, at), uid: src.key.slice(at + 1), start: str(r.when?.start ?? "") });
           } else throw new Error(`${r.title} has no place of its own to open; read it with talaris_read`);
           return `Opened ${r.title}.`;
         }

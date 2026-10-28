@@ -20,7 +20,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  connections, deleteEntity, getEntity, link, relationsFrom, types, unlink, updateEntity, type Entity, type Source,
+  allRecords, connections, deleteEntity, getEntity, link, relationsFrom, types, unlink, updateEntity, type Entity, type Source,
 } from "./entities.js";
 import { placeOf } from "./mentionables.js";
 import { readPage, writePage } from "./pages.js";
@@ -93,6 +93,27 @@ export function mergeEntities(dropId: string, keepId: string): Entity {
   const outgoing = relationsFrom(dropId).filter((r) => r.via !== "inline" && r.to !== keepId);
 
   // Whatever pointed at the other, pointed at the kept one.
+  repoint(dropId, keepId);
+
+  // Its files taken over before it goes, so they are not forgotten with it; where else it lives, after (one place, one thing).
+  updateEntity(keepId, { properties: props, tags });
+  deleteEntity(dropId);
+  for (const r of outgoing) {
+    try { link({ ...r, from: keepId }); } catch (e) { if (!(e instanceof NotFound)) throw e; }
+  }
+  const kept = sources.length ? updateEntity(keepId, { sources }) : getEntity(keepId);
+  rememberMerge(dropId, keepId);
+  return kept;
+}
+
+/**
+ * Everything that pointed at `dropId` pointed at `keepId` instead: its
+ * reference fields, a mention of it in a field's words or the body, a mention
+ * in a page's words, and its links. The one way a thing that goes is followed
+ * by what pointed at it — two people made one (`mergeEntities`), and two
+ * projects made one (archive.ts) alike.
+ */
+export function repoint(dropId: string, keepId: string): void {
   const c = connections(dropId);
   const swapText = (s: string) => s.split(`(talaris:${dropId})`).join(`(talaris:${keepId})`);
   for (const from of new Set(c.in.map((x) => x.entity.id))) {
@@ -120,15 +141,17 @@ export function mergeEntities(dropId: string, keepId: string): Entity {
     }
   }
 
-  // Its files taken over before it goes, so they are not forgotten with it; where else it lives, after (one place, one thing).
-  updateEntity(keepId, { properties: props, tags });
-  deleteEntity(dropId);
-  for (const r of outgoing) {
-    try { link({ ...r, from: keepId }); } catch (e) { if (!(e instanceof NotFound)) throw e; }
+  // A mention in a thing's own words (its body) is no link the store keeps — the format's inline edges are for
+  // declared fields — so it is looked for in every body: rare enough (a merge) to read them all.
+  for (const { object: o } of allRecords()) {
+    if (o.id === dropId || typeof o.content !== "string" || !o.content.includes(`talaris:${dropId}`)) continue;
+    updateEntity(o.id, { content: swapText(o.content) });
   }
-  const kept = sources.length ? updateEntity(keepId, { sources }) : getEntity(keepId);
+}
+
+/** `dropId` is now `keepId`: remembered, so a link to the one gone still leads somewhere (`mergedInto`). */
+export function rememberMerge(dropId: string, keepId: string): void {
   const map = aliasMap();
   map[dropId] = keepId;
   writeAtomic(ALIASES(), seal(storeKey(), JSON.stringify(map)));
-  return kept;
 }

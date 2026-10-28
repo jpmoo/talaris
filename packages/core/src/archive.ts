@@ -6,6 +6,7 @@ import { basename, dirname, join, relative, sep } from "node:path";
 import type { CanvasDocument, CanvasItem, PageNode, Project, ProjectSummary } from "@talaris/model";
 import { allRecords, deleteEntity, updateEntity, type Entity } from "./entities.js";
 import { filedUnder, projectEntity } from "./filing.js";
+import { rememberMerge, repoint } from "./merge.js";
 import { MACHINERY, WRITING, projectsRoot } from "./paths.js";
 import { Conflict, NotFound, archiveRoot, archivedProjects, findProject, folderName, listProjects, projectFile, readProject } from "./projects.js";
 import { readJson, readText, writeJson } from "./store.js";
@@ -316,12 +317,11 @@ function merge(restored: ProjectSummary, active: ProjectSummary, decisions: Reco
     const patch: Record<string, unknown> = {};
     if (moved.some((s, i) => s !== sources[i])) patch["talaris:sources"] = moved;
     if (o[WITH] === restored.id) { patch.archived = false; patch[WITH] = null; }
-    // Every reference to the one going is moved, not only filing: a mention of it in words too, or it would point at nothing.
-    if (theirs && ours && o.id !== theirs.id && JSON.stringify(o.properties).includes(theirs.id)) {
-      patch.properties = JSON.parse(JSON.stringify(o.properties).split(theirs.id).join(ours.id)) as Record<string, unknown>;
-    }
     if (Object.keys(patch).length) updateEntity(o.id, patch);
   }
+  // What pointed at the one going points at the one kept, as when two people are made one (merge.ts): its
+  // filing, a mention of it in words, in a page, its links — and the one gone is remembered as the one kept.
+  if (theirs && ours) { repoint(theirs.id, ours.id); rememberMerge(theirs.id, ours.id); }
   if (theirs) deleteEntity(theirs.id);
 
   // What is left of it (its machinery) is set aside with the rest, and the folder goes.

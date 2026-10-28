@@ -439,6 +439,9 @@ test("an archived project leaves every list, is read and not written, and comes 
   pages.writePage(other.id, "Agenda", "Day two");
   const asked = archive.restoreProject(p.id);
   assert.ok(!asked.done && asked.clash.id === other.id);
+  // A mention of the archived project in a thing's own words, which a merge must follow too (merge.ts repoint).
+  const theirsId = tasks.taskProjects().find((x) => x.workspace === p.id)!.id;
+  const mentioning = entities.createEntity({ type: "t_event", properties: { title: "Retreat notes" }, content: `See [@Retreat](talaris:${theirsId}) for the plan.` });
   // Merging: the page both have is asked about; the file only it has just comes.
   const merging = archive.restoreProject(p.id, { mode: "merge" });
   assert.ok(!merging.done && merging.conflicts?.includes("Writing/Agenda.md"));
@@ -451,6 +454,9 @@ test("an archived project leaves every list, is read and not written, and comes 
   assert.ok(JSON.stringify(entities.getEntity(task.id).properties).includes(otherEntity.id), "its task is filed under the one in use");
   assert.ok(!entities.getEntity(task.id).archived);
   assert.throws(() => projects.findProject(p.id), /no project/, "and the archived one is gone, folded in");
+  assert.ok(String(entities.getEntity(mentioning.id).content).includes(`talaris:${otherEntity.id}`), "a mention in words follows it");
+  const { mergedInto } = await import("../src/merge.js");
+  assert.equal(mergedInto(theirsId), otherEntity.id, "and a link to the one gone leads to the one kept");
 });
 
 test("the live binding files a thing away and brings it back; a patch not naming it leaves it (fixtures/archive.json)", async () => {
