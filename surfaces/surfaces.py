@@ -561,8 +561,7 @@ class Desktop(QObject):
             {"keys": "Super + V", "does": "Clipboard history"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
             {"keys": "Super + Shift + W", "does": "The writing surface"},
-            {"keys": "Super + Alt", "does": "The projects, to go to one (type to find it)"},
-            {"keys": "Super + Alt + a letter", "does": "The project it starts, or a choice of them"},
+            {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
             {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]

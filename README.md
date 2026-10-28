@@ -73,7 +73,10 @@ out.
   `notify-send`.
 
 `./install.sh` builds everything, installs and starts the services, and
-writes `talaris.conf`.
+writes `talaris.conf`; one `source =` line in your `hyprland.conf` turns it
+on. [examples/hyprland.conf](examples/hyprland.conf) is an annotated
+starting point: what stays yours, and what to leave out because Talaris
+does it.
 
 ### How security is handled
 

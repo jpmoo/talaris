@@ -72,6 +72,7 @@ CONF
   if ! grep -qs 'talaris.conf' "$HYPR/hyprland.conf"; then
     echo "    To start Talaris with Hyprland, add this line to the end of $HYPR/hyprland.conf:"
     echo "      source = $HYPR/talaris.conf"
+    echo "    What to leave out of it, because Talaris does it: $ROOT/examples/hyprland.conf"
   fi
 fi
 
