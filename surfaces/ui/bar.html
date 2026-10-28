@@ -50,7 +50,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
 #where { margin-right: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
-#where .code { color: color-mix(in srgb, var(--muted) 75%, var(--surface)); margin-left: 10px; letter-spacing: 2px; }
+#where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 #where .nm { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A project gone to: its name lit up a moment — the accent filling it, then fading — so where you are is plain. */
 @keyframes where-flash {
@@ -62,7 +62,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 /* The code lit with the name, and faded back to its own dim colour by the end: not left bright, then snapped back. */
 @keyframes where-flash-code {
   0%, 35% { color: var(--surface); }
-  100% { color: color-mix(in srgb, var(--muted) 75%, var(--surface)); }
+  100% { color: var(--muted); }
 }
 #where.flash .code { animation: where-flash-code 1.8s ease-out; }
 #where.flash .code.alone { animation-name: where-flash-code-alone; }
@@ -96,8 +96,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 .bar-item .n, #clock span { display: block; line-height: normal; }
 /* In a button the number sat a part pixel low and lost its bottom row: a pixel of room. */
 .bar-item .n { padding-bottom: 2px; font-size: 13px; position: relative; top: 1px; }
-/* The name and code sit a little low of center, as the eye reads capitals. */
-#where { padding-top: 2px; padding-bottom: 0; }
+/* The name and code centered in the pill. */
+#where { padding-top: 0; padding-bottom: 0; }
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
