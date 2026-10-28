@@ -323,6 +323,11 @@ as Settings has it. Each change is logged with the application, its title, the
 desktop and its mode (`fullscreen:` in the journal), so the next time the screen
 is taken, the log says by what. Talaris's own key for filling the screen
 (Super+Shift+F) maximizes instead, which never covered the bar.
+**Super+Escape takes it out of fullscreen** (2026-10-28): Zoom, sharing a
+screen, goes fullscreen and says Escape brings it back, but its Escape does
+not always reach the window that is fullscreen. Super+Escape, which puts
+everything away and which Talaris binds itself, now also puts a fullscreen
+window back in its tile and tells it so.
 
 ### The dock
 

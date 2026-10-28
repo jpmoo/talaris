@@ -558,7 +558,7 @@ class Desktop(QObject):
             {"keys": "Super + Shift + W", "does": "The writing surface"},
             {"keys": "Super + Alt", "does": "The projects, to go to one (type to find it)"},
             {"keys": "Super + Alt + a letter", "does": "The project it starts, or a choice of them"},
-            {"keys": "Super + Alt + Escape", "does": "Put everything away"},
+            {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]
 
@@ -844,6 +844,8 @@ class Desktop(QObject):
             if verb == "toggle" and arg in self.workspaces:
                 self.workspaces[arg].toggle()
             elif verb == "file-all":
+                # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
+                self.fullscreen.leave()
                 self.bar.close_popup()
                 self.launcher.file_away()
                 self.settings.file_away()

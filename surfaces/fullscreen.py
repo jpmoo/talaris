@@ -17,6 +17,12 @@ out over the window, as a Mac's menu bar comes out over a fullscreen app, and
 it goes again when the pointer leaves. When nothing is fullscreen the bar is
 as Settings has it.
 
+And Super+Escape, the key that puts everything away, takes it out of
+fullscreen too (`leave`): Zoom, sharing a screen, goes fullscreen and says
+Escape brings it back, but its Escape does not always reach the window that
+is fullscreen (2026-10-28). Talaris binds Super+Escape itself, so it works
+whatever covers the screen; the window goes back to its tile, and is told so.
+
 Each change is logged with the window — which application, its title, which
 desktop, and the mode it is in and the one it was told it is in — so that the
 next time the screen is taken, the journal says by what.
@@ -77,3 +83,15 @@ class Fullscreen(QObject):
         elif before:
             log(f"fullscreen: nothing covers the desktop in front (was {before['class'] or '?'} on {before['workspace']}); the bar as Settings has it")
         self.desktop.bar.cover(bool(now))
+
+    def leave(self) -> bool:
+        """The window covering the desktop in front, out of fullscreen and back in its tile; False if none was."""
+        now = covering()
+        if not now or not now["address"].startswith("0x"):
+            return False
+        hypr.ask(f"/dispatch focuswindow address:{now['address']}")
+        # Neither Hyprland's fullscreen nor the one the window was told: it is a window again, and knows it.
+        hypr.ask("/dispatch fullscreenstate 0 0")
+        log(f"fullscreen: {now['class'] or '?'} taken out of fullscreen (Super+Escape)")
+        QTimer.singleShot(0, self.check)
+        return True
