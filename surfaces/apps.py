@@ -246,10 +246,6 @@ class Apps:
         return sorted((w for w in windows if item_key(self.lookup(w["class"]), w["class"]) == key), key=lambda w: w["recent"])
 
 
-def item_key(app: dict, wm_class: str) -> str:
-    """What an application is known by: its launcher's id where there is one, else its window class."""
-    return app.get("id") or f"class:{wm_class}"
-
     def icon_png(self, name: str, size: int = 64) -> bytes | None:
         """An icon by theme name or absolute path, as PNG bytes; `None` if there is none."""
         if not name:
@@ -270,3 +266,8 @@ def item_key(app: dict, wm_class: str) -> str:
                 data = bytes(QByteArray(buf.data()))
         self._icons[(name, size)] = data
         return data or None
+
+
+def item_key(app: dict, wm_class: str) -> str:
+    """What an application is known by: its launcher's id where there is one, else its window class."""
+    return app.get("id") or f"class:{wm_class}"
