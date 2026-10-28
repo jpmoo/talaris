@@ -152,5 +152,10 @@ Surface.connect({
     head();
   });
   b.event.connect(hear);
+  // Morgan answers later, off the process's own thread (morgan.py, callLater).
+  const waiting = new Map();
+  let calls = 0;
+  b.answered.connect((id, text) => { const then = waiting.get(id); waiting.delete(id); if (then) then(text); });
+  b.call = (line, then) => { const id = ++calls; if (then) waiting.set(id, then); b.callLater(id, line); };
   b.call("status", (text) => { try { const s = JSON.parse(text); if (s.name) name = s.name; if (s.state) now = s.state; head(); } catch { /* not up */ } });
 });
