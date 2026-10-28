@@ -116,6 +116,10 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .net .what input { width: 150px; }
 .net.current .name { color: var(--accent); }
 .dim-row { opacity: .55; }
+/* Shown, then how what it opens comes and goes: greyed while it is off the bar. */
+#bar-shown .what { gap: 12px; }
+#bar-shown .seg.off { opacity: .4; }
+#bar-shown .seg.off button { cursor: default; }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 .recovery-key { font-family: ui-monospace, monospace; font-size: 15px; letter-spacing: 1px; padding: 10px 12px; margin: 8px 0; background: var(--desk); border: 1px solid var(--accent); border-radius: var(--radius-row); user-select: all; word-break: break-all; }
 .data-buttons { display: flex; gap: 8px; margin-top: 6px; }
@@ -284,24 +288,14 @@ footer #msg.err, .note.err { color: var(--danger); }
     </section>
     <section id="bar-page">
       <h2>Bar</h2>
-      <h3>What opens from the bar</h3>
-      <p class="note" style="margin:0 0 10px">How each comes and goes: as windows open, or as panels do (the Panels page).</p>
-      <div class="row"><span class="name">Launcher</span><span class="what"><span class="seg" id="ov-launcher"></span></span></div>
-      <div class="row"><span class="name">Morgan</span><span class="what"><span class="seg" id="ov-morgan"></span></span></div>
-      <div class="row"><span class="name">New</span><span class="what"><span class="seg" id="ov-new"></span></span></div>
-      <div class="row"><span class="name">Projects</span><span class="what"><span class="seg" id="ov-jump"></span></span></div>
-      <div class="row"><span class="name">Archive</span><span class="what"><span class="seg" id="ov-archive"></span></span></div>
-      <div class="row"><span class="name">Settings</span><span class="what"><span class="seg" id="ov-settings"></span></span></div>
-      <div class="row"><span class="name">Calendar</span><span class="what"><span class="seg" id="ov-calendar"></span></span></div>
-      <div class="row"><span class="name">People</span><span class="what"><span class="seg" id="ov-people"></span></span></div>
-      <div class="row"><span class="name">Files</span><span class="what"><span class="seg" id="ov-files"></span></span></div>
-      <div class="row"><span class="name">Glance</span><span class="what"><span class="seg" id="ov-glance"></span></span></div>
-      <div class="row"><span class="name">Tasks</span><span class="what"><span class="seg" id="ov-tasks"></span></span></div>
-      <div class="row"><span class="name">Canvas</span><span class="what"><span class="seg" id="ov-canvas"></span></span></div>
-      <div class="row"><span class="name">Writing</span><span class="what"><span class="seg" id="ov-writing"></span></span></div>
       <h3>Shown</h3>
+      <p class="note" style="margin:0 0 10px">Each on the bar or not; what it opens, how it comes and goes: as windows open, or as panels do (the Panels page).</p>
       <div id="bar-shown"></div>
       <div class="row"><span class="name">Spacing<small>Between the bar's items</small></span><span class="what"><input type="range" id="bar-spacing" min="0" max="24"><span class="n" id="bar-spacing-n"></span></span></div>
+      <h3>Opened another way</h3>
+      <div class="row"><span class="name">Archive<small>From the project's menu</small></span><span class="what"><span class="seg" id="ov-archive"></span></span></div>
+      <div class="row"><span class="name">Glance<small>Super+Shift+G</small></span><span class="what"><span class="seg" id="ov-glance"></span></span></div>
+      <div class="row"><span class="name">Settings</span><span class="what"><span class="seg" id="ov-settings"></span></span></div>
       <h3>Project</h3>
       <div class="row"><span class="name">Shows<small>The project's name, its code, or both</small></span><span class="what"><span class="seg" id="bar-project"></span></span></div>
       <h3>Tray</h3>

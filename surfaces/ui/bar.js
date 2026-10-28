@@ -59,7 +59,14 @@ function onState(s) {
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   $("where").innerHTML = "";
-  if (shows !== "code" || !p.code) $("where").append(p.name || "Home");
+  if (shows !== "code" || !p.code) {
+    // No longer than "Board of Education" in the bar's own type, measured as it is drawn, so a change of
+    // typeface or size moves the limit with it; a longer name ends in an ellipsis (its tip says it whole).
+    const nm = Object.assign(document.createElement("span"), { className: "nm", textContent: "Board of Education" });
+    $("where").append(nm);
+    nm.style.maxWidth = `${Math.ceil(nm.getBoundingClientRect().width) + 1}px`;
+    nm.textContent = p.name || "Home";
+  }
   if (p.code && shows !== "name") {
     const code = document.createElement("span");
     code.className = "code" + (shows === "code" ? " alone" : "");

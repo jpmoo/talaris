@@ -240,7 +240,8 @@ class BarBridge(Bridge):
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.bar.close_popup()
-        self.owner.desktop.go_to_project(project)
+        # Chosen from the bar's menu, which has gone: the bar's name flashes, as for any other way of going.
+        self.owner.desktop.go_to_project(project, announce=True)
 
     @Slot(str)
     def powerProfile(self, name: str) -> None:  # noqa: N802 — called from the page by this name

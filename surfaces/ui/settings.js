@@ -92,7 +92,8 @@ function draw() {
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
-  for (const who of ["launcher", "new", "jump", "people", "files", "glance", "archive", "morgan", "settings", "calendar", "tasks", "canvas", "writing"]) {
+  // What the bar's items open are drawn with them (drawBarShown); these open another way.
+  for (const who of ["glance", "archive", "settings"]) {
     seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
@@ -1623,8 +1624,14 @@ $("unlock-go").addEventListener("click", async () => {
 const BAR_SHOWN = [["where", "Project"], ["ask", "Launcher"], ["morgan", "Morgan"], ["new", "New"], ["tasks", "Tasks"], ["people", "People"], ["files", "Library"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
   ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["bell", "Notifications"], ["power", "Power"]];
+// What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
+// from either half: its motion is on Time's row, and greyed only when neither half is shown.
+const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],
+  files: ["files"], canvas: ["canvas"], writing: ["writing"], time: ["calendar", "Opens the calendar"] };
 function drawBarShown() {
   const hidden = new Set(cfg.bar.hidden || []);
+  const ov = cfg.overlays || {};
+  const off = (id) => (id === "time" ? hidden.has("day") && hidden.has("time") : hidden.has(id));
   $("bar-shown").replaceChildren(...BAR_SHOWN.map(([id, label]) => {
     const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: "Shown" });
     sw.addEventListener("click", () => {
@@ -1632,7 +1639,16 @@ function drawBarShown() {
       if (next.has(id)) next.delete(id); else next.add(id);
       save({ bar: { hidden: [...next] } });
     });
-    return el("div", { class: "row" }, el("span", { class: "name" }, label), el("span", { class: "what" }, sw));
+    const opens = BAR_OPENS[id];
+    const name = el("span", { class: "name" }, label, opens && opens[1] ? el("small", {}, opens[1]) : "");
+    if (!opens) return el("div", { class: "row" }, name, el("span", { class: "what" }, sw));
+    // Shown first, then how it comes and goes — greyed, and not to be changed, while it is off the bar.
+    const who = opens[0], gone = off(id);
+    const how = el("span", { class: "seg" + (gone ? " off" : ""), title: gone ? "Not on the bar" : "How it comes and goes" },
+      ...[["windows", "As windows"], ["drawers", "As panels"]].map(([value, text]) =>
+        el("button", { class: value === (ov[who] || "windows") ? "on" : "", ...(gone ? { disabled: "" } : {}),
+          onclick: () => !gone && value !== (ov[who] || "windows") && save({ overlays: { ...(cfg.overlays || {}), [who]: value } }) }, text)));
+    return el("div", { class: "row" }, name, el("span", { class: "what" }, sw, how));
   }));
 }
 

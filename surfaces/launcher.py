@@ -406,7 +406,7 @@ class Launcher(QObject):
                 return "That window has gone"
             hypr.focus(r["address"])
         elif kind == "project":
-            self.desktop.go_to_project(str(r["id"]))
+            self.desktop.go_to_project(str(r["id"]), announce=True)
         elif kind == "canvas" and r.get("project"):
             # A canvas wherever it is, found by what it says: opened in its project.
             self.desktop.open_place("canvas", str(r["project"]), str(r["id"]))
