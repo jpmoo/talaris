@@ -36,24 +36,30 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 .side.end { justify-content: flex-end; }
 
 
-/* Where you are: the project, letter-spaced like every label, with its code. */
-#where { cursor: pointer; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--radius-control); }
+/* Where you are: the project, letter-spaced like every label, with its code —
+   on a soft pill of the accent, the bar's whole height, so it reads at a glance
+   without shouting. Going to another project still lights it fully (below). */
+.side:first-child { align-self: stretch; }
+#where { --where-rest: color-mix(in srgb, var(--accent) 13%, transparent);
+  cursor: pointer; align-self: stretch; display: flex; align-items: center; padding: 0 14px;
+  border: 1px solid transparent; border-radius: 999px; background: var(--where-rest); transition: background .15s, border-color .15s; }
+#where:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
 #where { margin-right: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
-#where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
+#where .code { color: color-mix(in srgb, var(--text) 62%, var(--accent)); margin-left: 10px; letter-spacing: 2px; }
 #where .nm { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A project gone to: its name lit up a moment — the accent filling it, then fading — so where you are is plain. */
 @keyframes where-flash {
-  0% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scale(1.12); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); }
-  35% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-  100% { background: transparent; border-color: transparent; transform: none; box-shadow: none; }
+  0% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scaleX(1.08); box-shadow: 0 0 14px 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+  35% { background: var(--accent); color: var(--surface); border-color: var(--accent); transform: scaleX(1.02); box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+  100% { background: var(--where-rest); border-color: transparent; transform: none; box-shadow: none; }
 }
-#where.flash { animation: where-flash 1.8s ease-out; }
+#where.flash { animation: where-flash 1.8s ease-out; transform-origin: left center; }
 /* The code lit with the name, and faded back to its own dim colour by the end: not left bright, then snapped back. */
 @keyframes where-flash-code {
   0%, 35% { color: var(--surface); }
-  100% { color: var(--muted); }
+  100% { color: color-mix(in srgb, var(--text) 62%, var(--accent)); }
 }
 #where.flash .code { animation: where-flash-code 1.8s ease-out; }
 #where.flash .code.alone { animation-name: where-flash-code-alone; }
