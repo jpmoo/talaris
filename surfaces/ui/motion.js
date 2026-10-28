@@ -250,7 +250,8 @@ const Motion = (() => {
 
   function arrive(panel, o) {
     reset(panel, o);
-    if (still(o)) { settled(o.viewport).then(() => drawn(o)); return; }
+    // No motion: shown as it is — a panel that starts hidden until it arrives (settings.html) is shown here too.
+    if (still(o)) { panel.style.visibility = ""; settled(o.viewport).then(() => drawn(o)); return; }
     const mine = ++arrival;
     panel.style.visibility = "hidden";
     settled(o.viewport).then(() => {

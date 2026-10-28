@@ -317,22 +317,52 @@ async function drawPageTags() {
     drawPageTags();
     if (tagFilter.get(pid)) loadWriting();
   };
-  const input = el("input", { type: "text", class: "tag-add", placeholder: tags.length ? "+ tag" : "Add a tag", spellcheck: "false", list: "tagSuggestions" });
+  const input = el("input", { type: "text", class: "tag-add", placeholder: tags.length ? "+ tag" : "Add a tag", spellcheck: "false", autocomplete: "off" });
+  const add = (t) => { if (t && !tags.includes(t)) save([...tags, t]); else input.value = ""; };
+  /*
+   * The tags already in use, offered as it is typed, in the drawer's own menu
+   * — themed, and scrolling when there are many. It was a <datalist>, which is
+   * the browser's own list: drawn in no theme, and no taller than it chose.
+   * Above the box when there is more room there (the tags sit at the page's foot).
+   */
+  let known = [], offered = [], at = -1;
+  core("GET", "/tags").then((all) => { known = all; if (document.activeElement === input) offer(); }).catch(() => {});
+  const mark = () => menu && [...menu.children].forEach((b, i) => { b.classList.toggle("on", i === at); if (i === at) b.scrollIntoView({ block: "nearest" }); });
+  const offer = () => {
+    closeMenu();
+    at = -1;
+    const q = input.value.trim().replace(/^#+/, "").toLowerCase();
+    offered = known.filter(({ tag }) => !tags.includes(tag) && tag.toLowerCase().includes(q));
+    if (!offered.length || document.activeElement !== input) return;
+    menu = el("div", { class: "context scrolls" }, ...offered.map(({ tag, count }) =>
+      el("button", { class: "menu-item", title: `#${tag}`, onmousedown: (e) => { e.preventDefault(); closeMenu(); add(tag); } },
+        el("span", { class: "tg" }, `#${tag}`), el("span", { class: "n" }, String(count)))));
+    const r = input.getBoundingClientRect();
+    const below = innerHeight - r.bottom - 12, above = r.top - 12;
+    menu.style.left = `${r.left}px`;
+    if (below >= 160 || below >= above) { menu.style.top = `${r.bottom + 4}px`; menu.style.maxHeight = `${below}px`; }
+    else { menu.style.bottom = `${innerHeight - r.top + 4}px`; menu.style.maxHeight = `${above}px`; }
+    document.body.append(menu);
+  };
+  input.addEventListener("focus", offer);
+  input.addEventListener("input", offer);
+  input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input) closeMenu(); }, 0));
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === ",") {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && menu && offered.length) {
       e.preventDefault();
-      const t = input.value.trim().replace(/^#+/, "").trim();
-      if (t && !tags.includes(t)) save([...tags, t]);
-      else input.value = "";
+      at = e.key === "ArrowDown" ? (at + 1) % offered.length : (at - 1 + offered.length) % offered.length;
+      mark();
+    } else if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const chosen = at >= 0 && e.key === "Enter" ? offered[at].tag : input.value.trim().replace(/^#+/, "").trim();
+      closeMenu();
+      add(chosen);
     } else if (e.key === "Backspace" && !input.value && tags.length) save(tags.slice(0, -1));
-    else if (e.key === "Escape") { input.value = ""; input.blur(); e.stopPropagation(); }
+    else if (e.key === "Escape") { closeMenu(); input.value = ""; input.blur(); e.stopPropagation(); }
   });
-  // The tags already in use, offered as it is typed.
-  const suggestions = el("datalist", { id: "tagSuggestions" });
-  core("GET", "/tags").then((all) => suggestions.replaceChildren(...all.map(({ tag }) => el("option", { value: tag })))).catch(() => {});
   box.replaceChildren(
     ...tags.map((t) => el("span", { class: "tag-chip" }, `#${t}`, el("button", { title: `Take off #${t}`, onclick: () => save(tags.filter((x) => x !== t)) }, "×"))),
-    input, suggestions);
+    input);
 }
 
 /** A row's star: on, it is kept at the top of its list. */
@@ -457,7 +487,9 @@ async function loadCanvas() {
     starredSection(tree.children, "canvas", (n) => n.id, kept.canvases || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "canvases", keys }); loadCanvas(); }),
     walk(tree, null, []));
+  const listKey = `canvas:${pid}`, top = scrolledTo(listKey);
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
+  scrollBack(treePane, listKey, top);
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
   const inside = el("button", { onclick: newCanvas }, "New canvas inside");
@@ -500,6 +532,21 @@ function sideToggle(pane, key, noun, along = []) {
 function view(id) {
   viewing = id;
   loadCanvas();
+}
+
+/*
+ * Where a list was scrolled, kept across its being drawn again. Choosing a
+ * page or a canvas draws the whole tree afresh, and a new one starts at the
+ * top: a page chosen far down Home's list sent the list back up past it.
+ * Kept only for the same list (`key`: the drawer, the tab, the project).
+ */
+function scrolledTo(key) {
+  const t = $("body").querySelector(".tree");
+  return t && t.dataset.list === key ? t.scrollTop : 0;
+}
+function scrollBack(tree, key, top) {
+  tree.dataset.list = key;
+  if (top) tree.scrollTop = top;
 }
 
 // The canvas's own theme follows the drawer's: mode, accent and typeface.
@@ -851,7 +898,9 @@ async function loadWriting() {
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
+  const listKey = `writing:${scope}:${pid}`, top = scrolledTo(listKey);
   $("body").replaceChildren(tree, pane);
+  scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
   if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(scope === "undated" ? PAGES : null) }, "New page"));
