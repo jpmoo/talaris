@@ -414,6 +414,53 @@ plugin provides.
 | Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |
 | Network and Bluetooth settings | `nmtui`, `bluetoothctl`, opened from the bar. |
 
+## One routine for each thing (2026-10-27)
+
+**Anything done the same way in two places is done by one routine.** Twice in
+one day a behaviour turned out to be built separately in each surface, then to
+drift: the dim behind panels (three ways) and the slide between projects (only
+from the carousel). An audit then found the same everywhere: twelve ways of
+asking twice, nine menus, six month pickers, five wordings for "when", two
+answers to what "3" means as a time, six definitions of "filed under a
+project", two rules for "overdue". Each is now one routine, and a new surface
+uses it rather than writing its own.
+
+- **The pages: `ui/kit.js`, `ui/kit.css`**, loaded by every page.
+  - **Times and dates:** worded one way, in the clock's 12 or 24 hours (Settings,
+    Clock). "Today", "Tomorrow", "5 min ago", "Oct 30 · 2:14 PM". Typed, read one
+    way: a bare "3" is 3 PM, and "fri" on a Friday is today.
+  - **One pop-up at a time:** under what opened it, or above with more room, and
+    kept on screen. It closes on a press elsewhere, a scroll or Escape. Its menu
+    has arrow keys and, past eight items, a box to narrow it. **One month picker**,
+    with the same quick days (Today, +1 day, +1 week, Next Mon, Clear).
+  - **Asking twice:** "Delete it?" in the danger colour, for four seconds. Two
+    confirmations explain before they ask, and stay as they are: deleting a
+    person, and enabling a plugin.
+  - **Finding by typing:** every word typed, accents aside. **Escape clears a
+    search box first**, then closes the panel. Searches asked of the core wait
+    200 ms after typing.
+  - **Lists:** an empty list says "No pages yet", or "Nothing matches" for a
+    search; one fold mark (▾, turned when shut); a list drawn again keeps its
+    place.
+  - **What is said back:** one line, sentence case, errors in the danger colour.
+  - **Asking the core:** one book of what waits. Only a 2xx is an answer, and an
+    answer that never comes is given up on.
+- **The surfaces: `overlay.py`** is every panel, the launcher and Settings
+  included. **`dim.py`** is the one dim. Python reads the core through
+  `core.get_json` and `core.projects()`. Workspaces are read through `hypr.is_special` and
+  `hypr.project_of`. One rule decides **bring, go or a new window** for an app:
+  `Dock.how`.
+- **The core:** the task profile is read through `profile.ts`, never by field
+  name. One `isComplete`. "Filed under a project" is `filing.ts` `filedUnder`,
+  and one resolver finds a project by name (`GET /projects/resolve`). Home is
+  `ensureHome`. Overdue is `localtime.ts` `isOverdue`: a time once passed, a
+  date from the next day.
+
+Left as they are on purpose: the Hermes sync's own reading of the format (two
+implementations prove it), and each list's sort control (a table's column
+header and a tree's order menu are different things). Still to unify: dragging
+works three ways, though the drop line looks the same.
+
 ## Morgan
 
 A voice-and-chat assistant: wake word, speech in and out, a local model for the
