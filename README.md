@@ -47,7 +47,8 @@ Talaris is a desktop shell for Hyprland, in two processes and a set of pages.
   Morgan to run.
 - **Plugins** are separate processes in any language, spoken to over MCP on
   their standard input and output. Each declares in a `plugin.toml` what it
-  may read, change and do before it is enabled.
+  may read, change and do before it is enabled. How to write one: [PLUGINS.md](PLUGINS.md);
+  the shape Talaris's data is shared in: [PKM-INTERCHANGE.md](PKM-INTERCHANGE.md).
 
 Hyprland's own configuration stays yours: the installer writes a
 `talaris.conf` beside it, and one `source =` line in `hyprland.conf` turns
