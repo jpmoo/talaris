@@ -329,7 +329,9 @@ const TaskViews = (() => {
 
   // ---------------------------------------------------------------- table
 
-  const folded = new Set();
+  // Folded groups, kept across a refresh as the header says (they were lost on reload).
+  const folded = new Set((() => { try { return JSON.parse(localStorage.getItem("talaris.taskviews.folded") || "[]"); } catch { return []; } })());
+  const keepFolded = () => { try { localStorage.setItem("talaris.taskviews.folded", JSON.stringify([...folded])); } catch { /* fine */ } };
 
   function drawTable(root, shown, ctx, sh) {
     const list = shown.list;
@@ -431,15 +433,15 @@ const TaskViews = (() => {
         const fk = `${list.id}\u0000${g.key}`;
         const open = !folded.has(fk);
         const rows = g.rows.map((id) => byId.get(id)).filter(Boolean);
-        body.append(el("tr", { class: "tv-group", onclick: () => { if (open) folded.add(fk); else folded.delete(fk); drawAgain(); } },
-          el("td", { colspan: span }, ICON.fold(open), el("span", {}, g.label), el("span", { class: "tv-count" }, String(rows.length)))));
+        body.append(el("tr", { class: "tv-group", onclick: () => { if (open) folded.add(fk); else folded.delete(fk); keepFolded(); drawAgain(); } },
+          el("td", { colspan: span }, Kit.caret(open), el("span", {}, g.label), el("span", { class: "tv-count" }, String(rows.length)))));
         if (open) rows.forEach(addRow);
       }
     } else shown.rows.forEach(addRow);
     table.append(body);
 
     const wrap = el("div", { class: "tv-scroll tv-table-wrap" }, table);
-    if (!shown.rows.length) wrap.append(el("div", { class: "tv-empty" }, "Nothing here"));
+    if (!shown.rows.length) wrap.append(Kit.empty("Nothing here yet"));
     root.replaceChildren(wrap);
     function drawAgain() { const t = wrap.scrollTop, l = wrap.scrollLeft; drawTable(root, shown, ctx, sh); const w = root.querySelector(".tv-scroll"); w.scrollTop = t; w.scrollLeft = l; }
   }
@@ -601,7 +603,7 @@ const TaskViews = (() => {
       }
       board.append(node);
     }
-    if (!columns.length) board.append(el("div", { class: "tv-empty" }, "No columns"));
+    if (!columns.length) board.append(Kit.empty("No columns yet"));
     root.replaceChildren(board);
   }
 

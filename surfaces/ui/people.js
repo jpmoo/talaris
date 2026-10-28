@@ -210,8 +210,8 @@
     const rows = shown();
     $("count").textContent = rows.length === people.length ? String(people.length) : `${rows.length} of ${people.length}`;
     const out = [];
-    if (!people.length) out.push(el("div", { class: "empty" }, "No people yet"));
-    else if (!rows.length) out.push(el("div", { class: "empty" }, "No one by that"));
+    if (!people.length) out.push(Kit.empty("No people yet"));
+    else if (!rows.length) out.push(Kit.empty("Nothing matches"));
     else if (mode === "org") {
       const groups = new Map();
       for (const p of rows) { const g = p.organization || NO_ORG; groups.set(g, [...(groups.get(g) || []), p]); }
@@ -311,7 +311,7 @@
     putAwayEditors();
     popAway();
     const host = $("person");
-    if (!got || !ptype) { host.replaceChildren(people.length ? "" : el("div", { class: "empty" }, "No people yet")); return; }
+    if (!got || !ptype) { host.replaceChildren(people.length ? "" : Kit.empty("No people yet")); return; }
     const top = host.scrollTop;
     const same = host.dataset.id === chosen;
     host.dataset.id = chosen;
@@ -684,7 +684,7 @@
       timer = setTimeout(() => api("GET", `/contacts/cards?q=${enc(q)}`).then((cards) => {
         if (id !== chosen || find.value.trim() !== q) return;
         const rows = (cards || []).filter((c) => !c.gone && !tied.includes(cardKeyOf(c))).slice(0, 8);
-        found.replaceChildren(...(rows.length ? rows.map(likelyCard) : [el("div", { class: "hint" }, "No one by that")]));
+        found.replaceChildren(...(rows.length ? rows.map(likelyCard) : [Kit.empty("Nothing matches")]));
       }).catch((e) => found.replaceChildren(el("div", { class: "hint err" }, e.message))), 250);
     });
     find.addEventListener("keydown", (e) => { if (e.key === "Escape" && find.value) { e.preventDefault(); e.stopPropagation(); find.value = ""; found.replaceChildren(); } });

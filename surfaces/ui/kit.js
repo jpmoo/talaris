@@ -421,12 +421,16 @@ const Kit = (() => {
     target.classList.toggle("err", !!(text && error));
     if (text && !error && ms) sayTimers.set(target, setTimeout(() => { if (target.textContent === text) target.textContent = ""; }, ms));
   }
+  /** A list drawn again where it was scrolled to: what `draw` does to `box`, without sending it back to the top. */
+  function keepScroll(box, draw) { const top = box ? box.scrollTop : 0; const out = draw(); if (box && top) box.scrollTop = top; return out; }
+  /** The fold mark, one way: a small ▾, turned to point along when what it folds is shut (kit.css). */
+  const caret = (open) => el("span", { class: "kit-caret" + (open ? "" : " shut") }, "▾");
   /** An empty list said one way: "Nothing here yet", "Nothing matches" — sentence case, no stop. */
   const empty = (text) => el("div", { class: "kit-empty" }, String(text).replace(/\.$/, ""));
 
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty,
+    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };
 })();

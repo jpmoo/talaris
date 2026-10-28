@@ -216,7 +216,7 @@
     const section = (key, title, items, extra = null) => {
       const shut = folded.has(key);
       const head = el("div", { class: `s-head fold${shut ? " shut" : ""}`, title: shut ? "Show" : "Fold away", onclick: () => fold(key) },
-        el("span", { class: "tw" }, "›"), el("span", { class: "s-title" }, title), extra);
+        el("span", { class: "tw" }, "▾"), el("span", { class: "s-title" }, title), extra);
       return [head, ...(shut ? items.filter((x) => x && x.classList.contains("on")) : items)];
     };
     const c = counts || { all: undefined, projects: {}, status: {}, type: {}, tags: {} };
@@ -228,7 +228,7 @@
       for (const l of nodes) {
         const has = l.children.length > 0;
         const shut = folded.has(`list:${l.id}`);
-        const tw = el("span", { class: `tw${has ? "" : " none"}`, onclick: has ? (e) => { e.stopPropagation(); fold(`list:${l.id}`); } : null }, has ? "›" : "");
+        const tw = el("span", { class: `tw${has ? "" : " none"}`, onclick: has ? (e) => { e.stopPropagation(); fold(`list:${l.id}`); } : null }, has ? "▾" : "");
         if (has && !shut) tw.classList.add("open");
         const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
         b.prepend(tw);
@@ -318,12 +318,14 @@
     return b;
   }
 
-  function drawRows() {
+  // Drawn again where it was scrolled to (kit.js), as every list is.
+  function drawRows() { return Kit.keepScroll($("rows"), drawRowsNow); }
+  function drawRowsNow() {
     if (!rows.length) {
       $("rows").replaceChildren(el("div", { class: "empty" }, filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
         ? `Nothing in ${listName(filters.list)} yet. Drag things onto it on the left, or choose one and Add to a list.`
         : filters.q || filters.status || filters.type || filters.days || filters.tags.length
-        ? "Nothing like that." : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
+        ? "Nothing matches" : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
     // Where each lives, nested — but a list is its own order, so it is shown as one.
@@ -407,7 +409,7 @@
       for (const n of list) {
         const has = n.kids.length > 0;
         const open = looking || openNodes.has(n.key);
-        const tw = el("span", { class: `tw${has ? "" : " none"}${open ? " open" : ""}`, onclick: has ? (e) => { e.stopPropagation(); toggle(n.key); } : null }, has ? "›" : "");
+        const tw = el("span", { class: `tw${has ? "" : " none"}${open ? " open" : ""}`, onclick: has ? (e) => { e.stopPropagation(); toggle(n.key); } : null }, has ? "▾" : "");
         const indent = `padding-left:${8 + depth * 16}px`, pad = `${8 + depth * 16}px`;
         if (n.dir) {
           out.push(el("div", { class: "row tree dir", style: indent, onclick: () => toggle(n.key) }, tw,

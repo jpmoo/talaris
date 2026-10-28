@@ -175,14 +175,15 @@ function shutSet(store) {
 }
 function twisty(key, hasKids, kids, shut, store) {
   if (shut.has(key)) kids.classList.add("shut");
-  const t = el("span", { class: "tw" }, hasKids ? (shut.has(key) ? "▸" : "▾") : "·");
+  // The fold mark every page has (kit.js): ▾, turned along when shut. A page with nothing in it, a dot.
+  const t = el("span", { class: "tw" + (hasKids ? " kit-caret" + (shut.has(key) ? " shut" : "") : "") }, hasKids ? "▾" : "·");
   if (!hasKids) return t;
   t.addEventListener("click", (e) => {
     e.stopPropagation();
     kids.classList.toggle("shut");
     if (kids.classList.contains("shut")) shut.add(key); else shut.delete(key);
     try { localStorage.setItem(store, JSON.stringify([...shut])); } catch { /* fine */ }
-    t.textContent = kids.classList.contains("shut") ? "▸" : "▾";
+    t.classList.toggle("shut", kids.classList.contains("shut"));
   });
   return t;
 }
@@ -289,7 +290,7 @@ function taggedList(pages, paths) {
   const flat = [];
   const walk = (nodes) => { for (const n of nodes) { if (paths.has(n.path)) flat.push(n); walk(n.children); } };
   walk(pages);
-  if (!flat.length) return el("div", { class: "empty" }, "No page here has that tag");
+  if (!flat.length) return Kit.empty("No page here has that tag");
   return el("div", {}, ...flat.map((n) => el("div", { class: "row" + (n.path === open ? " on" : ""), onclick: () => edit(n.path) },
     el("span", { class: "starred-t" }, n.title, n.path.includes("/") ? el("span", { class: "where" }, n.path.slice(0, n.path.lastIndexOf("/"))) : ""))));
 }
@@ -873,7 +874,7 @@ async function loadWriting() {
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
-      : pages.length ? branch(pages, root) : el("div", { class: "empty" }, "No pages yet"));
+      : pages.length ? branch(pages, root) : Kit.empty("No pages yet"));
   const modes = el("div", { class: "modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:

@@ -58,10 +58,12 @@
 
   // ---------------------------------------------------------------- the list
 
-  function drawSide() {
+  // Drawn again where it was scrolled to (kit.js), as every list is.
+  function drawSide() { return Kit.keepScroll($("side"), drawSideNow); }
+  function drawSideNow() {
     const side = $("side");
     if (hits) {
-      if (!hits.length) { side.replaceChildren(el("div", { class: "empty" }, "Nothing in the archive says that")); return; }
+      if (!hits.length) { side.replaceChildren(Kit.empty("Nothing matches")); return; }
       const by = new Map();
       for (const h of hits) by.set(h.project, [...(by.get(h.project) || []), h]);
       side.replaceChildren(...[...by].flatMap(([pid, list]) => [
@@ -71,7 +73,7 @@
       ]));
       return;
     }
-    if (!rows.length) { side.replaceChildren(el("div", { class: "empty" }, "Nothing archived yet. A project is archived from its properties in Tasks.")); return; }
+    if (!rows.length) { side.replaceChildren(Kit.empty("Nothing archived yet — a project is archived from its properties in Tasks")); return; }
     const out = [];
     let year = "", month = "";
     for (const r of rows) {

@@ -542,7 +542,7 @@
     $("count").textContent = String(rows.length);
     $("edit-list").hidden = true;
     const host = $("rows");
-    if (!rows.length) { host.replaceChildren(el("div", { class: "empty" }, "No task has those words")); return; }
+    if (!rows.length) { host.replaceChildren(Kit.empty("Nothing matches")); return; }
     let n = 0;
     host.replaceChildren(el("div", { class: "list fmt-checklist" }, ...rows.map((r) => rowEl(r, "checklist", ++n, true))));
   }
@@ -555,7 +555,7 @@
     // A project is edited in its panel on the right; a collection, in the list editor.
     $("edit-list").hidden = !(shown && kept && window.ListEditor);
     const host = $("rows");
-    if (!shown) { host.replaceChildren(current ? "" : el("div", { class: "empty" }, "No collections")); return; }
+    if (!shown) { host.replaceChildren(current ? "" : Kit.empty("No collections yet")); return; }
     const kind = shown.list.kind || "list";
     if (kind !== "list" && window.TaskViews && typeof TaskViews.render === "function") {
       host.replaceChildren();
@@ -574,7 +574,7 @@
   function drawList(host) {
     const list = shown.list;
     const fmt = (list["talaris:view"] || {}).format || "checklist";
-    if (!shown.rows.length) { host.replaceChildren(el("div", { class: "empty" }, "Nothing here")); return; }
+    if (!shown.rows.length) { host.replaceChildren(Kit.empty("Nothing here yet")); return; }
     const byId = new Map(shown.rows.map((r) => [r.id, r]));
     const wrap = el("div", { class: `list fmt-${fmt}` });
     let n = 0;

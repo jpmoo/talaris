@@ -260,7 +260,7 @@ function drawFound(view) {
     coming.length ? el("h3", {}, "Coming up") : null, ...coming.map(hit),
     past.length ? el("h3", {}, "Past") : null, ...past.map(hit),
     tasksFound.length ? el("h3", {}, "Tasks") : null, ...tasksFound.map(taskHit),
-    !waiting && !events.length && !tasksFound.length ? el("div", { class: "none" }, "Nothing holds those words") : null,
+    !waiting && !events.length && !tasksFound.length ? Kit.empty("Nothing matches") : null,
     waiting ? el("div", { class: "none" }, "Looking…") : null);
   view.replaceChildren(box);
 }

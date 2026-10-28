@@ -215,12 +215,14 @@
   const FIRST = 20;
   let showing = new Map();   // how many of each group are out, this load
 
-  function drawList() {
+  // Drawn again where it was scrolled to (kit.js), as every list is.
+  function drawList() { return Kit.keepScroll($("list"), drawListNow); }
+  function drawListNow() {
     const q = query();
     const rows = things().filter((n) => shown(n) && matches(n, q));
     if (!data) { $("list").replaceChildren(); return; }
-    if (!things().length) { $("list").replaceChildren(el("div", { class: "empty" }, "Nothing in this project yet")); return; }
-    if (!rows.length) { $("list").replaceChildren(el("div", { class: "empty" }, q ? "Nothing by that name" : "Nothing of those kinds")); return; }
+    if (!things().length) { $("list").replaceChildren(Kit.empty("Nothing in this project yet")); return; }
+    if (!rows.length) { $("list").replaceChildren(Kit.empty(q ? "Nothing matches" : "Nothing of those kinds")); return; }
     const by = new Map();
     for (const n of rows) by.set(groupOf(n), [...(by.get(groupOf(n)) || []), n]);
     // Newest first; nothing dated sorts after everything dated.
@@ -839,7 +841,7 @@
     const body = el("div", { class: "sbody" },
       !fresh ? el("div", { class: "none" }, "Looking…")
         : sugg.quiet ? el("div", { class: "none" }, "Not suggesting for this.")
-        : !n ? el("div", { class: "none" }, "Nothing more to suggest.")
+        : !n ? Kit.empty("Nothing more to suggest")
         : sugg.list.map(srow));
     box.replaceChildren(head, body);
   }

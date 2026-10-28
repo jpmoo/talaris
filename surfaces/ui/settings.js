@@ -791,8 +791,8 @@ async function mgMemory() {
         el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
           ...(locked ? [] : [twiceBtn("×", "Delete it?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])));
     });
-    if (!t.notes.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "Nothing here yet."));
-    else if (!notesShown.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "No note here matches."));
+    if (!t.notes.length) notes.push(Kit.empty("Nothing here yet"));
+    else if (!notesShown.length) notes.push(Kit.empty("Nothing matches"));
 
     const add = el("input", { type: "text", spellcheck: "false", placeholder: "+ Note: type it and press Enter" });
     add.addEventListener("keydown", (e) => { if (e.key === "Enter" && add.value.trim() && !busy.has(t.name)) noteChange(t.name, "memory.note.add", { text: add.value.trim() }, "Note added"); });
@@ -834,7 +834,7 @@ async function mgMemory() {
       // A topic found by its notes opens on them; found by its name, on all of them.
       blocks.push(topicBlock(t, byName ? all : matching, mgOpen.has(t.name) || (!byName && matching.length > 0)));
     }
-    list.replaceChildren(...(blocks.length ? blocks : [el("p", { class: "note" }, q ? "Nothing matches." : "No topics yet.")]));
+    list.replaceChildren(...(blocks.length ? blocks : [Kit.empty(q ? "Nothing matches" : "No topics yet")]));
   }
   drawTopics();
 

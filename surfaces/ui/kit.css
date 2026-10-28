@@ -40,3 +40,6 @@ button.armed, .armed > button { color: var(--danger, #e06c6c) !important; border
 /* "Connect to…" in the writing drawer: a box to find by, the things found under it. */
 .kit-pop .cn-menu { min-width: 260px; }
 .kit-pop .cn-menu .cn-q { width: 100%; box-sizing: border-box; margin-bottom: 4px; }
+/* The fold mark (Kit.caret, and the pages' own .caret): ▾ open, turned along when shut. */
+.kit-caret { display: inline-block; font-size: 9px; color: var(--muted); transition: transform .12s; width: 12px; text-align: center; }
+.kit-caret.shut { transform: rotate(-90deg); }
