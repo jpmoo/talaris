@@ -77,7 +77,7 @@ def windows() -> dict:
     # except Talaris's own, where the dock puts a window it hides.
     # A project's desktop is a named workspace, and Hyprland gives those negative
     # ids as it does special ones: told apart by name, not by the sign.
-    ordinary = lambda w: not str(w.get("name", "")).startswith("special:") and w.get("id", 0) != 0
+    ordinary = lambda w: not is_special(w.get("name", "")) and w.get("id", 0) != 0
     regular = [c for c in clients if c.get("mapped", True) and (ordinary(c.get("workspace", {}))
                                                                  or c.get("workspace", {}).get("name") == HIDDEN)]
     return {
@@ -99,6 +99,32 @@ def windows() -> dict:
 
 #: Where the dock puts a window it hides: a special workspace nobody summons.
 HIDDEN = "special:talaris-hidden"
+#: How a project's desktop is named: by its project's id, which starts so.
+PROJECT = "prj_"
+
+
+def is_special(name) -> bool:
+    """A special workspace — a scratchpad summoned by a key, or where the dock hides a window: no place you go."""
+    name = str(name or "")
+    return name == "special" or name.startswith("special:")
+
+
+def is_ordinary(name) -> bool:
+    """One of Home's desktops: a numbered workspace, or one you named — not a project's, not a special one."""
+    name = str(name or "")
+    return bool(name) and not is_special(name) and not name.startswith(PROJECT)
+
+
+def project_of(name, home: str) -> str:
+    """
+    The project a workspace is the desktop of, by its name: a project's
+    desktop is named by its id; the ordinary ones are Home's (`home`, its id);
+    a special one is nobody's (""). The one rule, wherever it is asked.
+    """
+    name = str(name or "")
+    if name.startswith(PROJECT):
+        return name
+    return home if is_ordinary(name) else ""
 
 
 def _address(address: str) -> bool:
@@ -110,12 +136,14 @@ def hide(address: str) -> None:
         ask(f"/dispatch movetoworkspacesilent {HIDDEN},address:{address}")
 
 
-def target(workspace: dict) -> str:
+def target(workspace: dict | str) -> str:
     """
-    How a dispatcher names a workspace. By name for a named one (a project's
-    desktop): its id is negative, and a dispatcher reads "-1337" as "that
-    many workspaces back".
+    How a dispatcher names a workspace — given as `j/workspaces` has it, or by
+    its name alone. By name for a named one (a project's desktop): its id is
+    negative, and a dispatcher reads "-1337" as "that many workspaces back".
     """
+    if isinstance(workspace, str):
+        return workspace if workspace.isdigit() else f"name:{workspace}"
     wid = workspace.get("id", 1)
     return str(wid) if isinstance(wid, int) and wid > 0 else f"name:{workspace.get('name', '')}"
 

@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import json
 import re
-import threading
 
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call, route_ok
+from core import Bridge
 from overlay import Overlay
 
 #: What the page may ask the core for: the archive, an archived project's pages and canvases, and bringing one back.
@@ -28,30 +27,24 @@ ALLOWED = re.compile(r"^/(archive(/|$|\?)|projects/[A-Za-z0-9_]+/(page|pages|can
 
 
 class ArchiveBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     #: A project brought back: said from the worker thread, heard on Qt's, where the bar is redrawn.
     restored = Signal()
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        writes = method == "POST" and path.endswith("/restore")
-        if not route_ok(ALLOWED, path) or (method != "GET" and not writes):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the archive uses"}}))
-            return
+        """
+        Answered later, on `coreReply` (core.Bridge.answer_core): reads, and
+        bringing a project back. A page is its Markdown, not JSON: answered as
+        the text (`text_ok`); a failure says why.
+        """
+        restoring = method.upper() == "POST" and path.endswith("/restore")
 
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=120)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                # A page is its Markdown, not JSON: answered as text; a failure says why.
-                data = text if status == 200 else {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
+        def then(status: int) -> None:
             # Back in use: the bar's list and the switcher have it again.
-            if writes and status == 200:
+            if restoring and status == 200:
                 self.restored.emit()
-        threading.Thread(target=run, daemon=True).start()
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=120, who="the archive", text_ok=True, then=then,
+                         writes=lambda m, p: m == "POST" and p.endswith("/restore"))
 
     @Slot(str)
     def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name

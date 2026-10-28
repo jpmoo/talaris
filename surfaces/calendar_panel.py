@@ -28,7 +28,7 @@ from datetime import datetime
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, call as core_call, local_call, route_ok
+from core import Bridge, call as core_call, get_json
 from overlay import Overlay
 from views import log
 
@@ -96,11 +96,7 @@ def with_talaris_people(query: str, items: list) -> list:
     q = query.strip().lower()
     if len(q) < 2:
         return items
-    status, text = core_call("GET", "/people", timeout=10)
-    try:
-        people = json.loads(text) if status == 200 else []
-    except ValueError:
-        people = []
+    people = get_json("/people", [], timeout=10)
     have = {str(i.get("email", "")).lower() for i in items}
     extra = []
     for p in people:
@@ -293,11 +289,11 @@ class CalendarService(QObject):
         for it: a person is called by name where one is known, by address only
         until then. From the mirror's own thread.
         """
-        status, text = core_call("GET", "/entities?kind=contact&limit=5000", timeout=30)
-        if status != 200:
+        contacts = get_json("/entities?kind=contact&limit=5000", None, timeout=30)
+        if not isinstance(contacts, list):
             return
         named = 0
-        for p in json.loads(text):
+        for p in contacts:
             title = p.get("title", "")
             if "@" not in title or " " in title.strip():
                 continue
@@ -378,8 +374,6 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
 
 
 class CalendarBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     calendars = Signal(str)
     events = Signal(str)
     done = Signal(str)
@@ -404,19 +398,8 @@ class CalendarBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        """Tasks, above the day's events: only the routes for them (TASK_ROUTES)."""
-        if not route_ok(TASK_ROUTES, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the calendar uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=30)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Tasks, above the day's events: only the routes for them (TASK_ROUTES), answered later on `coreReply`."""
+        self.answer_core(ident, method, path, body, TASK_ROUTES, timeout=30, who="the calendar")
 
     @Slot(str)
     def openTask(self, entity: str) -> None:

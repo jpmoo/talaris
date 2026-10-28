@@ -24,6 +24,7 @@ import re
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
+from config import DEFAULTS
 from core import Bridge
 from overlay import Overlay
 from views import type_scale, zoom_of
@@ -52,7 +53,7 @@ class Workspace(Overlay):
 
     @property
     def IDLE_MS(self) -> int:  # noqa: N802 — read as the class constant it overrides
-        return int(self.desktop.config.get("idleSeconds", 120)) * 1000
+        return int(self.desktop.config.get("idleSeconds", DEFAULTS["idleSeconds"])) * 1000
 
     def _insets(self) -> dict:
         """Where the panel sits in the surface, in the page's pixels: centered, wide, and shorter than the screen."""

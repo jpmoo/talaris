@@ -19,11 +19,10 @@ import json
 import os
 
 from PySide6.QtCore import Signal, Slot
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, call
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, Placement
+from core import Bridge, projects as core_projects
+from layershell import KEYBOARD_EXCLUSIVE
 from overlay import Overlay
 from views import log
 
@@ -50,6 +49,8 @@ class Jump(Overlay):
     LAZY = True
     TITLE = "Projects"
     IDLE_MS = 60 * 1000
+    # The keyboard is the carousel's while it is out: it was opened by a key, to be answered by keys.
+    KEYBOARD = KEYBOARD_EXCLUSIVE
 
     def __init__(self, profile: QWebEngineProfile, desktop) -> None:
         super().__init__(profile, desktop, "talaris-ui://ui/jump.html", JumpBridge(None, None))
@@ -69,14 +70,6 @@ class Jump(Overlay):
         here = self.desktop.project.get("id", "")
         return {**super().describe(), "prompt": self.prompt, "projects": [{**p, "current": p.get("id") == here} for p in self.projects]}
 
-    def _place(self) -> None:
-        # The keyboard is the carousel's while it is out: it was opened by a key, to be answered by keys.
-        screen = QGuiApplication.primaryScreen().geometry()
-        self.surface.placement = None
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
-        self.bridge.state.emit(json.dumps(self.describe()))
-
     def grow(self) -> None:
         """A carousel, not a panel: there is no window of it."""
 
@@ -93,11 +86,7 @@ class Jump(Overlay):
 
     def _ordered(self) -> list:
         """Every project not archived, the current first, then by when last gone to; never gone to, by name."""
-        status, text = call("GET", "/projects")
-        try:
-            projects = [p for p in json.loads(text) if not p.get("archived")] if status == 200 else []
-        except ValueError:
-            projects = []
+        projects = [p for p in core_projects() if not p.get("archived")]
         here = self.desktop.project.get("id", "")
         rank = {pid: i for i, pid in enumerate([here, *[x for x in self.recent if x != here]])}
         return sorted(projects, key=lambda p: (rank.get(p.get("id"), len(rank)), p.get("name", "").lower()))

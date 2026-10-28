@@ -56,7 +56,6 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
@@ -64,9 +63,9 @@ from PySide6.QtWidgets import QApplication
 
 import docs
 import hypr
-from apps import Apps, keeps_one_window, new_window_command, opens_new_windows
-from config import save_config
-from core import Bridge, call
+from apps import Apps, item_key as _key, keeps_one_window, new_window_command, opens_new_windows
+from config import save_config, single_window
+from core import Bridge, projects as core_projects
 from layershell import (
     ANCHOR_BOTTOM,
     ANCHOR_LEFT,
@@ -79,7 +78,7 @@ from layershell import (
     LayerSurface,
     Placement,
 )
-from sensor import Autohide
+from sensor import Autohide, ClickAway
 from views import make_view, zoom
 
 #: The dock's thickness beyond its icons: their dots, and room around them.
@@ -87,6 +86,8 @@ from views import make_view, zoom
 DOCK_ROOM = 26
 #: The item menu's size.
 MENU = (220, 310)
+#: An item menu nobody touches puts itself away.
+MENU_IDLE_MS = 10000
 #: A press, with Shift, with Ctrl: each does one of `new`, `bring`, `go` (Dock.clicks).
 PRESSES = ("click", "shift", "ctrl")
 
@@ -99,11 +100,6 @@ def valid_clicks(c, one_window: bool) -> bool:
     if one_window:
         return sorted(got) == ["", "bring", "go"] and got[2] == ""
     return sorted(got) == ["bring", "go", "new"]
-
-
-def _key(app: dict, wm_class: str) -> str:
-    """What an item is known by: its launcher's id where there is one, else its window class."""
-    return app.get("id") or f"class:{wm_class}"
 
 
 class DockBridge(Bridge):
@@ -167,9 +163,11 @@ class DockMenu(QObject):
         self.bridge = DockBridge(self, self)
         self.view = make_view(profile, "dock-menu", "talaris-ui://ui/dockmenu.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-dock-menu")
+        # A press anywhere off the menu puts it away, as the bar's popups (sensor.ClickAway).
+        self.away = ClickAway(profile, self.close, self, name="dock-menu-catcher")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
-        self.idle.timeout.connect(self.file_away)
+        self.idle.timeout.connect(self.close)
 
     @property
     def last(self) -> str:
@@ -177,8 +175,9 @@ class DockMenu(QObject):
 
     def describe(self) -> dict:
         item = self.dock.items.get(self.key, {})
+        apps_only = bool(self.key) and not self.key.startswith(("doc:", "class:"))
         return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
-                "everywhere": self.everywhere, "elsewhere": self.dock.elsewhere(self.key) if self.key else "",
+                "everywhere": self.everywhere, "elsewhere": self.dock.how(self.key) if apps_only else "",
                 "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
                 # Its three presses, and whether they are its own or the default's (the chooser).
                 "clicks": self.dock.clicks(self.key) if self.key else {},
@@ -228,9 +227,8 @@ class DockMenu(QObject):
         now = hypr.windows()
         desks = {x["id"]: x["name"] for x in now.get("workspaces", [])}
         out = []
-        for w in sorted(now["windows"], key=lambda w: w["recent"]):
-            if _key(self.dock.apps.lookup(w["class"]), w["class"]) != key:
-                continue
+        # Its windows as the launcher finds them too (apps.windows_of).
+        for w in self.dock.apps.windows_of(key, now["windows"]):
             out.append({"address": w["address"], "title": w["title"], "hidden": w["hidden"], "here": w["workspace"] == now["active"],
                         "projectId": desks.get(w["workspace"], ""),
                         "project": self.dock._project_name(desks.get(w["workspace"], "")) if desks.get(w["workspace"]) else ""})
@@ -264,14 +262,22 @@ class DockMenu(QObject):
         margins = (left, 0 if bottom else off, 0, off if bottom else 0)
         self.surface.placement = None
         self.surface.apply(Placement(OVERLAY, anchor, w, h, KEYBOARD_ON_DEMAND, margins=margins))
+        self.away.shown()
         self.bridge.state.emit(json.dumps(self.describe()))
-        self.idle.start(10000)
+        self.idle.start(MENU_IDLE_MS)
 
     def file_away(self) -> None:
+        """From the page — Escape, or the pointer gone elsewhere: not while it is still settling (sensor.ClickAway)."""
+        if self.away.settling():
+            return
+        self.close()
+
+    def close(self) -> None:
         if not self.key:
             return
         self.key = ""
         self.idle.stop()
+        self.away.gone()
         self.view.hide()
         self.surface.placement = None
         self.bridge.state.emit(json.dumps(self.describe()))
@@ -280,7 +286,7 @@ class DockMenu(QObject):
         found = self.found
         address = self._window_to_send() if verb.startswith("send") else ""
         name = self.dock.items.get(key, {}).get("name", "it")
-        self.file_away()
+        self.close()
         if verb in ("send", "send-follow") and address:
             # Which project, asked in the carousel; then its window to that project's desktop — and, following, you with it.
             follow = verb == "send-follow"
@@ -314,14 +320,14 @@ class DockMenu(QObject):
 
     # What a page's bridge may call on its owner.
     def toggle(self) -> None:
-        self.file_away()
+        self.close()
 
     def left(self) -> None:
         pass
 
     def touched(self) -> None:
         if self.key:
-            self.idle.start(10000)
+            self.idle.start(MENU_IDLE_MS)
 
     def press(self, key: str, mod: str = "") -> None:
         pass
@@ -329,7 +335,7 @@ class DockMenu(QObject):
     def set_clicks(self, key: str, clicks: dict | None) -> None:
         self.dock.set_clicks(key, clicks)
         # Chosen in the menu: it stays up a while longer, to see it.
-        self.idle.start(10000)
+        self.idle.start(MENU_IDLE_MS)
 
     def reorder(self, keys: list) -> None:
         pass
@@ -369,7 +375,7 @@ class Dock(QObject):
         """Along its edge — or, set to hide, away until the edge is touched — or, turned off, nowhere."""
         if not self.desktop.config["dock"].get("enabled", True):
             self.hider.set(False, self.edge)
-            self.menu.file_away()
+            self.menu.close()
             self._hide()
             return
         hide = bool(self.desktop.config["dock"].get("autohide"))
@@ -459,17 +465,17 @@ class Dock(QObject):
                                     "here": w["workspace"] == now["active"], "workspace": w["workspace"]})
         # Your order first; anything never placed goes after, by name, so an
         # icon does not jump about as focus moves.
-        # Its exception to the general rule: kept in a project where the rule brings, always brought where it goes.
-        going = self.desktop.config["launcher"].get("singleWindow", "bring") == "go"
+        # Its exceptions to the general rule: kept in a project, or always brought — honoured whatever the rule (`how`).
+        rule = single_window(self.desktop.config)
         stays, brings = cfg.get("stays", {}), cfg.get("brings", [])
         for item in items.values():
             if not item["pinned"]:
                 continue
-            item["rule"] = "go" if going else "bring"
-            if not going and stays.get(item["key"]):
+            item["rule"] = rule
+            if stays.get(item["key"]):
                 item["keptIn"] = stays[item["key"]]
                 item["keptHere"] = stays[item["key"]] == here
-            if going and item["key"] in brings:
+            if item["key"] in brings:
                 item["brought"] = True
         # Another project's: kept there, and not open here; or (the dock showing every desktop's) open only on other desktops.
         # Which, by name, for its tip.
@@ -499,47 +505,37 @@ class Dock(QObject):
             self.last = text
             self.bridge.windows.emit(text)
 
-    _names: dict = {}
-    _names_at = 0.0
-
     def _project_name(self, key: str) -> str:
-        """A project's name, from its id (a desktop is named by its project's id): looked up now and then, not at every refresh."""
-        if key not in self._names and time.monotonic() - self._names_at > 30:
-            self._names_at = time.monotonic()
-            status, text = call("GET", "/projects")
-            if status == 200:
-                try:
-                    self._names = {p["id"]: p["name"] for p in json.loads(text)}
-                except (ValueError, KeyError, TypeError):
-                    pass
-        return self._names.get(key, key)
+        """A project's name, from its id (a desktop is named by its project's id); the key itself for none."""
+        return next((p.get("name", key) for p in core_projects() if p.get("id") == key), key)
 
     # ------------------------------------------------------------ what it does
 
-    def elsewhere(self, key: str) -> str:
+    def how(self, key: str) -> str:
         """
-        What a press does with an application open in another project and not
-        here (the menu's choice for it): `bring` its window here, `go` to it,
-        or open a `new` window here — what the menu ticks, and what a press
-        does. Chosen, that. Unchosen: an application its desktop file says
-        opens new windows (a "new window" action: a browser, a terminal) opens
-        a new one here; one kept in another project is gone to; any other
-        follows the rule in Settings (most say nothing either way, and are
-        taken as keeping one window). "" for a document, or a window with no
-        application to know it by.
+        What calling something open in another project does — a press here,
+        the launcher, its key, a plugin's window: `bring` its window here, `go`
+        to it, or open a `new` window here. The one rule, for all of them, in
+        this order. Its own choice (its menu's). Else its keeping: kept in
+        another project, gone to; kept in this one, brought home; on the
+        "always brought" list, brought. Else an application its desktop file
+        says opens new windows (a "new window" action: a browser, a terminal)
+        opens a new one here. Else the rule in Settings (most applications say
+        nothing either way, and are taken as keeping one window). A document,
+        or a window with no application to know it by, is never `new`.
         """
-        if key.startswith(("doc:", "class:")):
-            return ""
         cfg = self.desktop.config
         chosen = cfg["dock"].get("elsewhere", {}).get(key, "")
-        if chosen:
+        if chosen in ("bring", "go", "new"):
             return chosen
-        if opens_new_windows(key):
-            return "new"
         kept = cfg["dock"].get("stays", {}).get(key)
-        if kept and kept != self.desktop.project.get("id", ""):
-            return "go"
-        return "go" if cfg["launcher"].get("singleWindow", "bring") == "go" else "bring"
+        if kept:
+            return "go" if kept != self.desktop.project.get("id", "") else "bring"
+        if key in cfg["dock"].get("brings", []):
+            return "bring"
+        if not key.startswith(("doc:", "class:")) and opens_new_windows(key):
+            return "new"
+        return single_window(cfg)
 
     def new_window(self, app_id: str) -> None:
         """A new window of an application, here: by its own "new window" action where it has one (a browser's), else started again."""
@@ -581,7 +577,7 @@ class Dock(QObject):
             if one and first == "new":
                 first = next(a for a in order if a != "new")
             return whole(first, order)
-        first = self.elsewhere(key)
+        first = self.how(key)
         if one and first == "new":
             first = "bring"
         return whole(first, ["new", "bring", "go"])
@@ -750,17 +746,17 @@ class Dock(QObject):
 
     def call_doc(self, item: dict) -> None:
         """
-        A pinned document with no window here: where the rule is to go, the
-        window showing it, wherever it is; where it is to bring (or its
-        exception says so), that window brought here; else opened.
+        A pinned document with no window here: where the one rule (`how`)
+        says go, the window showing it, wherever it is; where it says bring,
+        that window brought here; else opened.
         """
-        going = self.desktop.config["launcher"].get("singleWindow", "bring") == "go"
+        going = self.how(item["key"]) == "go"
         now = hypr.windows()
         d = {"kind": item["doc"]["kind"], "target": item["doc"]["target"]}
         showing = [w for w in sorted(now["windows"], key=lambda w: w["recent"]) if docs.shows(d, w, self.apps.lookup(w["class"]))]
         if showing:
             w = showing[0]
-            if going and not item.get("brought") and not w["hidden"]:
+            if going and not w["hidden"]:
                 hypr.focus(w["address"])
                 return
             # A browser's window holds other pages too: never carried off for one of them; the page opens here instead.
@@ -845,7 +841,7 @@ class Dock(QObject):
         pass
 
     def file_away(self) -> None:
-        self.menu.file_away()
+        self.menu.close()
 
     def left(self) -> None:
         pass

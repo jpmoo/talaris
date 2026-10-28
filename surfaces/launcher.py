@@ -27,28 +27,17 @@ import json
 import subprocess
 import os
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineCore import QWebEngineProfile
-from PySide6.QtWidgets import QApplication
 
 import hypr
 from apps import Apps, keeps_one_window, opens_new_windows
-from core import Bridge, call
-from layershell import (
-    ANCHOR_BOTTOM,
-    ANCHOR_LEFT,
-    ANCHOR_RIGHT,
-    ANCHOR_TOP,
-    KEYBOARD_EXCLUSIVE,
-    OVERLAY,
-    LayerSurface,
-    Placement,
-)
+from core import Bridge, call, get_json, projects as core_projects
+from layershell import KEYBOARD_EXCLUSIVE
 from morgan import command as morgan_command
-from overlay import point_at, pointer_back, viewport
-from sensor import Presses
-from views import log, make_view
+from overlay import Overlay
+from views import log
 
 #: How long a started application has to show a new window before its
 #: window elsewhere is brought here instead (one that offers new windows, a
@@ -56,23 +45,11 @@ from views import log, make_view
 #: often it is looked for meanwhile.
 FOLLOW_MS = 1800
 LOOK_MS = 250
-#: An open launcher nobody types into puts itself away.
-IDLE_MS = 60000
-#: How long the page has to finish leaving before the surface goes anyway.
-LEAVE_LIMIT_MS = 1600
 
 #: How far into a project folder files are looked for, and how many at most —
 #: a launcher, not a file search.
 FILE_DEPTH = 4
 FILE_LIMIT = 3000
-
-
-def _json(path: str, fallback):
-    status, text = call("GET", path)
-    try:
-        return json.loads(text) if status == 200 else fallback
-    except ValueError:
-        return fallback
 
 
 def _flatten(nodes: list, key: str, trail: str = "") -> list[dict]:
@@ -130,7 +107,7 @@ class _MeaningSearch(QRunnable):
 
     def run(self) -> None:
         from urllib.parse import quote
-        results = _json(f"/meaning?q={quote(self.query)}&limit=8", [])
+        results = get_json(f"/meaning?q={quote(self.query)}&limit=8", [])
         self.bridge.meaningFound.emit(json.dumps({"query": self.query, "results": results if isinstance(results, list) else []}))
 
 
@@ -170,7 +147,7 @@ class _ThingSearch(QRunnable):
         q = quote(self.query)
         found: list[dict] = []
         # The core's context (context.ts): what holds the words, and for what they name, everything it touches.
-        ctx = _json(f"/context?q={q}&limit=20", None) or {"hits": [], "about": []}
+        ctx = get_json(f"/context?q={q}&limit=20", None) or {"hits": [], "about": []}
         hits = [h for h in ctx.get("hits", []) if _row(h)]
         # Open tasks before done ones; no more than a handful of each kind.
         hits.sort(key=lambda h: bool(h.get("done")))
@@ -248,53 +225,43 @@ class LauncherBridge(Bridge):
             return "That cannot be done"
 
 
-class Launcher(QObject):
+class Launcher(Overlay):
+    """
+    A panel as the others are (overlay.py) — its coming and going, its dim,
+    its idle, its stepping aside for a chooser, a page that will not answer
+    put away all the same — with the keyboard to itself, and two ways of
+    being out: to find anything, or to ask Morgan. Never a window.
+    """
+
+    NAME = "launcher"
+    TITLE = "Launcher"
+    #: An open launcher nobody types into puts itself away.
+    IDLE_MS = 60000
+    KEYBOARD = KEYBOARD_EXCLUSIVE
+
     def __init__(self, profile: QWebEngineProfile, desktop, apps: Apps) -> None:
-        super().__init__(desktop)
-        self.desktop = desktop
+        super().__init__(profile, desktop, "talaris-ui://ui/launcher.html", LauncherBridge(None, None), area="launcher")
+        self.bridge.owner = self
+        self.bridge.setParent(self)
         self.apps = apps
-        self.up = False
         self.mode = ""  # "" to find anything, "ask" when Morgan's button opened it
         self._windows: set[str] = set()
         #: Applications just started again, watched for a window: id → (their windows then, where asked).
         self._pending: dict[str, tuple] = {}
         desktop.events.urgent.connect(self._urgent)
-        self.bridge = LauncherBridge(self, self)
         # One of Morgan's searches at a time, at most two waiting.
         self.searches = QThreadPool(self)
         self.searches.setMaxThreadCount(1)
-        self.view = make_view(profile, "launcher", "talaris-ui://ui/launcher.html", self.bridge, self, area="launcher")
-        self.surface = LayerSurface(self.view, "talaris-launcher", nudge=False)
-        Presses(self.view)
-        self.idle = QTimer(self)
-        self.idle.setSingleShot(True)
-        self.idle.timeout.connect(self.file_away)
-        self.leaving = False
 
     def describe(self) -> dict:
-        return {"up": self.up, "mode": self.mode, "project": self.desktop.project, "viewport": viewport(self.view),
-                "theme": self.desktop.config["theme"], "motion": self.desktop.motion("launcher")}
+        return {**super().describe(), "mode": self.mode, "project": self.desktop.project}
 
     def open(self, mode: str = "") -> None:
         self.mode = mode
-        self.up = True
-        self.leaving = False
-        point_at(self.view)
-        # The dim every panel has (dim.py): up and clear now, darkened as the page arrives.
-        self.desktop.dim.hold(self)
-        screen = QApplication.primaryScreen().geometry()
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
-        self.view.setFocus()
-        self.bridge.state.emit(json.dumps(self.describe()))
-        self.touched()
-        self.desktop.bar.changed()
-        log("launcher: open" + (f" ({mode})" if mode else ""))
-
-    def pointer_back(self) -> None:
+        # Already out, in the other mode: the page hears which it is now.
         if self.up:
-            self.desktop.dim.deepen(self)
-        pointer_back(self.view)
+            self.bridge.state.emit(json.dumps(self.describe()))
+        super().open()
 
     def toggle(self, mode: str = "") -> None:
         if self.up and self.mode == mode:
@@ -302,39 +269,24 @@ class Launcher(QObject):
         else:
             self.open(mode)
 
-    def file_away(self) -> None:
-        """The page plays its leaving, then says so (`left`), and only then does the surface go."""
-        if not self.up:
-            return
-        self.up = False
-        self.idle.stop()
-        self.desktop.dim.release(self)
+    def grow(self) -> None:
+        """A box to type in, not a panel: there is no window of it."""
+
+    def opened(self) -> None:
         self.desktop.bar.changed()
-        self.leaving = True
-        self.bridge.leave.emit()
-        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
 
-    def left(self) -> None:
-        if not self.leaving:
-            return
-        self.leaving = False
-        self.bridge.state.emit(json.dumps(self.describe()))
-        self.view.hide()
-        self.surface.placement = None
-
-    def touched(self) -> None:
-        if self.up:
-            self.idle.start(IDLE_MS)
+    def closed(self) -> None:
+        self.desktop.bar.changed()
 
     # ------------------------------------------------------------------ what there is
 
     def catalog(self) -> dict:
         project = self.desktop.project
         pid = project.get("id", "")
-        projects = _json("/projects", [])
+        projects = core_projects()
         here = next((p for p in projects if p.get("id") == pid), None)
-        canvases = _flatten([_json(f"/projects/{pid}/canvases", {"id": "", "title": "", "children": []})], "id") if pid else []
-        pages = _flatten(_json(f"/projects/{pid}/pages", []), "path") if pid else []
+        canvases = _flatten([get_json(f"/projects/{pid}/canvases", {"id": "", "title": "", "children": []})], "id") if pid else []
+        pages = _flatten(get_json(f"/projects/{pid}/pages", []), "path") if pid else []
         now = hypr.windows()
         names = {w["id"]: w["name"] for w in now["workspaces"]}
         windows = []
@@ -348,10 +300,10 @@ class Launcher(QObject):
         # (the dock's, as its menu or Settings, Dock says) — offered in the launcher as all three.
         away: dict[str, dict] = {}
         here_apps = set()
-        # A project's desktop is named by its id; Home's are the numbered ones.
+        # Where, by its project's name: a project's desktop is named by its id, and the ordinary ones are Home's (hypr.project_of).
         named = {p["id"]: p["name"] for p in projects}
-        home = next((p["name"] for p in projects if p.get("home")), "Home")
-        place = lambda ws: (lambda n: named.get(n) or (home if n.isdigit() else n))(names.get(ws, str(ws)))
+        home = next((p["id"] for p in projects if p.get("home")), "")
+        place = lambda ws: (lambda n: named.get(hypr.project_of(n, home)) or ("Home" if hypr.is_ordinary(n) else n))(names.get(ws, str(ws)))  # noqa: E731
         for w in now["windows"]:
             app_id = self.apps.lookup(w["class"]).get("id")
             if not app_id:
@@ -442,41 +394,24 @@ class Launcher(QObject):
             return "That cannot be done"
         return ""
 
-    def brings(self, key: str) -> bool:
-        """
-        Whether something is brought where you are when called: the general
-        rule (Settings, Keys: single-window apps), or its exception for that
-        pinned thing (the dock's menu) — kept in a project when the rule
-        brings, always brought when the rule goes.
-        """
-        # An app's own choice, as the dock's menu ticks it (the dock's `elsewhere`); a document, the rule and its keeping.
-        choice = self.desktop.dock.elsewhere(key)
-        if choice:
-            return choice != "go"
-        cfg = self.desktop.config
-        if cfg["launcher"].get("singleWindow", "bring") == "go":
-            return key in cfg["dock"].get("brings", [])
-        return key not in cfg["dock"].get("stays", {})
-
     def call_app(self, app_id: str, there: bool = False) -> None:
         """An application called — from the launcher, the dock or its key: brought here, gone to, or started, as the rules say."""
         if self.kept(app_id):
             return
         mine = self._app_windows(app_id)
-        # Its choice for when it is open in another project (the dock's menu): a new window here, or it brought or gone to.
-        choice = self.desktop.dock.elsewhere(app_id)
+        # What calling it does while it is open elsewhere: its own choice, its keeping, or the rule (the dock's `how`,
+        # the one rule for all of them); Shift+Enter swaps bringing and going.
+        how = self.desktop.dock.how(app_id)
+        go = (how == "go") != there
         now = hypr.windows()
-        if choice and mine and not any(w["workspace"] == now["active"] for w in mine):
-            if choice == "new":
+        here = (now["active"], now["activeTarget"])
+        if mine and not any(w["workspace"] == now["active"] for w in mine):
+            if how == "new":
                 self.desktop.dock.new_window(app_id)
             else:
-                self._bring(app_id, (now["active"], now["activeTarget"]), go=(choice == "go") != there)
+                self._bring(app_id, here, go)
             return
-        # One that keeps a single window, open elsewhere: brought here, or gone to —
-        # as Settings says (Keys, Launcher), or its exception; Shift+Enter the other.
-        go = (not self.brings(app_id)) != there
-        now = hypr.windows()
-        before, here = {w["address"] for w in mine}, (now["active"], now["activeTarget"])
+        before = {w["address"] for w in mine}
         # One that says it keeps a single window is brought here, not started again.
         if mine and keeps_one_window(app_id):
             self._bring(app_id, here, go)
@@ -503,21 +438,20 @@ class Launcher(QObject):
     def kept(self, app_id: str) -> bool:
         """
         An application whose dock pin is kept in a project (the dock's menu,
-        "Keep in this project"): called from anywhere, it is gone to rather than brought —
-        its window where it is, or, with none, its project and then started
-        there. Answers whether it was one; the general rule does the rest.
+        "Keep in this project"), called from anywhere: open, it is gone to
+        where it is — unless the one rule (the dock's `how`: its own choice
+        first) says to bring it, or a new window; open nowhere, its project is
+        gone to and it is shown or started there. Answers whether it was one;
+        the general rule does the rest.
         """
-        cfg = self.desktop.config
-        home = cfg["dock"].get("stays", {}).get(app_id)
-        # Kept only means something where the rule is to bring.
-        if not home or cfg["launcher"].get("singleWindow", "bring") == "go":
+        home = self.desktop.config["dock"].get("stays", {}).get(app_id)
+        if not home:
             return False
         mine = self._app_windows(app_id)
         visible = [w for w in mine if not w["hidden"]]
-        # Told in its menu to be brought, or a new window opened here: that, while it is open somewhere.
-        if visible and cfg["dock"].get("elsewhere", {}).get(app_id) in ("bring", "new"):
-            return False
         if visible:
+            if self.desktop.dock.how(app_id) != "go":
+                return False
             hypr.focus(visible[0]["address"])
             log(f"launcher: gone to {app_id}, kept where it is")
             return True
@@ -530,9 +464,8 @@ class Launcher(QObject):
         return True
 
     def _app_windows(self, app_id: str) -> list:
-        """An application's windows, most recently used first."""
-        now = hypr.windows()
-        return sorted((w for w in now["windows"] if self.apps.lookup(w["class"]).get("id") == app_id), key=lambda w: w["recent"])
+        """An application's windows, most recently used first — told apart as the dock tells them (apps.windows_of)."""
+        return self.apps.windows_of(app_id, hypr.windows()["windows"])
 
     def _look(self, app_id: str, left: int) -> None:
         """A new window of it seen: as asked, nothing to bring. None in the time given: brought."""
@@ -591,7 +524,7 @@ class Launcher(QObject):
         log(f"launcher: {app_id} brought here")
 
     def _open_file(self, path: str) -> str:
-        projects = _json("/projects", [])
+        projects = core_projects()
         here = next((p for p in projects if p.get("id") == self.desktop.project.get("id")), None)
         if not here:
             return "No project"

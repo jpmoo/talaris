@@ -68,8 +68,9 @@ DEFAULTS = {
     # scope: the windows of "desktop" (this one) or "all"; docs: documents pinned
     # ({id, kind, target, name, app, icon, where: "all" or a project id}); stays:
     # {item key: project id}, a pinned thing kept in a project — gone to there
-    # when called, never brought (where the rule is to bring); brings: item keys
-    # always brought where you are (where the rule is to go).
+    # when called, never brought; brings: item keys always brought where you
+    # are. Both whatever the rule (launcher.singleWindow); an app's own choice
+    # (elsewhere) comes first (dock.Dock.how).
     "dock": {"enabled": True, "edge": "bottom", "autohide": False, "opacity": 100, "pinned": [], "pinnedIn": {}, "docs": [], "stays": {}, "brings": [], "order": [], "scope": "desktop", "groups": "one",
              "outline": "line", "shadow": False, "motion": "slide", "speed": "normal",
              # Icons swell as the pointer passes: their largest size, in
@@ -121,6 +122,20 @@ DEFAULTS = {
     # deadline: a fixed timeout fired mid-scroll in the spike.
     "idleSeconds": 45,
 }
+
+
+#: How much longer or shorter than "normal" each motion speed Settings offers takes: the pages' factors,
+#: and so Hyprland's window animations and the window drawing (winfx.py) the same.
+PACE = {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}
+
+
+def pace(speed: str) -> float:
+    return PACE.get(speed, 1)
+
+
+def single_window(config: dict) -> str:
+    """The general rule for an application open in another project (Settings, Keys): `bring` it here, or `go` to it."""
+    return config.get("launcher", {}).get("singleWindow", DEFAULTS["launcher"]["singleWindow"])
 
 
 def load_config() -> dict:

@@ -237,6 +237,19 @@ class Apps:
             self._handed.add(app["icon"])
         return app
 
+    def windows_of(self, key: str, windows: list) -> list:
+        """
+        Which of `windows` (as hypr.windows lists them) are an application's —
+        `key` as the dock knows it (`item_key`) — most recently used first. The
+        one rule the dock's menu and the launcher both tell windows apart by.
+        """
+        return sorted((w for w in windows if item_key(self.lookup(w["class"]), w["class"]) == key), key=lambda w: w["recent"])
+
+
+def item_key(app: dict, wm_class: str) -> str:
+    """What an application is known by: its launcher's id where there is one, else its window class."""
+    return app.get("id") or f"class:{wm_class}"
+
     def icon_png(self, name: str, size: int = 64) -> bytes | None:
         """An icon by theme name or absolute path, as PNG bytes; `None` if there is none."""
         if not name:

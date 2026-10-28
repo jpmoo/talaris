@@ -49,8 +49,6 @@ SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(RUNTIME, "heymorgan.
 
 #: Put away after this long with no input while Morgan is idle.
 IDLE_MS = 5 * 60 * 1000
-#: How long the page has to finish leaving before the surface goes anyway.
-LEAVE_LIMIT_MS = 1600
 
 #: The voice popup's size, and how long it stays after Morgan goes idle.
 VOICE = (420, 300)

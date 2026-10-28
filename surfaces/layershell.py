@@ -29,7 +29,7 @@ from dataclasses import dataclass
 
 import shiboken6
 from PySide6.QtCore import QEvent, QMargins, QObject, QTimer
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
 import hypr
 
@@ -101,6 +101,17 @@ class Placement:
     # Distance from the anchored edges (left, top, right, bottom), in Qt's
     # units: how a menu is put just above the dock item it belongs to.
     margins: tuple[int, int, int, int] = (0, 0, 0, 0)
+
+
+def full_screen(keyboard: int = KEYBOARD_NONE, layer: int = OVERLAY, exclusive: int = -1) -> Placement:
+    """
+    Over the whole screen, anchored to every edge: a panel and its dim, the
+    launcher, a clear layer that hears a press off a dropdown. By default over
+    the bar and the dock too (`exclusive` -1); 0 keeps clear of what they reserve.
+    """
+    screen = QApplication.primaryScreen().geometry()
+    return Placement(layer, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
+                     screen.width(), screen.height(), keyboard, exclusive=exclusive)
 
 
 class _Exposed(QObject):

@@ -31,7 +31,7 @@ import re
 import threading
 
 import shiboken6
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
+from PySide6.QtCore import QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
@@ -39,19 +39,17 @@ import accounts
 import power
 import wallpaper
 from power import LID_ACTIONS
-from config import DEFAULTS, save_config, settle_accent, settle_opacity
-from core import Bridge, call as core_call, route_ok
+from config import DEFAULTS, save_config, settle_accent, settle_opacity, single_window
+from core import Bridge, projects as core_projects
+from layershell import OVERLAY, Placement
+from morgan import command
+from overlay import Overlay
+from views import log, zoom
 
 #: What Settings may ask the core for.
 SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
-from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
-from morgan import command
-from views import log, make_view, zoom
 
 SIZE = (860, 620)
-IDLE_MS = 3 * 60 * 1000
-#: How long the page has to finish leaving before the surface goes anyway.
-LEAVE_LIMIT_MS = 1600
 
 FONTS = ["Barlow Semi Condensed", "Rajdhani", "Saira Semi Condensed", "Exo 2"]
 EDGES = ("top", "bottom", "left", "right")
@@ -165,7 +163,7 @@ def _checked(c: dict) -> str:
         return "Notifications stay 2 to 60 seconds, and are 20% to 100% solid"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
-    if c["launcher"].get("singleWindow", "bring") not in ("bring", "go"):
+    if single_window(c) not in ("bring", "go"):
         return "Bring it here, or go to it"
     meaning = c.get("meaning", {})
     if not isinstance(meaning.get("on", False), bool) or not isinstance(meaning.get("model", ""), str) \
@@ -377,8 +375,6 @@ class SettingsBridge(Bridge):
 
     # ------------------------------------------------------------ data
 
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     #: A plugin was enabled, stopped, set or removed: said from the worker thread, heard on Qt's.
     pluginsTouched = Signal()
     #: A folder or a backup file chosen: {kind, path}.
@@ -388,27 +384,19 @@ class SettingsBridge(Bridge):
     def core(self, ident: str, method: str, path: str, body: str) -> None:
         """
         The entity store's routes, for the Data page. Answered later
-        (`coreReply`): a backup or a revival takes seconds, and the page must
-        not freeze meanwhile. Only the store's own routes: this is not a door
-        to the rest of the core.
+        (`coreReply`, core.Bridge.answer_core): a backup or a revival takes
+        seconds, and the page must not freeze meanwhile. Only the store's own
+        routes: this is not a door to the rest of the core.
         """
-        if not route_ok(SETTINGS_ROUTES, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Data page uses"}}))
-            return
+        plugins = path.startswith("/plugins")
 
-        def run() -> None:
-            # A revival or a backup of a large store takes a while.
-            # A revival or a backup of a large store takes a while; so does cloning a plugin.
-            status, text = core_call(method, path, body or None, timeout=600 if path.startswith("/backups") else 180 if path.startswith("/plugins") else 30)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
+        def then(_status: int) -> None:
             # A plugin enabled, stopped, set or gone: its windows, keys and entries follow.
-            if path.startswith("/plugins") and method != "GET":
+            if plugins and method.upper() != "GET":
                 self.pluginsTouched.emit()
-        threading.Thread(target=run, daemon=True).start()
+        # A revival or a backup of a large store takes a while; so does cloning a plugin.
+        self.answer_core(ident, method, path, body, SETTINGS_ROUTES, who="the Data page", then=then,
+                         timeout=600 if path.startswith("/backups") else 180 if plugins else 30)
 
     @Slot(str)
     def choose(self, kind: str) -> None:
@@ -429,126 +417,59 @@ class SettingsBridge(Bridge):
         return json.dumps(self.owner.desktop.key_list())
 
 
-class Settings(QObject):
+class Settings(Overlay):
+    """
+    A panel as the others are (overlay.py) — its coming and going, its dim,
+    its idle, its stepping aside — but a box in the middle of the screen,
+    not the whole of it, and never a window.
+    """
+
+    NAME = "settings"
+    TITLE = "Settings"
+    LAZY = True
+    IDLE_MS = 3 * 60 * 1000
+    # Its own box, so the pointer is its page's, and given back as the compositor shows it.
+    HAND = False
+    NUDGE = True
+
     def __init__(self, profile: QWebEngineProfile, desktop) -> None:
-        super().__init__(desktop)
-        self.desktop = desktop
-        self.up = False
+        super().__init__(profile, desktop, "talaris-ui://ui/settings.html", SettingsBridge(None, None))
+        self.bridge.owner = self
+        self.bridge.setParent(self)
         # A page asked for — Morgan's settings button asks for its own — sent
         # once with the next state, then forgotten, so a later state (the
         # theme changing) does not pull the page back to it.
         self.page = ""
-        self.bridge = SettingsBridge(self, self)
         # Its windows, keys and launcher entries follow a plugin's change, once it has started or stopped.
         self.bridge.pluginsTouched.connect(lambda: QTimer.singleShot(1500, self.desktop.webapps.refresh))
-        # Its page, made the first time Settings opens: kept for a page opened now and then. The dim behind it is
-        # every panel's (dim.py): a click off Settings, on it, puts Settings away.
-        self.profile = profile
-        self._view = self._surface = None
         # Wi-Fi and Bluetooth: the same readings and changes as the bar's panels.
         desktop.machine.panel.connect(self.bridge.panel.emit)
-        self.idle = QTimer(self)
-        self.idle.setSingleShot(True)
-        self.idle.timeout.connect(self.file_away)
 
-    def _make(self) -> None:
-        self._view = make_view(self.profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
-        self._surface = LayerSurface(self._view, "talaris-settings")
-
-    @property
-    def view(self):
-        if self._view is None:
-            self._make()
-        return self._view
-
-    @property
-    def surface(self):
-        if self._surface is None:
-            self._make()
-        return self._surface
+    def placement(self) -> Placement:
+        # No anchors: the compositor puts it in the middle of the screen. Exclusive 0: clear of the bar and the dock.
+        return Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), self.KEYBOARD)
 
     def describe(self) -> dict:
         # Its size in its page's pixels, for arriving to wait for — once it has a page.
         z = (self._view.zoomFactor() or 1) if self._view is not None else 1
-        return {"up": self.up, "page": self.page, "theme": self.desktop.config["theme"], "motion": self.desktop.motion("settings"),
-                "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)]}
+        return {**super().describe(), "page": self.page, "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)]}
 
     def open(self, page: str = "") -> None:
         self.page = page
-        self.leaving = False
-        if not self.up:
-            # No anchors: the compositor puts it in the middle of the screen.
-            self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
-            self.up = True
-            # The dim every panel has (dim.py): up and clear now, darkened as the page has drawn and arrives (`pointer_back`).
-            if not getattr(self, "_chooser", None):
-                self.desktop.dim.hold(self)
-            log("settings: open")
-        self.bridge.state.emit(json.dumps(self.describe()))
+        # Already out: the page asked for is said all the same.
+        if self.up:
+            self.bridge.state.emit(json.dumps(self.describe()))
+        super().open()
         self.page = ""
-        self.touched()
+
+    def grow(self) -> None:
+        """A box, not a panel: there is no window of it."""
+
+    def opened(self) -> None:
         self.desktop.bar.changed()
 
-    def toggle(self) -> None:
-        if self.up:
-            self.file_away()
-        else:
-            self.open()
-
-    def _step_aside(self) -> None:
-        """
-        Another program's window is coming — GNOME's sign-in for an account, a
-        file chooser. Ordinary windows open under Settings' layer, in the middle
-        of the screen where Settings is, and could not be reached: Settings goes
-        while it is open (its page as it was), and comes back when it closes.
-        """
-        self.idle.stop()
-        self.desktop.dim.release(self)
-        if self.up:
-            self._aside = True
-            self.view.hide()
-            self.surface.placement = None
-
-    def _come_back(self) -> None:
-        if not getattr(self, "_aside", False):
-            return
-        self._aside = False
-        if not self.up:
-            return
-        self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
-        self.desktop.dim.hold(self)
-        self.desktop.dim.deepen(self)
-        self.touched()
-
-    def file_away(self) -> None:
-        if not self.up:
-            return
-        self.up = False
-        self.idle.stop()
-        self.desktop.dim.release(self)
+    def closed(self) -> None:
         self.desktop.bar.changed()
-        # The page plays its leaving, then says so (`left`); then the surface goes.
-        self.leaving = True
-        self.bridge.leave.emit()
-        QTimer.singleShot(LEAVE_LIMIT_MS, self.left)
-
-    def left(self) -> None:
-        if not getattr(self, "leaving", False):
-            return
-        self.leaving = False
-        self.view.hide()
-        self.surface.placement = None
-        self.bridge.state.emit(json.dumps(self.describe()))
-
-    def touched(self) -> None:
-        if self.up:
-            self.idle.start(IDLE_MS)
-
-    def pointer_back(self) -> None:
-        """The page has drawn and is arriving (core.Bridge.drawn): the screen behind dimmed with it, and the pointer given back."""
-        if self.up and not getattr(self, "_chooser", None):
-            self.desktop.dim.deepen(self)
-        hypr.refocus_pointer()
 
     def add_account(self) -> None:
         """GNOME Online Accounts' own window, beside Settings: the provider's sign-in, then the account is here."""
@@ -563,22 +484,18 @@ class Settings(QObject):
                 return
             self._adder = None
             adder.deleteLater()
-            self._come_back()
+            self.come_back()
             self.bridge.accountsChanged.emit()
 
         adder.finished.connect(done)
         self._adder = adder
-        self._step_aside()
+        self.step_aside()
         adder.start()
 
     def wallpapers(self, scope: str) -> dict:
         """What Settings shows: one wallpaper (the default, or a project's), and every project's state."""
         desktop = self.desktop
-        status, text = core_call("GET", "/projects")
-        try:
-            projects = json.loads(text) if status == 200 else []
-        except ValueError:
-            projects = []
+        projects = core_projects()
         here = desktop.project.get("id", "")
         mine = wallpaper.for_project(desktop.config, scope) if scope else {**wallpaper.current(), "own": False}
         return {**mine, "scope": scope, "here": here,
@@ -593,13 +510,13 @@ class Settings(QObject):
 
         def chosen(path: str) -> None:
             self._chooser = None
-            self._come_back()
+            self.come_back()
             if path:
                 error = self.desktop.set_wallpaper(scope, path=path)
                 self.bridge.wallpaperChanged.emit(json.dumps({**self.wallpapers(scope), "error": error, "changed": not error}))
 
         self._chooser = True
-        self._step_aside()
+        self.step_aside()
         wallpaper.pick(self, os.path.dirname(now["path"]), chosen)
 
     def choose_path(self, kind: str) -> None:
@@ -618,7 +535,7 @@ class Settings(QObject):
 
         def done(code: int, _status) -> None:
             self._chooser = None
-            self._come_back()
+            self.come_back()
             path = bytes(chooser.readAllStandardOutput()).decode().strip() if code == 0 else ""
             chooser.deleteLater()
             if path:
@@ -626,7 +543,7 @@ class Settings(QObject):
 
         chooser.finished.connect(done)
         self._chooser = chooser
-        self._step_aside()
+        self.step_aside()
         chooser.start()
 
     def apply(self, wanted: dict) -> str:

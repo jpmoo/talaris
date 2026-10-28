@@ -42,7 +42,7 @@ import hypr
 from apps import Apps
 from bar import Bar
 from bar import margins as bar_margins
-from config import load_config, save_config
+from config import load_config, pace, save_config
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
@@ -279,9 +279,9 @@ class Desktop(QObject):
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
         except (ValueError, OSError):
             active = ""
-        if active and not active.startswith(("prj_", "special")):
+        if hypr.is_ordinary(active):
             self._ordinary = active
-        elif active.startswith("prj_"):
+        elif hypr.project_of(active, ""):
             QTimer.singleShot(0, lambda: self._workspace_changed(active))
         self._bind()
 
@@ -293,12 +293,7 @@ class Desktop(QObject):
         QTimer.singleShot(4000, lambda: wallpaper.show(self.config, self.project.get("id", "")))
 
     def _home(self) -> dict:
-        status, text = call("GET", "/projects")
-        try:
-            projects = json.loads(text) if status == 200 else []
-        except ValueError:
-            projects = []
-        home = next((p for p in projects if p.get("home")), None)
+        home = next((p for p in core.projects() if p.get("home")), None)
         return home or {"id": "", "code": "", "name": "Home"}
 
     def overlays(self) -> list:
@@ -332,8 +327,8 @@ class Desktop(QObject):
         win = self.config["windows"]
         motion = win.get("motion", "pop")
         # Hyprland's speeds are tenths of a second; the pages' factors, applied.
-        pace = {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(win.get("speed", "normal"), 1)
-        ds = lambda base: f"{max(.5, base * pace):.2f}"  # noqa: E731
+        factor = pace(win.get("speed", "normal"))
+        ds = lambda base: f"{max(.5, base * factor):.2f}"  # noqa: E731
         hypr.keyword("bezier", "talarisIn,0.2,0.8,0.2,1")
         hypr.keyword("bezier", "talarisOut,0.5,0,0.9,0.4")
         style = {"slide": "slide", "pop": "popin 87%"}.get(motion, "")
@@ -494,7 +489,7 @@ class Desktop(QObject):
         if "interface" in changed:
             # Larger or smaller text: everything with a fixed size is made again.
             self.bar.close_popup()
-            self.dock.menu.file_away()
+            self.dock.menu.close()
             if self.settings.up:
                 self.settings.surface.placement = None
                 self.settings.up = False
@@ -549,8 +544,8 @@ class Desktop(QObject):
     def workspace_for(self, project_id: str) -> str:
         """A project's desktop as a dispatcher names it: Home's, the ordinary one last used; any other, by its id."""
         if project_id == self._home().get("id", ""):
-            return self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
-        return f"name:{project_id}"
+            return hypr.target(self._ordinary)
+        return hypr.target(project_id)
 
     def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
         """
@@ -565,18 +560,13 @@ class Desktop(QObject):
         of those. Going to a workspace by other means (its keys, the dock)
         makes its project current in turn (`_workspace_changed`).
         """
-        status, text = call("GET", "/projects")
-        try:
-            found = next((p for p in json.loads(text) if p.get("id") == project_id), None) if status == 200 else None
-        except ValueError:
-            found = None
+        found = next((p for p in core.projects() if p.get("id") == project_id), None)
         if not found:
             return
         if move:
-            back = self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
             # Slid in from its side of the carousel's ring, as every change of project is (`_slide_toward`).
             self._slide_toward(found["id"])
-            hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
+            hypr.ask(f"/dispatch workspace {self.workspace_for(found['id'])}")
         # Already there (an app opened, a window focused): nothing to say — the flash is for arriving.
         if found["id"] == self.project.get("id"):
             return
@@ -612,11 +602,11 @@ class Desktop(QObject):
         the numbered ones are Home's). The same project, or a special
         workspace, is no change, and keeps the workspaces' own animation.
         """
-        if not target or target.startswith("special"):
+        if not target or hypr.is_special(target):
             return
         ring = self.jump._ordered()
         home = next((p.get("id") for p in ring if p.get("home")), "")
-        pid = target if any(p.get("id") == target for p in ring) else (home if not target.startswith("prj_") else target)
+        pid = hypr.project_of(target, home)
         here = self.project.get("id", "")
         ids = [p.get("id") for p in ring]
         if pid == here or pid not in ids or here not in ids:
@@ -667,15 +657,13 @@ class Desktop(QObject):
         self._slide_kept = None
 
     def _workspace_changed(self, name: str) -> None:
-        """A workspace gone to: a project's (by its id), or an ordinary one — numbered, or named by you — which is Home's."""
-        if name.startswith("special"):
-            return
-        if not name.startswith("prj_"):
+        """A workspace gone to: a project's (by its id), or an ordinary one — numbered, or named by you — which is Home's (hypr.project_of)."""
+        if hypr.is_ordinary(name):
+            # Home's desktop is the ordinary one last used: going Home goes back to it.
             self._ordinary = name
-            if not self.project.get("home"):
-                self.go_to_project(self._home()["id"], move=False, announce=True)
-        elif name.startswith("prj_") and name != self.project.get("id"):
-            self.go_to_project(name, move=False, announce=True)
+        pid = hypr.project_of(name, self._home().get("id", ""))
+        if pid and pid != self.project.get("id"):
+            self.go_to_project(pid, move=False, announce=True)
 
     def set_wallpaper(self, scope: str, path: str | None = None, fit: str | None = None, clear: bool = False) -> str:
         """

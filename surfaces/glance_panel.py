@@ -22,10 +22,10 @@ import json
 import re
 import threading
 
-from PySide6.QtCore import Signal, Slot
+from PySide6.QtCore import Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call, route_ok
+from core import Bridge, local_call
 from overlay import Overlay
 
 #: What the page may ask the core for: the glance, an entity's card, and suggested ties.
@@ -35,23 +35,11 @@ WRITES = re.compile(r"^/suggestions/(accept|dismiss|quiet|reset)$")
 
 
 class GlanceBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
-
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not route_ok(ALLOWED, path) or (method != "GET" and not (method in ("POST", "PUT") and WRITES.match(path))):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route Glance uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=60)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Answered later, on `coreReply` (core.Bridge.answer_core); reads, and only the changes WRITES names."""
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=60, who="Glance",
+                         writes=lambda m, p: m in ("POST", "PUT") and bool(WRITES.match(p)))
 
     @Slot(str, str, str)
     def openFile(self, path: str, sha256: str, name: str) -> None:  # noqa: N802 — called from the page by this name

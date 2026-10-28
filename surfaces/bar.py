@@ -28,7 +28,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
-from core import Bridge, call
+from core import Bridge, get_json, projects as core_projects
 from layershell import (
     ANCHOR_BOTTOM,
     ANCHOR_LEFT,
@@ -45,7 +45,7 @@ from layershell import (
 from machine import Machine
 from morgan import command as morgan_command
 from sysmon import monitor
-from sensor import Autohide, Catcher
+from sensor import Autohide, ClickAway
 from views import log, make_view, zoom, zoom_of
 
 #: Room below the bar (or above the dock) for a shadow to fall into.
@@ -65,11 +65,6 @@ POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "blu
 #: password is typed or a scan is waited on.
 POPUP_IDLE_MS = 12000
 POPUP_IDLE_LONG_MS = 45000
-
-#: Making the surface anew takes its focus away and gives it back, which the
-#: page hears as the pointer going elsewhere. For this long after a popup
-#: appears, its page cannot send it away.
-POPUP_SETTLE_S = 0.5
 
 
 def margins(look: dict) -> dict:
@@ -150,16 +145,9 @@ class BarBridge(Bridge):
         /tasks/column), Home first, and any project Tasks does not show last,
         by name. A group's name comes as `{"group": name}` before its projects.
         """
-        status, text = call("GET", "/projects")
-        try:
-            listed = [p for p in json.loads(text) if not p.get("archived")] if status == 200 else []
-        except ValueError:
-            listed = []
-        status, text = call("GET", "/tasks/column")
-        try:
-            column = json.loads(text) if status == 200 else []
-        except ValueError:
-            column = []
+        listed = [p for p in core_projects() if not p.get("archived")]
+        column = get_json("/tasks/column", [])
+        column = [x for x in column if isinstance(x, dict)] if isinstance(column, list) else []
         here = self.owner.desktop.project.get("id")
         by_id = {p.get("id"): p for p in listed}
         row = lambda p: {"id": p.get("id"), "name": p.get("name", ""), "code": p.get("code", ""), "current": p.get("id") == here}  # noqa: E731
@@ -355,21 +343,20 @@ class Popup(QObject):
         # Which showing the page has said it drew (`shownDrawn`); one not said is a page not drawing.
         self.drawn_for = 0.0
         self.remade = False
-        # A press anywhere off the dropdown puts it away: heard by a clear layer
-        # under it, which keeps off the bar so its other buttons still answer.
-        self.catcher = Catcher(profile, self.close, self, name="popup-catcher")
+        # A press anywhere off the dropdown puts it away, as the dock's menu (sensor.ClickAway).
+        self.away = ClickAway(profile, self.close, self, name="popup-catcher")
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self.close)
 
     def describe(self) -> dict:
         # `shown`: which showing this is — a popup opened again on the same kind is a new one to its page.
-        return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"]}
+        return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"],
+                "clock": self.desktop.config.get("clock", {})}
 
     def show(self, kind: str) -> None:
         self.kind = kind
-        self.shown_at = time.monotonic()
-        self.catcher.show(clear_of_bar=True)
+        self.shown_at = self.away.shown()
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         # Respecting other surfaces' reserved space puts it just clear of the bar.
@@ -453,7 +440,7 @@ class Popup(QObject):
 
     def file_away(self) -> None:
         """From the page — Escape, or the pointer gone elsewhere."""
-        if time.monotonic() - self.shown_at < POPUP_SETTLE_S:
+        if self.away.settling():
             return
         self.close()
 
@@ -464,7 +451,7 @@ class Popup(QObject):
         # popup loses the keyboard) just before the press arrives, which must
         # not open it again.
         self.closed, self.closed_at, self.closed_item = self.kind, time.monotonic(), self.tray_item
-        self.catcher.hide()
+        self.away.gone()
         self.kind = ""
         self.tray_item = ""
         self.idle.stop()

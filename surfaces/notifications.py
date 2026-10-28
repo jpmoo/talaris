@@ -261,7 +261,9 @@ class Toasts(QObject):
     def describe(self) -> dict:
         n = self.notifications
         return {"up": bool(self.showing), "theme": self.desktop.config["theme"], "look": n.settings(),
-                "toasts": [{**t, "canOpen": n.can_open(t)} for t in self.showing]}
+                "toasts": [{**t, "canOpen": n.can_open(t)} for t in self.showing],
+                # The clock as Settings has it, so a time on a toast reads as the bar's does.
+                "clock": self.desktop.config.get("clock", {})}
 
     def _tell(self) -> None:
         self.bridge.state.emit(json.dumps(self.describe()))

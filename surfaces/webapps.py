@@ -6,8 +6,9 @@ app in a window of its own (webapp.py), for as long as its plugin is enabled.
 
 For each one Talaris writes a desktop entry — so the launcher lists it and
 the dock shows it by its name — and binds its key. The key, or the launcher,
-brings the window forward if it is open (going to its desktop), and opens it
-if not: one window, never a second.
+brings the window here or goes to it if it is open, by the rule any
+application is called by (the dock's `how`), and opens it if not: one window,
+never a second.
 
 Read again when a plugin is enabled, stopped or set (settings.py says so),
 after a config reload drops the binds, and every minute besides.
@@ -23,7 +24,7 @@ import sys
 from PySide6.QtCore import QObject, QTimer
 
 import hypr
-from core import call
+from core import get_json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APPS_DIR = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "applications")
@@ -48,12 +49,8 @@ class WebApps(QObject):
         QTimer.singleShot(3000, self.refresh)
 
     def refresh(self) -> None:
-        status, text = call("GET", "/plugins/apps")
-        if status != 200:
-            return
-        try:
-            listed = json.loads(text)
-        except ValueError:
+        listed = get_json("/plugins/apps")
+        if not isinstance(listed, list):
             return
         apps = {app_key(a): a for a in listed}
         if json.dumps(apps, sort_keys=True) == json.dumps(self.apps, sort_keys=True):
@@ -109,25 +106,24 @@ class WebApps(QObject):
         self.bound = {}
 
     def open(self, k: str) -> None:
-        """Its window forward if it is open; else started."""
+        """Its window brought here or gone to if it is open; else started."""
         a = self.apps.get(k)
         if not a:
             self.refresh()
             a = self.apps.get(k)
         if not a:
             return
-        try:
-            clients = json.loads(hypr.ask("j/clients"))
-        except (OSError, ValueError):
-            clients = []
-        mine = [c for c in clients if (c.get("class") or c.get("initialClass")) == f"{PREFIX}{k}"]
-        if mine:
-            hypr.focus(sorted(mine, key=lambda c: c.get("focusHistoryID", 999))[0]["address"])
+        app_id = f"{PREFIX}{k}"
+        launcher = self.desktop.launcher
+        # Open: brought here or gone to as any application is (the dock's `how`, its keeping first) — one window, never a second.
+        if launcher._app_windows(app_id):
+            if not launcher.kept(app_id):
+                launcher.call_app_as(app_id, "go" if self.desktop.dock.how(app_id) == "go" else "bring")
             return
-        # Its dock pin kept in a project (where the rule is to bring): started there, not here.
-        cfg = self.desktop.config
-        home = cfg["dock"].get("stays", {}).get(f"{PREFIX}{k}") if cfg["launcher"].get("singleWindow", "bring") != "go" else None
-        if home:
+        # Not open, and its dock pin kept in another project: started there, not here. (Not by `kept`, which
+        # starts it through its desktop entry — this, again.)
+        home = self.desktop.config["dock"].get("stays", {}).get(app_id)
+        if home and home != self.desktop.project.get("id", ""):
             self.desktop.go_to_project(home, announce=True)
         args = [sys.executable, os.path.join(HERE, "webapp.py"), "--id", k, "--name", a["name"], "--url", a["url"]]
         if a.get("icon"):
