@@ -21,7 +21,8 @@ Settings: appearance, where things go, the keys, and Morgan.
 .rd-doing { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; display: block; }
 html, body { height: 100%; }
 #win {
-  position: absolute; inset: 6px 8px 10px; display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 1fr auto;
+  /* Room round it for its shadow (--menu-shadow reaches 14 above, 22 beside, 30 below): the surface is its size, not the screen's. */
+  position: absolute; inset: 14px 22px 30px; display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 1fr auto;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); overflow: hidden;
 }
 nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 0; }

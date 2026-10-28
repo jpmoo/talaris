@@ -1715,6 +1715,10 @@ $("done").addEventListener("click", () => bridge && bridge.file());
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && bridge && !(e.target.closest && e.target.closest("select"))) bridge.file();
 });
+// A press beside the panel, in the room left for its shadow, is a press off it: put away, as a press on the dim is.
+addEventListener("pointerdown", (e) => {
+  if (bridge && !e.target.closest("#win, .kit-pop, .kit-scrim")) bridge.file();
+});
 for (const type of ["pointerdown", "keydown", "wheel"]) addEventListener(type, () => bridge && bridge.activity(), { capture: true, passive: true });
 
 function reload(page) {

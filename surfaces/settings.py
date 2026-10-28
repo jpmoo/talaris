@@ -49,7 +49,8 @@ from views import log, zoom
 #: What Settings may ask the core for.
 SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
 
-SIZE = (860, 620)
+#: The panel and the room round it for its shadow (ui/settings.html #win's inset): 860 × 620 of panel.
+SIZE = (888, 648)
 
 FONTS = ["Barlow Semi Condensed", "Rajdhani", "Saira Semi Condensed", "Exo 2"]
 EDGES = ("top", "bottom", "left", "right")
