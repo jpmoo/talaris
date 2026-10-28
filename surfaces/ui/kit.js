@@ -189,6 +189,8 @@ const Kit = (() => {
     if (was) was();
   }
   const isOpen = () => !!holder && !holder.hidden;
+  /** What opened the pop-up out now (a press on it again puts it away: the page's to decide). */
+  const openedBy = () => (isOpen() ? opener : null);
   function pop(at, content, { onClose = null } = {}) {
     if (!holder) {
       holder = el("div", { class: "kit-pop", hidden: true });
@@ -198,13 +200,15 @@ const Kit = (() => {
         popAway();
       }, true);
       addEventListener("resize", popAway);
+      // The page scrolled under it: what opened it has moved away.
+      document.addEventListener("scroll", (e) => { if (isOpen() && !holder.contains(e.target)) popAway(); }, true);
       // Escape puts the pop-up away and nothing else: first, before the page hears it.
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); popAway(); }
       }, true);
     }
     popAway();
-    opener = at instanceof Element ? at : null;
+    opener = at instanceof Element ? at : (at.opener || null);
     closed = onClose;
     holder.replaceChildren(content);
     holder.hidden = false;
@@ -219,32 +223,49 @@ const Kit = (() => {
     return holder;
   }
   /**
-   * A menu: items `{label, act, on, color, sub}` or "sep". Under `at` (an
-   * element, or {x, y}); the arrow keys move through it and Enter chooses.
+   * A menu: items `{label, act, on, color, sub, title, disabled}` or "sep".
+   * Under `at` (an element, or {x, y}); the arrow keys move through it and
+   * Enter chooses; longer than eight, a box on top narrows it as it is typed
+   * (Enter there takes the first left).
    */
   function menu(at, items, opts = {}) {
-    let hot = -1;
-    const buttons = [];
-    const list = el("div", { class: "menu-list", role: "menu" }, items.map((it) => {
-      if (it === "sep") return el("div", { class: "menu-sep" });
-      const b = el("button", { class: "menu-item" + (it.on ? " on" : ""), title: it.title || null, disabled: it.disabled || null,
-        onclick: (e) => { e.stopPropagation(); popAway(); it.act(); } },
-        it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null,
-        el("span", { class: "lbl" }, it.label), it.sub ? el("span", { class: "n" }, it.sub) : null);
-      buttons.push(b);
-      return b;
-    }));
+    let hot = -1, buttons = [];
+    const real = items.filter((it) => it !== "sep");
+    const list = el("div", { class: "menu-list", role: "menu" });
+    const draw = (q = "") => {
+      const shown = q ? real.filter((it) => matches(q, it.label)) : items;
+      buttons = [];
+      hot = -1;
+      list.replaceChildren(...shown.map((it) => {
+        if (it === "sep") return el("div", { class: "menu-sep" });
+        const b = el("button", { class: "menu-item" + (it.on ? " on" : ""), title: it.title || null, disabled: it.disabled || null,
+          onclick: (e) => { e.stopPropagation(); popAway(); it.act(); } },
+          it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null,
+          el("span", { class: "lbl" }, it.label), it.sub ? el("span", { class: "n" }, it.sub) : null);
+        buttons.push(b);
+        return b;
+      }));
+      if (!buttons.length) list.append(empty("Nothing matches"));
+    };
     const mark = () => buttons.forEach((b, i) => { b.classList.toggle("hot", i === hot); if (i === hot) b.scrollIntoView({ block: "nearest" }); });
-    list.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    const keys = (e) => {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && buttons.length) {
         e.preventDefault();
         hot = (hot + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
         mark();
-        buttons[hot].focus();
+      } else if (e.key === "Enter" && buttons.length) {
+        e.preventDefault();
+        buttons[Math.max(0, hot)].click();
       }
-    });
-    pop(at, list, opts);
-    return list;
+    };
+    draw();
+    const filter = real.length > 8 ? el("input", { type: "text", class: "kit-filter", spellcheck: "false", placeholder: "Find" }) : null;
+    if (filter) filter.addEventListener("input", () => draw(filter.value));
+    const box = el("div", { tabindex: "-1" }, filter, list);
+    box.addEventListener("keydown", keys);
+    pop(at, box, opts);
+    (filter || box).focus();
+    return box;
   }
 
   // ------------------------------------------------------------ choosing a day, a time
@@ -257,11 +278,12 @@ const Kit = (() => {
    * `[label, date | value]` (the standard set: `Kit.DAY_CHIPS`, with Clear when
    * `clear` is set). `pick` is given the day (or a chip's value).
    */
-  const DAY_CHIPS = () => {
-    const t = startOfDay(new Date());
-    return [["Today", t], ["+1 day", addDays(t, 1)], ["+1 week", addDays(t, 7)], ["Next Mon", addDays(t, ((1 - t.getDay() + 7) % 7) || 7)]];
+  /** The quick days, the same everywhere: today, a day and a week on from `base` (the day chosen, else today), next Monday. */
+  const DAY_CHIPS = (base = null) => {
+    const t = startOfDay(new Date()), b = base ? startOfDay(base) : t;
+    return [["Today", t], ["+1 day", addDays(b, 1)], ["+1 week", addDays(b, 7)], ["Next Mon", addDays(t, ((1 - t.getDay() + 7) % 7) || 7)]];
   };
-  function monthPicker(chosen, pick, { chips = null, clear = false } = {}) {
+  function monthPicker(chosen, pick, { chips = null, clear = false, years = false } = {}) {
     let month0 = new Date((chosen || new Date()).getFullYear(), (chosen || new Date()).getMonth(), 1);
     const wrap = el("div", { class: "kit-mini" });
     const choose = (e, v) => { e.stopPropagation(); popAway(); pick(v); };
@@ -270,9 +292,12 @@ const Kit = (() => {
       const step = (n) => (e) => { e.stopPropagation(); month0 = new Date(month0.getFullYear(), month0.getMonth() + n, 1); draw(); };
       const prev = el("button", { class: "icon-btn", title: "The month before", onclick: step(-1) }), next = el("button", { class: "icon-btn", title: "The month after", onclick: step(1) });
       prev.innerHTML = ICON_PREV; next.innerHTML = ICON_NEXT;
+      // A year at a time too, for a day long ago (a birthday).
+      const back = years ? el("button", { class: "icon-btn", title: "The year before", onclick: step(-12) }, "«") : null;
+      const on = years ? el("button", { class: "icon-btn", title: "The year after", onclick: step(12) }, "»") : null;
       const quick = [...(chips || []), ...(clear ? [["Clear", null]] : [])];
       wrap.replaceChildren(
-        el("div", { class: "kit-mini-head" }, prev, el("span", {}, month(month0)), next),
+        el("div", { class: "kit-mini-head" }, back, prev, el("span", { class: "m" }, month(month0)), next, on),
         el("div", { class: "kit-mini-grid" },
           ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
           Array.from({ length: 42 }, (_, i) => {
@@ -399,7 +424,7 @@ const Kit = (() => {
 
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
-    parseDay, parseTime, pop, popAway, isOpen, menu, monthPicker, timeList, DAY_CHIPS,
+    parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
     twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, say, empty,
   };
 })();

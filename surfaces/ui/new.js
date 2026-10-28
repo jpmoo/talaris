@@ -88,54 +88,17 @@
 
   // ---------------------------------------------------------------- the one small list
 
-  function popUnder(anchor, content) {
-    const pop = $("pop");
-    pop.replaceChildren(content);
-    pop.hidden = false;
-    // Fixed to the screen, not the sheet: a month under the last row would be cut off by its edge.
-    const r = anchor.getBoundingClientRect();
-    pop.style.left = `${Math.max(4, Math.min(r.left, innerWidth - pop.offsetWidth - 4))}px`;
-    pop.style.top = `${Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 4)}px`;
-    pop.dataset.for = anchor.id || "";
-  }
-  function popAway() { $("pop").hidden = true; }
-  document.addEventListener("pointerdown", (e) => {
-    if (!$("pop").hidden && !$("pop").contains(e.target) && !e.target.closest("[data-pops]")) popAway();
-  }, true);
+  // One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
+  // kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
+  const popUnder = (anchor, content) => Kit.pop(anchor, content);
+  const popAway = () => Kit.popAway();
+  const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
+  const timeList = (current, pick) => Kit.timeList(current, pick);
 
   function menu(anchor, items) {
     popUnder(anchor, el("div", { class: "menu-list" }, items.map((it) =>
       el("button", { class: "menu-item" + (it.on ? " on" : ""), onclick: (e) => { e.stopPropagation(); popAway(); it.act(); } },
         it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null, it.label))));
-  }
-  function monthPicker(chosen, pick) {
-    let shown = new Date((chosen || new Date()).getFullYear(), (chosen || new Date()).getMonth(), 1);
-    const wrap = el("div", { class: "mini" });
-    const draw = () => {
-      const first = startOfWeek(shown);
-      wrap.replaceChildren(
-        el("div", { class: "mini-head" },
-          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); draw(); } }, "‹"),
-          el("span", {}, Kit.month(shown)),
-          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); draw(); } }, "›")),
-        el("div", { class: "mini-grid" },
-          ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-          Array.from({ length: 42 }, (_, i) => {
-            const d = addDays(first, i);
-            return el("button", { class: "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
-              onclick: (e) => { e.stopPropagation(); popAway(); pick(d); } }, String(d.getDate()));
-          })));
-    };
-    draw();
-    return wrap;
-  }
-  function timeList(current, pick) {
-    const list = el("div", { class: "times" });
-    for (let m = 0; m < 24 * 60; m += 15) {
-      list.append(el("button", { class: "time" + (m === current ? " on" : ""), onclick: (e) => { e.stopPropagation(); popAway(); pick(m); } }, timeLabel(m)));
-    }
-    setTimeout(() => { const on = list.querySelector(".on") || list.children[Math.floor((current ?? 540) / 15)]; if (on) list.scrollTop = on.offsetTop - 60; }, 0);
-    return list;
   }
 
   // ---------------------------------------------------------------- fields
@@ -809,7 +772,7 @@
     if (e.defaultPrevented) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      if (!$("pop").hidden) popAway();
+      if (!!Kit.isOpen()) popAway();
       else if (bridge) bridge.file();
       return;
     }

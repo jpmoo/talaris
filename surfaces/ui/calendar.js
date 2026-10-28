@@ -413,47 +413,13 @@ const timeLabel = (m) => Kit.minutes(m);
 // What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
 const parseTime = (text) => Kit.parseTime(text);
 
-// One small list at a time, under what opened it.
-function popUnder(anchor, content) {
-  const pop = $("pop");
-  pop.replaceChildren(content);
-  const box = document.querySelector("#editor .box").getBoundingClientRect(), r = anchor.getBoundingClientRect();
-  pop.style.left = `${r.left - box.left}px`;
-  pop.style.top = `${r.bottom - box.top + 4}px`;
-  pop.hidden = false;
-  pop.dataset.for = anchor.id;
-}
-function popAway() { $("pop").hidden = true; delete $("pop").dataset.for; }
+// One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
+// kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
+const popUnder = (anchor, content) => Kit.pop(anchor, content);
+const popAway = () => Kit.popAway();
+const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
+const timeList = (current, pick) => Kit.timeList(current, pick);
 
-function monthPicker(chosen, pick) {
-  let shown = new Date(chosen.getFullYear(), chosen.getMonth(), 1);
-  const wrap = el("div", { class: "mini" });
-  const drawMini = () => {
-    const first = startOfWeek(shown);
-    wrap.replaceChildren(
-      el("div", { class: "mini-head" },
-        el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); drawMini(); } }, "‹"),
-        el("span", {}, Kit.month(shown)),
-        el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); drawMini(); } }, "›")),
-      el("div", { class: "mini-grid" },
-        ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-        ...Array.from({ length: 42 }, (_, i) => {
-          const d = addDays(first, i);
-          return el("button", { class: "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
-            onclick: (e) => { e.stopPropagation(); pick(d); popAway(); } }, String(d.getDate()));
-        })));
-  };
-  drawMini();
-  return wrap;
-}
-function timeList(current, pick) {
-  const list = el("div", { class: "times" });
-  for (let m = 0; m < 24 * 60; m += 15) {
-    list.append(el("button", { class: "time" + (m === current ? " on" : ""), onclick: (e) => { e.stopPropagation(); pick(m); popAway(); } }, timeLabel(m)));
-  }
-  setTimeout(() => { const on = list.querySelector(".on") || list.children[Math.floor((current ?? 540) / 15)]; if (on) list.scrollTop = on.offsetTop - 60; }, 0);
-  return list;
-}
 
 // ---- repeating: the few rules people make, read from and written to RRULE.
 // One this editor cannot say (an interval of 3, the second Tuesday) is kept as
@@ -550,7 +516,7 @@ function showPeople(found) {
 }
 $("e-until").addEventListener("click", (ev) => {
   ev.stopPropagation();
-  if (!editing || $("pop").dataset.for === "e-until") { popAway(); return; }
+  if (!editing || (Kit.openedBy() || {}).id === "e-until") { popAway(); return; }
   popUnder($("e-until"), monthPicker(editing.v.rule.until || editing.v.sd, (d) => { editing.v.rule.until = d; editing.v.rule.changed = true; paintRepeats(); }));
 });
 $("e-count").addEventListener("change", () => { const n = parseInt($("e-count").value, 10); if (n > 0) { editing.v.rule.count = n; editing.v.rule.changed = true; } paintRepeats(); });
@@ -605,7 +571,7 @@ function closeEditor() { popAway(); $("editor").classList.remove("open"); editin
 
 $("e-cal").addEventListener("click", (ev) => {
   ev.stopPropagation();
-  if (!editing || $("pop").dataset.for === "e-cal") { popAway(); return; }
+  if (!editing || (Kit.openedBy() || {}).id === "e-cal") { popAway(); return; }
   popUnder($("e-cal"), el("div", { class: "menu-list" }, ...showing().filter((c) => c.writable).map((c) =>
     el("button", { class: "time" + (c.id === editing.v.calendar ? " on" : ""), onclick: (e) => { e.stopPropagation(); editing.v.calendar = c.id; popAway(); paintEditor(); } },
       el("span", { class: "sw", style: `background:${c.color || "var(--accent)"}` }), `${c.name} · ${c.account}`))));
@@ -614,7 +580,7 @@ $("e-allday").addEventListener("click", () => { if (!editing) return; editing.v.
 for (const [id, key] of [["e-sd", "sd"], ["e-ed", "ed"]]) {
   $(id).addEventListener("click", (ev) => {
     ev.stopPropagation();
-    if (!editing || $("pop").dataset.for === id) { popAway(); return; }
+    if (!editing || (Kit.openedBy() || {}).id === id) { popAway(); return; }
     popUnder($(id), monthPicker(editing.v[key], (d) => {
       // Moving the start moves the end with it, keeping the length.
       if (key === "sd") { const len = editing.v.ed - editing.v.sd; editing.v.sd = d; editing.v.ed = new Date(d.getTime() + Math.max(0, len)); }
@@ -677,7 +643,7 @@ $("e-delete").addEventListener("click", () => {
 $("e-cancel").addEventListener("click", closeEditor);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { if (!$("pop").hidden) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
+  if (e.key === "Escape") { if (!!Kit.isOpen()) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
   if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA") $("e-save").click();
 });
 

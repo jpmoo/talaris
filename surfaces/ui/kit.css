@@ -10,11 +10,15 @@ asking twice, an empty list, a line said back — the same on every page.
 .kit-pop[hidden] { display: none; }
 .kit-pop .menu-list { display: flex; flex-direction: column; min-width: 150px; }
 .kit-pop .menu-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.kit-pop .menu-item .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-pop .menu-item .tg, .kit-pop .menu-item .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kit-pop .menu-item .n { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 11px; }
+.kit-pop .kit-filter { width: 100%; box-sizing: border-box; margin: 0 0 4px; font: inherit; font-size: 12.5px; padding: 4px 8px; background: var(--desk, transparent); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-row); outline: none; }
+.kit-pop .kit-filter:focus { border-color: var(--accent); }
+.kit-pop > div:focus { outline: none; }
 .kit-pop .menu-item.hot { background: var(--accent-wash) !important; color: var(--accent) !important; }
 .kit-pop .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 .kit-mini { width: 232px; padding: 2px; }
+.kit-mini-head .m { flex: 1; text-align: center; }
 .kit-mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; color: var(--text); }
 .kit-mini-head .icon-btn { border: 0 !important; background: none !important; color: var(--muted) !important; padding: 2px 6px !important; cursor: pointer; display: grid; place-items: center; }
 .kit-mini-head .icon-btn:hover { color: var(--accent) !important; }
@@ -33,3 +37,6 @@ asking twice, an empty list, a line said back — the same on every page.
 button.armed, .armed > button { color: var(--danger, #e06c6c) !important; border-color: var(--danger, #e06c6c) !important; font-weight: 600; }
 .kit-empty { color: var(--muted); font-size: 12.5px; padding: 10px 8px; }
 .err { color: var(--danger, #e06c6c) !important; }
+/* "Connect to…" in the writing drawer: a box to find by, the things found under it. */
+.kit-pop .cn-menu { min-width: 260px; }
+.kit-pop .cn-menu .cn-q { width: 100%; box-sizing: border-box; margin-bottom: 4px; }

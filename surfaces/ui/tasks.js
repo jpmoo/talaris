@@ -141,7 +141,6 @@
   // What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
   const parseTime = (text) => Kit.parseTime(text);
   // Strictly after today: the picker's "Next Mon".
-  function nextWeekday(i) { const t = startOfDay(new Date()); return addDays(t, ((i - t.getDay() + 6) % 7) + 1); }
 
   // ---------------------------------------------------------------- the one pop at a time
   //
@@ -149,62 +148,13 @@
   // the engine's own, which a layer surface cannot hold — so menus, dates and
   // times are small lists drawn in the page.
 
-  let popFor = null;
-  function popPlace(left, top, content, anchor) {
-    const pop = $("pop");
-    pop.replaceChildren(content);
-    pop.hidden = false;
-    popFor = anchor || null;
-    const box = document.body.getBoundingClientRect();
-    const w = pop.offsetWidth, h = pop.offsetHeight;
-    pop.style.left = `${Math.max(4, Math.min(left - box.left, box.width - w - 6))}px`;
-    pop.style.top = `${Math.max(4, Math.min(top - box.top, box.height - h - 6))}px`;
-  }
-  function popUnder(anchor, content) { const r = anchor.getBoundingClientRect(); popPlace(r.left, r.bottom + 4, content, anchor); }
-  function popAway() { $("pop").hidden = true; popFor = null; }
-  // A press elsewhere puts it away; a press on what opened it is that one's to decide.
-  document.addEventListener("pointerdown", (e) => {
-    if ($("pop").hidden || $("pop").contains(e.target)) return;
-    if (popFor && popFor.contains(e.target)) return;
-    popAway();
-  }, true);
-
-  function menuAt(x, y, items) {
-    popPlace(x, y, el("div", { class: "menu-list" }, items.map((it) => (it === "sep" ? el("div", { class: "menu-sep" })
-      : el("button", { class: "menu-item" + (it.on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); it.act(); } },
-        it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null, it.label)))));
-  }
-
-  function monthPicker(chosen, pick) {
-    let at = chosen || new Date();
-    let month = new Date(at.getFullYear(), at.getMonth(), 1);
-    const wrap = el("div", { class: "mini" });
-    const draw = () => {
-      const first = startOfWeek(month);
-      wrap.replaceChildren(
-        el("div", { class: "mini-head" },
-          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); month = new Date(month.getFullYear(), month.getMonth() - 1, 1); draw(); } }, "‹"),
-          el("span", {}, Kit.month(month)),
-          el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); month = new Date(month.getFullYear(), month.getMonth() + 1, 1); draw(); } }, "›")),
-        el("div", { class: "mini-grid" },
-          ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-          Array.from({ length: 42 }, (_, i) => {
-            const d = addDays(first, i);
-            return el("button", { class: "day" + (d.getMonth() !== month.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
-              onclick: (e) => { e.stopPropagation(); popAway(); pick(d); } }, String(d.getDate()));
-          })));
-    };
-    draw();
-    return wrap;
-  }
-  function timeList(currentM, pick) {
-    const list = el("div", { class: "times" });
-    for (let m = 0; m < 24 * 60; m += 15) {
-      list.append(el("button", { class: "time" + (m === currentM ? " on" : ""), onclick: (e) => { e.stopPropagation(); popAway(); pick(m); } }, timeLabel(m)));
-    }
-    setTimeout(() => { const on = list.querySelector(".on") || list.children[Math.floor((currentM ?? 540) / 15)]; if (on) list.scrollTop = on.offsetTop - 60; }, 0);
-    return list;
-  }
+  // One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
+  // kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
+  const popPlace = (left, top, content, anchor) => Kit.pop({ x: left, y: top, opener: anchor || null }, content);
+  const popUnder = (anchor, content) => Kit.pop(anchor, content);
+  const popAway = () => Kit.popAway();
+  const menuAt = (x, y, items) => Kit.menu({ x, y }, items);
+  const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
 
   // ---------------------------------------------------------------- dragging into order
 
@@ -845,7 +795,7 @@
     $("p-group").replaceChildren(b);
   }
   function groupMenu(p, anchor) {
-    if (popFor === anchor) { popAway(); return; }
+    if (Kit.openedBy() === anchor) { popAway(); return; }
     const names = [...new Set([...groupNames(), ...(p.group ? [p.group] : [])])].sort(byName);
     const item = (label, on, act) => el("button", { class: "menu-item" + (on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); act(); } }, label);
     popUnder(anchor, el("div", { class: "menu-list" },
@@ -1197,15 +1147,10 @@
     $(id).addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (!entity) return;
-      if (popFor === $(id)) { popAway(); return; }
+      if (Kit.openedBy() === $(id)) { popAway(); return; }
       const { day, time } = split(spanNow()[part]);
-      const today = startOfDay(new Date()), base = day || today;
-      const go = (d) => { popAway(); setPart(part, d ? join(d, time) : null); };
-      popUnder($(id), el("div", {},
-        el("div", { class: "shifts" },
-          [["Today", () => today], ["+1 day", () => addDays(base, 1)], ["+1 week", () => addDays(base, 7)], ["Next Mon", () => nextWeekday(1)], ["Clear", () => null]]
-            .map(([label, f]) => el("button", { onclick: (e) => { e.stopPropagation(); go(f()); } }, label))),
-        monthPicker(day, (d) => setPart(part, join(d, time)))));
+      // The month, and the quick days every picker has (kit.js), counted from the day set; Clear takes it off.
+      popUnder($(id), monthPicker(day, (d) => setPart(part, d ? join(d, time) : null), { chips: Kit.DAY_CHIPS(day), clear: true }));
     });
     // A time is optional: typed, or chosen from the list; emptied, the date stays.
     const tin = $(`${id}-t`);
@@ -1234,7 +1179,7 @@
     return update(editing, { properties: { [projectKey()]: ids.length ? ids : null } }).catch(failed);
   }
   function pickProject(anchor, mine) {
-    if (popFor === anchor) { popAway(); return; }
+    if (Kit.openedBy() === anchor) { popAway(); return; }
     const find = el("input", { type: "text", class: "find", placeholder: "Project", spellcheck: "false" });
     const list = el("div", { class: "menu-list" });
     const candidates = () => projects.filter((p) => !p.archived && !mine.includes(p.id) && p.title.toLowerCase().includes(find.value.trim().toLowerCase()));
@@ -1311,7 +1256,7 @@
   $("r-until").addEventListener("click", (ev) => {
     ev.stopPropagation();
     if (!rep) return;
-    if (popFor === $("r-until")) { popAway(); return; }
+    if (Kit.openedBy() === $("r-until")) { popAway(); return; }
     popUnder($("r-until"), monthPicker(split(rep.end.date).day, (d) => { rep.end = { type: "on", date: isoDay(d) }; paintRep(); }));
   });
   $("r-cancel").addEventListener("click", closeRep);
@@ -1346,7 +1291,7 @@
     if (e.defaultPrevented) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      if (!$("pop").hidden) popAway();
+      if (!!Kit.isOpen()) popAway();
       else if (rep) closeRep();
       else if (editing) closeSheet();
       else if (bridge) bridge.file();

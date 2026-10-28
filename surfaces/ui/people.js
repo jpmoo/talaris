@@ -116,56 +116,15 @@
   // the engine's own, which a layer surface cannot hold — so menus and days
   // are small lists drawn in the page.
 
-  let popFor = null;
-  function popPlace(left, top, content, anchor) {
-    const pop = $("pop");
-    pop.replaceChildren(content);
-    pop.hidden = false;
-    popFor = anchor || null;
-    const box = document.body.getBoundingClientRect();
-    const w = pop.offsetWidth, h = pop.offsetHeight;
-    pop.style.left = `${Math.max(4, Math.min(left - box.left, box.width - w - 6))}px`;
-    pop.style.top = `${Math.max(4, Math.min(top - box.top, box.height - h - 6))}px`;
-  }
-  function popUnder(anchor, content) { const r = anchor.getBoundingClientRect(); popPlace(r.left, r.bottom + 4, content, anchor); }
-  function popAway() { $("pop").hidden = true; popFor = null; }
-  // A press elsewhere puts it away; a press on what opened it is that one's to decide.
-  document.addEventListener("pointerdown", (e) => {
-    if ($("pop").hidden || $("pop").contains(e.target)) return;
-    if (popFor && popFor.contains(e.target)) return;
-    popAway();
-  }, true);
+  // One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
+  // kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
+  const popPlace = (left, top, content, anchor) => Kit.pop({ x: left, y: top, opener: anchor || null }, content);
+  const popUnder = (anchor, content) => Kit.pop(anchor, content);
+  const popAway = () => Kit.popAway();
+  const menuAt = (x, y, items) => Kit.menu({ x, y }, items);
+  const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
+  const timeList = (current, pick) => Kit.timeList(current, pick);
 
-  function menuAt(x, y, items, anchor) {
-    popPlace(x, y, el("div", { class: "menu-list" }, items.map((it) => (it === "sep" ? el("div", { class: "menu-sep" })
-      : el("button", { class: "menu-item" + (it.on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); it.act(); } }, it.label)))), anchor);
-  }
-
-  // Years as well as months: a birthday is decades back.
-  function monthPicker(chosenDay, pick) {
-    let month = new Date((chosenDay || new Date()).getFullYear(), (chosenDay || new Date()).getMonth(), 1);
-    const wrap = el("div", { class: "mini" });
-    const step = (n) => (e) => { e.stopPropagation(); month = new Date(month.getFullYear(), month.getMonth() + n, 1); draw(); };
-    const draw = () => {
-      const first = addDays(month, -month.getDay());
-      wrap.replaceChildren(
-        el("div", { class: "mini-head" },
-          el("button", { class: "icon-btn", title: "A year back", onclick: step(-12) }, "«"),
-          el("button", { class: "icon-btn", title: "A month back", onclick: step(-1) }, "‹"),
-          el("span", {}, Kit.month(month)),
-          el("button", { class: "icon-btn", title: "A month on", onclick: step(1) }, "›"),
-          el("button", { class: "icon-btn", title: "A year on", onclick: step(12) }, "»")),
-        el("div", { class: "mini-grid" },
-          ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-          Array.from({ length: 42 }, (_, i) => {
-            const d = addDays(first, i);
-            return el("button", { class: "day" + (d.getMonth() !== month.getMonth() ? " other" : "") + (sameDay(d, chosenDay) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
-              onclick: (e) => { e.stopPropagation(); popAway(); pick(d); } }, String(d.getDate()));
-          })));
-    };
-    draw();
-    return wrap;
-  }
 
   // ---------------------------------------------------------------- marks
 
@@ -380,7 +339,7 @@
     const av = avatar(chosen, got.title, sha, { tag: "button", big: true, title: img ? "Picture" : null,
       onclick: (e) => {
         if (!img) return;
-        if (popFor === e.currentTarget) { popAway(); return; }
+        if (Kit.openedBy() === e.currentTarget) { popAway(); return; }
         const r = e.currentTarget.getBoundingClientRect();
         menuAt(r.left, r.bottom + 4, [
           { label: "Choose a picture…", act: () => { say(""); bridge && bridge.attach(chosen, img.key); } },
@@ -465,9 +424,9 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
     input.addEventListener("change", save);
     const pick = el("button", { class: "icon-btn", title: "Choose a day", onclick: (e) => {
-      if (popFor === pick) { popAway(); return; }
+      if (Kit.openedBy() === pick) { popAway(); return; }
       e.stopPropagation();
-      popUnder(pick, monthPicker(parseDay(input.value) || day, (d) => { input.value = dayLabel(d); save(); }));
+      popUnder(pick, monthPicker(parseDay(input.value) || day, (d) => { input.value = dayLabel(d); save(); }, { years: true }));
     } }, "▾");
     return [input, pick];
   }
@@ -488,7 +447,7 @@
     const titles = new Map(((got && got.out) || []).filter((c) => c.name === f.key).map((c) => [c.entity.id, c.entity.title]));
     const put = (next) => setProps({ [f.key]: next.length ? (f.many ? next : next[0]) : null }).then(() => loadPerson());
     const add = el("button", { class: "add", title: "Add", onclick: () => {
-      if (popFor === add) { popAway(); return; }
+      if (Kit.openedBy() === add) { popAway(); return; }
       const find = el("input", { type: "text", class: "find", placeholder: "Find", spellcheck: "false" });
       const list = el("div", { class: "menu-list" });
       let found = [];
@@ -930,7 +889,7 @@
     if (e.key === "Escape") {
       e.preventDefault();
       const asking = document.querySelector(".p-foot.asking #del-cancel");
-      if (!$("pop").hidden) popAway();
+      if (!!Kit.isOpen()) popAway();
       else if (asking) asking.click();
       else if (bridge) bridge.file();
       return;

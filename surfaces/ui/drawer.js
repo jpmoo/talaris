@@ -249,14 +249,10 @@ function sortButton(list, reload) {
   const b = el("button", { class: "sort-btn", title: "Order the list" }, `${name.toUpperCase()} ▾`);
   b.addEventListener("click", (e) => {
     e.stopPropagation();
-    closeMenu();
-    menu = el("div", { class: "context" },
+    if (Kit.openedBy() === b) { closeMenu(); return; }
+    Kit.pop(b, el("div", { class: "menu-list" },
       ...SORTS.map(([k, l]) => el("button", { class: "menu-item" + (k === sortOf(list) ? " on" : ""), onclick: () => { closeMenu(); setSort(list, k); reload(); } }, l)),
-      el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Drag to order by hand"));
-    const r = b.getBoundingClientRect();
-    menu.style.left = `${r.left}px`;
-    menu.style.top = `${r.bottom + 4}px`;
-    document.body.append(menu);
+      el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Drag to order by hand")));
   });
   return el("div", { class: "list-head" }, b);
 }
@@ -280,19 +276,11 @@ function tagFilterButton() {
   const b = el("button", { class: "sort-btn tag-filter" + (on ? " on" : ""), title: on ? `Showing only #${on}` : "Show only pages with a tag" }, on ? `#${on} ▾` : "TAG ▾");
   b.addEventListener("click", async (e) => {
     e.stopPropagation();
-    closeMenu();
+    if (Kit.openedBy() === b) { closeMenu(); return; }
     const all = await core("GET", "/tags").catch(() => []);
-    menu = el("div", { class: "context" },
-      el("button", { class: "menu-item" + (on ? "" : " on"), onclick: () => { closeMenu(); setTagFilter(null); } }, "All pages"),
-      all.length ? el("div", { class: "menu-sep" }) : "",
-      ...all.map(({ tag, count }) => el("button", { class: "menu-item" + (tag === on ? " on" : ""), title: `#${tag}`, onclick: () => { closeMenu(); setTagFilter(tag); } }, el("span", { class: "tg" }, `#${tag}`), el("span", { class: "n" }, String(count)))));
-    const r = b.getBoundingClientRect();
-    menu.style.left = `${r.left}px`;
-    menu.style.top = `${r.bottom + 4}px`;
-    // As tall as there is room for below the button, then it scrolls.
-    menu.classList.add("scrolls");
-    menu.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 16)}px`;
-    document.body.append(menu);
+    // The kit's menu (kit.js): a box on top to narrow the tags as they are typed, then it scrolls.
+    Kit.menu(b, [{ label: "All pages", on: !on, act: () => setTagFilter(null) }, ...(all.length ? ["sep"] : []),
+      ...all.map(({ tag, count }) => ({ label: `#${tag}`, sub: String(count), title: `#${tag}`, on: tag === on, act: () => setTagFilter(tag) }))]);
   });
   return b;
 }
@@ -328,28 +316,25 @@ async function drawPageTags() {
    */
   let known = [], offered = [], at = -1;
   core("GET", "/tags").then((all) => { known = all; if (document.activeElement === input) offer(); }).catch(() => {});
-  const mark = () => menu && [...menu.children].forEach((b, i) => { b.classList.toggle("on", i === at); if (i === at) b.scrollIntoView({ block: "nearest" }); });
+  let offeredList = null;
+  const mark = () => offeredList && [...offeredList.children].forEach((b, i) => { b.classList.toggle("hot", i === at); if (i === at) b.scrollIntoView({ block: "nearest" }); });
   const offer = () => {
     closeMenu();
     at = -1;
     const q = input.value.trim().replace(/^#+/, "").toLowerCase();
     offered = known.filter(({ tag }) => !tags.includes(tag) && tag.toLowerCase().includes(q));
     if (!offered.length || document.activeElement !== input) return;
-    menu = el("div", { class: "context scrolls" }, ...offered.map(({ tag, count }) =>
+    offeredList = el("div", { class: "menu-list" }, ...offered.map(({ tag, count }) =>
       el("button", { class: "menu-item", title: `#${tag}`, onmousedown: (e) => { e.preventDefault(); closeMenu(); add(tag); } },
         el("span", { class: "tg" }, `#${tag}`), el("span", { class: "n" }, String(count)))));
-    const r = input.getBoundingClientRect();
-    const below = innerHeight - r.bottom - 12, above = r.top - 12;
-    menu.style.left = `${r.left}px`;
-    if (below >= 160 || below >= above) { menu.style.top = `${r.bottom + 4}px`; menu.style.maxHeight = `${below}px`; }
-    else { menu.style.bottom = `${innerHeight - r.top + 4}px`; menu.style.maxHeight = `${above}px`; }
-    document.body.append(menu);
+    // Placed by the kit (kit.js): under the box, or above it when there is more room there (the tags sit at the page's foot).
+    Kit.pop(input, offeredList);
   };
   input.addEventListener("focus", offer);
   input.addEventListener("input", offer);
   input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input) closeMenu(); }, 0));
   input.addEventListener("keydown", (e) => {
-    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && menu && offered.length) {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && Kit.isOpen() && offered.length) {
       e.preventDefault();
       at = e.key === "ArrowDown" ? (at + 1) % offered.length : (at - 1 + offered.length) % offered.length;
       mark();
@@ -1167,7 +1152,7 @@ $("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bri
 $("grow").addEventListener("click", () => { if (saveTimer) save(); if (bridge) (WINDOW ? bridge.closeWindow() : bridge.grow()); });
 // A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
 // Its menus and dialogs, drawn outside the panel's box, are the panel's too.
-const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel, .context, .confirm, .menu");
+const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel, .kit-pop, .confirm, .menu");
 document.addEventListener("pointerdown", (e) => { if (bridge && offPanel(e.target)) { if (saveTimer) save(); bridge.file(); } });
 window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(x, y))) { if (saveTimer) save(); bridge.file(); } };
 /*
@@ -1178,8 +1163,8 @@ window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(
 // The colors words may take: Google's and Outlook's own, and the accents (as calendars).
 const TEXT_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
   "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
-let menu = null;
-function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+// One pop-up at a time, the kit's (kit.js): placed, kept on screen, put away by a press elsewhere, a scroll or Escape.
+const closeMenu = () => Kit.popAway();
 
 /*
  * Connect to…: the page open tied to something else — found as an @ finds it
@@ -1192,18 +1177,13 @@ function connectMenu(anchor) {
   closeMenu();
   const q = el("input", { type: "text", class: "cn-q", placeholder: "Find a person, task, page, project…", spellcheck: "false" });
   const list = el("div", {});
-  menu = el("div", { class: "context scrolls cn-menu" }, q, list);
-  const r = anchor.getBoundingClientRect();
-  menu.style.left = `${Math.min(r.left, innerWidth - 300)}px`;
-  menu.style.top = `${r.bottom + 4}px`;
-  menu.style.maxHeight = `${Math.max(180, innerHeight - r.bottom - 16)}px`;
-  document.body.append(menu);
+  Kit.pop(anchor, el("div", { class: "cn-menu" }, q, list));
   q.focus();
   let asked = 0;
   const find = async () => {
     const mine = ++asked;
     const rows = await core("GET", `/mentionables?q=${encodeURIComponent(q.value.trim())}&project=${encodeURIComponent(wpid())}&limit=14`).catch(() => []);
-    if (mine !== asked || !menu) return;
+    if (mine !== asked || !Kit.isOpen()) return;
     const shown = (rows || []).filter((x) => !(x.kind === "page" && x.project === wpid() && x.where === open));
     list.replaceChildren(...(shown.length ? shown.map((x) => el("button", { class: "menu-item", title: x.projectName ? `${x.title} — ${x.projectName}` : x.title,
       onclick: () => { closeMenu(); connectPage(x); } }, el("span", { class: "tg" }, x.title), el("span", { class: "n" }, KIND_WORD[x.kind] || "Thing")))
@@ -1212,7 +1192,6 @@ function connectMenu(anchor) {
   let timer = null;
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, 150); });
   q.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMenu(); }
     if (e.key === "Enter") { e.preventDefault(); const first = list.querySelector("button"); if (first) first.click(); }
   });
   find();
@@ -1249,21 +1228,12 @@ addEventListener("contextmenu", (e) => {
   const papers = el("div", { class: "cv-menu-row text-colors" },
     ...PAPERS.map((c) => el("button", { class: "cv-swatch", style: `background:${c}`, title: c, onclick: () => { closeMenu(); setPaper(c); } })),
     el("button", { class: "cv-swatch plain", title: "The theme's paper", onclick: () => { closeMenu(); setPaper(null); } }));
-  menu = el("div", { class: "context" },
+  Kit.pop({ x: e.clientX, y: e.clientY }, el("div", { class: "menu-list" },
     item("Cut", "cut", picked), item("Copy", "copy", picked), item("Paste", "paste"),
     el("div", { class: "menu-sep" }), item("Select all", "selectAll"),
     el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Text color"), colors,
-    el("div", { class: "hint" }, "Paper"), papers);
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  document.body.append(menu);
-  // Keep it on screen.
-  const r = menu.getBoundingClientRect();
-  if (r.right > innerWidth) menu.style.left = `${innerWidth - r.width - 4}px`;
-  if (r.bottom > innerHeight) menu.style.top = `${innerHeight - r.height - 4}px`;
+    el("div", { class: "hint" }, "Paper"), papers));
 });
-addEventListener("pointerdown", (e) => { if (menu && !menu.contains(e.target)) closeMenu(); }, true);
-addEventListener("keydown", (e) => { if (e.key === "Escape" && menu) { e.stopImmediatePropagation(); closeMenu(); } }, true);
 
 // A link opens in the browser, not in the drawer.
 addEventListener("click", (e) => {

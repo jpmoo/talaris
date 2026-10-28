@@ -465,21 +465,10 @@ function dropdown(choices, current, pick) {
   const btn = el("button", { class: "t-btn drop-b", type: "button" });
   const label = () => { btn.textContent = `${(choices.find(([v]) => v === now) || [now, now ?? "—"])[1]} ▾`; };
   label();
-  let menu = null;
-  const close = () => { if (menu) { menu.remove(); menu = null; removeEventListener("pointerdown", away, true); } };
-  const away = (e) => { if (menu && !menu.contains(e.target) && e.target !== btn) close(); };
+  // The kit's menu (kit.js): placed, kept on screen, put away by a press elsewhere or Escape; a press on the button again closes it.
   btn.addEventListener("click", () => {
-    if (menu) { close(); return; }
-    menu = el("div", { class: "menu drop-menu" }, ...choices.map(([v, l]) => {
-      const item = el("button", { class: "menu-item" + (v === now ? " on" : ""), type: "button" }, l);
-      item.addEventListener("click", () => { now = v; label(); close(); pick(v); });
-      return item;
-    }));
-    const r = btn.getBoundingClientRect();
-    menu.style.left = `${r.left}px`;
-    menu.style.top = `${r.bottom + 4}px`;
-    document.body.append(menu);
-    addEventListener("pointerdown", away, true);
+    if (Kit.openedBy() === btn) { Kit.popAway(); return; }
+    Kit.menu(btn, choices.map(([v, l]) => ({ label: l, on: v === now, act: () => { now = v; label(); pick(v); } })));
   });
   return btn;
 }
@@ -793,13 +782,14 @@ async function mgMemory() {
         if (e.key === "Escape") { e.stopImmediatePropagation(); body.textContent = text; body.blur(); }
       });
       body.addEventListener("blur", done);
-      const menu = el("div", { class: "menu mg-menu", hidden: "" },
-        el("div", { class: "hint" }, "Move it to"),
-        ...others.map((o) => el("button", { class: "menu-item", onclick: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) }, o.name)));
-      const moveBtn = el("button", { class: "t-btn", onclick: () => { menu.hidden = !menu.hidden; } }, "Move to…");
+      // Where it may go, in the kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
+      const moveBtn = el("button", { class: "t-btn", onclick: (e) => {
+        if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
+        Kit.menu(e.currentTarget, others.map((o) => ({ label: o.name, act: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) })));
+      } }, "Move to…");
       return el("div", { class: "mg-note" + (locked ? " locked" : "") },
         el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
-          ...(locked ? [] : [twiceBtn("×", "Delete it?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])), menu);
+          ...(locked ? [] : [twiceBtn("×", "Delete it?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])));
     });
     if (!t.notes.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "Nothing here yet."));
     else if (!notesShown.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "No note here matches."));

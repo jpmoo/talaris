@@ -52,7 +52,6 @@
       const { rows: start, def: startDef } = read(ctx.taskType);
       let rows = start.map((r) => ({ ...r }));
       let def = startDef;
-      let menuFor = -1; // the row whose meaning menu is open
       const moveTo = {};
       const dim = el("div", { class: "le-dim" });
       const sheet = el("div", { class: "le-sheet", role: "dialog" });
@@ -77,9 +76,12 @@
             // No browser picker (a <select> opens a window of its own): a button, and a small menu of what fits.
             el("span", { class: "st-means-wrap" },
               el("button", { type: "button", class: "t-btn st-means" + (r.state ? "" : " unset"), title: "What it means to other apps",
-                onclick: (e) => { e.stopPropagation(); menuFor = menuFor === i ? -1 : i; draw(); } }, r.state ? MEANINGS[r.state] : "Means…"),
-              menuFor === i ? el("span", { class: "menu st-menu" }, fits(r.complete).map((m) =>
-                el("button", { type: "button", class: "menu-item" + (r.state === m ? " on" : ""), onclick: (e) => { e.stopPropagation(); r.state = m; menuFor = -1; draw(); } }, MEANINGS[m]))) : null),
+                // The kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
+                onclick: (e) => {
+                  e.stopPropagation();
+                  if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
+                  Kit.menu(e.currentTarget, fits(r.complete).map((m) => ({ label: MEANINGS[m], on: r.state === m, act: () => { r.state = m; draw(); } })));
+                } }, r.state ? MEANINGS[r.state] : "Means…")),
             el("button", { type: "button", class: "t-btn st-flag" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.state && !fits(r.complete).includes(r.state)) r.state = r.complete ? "done" : "not-started"; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
             el("button", { type: "button", class: "t-btn st-flag" + (def === r.value && r.value ? " on" : ""), title: "New tasks start here",
               disabled: r.complete || !r.value ? "" : null, onclick: () => { def = r.value; draw(); } }, "Start"),
@@ -138,7 +140,6 @@
           el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Save")));
       dim.append(sheet);
       dim.addEventListener("pointerdown", (e) => { if (e.target === dim) close(null); });
-      sheet.addEventListener("click", () => { if (menuFor >= 0) { menuFor = -1; draw(); } });
       addEventListener("keydown", esc, true);
       document.body.append(dim);
       draw();

@@ -161,39 +161,14 @@ const TaskViews = (() => {
   // picker are drawn in the page, one at a time, and go away on a press
   // elsewhere or Escape.
 
-  let pop = null;
-  let closed = { anchor: null, at: 0 };
-  function closePop() { if (pop) { pop.remove(); pop = null; } }
+  // One pop-up at a time, the kit's (kit.js): under what opened it or above, kept on screen, put away by a press
+  // elsewhere, a scroll, the window's size changing, or Escape — the same on every page. A press on its own
+  // button puts it away (Kit.openedBy).
+  const closePop = () => Kit.popAway();
   function openPop(at, ...content) {
-    if (at instanceof Element && closed.anchor === at && performance.now() - closed.at < 400) return null; // a press on its own button: closed, not reopened
-    closePop();
-    pop = el("div", { class: "menu tv-pop" }, ...content);
-    pop.anchor = at instanceof Element ? at : null;
-    document.body.append(pop);
-    // Placed in the screen's terms whatever the page's own frame is: at 0,0
-    // first, to learn where its containing block puts 0,0.
-    pop.style.left = "0px"; pop.style.top = "0px";
-    const o = pop.getBoundingClientRect();
-    let x, y;
-    if (at instanceof Element) {
-      const r = at.getBoundingClientRect();
-      x = r.left; y = r.bottom + 4;
-      if (y + o.height > innerHeight - 4) y = Math.max(4, r.top - o.height - 4);
-    } else {
-      x = at.x; y = at.y;
-      if (y + o.height > innerHeight - 4) y = Math.max(4, innerHeight - o.height - 4);
-    }
-    x = Math.max(4, Math.min(x, innerWidth - o.width - 4));
-    pop.style.left = `${x - o.left}px`; pop.style.top = `${y - o.top}px`;
-    return pop;
+    if (at instanceof Element && Kit.openedBy() === at) { Kit.popAway(); return null; }
+    return Kit.pop(at, el("div", { class: "menu-list" }, ...content));
   }
-  document.addEventListener("pointerdown", (e) => {
-    if (pop && !pop.contains(e.target)) { closed = { anchor: pop.anchor, at: performance.now() }; closePop(); }
-  }, true);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && pop) { e.stopPropagation(); e.preventDefault(); closePop(); }
-  }, true);
-  window.addEventListener("resize", closePop);
 
   const hint = (text) => el("div", { class: "hint" }, text);
   const item = (label, onclick, cls = "") => el("button", { class: `menu-item ${cls}`, onclick: (e) => { e.stopPropagation(); closePop(); onclick(); } }, label);
@@ -220,38 +195,11 @@ const TaskViews = (() => {
     return b;
   }
 
-  /** A month to pick from, with the quick shifts above it. `pick(null)` clears. */
+  /** The kit's month (kit.js), with the quick days every picker has, counted from the day set; `pick(null)` clears. A time set is kept. */
   function datePicker(value, pick) {
-    const today = startOfDay(new Date());
     const chosen = value ? parseDay(value) : null;
     const time = value ? value.slice(10) : "";
-    let shown = new Date((chosen || today).getFullYear(), (chosen || today).getMonth(), 1);
-    const wrap = el("div", { class: "tv-mini" });
-    const choose = (v) => { closePop(); pick(v); };
-    const from = value || ymd(today);
-    const quick = el("div", { class: "tv-quick" },
-      el("button", { class: "t-btn", onclick: () => choose(ymd(today) + time) }, "Today"),
-      el("button", { class: "t-btn", onclick: () => choose(shiftValue(from, 1)) }, "+1 day"),
-      el("button", { class: "t-btn", onclick: () => choose(shiftValue(from, 7)) }, "+1 week"),
-      value ? el("button", { class: "t-btn", onclick: () => choose(null) }, "Clear") : "");
-    const drawMini = () => {
-      const first = startOfWeek(shown);
-      const step = (n) => (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + n, 1); drawMini(); };
-      wrap.replaceChildren(quick,
-        el("div", { class: "tv-mini-head" },
-          el("button", { class: "icon-btn", onclick: step(-1) }, ICON.prev()),
-          el("span", {}, Kit.month(shown)),
-          el("button", { class: "icon-btn", onclick: step(1) }, ICON.next())),
-        el("div", { class: "tv-mini-grid" },
-          ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-          ...Array.from({ length: 42 }, (_, i) => {
-            const d = addDays(first, i);
-            const cls = "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (chosen && +d === +chosen ? " on" : "") + (+d === +today ? " today" : "");
-            return el("button", { class: cls, onclick: () => choose(ymd(d) + time) }, String(d.getDate()));
-          })));
-    };
-    drawMini();
-    return wrap;
+    return Kit.monthPicker(chosen, (d) => pick(d ? ymd(d) + time : null), { chips: Kit.DAY_CHIPS(chosen), clear: !!value });
   }
 
   // ---------------------------------------------------------------- dragging

@@ -44,48 +44,13 @@
   // Fixed to the window rather than inside the sheet, so a sheet that scrolls
   // cannot clip it; it goes away on a press elsewhere, a scroll, or Escape.
 
-  const pop = el("div", { class: "menu le-pop", hidden: true });
-  let popAnchor = null;
-  function popUnder(anchor, content) {
-    if (!pop.isConnected) document.body.append(pop);
-    pop.replaceChildren(content);
-    pop.hidden = false;
-    popAnchor = anchor;
-    const r = anchor.getBoundingClientRect(), p = pop.getBoundingClientRect();
-    const below = innerHeight - r.bottom - 8;
-    const top = below >= p.height || r.top < p.height + 8 ? r.bottom + 4 : r.top - p.height - 4;
-    pop.style.top = `${Math.max(4, Math.min(top, innerHeight - p.height - 4))}px`;
-    pop.style.left = `${Math.max(4, Math.min(r.left, innerWidth - p.width - 4))}px`;
-    const first = pop.querySelector("input");
-    if (first) first.focus();
-  }
-  function popAway() { pop.hidden = true; popAnchor = null; }
-  const popOpen = () => !pop.hidden;
-  document.addEventListener("mousedown", (e) => {
-    if (popOpen() && !pop.contains(e.target) && !(popAnchor && popAnchor.contains(e.target))) popAway();
-  }, true);
-  document.addEventListener("scroll", (e) => { if (popOpen() && !pop.contains(e.target)) popAway(); }, true);
-  // Registered first, so a list that is out goes before the sheet under it does.
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && popOpen()) { popAway(); e.preventDefault(); e.stopImmediatePropagation(); }
-  }, true);
-
-  // A list of choices, each {value, label, color?}; a filter on top once it is long.
-  function menu(choices, current, pick) {
-    const list = el("div", { class: "le-menu-list" });
-    const draw = (q) => {
-      const t = q.trim().toLowerCase();
-      const shown = choices.filter((c) => !t || String(c.label).toLowerCase().includes(t));
-      list.replaceChildren(...shown.map((c) => c.sep ? el("div", { class: "menu-sep" }) :
-        el("button", { type: "button", class: "menu-item" + (same(c.value, current) ? " on" : ""),
-          onclick: () => { popAway(); pick(c.value); } },
-          c.color ? el("span", { class: "le-sw", style: `background:${c.color}` }) : null, c.label)));
-      if (!shown.length) list.append(el("div", { class: "hint" }, "None"));
-    };
-    draw("");
-    if (choices.length <= 8) return list;
-    const q = el("input", { type: "text", class: "le-filter", spellcheck: "false", oninput: () => draw(q.value) });
-    return el("div", {}, q, list);
+  // One pop-up at a time, the kit's (kit.js): under what opened it or above, kept on screen, put away by a
+  // press elsewhere, a scroll, or Escape (before the sheet under it) — the same on every page.
+  const popUnder = (anchor, content) => Kit.pop(anchor, content);
+  const popAway = () => Kit.popAway();
+  // A list of choices, each {value, label, color?, sep?}, as the kit's menu: a box on top to narrow it once it is long.
+  function menu(anchor, choices, current, pick) {
+    return Kit.menu(anchor, choices.map((c) => (c.sep ? "sep" : { label: String(c.label), color: c.color, on: same(c.value, current), act: () => pick(c.value) })));
   }
   // A button that reads like a field and opens its menu.
   function picker(choices, current, pick, empty = "—") {
@@ -93,7 +58,7 @@
     const b = el("button", { type: "button", class: "le-pick" },
       now?.color ? el("span", { class: "le-sw", style: `background:${now.color}` }) : null,
       now ? now.label : current != null && current !== "" ? String(current) : empty);
-    b.addEventListener("click", () => (popAnchor === b ? popAway() : popUnder(b, menu(choices, current, pick))));
+    b.addEventListener("click", () => (Kit.openedBy() === b ? popAway() : menu(b, choices, current, pick)));
     return b;
   }
 
@@ -108,38 +73,15 @@
     const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
   }
+  // The kit's month (kit.js); the chips are this editor's own — the core's words for a day relative to today, kept as typed.
   function monthPicker(value, pick) {
-    const chosen = parseDay(value);
-    let shown = chosen ? new Date(chosen.getFullYear(), chosen.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const wrap = el("div", { class: "le-mini" });
-    const today = ymd(new Date());
-    const draw = () => {
-      const first = new Date(shown); first.setDate(1 - shown.getDay());
-      const move = (n) => () => { shown = new Date(shown.getFullYear(), shown.getMonth() + n, 1); draw(); };
-      wrap.replaceChildren(
-        el("div", { class: "le-chips" }, CHIPS.map(([v, label]) =>
-          el("button", { type: "button", class: "le-chip" + (v === value ? " on" : ""), onclick: () => { popAway(); pick(v); } }, label))),
-        el("div", { class: "le-mini-head" },
-          el("button", { type: "button", class: "icon-btn", onclick: move(-1) }, "‹"),
-          el("span", {}, Kit.month(shown)),
-          el("button", { type: "button", class: "icon-btn", onclick: move(1) }, "›")),
-        el("div", { class: "le-mini-grid" },
-          ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
-          Array.from({ length: 42 }, (_, i) => {
-            const d = new Date(first); d.setDate(first.getDate() + i);
-            const k = ymd(d);
-            return el("button", { type: "button", class: "day" + (d.getMonth() !== shown.getMonth() ? " other" : "") + (chosen && k === ymd(chosen) ? " on" : "") + (k === today ? " today" : ""),
-              onclick: () => { popAway(); pick(k); } }, String(d.getDate()));
-          })));
-    };
-    draw();
-    return wrap;
+    return Kit.monthPicker(parseDay(value), (d) => pick(d instanceof Date ? ymd(d) : d), { chips: CHIPS.map(([v, label]) => [label, v]) });
   }
   // The typed field, with the chips and month opening under it on focus.
   function dateInput(value, set, redraw) {
     const input = el("input", { type: "text", class: "le-date", spellcheck: "false", placeholder: "today+7", value: value || "" });
     input.addEventListener("input", () => set(input.value.trim()));
-    input.addEventListener("focus", () => { if (popAnchor !== input) popUnder(input, monthPicker(input.value.trim(), (v) => { set(v); redraw(); })); });
+    input.addEventListener("focus", () => { if (Kit.openedBy() !== input) popUnder(input, monthPicker(input.value.trim(), (v) => { set(v); redraw(); })); });
     // The month must not take the focus from the field it serves.
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") popAway(); });
     return input;
@@ -245,9 +187,9 @@
         items.append(it.kind === "group" ? groupView(it, drop) : conditionView(it, drop));
       });
       const add = el("button", { type: "button", class: "t-btn qb-add" }, "+ Condition");
-      add.addEventListener("click", () => (popAnchor === add ? popAway() : popUnder(add, menu(
+      add.addEventListener("click", () => (Kit.openedBy() === add ? popAway() : menu(add,
         [...KINDS.map(([v, label]) => ({ value: v, label })), { sep: true, value: "-", label: "" }, { value: "group", label: "Group" }],
-        null, (k) => { g.items.push(fresh(k)); redraw(); }))));
+        null, (k) => { g.items.push(fresh(k)); redraw(); })));
       return el("div", { class: "qb-group" + (remove ? " nested" : "") },
         el("div", { class: "qb-head" },
           seg([["all", "All"], ["any", "Any"]], g.match === "any" ? "any" : "all", (m) => { g.match = m; redraw(); }),
@@ -505,7 +447,7 @@
             if (Object.keys(e).length) r["talaris:enter"] = e; else delete r["talaris:enter"];
           };
           const color = el("button", { type: "button", class: "le-swatch", title: "Color", style: `background:${r["talaris:color"] ?? "transparent"}` });
-          color.addEventListener("click", () => (popAnchor === color ? popAway() : popUnder(color, el("div", { class: "le-palette" },
+          color.addEventListener("click", () => (Kit.openedBy() === color ? popAway() : popUnder(color, el("div", { class: "le-palette" },
             el("button", { type: "button", class: "le-swatch none" + (r["talaris:color"] ? "" : " on"), title: "None", onclick: () => { popAway(); delete r["talaris:color"]; paintKind(); } }),
             PALETTE.map((c) => el("button", { type: "button", class: "le-swatch" + (r["talaris:color"] === c ? " on" : ""), style: `background:${c}`,
               onclick: () => { popAway(); r["talaris:color"] = c; paintKind(); } }))))));
