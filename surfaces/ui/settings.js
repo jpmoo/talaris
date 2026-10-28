@@ -103,6 +103,7 @@ function draw() {
   $("shadow").classList.toggle("on", !!p.shadow);
   const pct = (v) => `${v}%`;
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
+  slider("screen-corners", (cfg.screen || {}).corners ?? 12, (v) => (Number(v) ? `${v}px` : "Square"), (corners) => save({ screen: { corners } }));
   const sh = cfg.shown || {};
   $("shown-done").classList.toggle("on", !!sh.done);
   $("shown-archived").classList.toggle("on", !!sh.archived);

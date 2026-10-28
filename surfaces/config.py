@@ -63,6 +63,10 @@ DEFAULTS = {
     # Clipboard history (clipboard.py): watched at all, and how many clips are
     # kept besides the pinned ones (10 to 500; Notchnik's 50).
     "clipboard": {"enabled": True, "keep": 50},
+    # The screen's own corners, rounded by Talaris (corners.py): their radius in
+    # the screen's pixels, 0 square. In place of a screen shader, which left
+    # half-drawn corners behind.
+    "screen": {"corners": 12},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},

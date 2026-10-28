@@ -161,6 +161,8 @@ def _checked(c: dict) -> str:
         return "Not a notification look"
     if not 2 <= int(n.get("seconds", 6)) <= 60 or not 20 <= int(n.get("opacity", 100)) <= 100:
         return "Notifications stay 2 to 60 seconds, and are 20% to 100% solid"
+    if not 0 <= int(c.get("screen", {}).get("corners", 0)) <= 32:
+        return "Screen corners are 0 to 32 pixels"
     cb = c.get("clipboard", {})
     if not isinstance(cb.get("enabled", True), bool) or not 10 <= int(cb.get("keep", 50)) <= 500:
         return "The clipboard keeps 10 to 500 clips"
@@ -549,7 +551,7 @@ class Settings(Overlay):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "meaning", "shown"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "meaning", "shown"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

@@ -65,6 +65,7 @@ from osd import Osd
 from dim import Dim
 from fullscreen import Fullscreen
 from stall import Stall
+from corners import Corners
 from pins import Pins
 from tip import Tip
 import desktop_api
@@ -297,6 +298,8 @@ class Desktop(QObject):
         self.fullscreen = Fullscreen(self)
         # The main thread held for seconds, written down with where it was (stall.py).
         self.stall = Stall(self)
+        # The screen's corners, rounded: four small surfaces over everything (corners.py).
+        self.corners = Corners(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
         try:
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
@@ -493,6 +496,8 @@ class Desktop(QObject):
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
+        if after.get("screen") != before.get("screen"):
+            self.corners.apply()
         if after.get("clipboard") != before.get("clipboard"):
             self.clipboard.apply()
             if after.get("clipboard", {}).get("keep") != before.get("clipboard", {}).get("keep"):
