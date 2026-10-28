@@ -255,7 +255,9 @@
     return el("div", { class: "prow" + (p.id === chosen ? " on" : ""), "data-id": p.id, onclick: () => { choose(p.id); $("list").focus(); } },
       avatar(p.id, p.title, p.image),
       el("div", { class: "p-main" }, el("div", { class: "p-name" }, p.title), sub ? el("div", { class: "p-sub" }, sub) : null),
-      !p.ties.length && !p.noContact ? el("span", { class: "untied", title: "Not connected to anyone in your address books" }) : null);
+      // Filled, tied to a card in your address books; a hollow ring, not yet; nothing, for one you said not to look for.
+      p.ties.length ? el("span", { class: "tie tied", title: "In your address books" })
+        : !p.noContact ? el("span", { class: "tie untied", title: "Not in your address books yet" }) : null);
   }
   function toggleGroup(g) {
     if (shut.has(g)) shut.delete(g); else shut.add(g);
