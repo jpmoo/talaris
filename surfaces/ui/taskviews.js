@@ -31,7 +31,7 @@ const TaskViews = (() => {
   const svg = (body, size = 12) => {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     s.setAttribute("viewBox", "0 0 14 14"); s.setAttribute("width", size); s.setAttribute("height", size);
-    s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.6");
+    s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.5");
     s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
     s.innerHTML = body;
     return s;
@@ -172,6 +172,8 @@ const TaskViews = (() => {
 
   const hint = (text) => el("div", { class: "hint" }, text);
   const item = (label, onclick, cls = "") => el("button", { class: `menu-item ${cls}`, onclick: (e) => { e.stopPropagation(); closePop(); onclick(); } }, label);
+  /** The small × (controls.css .x-btn). */
+  const xBtn = (attrs) => { const b = el("button", { type: "button", ...attrs }); b.innerHTML = Icons.close(); return b; };
   const dot = (color) => el("span", { class: "tv-dot", style: `--c:${color || "var(--muted)"}` });
 
   function statusItems(ctx, sh, row) {
@@ -236,7 +238,7 @@ const TaskViews = (() => {
   function card(ctx, sh, row, opts = {}) {
     // Its title on one line (the whole of it on hover); under it, when it is available and when due.
     const meta = [];
-    if (row.start) meta.push(el("span", { class: "tv-avail" }, `Avail ${shortDate(row.start)}`));
+    if (row.start) meta.push(el("span", { class: "tv-avail" }, `From ${shortDate(row.start)}`));
     if (row.due) meta.push(el("span", { class: "tv-due" + (row.overdue ? " late" : "") }, `Due ${shortDate(row.due)}`));
     if (row.projects && row.projects.length) meta.push(el("span", { class: "tv-proj" }, row.projects.map((p) => p.title).join(", ")));
     // In a matrix's region, a card wears a wash of the region's color.
@@ -246,7 +248,7 @@ const TaskViews = (() => {
       el("div", { class: "tv-card-body" },
         el("span", { class: "tv-title" }, row.title || "Untitled"),
         meta.length ? el("div", { class: "tv-meta" }, ...meta) : ""),
-      opts.remove ? el("button", { class: "tv-x", title: "To drawer", onclick: (e) => { e.stopPropagation(); opts.remove(); } }, "×") : "");
+      opts.remove ? xBtn({ class: "x-btn tv-x", title: "To drawer", onclick: (e) => { e.stopPropagation(); opts.remove(); } }) : "");
     if (opts.menu) node.addEventListener("contextmenu", (e) => { e.preventDefault(); openPop({ x: e.clientX, y: e.clientY }, ...opts.menu()); });
     // A press anywhere on the card opens the task — not on its buttons or its status dot, which do their own thing
     // (and the click that ends a drag never arrives: draggable swallows it).
@@ -498,7 +500,7 @@ const TaskViews = (() => {
             const next = ids.includes(id) ? ids.filter((x) => x !== id) : c.field.many ? [...ids, id] : [id];
             props(c.fk, c.field.many ? next : next[0] || null);
           };
-          openPop(td, el("div", { class: "tv-menu-list" }, ...choices.map((p) => item(p.title, () => toggle(p.id), ids.includes(p.id) ? "on" : ""))));
+          openPop(td, el("div", { class: "menu-list" }, ...choices.map((p) => item(p.title, () => toggle(p.id), ids.includes(p.id) ? "on" : ""))));
         });
         break;
       }
@@ -626,13 +628,13 @@ const TaskViews = (() => {
     const dbox = el("div", { class: "tv-drawer-list" });
     const fill = (rows) => dbox.replaceChildren(...(rows.length
       ? rows.map((row) => card(ctx, sh, row, { from: "drawer", menu: menu(row) }))
-      : [el("div", { class: "tv-empty" }, "Empty")]));
+      : [Kit.empty("Empty")]));
     const count = el("span", { class: "tv-count" }, String(waiting.length));
     // Where it sits is the collection's (its editor: left, right, top or bottom); whether it is out, this panel's.
     const side = ["left", "right", "top", "bottom"].includes((list["talaris:view"] || {}).drawer) ? list["talaris:view"].drawer : "right";
     const redraw = () => drawMatrix(root, shown, ctx, sh);
     const drawer = el("aside", { class: "tv-drawer" }, el("header", {}, el("span", { class: "tv-col-label" }, "Drawer"), count,
-      el("button", { class: "tv-x tv-shut", title: "Put the drawer away", onclick: () => { setDrawer(list.id, true); redraw(); } }, "×")));
+      xBtn({ class: "x-btn tv-shut", title: "Put the drawer away", onclick: () => { setDrawer(list.id, true); redraw(); } })));
     if (byHand) {
       const q = Kit.searchBox(el("input", { type: "search", placeholder: "Find tasks", spellcheck: "false" }));
       q.value = searches.get(list.id) || "";

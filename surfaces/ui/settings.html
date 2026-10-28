@@ -14,15 +14,15 @@ Settings: appearance, where things go, the keys, and Morgan.
 <link rel="stylesheet" href="listeditor.css">
 <style>
 /* Reading files: how far through what it is reading. */
-.rd-bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 6px; width: 100%; }
-.rd-bar > i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+.rd-bar { display: block; margin-top: 6px; width: 100%; }
+.rd-bar > i { transition: width .4s var(--ease); }
 .rd-file { padding-left: 16px; }
 .rd-file .name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; display: block; }
 .rd-doing { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; display: block; }
 html, body { height: 100%; }
 #win {
   position: absolute; inset: 6px 8px 10px; display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 1fr auto;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow); overflow: hidden;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); overflow: hidden;
 }
 nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 0; }
 nav .label { padding: 0 10px 10px; }
@@ -31,19 +31,19 @@ nav .label + .group { padding-top: 0; }
 /* Many pages: the list scrolls rather than pushing the window taller. */
 nav { overflow-y: auto; }
 nav button { border: 0 !important; text-align: left; border-radius: var(--radius-row) !important; padding: 4px 10px !important; color: var(--text); }
-nav button:hover { background: var(--accent-wash); }
+nav button:hover { background: var(--accent-hover); }
 nav button.on { background: var(--accent-wash); color: var(--accent); }
 main { overflow: auto; padding: 18px 22px; }
 section { display: none; }
 section.on { display: block; }
-h2 { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 0 0 14px; }
+h2 { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; margin: 0 0 14px; }
 h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 22px 0 8px; }
 .row { display: flex; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); min-height: 40px; }
 .row > .name { width: 190px; flex: none; }
 .row > .name small { display: block; color: var(--muted); font-size: 12px; }
 .row > .what { flex: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.row input[type="text"], .row input:not([type]), .row select { padding: 4px 8px; min-width: 220px; }
-.row input[type="number"] { width: 80px; padding: 4px 8px; background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); color: var(--text); }
+.row input[type="text"], .row input:not([type]), .row select { min-width: 220px; }
+.row input[type="number"] { width: 80px; }
 /* A number in the theme (settings.js, stepper): − figure +, never the engine's spinner. */
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-row); overflow: hidden; background: var(--desk); }
@@ -52,11 +52,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .stepper .step-b:hover { color: var(--accent); background: var(--accent-wash); }
 /* One of many (settings.js, dropdown): a button and the theme's own menu under it. */
 .drop-b { min-width: 160px; text-align: left; }
-.drop-menu { position: fixed; z-index: 50; max-height: 50vh; overflow: auto; min-width: 180px; }
-select { background: var(--desk); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-row); font: inherit; }
-input[type="range"] { -webkit-appearance: none; appearance: none; width: 200px; height: 16px; background: transparent; cursor: pointer; }
-input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--accent); }
+input[type="range"] { width: 200px; }
 .margins { display: grid; grid-template-columns: auto; gap: 2px; }
 /* Label, slider, value in three columns, so the four sliders start and end together. */
 .margins label { display: grid; grid-template-columns: 56px 150px 44px; align-items: center; column-gap: 10px; font-size: 12px; color: var(--muted); }
@@ -64,25 +60,24 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .margins label .n { width: auto; text-align: right; }
 .n { width: 52px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .swatches { display: flex; gap: 6px; }
-.swatch { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; padding: 0; }
-.swatch.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text); }
+.swatches .cv-swatch { width: 26px; height: 26px; padding: 0; cursor: pointer; }
 #hex { min-width: 0 !important; width: 100px; font-variant-numeric: tabular-nums; }
 /* The picker's swatch: the colors of a wheel, or the custom accent itself. */
-.swatch.pick { background: conic-gradient(#e0605a, #e0c25a, #6ac46a, #5ab8c8, #6a6ae0, #c45ac4, #e0605a); }
-.swatch.pick.custom { background: var(--custom); }
+.cv-swatch.any { background: conic-gradient(#e0605a, #e0c25a, #6ac46a, #5ab8c8, #6a6ae0, #c45ac4, #e0605a); } /* look: the colour picker draws colours */
+.cv-swatch.any.custom { background: var(--custom); }
 /* A picker of its own: Qt's color dialog would open as a surface of its own,
    behind this one. Saturation and brightness in the square, hue in the strip. */
 #picker { display: none; gap: 10px; align-items: flex-start; margin: 6px 0 4px 204px; }
 #picker.open { display: flex; }
-#sv { position: relative; width: 200px; height: 130px; border-radius: 8px; cursor: crosshair; touch-action: none;
-      background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--hue, 0) 100% 50%)); }
-#hue { position: relative; width: 14px; height: 130px; border-radius: 7px; cursor: ns-resize; touch-action: none;
-       background: linear-gradient(to bottom, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-.knob { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+#sv { position: relative; width: 200px; height: 130px; border-radius: var(--radius-control); cursor: crosshair; touch-action: none;
+      background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--hue, 0) 100% 50%)); } /* look: the colour picker draws colours */
+#hue { position: relative; width: 14px; height: 130px; border-radius: var(--radius-pill); cursor: ns-resize; touch-action: none;
+       background: linear-gradient(to bottom, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); } /* look: the colour picker draws colours */
+.knob { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; } /* look: the colour picker draws colours */
 #hue .knob { left: 50%; }
-#picked { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
+#picked { width: 40px; height: 40px; border-radius: var(--radius-control); border: 1px solid var(--line); }
 .faces { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
-.face { text-align: left; border-radius: var(--radius-control) !important; padding: 8px 12px !important; }
+.face { text-align: left; border-radius: var(--radius-control) !important; padding: 12px 14px !important; }
 .face b { display: block; font-weight: 500; font-size: 15px; }
 .face small { color: var(--muted); font-size: 11px; letter-spacing: 2px; }
 .face.on { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
@@ -90,7 +85,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .keys td { padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
 .keys td:first-child { width: 240px; font-variant-numeric: tabular-nums; color: var(--accent); }
 /* A setting that only matters when another is on: dimmed, and not to be changed, while that one is off. */
-.row.needs-off { opacity: .38; pointer-events: none; }
+.row.needs-off { opacity: var(--disabled); pointer-events: none; }
 .row.needs-off .switch, .row.needs-off .seg button { cursor: default; }
 #wall-preview { width: 128px; height: 80px; object-fit: cover; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--desk); }
 #wall-name { word-break: break-all; }
@@ -98,27 +93,26 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
 .walls { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px; }
 .wall { flex: none; display: flex; flex-direction: column; gap: 4px; width: 104px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
 .wall img, .wall .blank { width: 104px; height: 64px; object-fit: cover; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--desk); display: block; }
-.wall.inherits img { opacity: .38; filter: grayscale(.4); }
+.wall.inherits img { opacity: var(--disabled); filter: grayscale(.4); }
 .wall.on img, .wall.on .blank { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wall .wn { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wall .ws { font-size: 10.5px; color: var(--muted); letter-spacing: .3px; }
 .wall.on .wn { color: var(--accent); }
-.cal-swatch { width: 14px; height: 14px; padding: 0 !important; border-radius: 4px !important; border: 1px solid var(--line) !important; cursor: pointer; flex: none; }
-.cal-swatch.on, .cal-swatch:hover { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
+#acct-cals .cv-swatch { width: 14px; height: 14px; padding: 0; cursor: pointer; flex: none; }
+#acct-cals h3.account { margin: 10px 0 2px; }
 .cal-palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 10px 22px; }
 .cal-palette[hidden] { display: none; }
-.cal-palette .hex { width: 90px; padding: 2px 6px; font-size: 12px; }
+.cal-palette .hex { width: 90px; font-size: 12px; }
 h3.with-btn { display: flex; align-items: center; justify-content: space-between; }
-h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12px; padding: 3px 10px !important; }
+h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .net .what { gap: 6px; }
 .solid-add { gap: 6px !important; }
-.net .what .t-btn { padding: 3px 10px !important; font-size: 12px; }
 .net .what input { width: 150px; }
 .net.current .name { color: var(--accent); }
-.dim-row { opacity: .55; }
+.dim-row { opacity: var(--disabled); }
 /* Shown, then how what it opens comes and goes: greyed while it is off the bar. */
 #bar-shown .what { gap: 12px; }
-#bar-shown .seg.off { opacity: .4; }
+#bar-shown .seg.off { opacity: var(--disabled); }
 #bar-shown .seg.off button { cursor: default; }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 .recovery-key { font-family: ui-monospace, monospace; font-size: 15px; letter-spacing: 1px; padding: 10px 12px; margin: 8px 0; background: var(--desk); border: 1px solid var(--accent); border-radius: var(--radius-row); user-select: all; word-break: break-all; }
@@ -126,49 +120,47 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 #revive .preview { margin: 8px 0; }
 /* Morgan: its sub-pages, and the lists that scroll inside the page rather than lengthen it. */
 #morgan [hidden] { display: none !important; }
-#morgan .row input[type="password"] { padding: 4px 8px; min-width: 220px; }
+#morgan .row input[type="password"] { min-width: 220px; }
 .mg-tabs { margin: 0 0 12px; }
 .mg-tabs .seg { flex-wrap: wrap; }
 .mg-down { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--danger); border-radius: var(--radius-control); color: var(--danger); font-size: 13px; }
 .mg-down span { flex: 1; }
 .mg-scroll { max-height: 320px; overflow-y: auto; padding-right: 4px; }
 .mg-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 4px; }
-.mg-card { text-align: left; border-radius: var(--radius-control) !important; padding: 14px 16px !important; display: flex; flex-direction: column; gap: 4px; }
-.mg-card b { font-weight: 500; font-size: 16px; }
+.mg-card { text-align: left; border-radius: var(--radius-control) !important; padding: 12px 14px !important; display: flex; flex-direction: column; gap: 4px; }
+.mg-card b { font-weight: 500; font-size: 15px; }
 .mg-card small { color: var(--muted); font-size: 12px; }
 .mg-card.on { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
 .mg-card.now b::after { content: " · now"; color: var(--muted); font-size: 12px; font-weight: 400; }
-.mg-confirm { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--radius-control); background: var(--accent-wash); }
 .mg-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
-.mg-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 2px 10px !important; }
-.mg-chip small { color: var(--muted); font-size: 11px; }
-.mg-chip.on { border-color: var(--accent) !important; color: var(--accent) !important; }
-.mg-chip.picked { background: var(--accent-wash) !important; }
+.mg-chips .chip { gap: 6px; }
+.mg-chips .chip small { color: var(--muted); font-size: 11px; }
+/* Chosen to hear, not yet used: the wash without the line. */
+.mg-chips .chip.picked { background: var(--accent-wash); }
 .mg-chips.mg-scroll { max-height: 200px; }
 .mg-topics { max-height: 420px; }
 .mg-topic { border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
 .mg-topic-head { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; border: 0 !important; border-radius: var(--radius-row) !important; padding: 7px 6px !important; }
-.mg-topic-head:hover { background: var(--accent-wash); }
+.mg-topic-head:hover { background: var(--accent-hover); }
 .mg-topic-head b { font-weight: 500; }
 .mg-topic-head small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .mg-topic-head.open b { color: var(--accent); }
-.mg-caret { color: var(--muted); width: 10px; flex: none; }
 .mg-topic-body { padding: 0 0 10px 24px; display: flex; flex-direction: column; gap: 4px; }
-.mg-topic-body input, .mg-tools input { padding: 4px 8px; }
 .mg-topic-body .data-buttons input { min-width: 0; width: 180px; }
 .mg-note-row { display: flex; align-items: flex-start; gap: 6px; }
 .mg-note-text { flex: 1; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--radius-row); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
 .mg-note-text[contenteditable] { user-select: text; -webkit-user-select: text; cursor: text; }
 .mg-note-text[contenteditable]:hover { border-color: var(--line); }
 .mg-note-text[contenteditable]:focus { border-color: var(--accent); background: var(--desk); outline: none; }
-.mg-note-row .t-btn { font-size: 12px !important; padding: 1px 9px !important; flex: none; }
+.mg-note-row .t-btn, .mg-note-row .x-btn { flex: none; }
+/* Asking, the × says so in words: wide enough for them. */
 .mg-note.locked { opacity: .5; }
 .mg-menu { margin: 2px 0 6px auto; width: 220px; max-height: 200px; overflow-y: auto; }
 .mg-pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 260px; }
 .mg-pic { text-align: left; border-radius: var(--radius-control) !important; padding: 8px 10px !important; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mg-pic b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mg-pic small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mg-day { font-size: 12px; color: var(--text); font-weight: 500; margin: 10px 0 2px; }
+.mg-day { margin: 10px 0 2px; }
 .mg-change .mg-said { flex: 1; font-size: 13px; }
 .mg-change .mg-said small { display: block; color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 .mg-change .mg-end { flex: none; }
@@ -184,15 +176,14 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .ty-st .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .ty-st .means { color: var(--muted); font-size: 11.5px; }
 .ty-st .means.unset { color: var(--danger); }
-.ty-st .fin { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
-.pl-state { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
+.ty-st .fin { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.pl-state { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
 .pl-state.running { color: var(--accent); }
 .pl-state.crashed { color: var(--danger); }
 .pl-body { padding: 0 0 12px 18px; }
 .pl-body ul { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; }
 .pl-body li { margin: 2px 0; }
-.pl-log { max-height: 180px; overflow: auto; font-family: var(--mono, monospace); font-size: 11px; white-space: pre-wrap; background: color-mix(in srgb, var(--line) 40%, transparent); border-radius: 6px; padding: 6px 8px; }
-.pl-decide { margin: 2px 0 10px 18px; padding: 8px 12px; border-left: 2px solid var(--accent); }
+.pl-log { max-height: 180px; overflow: auto; font-family: var(--mono, monospace); font-size: 11px; white-space: pre-wrap; background: var(--desk); border-radius: var(--radius-row); padding: 6px 8px; }
 .pl-decide h3 { margin-top: 0; }
 .pl-item { padding: 8px 0; border-top: 1px solid var(--line); }
 .pl-item:first-of-type { border-top: 0; }
@@ -206,15 +197,13 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .pl-diff .dl { display: flex; gap: 6px; padding: 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pl-diff .dl.same { color: var(--muted); }
 .pl-diff .dm { flex: none; width: 10px; color: var(--muted); }
-.dl.here { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.dl.there { background: color-mix(in srgb, #c7a55a 18%, transparent); }
+.dl.here { background: var(--accent-wash); }
+.dl.there { background: color-mix(in srgb, var(--tint-4) 18%, transparent); }
 .pl-legend { display: flex; gap: 8px; align-items: center; font-size: 11px; margin-top: 4px; }
-.pl-legend .dl { padding: 0 6px; border-radius: 4px; }
+.pl-legend .dl { padding: 0 6px; border-radius: var(--radius-row); }
 .pl-merge { width: min(860px, 90vw) !important; }
 .pl-merge .pl-diff { max-height: 32vh; }
 .pl-merge-text { min-height: 28vh; resize: vertical; font: inherit; font-size: 13px; padding: 8px 10px; line-height: 1.45; }
-.pl-merge .acts { display: flex; justify-content: flex-end; }
-.pl-ask { border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; font-size: 12.5px; }
 .mg-log { max-height: 60vh; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 11.5px; user-select: text; -webkit-user-select: text; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 6px 8px; }
 /* A connection: its name and long address take the room there is, and wrap; its buttons keep to the right. */
 .mg-server > .row > .name { flex: 1; width: auto; min-width: 0; }
@@ -225,11 +214,10 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; font-size: 12
 .mg-line span:last-child { white-space: pre-wrap; word-break: break-word; }
 .mg-line.warn span:last-child { color: var(--accent); }
 .mg-line.error span:last-child { color: var(--danger); }
-/* A sheet over the page: a document's text, a picture. */
-.mg-sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--desk) 60%, transparent); }
-.mg-sheet-box { width: min(720px, 86vw); max-height: 82vh; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); }
+/* A sheet over the page (the kit's): a document's text, a picture, a merge — wider than a question, its own part scrolling. */
+.kit-sheet.mg-sheet-box { width: min(720px, 86vw); max-width: none; max-height: 82vh; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
 .mg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.mg-sheet-head b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-sheet-head .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-sheet-text { overflow-y: auto; flex: 1; min-height: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; user-select: text; -webkit-user-select: text; padding: 8px 10px; background: var(--paper); border-radius: var(--radius-row); }
 .mg-sheet-text.err { color: var(--danger); }
 .mg-sheet-pic { display: flex; justify-content: center; min-height: 0; overflow: auto; }
@@ -397,7 +385,7 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h3>Saved networks</h3>
       <p class="note" style="margin:0 0 6px">Joined by itself when in range, if set to. Forget one to stop it.</p>
       <div id="wifi-saved"></div>
-      <h3 class="with-btn">Available <button class="t-btn" id="wifi-rescan">Look again</button></h3>
+      <h3 class="with-btn">Available <button class="t-btn small" id="wifi-rescan">Look again</button></h3>
       <div id="wifi-near"></div>
     </section>
     <section id="bluetooth">
@@ -407,7 +395,7 @@ footer #msg.err, .note.err { color: var(--danger); }
       <p class="note" id="bt-msg"></p>
       <h3>Your devices</h3>
       <div id="bt-mine"></div>
-      <h3 class="with-btn">Nearby <button class="t-btn" id="bt-scan">Look for devices</button></h3>
+      <h3 class="with-btn">Nearby <button class="t-btn small" id="bt-scan">Look for devices</button></h3>
       <div id="bt-near"></div>
     </section>
     <section id="power">
@@ -520,6 +508,8 @@ footer #msg.err, .note.err { color: var(--danger); }
 <script src="pagetips.js"></script>
 <script src="surface.js"></script>
 <script src="kit.js"></script>
+<script src="icons.js"></script>
+<script src="palette.js"></script>
 <script src="motion.js"></script>
 <script src="statuses.js"></script>
 <script src="settings.js"></script>

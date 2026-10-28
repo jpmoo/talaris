@@ -38,6 +38,11 @@ window.Peek = (() => {
     for (const k of kids.flat()) if (k != null && k !== false) e.append(k);
     return e;
   }
+  // An icon button's or a small ×'s mark: icons.js's, where the page has it.
+  function marked(button, icon) {
+    if (window.Icons) button.innerHTML = Icons[icon](); else button.textContent = "×";
+    return button;
+  }
 
   function close() {
     if (card) { card.remove(); card = null; }
@@ -135,12 +140,12 @@ window.Peek = (() => {
         el("span", { class: "peek-t" }, e.title), el("span", { class: "peek-how" }, how.join(", ")))));
       const left = rows.length - shown;
       more.replaceChildren(...(left > 0 ? [
-        el("button", { class: "t-btn", onclick: () => { shown += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
-        left > FIRST ? el("button", { class: "t-btn", onclick: () => { shown = rows.length; draw(); } }, `All ${rows.length}`) : null,
+        el("button", { class: "t-btn small", onclick: () => { shown += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
+        left > FIRST ? el("button", { class: "t-btn small", onclick: () => { shown = rows.length; draw(); } }, `All ${rows.length}`) : null,
       ] : []).filter(Boolean));
     };
     draw();
-    const label = el("div", { class: "peek-label" + (name === ARCHIVED ? " peek-fold" : "") }, `${name} · ${rows.length}`);
+    const label = el("div", { class: "label peek-label" + (name === ARCHIVED ? " peek-fold" : "") }, name, el("span", { class: "peek-n" }, String(rows.length)));
     if (name === ARCHIVED) label.addEventListener("click", () => { shown = shown ? 0 : FIRST; draw(); });
     return el("div", { class: "peek-group" }, label, list, more);
   }
@@ -203,9 +208,9 @@ window.Peek = (() => {
     // Flattened: replaceChildren takes nodes, and would write an array of groups out as text.
     card.replaceChildren(...[
       el("div", { class: "peek-head" },
-        el("span", { class: "peek-kind" }, place && place.kind !== "page" ? PLACE[place.kind] || kindOf(got.kinds) : kindOf(got.kinds)),
+        el("span", { class: "label peek-kind" }, place && place.kind !== "page" ? PLACE[place.kind] || kindOf(got.kinds) : kindOf(got.kinds)),
         el("span", { class: "peek-title" }, got.title),
-        el("button", { class: "icon-btn", title: "Close", onclick: close }, "×")),
+        marked(el("button", { class: "icon-btn", title: "Close", onclick: close }), "close")),
       Array.isArray(props.emails) && props.emails.length ? el("div", { class: "peek-line" }, props.emails.join(", ")) : null,
       note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1").slice(0, 300)) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
@@ -230,20 +235,20 @@ window.Peek = (() => {
     const host = el("div", { class: "peek-sugg" });
     let dismissed = 0;
     // Those turned down for it, offered again: beside the heading, or alone when nothing else is suggested.
-    const reset = () => (dismissed ? el("button", { class: "t-btn peek-reset", title: `Suggest the ${dismissed} turned down for this again`,
+    const reset = () => (dismissed ? el("button", { class: "t-btn small peek-reset", title: `Suggest the ${dismissed} turned down for this again`,
       onclick: () => api("POST", "/suggestions/reset", { key }).then(load) }, `Reset dismissed (${dismissed})`) : null);
     const draw = (list) => {
-      if (!list.length) { host.replaceChildren(...(dismissed ? [el("div", { class: "peek-label peek-shead" }, "Possible connections", reset())] : [])); return; }
-      host.replaceChildren(el("div", { class: "peek-label peek-shead" }, `Possible connections · ${list.length}`, reset()), ...list.map((s) => el("div", { class: "peek-srow" },
+      if (!list.length) { host.replaceChildren(...(dismissed ? [el("div", { class: "label peek-label peek-shead" }, "Possible connections", reset())] : [])); return; }
+      host.replaceChildren(el("div", { class: "label peek-label peek-shead" }, "Possible connections", el("span", { class: "peek-n" }, String(list.length)), reset()), ...list.map((s) => el("div", { class: "peek-srow" },
         el("div", { class: "peek-stop" },
           el("button", { class: "peek-item", title: "Open it", onclick: () => (s.id ? opts.open && opts.open(s.id, s) : placeOfKey(s.key) && opts.openPlace && opts.openPlace(placeOfKey(s.key))) },
             el("span", { class: "peek-t" }, s.title)),
-          el("button", { class: "icon-btn peek-no", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }, "×")),
+          marked(el("button", { class: "x-btn danger", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }), "close")),
         el("div", { class: "peek-why" }, s.why.join(" · ")),
         el("div", { class: "peek-ways" }, s.ways.map((w) => {
           const id = `${s.key}|${w.how}|${w.text || ""}`;
           // A merge is asked first, as everything is asked (kit.js).
-          return el("button", { class: "t-btn", onclick: (e) => {
+          return el("button", { class: "t-btn small", onclick: (e) => {
             if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
             api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
           } }, w.label);
@@ -256,16 +261,17 @@ window.Peek = (() => {
 
   const style = document.createElement("style");
   style.textContent = `
-    .peek { position: fixed; z-index: 80; top: 12%; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); max-height: 72%; overflow: auto;
-      background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow); padding: 12px 14px; font-size: 12.5px; color: var(--text); }
+    .peek { position: fixed; z-index: var(--z-pop); top: 12%; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); max-height: 72%; overflow: auto;
+      background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-panel);
+      box-shadow: var(--menu-shadow); padding: 12px 14px; font-size: 12.5px; color: var(--text); }
     .peek-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .peek-kind, .peek-k { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
     .peek-title { flex: 1; font-size: 14px; }
     .peek-line { color: var(--muted); margin: 4px 0; }
     .peek-note { margin: 6px 0; white-space: pre-wrap; }
     .peek-group { margin-top: 10px; }
-    .peek-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
-    .peek-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
+    .peek-label { display: block; margin-bottom: 4px; }
+    .peek-n { margin-left: 6px; letter-spacing: 0; }
+    .peek-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
     .peek-item:hover { background: var(--accent-wash); color: var(--accent); }
     .peek-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .peek-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
@@ -274,18 +280,14 @@ window.Peek = (() => {
     .peek-fold { cursor: pointer; }
     .peek-fold:hover { color: var(--accent); }
     .peek-more:empty { display: none; }
-    .peek-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
     .peek-sugg:not(:empty) { margin-top: 12px; }
     .peek-shead { display: flex; align-items: center; gap: 8px; }
-    .peek-reset { margin-left: auto; font-size: 10.5px; padding: 0 7px; letter-spacing: 0; text-transform: none; }
+    .peek-shead .peek-n { margin-left: -2px; }
+    .peek-reset { margin-left: auto; letter-spacing: 0; text-transform: none; }
     .peek-srow { padding: 4px 0 6px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
     .peek-stop { display: flex; align-items: center; gap: 4px; }
-    .peek-no.icon-btn { flex: none; width: auto; height: auto; min-width: 0; font-size: 14px; line-height: 1; padding: 0 4px !important; border: 0 !important; background: none !important; color: var(--muted); }
-    .peek-no.icon-btn:hover { color: var(--danger); }
     .peek-why { color: var(--muted); font-size: 11px; margin: 0 6px 4px; }
     .peek-ways { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 6px; }
-    .peek-ways .t-btn { font-size: 11px; padding: 0 8px; }
-    .peek-ways .t-btn.armed { border-color: var(--danger); color: var(--danger); }
   `;
   document.head.append(style);
 

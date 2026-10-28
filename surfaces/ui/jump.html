@@ -18,28 +18,28 @@ Escape puts it away.
 <link rel="stylesheet" href="controls.css">
 <link rel="stylesheet" href="motion.css">
 <style>
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; cursor: pointer; }
+html { background: var(--catch); overflow: hidden; height: 100%; cursor: pointer; }
 body { margin: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
 #panel {
   cursor: default; position: relative; width: min(1100px, calc(100% - 32px)); height: 340px; overflow: hidden;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text);
-  border: 1px solid var(--frame); border-radius: 14px; box-shadow: var(--menu-shadow); font-size: 13px;
+  border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); font-size: 13px;
 }
-#typed { position: absolute; top: 14px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+#typed { position: absolute; top: 14px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
 #typed b { color: var(--accent); font-weight: 500; font-size: 13px; letter-spacing: 1px; text-transform: none; margin-left: 6px; }
 #ring { position: absolute; inset: 40px 0 0; }
 .card {
   position: absolute; left: 50%; top: 18px; width: 300px; margin-left: -150px; display: flex; flex-direction: column; align-items: center; gap: 10px;
-  transition: transform .22s cubic-bezier(.2, .8, .2, 1), opacity .22s; cursor: pointer; will-change: transform;
+  transition: transform .22s var(--ease), opacity .22s var(--ease); cursor: pointer; will-change: transform;
 }
-.card img { width: 300px; height: 188px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--desk); box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.card img { width: 300px; height: 188px; object-fit: cover; border-radius: var(--radius-row); border: 1px solid var(--line); background: var(--desk); box-shadow: var(--menu-shadow); }
 .card .name { font-size: 15px; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
-.card .code { color: var(--muted); font-size: 10.5px; letter-spacing: 1.5px; margin-top: -6px; }
-.card.front img { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-wash), 0 10px 28px rgba(0, 0, 0, .35); }
+.card .code { color: var(--muted); font-size: 10px; letter-spacing: 2px; margin-top: -6px; }
+.card.front img { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-wash), var(--menu-shadow); }
 .card.front .name { color: var(--accent); }
 .card:not(.front) .code { visibility: hidden; }
 .card.here .name::after { content: " · here"; color: var(--muted); font-size: 11.5px; }
-.none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>
@@ -99,7 +99,7 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
     const live = new Set(shown.map((p) => p.id));
     for (const [id, c] of cards) if (!live.has(id)) { c.remove(); cards.delete(id); }
     ring.querySelector(".none")?.remove();
-    if (!n) { ring.append(Object.assign(document.createElement("div"), { className: "none", textContent: "No project has that in its name" })); return; }
+    if (!n) { const none = Kit.empty("No project has that in its name"); none.classList.add("none"); ring.append(none); return; }
     shown.forEach((p, i) => {
       const c = card(p);
       // The nearer way round: a ring of five or more turns; fewer just sit in a row.

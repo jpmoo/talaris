@@ -107,7 +107,7 @@ function draw(t) {
   if (wave.width !== Math.round(w * dpr)) { wave.width = Math.round(w * dpr); wave.height = Math.round(h * dpr); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#c98a5b";
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
   const gap = 3, bar = (w - gap * (BARS + 1)) / BARS;
   if (WORKING.has(now)) {
     const travel = (((t - started) / 1000) * 1.15) % 2;

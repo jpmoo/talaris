@@ -255,8 +255,16 @@ function drawFound(view) {
     past.length ? el("h3", {}, "Past") : null, ...past.map(hit),
     tasksFound.length ? el("h3", {}, "Tasks") : null, ...tasksFound.map(taskHit),
     !waiting && !events.length && !tasksFound.length ? Kit.empty("Nothing matches") : null,
-    waiting ? el("div", { class: "none" }, "Looking…") : null);
+    waiting ? Kit.empty("Looking…") : null);
   view.replaceChildren(box);
+}
+
+// Nothing to show, said as every empty list is (Kit.empty), with what can be done about it under.
+function note(text, ...more) {
+  const n = Kit.empty(text);
+  n.classList.add("note");
+  n.append(...more.filter(Boolean));
+  return n;
 }
 
 function draw() {
@@ -274,12 +282,12 @@ function draw() {
   drawSide();
   const view = $("view");
   if (!status.ready) {
-    view.replaceChildren(el("div", { class: "note" }, status.error || "Starting",
+    view.replaceChildren(note(status.error || "Starting",
       status.needs ? el("p", {}, "Install them once, then the calendar starts by itself after Talaris restarts: ", el("br"), el("code", {}, `sudo apt install ${status.needs}`)) : ""));
     return;
   }
   if (!calendars.length) {
-    view.replaceChildren(el("div", { class: "note" }, "No calendars yet. Add a Google, Microsoft 365 or Apple account and its calendars appear here.",
+    view.replaceChildren(note("No calendars yet. Add a Google, Microsoft 365 or Apple account and its calendars appear here",
       el("p", {}, el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Add an account"))));
     return;
   }
@@ -306,7 +314,7 @@ function drawSide() {
     el("div", { class: "cal" + (tasksShown ? " on" : " muted"), style: "--c:var(--accent)" },
       el("button", { class: "sw", title: tasksShown ? "Hide tasks on their days" : "Show tasks on their days", onclick: () => showTasks("tasks", !tasksShown) }),
       el("span", {}, "Available/Due Tasks")),
-    el("div", { class: "cal" + (overdueShown ? " on" : " muted"), style: "--c:#d0564b" },
+    el("div", { class: "cal" + (overdueShown ? " on" : " muted"), style: "--c:var(--danger)" },
       el("button", { class: "sw", title: overdueShown ? "Hide overdue tasks" : "Show overdue tasks on today", onclick: () => showTasks("overdue", !overdueShown) }),
       el("span", {}, "Overdue Tasks")),
   ]));
@@ -318,7 +326,7 @@ function answerClass(e) {
   return e.mine === "waiting" && e.end > Date.now() ? " waiting" : "";
 }
 function chip(e, timedLook) {
-  return el("div", { class: "chip" + (timedLook && !e.allDay ? " timed" : "") + answerClass(e), style: `--c:${colorOf(e.calendar)}`, title: e.title,
+  return el("div", { class: "ev-chip" + (timedLook && !e.allDay ? " timed" : "") + answerClass(e), style: `--c:${colorOf(e.calendar)}`, title: e.title,
     onclick: (ev) => { ev.stopPropagation(); edit(e); } }, (!e.allDay ? `${clock(e.start)} ` : "") + (e.title || "(no title)"));
 }
 
@@ -456,7 +464,7 @@ function paintRepeats() {
   $("e-ends-row").hidden = !r.freq;
   seg("e-ends", [["never", "Never"], ["on", "On"], ["after", "After"]], r.ends, changed((x) => { r.ends = x; if (x === "on" && !r.until) r.until = addDays(v.sd, 30); }));
   $("e-until").hidden = r.ends !== "on";
-  $("e-until").textContent = r.until ? dayLabel(r.until) : "";
+  $("e-until").replaceChildren(el("span", { class: "lbl" }, r.until ? dayLabel(r.until) : ""));
   $("e-count").hidden = r.ends !== "after";
   if (document.activeElement !== $("e-count")) $("e-count").value = `${r.count} times`;
   // One occurrence of a series is changed on its own: how it repeats is the series'.
@@ -472,9 +480,12 @@ function paintPeople() {
   $("e-who-row").hidden = !cal.invites || mineOnly;
   $("e-who-note").hidden = cal.invites || mineOnly || editing.readOnly;
   $("e-who-why").textContent = cal.invites ? "" : "This calendar cannot send invitations; choose an account's calendar to invite people.";
-  $("e-chips").replaceChildren(...v.people.map((p, i) => el("span", { class: "chip-p", title: p.email }, p.name || p.email,
-    p.answer ? el("span", { class: "st" }, `· ${ANSWER_WORD[p.answer] || p.answer}`) : "",
-    el("button", { title: "Remove", onclick: (ev) => { ev.stopPropagation(); v.people.splice(i, 1); paintPeople(); } }, "×"))));
+  $("e-chips").replaceChildren(...v.people.map((p, i) => {
+    const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); v.people.splice(i, 1); paintPeople(); } });
+    x.innerHTML = Icons.close();
+    return el("span", { class: "chip", title: p.email }, el("span", { class: "lbl" }, p.name || p.email),
+      p.answer ? el("span", { class: "st" }, `· ${ANSWER_WORD[p.answer] || p.answer}`) : "", x);
+  }));
   $("e-answer-row").hidden = !mineOnly || !editing.mine;
   if (mineOnly) {
     seg("e-answer", [["accepted", "Yes"], ["maybe", "Maybe"], ["declined", "No"]], editing.mine, (a) => {
@@ -506,7 +517,7 @@ function showPeople(found) {
   if (found.req !== peopleReq || !editing) return;
   if (!found.items.length) { popAway(); return; }
   popUnder($("e-who"), el("div", { class: "menu-list" }, ...found.items.map((p) =>
-    el("button", { class: "time", onclick: (ev) => { ev.stopPropagation(); addPerson(p); } }, p.name ? `${p.name} · ${p.email}` : p.email))));
+    el("button", { class: "menu-item", onclick: (ev) => { ev.stopPropagation(); addPerson(p); } }, p.name ? `${p.name} · ${p.email}` : p.email))));
 }
 $("e-until").addEventListener("click", (ev) => {
   ev.stopPropagation();
@@ -521,10 +532,10 @@ function paintEditor() {
   paintPeople();
   const v = editing.v;
   const cal = calendars.find((c) => c.id === v.calendar);
-  $("e-cal").replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), cal ? `${cal.name} · ${cal.account}` : "Choose a calendar");
+  $("e-cal").replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), el("span", { class: "lbl" }, cal ? `${cal.name} · ${cal.account}` : "Choose a calendar"));
   $("e-allday").classList.toggle("on", v.allDay);
-  $("e-sd").textContent = dayLabel(v.sd);
-  $("e-ed").textContent = dayLabel(v.ed);
+  $("e-sd").replaceChildren(el("span", { class: "lbl" }, dayLabel(v.sd)));
+  $("e-ed").replaceChildren(el("span", { class: "lbl" }, dayLabel(v.ed)));
   if (document.activeElement !== $("e-st")) $("e-st").value = timeLabel(v.st);
   if (document.activeElement !== $("e-et")) $("e-et").value = timeLabel(v.et);
   $("e-st").hidden = $("e-et").hidden = v.allDay;
@@ -566,9 +577,8 @@ function closeEditor() { popAway(); $("editor").classList.remove("open"); editin
 $("e-cal").addEventListener("click", (ev) => {
   ev.stopPropagation();
   if (!editing || (Kit.openedBy() || {}).id === "e-cal") { popAway(); return; }
-  popUnder($("e-cal"), el("div", { class: "menu-list" }, ...showing().filter((c) => c.writable).map((c) =>
-    el("button", { class: "time" + (c.id === editing.v.calendar ? " on" : ""), onclick: (e) => { e.stopPropagation(); editing.v.calendar = c.id; popAway(); paintEditor(); } },
-      el("span", { class: "sw", style: `background:${c.color || "var(--accent)"}` }), `${c.name} · ${c.account}`))));
+  Kit.menu($("e-cal"), showing().filter((c) => c.writable).map((c) => ({ label: `${c.name} · ${c.account}`, color: c.color || "var(--accent)", on: c.id === editing.v.calendar,
+    act: () => { editing.v.calendar = c.id; paintEditor(); } })));
 });
 $("e-allday").addEventListener("click", () => { if (!editing) return; editing.v.allDay = !editing.v.allDay; paintEditor(); });
 for (const [id, key] of [["e-sd", "sd"], ["e-ed", "ed"]]) {
@@ -602,7 +612,7 @@ for (const [id, key] of [["e-st", "st"], ["e-et", "et"]]) {
   });
 }
 // A press elsewhere in the editor puts a list away.
-$("editor").addEventListener("click", (e) => { if (!e.target.closest("#pop") && !["e-st", "e-et"].includes(e.target.id)) popAway(); });
+$("editor").addEventListener("click", (e) => { if (!e.target.closest(".kit-pop") && !["e-st", "e-et"].includes(e.target.id)) popAway(); });
 
 function collected() {
   const v = editing.v;
@@ -668,6 +678,8 @@ function step(n) {
   else focus = new Date(focus.getFullYear(), focus.getMonth() + n, 1);
   draw(); fetchRange();
 }
+$("prev").innerHTML = Icons.prev();
+$("next").innerHTML = Icons.next();
 $("prev").addEventListener("click", () => step(-1));
 $("next").addEventListener("click", () => step(1));
 $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(0, 0, 0); at.setHours(at.getHours() + 1); create(mode === "month" && !sameDay(focus, new Date()) ? (() => { const d = new Date(focus); d.setHours(9); return d; })() : at, false); });

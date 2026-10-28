@@ -34,6 +34,8 @@
     for (const k of kids.flat()) if (k != null && k !== "" && k !== false) e.append(k);
     return e;
   }
+  // A small ×'s mark (icons.js).
+  const xBtn = (b) => { b.innerHTML = Icons.close(); return b; };
   function seg(host, choices, current, pick) {
     (typeof host === "string" ? $(host) : host).replaceChildren(...choices.map(([value, label]) =>
       el("button", { class: value === current ? "on" : "", onclick: (e) => { e.stopPropagation(); pick(value); } }, label)));
@@ -164,7 +166,7 @@
     for (const n of things()) if (!mine || n.own) counts.set(groupOf(n), (counts.get(groupOf(n)) || 0) + 1);
     $("kinds").replaceChildren(...GROUPS.map(([k, name]) => {
       const n = counts.get(k) || 0;
-      return el("button", { class: "kchip" + (off.has(k) ? "" : " on") + (n ? "" : " none"), title: off.has(k) ? `Show ${name.toLowerCase()}` : `Hide ${name.toLowerCase()}`,
+      return el("button", { class: "chip kchip" + (off.has(k) ? "" : " on") + (n ? "" : " none"), title: off.has(k) ? `Show ${name.toLowerCase()}` : `Hide ${name.toLowerCase()}`,
         onclick: () => { if (off.has(k)) off.delete(k); else off.add(k); store.set("talaris.glance.off", [...off]); filtered(); } },
         el("span", { class: "dot", style: `background: var(--k-${k})` }), name, el("span", { class: "n" }, String(n)));
     }));
@@ -229,13 +231,13 @@
     const head = el("div", { class: "ghead" + (folded ? " folded" : ""), onclick: () => {
       if (shut.has(k)) shut.delete(k); else shut.add(k);
       store.set("talaris.glance.shut", [...shut]); drawList();
-    } }, el("span", { class: "caret" }, "▾"), el("span", {}, NAME[k]), el("span", { class: "n" }, `· ${rows.length}`));
+    } }, Kit.caret(!folded), el("span", {}, NAME[k]), el("span", { class: "n" }, String(rows.length)));
     if (folded) return el("div", {}, head);
     const out = Math.min(rows.length, showing.get(k) || FIRST);
     const left = rows.length - out;
     const more = el("div", { class: "more" }, left > 0 ? [
-      el("button", { class: "t-btn", onclick: () => { showing.set(k, out + FIRST); drawList(); } }, `${Math.min(FIRST, left)} more`),
-      left > FIRST ? el("button", { class: "t-btn", onclick: () => { showing.set(k, rows.length); drawList(); } }, `All ${rows.length}`) : null,
+      el("button", { class: "t-btn small", onclick: () => { showing.set(k, out + FIRST); drawList(); } }, `${Math.min(FIRST, left)} more`),
+      left > FIRST ? el("button", { class: "t-btn small", onclick: () => { showing.set(k, rows.length); drawList(); } }, `All ${rows.length}`) : null,
     ] : []);
     return el("div", {}, head, rows.slice(0, out).map(row), more);
   }
@@ -735,7 +737,10 @@
         ...ROWS.map(([key, label, min, max, step, show]) => {
           const n = el("span", { class: "dv" }, show(gs[key]));
           const r = el("input", { type: "range", min, max, step, value: gs[key] });
-          r.addEventListener("input", () => { setDisplay(key, Number(r.value)); n.textContent = show(gs[key]); });
+          // The track lit up to the level, as every slider's (controls.css).
+          const lit = () => r.style.setProperty("--fill", `${((r.value - min) / (max - min)) * 100}%`);
+          lit();
+          r.addEventListener("input", () => { setDisplay(key, Number(r.value)); n.textContent = show(gs[key]); lit(); });
           return el("label", { class: "drow" }, el("span", { class: "dl" }, label), r, n);
         }),
         el("div", { class: "drow" }, el("span", { class: "dl" }, "Labels"),
@@ -828,13 +833,13 @@
     const n = fresh ? sugg.list.length : 0;
     const head = el("div", { class: "shead" },
       el("span", { class: "t", title: suggFold ? "Show possible connections" : "Fold away", onclick: () => { suggFold = !suggFold; store.set("talaris.glance.suggFold", suggFold); drawSugg(); } },
-        `Possible connections${n ? ` · ${n}` : ""}`),
+        "Possible connections", n ? el("span", { class: "n" }, String(n)) : null),
       // Those turned down for it, offered again (only when there are some).
-      fresh && sugg.dismissed ? el("button", { class: "t-btn", title: `Suggest the ${sugg.dismissed} turned down for this again`, onclick: resetDismissed }, `Reset dismissed (${sugg.dismissed})`) : null,
-      fresh ? el("button", { class: "t-btn", title: sugg.quiet ? "Suggest connections for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
+      fresh && sugg.dismissed ? el("button", { class: "t-btn small", title: `Suggest the ${sugg.dismissed} turned down for this again`, onclick: resetDismissed }, `Reset dismissed (${sugg.dismissed})`) : null,
+      fresh ? el("button", { class: "t-btn small", title: sugg.quiet ? "Suggest connections for this again" : "No more suggestions for this", onclick: quiet }, sugg.quiet ? "Suggest again" : "Stop") : null);
     const body = el("div", { class: "sbody" },
-      !fresh ? el("div", { class: "none" }, "Looking…")
-        : sugg.quiet ? el("div", { class: "none" }, "Not suggesting for this.")
+      !fresh ? Kit.empty("Looking…")
+        : sugg.quiet ? Kit.empty("Not suggesting for this")
         : !n ? Kit.empty("Nothing more to suggest")
         : sugg.list.map(srow));
     box.replaceChildren(head, body);
@@ -846,12 +851,12 @@
     return el("div", { class: "srow" },
       el("div", { class: "top" }, ki,
         el("button", { class: "title", title: `${s.title} — click to put it in the middle; double-click to open it`, onclick: () => walkTo(node()), ondblclick: () => open(node()) }, s.title || "Untitled"),
-        el("button", { class: "no", title: "Not connected — don't suggest it again", onclick: () => dismiss(s) }, "×")),
+        xBtn(el("button", { class: "x-btn danger", title: "Not connected — don't suggest it again", onclick: () => dismiss(s) }))),
       el("div", { class: "why" }, s.why.join(" · ")),
       el("div", { class: "ways" }, s.ways.map((w) => {
         const id = `${s.key}|${w.how}|${w.text || ""}`;
         // A merge is asked first, as everything is asked (kit.js).
-        return el("button", { class: "t-btn", title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
+        return el("button", { class: "t-btn small", title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
           onclick: (e) => { if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return; take(s, w); } },
           w.label);
       })));

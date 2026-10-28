@@ -140,18 +140,18 @@ function mark(title, query) {
 }
 
 const GLYPH = {
-  sum: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 6h9M3.5 10h9"/></svg>',
-  project: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg>',
-  canvas: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><rect x="5" y="5.5" width="4.5" height="3.5" rx=".6"/></svg>',
-  page: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10M3 7h10M3 10h10M3 13h6"/></svg>',
-  file: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5z"/><path d="M9.5 1.5v3h3"/></svg>',
-  verb: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M9 4.5 12.5 8 9 11.5"/></svg>',
+  sum: () => Icons.sum(),
+  project: () => Icons.folder(),
+  canvas: () => Icons.canvas(),
+  page: () => Icons.writing(),
+  file: () => Icons.file(),
+  verb: () => Icons.go(),
   morgan: () => Icons.morgan(),
-  conversation: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>',
+  conversation: () => Icons.said(),
   app: () => GLYPH.verb(), window: () => GLYPH.verb(),
   // What the words found (_ThingSearch): without these the whole list failed to draw.
   task: () => Icons.tasks(), person: () => Icons.people(), note: () => GLYPH.page(),
-  event: () => '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>',
+  event: () => Icons.event(),
 };
 
 /*
@@ -343,7 +343,7 @@ function draw() {
   const list = $("list");
   list.replaceChildren(...shown.map((x, i) => {
     const row = document.createElement("div");
-    row.className = "item" + (i === at ? " on" : "") + (armed === x.key ? " armed" : "") + (x.related ? " related" : "");
+    row.className = "item" + (i === at ? " on" : "") + (armed === x.key ? " armed-row" : "") + (x.related ? " related" : "");
     const icon = document.createElement("span");
     icon.className = "icon";
     if (x.img) {
@@ -379,7 +379,8 @@ function pressChoices(x) {
   const box = Object.assign(document.createElement("span"), { className: "presses" });
   for (const [press, how] of Object.entries(x.presses)) {
     if (!how) continue;
-    const b = Object.assign(document.createElement("button"), { className: "press", title: `${HOW[how]} (${KEYS[press]})` });
+    // The first is Enter's: the one that does it.
+    const b = Object.assign(document.createElement("button"), { className: "t-btn small" + (box.children.length ? "" : " primary"), title: `${HOW[how]} (${KEYS[press]})` });
     b.append(HOW[how], Object.assign(document.createElement("kbd"), { textContent: KEYS[press] }));
     b.addEventListener("click", (e) => { e.stopPropagation(); chooseHow(x, how); });
     box.append(b);

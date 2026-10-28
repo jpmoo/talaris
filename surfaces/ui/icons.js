@@ -116,6 +116,17 @@ const Icons = (() => {
   // Notifications: a bell. With some unread the bar sets a dot at its shoulder
   // (bar.html's #bell .dot), a thing of its own so it keeps its color and place.
   const bell = () => svg('<path d="M4 11V7.4a4 4 0 0 1 8 0V11l1.2 1.5H2.8z"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>');
+  // A book (Library's books, read or waiting).
+  const book = () => svg('<path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/>');
+  // Before and after (a month, a week): chevrons. A lock (a network with a password).
+  const prev = () => svg('<path d="M10 3.5 5.5 8l4.5 4.5"/>');
+  const next = () => svg('<path d="M6 3.5 10.5 8 6 12.5"/>');
+  const lock = () => svg('<rect x="4" y="7.5" width="8" height="6" rx="1"/><path d="M5.8 7.5V5.5a2.2 2.2 0 0 1 4.4 0v2"/>');
+  // The launcher's kinds: a sum (=), something to do (an arrow), something said, an event.
+  const sum = () => svg('<path d="M3.5 6h9M3.5 10h9"/>');
+  const go = () => svg('<path d="M3 8h9M9 4.5 12.5 8 9 11.5"/>');
+  const said = () => svg('<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>');
+  const event = () => svg('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/>');
   // Clipboard history: a board with its clip, and a line written on it. Its
   // tiles: a pin, an eye (looked at, not copied), a bin, a page (a file), a warning.
   const clipboard = () => svg('<path d="M5.5 3H4a1 1 0 0 0-1 1v9.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-1.5"/><rect x="5.5" y="1.8" width="5" height="2.4" rx=".8"/><path d="M5.5 8h5M5.5 10.8h3.4"/>');
@@ -127,5 +138,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

@@ -15,21 +15,14 @@ another project, close.
 <style>
 html, body { height: 100%; }
 .menu { position: absolute; left: 4px; right: 4px; bottom: 6px; }
+/* A panel from the dock: as see-through as Settings, Panels says. */
+.menu { background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent) !important; }
 body[data-edge="top"] .menu { bottom: auto; top: 6px; }
-.menu-item[hidden] { display: none !important; }
 .menu-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#wins .hint.sub { padding-top: 4px !important; letter-spacing: 1px; text-transform: none; }
 .menu-item.win { padding-left: 1.6em !important; }
-.menu-item.on::before { content: "✓"; display: inline-block; width: 1.2em; margin-left: -1.2em; color: var(--accent); }
-.menu-item.choice { padding-left: 1.6em !important; }
 #wins:empty, #wins-hint[hidden], #choose[hidden] { display: none; }
 #presses[hidden], #menu[hidden] { display: none; }
-#presses { padding: 6px 8px; }
 #presses .p-row { margin: 6px 0 2px; }
-#presses .p-seg { display: flex; gap: 4px; }
-#presses .p-seg button { flex: 1; padding: 3px 0; border: 1px solid var(--line, rgba(128,128,128,.35)); border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
-#presses .p-seg button.on { border-color: var(--accent); color: var(--accent); }
-#presses .p-seg button:disabled { opacity: .35; cursor: default; }
 #presses .p-what { margin-top: 8px; opacity: .7; line-height: 1.5; text-transform: none !important; letter-spacing: 0 !important; }
 #presses .p-foot { display: flex; justify-content: space-between; margin-top: 8px; }
 .doc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none !important; letter-spacing: 0 !important; }
@@ -73,8 +66,8 @@ body[data-edge="top"] .menu { bottom: auto; top: 6px; }
   <div id="p-rows"></div>
   <div class="hint p-what" id="p-what"></div>
   <div class="p-foot">
-    <button class="menu-item" id="p-default" style="width:auto">Use the default</button>
-    <button class="menu-item" id="p-back" style="width:auto">Back</button>
+    <button class="t-btn" id="p-default">Use the default</button>
+    <button class="t-btn" id="p-back">Back</button>
   </div>
 </div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
@@ -198,7 +191,7 @@ function drawPresses(s) {
     head.className = "hint p-row";
     head.textContent = label;
     const seg = document.createElement("div");
-    seg.className = "p-seg";
+    seg.className = "seg";
     for (const [a, word] of ACTS) {
       const b = document.createElement("button");
       b.textContent = word;

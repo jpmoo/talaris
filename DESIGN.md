@@ -474,6 +474,50 @@ Left as they are on purpose:
 - files dragged in from other applications, which only the browser's drag can
   bring.
 
+## One visual language (2026-10-28)
+
+The rule after *One routine for each thing*, for how things look: the same
+kind of thing is drawn one way on every surface, from the shared files, and a
+page draws nothing of its own that they already draw. An audit found 117
+places where it was not — four reds for danger, three shadows for the one
+Shadow setting, eleven sizes of the small heading, a toast and the same
+notification in the bell set in different type, chips at four corners — and
+they were made one.
+
+Where each thing is defined:
+
+- **tokens.css**, the values: colours (and `--tint-1..8` for telling kinds
+  apart), the four corners (`--radius-panel` 12, `--radius-control` 8,
+  `--radius-row` 5, `--radius-pill` 14), depth (`--menu-shadow` for what
+  floats, `--edge-shadow` for what stands on an edge, `--scrim` behind a
+  dialog, `--catch` for a layer that must take a press), the accent's four
+  tiers (`--accent-wash` selected, `--accent-hover`, `--accent-strong`,
+  `--accent-line`), `--danger-wash`, `--disabled` and `--done`, motion
+  (`--dur`, `--ease`, `--ease-exit`) and the z scale. Every page loads it,
+  Morgan's and the canvas's too; the sizes used to live in controls.css,
+  where those two could not see them, so each wrote its own.
+- **theme.css**, the elements, and the one small heading: `.label`, 10px with
+  2px spacing. Only weights 400 and 500 are shipped, so nothing is heavier.
+- **controls.css**, the controls: icon and text buttons (`.small`, `.on`,
+  `.primary`, `.danger`), the small × (`.x-btn`), chips, menus with their
+  tick column, segments, switches, fields, `.pick` (a field that opens a
+  menu), sliders and `.track`.
+- **kit.css**, what the kit draws and the rest: pop-ups, the month, times,
+  asking (`button.armed`, `.armed-row`), empty lists, dialogs (`.kit-scrim`,
+  `.kit-sheet`), an ask with words (`.kit-ask-box`), mentions, tooltips.
+- **icons.js** for every glyph; **palette.js** for every colour a person picks.
+
+`surfaces/check-look.mjs` runs with the tests and fails on a colour written
+as hex, a corner in pixels, a shadow written out, a tint of the accent at its
+own strength, a weight over 500 or a raw z-index in a page. A line that has
+to be an exception says why with `look:` in a comment on it: the colour
+picker's own colours, the canvas's drawing colours, a page's paper.
+
+Kept apart on purpose: the bar's project pill flashes in the full accent when
+the project changes; status and region colours are the person's, mixed with
+their own colour rather than the accent; a calendar's coloured edge on an
+event chip.
+
 ## Morgan
 
 A voice-and-chat assistant: wake word, speech in and out, a local model for the
@@ -1994,13 +2038,7 @@ of it and comes out at the end.
     what counts as an action and at what grain; how long it is kept; where a
     suggestion is shown and how one is turned down for good; whether it leaves
     the machine (Morgan's brain is on the home server).
-21. **One visual language** (asked for 2026-10-28; not started). An audit of
-    theming and the visual pieces across every surface, as the one-routine
-    audit was of behavior: the same thing — a button, a chip, a field, a
-    pulldown, a list row, a card, a heading, a confirm, an empty state, a
-    scrollbar, an icon's size and weight, spacing, radius, shadow, motion —
-    drawn one way everywhere, from the theme's tokens and `kit.css`, with
-    nothing left that is styled in one page alone. Found, listed, then made one.
+21. ~~One visual language.~~ **Done** (2026-10-28): see *One visual language*.
 
 ## What did not come from Talaria
 

@@ -14,25 +14,26 @@ The on-screen display: what a key just changed, and to what.
 html, body { height: 100%; }
 #osd {
   position: absolute; inset: 6px 8px 10px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
-  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow);
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
+  border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow);
   color: var(--accent);
 }
 #osd .ic { width: 20px; height: 20px; flex: none; }
 #osd.muted { color: var(--muted); }
 /* The level as a hairline track filled with the accent, the slider's look. */
-#track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-#fill { height: 100%; background: currentColor; transition: width .12s; }
+#track { flex: 1; }
+#fill { transition: width var(--dur); }
 #n { width: 34px; text-align: right; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
-#osd.muted #n { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; }
+#osd.muted #n { color: var(--muted); font-size: 10px; letter-spacing: 2px; }
 /* A project gone to: its name where the level would be, its code where the number would. */
 #title { flex: 1; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #osd.project #track { display: none; }
 #osd:not(.project) #title { display: none; }
-#osd.project #n { width: auto; font-size: 10.5px; letter-spacing: 1.5px; color: var(--muted); }
+#osd.project #n { width: auto; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 </style>
 </head>
 <body>
-<div id="osd"><span id="ic"></span><span id="title"></span><div id="track"><div id="fill"></div></div><span id="n"></span></div>
+<div id="osd"><span id="ic"></span><span id="title"></span><div class="track" id="track"><i id="fill"></i></div><span id="n"></span></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="icons.js"></script>
 <script src="surface.js"></script>

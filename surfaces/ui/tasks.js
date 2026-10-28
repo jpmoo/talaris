@@ -29,6 +29,12 @@
     for (const k of kids.flat()) if (k != null && k !== "" && k !== false) e.append(k);
     return e;
   }
+  /** The small × that takes a thing off (controls.css .x-btn). */
+  function xBtn(title, act) {
+    const b = el("button", { type: "button", class: "x-btn", title, onclick: (e) => { e.stopPropagation(); act(); } });
+    b.innerHTML = Icons.close();
+    return b;
+  }
   function seg(host, choices, current, pick) {
     (typeof host === "string" ? $(host) : host).replaceChildren(...choices.map(([value, label]) =>
       el("button", { class: value === current ? "on" : "", onclick: (e) => { e.stopPropagation(); pick(value); } }, label)));
@@ -134,6 +140,7 @@
   /** "9", "9:30", "930", "9:30 pm", "21:30" — minutes after midnight, or null. */
   // What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
   const parseTime = (text) => Kit.parseTime(text);
+  const timeList = (current, pick) => Kit.timeList(current, pick);
   // Strictly after today: the picker's "Next Mon".
 
   // ---------------------------------------------------------------- the one pop at a time
@@ -369,7 +376,7 @@
       const g = x.name;
       const shut = shutGroups.has(g);
       const head = el("div", { class: "item grp" + (shut ? " folded" : ""), title: g, onclick: () => toggleGroup(g) },
-        el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), el("span", { class: "n" }, String(x.projects.length)));
+        Kit.caret(!shut), el("span", { class: "name" }, g), el("span", { class: "n" }, String(x.projects.length)));
       draggable(head, g, "group");
       dropOn(head, { kind: "group", name: g, folded: shut || !x.projects.length });
       out.push(head, ...x.projects.filter((p) => !shut || isOn("project", p.id)).map((p) => projectRow(p, true, isOn("project", p.id))));
@@ -551,7 +558,7 @@
         const key = `${list.id}:${g.key}`;
         const shut = folded.has(key);
         wrap.append(el("div", { class: "ghead" + (shut ? " folded" : ""), onclick: () => fold(key) },
-          el("span", { class: "caret" }, "▾"), el("span", {}, g.label || "None"), el("span", { class: "n" }, String(g.rows.length))));
+          Kit.caret(!shut), el("span", {}, g.label || "None"), el("span", { class: "n" }, String(g.rows.length))));
         if (!shut) g.rows.forEach((id) => add(byId.get(id)));
       }
     } else shown.rows.forEach(add);
@@ -574,15 +581,15 @@
   }
   function chipEl(r) {
     const s = status(r.status);
-    return el("button", { class: "st", style: `--c:${s.color}`, title: `Press for ${status(nextStatus(r.status)).label}, right-click to choose`,
+    return el("button", { class: "tv-status", style: `--c:${s.color}`, title: `Press for ${status(nextStatus(r.status)).label}, right-click to choose`,
       onclick: (e) => { e.stopPropagation(); setStatus(r.id, nextStatus(r.status)).catch(failed); },
-      oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); menuAt(e.clientX, e.clientY, statusItems(r)); } }, s.label);
+      oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); menuAt(e.clientX, e.clientY, statusItems(r)); } }, el("span", { class: "tv-dot" }), s.label);
   }
   function metaEl(r) {
     const bits = [];
-    if (r.due) bits.push(el("span", { class: r.overdue ? "overdue" : "" }, shortDate(r.due)));
+    if (r.due) bits.push(el("span", { class: r.overdue ? "overdue" : "" }, `Due ${shortDate(r.due)}`));
     // Available shown only while it is still to come.
-    if (r.start && r.start.slice(0, 10) > isoDay(new Date())) bits.push(el("span", {}, `from ${shortDate(r.start)}`));
+    if (r.start && r.start.slice(0, 10) > isoDay(new Date())) bits.push(el("span", {}, `From ${shortDate(r.start)}`));
     if (r.recurring) bits.push(el("span", { title: "Repeats" }, "↻"));
     if (r.files && r.files.length) bits.push(el("span", { title: r.files.map((f) => f.filename).join(", ") }, `📎${r.files.length > 1 ? r.files.length : ""}`));
     for (const p of r.projects || []) bits.push(el("span", {}, p.title));
@@ -758,18 +765,17 @@
   }
   // Its group: Tasks' own arrangement of the column, kept as it is chosen.
   function drawProjectGroup(p) {
-    const b = el("button", { type: "button", class: "le-pick" + (p.group ? "" : " none"), onclick: (e) => groupMenu(p, e.currentTarget) }, p.group || "No group");
+    const b = el("button", { type: "button", class: "pick" + (p.group ? "" : " empty"), onclick: (e) => groupMenu(p, e.currentTarget) }, el("span", { class: "lbl" }, p.group || "No group"));
     $("p-group").replaceChildren(b);
   }
   function groupMenu(p, anchor) {
     if (Kit.openedBy() === anchor) { popAway(); return; }
     const names = [...new Set([...groupNames(), ...(p.group ? [p.group] : [])])].sort(byName);
-    const item = (label, on, act) => el("button", { class: "menu-item" + (on ? " on" : ""), onclick: (ev) => { ev.stopPropagation(); popAway(); act(); } }, label);
-    popUnder(anchor, el("div", { class: "menu-list" },
-      names.map((g) => item(g, g === p.group, () => setGroup(p, g))),
-      names.length ? el("div", { class: "menu-sep" }) : null,
-      item("New group…", false, () => newGroup(p)),
-      item("No group", !p.group, () => setGroup(p, null))));
+    Kit.menu(anchor, [
+      ...names.map((g) => ({ label: g, on: g === p.group, act: () => setGroup(p, g) })),
+      ...(names.length ? ["sep"] : []),
+      { label: "New group…", act: () => newGroup(p) },
+      { label: "No group", on: !p.group, act: () => setGroup(p, null) }]);
   }
   // "New group…": the chip become a field; Enter or leaving it keeps the name, Escape does not.
   function newGroup(p) {
@@ -899,8 +905,8 @@
     // Two statuses, one open and one done, say no more than the checkbox
     // beside the title does: the row shows only when there is more to choose.
     $("s-status-row").hidden = options().length <= 2;
-    $("s-status").replaceChildren(...options().map((v) => el("button", { class: "st" + (v === value ? " on" : ""), style: `--c:${status(v).color}`,
-      onclick: () => setStatus(editing, v).catch(failed) }, status(v).label)));
+    $("s-status").replaceChildren(...options().map((v) => el("button", { class: "tv-status" + (v === value ? " on" : ""), style: `--c:${status(v).color}`,
+      onclick: () => setStatus(editing, v).catch(failed) }, el("span", { class: "tv-dot" }), status(v).label)));
 
     const sf = shape.spanKey ? field(shape.spanKey) : null;
     $("s-start-row").hidden = $("s-end-row").hidden = !shape.spanKey;
@@ -909,8 +915,8 @@
     const span = spanNow();
     for (const [part, id] of [["start", "s-start"], ["end", "s-end"]]) {
       const { day, time } = split(span[part]);
-      $(id).textContent = day ? shortDate(isoDay(day)) : "None";
-      $(id).classList.toggle("none", !day);
+      $(id).replaceChildren(el("span", { class: "lbl" }, day ? shortDate(isoDay(day)) : "None"));
+      $(id).classList.toggle("empty", !day);
       $(id).classList.toggle("overdue", part === "end" && !complete && day && (time == null ? isoDay(day) < isoDay(new Date()) : new Date(day.getTime() + time * 60000) < new Date()));
       if (!focused(`${id}-t`)) $(`${id}-t`).value = time != null ? timeLabel(time) : "";
     }
@@ -922,13 +928,13 @@
     $("s-proj-row").hidden = !field(pk);
     const mine = Array.isArray(p[pk]) ? p[pk] : p[pk] ? [p[pk]] : [];
     const titleOf = (id) => (projects.find((x) => x.id === id) || {}).title || "Unknown";
-    $("s-proj").replaceChildren(...mine.map((id) => el("span", { class: "chip-p" }, titleOf(id),
-      el("button", { title: "Remove", onclick: () => setProjects(mine.filter((x) => x !== id)) }, "×"))),
+    $("s-proj").replaceChildren(...mine.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, titleOf(id)),
+      xBtn("Remove", () => setProjects(mine.filter((x) => x !== id))))),
     el("button", { class: "add", id: "s-proj-add", title: "Add to a project", onclick: (e) => pickProject(e.currentTarget, mine) }, "+"));
 
     const tags = entity.tags || [];
-    $("s-tags").replaceChildren(...tags.map((t) => el("span", { class: "chip-p" }, `#${t}`,
-      el("button", { title: "Remove", onclick: () => update(editing, { tags: tags.filter((x) => x !== t) }).catch(failed) }, "×"))));
+    $("s-tags").replaceChildren(...tags.map((t) => el("span", { class: "chip" }, el("span", { class: "lbl" }, `#${t}`),
+      xBtn("Remove", () => update(editing, { tags: tags.filter((x) => x !== t) }).catch(failed)))));
 
     /*
      * Its files: a copy kept with it (attached), or a file linked where it is
@@ -996,7 +1002,7 @@
             : `${a.filename} — linked from ${dirOf(link.path)}`;
           // Removing one stored on the task only deletes it: the × asks once more ("Delete?") before it does.
           // One in a folder: taken off the task, the file staying where it is — or, asked again, deleted to the Trash.
-          const x = el("button", { title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task, or delete the file", onclick: (e) => {
+          const x = el("button", { class: "x-btn", title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task, or delete the file", onclick: (e) => {
             e.stopPropagation();
             if (where !== "task") {
               const r = e.currentTarget.getBoundingClientRect();
@@ -1009,12 +1015,13 @@
             }
             if (!Kit.ask(x, { ask: "Delete it?" })) return;
             api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
-          } }, "×");
-          return el("span", { class: `chip-p at-${where}` + (missing ? " missing" : ""), title: said,
+          } });
+          x.innerHTML = Icons.close();
+          return el("span", { class: `chip at-${where}` + (missing ? " missing" : ""), title: said,
             onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
             oncontextmenu: (e) => fileMenu(e, a) },
             missing ? el("span", { class: "warn-mark" }, "⚠") : icon(ICON[where]),
-            el("span", { class: "fname" }, a.filename),
+            el("span", { class: "lbl" }, a.filename),
             x);
         }),
         el("button", { class: "add", title: "Attach files (stored on this task)", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
@@ -1149,7 +1156,7 @@
   }
   function pickProject(anchor, mine) {
     if (Kit.openedBy() === anchor) { popAway(); return; }
-    const find = el("input", { type: "text", class: "find", placeholder: "Project", spellcheck: "false" });
+    const find = Kit.searchBox(el("input", { type: "search", class: "kit-filter", placeholder: "Project", spellcheck: "false" }));
     const list = el("div", { class: "menu-list" });
     const candidates = () => projects.filter((p) => !p.archived && !mine.includes(p.id) && Kit.matches(find.value, p.title));
     const draw = () => list.replaceChildren(...candidates().map((p) => el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); popAway(); setProjects([...mine, p.id]); } }, p.title)));
@@ -1217,7 +1224,7 @@
     $("r-count").hidden = rep.end.type !== "after";
     if (!focused("r-count")) $("r-count").value = String(rep.end.count || 10);
     $("r-until").hidden = rep.end.type !== "on";
-    $("r-until").textContent = rep.end.type === "on" ? shortDate(rep.end.date) : "";
+    $("r-until").replaceChildren(el("span", { class: "lbl" }, rep.end.type === "on" ? shortDate(rep.end.date) : ""));
   }
   $("s-rep-btn").addEventListener("click", () => { if (!entity) return; if (rep) closeRep(); else openRep(); });
   $("r-n").addEventListener("input", () => { if (rep) paintRep(); });

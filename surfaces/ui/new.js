@@ -27,6 +27,12 @@
     for (const k of kids.flat()) if (k != null && k !== false) e.append(k);
     return e;
   }
+  /** The small × that takes a thing off (controls.css .x-btn). */
+  function xBtn(title, act) {
+    const b = el("button", { type: "button", class: "x-btn", title, onclick: (e) => { e.stopPropagation(); act(); } });
+    b.innerHTML = Icons.close();
+    return b;
+  }
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* fine */ } },
@@ -213,9 +219,9 @@
   ];
   function repeatRow(forTask, dayOf) {
     const label = (REPEATS.find(([k]) => k === (v.repeat || "")) || REPEATS[0])[1];
-    const btn = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(btn, REPEATS.map(([k, l]) => ({
+    const btn = el("button", { class: "pick", "data-pops": "1", onclick: () => menu(btn, REPEATS.map(([k, l]) => ({
       label: l + (k === "weekly" || k === "biweekly" ? ` on ${(dayOf() || new Date()).toLocaleDateString("en-US", { weekday: "long" })}` : ""),
-      on: (v.repeat || "") === k, act: () => { v.repeat = k; paint(); } }))) }, label);
+      on: (v.repeat || "") === k, act: () => { v.repeat = k; paint(); } }))) }, el("span", { class: "lbl" }, label));
     // A task can count from when it is done instead ("a week after I last did it").
     const after = forTask && v.repeat && v.repeat !== "weekdays"
       ? el("button", { class: "t-btn tog" + (v.fromDone ? " on" : ""), title: "Count from when it is done, not from its date",
@@ -281,8 +287,8 @@
         e.preventDefault(); e.stopPropagation();
         if (found.found && found.found.length) take(found.found[0]);
       } });
-    const chips = chosen.length ? el("div", { class: "chips" }, chosen.map((c, i) => el("span", { class: "chip-p" }, c.title,
-      el("button", { title: "Remove", onclick: () => { chosen.splice(i, 1); paint(); } }, "×")))) : null;
+    const chips = chosen.length ? el("div", { class: "chips" }, chosen.map((c, i) => el("span", { class: "chip" }, el("span", { class: "lbl" }, c.title),
+      xBtn("Remove", () => { chosen.splice(i, 1); paint(); })))) : null;
     return [row(labelOf(f), el("div", { class: "grow col" }, chips, f.many || !chosen.length ? input : null)), found];
   }
 
@@ -313,8 +319,8 @@
     const files = v[f.key] = v[f.key] || [];
     const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
     return row(labelOf(f), el("div", { class: "grow col" },
-      files.length ? el("div", { class: "chips" }, files.map((x, i) => el("span", { class: "chip-p", title: x.path }, `${x.name} · ${kb(x.size)}`,
-        el("button", { title: "Remove", onclick: () => { files.splice(i, 1); paint(); } }, "×")))) : null,
+      files.length ? el("div", { class: "chips" }, files.map((x, i) => el("span", { class: "chip", title: x.path }, el("span", { class: "lbl" }, `${x.name} · ${kb(x.size)}`),
+        xBtn("Remove", () => { files.splice(i, 1); paint(); })))) : null,
       el("div", {}, el("button", { class: "t-btn", onclick: () => bridge && bridge.chooseFiles(f.key) }, f.many || !files.length ? "Add files…" : "Change…"))));
   }
 
@@ -336,7 +342,7 @@
         if (f.many) return manyField(f, label, f.key === info.email ? checkEmail : null, f.key === info.email);
         return row(label, line(f.key, "Optional", { spell: true }));
       case "number": return row(label, el("input", { type: "text", class: "field", style: "width: 120px", value: v[f.key] ?? "", oninput: (e) => { v[f.key] = e.target.value; } }));
-      case "boolean": return row(label, el("button", { class: "t-btn tog" + (v[f.key] ? " on" : ""), onclick: () => { v[f.key] = !v[f.key]; paint(); } }, v[f.key] ? "Yes" : "No"));
+      case "boolean": return row(label, el("button", { class: "switch" + (v[f.key] ? " on" : ""), title: v[f.key] ? "Yes" : "No", onclick: () => { v[f.key] = !v[f.key]; paint(); } }));
       case "date": return row(label, ...dayField(f.key, "fri, 10/30…"));
       case "datetime": return row(label, ...dayField(f.key, "fri, 10/30…"), timeField(f.key + "At"));
       case "datespan": return [
@@ -426,9 +432,9 @@
   function noteForm() {
     if (!v.project) v.project = surface.project || (projectList.find((p) => p.home) || {}).id || "";
     const p = projectList.find((x) => x.id === v.project);
-    const pick = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(pick, projectList.map((x) => ({
+    const pick = el("button", { class: "pick" + (p ? "" : " empty"), "data-pops": "1", onclick: () => menu(pick, projectList.map((x) => ({
       label: `${x.name}${x.id === surface.project ? " · here" : ""}`, on: x.id === v.project, act: () => { v.project = x.id; paint(); } }))) },
-      p ? p.name : "Choose a project");
+      el("span", { class: "lbl" }, p ? p.name : "Choose a project"));
     return [
       row("Page", line("title", "Its title", { big: true, spell: true })),
       row("Project", pick),
@@ -448,12 +454,12 @@
     }
     const cal = calendars.find((c) => c.id === v.calendar) || calendars.find((c) => c.id === store.get("talaris.new.calendar", "")) || calendars[0];
     if (cal) v.calendar = cal.id;
-    const calBtn = el("button", { class: "t-btn", "data-pops": "1", onclick: () => menu(calBtn, calendars.map((c) => ({ label: c.name, color: c.color, on: c.id === v.calendar, act: () => { v.calendar = c.id; paint(); } }))) },
-      cal ? el("span", { class: "sw", style: `background:${cal.color || "var(--accent)"}; margin-right: 6px` }) : null, cal ? cal.name : "No calendar to write to");
-    const allDay = el("button", { class: "t-btn tog" + (v.allDay ? " on" : ""), onclick: () => { v.allDay = !v.allDay; paint(); } }, "All day");
+    const calBtn = el("button", { class: "pick" + (cal ? "" : " empty"), "data-pops": "1", onclick: () => menu(calBtn, calendars.map((c) => ({ label: c.name, color: c.color, on: c.id === v.calendar, act: () => { v.calendar = c.id; paint(); } }))) },
+      cal ? el("span", { class: "sw", style: `background:${cal.color || "var(--accent)"}` }) : null, el("span", { class: "lbl" }, cal ? cal.name : "No calendar to write to"));
+    const allDay = [el("span", { class: "hint" }, "All day"), el("button", { class: "switch" + (v.allDay ? " on" : ""), title: "All day", onclick: () => { v.allDay = !v.allDay; paint(); } })];
     v.people = v.people || [];
-    const chips = el("div", { class: "chips" }, v.people.map((p, i) => el("span", { class: "chip-p", title: p.email }, p.name || p.email,
-      el("button", { title: "Remove", onclick: () => { v.people.splice(i, 1); paint(); } }, "×"))));
+    const chips = el("div", { class: "chips" }, v.people.map((p, i) => el("span", { class: "chip", title: p.email }, el("span", { class: "lbl" }, p.name || p.email),
+      xBtn("Remove", () => { v.people.splice(i, 1); paint(); }))));
     const found = el("div", { class: "found" });
     const add = (p) => { if (!v.people.some((x) => x.email === p.email)) v.people.push(p); v.invite = ""; paint(); focusId("invite"); };
     const invite = el("input", { type: "text", id: "invite", class: "field grow", placeholder: cal && !cal.invites ? "This calendar cannot invite" : "Name or address",
@@ -470,7 +476,7 @@
       } });
     return [
       row("Event", line("title", "What it is", { big: true, spell: true })),
-      row("Day", ...dayField("day", "today, fri, 10/30…"), el("span", { class: "spacer" }), allDay),
+      row("Day", ...dayField("day", "today, fri, 10/30…"), el("span", { class: "spacer" }), ...allDay),
       v.allDay ? null : row("Time",
         timeField("from", (m) => { if (v.to <= m) { v.to = Math.min(m + 60, 24 * 60 - 15); $("time-to").value = timeLabel(v.to); } }),
         el("span", { class: "hint" }, "to"),
@@ -489,7 +495,7 @@
   // ---------------------------------------------------------------- drawing
 
   function paintKinds() {
-    $("kinds").replaceChildren(...KINDS.map(([k, label], i) => el("button", { class: "t-btn kind" + (k === kind ? " on" : ""), title: `${label} — Ctrl+${i + 1}`,
+    $("kinds").replaceChildren(...KINDS.map(([k, label], i) => el("button", { class: "t-btn small" + (k === kind ? " on" : ""), title: `${label} — Ctrl+${i + 1}`,
       onclick: () => choose(k) }, label)));
   }
   function paint() {

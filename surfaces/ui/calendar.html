@@ -16,14 +16,14 @@ date and time; full screen by its expand button.
 <link rel="stylesheet" href="motion.css">
 <style>
 /* As Morgan's: a panel over the dimmed screen; full screen, the whole surface. */
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; }
+html { background: var(--catch); overflow: hidden; height: 100%; }
 /* The dim is a button: a press there closes it — the bar's button under it included. */
 html:not([data-window]) { cursor: pointer; }
 body { cursor: default; }
 body {
   /* Centered both ways on the screen. */
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
@@ -39,18 +39,17 @@ header .seg { flex: none; }
 body.no-side #side { display: none; }
 
 header .spacer { flex: 1; }
-#search { width: 180px; flex: 0 1 180px; min-width: 80px; padding: 4px 10px; font-size: 12.5px; }
+#search { width: 180px; flex: 0 1 180px; min-width: 80px; font-size: 12.5px; }
 /* What a search found (calendar.js, drawFound): events coming up, then past, then tasks. */
 .found { flex: 1; overflow: auto; padding: 6px 18px 18px; }
-.found h3 { font-size: 11px; font-weight: 500; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
+.found h3 { font-size: 10px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
 .found .hit { display: grid; grid-template-columns: 10px 170px 1fr; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: var(--radius-row); cursor: pointer; }
-.found .hit:hover { background: var(--accent-wash); }
-.found .hit .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--c); align-self: center; }
+.found .hit:hover { background: var(--accent-hover); }
+.found .hit .sw { background: var(--c); align-self: center; }
 .found .hit .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .found .hit .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .found .hit .what small { color: var(--muted); margin-left: 8px; }
-.found .hit.done .what { text-decoration: line-through; opacity: .6; }
-.found .none { color: var(--muted); padding: 20px 8px; }
+.found .hit.done .what { text-decoration: line-through; opacity: var(--done); }
 /* The header's icon buttons are the shared ones (controls.css .icon-btn). */
 header .icon-btn[hidden] { display: none !important; }
 header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
@@ -59,7 +58,7 @@ header .icon-btn.on { color: var(--accent) !important; }
 
 main { flex: 1; min-height: 0; display: flex; }
 #side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px; overflow: auto; font-size: 12.5px; }
-#side h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 500; }
+#side h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 400; }
 #side h3:first-child { margin-top: 0; }
 .cal { display: flex; align-items: center; gap: 8px; padding: 3px 4px; }
 .cal .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; border: 1.5px solid var(--c); padding: 0; background: transparent; cursor: pointer; }
@@ -68,21 +67,22 @@ main { flex: 1; min-height: 0; display: flex; }
 .cal.on .sw { background: var(--c); }
 .cal span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.note { color: var(--muted); padding: 24px; font-size: 13px; line-height: 1.6; }
-.note code { user-select: all; background: var(--desk); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+.note { line-height: 1.6; }
+.note code { user-select: all; background: var(--desk); padding: 2px 6px; border-radius: var(--radius-row); font-size: 12px; }
 
 /* Month */
 .month { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto repeat(6, 1fr); min-height: 0; }
 .dow { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 4px 2px; min-height: 0; overflow: hidden; cursor: default; display: flex; flex-direction: column; gap: 2px; }
 .cell:nth-child(7n+7) { border-right: 0; }
-.cell .n { font-size: 12px; color: var(--muted); padding: 1px 4px; align-self: flex-start; border-radius: 10px; cursor: pointer; }
+.cell .n { font-size: 12px; color: var(--muted); padding: 1px 4px; align-self: flex-start; border-radius: var(--radius-pill); cursor: pointer; }
 .cell.other .n { opacity: .45; }
 .cell.today .n { background: var(--accent); color: var(--surface); }
-.chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+/* An event in a day: its calendar's color, a colored edge. */
+.ev-chip { font-size: 11.5px; padding: 1px 6px; border-radius: var(--radius-row); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
         background: color-mix(in srgb, var(--c) 22%, transparent); border-left: 3px solid var(--c); }
-.chip.timed { background: none; }
-.chip:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
+.ev-chip.timed { background: none; }
+.ev-chip:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
 .more { font-size: 11px; color: var(--muted); padding: 0 6px; cursor: pointer; }
 
 /* Week and day */
@@ -93,16 +93,16 @@ main { flex: 1; min-height: 0; display: flex; }
 /* Tasks, above the day's events (calendar.js, taskRow): a bar from available to due. */
 .taskrow { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); row-gap: 3px; padding: 4px 0; border-bottom: 1px solid var(--line); flex: none; max-height: 30vh; overflow-y: auto; }
 .taskrow .lbl { grid-column: 1; font-size: 10px; color: var(--muted); padding: 2px 6px; }
-.tbar { margin: 0 3px; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 3px; border-radius: 11px; font-size: 11.5px; cursor: grab; touch-action: none; user-select: none;
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); }
-.tbar:hover { background: color-mix(in srgb, var(--accent) 26%, var(--surface)); }
+.tbar { margin: 0 3px; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 3px; border-radius: var(--radius-pill); font-size: 11.5px; cursor: grab; touch-action: none; user-select: none;
+  background: var(--accent-wash); border: 1px solid var(--accent-line); }
+.tbar:hover { background: var(--accent-strong); }
 .tbar .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbar .tick { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; color: transparent; font-size: 10px; line-height: 1; cursor: pointer; }
 .tbar .tick:hover { border-color: var(--accent); color: var(--accent); }
 .tbar .tick.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.tbar.done { opacity: .55; }
+.tbar.done { opacity: var(--done); }
 .tbar.done .tt { text-decoration: line-through; }
-.tbar.late { background: color-mix(in srgb, #d0564b 16%, var(--surface)); border-color: color-mix(in srgb, #d0564b 45%, var(--line)); }
+.tbar.late { background: var(--danger-wash); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
 /* Begun before the days on show, or going on after them: open at that end. */
 .tbar.from-before { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-style: dashed; }
 .tbar.goes-on { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-style: dashed; }
@@ -115,53 +115,35 @@ main { flex: 1; min-height: 0; display: flex; }
 .hour { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: 10px; color: var(--muted); padding: 0 6px; text-align: right; }
 .col { position: relative; border-left: 1px solid var(--line); }
 .col .slot { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
-.ev { position: absolute; left: 2px; right: 2px; border-radius: 5px; padding: 2px 6px; font-size: 11.5px; overflow: hidden; cursor: pointer;
+.ev { position: absolute; left: 2px; right: 2px; border-radius: var(--radius-row); padding: 2px 6px; font-size: 11.5px; overflow: hidden; cursor: pointer;
       background: color-mix(in srgb, var(--c) 30%, var(--surface)); border-left: 3px solid var(--c); line-height: 1.3; }
 .ev small { display: block; color: var(--muted); }
 .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--accent); z-index: 2; pointer-events: none; }
 
 /* The editor */
-#editor { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, .25); z-index: 10; }
+#editor { position: absolute; inset: 0; display: none; place-items: center; background: var(--scrim); z-index: var(--z-sheet); }
 #editor.open { display: grid; }
-#editor .box { width: min(460px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+#editor .box { width: min(460px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 #editor .row { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
 #editor .row > span:first-child { width: 74px; color: var(--muted); flex: none; }
 #editor input[type=text], #editor textarea { flex: 1; }
 #editor .box { position: relative; max-height: calc(100% - 24px); overflow: auto; }
 /* Rows that are not wanted are gone: the row's own display would otherwise show them. */
 #editor .row[hidden], #editor .pick[hidden], #editor input[hidden] { display: none; }
-.seg.off { opacity: .4; pointer-events: none; }
+.seg.off { opacity: var(--disabled); pointer-events: none; }
 .note-row small, #e-org { color: var(--muted); font-size: 11.5px; }
 .who { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 3px 6px; }
 .who input { flex: 1; min-width: 120px; border: 0 !important; background: none !important; padding: 2px !important; }
-.chip-p { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 1px 4px 1px 8px; border-radius: 10px; background: var(--accent-wash); }
-.chip-p .st { color: var(--muted); }
-.chip-p button { border: 0 !important; padding: 0 4px !important; color: var(--muted) !important; }
+.chip .st { color: var(--muted); margin-left: 4px; }
 #e-chips { display: contents; }
 /* Still to come and waiting on my answer: a dashed edge, until I say. (Past
    ones are not marked: an invitation never answered, Google keeps as such.) */
-.chip.waiting, .ev.waiting { border-left-style: dashed; }
-.chip.declined, .ev.declined { opacity: .5; text-decoration: line-through; }
-/* The pickers: buttons that read like fields, and the lists they open. */
-.pick { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line) !important; border-radius: var(--radius-row) !important;
-        background: var(--desk) !important; color: var(--text) !important; padding: 5px 10px !important; font-size: 12.5px; }
-.pick:hover { border-color: var(--accent) !important; }
-.pick:disabled { opacity: .6; cursor: default; }
+.ev-chip.waiting, .ev.waiting { border-left-style: dashed; }
+.ev-chip.declined, .ev.declined { opacity: .5; text-decoration: line-through; }
+/* The pickers (controls.css .pick): as wide as the row lets them. */
+#editor .pick { flex: 1; font-size: 12.5px; }
 #editor input.time-in { flex: 0 0 96px; text-align: center; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-#pop { position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); padding: 4px; }
-#pop[hidden] { display: none; }
-.times, .menu-list { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 120px; }
-.time { border: 0 !important; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; display: flex; align-items: center; gap: 8px; color: var(--text) !important; }
-.time:hover, .time.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
-.mini { width: 232px; padding: 4px; }
-.mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
-.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
-.mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
-.mini-grid .day.other { color: var(--muted) !important; }
-.mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
-.mini-grid .day:hover, .mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
 #editor textarea { min-height: 70px; resize: vertical; }
 #editor .acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
 #editor .acts .spacer { flex: 1; }
@@ -175,8 +157,8 @@ body { position: relative; }
 <header>
   <button class="icon-btn" id="side-toggle" title="Hide the list of calendars"></button>
   <button class="t-btn" id="today">Today</button>
-  <button class="icon-btn" id="prev" title="Before"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
-  <button class="icon-btn" id="next" title="After"><svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+  <button class="icon-btn" id="prev" title="Before"></button>
+  <button class="icon-btn" id="next" title="After"></button>
   <h1 id="title"></h1>
   <span id="msg"></span>
   <span class="spacer"></span>
@@ -205,8 +187,7 @@ body { position: relative; }
   <div class="row note-row" id="e-who-note"><span></span><small id="e-who-why"></small></div>
   <div class="row" id="e-answer-row"><span>Going?</span><span class="seg" id="e-answer"></span><small id="e-org"></small></div>
   <div class="row" id="e-which-row"><span>Change</span><span class="seg" id="e-which"></span></div>
-  <div id="pop" hidden></div>
-  <div class="acts"><button class="t-btn danger" id="e-delete">Delete</button><span class="spacer"></span><button class="t-btn" id="e-cancel">Cancel</button><button class="t-btn" id="e-save">Save</button></div>
+  <div class="acts"><button class="t-btn danger" id="e-delete">Delete</button><span class="spacer"></span><button class="t-btn" id="e-cancel">Cancel</button><button class="t-btn primary" id="e-save">Save</button></div>
 </div></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="pagetips.js"></script>

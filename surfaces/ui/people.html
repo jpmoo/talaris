@@ -19,13 +19,13 @@ by its grow button.
 <link rel="stylesheet" href="motion.css">
 <style>
 /* As Tasks': a panel over the dimmed screen; a window, the whole surface. */
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; }
+html { background: var(--catch); overflow: hidden; height: 100%; }
 /* The dim is a button: a press there closes it — the bar's button under it included. */
 html:not([data-window]) { cursor: pointer; }
 body { cursor: default; position: relative; }
 body {
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
@@ -40,30 +40,25 @@ header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spaci
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
 header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
-header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
 header .seg { flex: none; }
-header .seg button { padding: 2px 10px !important; font-size: 12px; }
 #count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
 #msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 40%; }
 #msg.err { color: var(--danger); }
-#q { width: 200px; flex: 0 1 200px; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
+#q { width: 200px; flex: 0 1 200px; min-width: 90px; font-size: 12.5px; }
 
 main { flex: 1; min-height: 0; display: flex; position: relative; }
-.empty { color: var(--muted); padding: 24px; font-size: 13px; }
 
 /* The left: everyone, in groups or by letter. */
 #list { width: 300px; flex: none; border-right: 1px solid var(--line); overflow: auto; outline: none; padding-bottom: 8px; }
 .ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
 .ghead:hover { color: var(--text); }
-.ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
-.ghead.folded .caret { transform: rotate(-90deg); }
 /* One of my organizations: said on its heading. */
 .ghead .own-mark { color: var(--accent); letter-spacing: 1px; }
 .ghead .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ghead .n { letter-spacing: 0; flex: none; }
 .letter { padding: 10px 14px 2px; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 .prow { display: flex; align-items: center; gap: 10px; padding: 6px 14px; cursor: pointer; }
-.prow:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); }
+.prow:hover { background: var(--accent-hover); }
 .prow.on { background: var(--accent-wash); }
 #list:focus .prow.on { box-shadow: inset 2px 0 0 var(--accent); }
 .p-main { flex: 1; min-width: 0; }
@@ -75,20 +70,19 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .tie.untied { border: 1.5px solid var(--muted); opacity: .7; }
 
 /* A person's mark: two letters on a tint from the id (as the canvas's person card), or their picture. */
-.av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;
+.av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;
       letter-spacing: .5px; color: var(--text); overflow: hidden; background-size: cover; background-position: center; }
 .av.pic { color: transparent; }
 .av.big { width: 72px; height: 72px; font-size: 24px; border: 0; padding: 0; cursor: pointer; }
-.av.big:hover { box-shadow: 0 0 0 2px var(--accent); }
+.av.big:hover { box-shadow: 0 0 0 1px var(--accent); }
 
 /* The right: the one chosen. */
-#person { flex: 1; min-width: 0; overflow: auto; padding: 16px 20px 24px; font-size: 12.5px; }
+#person { flex: 1; min-width: 0; overflow: auto; padding: 14px 18px 24px; font-size: 12.5px; }
 .p-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 /* Their name, and under it where else they live ("Open in Hermes Notes"). */
 .p-head .p-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .p-head .p-elsewhere { display: flex; gap: 6px; flex-wrap: wrap; padding-left: 9px; }
-.p-head .p-elsewhere .t-btn { font-size: 11.5px; padding: 1px 9px; }
-.p-head .name-in { flex: 1; min-width: 0; font-size: 18px !important; padding: 5px 9px; background: transparent !important; border-color: transparent !important; }
+.p-head .name-in { flex: 1; min-width: 0; font-size: 16px !important; padding: 5px 9px; background: transparent !important; border-color: transparent !important; }
 .p-head .name-in:hover { border-color: var(--line) !important; }
 .p-head .name-in:focus { background: var(--desk) !important; border-color: var(--accent) !important; }
 section.part { margin-top: 18px; }
@@ -101,23 +95,20 @@ section.part { margin-top: 18px; }
 .f-row.top > .lab { padding-top: 6px; }
 .f-row > .grow { flex: 1; min-width: 0; }
 .col { display: flex; flex-direction: column; gap: 4px; }
-input.field { width: 100%; padding: 4px 8px; font-size: 12.5px; }
+input.field { width: 100%; font-size: 12.5px; }
 input.field.day { width: 160px; }
 input.field.bad { border-color: var(--danger) !important; }
 .hint { color: var(--muted); font-size: 11.5px; }
 .hint.err { color: var(--danger); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.chip-p { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 2px 1px 8px; border-radius: 10px; background: var(--accent-wash); max-width: 240px; }
-.chip-p .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip-p button { border: 0 !important; padding: 0 5px !important; color: var(--muted) !important; background: transparent !important; }
-.chip-p button:hover { color: var(--accent) !important; }
-.chip-p.file { cursor: pointer; }
-.chip-p.file:hover .fname { color: var(--accent); }
-.tog.on { background: var(--accent-wash) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+.chips .chip { max-width: 240px; }
+/* A file opens on a press, as a button chip would. */
+.chip.file { cursor: pointer; transition: border-color var(--dur), color var(--dur); }
+.chip.file:hover { border-color: var(--accent); color: var(--accent); }
 .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
 .add:hover { color: var(--accent); background: var(--accent-wash) !important; }
 /* The description is the editor (editor.js), so @ works in it: drawn as a field. */
-.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-control); min-width: 0; }
+.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
 .ed-field:focus-within { border-color: var(--accent); }
 .ed-field .cm-editor { outline: none; }
 .ed-body { min-height: 80px; }
@@ -126,7 +117,6 @@ input.field.bad { border-color: var(--danger) !important; }
 /* Contact cards: the ones tied, then likely ones. */
 .card { border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); padding: 8px 10px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
 .card .c-main { flex: 1; min-width: 0; }
-.card .c-book { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
 .card .c-name { font-size: 13px; }
 .card .c-line { color: var(--muted); overflow-wrap: anywhere; }
 .card .c-also { color: var(--text); margin-top: 6px; }
@@ -135,11 +125,12 @@ input.field.bad { border-color: var(--danger) !important; }
 .card.likely { padding: 6px 10px; align-items: center; }
 .sub-h { font-size: 11.5px; color: var(--muted); margin: 12px 0 6px; }
 .nocontact { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); cursor: pointer; width: fit-content; }
-#card-q { width: 260px; padding: 4px 8px; font-size: 12.5px; margin-top: 4px; }
+#card-q { width: 260px; font-size: 12.5px; margin-top: 4px; }
 
 /* What they are connected to: grouped by what the other thing is. */
 .c-group { margin-bottom: 10px; }
-.c-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.c-label { display: block; margin-bottom: 2px; }
+.c-label .n { margin-left: 6px; letter-spacing: 0; }
 .c-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
 .c-item:hover { background: var(--accent-wash); color: var(--accent); }
 .c-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -147,25 +138,13 @@ input.field.bad { border-color: var(--danger) !important; }
 .c-item:hover .c-how { color: inherit; }
 .c-more { display: flex; gap: 6px; margin-top: 4px; }
 .c-more:empty { display: none; }
-.c-more .t-btn { font-size: 11.5px; padding: 1px 9px; }
 
 .p-foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
 .p-foot .spacer { flex: 1; }
 
-/* The one small list or menu at a time. */
-#pop { position: absolute; z-index: 60; }
-#pop[hidden] { display: none; }
-.menu-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; min-width: 150px; }
-.find { width: 100%; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
-.mini { width: 232px; padding: 2px; }
-.mini-head { display: flex; align-items: center; gap: 2px; font-size: 12.5px; margin-bottom: 4px; }
-.mini-head span { flex: 1; text-align: center; }
-.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
-.mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
-.mini-grid .day.other { color: var(--muted) !important; }
-.mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
-.mini-grid .day:hover, .mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+/* A reference field's small search, in the kit's pop-up. */
+.menu-list { max-height: 260px; overflow: auto; }
+.find { width: 100%; font-size: 12.5px; margin-bottom: 4px; }
 
 @media (max-width: 760px) { #list { width: 220px; } header .seg { display: none; } }
 </style>
@@ -175,7 +154,7 @@ input.field.bad { border-color: var(--danger) !important; }
 <header>
   <h1>People</h1>
   <span id="count"></span>
-  <input type="text" id="q" placeholder="Find" spellcheck="false">
+  <input type="search" id="q" placeholder="Find" spellcheck="false">
   <span class="seg" id="mode"></span>
   <span class="seg" id="named" title="Known by a name, or only by an address"></span>
   <span class="seg" id="orgd" title="With an organization, or with none"></span>
@@ -190,10 +169,10 @@ input.field.bad { border-color: var(--danger) !important; }
   <aside id="list" tabindex="0"></aside>
   <section id="person"></section>
 </main>
-<div id="pop" class="menu" hidden></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="pagetips.js"></script>
 <script src="icons.js"></script>
+<script src="palette.js"></script>
 <script src="surface.js"></script>
 <script src="kit.js"></script>
 <script src="motion.js"></script>

@@ -48,7 +48,7 @@
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
-  // Read or not: all, read (green), or not (grey waiting, red unreadable or with nothing in it).
+  // Read or not: all, read (lit), or not (grey waiting, red unreadable or with nothing in it).
   let readFilter = store.get("talaris.files.read", "all");
   // Picked with Shift or Ctrl (or ⌘): several at once, acted on together; the last picked plainly, the anchor for Shift.
   const picked = new Set();
@@ -89,14 +89,21 @@
     pdf: "PDF", image: "Image", audio: "Audio", video: "Video", code: "Code", archive: "Archive", other: "Other" };
   // A canvas or a thread is not a file: its row's mark says what it is, as an extension does a file's.
   const MARK_OF = { canvas: "CNV", conversation: "TLK" };
-  const TYPE_COLOR = { document: "#7f9fbf", spreadsheet: "#8aa878", presentation: "#c98a5b", pdf: "#c26b6b", image: "#b97f8e", audio: "#5fa4b5",
-    video: "#6c7277", code: "#868c92", archive: "#c7a55a", other: "#9a9a9a", canvas: "#8f86c4", conversation: "#5f9e8f" };
+  // The theme's tints (tokens.css), so a kind keeps its color in either mode; the mark's letters tell apart two that share one.
+  const TYPE_COLOR = { document: "var(--tint-1)", spreadsheet: "var(--tint-2)", presentation: "var(--accent)", pdf: "var(--danger)", image: "var(--tint-3)", audio: "var(--tint-1)",
+    video: "var(--muted)", code: "var(--muted)", archive: "var(--tint-4)", other: "var(--muted)", canvas: "var(--tint-3)", conversation: "var(--tint-2)" };
   const ON_KIND = { task: "task", contact: "person", event: "event", note: "note", project: "project", thing: "thing" };
   // What is only in Home, in no other project: chosen as a project is, below All projects (files.ts, NO_PROJECT).
   const NONE = "~none";
   const projectName = (id) => (id === NONE ? "No project" : (projects.find((p) => p.id === id) || {}).name || "a project");
   /** One project chosen: not all of them, nor what is in none. */
   const oneProject = () => Boolean(project) && project !== NONE;
+  // The small × that takes one thing off; a span where it stands inside a button.
+  function xBtn(title, onclick, tag = "button") {
+    const b = el(tag, { class: "x-btn", title, onclick });
+    b.innerHTML = Icons.close();
+    return b;
+  }
   const size = (n) => (n == null ? "" : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
   function when(iso) {
     if (!iso) return "";
@@ -156,7 +163,7 @@
     readState = got.read || {};
     readAbout = got.about || {};
     reading = got.reading || reading;
-    // Read or not (the book's colour): green, or grey and red — told here, from what the core says of each.
+    // Read or not (the book's colour): lit, or grey and red — told here, from what the core says of each.
     const readOk = (r) => readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
     rows = got.rows.filter(readOk);
     total = readFilter === "all" ? got.total : rows.length;
@@ -209,7 +216,7 @@
     const section = (key, title, items, extra = null) => {
       const shut = folded.has(key);
       const head = el("div", { class: `s-head fold${shut ? " shut" : ""}`, title: shut ? "Show" : "Fold away", onclick: () => fold(key) },
-        el("span", { class: "tw" }, "▾"), el("span", { class: "s-title" }, title), extra);
+        Kit.caret(!shut), el("span", { class: "s-title" }, title), extra);
       return [head, ...(shut ? items.filter((x) => x && x.classList.contains("on")) : items)];
     };
     const c = counts || { all: undefined, projects: {}, status: {}, type: {}, tags: {} };
@@ -221,8 +228,9 @@
       for (const l of nodes) {
         const has = l.children.length > 0;
         const shut = folded.has(`list:${l.id}`);
-        const tw = el("span", { class: `tw${has ? "" : " none"}`, onclick: has ? (e) => { e.stopPropagation(); fold(`list:${l.id}`); } : null }, has ? "▾" : "");
-        if (has && !shut) tw.classList.add("open");
+        const tw = Kit.caret(has && !shut);
+        tw.classList.add("tw");
+        if (has) tw.addEventListener("click", (e) => { e.stopPropagation(); fold(`list:${l.id}`); }); else tw.classList.add("none");
         const b = item(l.name, filters.list === l.id, () => { filters.list = filters.list === l.id ? "" : l.id; chosen = null; picked.clear(); reload(); }, null, l.count);
         b.prepend(tw);
         b.style.paddingLeft = `${8 + depth * 14}px`;
@@ -240,13 +248,13 @@
       // The folders linked into this project, watched for new files: each let go of by its ×.
       ...(watched.length ? section("watched", "Watched folders", watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
         el("span", { class: "nm" }, f.folder.replace(/^\/home\/[^/]+/, "~")),
-        el("button", { class: "s-x", title: "Stop watching it (what is linked stays)", onclick: async () => {
+        xBtn("Stop watching it (what is linked stays)", async () => {
           try { await api("DELETE", `/files/folder?project=${enc(f.project)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} no longer watched; what was linked stays`); } catch (e) { failed(e); }
           reload();
-        } }, "×")))) : []),
+        })))) : []),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
       ...(oneProject() ? section("lists", "Lists", listRows,
-        el("button", { class: "s-add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
+        el("button", { class: "add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
       ...(shown.length ? section("tags", "Tags", shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
         reload();
@@ -254,10 +262,10 @@
       ...section("status", "What it is", Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0))),
       ...section("type", "Type", TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); }, null, c.type[k] ?? 0))),
       ...section("kept", "Kept views", [
-        ...kept.map((k, i) => item(k.name, false, () => useKept(k), el("span", { class: "x", title: "Forget it", onclick: (e) => {
+        ...kept.map((k, i) => item(k.name, false, () => useKept(k), xBtn("Forget it", (e) => {
           e.stopPropagation(); kept.splice(i, 1); store.set("talaris.files.kept", kept); drawSide();
-        } }, "×"))),
-        el("button", { class: "t-btn s-keep", onclick: keepView }, "+ Keep this view")])].filter(Boolean));
+        }, "span"))),
+        el("button", { class: "t-btn small s-keep", onclick: keepView }, "+ Keep this view")])].filter(Boolean));
   }
 
   function groupsOf(list) {
@@ -302,14 +310,13 @@
     return row;
   }
 
-  // Whether search has read it: a small book — grey waiting, green read (its tip what it is about), red read with
+  // Whether search has read it: a small book — grey waiting, lit in the accent read (its tip what it is about), red read with
   // nothing in it to find it by. None for what is not read (a page is a page; audio, archives…).
-  const BOOK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/></svg>';
   function book(r) {
     const st = readState[r.key];
     const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet. Set reading interval/schedule in Settings."
       : st === "nowords" ? "Read, but nothing in it to find it by" : st === "unreadable" ? "Can't be read for search: found by its name only" : "" });
-    if (st) b.innerHTML = BOOK;
+    if (st) b.innerHTML = Icons.book();
     return b;
   }
 
@@ -317,7 +324,7 @@
   function drawRows() { return Kit.keepScroll($("rows"), drawRowsNow); }
   function drawRowsNow() {
     if (!rows.length) {
-      $("rows").replaceChildren(el("div", { class: "empty" }, filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
+      $("rows").replaceChildren(Kit.empty(filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
         ? `Nothing in ${listName(filters.list)} yet. Drag things onto it on the left, or choose one and Add to a list.`
         : filters.q || filters.status || filters.type || filters.days || filters.tags.length
         ? "Nothing matches" : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
@@ -404,7 +411,9 @@
       for (const n of list) {
         const has = n.kids.length > 0;
         const open = looking || openNodes.has(n.key);
-        const tw = el("span", { class: `tw${has ? "" : " none"}${open ? " open" : ""}`, onclick: has ? (e) => { e.stopPropagation(); toggle(n.key); } : null }, has ? "▾" : "");
+        const tw = Kit.caret(has && open);
+        tw.classList.add("tw");
+        if (has) tw.addEventListener("click", (e) => { e.stopPropagation(); toggle(n.key); }); else tw.classList.add("none");
         const indent = `padding-left:${8 + depth * 16}px`, pad = `${8 + depth * 16}px`;
         if (n.dir) {
           out.push(el("div", { class: "row tree dir", style: indent, onclick: () => toggle(n.key) }, tw,
@@ -492,7 +501,7 @@
         (about) => api("PUT", `/projects/${enc(id)}/about`, { about })));
     }).catch(() => {});
     const acts = [];
-    if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k)));
+    if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k), "t-btn small"));
     const sugg = window.Peek ? Peek.suggestions(key, api, {
       open: (eid) => Peek.show(eid, api, { openTask: (t) => bridge.openTask(t), openPerson: (x) => bridge.openPerson(x),
         openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where), openEvent: (cal, u, st) => bridge.openEvent(cal, u, st), openUrl: (u) => bridge.openUrl(u) }),
@@ -524,7 +533,7 @@
     const r = rows.find((x) => x.key === chosen);
     if (!r && filters.list) { drawList(); return; }
     if (!r && oneProject()) { drawProject(); return; }
-    if (!r) { $("detail").replaceChildren(el("div", { class: "empty" }, "Choose a file to see what it is and what can be done with it.")); return; }
+    if (!r) { $("detail").replaceChildren(Kit.empty("Choose a file to see what it is and what can be done with it")); return; }
     const s = r.status;
     const said = [];
     if (s.includes("folder")) said.push(el("span", {}, el("b", {}, "In the folder"), ` of ${projectName(r.project)}.`));
@@ -553,7 +562,7 @@
       r.mtime ? ["Changed", Kit.stamp(r.mtime)] : null,
     ].filter(Boolean);
     const acts = [];
-    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
+    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn small ${cls}`, onclick: fn }, label));
     if (s.includes("page")) act("Open in Writing", () => bridge.page(r.project, r.path));
     else if (r.thing && !s.includes("missing")) act(r.type === "conversation" ? "Open the conversation" : "Open the canvas", () => open(r));
     else if (!s.includes("missing")) act(s.includes("snapshot") || r.sealed ? "Open a copy" : "Open", () => open(r));
@@ -590,7 +599,7 @@
 
     // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
     const gkey = glanceKey(r);
-    if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, (k) => bridge.glanceAt(k)));
+    if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, (k) => bridge.glanceAt(k), "t-btn small"));
     // What takes something away, last: delete, the trash, a shortcut removed.
     acts.sort((a, b) => Number(a.classList.contains("danger")) - Number(b.classList.contains("danger")));
     const sugg = gkey && window.Peek ? Peek.suggestions(gkey, api, {
@@ -643,9 +652,9 @@
     const inLists = el("div", { class: "chips d-lists" });
     api("GET", `/files/lists/holding?project=${enc(r.project)}&key=${enc(r.key)}`).then((held) => {
       if (chosen !== r.key || !held.length) return;
-      inLists.replaceChildren(el("div", { class: "d-sub" }, "In lists"), ...held.map((l) => el("span", { class: "chip" }, l.name,
-        el("button", { title: "Take it out of this list (nothing is deleted)", onclick: () => api("DELETE", `/files/lists/${enc(l.id)}/items`, { project: r.project, keys: [r.key] })
-          .then(() => { say(`Out of ${l.name}`); return load(); }).catch(failed) }, "×"))));
+      inLists.replaceChildren(el("div", { class: "d-sub" }, "In lists"), ...held.map((l) => el("span", { class: "chip" }, el("span", { class: "lbl" }, l.name),
+        xBtn("Take it out of this list (nothing is deleted)", () => api("DELETE", `/files/lists/${enc(l.id)}/items`, { project: r.project, keys: [r.key] })
+          .then(() => { say(`Out of ${l.name}`); return load(); }).catch(failed)))));
     }).catch(() => {});
     $("detail").replaceChildren(...[
       el("h2", {}, r.name),
@@ -686,7 +695,7 @@
     const trashable = n((r) => r.status.includes("folder") && !r.status.includes("page"));
     const of = (part) => (part.length === list.length ? "" : ` (${part.length} of them)`);
     const acts = [];
-    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
+    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn small ${cls}`, onclick: fn }, label));
     const done = async (word, jobs) => {
       let ok = 0;
       for (const j of jobs) { try { await j(); ok++; } catch (e) { failed(e); } }
@@ -739,7 +748,7 @@
       if (e.key !== "Enter" || !name.value.trim()) return;
       try { const l = await api("POST", "/files/lists", { project: projectId, name: name.value.trim() }); await put(l.id, l.name); } catch (err) { failed(err); }
     });
-    host.replaceChildren(all.length ? el("div", { class: "pick-list" }, ...all.map((l) => el("button", { class: "t-btn", onclick: () => put(l.id, l.name) }, [...l.path, l.name].join(" › ")))) : null, name);
+    host.replaceChildren(all.length ? el("div", { class: "pick-list" }, ...all.map((l) => el("button", { class: "t-btn small", onclick: () => put(l.id, l.name) }, [...l.path, l.name].join(" › ")))) : null, name);
     name.focus();
   }
 
@@ -762,7 +771,7 @@
     const l = all.find((x) => x.id === filters.list);
     if (!l) return;
     const acts = [];
-    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));
+    const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn small ${cls}`, onclick: fn }, label));
     act("Rename", () => {
       const host = $("inline"); host.className = "inline";
       const name = el("input", { type: "text", value: l.name, spellcheck: "false" });
@@ -777,8 +786,8 @@
       // Anywhere but inside itself.
       const inside = new Set([l.id, ...flat(l.children).map((x) => x.id)]);
       const to = (parent) => api("PUT", `/files/lists/${enc(l.id)}`, { project, parent }).then(reload, failed);
-      host.replaceChildren(el("div", { class: "pick-list" }, l.parent ? el("button", { class: "t-btn", onclick: () => to(null) }, "To the top") : null,
-        ...all.filter((x) => !inside.has(x.id) && x.id !== l.parent).map((x) => el("button", { class: "t-btn", onclick: () => to(x.id) }, `Inside ${[...x.path, x.name].join(" › ")}`))));
+      host.replaceChildren(el("div", { class: "pick-list" }, l.parent ? el("button", { class: "t-btn small", onclick: () => to(null) }, "To the top") : null,
+        ...all.filter((x) => !inside.has(x.id) && x.id !== l.parent).map((x) => el("button", { class: "t-btn small", onclick: () => to(x.id) }, `Inside ${[...x.path, x.name].join(" › ")}`))));
     });
     act("Delete the list…", (e) => {
       // Asked as everything is asked (kit.js).
@@ -861,7 +870,7 @@
       e.preventDefault();
       put([...r.tags, ...input.value.split(/[\s,]+/).filter(Boolean)]);
     } });
-    return el("div", { class: "chips" }, ...r.tags.map((t) => el("span", { class: "chip" }, `#${t}`, el("button", { title: "Take it off", onclick: () => put(r.tags.filter((x) => x !== t)) }, "×"))), input);
+    return el("div", { class: "chips" }, ...r.tags.map((t) => el("span", { class: "chip" }, el("span", { class: "lbl" }, `#${t}`), xBtn("Take it off", () => put(r.tags.filter((x) => x !== t))))), input);
   }
 
   /** Rename, move, or attach: asked for under the buttons. */
@@ -881,7 +890,7 @@
       // No browser pickers on a layer surface: the projects as buttons, the one chosen lit.
       const to = { value: r.project };
       const picks = el("div", { class: "pick-list" });
-      const drawPicks = () => picks.replaceChildren(...projects.filter((p) => !p.pagesOnly).map((p) => el("button", { class: `t-btn${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
+      const drawPicks = () => picks.replaceChildren(...projects.filter((p) => !p.pagesOnly).map((p) => el("button", { class: `t-btn small${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
       drawPicks();
       const folders = [...new Set(rows.filter((x) => x.project === r.project && x.path).map(whereOf).filter(Boolean))].sort();
       const list = el("datalist", { id: "folders" }, ...folders.map((f) => el("option", { value: f })));
@@ -893,13 +902,13 @@
       // A shortcut in each project chosen: the file stays where it is, and is in all of them.
       const taken = new Set([r.project, ...(r.alsoIn || []), ...(r.livesIn ? [r.livesIn.project] : [])]);
       const left = projects.filter((p) => !taken.has(p.id) && !p.pagesOnly);
-      host.replaceChildren(left.length ? el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/shortcut", { project: p.id, path: r.abs })
+      host.replaceChildren(left.length ? el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn small", onclick: () => api("POST", "/files/shortcut", { project: p.id, path: r.abs })
         .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name)))
         : el("span", { class: "hint" }, "It is in every project already."));
     } else if (what === "also-thing") {
       // A shortcut in the project chosen: the canvas or conversation stays where it lives, and is in that one too.
       const left = projects.filter((p) => p.id !== r.project && !p.pagesOnly);
-      host.replaceChildren(el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn", onclick: () => api("POST", "/files/thing-shortcut", { project: p.id, key: r.thing })
+      host.replaceChildren(el("div", { class: "pick-list" }, ...left.map((p) => el("button", { class: "t-btn small", onclick: () => api("POST", "/files/thing-shortcut", { project: p.id, key: r.thing })
         .then(() => { say(`${r.name} is in ${projectName(p.id)} too`); return load(); }).catch(failed) }, p.name))));
     } else if (what === "list") {
       listPicker(host, r.project, [r]);
@@ -956,7 +965,7 @@
     const sheet = $("sheet");
     const close = () => { sheet.hidden = true; sheet.replaceChildren(); };
     sheet.replaceChildren(el("div", { class: "sheet" },
-      el("h3", {}, `Link ${name} into ${projectName(to)}`),
+      el("div", { class: "label" }, `Link ${name} into ${projectName(to)}`),
       el("p", {}, `${f.count}${f.most ? "+" : ""} file${f.count === 1 ? "" : "s"} in it and its folders${f.most ? ` (the first ${f.count})` : ""}, hidden ones aside, as shortcuts: each stays where it is, shows here, and is read for search. The folder is watched: a file put in it later is linked too, and a file changed is read again.`),
       el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
         el("button", { class: "t-btn primary", onclick: async () => {
@@ -991,7 +1000,7 @@
     if (how !== "move") {
       // Asked first: a shortcut, which disturbs nothing, or moved in. A whole folder is linked, not moved.
       sheet.replaceChildren(el("div", { class: "sheet" },
-        el("h3", {}, folder ? `Link ${paths.length}${folder.most ? "+" : ""} file${paths.length === 1 ? "" : "s"} from ${folder.folder} into ${projectName(to)}`
+        el("div", { class: "label" }, folder ? `Link ${paths.length}${folder.most ? "+" : ""} file${paths.length === 1 ? "" : "s"} from ${folder.folder} into ${projectName(to)}`
           : `Bring ${paths.length === 1 ? paths[0].split("/").pop() : `${paths.length} files`} into ${projectName(to)}`),
         el("p", {}, folder ? `Everything in it and its folders${folder.most ? ` (the first ${paths.length})` : ""}, hidden ones aside, as shortcuts: each stays where it is, shows here, and is read for search.`
           : "A shortcut leaves the file where it is and shows it here. Moving it puts the file itself in the project's folder."),
@@ -1009,7 +1018,7 @@
     }
     const ok = checks.filter((c) => !c.error);
     sheet.replaceChildren(el("div", { class: "sheet" },
-      el("h3", {}, `Move into ${projectName(to)}?`),
+      el("div", { class: "label" }, `Move into ${projectName(to)}?`),
       ...checks.map((c) => el("div", { class: "file" },
         el("div", { class: "fn" }, c.error ? c.path.split("/").pop() : c.name),
         el("div", { class: "from" }, `from ${c.path.replace(/^\/home\/[^/]+/, "~")}`),
@@ -1085,7 +1094,7 @@
     const sheet = $("sheet");
     const close = () => { sheet.hidden = true; sheet.replaceChildren(); };
     sheet.replaceChildren(el("div", { class: "sheet" },
-      el("h3", {}, "Add from elsewhere"),
+      el("div", { class: "label" }, "Add from elsewhere"),
       el("p", {}, "Some files, or a folder: everything in it and in its folders, linked where it is and read for search."),
       el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: close }, "Cancel"),
         el("button", { class: "t-btn", onclick: () => { close(); bridge.chooseFolder(); } }, "A folder…"),

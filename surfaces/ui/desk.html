@@ -16,14 +16,12 @@ or the default every project without one shows.
 <link rel="stylesheet" href="controls.css">
 <style>
 html, body { background: transparent !important; }
-#menu { position: fixed; z-index: 10; min-width: 230px; padding: 5px; background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; box-shadow: var(--menu-shadow); }
+#menu { position: fixed; z-index: var(--z-pop); min-width: 230px; background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent) !important; }
 #menu[hidden] { display: none; }
-#menu .menu-item { display: block; width: 100%; text-align: left; }
-#menu .head { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 4px 10px 2px; }
 </style>
 </head>
 <body>
-<div id="menu" hidden></div>
+<div class="menu" id="menu" hidden></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="surface.js"></script>
 <script>
@@ -38,7 +36,7 @@ html, body { background: transparent !important; }
     b.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = true; act(); });
     return b;
   };
-  const head = (text) => Object.assign(document.createElement("div"), { className: "head", textContent: text });
+  const head = (text) => Object.assign(document.createElement("div"), { className: "hint", textContent: text });
 
   addEventListener("contextmenu", (e) => {
     e.preventDefault();

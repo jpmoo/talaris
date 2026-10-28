@@ -15,19 +15,19 @@ words — what was asked, then the answer as it is spoken.
 html, body { height: 100%; }
 #pop {
   position: absolute; inset: 4px 6px 8px; display: flex; flex-direction: column; gap: 8px; padding: 8px;
-  background: var(--surface); border: 1px solid var(--frame); border-radius: 12px; box-shadow: var(--menu-shadow);
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
+  border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow);
 }
 .ti { font-family: "morgan-icons"; font-style: normal; font-size: 17px; line-height: 1; }
 #head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 2px 6px; color: var(--accent); }
-#title { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+#title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
 #head .spacer { flex: 1; }
-#open { width: 26px; height: 26px; }
-#wave { width: 100%; height: 48px; display: block; border-radius: 8px; background: var(--desk); }
+#wave { width: 100%; height: 48px; display: block; border-radius: var(--radius-control); background: var(--desk); }
 /* The turn so far, to read along with; the wheel scrolls it although the
    popup never takes the keyboard. */
-#words { flex: 1; min-height: 0; overflow: auto; background: var(--desk); border-radius: 8px; padding: 8px 10px;
+#words { flex: 1; min-height: 0; overflow: auto; background: var(--desk); border-radius: var(--radius-control); padding: 8px 10px;
          display: flex; flex-direction: column; gap: 6px; }
-#words .when { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+#words .when { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 #asked { color: var(--muted); font-size: 13px; }
 #answer { color: var(--text); font-size: 14px; line-height: 1.45; }
 #caption { color: var(--accent); font-size: 12px; }

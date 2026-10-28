@@ -26,6 +26,8 @@
 
 const Motion = (() => {
   const SPEEDS = { slow: 1.6, normal: 1, fast: .6, fastest: .3 };
+  // The curves are tokens.css's (--ease, --ease-exit); an animation in script cannot say var(), so they are read.
+  const curve = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const kindOf = (o) => (o.kind === "draw" ? "chaos" : o.kind || "slide");
   const still = (o) => matchMedia("(prefers-reduced-motion: reduce)").matches || kindOf(o) === "none";
   let P = (ms) => ms;
@@ -266,12 +268,12 @@ const Motion = (() => {
     use(o);
     if (o.backdrop) {
       const dim = getComputedStyle(o.backdrop).backgroundColor;
-      o.backdrop.animate([{ backgroundColor: "rgba(0, 0, 0, 0)" }, { backgroundColor: dim }], { duration: P(300), easing: "ease-out" });
+      o.backdrop.animate([{ backgroundColor: "transparent" }, { backgroundColor: dim }], { duration: P(300), easing: "ease-out" });
     }
     if (kindOf(o) === "chaos") { trace(panel, o); return; }
     const from = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } }[kindOf(o)] || { translate: off(panel, o.edge) };
     const to = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } }[kindOf(o)] || { translate: "0 0" };
-    panel.animate([from, to], { duration: P(450), easing: "cubic-bezier(.2,.8,.2,1)" });
+    panel.animate([from, to], { duration: P(450), easing: curve("--ease") });
   }
 
   /**
@@ -285,11 +287,11 @@ const Motion = (() => {
     panel.style.visibility = "";
     if (still(o)) return null;
     use(o);
-    if (o.backdrop) hold(panel, o.backdrop.animate([{}, { backgroundColor: "rgba(0, 0, 0, 0)" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" }));
+    if (o.backdrop) hold(panel, o.backdrop.animate([{}, { backgroundColor: "transparent" }], { duration: P(kindOf(o) === "chaos" ? 820 : 300), fill: "forwards" }));
     if (kindOf(o) === "chaos") return untrace(panel, o);
     const from = { pop: { scale: "1", opacity: 1 }, fade: { opacity: 1 } }[kindOf(o)] || { translate: "0 0" };
     const to = { pop: { scale: ".87", opacity: 0 }, fade: { opacity: 0 } }[kindOf(o)] || { translate: off(panel, o.edge) };
-    return hold(panel, panel.animate([from, to], { duration: P(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" }));
+    return hold(panel, panel.animate([from, to], { duration: P(300), easing: curve("--ease-exit"), fill: "forwards" }));
   }
 
   return { arrive, leave, reset, still };

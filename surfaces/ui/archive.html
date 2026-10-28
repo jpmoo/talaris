@@ -16,12 +16,12 @@ screen like Glance; a window by its grow button.
 <link rel="stylesheet" href="controls.css">
 <link rel="stylesheet" href="motion.css">
 <style>
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; }
+html { background: var(--catch); overflow: hidden; height: 100%; }
 html:not([data-window]) { cursor: pointer; }
 body { cursor: default; position: relative; }
 body {
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 html[data-window] { background: var(--surface); }
@@ -31,30 +31,29 @@ header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; borde
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
 header .spacer { flex: 1; }
 header .icon-btn[hidden] { display: none !important; }
-header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
-#q { width: 260px; flex: 0 1 260px; min-width: 120px; padding: 4px 8px; font-size: 12.5px; }
+#q { width: 260px; flex: 0 1 260px; min-width: 120px; font-size: 12.5px; }
 #msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #msg.err { color: var(--danger); }
 
 main { flex: 1; min-height: 0; display: flex; }
 #side { width: 300px; flex: none; border-right: 1px solid var(--line); overflow: auto; padding: 6px 0 12px; }
-#detail { flex: 1; min-width: 0; overflow: auto; padding: 16px 22px 24px; }
-.empty { color: var(--muted); padding: 18px 14px; font-size: 13px; }
+#detail { flex: 1; min-width: 0; overflow: auto; padding: 14px 18px 24px; }
 
 .year { padding: 12px 14px 2px; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
-.month { padding: 6px 14px 2px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: color-mix(in srgb, var(--muted) 70%, transparent); }
-.proj { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; background: none; border: 0; padding: 5px 14px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; border-left: 2px solid transparent; }
-.proj:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); color: var(--accent); }
-.proj.on { background: var(--accent-wash); border-left-color: var(--accent); }
+.month { display: block; padding: 6px 14px 2px; }
+.proj { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; background: none; border: 0; padding: 5px 14px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
+.proj:hover { background: var(--accent-hover); }
+.proj.on { background: var(--accent-wash); color: var(--accent); }
 .proj small { color: var(--muted); font-size: 11px; }
 .hit small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-#detail h2 { font-size: 18px; font-weight: 500; margin: 0 0 2px; }
+#detail h2 { font-size: 16px; font-weight: 500; margin: 0 0 2px; }
 .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; overflow-wrap: anywhere; }
 .acts { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
-.sec { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 16px 0 4px; }
+.sec { display: block; margin: 16px 0 4px; }
+.sec .n { margin-left: 6px; letter-spacing: 0; }
 .item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 8px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
-.item:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); color: var(--accent); }
+.item:hover { background: var(--accent-hover); }
 .item small { color: var(--muted); font-size: 11px; }
 .kids { margin-left: 16px; }
 
@@ -62,23 +61,21 @@ main { flex: 1; min-height: 0; display: flex; }
 .reader { border-top: 1px solid var(--line); padding-top: 12px; }
 .reader .rhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .reader .rhead .t { font-size: 15px; flex: 1; min-width: 0; }
-.reader .ro { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
 .reader .body { font-size: 14px; line-height: 1.55; }
-.reader .note { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; white-space: pre-wrap; font-size: 13px; }
+.reader .note { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 8px 10px; margin: 0 0 8px; white-space: pre-wrap; font-size: 13px; }
 
-/* Bringing it back when one of its name is in use. */
-.sheet { border: 1px solid var(--frame); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; background: color-mix(in srgb, var(--accent-wash) 30%, transparent); }
+/* Bringing it back when one of its name is in use: asked in the page, with words (.kit-ask-box). */
+.kit-ask-box.sheet { margin: 0 0 16px; }
 .sheet p { margin: 0 0 10px; font-size: 13px; }
 .sheet .conf { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12.5px; border-top: 1px solid var(--line); }
 .sheet .conf .path { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.sheet .seg button { font-size: 11.5px; padding: 1px 8px !important; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>
 <body data-arrives>
 <header>
   <h1>Archive</h1>
-  <input type="text" id="q" placeholder="Find in the archive" spellcheck="false">
+  <input type="search" id="q" placeholder="Find in the archive" spellcheck="false">
   <span id="msg"></span>
   <span class="spacer"></span>
   <button class="icon-btn" id="grow"></button>
@@ -86,7 +83,7 @@ main { flex: 1; min-height: 0; display: flex; }
 </header>
 <main>
   <section id="side"></section>
-  <section id="detail"><div class="empty">Choose an archived project to read it, or search them all.</div></section>
+  <section id="detail"><div class="kit-empty">Choose an archived project to read it, or search them all</div></section>
 </main>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="pagetips.js"></script>

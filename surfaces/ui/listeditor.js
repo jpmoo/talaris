@@ -36,7 +36,9 @@
       el("button", { type: "button", class: value === current ? "on" : "", onclick: () => pick(value) }, label)));
   }
   function xBtn(title, onclick) {
-    return el("button", { type: "button", class: "icon-btn le-x", title, onclick }, "×");
+    const b = el("button", { type: "button", class: "x-btn", title, onclick });
+    b.innerHTML = Icons.close();
+    return b;
   }
 
   // ---------------------------------------------------------------- the one popup
@@ -55,9 +57,10 @@
   // A button that reads like a field and opens its menu.
   function picker(choices, current, pick, empty = "—") {
     const now = choices.find((c) => same(c.value, current));
-    const b = el("button", { type: "button", class: "le-pick" },
+    const set = now || (current != null && current !== "");
+    const b = el("button", { type: "button", class: "pick le-pick" + (set ? "" : " empty") },
       now?.color ? el("span", { class: "le-sw", style: `background:${now.color}` }) : null,
-      now ? now.label : current != null && current !== "" ? String(current) : empty);
+      el("span", { class: "lbl" }, now ? now.label : set ? String(current) : empty));
     b.addEventListener("click", () => (Kit.openedBy() === b ? popAway() : menu(b, choices, current, pick)));
     return b;
   }
@@ -310,7 +313,7 @@
 
   // ---------------------------------------------------------------- matrix regions
 
-  const PALETTE = ["#c98a5b", "#c26b6b", "#b59a5f", "#8aa878", "#5fa4b5", "#5f7fb5", "#8f7fb5", "#868c92"];
+  const PALETTE = Palette.MARKS;
   const MAX_REGIONS = 36;
   const DEFAULT_REGIONS = [
     { name: "do", label: "Urgent · important" }, { name: "plan", label: "Important, not urgent" },
@@ -446,10 +449,10 @@
             if (!e.tag) delete e.untagOnLeave;
             if (Object.keys(e).length) r["talaris:enter"] = e; else delete r["talaris:enter"];
           };
-          const color = el("button", { type: "button", class: "le-swatch", title: "Color", style: `background:${r["talaris:color"] ?? "transparent"}` });
+          const color = el("button", { type: "button", class: "cv-swatch le-swatch", title: "Color", style: `background:${r["talaris:color"] ?? "transparent"}` });
           color.addEventListener("click", () => (Kit.openedBy() === color ? popAway() : popUnder(color, el("div", { class: "le-palette" },
-            el("button", { type: "button", class: "le-swatch none" + (r["talaris:color"] ? "" : " on"), title: "None", onclick: () => { popAway(); delete r["talaris:color"]; paintKind(); } }),
-            PALETTE.map((c) => el("button", { type: "button", class: "le-swatch" + (r["talaris:color"] === c ? " on" : ""), style: `background:${c}`,
+            el("button", { type: "button", class: "cv-swatch le-swatch none" + (r["talaris:color"] ? "" : " is-on"), title: "None", onclick: () => { popAway(); delete r["talaris:color"]; paintKind(); } }),
+            PALETTE.map((c) => el("button", { type: "button", class: "cv-swatch le-swatch" + (r["talaris:color"] === c ? " is-on" : ""), style: `background:${c}`,
               onclick: () => { popAway(); r["talaris:color"] = c; paintKind(); } }))))));
           const label = el("input", { type: "text", spellcheck: "false", placeholder: "Label", value: r.label ?? r.name ?? "" });
           label.addEventListener("input", () => { r.label = label.value; });
@@ -481,7 +484,7 @@
         // Deleting cannot be undone, so it asks twice: the button arms, then acts.
         const del = Kit.twice(el("button", { type: "button", class: "t-btn danger" }, "Delete"), { ask: "Delete it?", act: remove });
         dangerBox.replaceChildren(list.archived ? el("button", { type: "button", class: "t-btn", onclick: unarchive }, "Restore")
-          : el("button", { type: "button", class: "t-btn danger", onclick: archive }, "Archive"), del);
+          : el("button", { type: "button", class: "t-btn", onclick: archive }, "Archive"), del);
       }
 
       // ---- talking to the core: one thing at a time, its words shown as they are.
@@ -557,7 +560,7 @@
         row("Name", name), viewBox, memberBox, queryHost, orderBox, kindBox, err,
         el("div", { class: "le-acts" }, dangerBox, el("span", { class: "spacer" }),
           el("button", { type: "button", class: "t-btn", onclick: () => finish(null) }, "Cancel"),
-          el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Save")));
+          el("button", { type: "button", class: "t-btn primary", onclick: save }, "Save")));
       paintView(); paintMembers(); paintOrder(); paintKind(); paintDanger();
       document.body.append(dim);
       name.focus();

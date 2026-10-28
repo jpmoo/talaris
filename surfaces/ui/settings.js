@@ -12,8 +12,8 @@ let bridge = null;
 let cfg = null;
 let fonts = [];
 
-// The accents of the approved theme (design/theme-tuner.html); any other by its hex.
-const ACCENTS = ["#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
+// The accents of the approved theme (palette.js); any other by its hex.
+const ACCENTS = Palette.ACCENTS;
 const EDGE_NAMES = { top: "Top", bottom: "Bottom", left: "Left", right: "Right" };
 
 function el(tag, attrs = {}, ...kids) {
@@ -85,9 +85,9 @@ function draw() {
   // The tuner's five, then the picker for any other — wearing the custom
   // accent once one is chosen.
   const custom = !ACCENTS.includes(now);
-  const pick = el("button", { class: "swatch pick" + (custom ? " custom on" : ""), title: "Any color", style: custom ? `--custom:${now}` : "",
+  const pick = el("button", { class: "cv-swatch any" + (custom ? " custom is-on" : ""), title: "Any color", style: custom ? `--custom:${now}` : "",
     onclick: () => { $("picker").classList.toggle("open"); if ($("picker").classList.contains("open")) picker.set(now); } });
-  $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "swatch" + (c === now ? " on" : ""), style: `background:${c}`, title: c,
+  $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "cv-swatch" + (c === now ? " is-on" : ""), style: `background:${c}`, title: c,
     onclick: () => { $("picker").classList.remove("open"); saveAccent(c); } })), pick);
   if (document.activeElement !== $("hex")) $("hex").value = now;
   seg("motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], t.motion === "draw" ? "chaos" : t.motion || "slide", (motion) => save({ theme: { motion } }));
@@ -239,7 +239,7 @@ function trayRows() {
       const name = el("span", { class: "name" }, i.title || i.appId);
       return el("div", { class: "row" }, name, el("span", { class: "what" }, sw));
     });
-    $("tray-items").replaceChildren(...(rows.length ? rows : [el("p", { class: "note" }, "No tray icons right now.")]));
+    $("tray-items").replaceChildren(...(rows.length ? rows : [Kit.empty("No tray icons right now")]));
     needs(["tray-items"], cfg.bar.tray !== false);
     $("tray-items").classList.toggle("needs-off", cfg.bar.tray === false);
   });
@@ -276,7 +276,7 @@ function drawNotifications() {
     });
     const name = el("span", { class: "name" }, appName(key), ...(appName(key) !== key ? [el("small", {}, key)] : []));
     return el("div", { class: "row" }, name, el("span", { class: "what" }, el("small", { class: "note", style: "margin:0" }, "Shown"), sw));
-  }) : [el("p", { class: "note" }, "None yet: an application appears here once it sends one.")]));
+  }) : [Kit.empty("None yet: an application appears here once it sends one")]));
 }
 $("nt-on").addEventListener("click", () => save({ notifications: { enabled: nt().enabled === false } }));
 $("nt-shadow").addEventListener("click", () => save({ notifications: { shadow: nt().shadow === false } }));
@@ -347,7 +347,7 @@ $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   const v = $("hex").value.trim();
   if (/^#[0-9a-fA-F]{6}$/.test(v)) saveAccent(v.toLowerCase());
-  else say("An accent is a color like #c98a5b", true);
+  else say("An accent is a color like #c98a5b", true); // look: an example, in words
 });
 
 // ---------------------------------------------------------------- Morgan
@@ -521,7 +521,7 @@ async function mgWhere() {
   const device = mgInput(c.device, { placeholder: "laptop" });
   const card = (value, title, what) => el("button", { class: "mg-card" + (value === pick ? " on" : "") + (value === (c.role === "client" ? "client" : "local") ? " now" : ""),
     onclick: () => { pick = value; draw(); } }, el("b", {}, title), el("small", {}, what));
-  const confirmBox = el("div", { class: "mg-confirm", hidden: "" });
+  const confirmBox = el("div", { class: "kit-ask-box", hidden: "" });
 
   const draw = () => {
     const same = pick === (c.role === "client" ? "client" : "local");
@@ -631,7 +631,7 @@ async function mgModels() {
   // (with the address it came from, when that is not the one saved).
   const chips = (list, current, key, strip) => el("div", { class: "mg-chips" }, ...list.map((x) => {
     const name = strip ? x.name.replace(/:latest$/, "") : x.name;
-    return el("button", { class: "mg-chip" + (name === current ? " on" : ""), onclick: () => name !== current || listedFrom !== savedUrl
+    return el("button", { class: "chip" + (name === current ? " on" : ""), onclick: () => name !== current || listedFrom !== savedUrl
       ? setConfig({ [key]: name, ...(listedFrom !== savedUrl ? { "ollama.url": listedFrom } : {}) }) : null },
     name, el("small", {}, `${x.gb} GB`));
   }));
@@ -649,8 +649,8 @@ async function mgModels() {
     const chatSees = (r.chat || []).find((x) => x.name === chat);
     const blind = !vision && chatSees && chatSees.sees === false;
     const visionChips = el("div", { class: "mg-chips" },
-      el("button", { class: "mg-chip" + (!vision ? " on" : ""), onclick: () => vision ? setConfig({ visionModel: "" }) : null }, "Same as the chat model"),
-      ...(r.vision || []).map((x) => el("button", { class: "mg-chip" + (x.name === vision ? " on" : ""), onclick: () => x.name !== vision ? setConfig({ visionModel: x.name }) : null },
+      el("button", { class: "chip" + (!vision ? " on" : ""), onclick: () => vision ? setConfig({ visionModel: "" }) : null }, "Same as the chat model"),
+      ...(r.vision || []).map((x) => el("button", { class: "chip" + (x.name === vision ? " on" : ""), onclick: () => x.name !== vision ? setConfig({ visionModel: x.name }) : null },
         x.name, el("small", {}, `${x.gb} GB`))));
     models.replaceChildren(
       el("h3", {}, "Chat model"), chips(r.chat || [], chat, "ollama.model", false), ...missing(r.chat || [], chat, false),
@@ -702,7 +702,7 @@ async function mgVoice() {
   let chosen = v.kokoroVoice;
   const grid = el("div", { class: "mg-chips mg-scroll" });
   const drawGrid = () => grid.replaceChildren(...(v.kokoro || []).map((name) =>
-    el("button", { class: "mg-chip" + (name === v.kokoroVoice && v.engine === "kokoro" ? " on" : "") + (name === chosen ? " picked" : ""),
+    el("button", { class: "chip" + (name === v.kokoroVoice && v.engine === "kokoro" ? " on" : "") + (name === chosen ? " picked" : ""),
       onclick: () => { chosen = name; drawGrid(); chosenName.textContent = name; } }, name)));
   const chosenName = el("span", { class: "n", style: "width:auto" }, chosen || "");
   drawGrid();
@@ -741,7 +741,7 @@ async function mgVoice() {
         const r = await change("voices.forget", { name }, `${name} forgotten`);
         if (r) drawKnown(r);
       }))),
-      ...((s.enrolled || []).length ? [] : [el("p", { class: "note" }, "None taught yet.")]),
+      ...((s.enrolled || []).length ? [] : [Kit.empty("None taught yet")]),
       mgRow("Teach a voice", "Its person speaks six short lines", who, el("button", { class: "t-btn", onclick: teach }, "Enroll")));
   };
   drawKnown(heard);
@@ -776,7 +776,7 @@ async function mgMemory() {
 
   const topicBlock = (t, notesShown, open) => {
     const head = el("button", { class: "mg-topic-head" + (open ? " open" : ""), onclick: () => { if (mgOpen.has(t.name)) mgOpen.delete(t.name); else mgOpen.add(t.name); drawTopics(); } },
-      el("span", { class: "mg-caret" }, open ? "▾" : "▸"), el("b", {}, t.name), el("small", {}, `${t.notes.length} · ${t.description || "no description"}`));
+      Kit.caret(open), el("b", {}, t.name), el("small", {}, `${t.notes.length} · ${t.description || "no description"}`));
     const block = el("div", { class: "mg-topic" }, head);
     if (!open) return block;
     const locked = busy.has(t.name);
@@ -795,13 +795,13 @@ async function mgMemory() {
       });
       body.addEventListener("blur", done);
       // Where it may go, in the kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
-      const moveBtn = el("button", { class: "t-btn", onclick: (e) => {
+      const moveBtn = el("button", { class: "t-btn small", onclick: (e) => {
         if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
         Kit.menu(e.currentTarget, others.map((o) => ({ label: o.name, act: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) })));
       } }, "Move to…");
       return el("div", { class: "mg-note" + (locked ? " locked" : "") },
         el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
-          ...(locked ? [] : [twiceBtn("×", "Delete it?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])));
+          ...(locked ? [] : [Kit.twice(xBtn("Delete it"), { ask: "Delete it?", act: () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted") })])));
     });
     if (!t.notes.length) notes.push(Kit.empty("Nothing here yet"));
     else if (!notesShown.length) notes.push(Kit.empty("Nothing matches"));
@@ -871,7 +871,7 @@ async function mgMemory() {
     list,
     mgRow("+ Topic", "", newName, newWhat, el("button", { class: "t-btn", onclick: addTopic }, "Add")),
     el("h3", {}, "Documents kept in full"),
-    el("div", { class: "mg-scroll" }, ...(docs.length ? docs : [el("p", { class: "note" }, "None.")])),
+    el("div", { class: "mg-scroll" }, ...(docs.length ? docs : [Kit.empty("None")])),
     el("h3", {}, "Pictures"),
     pics.length ? el("div", { class: "mg-pics mg-scroll" }, ...pics) : el("p", { class: "note" }, "None. Say “remember what I look like” or “this is my dog” while the camera can see."),
     mgGarden(garden, again));
@@ -879,7 +879,7 @@ async function mgMemory() {
 
 // The gardener: what it changed, day by day, each change undone on its own.
 function mgGarden(g, again) {
-  const now = el("button", { class: "t-btn" }, "Tidy now");
+  const now = el("button", { class: "t-btn small" }, "Tidy now");
   now.addEventListener("click", async () => {
     now.disabled = true;
     now.textContent = "Tidying…";
@@ -890,7 +890,7 @@ function mgGarden(g, again) {
   });
   const days = (g && g.ok ? g.days : null) || [];
   const report = days.flatMap((day) => [
-    el("div", { class: "mg-day" }, day.when || day.day),
+    el("div", { class: "label mg-day" }, day.when || day.day),
     ...(day.changes || []).map((c) => el("div", { class: "row mg-change" + (c.undone ? " undone" : "") },
       el("span", { class: "mg-said" }, c.said || c.kind, ...(c.detail ? [el("small", {}, c.detail)] : [])),
       el("span", { class: "what mg-end" }, c.undone ? el("span", { class: "note", style: "margin:0" }, "Undone")
@@ -906,9 +906,9 @@ function mgGarden(g, again) {
 // A sheet over the page: a document's text or a picture. Escape puts it away, not Settings.
 function mgSheet(title, ...kids) {
   mgCloseSheet();
-  const sheet = el("div", { class: "mg-sheet", id: "mg-sheet", onclick: (e) => { if (e.target === sheet) mgCloseSheet(); } },
-    el("div", { class: "mg-sheet-box" },
-      el("div", { class: "mg-sheet-head" }, el("b", {}, title), el("button", { class: "t-btn", onclick: mgCloseSheet }, "Close")),
+  const sheet = el("div", { class: "kit-scrim", id: "mg-sheet", onclick: (e) => { if (e.target === sheet) mgCloseSheet(); } },
+    el("div", { class: "kit-sheet mg-sheet-box" },
+      el("div", { class: "mg-sheet-head" }, el("span", { class: "label" }, title), el("button", { class: "t-btn small", onclick: mgCloseSheet }, "Close")),
       ...kids));
   document.body.append(sheet);
   return sheet;
@@ -1011,7 +1011,7 @@ async function mgConnections() {
       return block;
     };
 
-    const reconnect = el("button", { class: "t-btn" }, "Reconnect all");
+    const reconnect = el("button", { class: "t-btn small" }, "Reconnect all");
     reconnect.addEventListener("click", async () => { reconnect.disabled = true; say("Connecting…"); redrawServers(await change("mcp.reconnect", {}, "Connected again")); reconnect.disabled = false; });
 
     const name = el("input", { type: "text", spellcheck: "false", placeholder: "Short name" });
@@ -1034,7 +1034,7 @@ async function mgConnections() {
     };
     mgBody(
       el("h3", { class: "with-btn" }, client ? "On the server" : "MCP servers", reconnect),
-      el("div", { class: "mg-scroll" }, ...(theirs.length ? theirs.map((s) => serverBlock(s, false)) : [el("p", { class: "note" }, "None yet.")])),
+      el("div", { class: "mg-scroll" }, ...(theirs.length ? theirs.map((s) => serverBlock(s, false)) : [Kit.empty("None yet")])),
       ...(mine.length ? [
         el("h3", {}, client ? "On this machine" : "This machine's own"),
         el("p", { class: "note" }, client ? "Run here and offered to the server; what they reach never leaves this machine but as answers."
@@ -1060,8 +1060,8 @@ async function mgLog() {
   const lines = r.lines || [];
   const box = el("div", { class: "mg-log" }, ...(lines.length ? lines.map((l) =>
     el("div", { class: `mg-line ${l.level || "info"}` }, el("span", { class: "mg-at" }, l.at || ""), el("span", {}, l.text || "")))
-    : [el("p", { class: "note" }, "Nothing logged since it started.")]));
-  mgBody(el("h3", { class: "with-btn" }, "The latest 200 lines", el("button", { class: "t-btn", onclick: () => loadMorgan(true) }, "Refresh")), box);
+    : [Kit.empty("Nothing logged since it started")]));
+  mgBody(el("h3", { class: "with-btn" }, "The latest 200 lines", el("button", { class: "t-btn small", onclick: () => loadMorgan(true) }, "Refresh")), box);
   box.scrollTop = box.scrollHeight;
 }
 
@@ -1173,8 +1173,7 @@ function drawAccounts() {
 $("acct-add").addEventListener("click", () => bridge && bridge.accountAdd());
 
 // The colors a calendar may wear, as Google's and Outlook's own run, and the accents.
-const CAL_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
-  "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
+const CAL_COLORS = Palette.COLORS;
 function setColor(id, color) {
   bridge.calendarColor(id, color);
   // Evolution writes it and says so; read the list again a moment after.
@@ -1190,7 +1189,7 @@ function drawCalendars() {
     const byAccount = {};
     for (const c of cals) (byAccount[c.account] ||= []).push(c);
     const rows = Object.entries(byAccount).flatMap(([account, list]) => [
-      el("div", { class: "note", style: "margin:10px 0 2px;text-transform:uppercase;letter-spacing:2px;font-size:10px" }, account),
+      el("h3", { class: "account" }, account),
       ...list.map((c) => {
         const sw = el("button", { class: "switch" + (hidden.has(c.id) ? "" : " on"), title: "Shown in the calendar" });
         sw.addEventListener("click", () => {
@@ -1200,9 +1199,9 @@ function drawCalendars() {
         });
         // Its color, chosen from a palette or typed: kept in Evolution, so
         // the calendar and anything else reading these calendars agree.
-        const swatch = el("button", { class: "cal-swatch", title: "Its color", style: `background:${c.color || "var(--accent)"}` });
+        const swatch = el("button", { class: "cv-swatch", title: "Its color", style: `background:${c.color || "var(--accent)"}` });
         const palette = el("div", { class: "cal-palette", hidden: "" },
-          ...CAL_COLORS.map((col) => el("button", { class: "cal-swatch" + (col === c.color ? " on" : ""), style: `background:${col}`, title: col,
+          ...CAL_COLORS.map((col) => el("button", { class: "cv-swatch" + (col === c.color ? " is-on" : ""), style: `background:${col}`, title: col,
             onclick: () => setColor(c.id, col) })),
           (() => {
             const hex = el("input", { type: "text", class: "hex", value: c.color || "", placeholder: "#rrggbb", spellcheck: "false" });
@@ -1213,7 +1212,7 @@ function drawCalendars() {
         return el("div", {}, el("div", { class: "row" }, el("span", { class: "name" }, el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, swatch, c.name)), el("span", { class: "what" }, sw)), palette);
       }),
     ]);
-    $("acct-cals").replaceChildren(...(rows.length ? rows : [el("p", { class: "note" }, "No calendars yet.")]));
+    $("acct-cals").replaceChildren(...(rows.length ? rows : [Kit.empty("No calendars yet")]));
   });
 }
 
@@ -1225,6 +1224,12 @@ function drawCalendars() {
 const bars = (s) => (s == null ? "" : s > 70 ? "Strong" : s > 45 ? "Good" : s > 20 ? "Weak" : "Faint");
 let wifiNow = null, btNow = null;
 // A first press asks; a second, within a few seconds, does it — as everything is asked (kit.js).
+// The small × that takes one thing off (controls.css .x-btn).
+function xBtn(title) {
+  const b = el("button", { class: "x-btn", title });
+  b.innerHTML = Icons.close();
+  return b;
+}
 function twiceBtn(label, ask, act) {
   return Kit.twice(el("button", { class: "t-btn danger" }, label), { ask, act });
 }
@@ -1254,7 +1259,7 @@ function drawWifi(w) {
     return netRow(s.name, meta, s.active ? "current" : s.inRange ? "" : "dim-row", el("small", { class: "note", style: "margin:0" }, "Auto"), auto, act,
       twiceBtn("Forget", "Forget it?", () => wifiSend({ verb: "forget", uuid: s.uuid, ssid: s.name }, `Forgetting ${s.name}…`)));
   }));
-  if (!(w.saved || []).length) $("wifi-saved").replaceChildren(el("p", { class: "note" }, "None saved."));
+  if (!(w.saved || []).length) $("wifi-saved").replaceChildren(Kit.empty("None saved"));
   const fresh = (w.networks || []).filter((n) => !n.known);
   $("wifi-near").replaceChildren(...fresh.map((n) => {
     const meta = `${bars(n.signal)}${n.secure ? " · Secured" : " · Open"}`;
@@ -1265,7 +1270,7 @@ function drawWifi(w) {
     pw.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
     return netRow(n.ssid, meta, "", pw, el("button", { class: "t-btn", onclick: join }, "Join"));
   }));
-  if (!fresh.length) $("wifi-near").replaceChildren(el("p", { class: "note" }, "Nothing new in range."));
+  if (!fresh.length) $("wifi-near").replaceChildren(Kit.empty("Nothing new in range"));
 }
 
 function drawBt(b) {
@@ -1286,7 +1291,7 @@ function drawBt(b) {
     return netRow(d.name, meta, d.connected ? "current" : "", el("small", { class: "note", style: "margin:0" }, "Auto"), trust, act,
       twiceBtn("Forget", "Forget it?", () => btSend({ verb: "forget", mac: d.mac }, `Forgetting ${d.name}…`)));
   }));
-  if (!(b.paired || []).length) $("bt-mine").replaceChildren(el("p", { class: "note" }, "None paired."));
+  if (!(b.paired || []).length) $("bt-mine").replaceChildren(Kit.empty("None paired"));
   $("bt-near").replaceChildren(...(b.nearby || []).map((d) =>
     netRow(d.name, d.mac, "", el("button", { class: "t-btn", onclick: () => btSend({ verb: "pair", mac: d.mac }, `Pairing with ${d.name}…`) }, "Pair"))));
   if (!(b.nearby || []).length) $("bt-near").replaceChildren(el("p", { class: "note" }, "Nothing found yet. Put the device in pairing mode, then look."));
@@ -1406,7 +1411,7 @@ async function drawReading() {
   const progress = busy && st.of
     ? pel("span", { class: "what", style: "flex-direction:column;align-items:stretch;min-width:260px" },
         pel("span", { class: "rd-doing" }, st.doing ? `Reading ${KIND_READ[st.doingKind] || "thing"}: ${st.doing}` : "Reading…", ` — ${st.done} of ${st.of}`),
-        pel("span", { class: "rd-bar" }, pel("i", { style: `width:${Math.round((100 * st.done) / Math.max(1, st.of))}%` })))
+        pel("span", { class: "track rd-bar" }, pel("i", { style: `width:${Math.round((100 * st.done) / Math.max(1, st.of))}%` })))
     : pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: !m.on || !m.model ? "" : null, onclick: async (e) => {
         e.target.disabled = true; say("Looking for new and changed files…");
         setTimeout(drawReading, 600);
@@ -1836,7 +1841,7 @@ async function drawStays() {
       [chosen[key] ? CHOICE[chosen[key]] : "", stays[key] ? `kept in ${projName(stays[key])}` : ""].filter(Boolean).join(" · "),
       chosen[key] ? pel("button", { class: "t-btn", title: "Back to the default", onclick: () => { const n = { ...chosen }; delete n[key]; save({ dock: { elsewhere: n } }); } }, "Reset") : null,
       stays[key] ? pel("button", { class: "t-btn", title: "Kept in no project", onclick: () => { const n = { ...stays }; delete n[key]; save({ dock: { stays: n } }); } }, "Stop keeping") : null)));
-  $("stays").replaceChildren(...(rows.length ? rows : [pel("p", { class: "note" }, "None yet.")]));
+  $("stays").replaceChildren(...(rows.length ? rows : [Kit.empty("None yet")]));
 }
 
 async function loadPlugins() {
@@ -1855,7 +1860,7 @@ async function loadPlugins() {
       if (on && !s.dataset.armed) {
         s.dataset.armed = "1";
         plOpen.add(r.id);
-        asking.replaceChildren(pel("div", { class: "pl-ask" }, pel("div", {}, `Enable ${m.name}? It may:`), plAsks(m),
+        asking.replaceChildren(pel("div", { class: "kit-ask-box" }, pel("div", {}, `Enable ${m.name}? It may:`), plAsks(m),
           pel("div", { class: "acts" }, pel("button", { class: "t-btn", onclick: () => s.click() }, "Enable it"),
             pel("button", { class: "t-btn", onclick: () => { delete s.dataset.armed; asking.replaceChildren(); } }, "Not now"))));
         return;
@@ -1929,7 +1934,7 @@ async function loadPlugins() {
       logBox, pel("p", { class: "note" }, `${[m.author, m.license].filter(Boolean).join(" · ")}${m.homepage ? ` · ${m.homepage}` : ""} · ${r.dir}`));
     block.append(body);
     return block;
-  }) : [pel("p", { class: "note" }, "None installed yet.")]));
+  }) : [Kit.empty("None installed yet")]));
 }
 
 /**
@@ -1984,15 +1989,15 @@ function mergeSheet(plugin, d, field, done) {
   const box = pel("textarea", { class: "pl-merge-text", spellcheck: "true" });
   box.value = mergeDraft(ops);
   const err = pel("p", { class: "note err" });
-  const sheet = pel("div", { class: "mg-sheet" });
+  const sheet = pel("div", { class: "kit-scrim" });
   const close = () => sheet.remove();
-  sheet.append(pel("div", { class: "mg-sheet-box pl-merge" },
-    pel("div", { class: "mg-sheet-head" }, pel("b", {}, `Merge · ${d.title}`), pel("button", { class: "t-btn", onclick: close }, "Cancel")),
+  sheet.append(pel("div", { class: "kit-sheet mg-sheet-box pl-merge" },
+    pel("span", { class: "label" }, `Merge · ${d.title}`),
     pel("div", { class: "pl-legend" }, pel("span", { class: "dl here" }, `◀ only in ${sides[0]}`), pel("span", { class: "dl there" }, `▶ only in ${sides[1]}`)),
     diffView(ops, sides),
     pel("p", { class: "note", style: "margin:4px 0 2px" }, "The merged words, starting from both — what you save here is what both sides will hold."),
     box, err,
-    pel("div", { class: "acts" }, pel("button", { class: "t-btn", onclick: async (e) => {
+    pel("div", { class: "kit-foot" }, pel("button", { class: "t-btn", onclick: close }, "Cancel"), pel("button", { class: "t-btn primary", onclick: async (e) => {
       e.target.disabled = true;
       try { await core("POST", `/plugins/${encodeURIComponent(plugin)}/decide`, { item: d.id, choice: "merge", value: box.value }); say("Merged"); close(); done(); }
       catch (x) { err.textContent = x.message; e.target.disabled = false; }
@@ -2005,7 +2010,7 @@ function plDecisions(r, redraw) {
   // Those a plugin asks in a place of their own (Tasks…) are asked there, not here.
   const items = (r.decisions || []).filter((d) => !d.on);
   if (!items.length) return null;
-  return pel("div", { class: "pl-decide" },
+  return pel("div", { class: "kit-ask-box pl-decide" },
     pel("h3", {}, `To decide · ${items.length}`),
     ...items.slice(0, 50).map((d) => {
       const [here, there] = d.sides || ["", ""];

@@ -64,17 +64,22 @@ function drawProjects() {
   $("project-list").style.maxHeight = `${Math.round(screen.availHeight * 0.7)}px`;
   bridge.projects((text) => {
     const list = JSON.parse(text);
-    $("project-list").replaceChildren(...(list.length ? list.map((p) => {
-      // A group's name over its projects, as Tasks groups them (an empty one: the projects Tasks does not show).
-      if ("group" in p) return Object.assign(document.createElement("div"), { className: p.group ? "label group" : "sep-line" , textContent: p.group });
-      const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " current" : "") + (p.inGroup ? " in-group" : "") });
+    $("project-list").replaceChildren(...(list.length ? list.flatMap((p, i) => {
+      // A group's name over its projects, as Tasks groups them, a line above it (an empty one: the line alone, over the projects Tasks does not show).
+      if ("group" in p) {
+        const sep = Object.assign(document.createElement("div"), { className: "menu-sep" });
+        if (!p.group) return [sep];
+        const name = Object.assign(document.createElement("div"), { className: "hint", textContent: p.group });
+        return i ? [sep, name] : [name];
+      }
+      const b = Object.assign(document.createElement("button"), { className: "menu-item" + (p.current ? " on" : "") + (p.inGroup ? " in-group" : "") });
       // Its desktop as last seen (thumbs.py), or its wallpaper: a project known by its look too.
       const thumb = Object.assign(document.createElement("img"), { className: "thumb", alt: "", src: `talaris-ui://thumb/?project=${encodeURIComponent(p.id)}&t=${Date.now()}` });
       b.append(thumb, Object.assign(document.createElement("span"), { className: "pname", textContent: p.name }), Object.assign(document.createElement("span"), { className: "code", textContent: p.code }));
       // Always asked of the process, the current one too: it knows which is current now, and
       // going to the current project brings its desktop back if the screen is elsewhere.
       b.addEventListener("click", () => bridge.goProject(p.id));
-      return b;
+      return [b];
     }) : [note("No projects")]));
     refit();
   });
@@ -107,7 +112,7 @@ function showNotices(list) {
     const top = Object.assign(document.createElement("div"), { className: "top" });
     if (n.icon) top.append(Object.assign(document.createElement("img"), { src: n.icon, alt: "" }));
     else top.insertAdjacentHTML("beforeend", Icons.bell());
-    const x = button("", () => bridge.dismissNotice(n.id), "x");
+    const x = button("", () => bridge.dismissNotice(n.id), "x-btn");
     x.title = "Dismiss";
     x.innerHTML = Icons.close();
     top.append(Object.assign(document.createElement("span"), { className: "app", textContent: n.app || "" }),
@@ -157,7 +162,8 @@ function showTimers() {
       textContent: Kit.clock(t.at) }));
     d.append(what, Object.assign(document.createElement("span"), { className: "left", textContent: timeLeft(t.at) }),
       twice("Cancel", `timer-${t.id}`, () => bridge.cancelReminder(t.id)));
-    const bar = Object.assign(document.createElement("span"), { className: "bar" });
+    const bar = Object.assign(document.createElement("span"), { className: "bar track" });
+    bar.append(document.createElement("i"));
     bar.style.setProperty("--left", share(t));
     bar.hidden = t.at - Date.now() >= 3600000;
     d.append(bar);
@@ -283,17 +289,16 @@ let open = { key: "", busy: "", armed: "", scanning: false };
 let wifi = null;
 let blue = null;
 
-const LOCK = '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="7.5" width="8" height="6" rx="1"/><path d="M5.8 7.5V5.5a2.2 2.2 0 0 1 4.4 0v2"/></svg>';
-
-function note(text, cls = "none") { return Object.assign(document.createElement("div"), { className: cls, textContent: text }); }
-function button(text, onclick, cls = "t-btn") {
+/** An empty list, said as the kit says it; with a class, a line of words in that look (a heading). */
+function note(text, cls) { return cls ? Object.assign(document.createElement("div"), { className: cls, textContent: text }) : Kit.empty(text); }
+function button(text, onclick, cls = "t-btn small") {
   const b = Object.assign(document.createElement("button"), { className: cls, textContent: text });
   b.addEventListener("click", (e) => { e.stopPropagation(); onclick(b); });
   return b;
 }
 function row(icon, name, meta, { current = false, busy = false, onclick } = {}) {
   const r = document.createElement("div");
-  r.className = "menu-item" + (current ? " current" : "") + (busy ? " busy" : "");
+  r.className = "menu-item" + (current ? " on" : "") + (busy ? " busy" : "");
   r.innerHTML = icon;
   r.append(Object.assign(document.createElement("span"), { className: "nm", textContent: name }));
   if (meta) r.append(Object.assign(document.createElement("span"), { className: "meta", innerHTML: meta }));
@@ -303,7 +308,7 @@ function row(icon, name, meta, { current = false, busy = false, onclick } = {}) 
 /** Asked twice, like the power menu: the first press only says what the second will do. */
 function twice(text, key, act) {
   // Asked as everything is asked (kit.js), kept by key across the list being drawn again.
-  return Kit.twice(button(text, () => {}, "t-btn"), { key, ask: `${text} it?`, act });
+  return Kit.twice(button(text, () => {}), { key, ask: `${text} it?`, act });
 }
 function toggleOpen(key, redraw) { open.key = open.key === key ? "" : key; open.armed = ""; redraw(); }
 
@@ -329,7 +334,7 @@ function drawWifi() {
   for (const n of wifi.networks) {
     const key = `net:${n.ssid}`;
     const busy = open.busy === key;
-    const meta = busy ? "WORKING" : n.connected ? "CONNECTED" : n.known ? "SAVED" : n.secure ? LOCK : "OPEN";
+    const meta = busy ? "WORKING" : n.connected ? "CONNECTED" : n.known ? "SAVED" : n.secure ? Icons.lock() : "OPEN";
     rows.push(row(Icons.wifi(n.signal), n.ssid, meta, {
       current: n.connected, busy,
       onclick: () => {
@@ -343,7 +348,7 @@ function drawWifi() {
     if (n.connected) {
       d.append(button("Disconnect", () => sendNet({ verb: "leave", ssid: wifi.active || n.ssid }, key)));
     } else if (n.enterprise) {
-      d.append(note("Needs a sign-in this panel cannot ask for", "none"),
+      d.append(note("Needs a sign-in this panel cannot ask for"),
         button("More settings", () => bridge.openTool("network")));
     } else {
       const pw = Object.assign(document.createElement("input"), { type: "password", placeholder: "Password" });
@@ -367,7 +372,7 @@ function drawBlue() {
   const list = $("devs");
   if (!blue.present) { list.replaceChildren(note("No Bluetooth here")); return; }
   if (!blue.on) { list.replaceChildren(note("Bluetooth is off")); return; }
-  const rows = [note("My devices", "label")];
+  const rows = [note("My devices", "hint")];
   if (!blue.paired.length) rows.push(note("None yet — Find devices to pair one"));
   for (const d of blue.paired) {
     const key = `bt:${d.mac}`;
@@ -385,7 +390,7 @@ function drawBlue() {
     rows.push(det);
   }
   if (blue.nearby.length) {
-    rows.push(note("Nearby", "label"));
+    rows.push(note("Nearby", "hint"));
     for (const d of blue.nearby) {
       const key = `bt:${d.mac}`;
       rows.push(row(Icons.bluetooth(false), d.name, open.busy === key ? "PAIRING" : "PAIR", {
@@ -438,7 +443,7 @@ function drawBattery(b, error) {
   $("bat-rows").replaceChildren(...rows);
   // Balanced, performance, power saver — where the machine has a power mode to set.
   $("bat-profiles").replaceChildren(...(b.profiles || []).map((p) => {
-    const btn = button(p.name.replace("power-saver", "Saver").replace(/^./, (c) => c.toUpperCase()), () => bridge.powerProfile(p.name));
+    const btn = button(p.name.replace("power-saver", "Saver").replace(/^./, (c) => c.toUpperCase()), () => bridge.powerProfile(p.name), "");
     if (p.on) btn.classList.add("on");
     return btn;
   }));
@@ -453,14 +458,14 @@ function trayEntries(items, into) {
   for (const e of items) {
     if (e.type === "separator") { into.append(Object.assign(document.createElement("div"), { className: "menu-sep" })); continue; }
     if (e.children && e.children.length) {
-      into.append(Object.assign(document.createElement("div"), { className: "head", textContent: e.label }));
+      into.append(Object.assign(document.createElement("div"), { className: "hint sub", textContent: e.label }));
       const sub = Object.assign(document.createElement("div"), { className: "sub" });
       trayEntries(e.children, sub);
       into.append(sub);
       continue;
     }
     const b = Object.assign(document.createElement("button"), { className: "menu-item" });
-    const mark = Object.assign(document.createElement("span"), { className: "mark" });
+    const mark = Object.assign(document.createElement("span"), { className: "tick" });
     if (e.toggle === "checkmark" && e.state === 1) mark.textContent = "✓";
     if (e.toggle === "radio" && e.state === 1) mark.textContent = "●";
     b.append(mark, Object.assign(document.createElement("span"), { textContent: e.label }));

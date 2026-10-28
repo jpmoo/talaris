@@ -2,7 +2,7 @@
 SPDX-License-Identifier: GPL-3.0-only
 Copyright (c) 2026 Jeff Moore
 
-The theme's values and nothing else — colors, typeface, easing — for anything
+The theme's values and nothing else — colors, typeface, shape, depth, motion — for anything
 that wants Talaris's look without its element styles. The canvas loads only
 this: Talaris's button and form styles would otherwise reach into it and undo
 its own (they pushed its tool icons off center). theme.css imports it.
@@ -32,8 +32,59 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --accent-wash: rgba(201, 138, 91, .14);
   /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
   --danger: #c26b6b;
+  /* Muted tints, for telling kinds apart (people by id, Glance's kinds, Library's file types) beside the accent and danger. */
+  --tint-1: #6f93ad;
+  --tint-2: #7d9c6c;
+  --tint-3: #9c82b4;
+  --tint-4: #b39b5f;
+  --tint-5: #c27a8f;
+  --tint-6: #5fa3a0;
+  --tint-7: #8a95c9;
+  --tint-8: #c99a6b;
   --font: 'Barlow Semi Condensed', system-ui, sans-serif;
+
+  /* Shape. Every corner is one of these: a panel (the bar's panels, toasts,
+     dialogs), a control (icon buttons, menus, pop-ups, cards), a row (list
+     rows, fields, badges, images), a pill (text buttons, chips, segments). */
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --radius-row: 5px;
+  --radius-pill: 14px;
+  --control: 28px;
+  --control-float: 32px;
+
+  /* Depth. A floating thing (menu, pop-up, panel, toast) has the menu shadow;
+     what stands on an edge (the bar, the dock, a drawer) its edge shadow,
+     thrown away from that edge. Behind a dialog, the scrim. */
+  --menu-shadow: 0 8px 22px rgba(0, 0, 0, .38);
+  --edge-shadow: 0 3px 10px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .3);
+  --edge-shadow-up: 0 -3px 10px rgba(0, 0, 0, .45), 0 -1px 2px rgba(0, 0, 0, .3);
+  --scrim: rgba(0, 0, 0, .35);
+  /* All but clear: a layer that must still take a press (the compositor passes clicks through what is fully clear). */
+  --catch: rgba(0, 0, 0, .01);
+
+  /* The accent's tiers: the wash (selected, on), half of it (hover), a strong
+     fill (a mark that must be seen), and a border tinted toward it. */
+  --accent-hover: color-mix(in srgb, var(--accent-wash) 50%, transparent);
+  --accent-strong: color-mix(in srgb, var(--accent) 22%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 55%, var(--line));
+  --danger-wash: color-mix(in srgb, var(--danger) 14%, transparent);
+
+  /* What cannot be pressed, and what is finished. */
+  --disabled: .45;
+  --done: .55;
+
+  /* Motion: how long a hover or a fold takes, and the curves things arrive
+     and leave by (motion.js, the bar, the dock and toasts use the same). */
+  --dur: .12s;
   --ease: cubic-bezier(.2, .8, .2, 1);
+  --ease-exit: cubic-bezier(.5, 0, .9, .4);
+
+  /* What stands over what, inside a page. */
+  --z-sheet: 50;
+  --z-pop: 80;
+  --z-tip: 90;
+  --z-ghost: 999;
 }
 :root[data-mode="light"] {
   --desk: #d9dcdf;
@@ -43,6 +94,11 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --line: #c3c8cd;
   --text: #25292d;
   --muted: #6c7277;
+  --accent-wash: rgba(201, 138, 91, .16);
+  --tint-5: #a45670;
+  --tint-6: #3d817e;
+  --tint-7: #5f6aa6;
+  --tint-8: #9a6d3f;
 }
 
 /* Scrollbars: a thin rule in the line color, lit on hover, no track — here

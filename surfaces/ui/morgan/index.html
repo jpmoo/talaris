@@ -17,80 +17,69 @@
 <head>
 <meta charset="utf-8">
 <title>Morgan</title>
-<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../theme.css">
 <link rel="stylesheet" href="../motion.css">
 <style>
   /* Morgan's names for Talaris's colors; the accent, the line and the text are Talaris's own. */
   :root {
     --bg: var(--desk); --panel: var(--surface); --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
-    --dim: var(--muted); --oracle: #b79a6a;
+    --dim: var(--muted); --oracle: var(--tint-4);
   }
   /* As the launcher: a panel centered over the rest of the screen, which is
      dimmed; a press on the dim puts it away. Full screen, it is the desktop:
      the whole surface, nothing dimmed. */
   /* Clipped here too: otherwise Chromium hands the body's overflow to the
      window, and the body's rounded corners stop clipping its header. */
-  html { background: rgba(0, 0, 0, .01); overflow: hidden; }
-  /* The dim is a button: a press there closes it — the bar's button under it included. */
-  html:not([data-window]) { cursor: pointer; }
-  body { cursor: default; }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  /* The frame takes the panels' opacity; the messages keep their own solid fill. */
-  body { display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) var(--alpha, 100%), transparent); color: var(--text);
-         font: 14px/1.5 var(--font); border: 1px solid var(--frame); border-radius: 12px; overflow: hidden;
-         width: min(560px, calc(100% - 32px)); height: 80vh; margin: 10vh auto 0; box-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
   /* Not quite transparent: a page with no background at all has its body's
      painted across the whole surface, and the rounded corners are lost. */
+  html { background: var(--catch); overflow: hidden; }
+  /* The dim is a button: a press there closes it — the bar's button under it included. */
+  html:not([data-window]) { cursor: pointer; }
+  /* The frame takes the panels' opacity; the messages keep their own solid fill. */
+  body { display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) var(--alpha, 100%), transparent);
+         font: 14px/1.5 var(--font); border: 1px solid var(--frame); border-radius: var(--radius-panel); overflow: hidden;
+         width: min(560px, calc(100% - 32px)); height: 80vh; margin: 10vh auto 0; box-shadow: var(--menu-shadow); }
   /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
   html[data-window] { background: var(--bg); }
   html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
-  textarea, input { font-family: var(--font); }
-  button { font: inherit; color: var(--text); background: none; border: 0; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
-  button:hover { background: var(--raised); }
+  /* What was said can be selected and copied, unlike the rest of Talaris. */
+  main { user-select: text; -webkit-user-select: text; }
   /* The shell's icon font, so that this window and the panel in the bar use the same icons. */
   .ti { font-family: "morgan-icons"; font-size: 17px; line-height: 1; font-style: normal; font-weight: normal; display: inline-block; }
   #stateicon { color: var(--accent); }
+  .icon-btn .ic { width: 16px; height: 16px; }
 
   /* Talaris: no title bar — the bar's button already says who this is and
      what it is doing. A row across the top instead: the state and its meter
      on the left, the controls on the right. */
-  /* As every icon button in Talaris (controls.css .icon-btn): a rounded square, a hairline border. */
-  button.frame { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-                 color: var(--dim); border: 1px solid var(--line); border-radius: 8px; background: transparent; }
-  button.frame:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
-  button.frame[hidden] { display: none; }
   header { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) var(--alpha, 100%), transparent); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
   .controls .name { display: none; }
   .controls .state { color: var(--dim); font-size: 12px; }
   .controls .spacer { flex: 1; }
-  .controls button { padding: 4px 7px; color: var(--dim); }
-  .controls button:hover { color: var(--accent); }
-  .controls button.on { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
 
   /* Earlier conversations, a month at a time: a dot for each conversation on a day. */
-  #calendar { position: fixed; bottom: 104px; right: 14px; width: 300px; z-index: 5; padding: 10px 12px 12px; border-radius: 12px;
-              background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); box-shadow: 0 10px 30px #0008; }
+  #calendar { position: fixed; bottom: 104px; right: 14px; width: 300px; z-index: 5; padding: 10px 12px 12px; border-radius: var(--radius-control);
+              background: var(--panel); border: 1px solid var(--frame); box-shadow: var(--menu-shadow); }
   #calendar[hidden], #daylist[hidden] { display: none; }
-  #calendar .month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   #calendar .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
-  #weekdays span { font-size: 11px; color: var(--dim); padding: 2px 0; }
-  #days button { padding: 4px 0 3px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12.5px; min-height: 36px; }
-  #days button:disabled { cursor: default; color: var(--dim); background: none; }
+  #weekdays span { font-size: 10px; color: var(--dim); padding: 2px 0; }
+  #days button { padding: 4px 0 3px; border: 0; border-radius: var(--radius-row); background: none; color: var(--text);
+                 display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12.5px; min-height: 36px; }
+  #days button:not(:disabled):hover, #days button.picked { background: var(--accent-wash); color: var(--accent); }
+  #days button:disabled { cursor: default; color: var(--dim); }
   #days button.later { opacity: .35; }
   #days button.today { box-shadow: inset 0 0 0 1px var(--accent); }
-  #days button.picked { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   #days .dots { display: flex; gap: 2px; height: 5px; }
   #days .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-  #days .dots b { font-size: 9.5px; line-height: 5px; color: var(--accent); font-weight: 650; }
+  #days .dots b { font-size: 9.5px; line-height: 5px; color: var(--accent); font-weight: 500; }
   #daylist { max-height: 260px; overflow-y: auto; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
-  #daylist .when { font-size: 11px; color: var(--dim); padding: 0 6px 2px; }
-  #daylist button { text-align: left; display: flex; gap: 8px; align-items: baseline; padding: 5px 6px; font-size: 12.5px; }
-  #daylist button small { color: var(--dim); min-width: 4.6em; font-size: 11.5px; }
-  .past { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px; font-size: 12.5px; color: var(--dim);
-          border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); }
-  .past b { color: var(--text); font-weight: 650; } .past .spacer { flex: 1; }
+  #daylist .label { padding: 0 10px 2px; }
+  #daylist .menu-item { align-items: baseline; }
+  #daylist .menu-item small { color: var(--dim); min-width: 4.6em; font-size: 11.5px; }
+  .past { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: var(--radius-control); font-size: 12.5px; color: var(--dim);
+          border: 1px dashed var(--accent-line); }
+  .past b { color: var(--text); font-weight: 500; } .past .spacer { flex: 1; }
   .past.carried { border-style: solid; }
   .divider { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 11px; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -99,17 +88,18 @@
   #nav[hidden], #similar[hidden] { display: none; }
   #nav .side { display: flex; min-width: 0; }
   #nav .side.after { justify-content: flex-end; }
-  #nav .side button { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 8px; font-size: 12px; color: var(--accent); }
-  #nav .side button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #nav .side .t-btn { max-width: 100%; }
+  #nav .side .t-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #nav .side small { color: var(--dim); font-size: 11px; padding: 0 8px; }
   #nav .middle { position: relative; }
-  #alike { display: flex; align-items: center; gap: 4px; font-size: 12px; border: 1px solid var(--line); white-space: nowrap; }
+  #alike { white-space: nowrap; }
   #alike .ti { font-size: 14px; }
   #similar { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: 440px; max-height: 360px; overflow-y: auto; z-index: 5;
-             padding: 6px; border-radius: 12px; background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); box-shadow: 0 10px 30px #0008; }
-  #similar button { width: 100%; text-align: left; display: grid; grid-template-columns: 2.6em 1fr auto; gap: 8px; align-items: baseline; padding: 5px 8px; font-size: 12.5px; }
-  #similar button .score { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11.5px; }
-  #similar button small { color: var(--dim); font-size: 11px; white-space: nowrap; }
+             padding: 4px; border-radius: var(--radius-control); background: var(--panel); border: 1px solid var(--frame); box-shadow: var(--menu-shadow); }
+  #similar .menu-item { align-items: baseline; }
+  #similar .menu-item > span:nth-child(2) { flex: 1; min-width: 0; }
+  #similar .menu-item .score { flex: none; width: 2.6em; color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  #similar .menu-item small { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
   /* Sound is a waveform; thinking is a light going back and forth. */
   #meter { display: flex; align-items: center; gap: 2px; height: 20px; width: 110px; }
@@ -118,79 +108,76 @@
 
   main { flex: 1; overflow-y: auto; padding: 16px 0; }
   .column { max-width: 860px; margin: 0 auto; padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { border: 1px solid var(--line); border-radius: 12px; padding: 9px 13px; background: var(--panel); }
-  .msg.you { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); white-space: pre-wrap; }
-  .msg.writing { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-  .who { font-size: 11px; font-weight: 650; color: var(--dim); display: flex; }
+  .msg { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 9px 13px; background: var(--panel); }
+  .msg.you { background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--panel); border-color: var(--accent-line); white-space: pre-wrap; }
+  .msg.writing { border-color: var(--accent-line); }
+  .who { font-size: 11px; font-weight: 500; color: var(--dim); display: flex; }
   .msg.you .who { color: var(--accent); }
   .who .time { font-weight: 400; color: var(--dim); opacity: .75; margin-left: 8px; font-size: 10.5px; }
-  .who button { padding: 1px 5px; color: var(--dim); } .who button .ti { font-size: 15px; }
+  /* A message's own small controls (copy, the marks): bare glyphs, lit in the accent. */
+  .who button { border: 0; border-radius: var(--radius-row); padding: 1px 5px; color: var(--dim); }
+  .who button:hover { color: var(--accent); }
+  .who button .ti { font-size: 15px; }
   details.oracle summary .ti { font-size: 14px; vertical-align: -2px; margin-right: 4px; }
   .who button:first-of-type { margin-left: auto; }
   .msg.hidden > .body, .msg.hidden > details { opacity: .4; }
-  .review { margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #a3564e; background: #a3564e1f; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
+  .review { margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); border: 1px solid var(--danger); background: var(--danger-wash); font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
   .review .row { display: flex; gap: 8px; align-items: center; } .review .words { flex: 1; display: flex; flex-direction: column; } .review small { color: var(--dim); }
-  .review button { border: 1px solid var(--line); padding: 2px 10px; } .review button.drop { border-color: #a3564e; color: #e2a39c; } .msg.hidden .mark.down, .msg.good .mark.up { background: var(--raised); color: var(--accent); }
+  .msg.hidden .mark.down, .msg.good .mark.up { background: var(--accent-wash); color: var(--accent); }
   .msg.hidden .who::after { content: "hidden from Morgan"; margin-left: 8px; font-weight: 400; font-style: italic; }
   .body > :first-child { margin-top: 2px; } .body > :last-child { margin-bottom: 2px; }
   .body p { margin: .45em 0; } .body ul, .body ol { margin: .45em 0; padding-left: 1.4em; }
-  .body pre { background: #0c0d0e; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; overflow-x: auto; }
-  .body code { font: 12.5px ui-monospace, "JetBrains Mono", monospace; background: #0c0d0e; border-radius: 4px; padding: 1px 4px; }
+  .body pre { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); padding: 9px 11px; overflow-x: auto; }
+  .body code { font: 12.5px ui-monospace, "JetBrains Mono", monospace; background: var(--desk); border-radius: var(--radius-row); padding: 1px 4px; }
   .body pre code { padding: 0; background: none; }
   .body a { color: var(--accent); }
   .body table { border-collapse: collapse; } .body th, .body td { border: 1px solid var(--line); padding: 3px 8px; }
   .body blockquote { margin: .45em 0; padding-left: .8em; border-left: 3px solid var(--line); color: var(--dim); }
 
   /* What the Oracle told Morgan: under the answer, folded away. */
-  details.oracle { margin-top: 8px; border-radius: 8px; background: color-mix(in srgb, var(--oracle) 10%, transparent); }
-  details.oracle summary { cursor: pointer; padding: 4px 9px; font-size: 12px; font-weight: 650; color: var(--oracle); list-style-position: inside; }
+  details.oracle { margin-top: 8px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--oracle) 10%, transparent); }
+  details.oracle summary { cursor: pointer; padding: 4px 9px; font-size: 12px; font-weight: 500; color: var(--oracle); list-style-position: inside; }
   details.oracle .body { padding: 2px 11px 8px; }
 
-  .act { display: flex; gap: 10px; align-items: center; padding: 5px 10px; border-radius: 10px; font-size: 12.5px;
-         border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-  .act .icon { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .act { display: flex; gap: 10px; align-items: center; padding: 5px 10px; border-radius: var(--radius-control); font-size: 12.5px;
+         border: 1px solid var(--accent-line); background: linear-gradient(var(--accent-hover), var(--accent-hover)), var(--panel); }
+  .act .icon { width: 26px; height: 26px; border-radius: var(--radius-row); display: grid; place-items: center; color: var(--accent); background: var(--accent-strong); }
   .act .icon .ti { font-size: 15px; }
-  .act b { font-weight: 650; } .act span { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act b { font-weight: 500; } .act span { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .act .words { min-width: 0; display: flex; flex-direction: column; flex: 1; }
   details.actfold > summary { list-style: none; cursor: pointer; }
   details.actfold > summary::-webkit-details-marker { display: none; }
-  details.actfold .act > .ti { color: var(--dim); font-size: 14px; transform: rotate(-90deg); transition: transform .15s; }
+  details.actfold .act > .ti { color: var(--dim); font-size: 14px; transform: rotate(-90deg); transition: transform var(--dur); }
   details.actfold[open] .act > .ti { transform: none; }
-  details.actfold > .body { margin: 4px 0 2px 36px; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; max-height: 320px; overflow: auto;
-         border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line)); background: var(--panel); }
+  details.actfold > .body { margin: 4px 0 2px 36px; padding: 8px 12px; border-radius: var(--radius-control); font-size: 12.5px; max-height: 320px; overflow: auto;
+         border: 1px solid var(--accent-line); background: var(--panel); }
   details.actfold > .body > :first-child { margin-top: 0; } details.actfold > .body > :last-child { margin-bottom: 0; }
 
   footer { border-top: 1px solid var(--line); background: var(--panel); padding: 10px 0 12px; }
   #chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-  #chips button { border: 1px solid var(--line); font-size: 12px; padding: 2px 8px; }
-  .composer { display: flex; gap: 8px; align-items: flex-end; background: var(--raised); border-radius: 14px; padding: 6px 8px; }
+  .composer { display: flex; gap: 8px; align-items: flex-end; background: var(--raised); border-radius: var(--radius-pill); padding: 6px 8px; }
   /* The composer is the editor (editor.js), so @ works in it: as tall as its words, up to a point. */
   #draft { flex: 1; min-width: 0; align-self: center; cursor: text; }
   #draft .cm-scroller { max-height: 220px; overflow-y: auto; font-family: var(--font); line-height: 1.5; }
   #draft .cm-content { padding: 6px 4px; }
   #draft .cm-placeholder { color: var(--dim); }
-  /* A thing linked in a message sent, as the editor draws it. */
-  .msg .mention { color: var(--accent); background: var(--accent-wash); border-radius: 4px; padding: 0 3px; cursor: pointer; }
-  /* A mention's card (peek.js) here, without controls.css: its buttons drawn as Morgan's. */
-  .peek { --menu-shadow: 0 8px 22px rgba(0, 0, 0, .38); }
-  .peek .t-btn { border: 1px solid var(--line); padding: 2px 10px; margin: 6px 6px 0 0; }
-  .peek .icon-btn { padding: 0 7px; }
-  #mic.on { background: var(--accent); color: #0c0d0e; }
+  /* A thing linked in a message sent, as the editor draws it (kit.css .chip-link). */
+  .msg .chip-link { cursor: pointer; }
+  /* Listening: the microphone lit solid, to be seen from across the room. */
+  #mic.on { background: var(--accent) !important; color: var(--desk) !important; }
   body.dropping main { outline: 2px dashed var(--accent); outline-offset: -8px; }
 /* What Morgan is keeping time for: a row each, across the top while there is any. */
-#timers { display: flex; flex-direction: column; gap: 4px; padding: 6px 16px 8px; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); }
+#timers { display: flex; flex-direction: column; gap: 4px; padding: 6px 16px 8px; border-bottom: 1px solid var(--line); }
 #timers[hidden] { display: none; }
 .timer { display: grid; grid-template-columns: auto 1fr auto auto; grid-template-rows: auto 3px; column-gap: 8px; row-gap: 3px; align-items: center; font-size: 13px; }
 .timer .ti { opacity: .7; }
 .timer .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .timer .when { font-variant-numeric: tabular-nums; opacity: .8; }
-.timer.soon .when { opacity: 1; font-weight: 600; }
-.timer button { border: 0; background: none; color: inherit; opacity: .55; cursor: pointer; font-size: 15px; padding: 0 4px; }
-.timer button:hover { opacity: 1; }
-.timer button.armed { opacity: 1; font-size: 12px; font-weight: 600; color: var(--accent, currentColor); }
+.timer.soon .when { opacity: 1; font-weight: 500; }
+/* Asking ("Cancel it?"), the × takes the width of its words. */
 /* The time left, as a bar that empties. */
 .timer .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: color-mix(in srgb, currentColor 12%, transparent); position: relative; overflow: hidden; }
-.timer .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--left, 0) * 100%); background: var(--accent, currentColor); transition: width 1s linear; }
+.timer .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--left, 0) * 100%); background: var(--accent); transition: width 1s linear; }
 .timer:not(.soon) .bar { display: none; }
 </style>
 <link rel="stylesheet" href="../kit.css">
@@ -203,18 +190,18 @@
     <span class="state" id="state"></span>
     <div id="meter"></div>
     <span class="spacer"></span>
-    <button id="history" title="Earlier conversations, by day"><i class="ti" data-icon="calendar"></i></button>
-    <button id="settings" title="Settings: memory, voice, listening, files, connections"><i class="ti" data-icon="settings"></i></button>
-    <button id="new" title="Start a new conversation"><i class="ti" data-icon="plus"></i></button>
-    <button id="grow" class="frame" title="Full screen"></button>
-    <button id="close" class="frame" title="Close"></button>
+    <button id="history" class="icon-btn" title="Earlier conversations, by day"></button>
+    <button id="settings" class="icon-btn" title="Settings: memory, voice, listening, files, connections"></button>
+    <button id="new" class="icon-btn" title="Start a new conversation"></button>
+    <button id="grow" class="icon-btn" title="Full screen"></button>
+    <button id="close" class="icon-btn" title="Close"></button>
   </div>
 </div></header>
 <div id="timers" hidden></div>
 <main id="scroll"><div class="column" id="log"></div></main>
 <div id="calendar" hidden>
-  <div class="month"><button id="prev" title="The month before"><i class="ti" data-icon="chevron-left"></i></button>
-    <b id="monthname"></b><button id="next" title="The month after"><i class="ti" data-icon="chevron-right"></i></button></div>
+  <div class="kit-mini-head"><button id="prev" class="icon-btn" title="The month before"></button>
+    <span id="monthname" class="m"></span><button id="next" class="icon-btn" title="The month after"></button></div>
   <div class="grid" id="weekdays"></div>
   <div class="grid" id="days"></div>
   <div id="daylist" hidden></div>
@@ -222,15 +209,15 @@
 <footer><div class="column" style="gap:0">
   <div id="nav" hidden>
     <div class="side" id="before"></div>
-    <div class="middle"><button id="alike" title="Other conversations most like this one, the most alike first"><i class="ti" data-icon="list-search"></i> <span id="alikecount">Similar</span> <i class="ti" data-icon="chevron-up"></i></button>
+    <div class="middle"><button id="alike" class="t-btn small" title="Other conversations most like this one, the most alike first"><i class="ti" data-icon="list-search"></i> <span id="alikecount">Similar</span> <i class="ti" data-icon="chevron-up"></i></button>
       <div id="similar" hidden></div></div>
     <div class="side after" id="after"></div>
   </div>
   <div id="chips"></div>
   <div class="composer">
-    <button id="attach" title="Attach files (or drop them on the window)"><i class="ti" data-icon="paperclip"></i></button>
+    <button id="attach" class="icon-btn" title="Attach files (or drop them on the window)"></button>
     <div id="draft"></div>
-    <button id="mic" title="Speak"><i class="ti" id="micicon"></i></button>
+    <button id="mic" class="icon-btn" title="Speak"><i class="ti" id="micicon"></i></button>
   </div>
 </div></footer>
 
@@ -309,7 +296,7 @@ function review(box, t, notes) {
     const row = el("div", "row");
     const words = el("div", "words");
     words.append(el("span", "", entry.note), el("small", "", entry.topic));
-    const keep = el("button", "", "Keep"), drop = el("button", "drop", "Delete");
+    const keep = el("button", "t-btn small", "Keep"), drop = el("button", "t-btn small danger", "Delete");
     const settle = (action) => bridge.call(`settle ${JSON.stringify({ t, topic: entry.topic, note: entry.note, action })}`);
     keep.onclick = () => settle("keep");
     drop.onclick = () => settle("delete");
@@ -412,7 +399,7 @@ function yours(text) {
   let from = 0;
   for (const m of text.matchAll(MENTION)) {
     out.push(text.slice(from, m.index));
-    const chip = el("span", "mention", m[1]);
+    const chip = el("span", "chip-link", m[1]);
     chip.title = "Open its card";
     chip.onclick = () => peek(m[2]);
     out.push(chip);
@@ -534,7 +521,7 @@ function drawTimers() {
     row.dataset.at = t.at;
     row.dataset.made = t.made || "";
     // Asked as everything is asked (kit.js): × first says "Cancel it?"; a second press cancels; kept by key across a redraw.
-    const cancel = Kit.twice(el("button", "", "×"), { key: `timer-${t.id}`, ask: "Cancel it?",
+    const cancel = Kit.twice(Object.assign(el("button", "x-btn"), { innerHTML: Icons.close() }), { key: `timer-${t.id}`, ask: "Cancel it?",
       act: () => bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers) });
     cancel.title = "Cancel it";
     row.append(el("i", "ti", glyph(t.text ? "bell" : "hourglass")), el("span", "what", t.text || "Timer"), el("span", "when"), el("span", "bar"), cancel);
@@ -658,9 +645,13 @@ requestAnimationFrame(draw);
 
 function chips() {
   $("chips").replaceChildren(...files.map((path, index) => {
-    const chip = el("button", "", `${path.split("/").pop()}  ×`);
-    chip.title = `${path} (click to remove)`;
-    chip.onclick = () => { files.splice(index, 1); chips(); };
+    const chip = el("span", "chip");
+    chip.title = path;
+    const remove = el("button", "x-btn");
+    remove.innerHTML = Icons.close();
+    remove.title = "Take it off";
+    remove.onclick = () => { files.splice(index, 1); chips(); };
+    chip.append(el("span", "lbl", path.split("/").pop()), remove);
     return chip;
   }));
 }
@@ -735,6 +726,8 @@ function paintGrow() {
   $("close").title = "Close";
   $("close").hidden = !WINDOW;
 }
+// The fixed controls draw Talaris's icons (icons.js); the microphone and the state keep the shell's font, icons.js having no stop or state glyphs.
+for (const [id, draw] of [["history", Icons.event], ["settings", Icons.settings], ["new", Icons.plus], ["attach", Icons.clip], ["prev", Icons.prev], ["next", Icons.next]]) $(id).innerHTML = draw();
 $("grow").onclick = () => bridge.grow();
 $("close").onclick = () => bridge.closeWindow();
 // A press on the dim, off the panel, puts it away.
@@ -791,7 +784,7 @@ function navigate(found) {
     box.replaceChildren();
     const entry = [...list].sort((a, b) => (earlier ? b.t0 - a.t0 : a.t0 - b.t0))[0];
     if (!entry) { box.append(el("small", "", earlier ? "Nothing before" : "Nothing after")); return; }
-    const link = el("button");
+    const link = el("button", "t-btn small");
     link.title = `${earlier ? "Possibly continues" : "Possibly continued in"} ${entry.title} (${entry.when})${list.length > 1 ? `, and ${list.length - 1} more in the list` : ""}`;
     if (earlier) link.append(icon("arrow-left"), el("span", "", entry.title)); else link.append(el("span", "", entry.title), icon("arrow-right"));
     link.onclick = () => load(entry);
@@ -803,7 +796,7 @@ function navigate(found) {
   const list = $("similar");
   list.replaceChildren();
   for (const entry of found.similar ?? []) {
-    const row = el("button");
+    const row = el("button", "menu-item");
     row.append(el("span", "score", entry.score.toFixed(2)), el("span", "", entry.title), el("small", "", entry.when));
     row.onclick = () => { list.hidden = true; load(entry); };
     list.append(row);
@@ -882,9 +875,9 @@ function month() {
 // A day with several conversations: each, by its time and a few words of what it was about.
 function pick(date, held) {
   const list = $("daylist");
-  list.replaceChildren(el("div", "when", date.toLocaleDateString("en-US", DAY)));
+  list.replaceChildren(el("div", "label", date.toLocaleDateString("en-US", DAY)));
   for (const entry of held) {
-    const row = el("button");
+    const row = el("button", "menu-item");
     row.append(el("small", "", clock(entry.t0)), el("span", "", entry.title));
     row.title = `${entry.exchanges} exchange${entry.exchanges === 1 ? "" : "s"}`;
     row.onclick = () => load(entry);
@@ -909,7 +902,7 @@ function load(entry) {
     const bar = el("div", "past");
     bar.append(icon("history"), el("span", "", `${new Date(found.t0).toLocaleDateString("en-US", DAY)}, ${clock(found.t0)} · `));
     bar.lastChild.append(el("b", "", found.title));
-    const back = el("button", "", "Back to now");
+    const back = el("button", "t-btn small", "Back to now");
     back.onclick = () => recent();
     bar.append(el("span", "spacer"), back);
     add(bar);

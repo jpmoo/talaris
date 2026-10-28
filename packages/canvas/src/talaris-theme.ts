@@ -39,22 +39,21 @@ export function wearTheme(): void {
       --accent-ink: var(--text);
       --font-body: var(--font);
       --font-chrome: var(--font);
-      --postit: #d9c983;
-      --postit-edge: #a8955a;
+      --postit: #d9c983; /* look: what is drawn on the canvas, not its controls */
+      --postit-edge: #a8955a; /* look: what is drawn on the canvas, not its controls */
       /* What a new shape is filled with: a card a step up from the surface. */
-      --shape-fill: #2e3337;
-      --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .45);
-      --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .55);
-      --shadow-color: rgba(0, 0, 0, .45);
-      --radius-control: 8px;
+      --shape-fill: #2e3337; /* look: what is drawn on the canvas, not its controls */
+      --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .45); /* look: what is drawn on the canvas, not its controls */
+      --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .55); /* look: what is drawn on the canvas, not its controls */
+      --shadow-color: rgba(0, 0, 0, .45); /* look: what is drawn on the canvas, not its controls */
     }
     :root[data-mode="light"] {
-      --postit: #fdf3b6;
-      --postit-edge: #d9c56a;
-      --shape-fill: #ffffff;
-      --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .15);
-      --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .2);
-      --shadow-color: rgba(0, 0, 0, .15);
+      --postit: #fdf3b6; /* look: what is drawn on the canvas, not its controls */
+      --postit-edge: #d9c56a; /* look: what is drawn on the canvas, not its controls */
+      --shape-fill: #ffffff; /* look: what is drawn on the canvas, not its controls */
+      --shadow-soft: 2px 3px 8px rgba(0, 0, 0, .15); /* look: what is drawn on the canvas, not its controls */
+      --shadow-lift: 3px 5px 14px rgba(0, 0, 0, .2); /* look: what is drawn on the canvas, not its controls */
+      --shadow-color: rgba(0, 0, 0, .15); /* look: what is drawn on the canvas, not its controls */
     }
     html, body { background: transparent; overflow: hidden; }
     body { color: var(--text); font-family: var(--font); }
@@ -97,7 +96,7 @@ export function wearTheme(): void {
        titled like the drawers, and opened with a double-click. */
     .cv-node.cv-canvascard {
       border: 1px solid var(--accent) !important;
-      border-radius: 10px !important;
+      border-radius: var(--radius-control) !important;
       background: var(--accent-wash) !important;
       box-shadow: none !important;
     }
@@ -110,17 +109,18 @@ export function wearTheme(): void {
 
     /* Rounded is the shape with no name, and every note's sheet otherwise
        gets a 2px corner — so Rounded drew square. It gets its corner here. */
-    .cv-note:not([data-shape]) .cv-paper { border-radius: 12px; }
+    .cv-note:not([data-shape]) .cv-paper { border-radius: 12px; } /* look: the Rounded note shape */
     /* A note's text field is as tall as its text, and the note places it —
        top, middle or bottom. Stretched to the note's height, the field had
        nowhere to be moved to. Taller text than note still scrolls. */
     .cv-note .cv-body > .longtext { flex: 0 1 auto !important; height: auto !important; min-height: 0; max-height: 100%; overflow: auto; }
 
     /* The canvas's own confirmation, dressed like the drawer's; its buttons are controls.css's. */
-    .modal-backdrop { background: rgba(0, 0, 0, .45) !important; backdrop-filter: none !important; }
+    .modal-backdrop { background: var(--scrim) !important; backdrop-filter: none !important; }
     .modal-card { background: var(--surface) !important; color: var(--text); border: 1px solid var(--frame) !important;
-      border-radius: var(--radius-control) !important; box-shadow: var(--menu-shadow) !important; font-family: var(--font); }
-    .modal-title { font-weight: 500 !important; font-size: 15px !important; letter-spacing: 1px; color: var(--text) !important; }
+      border-radius: var(--radius-panel) !important; box-shadow: var(--menu-shadow) !important; font-family: var(--font); }
+    /* Its title in the one heading style (theme.css .label), which the canvas does not load. */
+    .modal-title { font-weight: 400 !important; font-size: 10px !important; letter-spacing: 2px; text-transform: uppercase; color: var(--muted) !important; }
     .modal-message { color: var(--muted) !important; }
 
     /* Only as wide as its six icons. */
@@ -128,11 +128,11 @@ export function wearTheme(): void {
        rather than pushing the rest of the strip down. */
     .tool-menu.shape-row { display: flex; flex-direction: row !important; gap: 4px; padding: 5px; min-width: 0 !important; width: max-content;
       position: absolute; left: 38px; top: -5px; z-index: 2; }
-    .cv-region-add { border-radius: 4px !important; background: transparent !important; border: 1px solid var(--muted) !important; color: var(--muted) !important; }
+    .cv-region-add { border-radius: var(--radius-row) !important; background: transparent !important; border: 1px solid var(--muted) !important; color: var(--muted) !important; }
     .cv-region-add:hover, .cv-region-add.on { border-color: var(--accent) !important; color: var(--accent) !important; }
     .cv-menu-gap { width: 10px; display: inline-block; }
     .cv-missing { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4px;
-      padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); }
+      padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--radius-control); color: var(--muted); }
     .cv-missing-label { font-size: 10px; letter-spacing: 2px; }
   `;
   document.head.append(style);

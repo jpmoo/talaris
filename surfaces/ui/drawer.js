@@ -28,6 +28,19 @@ function el(tag, attrs = {}, ...kids) {
   for (const k of kids) if (k != null && k !== false) e.append(k);
   return e;
 }
+// A button of a few: a text one (.t-btn, `cls` adding small, primary or danger), or an icon one with Icons' drawing and a tip.
+const btn = (label, onclick, cls = "") => el("button", { class: ("t-btn " + cls).trim(), onclick }, label);
+function iconBtn(icon, title, onclick) {
+  const b = el("button", { class: "icon-btn", title, onclick });
+  b.innerHTML = icon;
+  return b;
+}
+// The small × that takes one thing off (controls.css .x-btn).
+function xBtn(title, onclick) {
+  const b = el("button", { class: "x-btn", title, onclick });
+  b.innerHTML = Icons.close();
+  return b;
+}
 // Said as every page says it (kit.js): sentence case; an error in the danger color, until something else is said.
 function status(text, error = false) { Kit.say($("status"), text, error, 0); }
 
@@ -233,7 +246,7 @@ function starredSection(roots, list, keyOf, kept, row, commit) {
 /** The list's order, chosen from a small menu under its button. */
 function sortButton(list, reload) {
   const name = (SORTS.find(([k]) => k === sortOf(list)) || SORTS[0])[1];
-  const b = el("button", { class: "sort-btn", title: "Order the list" }, `${name.toUpperCase()} ▾`);
+  const b = el("button", { class: "t-btn small", title: "Order the list" }, `${name} ▾`);
   b.addEventListener("click", (e) => {
     e.stopPropagation();
     if (Kit.openedBy() === b) { closeMenu(); return; }
@@ -260,7 +273,7 @@ function setTagFilter(tag) {
 }
 function tagFilterButton() {
   const on = tagFilter.get(wpid());
-  const b = el("button", { class: "sort-btn tag-filter" + (on ? " on" : ""), title: on ? `Showing only #${on}` : "Show only pages with a tag" }, on ? `#${on} ▾` : "TAG ▾");
+  const b = el("button", { class: "t-btn small tag-filter" + (on ? " on" : ""), title: on ? `Showing only #${on}` : "Show only pages with a tag" }, on ? `#${on} ▾` : "Tag ▾");
   b.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (Kit.openedBy() === b) { closeMenu(); return; }
@@ -334,7 +347,7 @@ async function drawPageTags() {
     else if (e.key === "Escape") { closeMenu(); input.value = ""; input.blur(); e.stopPropagation(); }
   });
   box.replaceChildren(
-    ...tags.map((t) => el("span", { class: "tag-chip" }, `#${t}`, el("button", { title: `Take off #${t}`, onclick: () => save(tags.filter((x) => x !== t)) }, "×"))),
+    ...tags.map((t) => el("span", { class: "chip" }, el("span", { class: "lbl" }, `#${t}`), xBtn(`Take off #${t}`, () => save(tags.filter((x) => x !== t))))),
     input);
 }
 
@@ -446,15 +459,15 @@ async function loadCanvas() {
   scrollBack(treePane, listKey, top);
   $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
-  const inside = el("button", { onclick: newCanvas }, "New canvas inside");
+  const inside = btn("New canvas inside", newCanvas);
   const node = trail[trail.length - 1];
   const actions = [
     sideToggle(treePane, TREE_KEY, "tree", [inside]),
     " ", inside,
-    " ", el("button", { onclick: () => renameCanvas(node) }, "Rename"),
+    " ", btn("Rename", () => renameCanvas(node)),
   ];
   if (viewing !== tree.id) {
-    actions.push(" ", el("button", { class: "danger", onclick: () => deleteCanvas(node, trail[trail.length - 2]) }, "Delete"));
+    actions.push(" ", btn("Delete", () => deleteCanvas(node, trail[trail.length - 2]), "danger"));
   }
   $("actions").replaceChildren(...actions);
   status("");
@@ -619,7 +632,7 @@ function drawPageFiles() {
     if (!seen.has(path)) seen.set(path, m[1] || path.split("/").pop());
   }
   box.replaceChildren(...(seen.size ? [el("span", { class: "label" }, `FILES · ${seen.size}`),
-    ...[...seen].map(([path, name]) => el("button", { class: "file-chip", title: path, onclick: () => bridge && bridge.openProjectFile(state.project.id, path) }, name))] : []));
+    ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(state.project.id, path) }, name))] : []));
 }
 
 function changed(next) {
@@ -635,12 +648,12 @@ async function drawEditor() {
   if (!host) return;
   host.dataset.mode = mode;
   for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("on", b.dataset.mode === mode);
-  if (!open) { host.replaceChildren(el("div", { class: "empty" }, "Pick a page, or make one")); return; }
+  if (!open) { host.replaceChildren(Kit.empty("Pick a page, or make one")); return; }
   const { createEditor, render } = await editorModules();
   if (mode === "preview") {
     if (editor) { editor.destroy(); editor = null; }
     const view = el("div", { class: "preview" });
-    view.append(text.trim() ? render(text) : el("p", { class: "empty" }, "Nothing written yet"));
+    view.append(text.trim() ? render(text) : Kit.empty("Nothing written yet"));
     // Ticking a box in Preview writes `[ ]` ↔ `[x]` on its line and nothing else.
     for (const box of view.querySelectorAll('input[type="checkbox"]')) {
       box.disabled = false;
@@ -759,7 +772,7 @@ async function drawCalendar() {
   for (let day = 1; day <= count; day++) {
     const date = `${shownMonth}-${pad(day)}`;
     const n = words.get(date);
-    const cls = ["cal-day", n ? "has" : "", date === today() ? "today" : "", date === openDate ? "on" : ""].filter(Boolean).join(" ");
+    const cls = ["cal-day", n ? "has" : "", date === today() ? "today-ring" : "", date === openDate ? "on" : ""].filter(Boolean).join(" ");
     grid.append(el("button", { class: cls, title: n ? `${n} words` : "", onclick: () => edit(`${DAILY}/${date}`) },
       el("span", {}, String(day)), el("small", {}, n ? String(n) : "")));
   }
@@ -767,12 +780,12 @@ async function drawCalendar() {
     el("div", { class: "cal-bar" },
       el("span", { class: "label" }, "DAILY"),
       el("span", { class: "cal-nav" },
-        el("button", { title: "Previous day", onclick: () => edit(`${DAILY}/${step(openDate ?? today(), -1)}`) }, "◂"),
-        el("button", { onclick: () => { shownMonth = today().slice(0, 7); edit(`${DAILY}/${today()}`); } }, "TODAY"),
-        el("button", { title: "Next day", onclick: () => edit(`${DAILY}/${step(openDate ?? today(), 1)}`) }, "▸"))),
+        iconBtn(Icons.prev(), "Previous day", () => edit(`${DAILY}/${step(openDate ?? today(), -1)}`)),
+        btn("Today", () => { shownMonth = today().slice(0, 7); edit(`${DAILY}/${today()}`); }, "small"),
+        iconBtn(Icons.next(), "Next day", () => edit(`${DAILY}/${step(openDate ?? today(), 1)}`)))),
     el("div", { class: "cal-month" },
-      el("button", { class: "flat", onclick: month(-1) }, "‹"), el("span", { class: "label" }, name.toUpperCase()),
-      el("button", { class: "flat", onclick: month(1) }, "›")),
+      iconBtn(Icons.prev(), "Previous month", month(-1)), el("span", { class: "label" }, name.toUpperCase()),
+      iconBtn(Icons.next(), "Next month", month(1))),
     grid);
 }
 
@@ -826,7 +839,7 @@ async function loadWriting() {
     return wrap;
   };
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
-  const tabs = el("div", { class: "wtabs", role: "tablist" },
+  const tabs = el("div", { class: "seg wtabs", role: "tablist" },
     tab("project", inHome() ? "Home" : state.project.name, "This project's own pages"),
     tab("daily", "Daily", "Home's daily pages"),
     tab("undated", "Pages", "Home's pages of no other project — the same from every project"));
@@ -842,11 +855,11 @@ async function loadWriting() {
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
     dailyOn ? "" : filterTag ? taggedList(pages, filterPaths)
       : pages.length ? branch(pages, root) : Kit.empty("No pages yet"));
-  const modes = el("div", { class: "modes", id: "modes" },
+  const modes = el("div", { class: "seg modes", id: "modes" },
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
   // a thing done to the page, so apart from the ways of seeing it.
-  const attach = el("button", { class: "attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "ATTACH");
+  const attach = el("button", { class: "t-btn small attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "Attach");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
@@ -857,7 +870,7 @@ async function loadWriting() {
   scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
-  if (!dailyOn) actions.push(" ", el("button", { onclick: () => newPage(scope === "undated" ? PAGES : null) }, "New page"));
+  if (!dailyOn) actions.push(" ", btn("New page", () => newPage(scope === "undated" ? PAGES : null)));
   // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
   if (scope === "undated" && window.Peek) {
     actions.push(" ", Peek.actionButtons("notes", null, core, ""));
@@ -869,12 +882,12 @@ async function loadWriting() {
     const here = { path: open, title: open.split("/").pop() };
     // Across: from this project to Home's Pages, or from them into this project.
     const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Pages";
-    actions.push(" ", el("button", { onclick: () => newPage(open) }, "New page inside"),
-      " ", el("button", { onclick: () => renamePage(here) }, "Rename"),
-      " ", el("button", { onclick: () => transfer(false) }, `Move to ${other}`),
+    actions.push(" ", btn("New page inside", () => newPage(open)),
+      " ", btn("Rename", () => renamePage(here)),
+      " ", btn(`Move to ${other}`, () => transfer(false)),
       // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
-      " ", el("button", { title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
-      " ", el("button", { class: "danger", onclick: deletePage }, "Delete"));
+      " ", el("button", { class: "t-btn", title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
+      " ", btn("Delete", deletePage, "danger"));
   }
   // Glance on the page open: what it is connected to, and possible connections.
   if (open && window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`page:${wpid()}/${open}`, (k) => bridge.glanceAt(k), ""));
@@ -917,7 +930,7 @@ async function edit(path) {
  * its Markdown), or the theme's. The words take a dark or a light ink as the
  * paper is light or dark.
  */
-const PAPERS = ["#fdfaf3", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#2b2a28", "#1f2a33"];
+const PAPERS = ["#fdfaf3", "#fdf3d8", "#e7f1e4", "#e3edf5", "#f5e3e7", "#ece5f6", "#2b2a28", "#1f2a33"]; // look: a page's own paper and ink
 let paperOf = null; // the page whose paper is on show
 function wearPaper(color) {
   const s = document.body.style;
@@ -925,7 +938,7 @@ function wearPaper(color) {
   const n = parseInt(color.slice(1), 16);
   const light = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 140;
   s.setProperty("--page-paper", color);
-  s.setProperty("--page-ink", light ? "#26241f" : "#e8e6e1");
+  s.setProperty("--page-ink", light ? "#26241f" : "#e8e6e1"); // look: a page's own paper and ink
 }
 async function paperFor(path) {
   if (!path || state.drawer !== "writing") return;
@@ -1032,15 +1045,15 @@ function deletePage() {
  * refuses is said here in its words, and nothing is deleted.
  */
 function confirmDelete(title, detail, act, label = "Delete") {
-  const said = el("p", { class: "said" });
+  const said = el("p", { class: "err" });
   const close = () => sheet.remove();
-  const yes = el("button", { class: "danger" }, label);
-  const sheet = el("div", { class: "confirm", role: "dialog" },
-    el("div", { class: "box" },
-      el("div", { class: "title" }, title),
+  const yes = btn(label, null, "danger");
+  const sheet = el("div", { class: "kit-scrim", role: "dialog" },
+    el("div", { class: "kit-sheet" },
+      el("div", { class: "label" }, title),
       el("p", {}, detail),
       said,
-      el("div", { class: "buttons" }, el("button", { onclick: close }, "Cancel"), " ", yes)));
+      el("div", { class: "kit-foot" }, btn("Cancel", close), yes)));
   yes.addEventListener("click", async () => {
     try {
       // An act may answer with a second question (there is more beneath it): asked once this one is gone.
@@ -1059,15 +1072,15 @@ function confirmDelete(title, detail, act, label = "Delete") {
 
 // A name asked for in the same sheet: Enter keeps it, Escape leaves it.
 function askName(title, value, act) {
-  const said = el("p", { class: "said" });
+  const said = el("p", { class: "err" });
   const close = () => sheet.remove();
-  const input = el("input", { class: "name", type: "text", value, spellcheck: "false" });
-  const yes = el("button", { class: "primary" }, "Rename");
-  const sheet = el("div", { class: "confirm", role: "dialog" },
-    el("div", { class: "box" },
-      el("div", { class: "title" }, title),
+  const input = el("input", { type: "text", value, spellcheck: "false" });
+  const yes = btn("Rename", null, "primary");
+  const sheet = el("div", { class: "kit-scrim", role: "dialog" },
+    el("div", { class: "kit-sheet" },
+      el("div", { class: "label" }, title),
       input, said,
-      el("div", { class: "buttons" }, el("button", { onclick: close }, "Cancel"), " ", yes)));
+      el("div", { class: "kit-foot" }, btn("Cancel", close), yes)));
   const go = async () => {
     const name = input.value.trim();
     if (!name || name === value) { close(); return; }
@@ -1108,7 +1121,7 @@ addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || state.mode !== "pulled") return;
   // A confirmation takes Escape to cancel; only an Escape nothing else wanted
   // puts the drawer away.
-  if (e.target.closest && e.target.closest(".confirm")) return;
+  if (e.target.closest && e.target.closest(".kit-scrim")) return;
   e.preventDefault();
   if (saveTimer) save();
   bridge.file();
@@ -1120,7 +1133,7 @@ $("tuck").addEventListener("click", () => { if (saveTimer) save(); bridge && bri
 $("grow").addEventListener("click", () => { if (saveTimer) save(); if (bridge) (WINDOW ? bridge.closeWindow() : bridge.grow()); });
 // A press on the dim, off the panel, puts it away (and from Qt, which hears every press).
 // Its menus and dialogs, drawn outside the panel's box, are the panel's too.
-const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel, .kit-pop, .confirm, .menu");
+const offPanel = (target) => !WINDOW && state.mode === "expanded" && target && !target.closest("#panel, .kit-pop, .kit-scrim, .menu");
 document.addEventListener("pointerdown", (e) => { if (bridge && offPanel(e.target)) { if (saveTimer) save(); bridge.file(); } });
 window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(x, y))) { if (saveTimer) save(); bridge.file(); } };
 /*
@@ -1129,8 +1142,7 @@ window.pressedAt = (x, y) => { if (bridge && offPanel(document.elementFromPoint(
  * canvas, in its own frame, has its own menu.
  */
 // The colors words may take: Google's and Outlook's own, and the accents (as calendars).
-const TEXT_COLORS = ["#d50000", "#e67c73", "#f4511e", "#f6bf26", "#33b679", "#0b8043", "#039be5", "#3f51b5", "#7986cb", "#8e24aa", "#616161",
-  "#c98a5b", "#8aa878", "#7f9fbf", "#c7a55a", "#b97f8e"];
+const TEXT_COLORS = Palette.COLORS;
 // One pop-up at a time, the kit's (kit.js): placed, kept on screen, put away by a press elsewhere, a scroll or Escape.
 const closeMenu = () => Kit.popAway();
 
@@ -1143,7 +1155,7 @@ const closeMenu = () => Kit.popAway();
 const KIND_WORD = { contact: "Person", task: "Task", event: "Event", note: "Page", page: "Page", canvas: "Canvas", project: "Project" };
 function connectMenu(anchor) {
   closeMenu();
-  const q = el("input", { type: "text", class: "cn-q", placeholder: "Find a person, task, page, project…", spellcheck: "false" });
+  const q = el("input", { type: "search", class: "cn-q", placeholder: "Find a person, task, page, project…", spellcheck: "false" });
   const list = el("div", {});
   Kit.pop(anchor, el("div", { class: "cn-menu" }, q, list));
   q.focus();
@@ -1155,7 +1167,7 @@ function connectMenu(anchor) {
     const shown = (rows || []).filter((x) => !(x.kind === "page" && x.project === wpid() && x.where === open));
     list.replaceChildren(...(shown.length ? shown.map((x) => el("button", { class: "menu-item", title: x.projectName ? `${x.title} — ${x.projectName}` : x.title,
       onclick: () => { closeMenu(); connectPage(x); } }, el("span", { class: "tg" }, x.title), el("span", { class: "n" }, KIND_WORD[x.kind] || "Thing")))
-      : [el("div", { class: "menu-item off" }, "Nothing by that name")]));
+      : [Kit.empty("Nothing by that name")]));
   };
   let timer = null;
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, Kit.SEARCH_MS); });

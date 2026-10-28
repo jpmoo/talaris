@@ -18,14 +18,14 @@
   const REST_MS = 500;
   let over = null, timer = 0, showing = false;
   const tip = document.createElement("div");
-  tip.className = "page-tip";
+  tip.className = "page-tip kit-tip";
   tip.hidden = true;
   const style = document.createElement("style");
   style.textContent = `
-    /* As the bar's and the dock's (tip.py): the theme's surface, frame and text, 13px, a 5px corner, no shadow. */
-    .page-tip { position: fixed; z-index: 1000; max-width: 320px; padding: 4px 9px; border-radius: 5px; pointer-events: none;
-      background: var(--surface, #222528); color: var(--text, #d5d9dc); border: 1px solid var(--frame, #3a3f44);
-      font: 13px/1.3 var(--font, "Barlow Semi Condensed", system-ui, sans-serif); white-space: pre-line; }
+    /* The kit's tooltip (.kit-tip), restated for the pages that load only tokens.css (the canvas, notify). */
+    .page-tip { position: fixed; z-index: var(--z-tip); max-width: 320px; padding: 4px 8px; border-radius: var(--radius-row); pointer-events: none;
+      background: var(--surface); color: var(--text); border: 1px solid var(--frame); box-shadow: var(--menu-shadow);
+      font: 12.5px/1.3 var(--font); white-space: pre-line; }
     .page-tip[hidden] { display: none; }`;
   const ready = () => { document.head.append(style); document.body.append(tip); };
   if (document.body) ready(); else addEventListener("DOMContentLoaded", ready);

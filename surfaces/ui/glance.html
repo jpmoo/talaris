@@ -21,13 +21,13 @@ Tasks and People; a window by its grow button.
 #refresh { display: inline-flex; align-items: center; justify-content: center; }
 #refresh svg { width: 13px; height: 13px; }
 /* As Tasks' and People's: a panel over the dimmed screen; a window, the whole surface. */
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; }
+html { background: var(--catch); overflow: hidden; height: 100%; }
 /* The dim is a button: a press there closes it — the bar's button under it included. */
 html:not([data-window]) { cursor: pointer; }
 body { cursor: default; position: relative; }
 body {
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
@@ -35,15 +35,12 @@ html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
 /* The kinds' colors, for the graph's dots and the legend. Pages wear the
-   accent; the rest fixed, muted hues, a shade darker on a light ground so
-   they hold against it. The canvas reads them resolved (glance.js, palette). */
+   accent; four kinds the theme's tints (tokens.css); the four the tints run
+   out before, fixed muted hues of their own, a shade darker on a light ground
+   so they hold against it. The canvas reads them resolved (glance.js, palette). */
 :root {
-  --k-page: var(--accent); --k-canvas: #6f93ad; --k-task: #7d9c6c; --k-file: #b39b5f;
-  --k-contact: #9c82b4; --k-event: #c27a8f; --k-note: #5fa3a0; --k-project: #8a95c9; --k-conversation: #c99a6b; --k-other: var(--muted);
-}
-:root[data-mode="light"] {
-  --k-canvas: #4f7590; --k-task: #5c7d4c; --k-file: #8f7739;
-  --k-contact: #7a5f94; --k-event: #a45670; --k-note: #3d817e; --k-project: #5f6aa6; --k-conversation: #9a6d3f;
+  --k-page: var(--accent); --k-canvas: var(--tint-1); --k-task: var(--tint-2); --k-file: var(--tint-4); --k-contact: var(--tint-3);
+  --k-event: var(--tint-5); --k-note: var(--tint-6); --k-project: var(--tint-7); --k-conversation: var(--tint-8); --k-other: var(--muted);
 }
 
 header { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
@@ -54,52 +51,40 @@ header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spaci
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
 header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
-header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
 header .seg { flex: none; }
-header .seg button { padding: 2px 10px !important; font-size: 12px; }
 #msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #msg.err { color: var(--danger); }
-#q { width: 200px; flex: 0 1 200px; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
-.tog.on { background: var(--accent-wash) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+#q { width: 200px; flex: 0 1 200px; min-width: 90px; font-size: 12.5px; }
 
-/* The kinds, each a toggle with its count. */
+/* The kinds, each a toggle (a chip) with its count. */
 #kinds { flex-wrap: wrap; gap: 4px; }
-.kchip { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 11.5px; padding: 1px 9px; border-radius: 10px; cursor: pointer;
-         border: 1px solid var(--line); background: transparent; color: var(--muted); }
+.kchip { gap: 5px; }
 .kchip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .kchip .n { font-variant-numeric: tabular-nums; opacity: .8; }
-.kchip.on { color: var(--text); border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: var(--accent-wash); }
 .kchip:not(.on) .dot { opacity: .35; }
-.kchip:hover { color: var(--accent); }
-.kchip.none { opacity: .45; }
+.kchip.none { opacity: var(--disabled); }
 
 main { flex: 1; min-height: 0; display: flex; position: relative; }
 main > [hidden] { display: none !important; }
-.empty { color: var(--muted); padding: 24px; font-size: 13px; }
 
 /* The list: grouped by kind. */
 #list { flex: 1; overflow: auto; padding-bottom: 10px; }
 .ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
 .ghead:hover { color: var(--text); }
-.ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
-.ghead.folded .caret { transform: rotate(-90deg); }
 .ghead .n { letter-spacing: 0; }
 .grow-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row);
             padding: 4px 14px; color: color-mix(in srgb, var(--text) 72%, var(--muted)); cursor: pointer; font: inherit; font-size: 13px; }
 .grow-row.own { color: var(--text); }
-.grow-row:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); color: var(--accent); }
+.grow-row:hover { background: var(--accent-hover); }
 .grow-row .ki { flex: none; width: 14px; height: 14px; color: var(--muted); display: inline-flex; }
 .grow-row .ki svg { width: 14px; height: 14px; display: block; }
-.grow-row:hover .ki { color: inherit; }
 /* Its own, by a dot; one step out, by its absence and a quieter line. */
 .grow-row .mine { width: 5px; height: 5px; border-radius: 50%; flex: none; background: transparent; }
 .grow-row.own .mine { background: var(--accent); }
 .grow-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grow-row .how { color: var(--muted); font-size: 11px; white-space: nowrap; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
-.grow-row:hover .how { color: inherit; }
 .more { display: flex; gap: 6px; margin: 4px 14px 0 36px; }
 .more:empty { display: none; }
-.more .t-btn { font-size: 11.5px; padding: 1px 9px; }
 
 /* The graph: a canvas over the whole of main. */
 #graph { flex: 1; position: relative; overflow: hidden; }
@@ -109,23 +94,21 @@ main > [hidden] { display: none !important; }
 #steps { flex: none; }
 #steps .steps-l { font-size: 11px; color: var(--muted); padding: 0 6px 0 8px; align-self: center; }
 #steps button { min-width: 24px; }
-#fit { position: absolute; top: 10px; right: 12px; font-size: 11.5px; padding: 1px 10px; }
-#reset { position: absolute; top: 10px; right: 58px; font-size: 11.5px; padding: 1px 10px; }
-#display-btn { position: absolute; top: 10px; right: 120px; font-size: 11.5px; padding: 1px 10px; }
-#display-btn.on { border-color: var(--accent); color: var(--accent); }
-/* The graph's look and pull, changed live: a panel over its top right. */
-#display { position: absolute; top: 40px; right: 12px; width: 270px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
-  background: var(--surface); border: 1px solid var(--frame); border-radius: 10px; box-shadow: var(--menu-shadow); font-size: 12px; z-index: 5; }
+#gbtns { position: absolute; top: 10px; right: 12px; display: flex; gap: 6px; }
+/* The graph's look and pull, changed live: a pop-up over its top right. */
+#display { position: absolute; top: 40px; right: 12px; width: 300px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-control);
+  box-shadow: var(--menu-shadow); font-size: 12px; z-index: var(--z-pop); }
 #display[hidden] { display: none; }
 #display .drow { display: grid; grid-template-columns: 92px 1fr 42px; align-items: center; gap: 8px; color: var(--text); }
 #display .dl { color: var(--muted); }
 #display .dv { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
-#display input[type=range] { width: 100%; accent-color: var(--accent); }
-#display .dseg { grid-column: 2 / 4; display: inline-flex; gap: 2px; }
-#display .dseg button { font-size: 11.5px; padding: 1px 8px; white-space: nowrap; }
+#display input[type=range] { width: 100%; }
+#display .dseg { grid-column: 2 / 4; justify-self: start; }
+#display .dseg button { white-space: nowrap; }
 #display .dacts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
-#gtip { position: absolute; z-index: 5; pointer-events: none; max-width: 300px; padding: 4px 9px; border-radius: 5px;
-        background: var(--surface); color: var(--text); border: 1px solid var(--frame); font-size: 12.5px; line-height: 1.3; }
+/* The kit's tooltip (.kit-tip), placed in the graph's own coordinates. */
+#gtip { position: absolute; max-width: 300px; line-height: 1.3; }
 #gtip[hidden] { display: none; }
 #gtip .how { color: var(--muted); font-size: 11.5px; }
 #legend { position: absolute; left: 12px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--muted); pointer-events: none; max-width: calc(100% - 24px); }
@@ -137,7 +120,7 @@ main > [hidden] { display: none !important; }
 /* The walk so far, when it has left the project: each step back is a press. */
 #trail { gap: 2px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
 #trail[hidden] { display: none; }
-#trail button { background: none; border: 0; padding: 1px 5px; border-radius: 5px; color: var(--muted); font: inherit; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#trail button { background: none; border: 0; padding: 1px 5px; border-radius: var(--radius-row); color: var(--muted); font: inherit; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #trail button:hover { color: var(--accent); background: var(--accent-wash); }
 #trail .here { color: var(--text); padding: 1px 5px; }
 #trail .sep { opacity: .6; }
@@ -148,7 +131,8 @@ main > [hidden] { display: none !important; }
 #sugg .shead { display: flex; align-items: center; gap: 6px; padding: 4px 12px 6px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 #sugg .shead .t { flex: 1; cursor: pointer; user-select: none; }
 #sugg .shead .t:hover { color: var(--text); }
-#sugg .shead button { letter-spacing: 0; text-transform: none; font-size: 11px; padding: 0 7px; }
+#sugg .shead .n { margin-left: 6px; letter-spacing: 0; }
+#sugg .shead button { letter-spacing: 0; text-transform: none; }
 #sugg.folded .sbody, #sugg.folded .shead button { display: none; }
 #sugg.folded .shead { writing-mode: vertical-rl; padding: 10px 6px; }
 .srow { padding: 6px 12px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
@@ -158,13 +142,8 @@ main > [hidden] { display: none !important; }
 .srow .title { text-transform: none; letter-spacing: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; background: none; border: 0; padding: 0;
   color: var(--text); text-align: left; font: inherit; cursor: pointer; }
 .srow .title:hover { color: var(--accent); }
-.srow .no { flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
-.srow .no:hover { color: var(--danger); }
 .srow .why { font-size: 11px; color: var(--muted); margin: 2px 0 4px 21px; line-height: 1.35; }
 .srow .ways { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 21px; }
-.srow .ways .t-btn { font-size: 11px; padding: 0 8px; }
-.srow .ways .t-btn.armed { border-color: var(--danger); color: var(--danger); }
-#sugg .none { color: var(--muted); font-size: 12px; padding: 6px 12px; }
 /* Out of sight, read for its resolved colors. */
 #probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
 
@@ -178,8 +157,8 @@ main > [hidden] { display: none !important; }
     <h1>Glance</h1>
     <span id="proj"></span>
     <span class="seg" id="view"></span>
-    <input type="text" id="q" placeholder="Find" spellcheck="false">
-    <button class="t-btn tog" id="mine" title="Only the project's own things, not what they touch">Mine only</button>
+    <input type="search" id="q" placeholder="Find" spellcheck="false">
+    <button class="t-btn" id="mine" title="Only the project's own things, not what they touch">Mine only</button>
     <span class="seg" id="steps"></span>
     <span id="msg"></span>
     <span class="spacer"></span>
@@ -194,13 +173,15 @@ main > [hidden] { display: none !important; }
   <section id="list"></section>
   <section id="graph" hidden>
     <canvas id="cv"></canvas>
-    <button class="t-btn" id="display-btn" title="Size, distance, repulsion, gravity, labels">Display</button>
-    <button class="t-btn" id="reset" title="Back to the project this desktop is">Reset</button>
-    <button class="t-btn" id="fit" title="Everything in view, the one in the middle centred">Fit</button>
+    <div id="gbtns">
+      <button class="t-btn small" id="display-btn" title="Size, distance, repulsion, gravity, labels">Display</button>
+      <button class="t-btn small" id="reset" title="Back to the project this desktop is">Reset</button>
+      <button class="t-btn small" id="fit" title="Everything in view, the one in the middle centred">Fit</button>
+    </div>
     <div id="display" hidden></div>
     <div id="legend"></div>
-    <div id="gtip" hidden></div>
-    <div id="gempty" class="empty" hidden></div>
+    <div id="gtip" class="kit-tip" hidden></div>
+    <div id="gempty" class="kit-empty" hidden></div>
   </section>
   <aside id="sugg" hidden></aside>
 </main>

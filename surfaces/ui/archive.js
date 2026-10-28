@@ -61,7 +61,7 @@
       const by = new Map();
       for (const h of hits) by.set(h.project, [...(by.get(h.project) || []), h]);
       side.replaceChildren(...[...by].flatMap(([pid, list]) => [
-        el("div", { class: "month" }, list[0].projectName),
+        el("div", { class: "label month" }, list[0].projectName),
         ...list.map((h) => el("button", { class: "proj hit", onclick: () => choose(pid, h) },
           el("span", {}, h.title), el("small", {}, h.snippet ? `…${h.snippet}…` : h.kind === "file" ? h.where : h.kind))),
       ]));
@@ -73,7 +73,7 @@
     for (const r of rows) {
       const y = r.archived.slice(0, 4), m = MONTHS(r.archived);
       if (y !== year) { out.push(el("div", { class: "year" }, y)); year = y; month = ""; }
-      if (m !== month) { out.push(el("div", { class: "month" }, m)); month = m; }
+      if (m !== month) { out.push(el("div", { class: "label month" }, m)); month = m; }
       out.push(el("button", { class: "proj" + (chosen && chosen.project.id === r.id ? " on" : ""), onclick: () => choose(r.id) },
         el("span", {}, r.name), el("small", {}, `${r.code} · ${r.pages} page${r.pages === 1 ? "" : "s"} · ${r.files} file${r.files === 1 ? "" : "s"}`)));
     }
@@ -117,7 +117,7 @@
 
   function drawDetail() {
     const d = $("detail");
-    if (!chosen) { d.replaceChildren(el("div", { class: "empty" }, "Choose an archived project to read it, or search them all.")); return; }
+    if (!chosen) { d.replaceChildren(Kit.empty("Choose an archived project to read it, or search them all")); return; }
     const p = chosen.project;
     const pageTree = (nodes) => el("div", {}, ...nodes.map((n) => el("div", {},
       el("button", { class: "item", onclick: () => readPage(n.path) }, el("span", {}, n.title)),
@@ -129,11 +129,11 @@
       el("div", { class: "meta" }, `${p.code} · made ${day(p.created)} · archived ${day(p.archived)} · ${p.folder}`),
       decide,
       el("div", { class: "acts" }, el("button", { class: "t-btn", onclick: () => restore({}) }, "Bring it back")),
-      el("div", { class: "sec" }, `Pages · ${countPages(chosen.pages)}`),
+      el("div", { class: "label sec" }, "Pages", el("span", { class: "n" }, String(countPages(chosen.pages)))),
       chosen.pages.length ? pageTree(chosen.pages) : el("div", { class: "meta" }, "None"),
-      el("div", { class: "sec" }, `Canvases · ${chosen.canvases.length}`),
+      el("div", { class: "label sec" }, "Canvases", el("span", { class: "n" }, String(chosen.canvases.length))),
       ...chosen.canvases.map((c) => el("button", { class: "item", onclick: () => readCanvas(c.id) }, el("span", {}, c.title), el("small", {}, `${c.items} thing${c.items === 1 ? "" : "s"} on it`))),
-      el("div", { class: "sec" }, `Files · ${chosen.files.length}`),
+      el("div", { class: "label sec" }, "Files", el("span", { class: "n" }, String(chosen.files.length))),
       ...(chosen.files.length ? chosen.files.map((f) => el("button", { class: "item", title: "Open it", onclick: () => bridge.openProjectFile(p.id, f) }, el("span", {}, f.split("/").pop()), el("small", {}, f))) : [el("div", { class: "meta" }, "None")]),
       reader);
   }
@@ -141,7 +141,7 @@
 
   function showReader(title, body) {
     reader.hidden = false;
-    reader.replaceChildren(el("div", { class: "rhead" }, el("span", { class: "t" }, title), el("span", { class: "ro" }, "Archived · read only"),
+    reader.replaceChildren(el("div", { class: "rhead" }, el("span", { class: "t" }, title), el("span", { class: "label ro" }, "Archived · read only"),
       el("button", { class: "t-btn", onclick: () => { reader.hidden = true; } }, "Close")), body);
     reader.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -171,7 +171,7 @@
     if (r.done) {
       say("");
       const into = r.merged ? r.project : null;
-      decide.replaceChildren(el("div", { class: "sheet" },
+      decide.replaceChildren(el("div", { class: "kit-ask-box sheet" },
         el("p", {}, into ? `Merged into ${into.name}.${r.merged.setAside ? " What was set aside is in its .talaris/merged-away folder." : ""}` : `${r.project.name} is back.`),
         el("button", { class: "t-btn", onclick: () => bridge.goProject(r.project.id) }, "Go to it")));
       rows = rows.filter((x) => x.id !== p.id);
@@ -181,7 +181,7 @@
     say("");
     // A project in use has its name: keep both, or merge — and for a merge, each clash decided.
     if (!r.conflicts) {
-      decide.replaceChildren(el("div", { class: "sheet" },
+      decide.replaceChildren(el("div", { class: "kit-ask-box sheet" },
         el("p", {}, `A project called ${r.clash.name} is in use.`),
         el("div", { class: "acts" },
           el("button", { class: "t-btn", onclick: () => restore({ mode: "both" }) }, "Keep both"),
@@ -198,11 +198,11 @@
       const page = /^Writing\/(.+)\.md$/.exec(c);
       return el("div", { class: "conf" }, el("span", { class: "path" }, page ? `Page · ${page[1].split("/").join(" / ")}` : c), host);
     };
-    decide.replaceChildren(el("div", { class: "sheet" },
+    decide.replaceChildren(el("div", { class: "kit-ask-box sheet" },
       el("p", {}, `Both have ${r.conflicts.length === 1 ? "this" : `these ${r.conflicts.length}`}. Whatever is not kept is set aside in ${r.clash.name}'s .talaris/merged-away folder, not deleted.`),
       ...r.conflicts.map(line),
       el("div", { class: "acts", style: "margin-top:10px" },
-        el("button", { class: "t-btn", onclick: () => restore({ mode: "merge", decisions }) }, "Merge"),
+        el("button", { class: "t-btn primary", onclick: () => restore({ mode: "merge", decisions }) }, "Merge"),
         el("button", { class: "t-btn", onclick: () => decide.replaceChildren() }, "Cancel"))));
   }
 

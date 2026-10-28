@@ -20,13 +20,13 @@ page's three parts and what each may call are in TASKS-CONTRACT.md.
 <link rel="stylesheet" href="taskviews.css">
 <style>
 /* As the calendar's: a panel over the dimmed screen; a window, the whole surface. */
-html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; }
+html { background: var(--catch); overflow: hidden; height: 100%; }
 /* The dim is a button: a press there closes it — the bar's button under it included. */
 html:not([data-window]) { cursor: pointer; }
 body { cursor: default; position: relative; }
 body {
   width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
   box-shadow: var(--menu-shadow); overflow: hidden;
 }
 /* A window: the whole of it, no dim, no frame of its own — Hyprland draws one. */
@@ -37,7 +37,7 @@ header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; borde
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
-#search { width: 190px; flex: 0 1 190px; min-width: 90px; padding: 4px 10px; font-size: 12.5px; }
+#search { width: 190px; flex: 0 1 190px; min-width: 90px; font-size: 12.5px; }
 header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
 header .icon-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
 header .icon-btn.on { color: var(--accent) !important; }
@@ -50,16 +50,16 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 
 /* The left column: lists, then projects. */
 #side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px 8px; overflow: auto; font-size: 13px; }
-#side h3 { display: flex; align-items: center; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 16px 4px 6px; font-weight: 500; }
+#side h3 { display: flex; align-items: center; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 16px 4px 6px; font-weight: 400; }
 #side h3:first-child { margin-top: 0; }
 #side h3 span { flex: 1; }
 .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; }
 .add:hover { color: var(--accent); background: var(--accent-wash); }
 .item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--radius-row); cursor: pointer; }
 .item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item:hover { background: color-mix(in srgb, var(--accent-wash) 60%, transparent); }
+.item:hover { background: var(--accent-hover); }
 .item.on { background: var(--accent-wash); color: var(--accent); }
-.item input, #side .new { width: 100%; padding: 3px 6px; font-size: 13px; }
+.item input, #side .new { width: 100%; font-size: 13px; }
 
 /* The right: quick add over what is shown. */
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -67,18 +67,15 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #quick { width: 100%; font-size: 13px; }
 #quick .cm-content { padding: 5px 8px; }
 #rows { flex: 1; min-height: 0; overflow: auto; }
-.empty { color: var(--muted); padding: 24px; font-size: 13px; }
 
 /* The list view. */
 .list { display: flex; flex-direction: column; }
 .ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
 .ghead:hover { color: var(--text); }
-.ghead .caret { display: inline-block; transition: transform .12s; font-size: 9px; }
-.ghead.folded .caret { transform: rotate(-90deg); }
 .ghead .n { letter-spacing: 0; }
 .row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 14px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); cursor: pointer; }
-.row:hover { background: color-mix(in srgb, var(--accent-wash) 50%, transparent); }
-.row.on { background: var(--accent-wash); }
+.row:hover { background: var(--accent-hover); }
+.row.on { background: var(--accent-wash); color: var(--accent); }
 .row .num { color: var(--muted); font-size: 12px; min-width: 18px; text-align: right; padding-top: 1px; font-variant-numeric: tabular-nums; }
 .r-main { flex: 1; min-width: 0; }
 .r-title { font-size: 13.5px; overflow-wrap: anywhere; }
@@ -86,20 +83,17 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
 .meta .overdue { color: var(--danger); }
 .row.done .r-title { text-decoration: line-through; color: var(--muted); }
-.row.done { opacity: .6; }
+.row.done { opacity: var(--done); }
 .fmt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 12px; }
 .fmt-cards .ghead { grid-column: 1 / -1; padding: 6px 2px 0; }
 .fmt-cards .row { border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); padding: 10px 12px; }
 
-/* A task's status: a round checkbox, or a chip in its color. */
+/* A task's status: a round checkbox, or a chip in its color (.tv-status, taskviews.css). */
 .check { width: 16px; height: 16px; flex: none; margin-top: 2px; padding: 0 !important; border-radius: 50% !important; border: 1.5px solid var(--c, var(--muted)) !important;
          background: transparent; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; color: transparent; }
 .check:hover { background: color-mix(in srgb, var(--c, var(--accent)) 25%, transparent); }
 .check.on { background: var(--c); color: var(--surface); }
-.st { font-size: 11px !important; padding: 0 8px !important; border-radius: 10px !important; flex: none; white-space: nowrap; line-height: 18px;
-      border: 1px solid color-mix(in srgb, var(--c) 70%, transparent) !important; color: var(--c) !important; background: color-mix(in srgb, var(--c) 12%, transparent) !important; }
-.st:hover { background: color-mix(in srgb, var(--c) 26%, transparent) !important; }
-.st.on { background: var(--c) !important; color: var(--surface) !important; }
+.row .tv-status { flex: none; white-space: nowrap; }
 .nostat { width: 16px; flex: none; }
 
 /* The task's sheet: beside the list, not over everything. */
@@ -114,19 +108,16 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .s-row.top { align-items: flex-start; }
 .s-row.top > .lab { padding-top: 4px; }
 .chips { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
-.chip-p { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 2px 1px 8px; border-radius: 10px; background: var(--accent-wash); }
-.chip-p button { border: 0 !important; padding: 0 5px !important; color: var(--muted) !important; }
-.chip-p button:hover { color: var(--accent) !important; }
-#s-tag-in { flex: 1; min-width: 80px; padding: 2px 6px; font-size: 12px; }
+/* A × that asks before it deletes says so in words: as wide as they are. */
+#s-tag-in { flex: 1; min-width: 80px; font-size: 12px; }
 .sum { flex: 1; color: var(--text); }
 .sum.none { color: var(--muted); }
-#s-files .chip-p { cursor: pointer; max-width: 220px; }
-#s-files .chip-p .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#s-files .chip-p:hover .fname { color: var(--accent); }
+#s-files .chip { cursor: pointer; max-width: 220px; }
+#s-files .chip:hover .lbl { color: var(--accent); }
 #s-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
 #s-files-note.err { color: var(--danger); }
 /* Title and notes are the editor (editor.js), so @ works in them: drawn as fields. */
-.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-control); min-width: 0; }
+.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
 .ed-field:focus-within { border-color: var(--accent); }
 .ed-field .cm-editor { outline: none; }
 #s-title { flex: 1; font-size: 14px; }
@@ -146,56 +137,35 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #p-name:disabled { background: none; border-color: transparent; color: inherit; }
 /* Where a file is (tasks.js): stored on the task only (a paperclip), in this project's folder (a folder), or
    linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
-.chip-p .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
-.chip-p .fic .ic { width: 13px; height: 13px; }
-.chip-p.at-project .fic, .chip-p.at-elsewhere .fic { color: var(--accent); }
-.chip-p.at-task { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
-.chip-p.missing .fname { text-decoration: line-through; opacity: .6; }
-.chip-p .warn-mark { margin-right: 3px; font-weight: 600; color: var(--danger, #e06c6c); }
+.chip .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
+.chip .fic .ic { width: 13px; height: 13px; }
+.chip.at-project .fic, .chip.at-elsewhere .fic { color: var(--accent); }
+.chip.at-project, .chip.at-elsewhere { background: var(--accent-wash); }
+.chip.missing .lbl { text-decoration: line-through; opacity: var(--disabled); }
+.chip .warn-mark { margin-right: 3px; font-weight: 500; color: var(--danger); }
 #s-elsewhere:empty { display: none; }
 .s-foot .spacer { flex: 1; }
 #s-done { color: var(--muted); font-size: 11.5px; }
-.pick { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line) !important; border-radius: var(--radius-row) !important;
-        background: var(--desk) !important; color: var(--text) !important; padding: 4px 10px !important; font-size: 12.5px; min-width: 0; }
-.pick.none { color: var(--muted) !important; }
-.pick.overdue { color: var(--danger) !important; }
-.pick:hover { border-color: var(--accent) !important; }
-.time-in { flex: 0 0 82px; text-align: center; padding: 4px 6px; font-size: 12.5px; }
+.s-row > .pick { flex: 1; font-size: 12.5px; }
+.pick.overdue .lbl { color: var(--danger); }
+.time-in { flex: 0 0 82px; text-align: center; font-size: 12.5px; }
 
 /* Repeat's editor, in the sheet under its line. */
 #rep { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
 #rep .s-row > .lab { width: 62px; }
 #rep .seg button { padding: 2px 9px !important; }
-#r-n, #r-count { width: 46px; text-align: center; padding: 3px 4px; font-size: 12.5px; }
+#r-n, #r-count { width: 46px; text-align: center; font-size: 12.5px; }
 #r-err { color: var(--danger); font-size: 11.5px; }
 #r-err:empty { display: none; }
 .acts { display: flex; gap: 8px; align-items: center; }
 .acts .spacer { flex: 1; }
 
-/* The one small list or menu at a time. */
-/* Over the list editor's sheet (.le-dim, 50) too. */
-#pop { position: absolute; z-index: 60; }
-#pop[hidden] { display: none; }
-.menu-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; min-width: 150px; }
-.sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-.times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }
-.time { border: 0 !important; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; color: var(--text) !important; }
-.time:hover, .time.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
-.mini { width: 232px; padding: 2px; }
-.mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
-.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
-.mini-grid .day { border: 0 !important; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; }
-.mini-grid .day.other { color: var(--muted) !important; }
-.mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
-.mini-grid .day:hover, .mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
-.find { width: 100%; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
 /* Projects in groups (Tasks' own, talaris:group): a folding heading, its projects under it. */
 #side .item .name { flex: 1; min-width: 0; }
 #side .item .synced { flex: none; color: var(--muted); font-size: 12px; }
 /* What a plugin asks here (asks, in tasks.js): its groups, each question and its answers. */
 .asks { width: min(460px, 86vw); max-height: 70vh; overflow-y: auto; padding: 4px 2px; display: flex; flex-direction: column; gap: 10px; }
-.asks-head { font-weight: 600; padding: 2px 8px 4px; }
+.asks-head { font-weight: 500; padding: 2px 8px 4px; }
 .ask { padding: 6px 8px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .ask-q { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ask-d { color: var(--muted); font-size: 12px; }
@@ -206,8 +176,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #side .item .more:hover { color: var(--accent); }
 #side .item.grp { color: var(--muted); font-size: 12px; gap: 6px; }
 #side .item.grp:hover { color: var(--text); }
-#side .item.grp .caret { flex: none; font-size: 9px; transition: transform .12s; overflow: visible; }
-#side .item.grp.folded .caret { transform: rotate(-90deg); }
+#side .item.grp .kit-caret { flex: none; }
 #side .item.grp .n { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; }
 #side .item.proj .n { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 4px; }
 #side .item.proj.on .n { color: inherit; }
@@ -215,7 +184,6 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 /* Below the last of the column: a place to drop something last, in no group. */
 .col-end { height: 14px; }
 /* A project, in its panel on the right. */
-#p-group .le-pick.none { color: var(--muted) !important; }
 .ps-new { width: 180px; }
 .ps-wall { align-items: flex-start; flex-wrap: nowrap; gap: 10px; }
 .ps-thumb { width: 120px; height: 75px; object-fit: cover; flex: none; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); }
@@ -261,7 +229,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
       <div class="s-row" id="r-short-row"><span class="lab">Short month</span><span class="seg" id="r-short"></span></div>
       <div class="s-row"><span class="lab">Ends</span><span class="seg" id="r-end"></span><input type="text" id="r-count" spellcheck="false"><button class="pick" id="r-until"></button></div>
       <div id="r-err"></div>
-      <div class="acts"><button class="t-btn" id="r-none">Don't repeat</button><span class="spacer"></span><button class="t-btn" id="r-cancel">Cancel</button><button class="t-btn" id="r-save">Save</button></div>
+      <div class="acts"><button class="t-btn" id="r-none">Don't repeat</button><span class="spacer"></span><button class="t-btn" id="r-cancel">Cancel</button><button class="t-btn primary" id="r-save">Save</button></div>
     </div>
     <div class="s-row top" id="s-proj-row"><span class="lab">Projects</span><div class="chips" id="s-proj"></div></div>
     <div class="s-row top"><span class="lab">Tags</span><div class="chips"><span id="s-tags" style="display:contents"></span><input type="text" id="s-tag-in" placeholder="Add" spellcheck="false"></div></div>
@@ -282,16 +250,16 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
     <div class="s-row"><span class="lab">About it</span><span class="sum" id="p-who"></span></div>
     <div id="p-desc" class="ed-field"></div>
     <div id="p-sugg"></div>
-    <div class="s-foot"><span id="p-acts"></span><span class="spacer"></span><button class="t-btn danger" id="p-archive" title="Its folder to the archive, and out of every list; brought back from the archive">Archive</button></div>
+    <div class="s-foot"><span id="p-acts"></span><span class="spacer"></span><button class="t-btn" id="p-archive" title="Its folder to the archive, and out of every list; brought back from the archive">Archive</button></div>
   </aside>
 </main>
-<div id="pop" class="menu" hidden></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="pagetips.js"></script>
 <script src="icons.js"></script>
 <script src="surface.js"></script>
 <script src="kit.js"></script>
 <script src="motion.js"></script>
+<script src="palette.js"></script>
 <script src="listeditor.js"></script>
 <script src="taskviews.js"></script>
 <script src="peek.js"></script>

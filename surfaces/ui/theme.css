@@ -18,13 +18,16 @@ html, body {
   font: 14px/1.45 var(--font);
   user-select: none; -webkit-user-select: none; cursor: default;
 }
+/* Only 400 and 500 are shipped (tokens.css): anything bolder the engine would fake. */
+b, strong, h1, h2, h3, h4, h5, h6, th { font-weight: 500; }
 :focus { outline: none; }
 :focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 textarea, input { user-select: text; -webkit-user-select: text; cursor: text; font: inherit; color: inherit; }
-button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 2px 12px; cursor: pointer; transition: border-color .12s, color .12s; }
+button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 2px 12px; cursor: pointer; transition: border-color var(--dur), color var(--dur); }
 button:hover { border-color: var(--accent); color: var(--accent); }
 
-.label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+/* The one small letter-spaced heading: a section, a group, a list's name, a dialog's. */
+.label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .title { letter-spacing: 3px; font-size: 14px; text-transform: uppercase; }
 .slash { color: var(--accent); }
 

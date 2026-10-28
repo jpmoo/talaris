@@ -19,17 +19,15 @@ top, the surface as tall as the page says.
 #col:empty { padding: 0; }
 .toast {
   position: relative; overflow: hidden; padding: 9px 12px 11px;
-  background: var(--toast-bg); border: 1px solid var(--toast-edge); border-radius: 10px; box-shadow: var(--toast-shadow);
+  background: var(--toast-bg); border: 1px solid var(--toast-edge); border-radius: var(--radius-panel); box-shadow: var(--toast-shadow);
   font: 13px/1.4 var(--font); color: var(--text);
 }
 .toast.clickable { cursor: pointer; }
 .top { display: flex; align-items: center; gap: 7px; height: 18px; }
 .top .icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
 .top .app { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.top .x { flex: none; width: 20px; height: 20px; padding: 0; border: none; border-radius: 4px; font-size: 15px; line-height: 1; color: var(--muted); }
-.top .x:hover { color: var(--accent); background: var(--accent-wash); }
 .main { display: flex; gap: 10px; margin-top: 5px; }
-.main .image { width: 48px; height: 48px; flex: none; border-radius: 6px; object-fit: cover; }
+.main .image { width: 48px; height: 48px; flex: none; border-radius: var(--radius-row); object-fit: cover; }
 .words { flex: 1; min-width: 0; }
 .summary { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 /* Apps send line breaks as newlines as often as <br>. */
@@ -37,14 +35,17 @@ top, the surface as tall as the page says.
 .body .link { text-decoration: underline; }
 .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .buttons:empty { display: none; }
-.buttons .t-btn { font-size: 12px !important; padding: 1px 10px !important; max-width: 100%; }
+.buttons .t-btn { max-width: 100%; }
 .buttons .t-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.left { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); opacity: .7; transform-origin: left; }
+/* The time it has left: the slider's track along its foot, emptying. */
+.left { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0; }
+.left > i { transform-origin: left; }
 </style>
 </head>
 <body>
 <div id="col"></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="icons.js"></script>
 <script src="motion.js"></script>
 <script src="pagetips.js"></script>
 <script src="surface.js"></script>
@@ -66,6 +67,9 @@ const zoom = () => (innerWidth > 0 ? SURFACE_WIDTH / innerWidth : 1);
 const kind = () => (look.animation === "draw" ? "chaos" : look.animation || "slide");
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || kind() === "none";
 const ms = (n) => Math.round(n * (SPEEDS[speed] || 1));
+// The curves things arrive and leave by (tokens.css), read once: an animation's easing cannot be a var().
+const curve = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "ease";
+const EASE = curve("--ease"), EASE_EXIT = curve("--ease-exit");
 
 function done(id, how, key = "") {
   if (bridge) bridge.done(JSON.stringify({ id, how, key }));
@@ -118,7 +122,7 @@ function arrive(card, then) {
       go();
       return;
     }
-    card.animate([FROM[k] || { translate: offRight(card) }, AT[k] || { translate: "0 0" }], { duration: ms(450), easing: "cubic-bezier(.2,.8,.2,1)" });
+    card.animate([FROM[k] || { translate: offRight(card) }, AT[k] || { translate: "0 0" }], { duration: ms(450), easing: EASE });
     go();
   });
 }
@@ -135,7 +139,7 @@ function leave(card) {
   const k = kind();
   const a = k === "chaos"
     ? Motion.leave(card, { kind: "chaos", speed, edge: "right", flush: false })
-    : card.animate([AT[k] || { translate: "0 0" }, FROM[k] || { translate: offRight(card) }], { duration: ms(300), easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" });
+    : card.animate([AT[k] || { translate: "0 0" }, FROM[k] || { translate: offRight(card) }], { duration: ms(300), easing: EASE_EXIT, fill: "forwards" });
   if (a) a.addEventListener("finish", gone); else gone();
 }
 
@@ -148,7 +152,7 @@ function flip(change) {
     const was = before.get(c);
     if (was === undefined || c.leaving) continue;
     const dy = was - c.getBoundingClientRect().top;
-    if (Math.abs(dy) > 1) c.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: ms(260), easing: "cubic-bezier(.2,.8,.2,1)" });
+    if (Math.abs(dy) > 1) c.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: ms(260), easing: EASE });
   }
 }
 
@@ -168,7 +172,7 @@ function countdown(card, t) {
   bar.hidden = !length;
   if (!length) return;
   // An animation, so pausing on hover keeps where it was for nothing.
-  card.timer = bar.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], { duration: length, easing: "linear", fill: "forwards" });
+  card.timer = bar.firstChild.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], { duration: length, easing: "linear", fill: "forwards" });
   if (card.matches(":hover")) card.timer.pause();
   card.timer.onfinish = () => { if (card.leaving) return; sent.add(card.dataset.id); leave(card); done(t.id, "expired"); };
 }
@@ -214,7 +218,7 @@ function fill(card, t) {
   const top = el("div", "top");
   if (t.icon) top.append(el("img", "icon", { src: t.icon, alt: "" }));
   top.append(el("span", "app", { textContent: t.app || "" }));
-  const x = el("button", "x", { textContent: "×", title: "Dismiss" });
+  const x = el("button", "x-btn", { innerHTML: Icons.close(), title: "Dismiss" });
   x.addEventListener("click", (e) => { e.stopPropagation(); sent.add(card.dataset.id); leave(card); done(t.id, "dismissed"); });
   top.append(x);
 
@@ -228,14 +232,14 @@ function fill(card, t) {
   const buttons = el("div", "buttons");
   for (const [key, label] of actions) {
     if (key === "default") continue;
-    const b = el("button", "t-btn");
+    const b = el("button", "t-btn small");
     b.append(el("span", "", { textContent: label }));
     b.addEventListener("click", (e) => { e.stopPropagation(); done(t.id, "action", String(key)); });
     buttons.append(b);
   }
   if (t.canOpen) {
     const text = t.app ? `Open ${t.app}` : "Open";
-    const b = el("button", "t-btn", { title: text });
+    const b = el("button", "t-btn small", { title: text });
     b.append(el("span", "", { textContent: text }));
     b.addEventListener("click", (e) => { e.stopPropagation(); done(t.id, "open"); });
     buttons.append(b);
@@ -249,7 +253,8 @@ function fill(card, t) {
 function make(t) {
   const card = el("div", "toast");
   card.dataset.id = String(t.id);
-  card.bar = el("div", "left", { hidden: true });
+  card.bar = el("div", "track left", { hidden: true });
+  card.bar.append(document.createElement("i"));
   card.addEventListener("click", () => { if (card.clickable && !card.leaving) done(t.id, "action", "default"); });
   card.addEventListener("pointerenter", () => { if (card.timer) card.timer.pause(); });
   card.addEventListener("pointerleave", () => { if (card.timer && card.timer.playState === "paused") card.timer.play(); });

@@ -122,8 +122,15 @@
 
   // ---------------------------------------------------------------- marks
 
+  // The small × that takes one thing off a chip.
+  function xBtn(title, onclick) {
+    const b = el("button", { class: "x-btn", title, onclick });
+    b.innerHTML = Icons.close();
+    return b;
+  }
+
   // As the canvas's person card (EntityCard.tsx): a tint by the id, so a rename does not repaint them.
-  const TINTS = ["var(--accent)", "var(--danger)", "#6f93ad", "#7d9c6c", "#9c82b4", "#b39b5f"];
+  const TINTS = Palette.TINTS;
   function tint(id) {
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
@@ -223,7 +230,7 @@
             e.preventDefault();
             menuAt(e.clientX, e.clientY, [{ label: own ? "Not one of my organizations" : "One of my organizations", act: () => markMine(g, !own) }]);
           } },
-          el("span", { class: "caret" }, "▾"), el("span", { class: "name" }, g), own ? el("span", { class: "own-mark" }, "Mine") : null, el("span", { class: "n" }, String(mine.length))));
+          Kit.caret(!folded), el("span", { class: "name" }, g), own ? el("span", { class: "own-mark" }, "Mine") : null, el("span", { class: "n" }, String(mine.length))));
         out.push(...mine.filter((p) => !folded || p.id === chosen).map(personRow));
       }
     } else {
@@ -343,8 +350,8 @@
       } });
     // Where else they live (a sync's way back to them), under their name.
     // And what plugins put on a person (Sync now), filled in when the core answers.
-    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("person", got.entity.id, api),
-      Peek.glanceButton(`e:${got.entity.id}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null)].filter(Boolean) : [];
+    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small"), Peek.actionButtons("person", got.entity.id, api, "t-btn small"),
+      Peek.glanceButton(`e:${got.entity.id}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null, "t-btn small")].filter(Boolean) : [];
     return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);
   }
 
@@ -443,7 +450,7 @@
     const put = (next) => setProps({ [f.key]: next.length ? (f.many ? next : next[0]) : null }).then(() => loadPerson());
     const add = el("button", { class: "add", title: "Add", onclick: () => {
       if (Kit.openedBy() === add) { popAway(); return; }
-      const find = Kit.searchBox(el("input", { type: "text", class: "find", placeholder: "Find", spellcheck: "false" }));
+      const find = Kit.searchBox(el("input", { type: "search", class: "find", placeholder: "Find", spellcheck: "false" }));
       const list = el("div", { class: "menu-list" });
       let found = [];
       const search = async () => {
@@ -462,8 +469,8 @@
       setTimeout(() => find.focus(), 0);
     } }, "+");
     return row(labelOf(f), el("div", { class: "grow chips" },
-      ids.map((id) => el("span", { class: "chip-p" }, el("span", { class: "fname" }, titles.get(id) || "Unknown"),
-        el("button", { title: "Remove", onclick: () => put(ids.filter((x) => x !== id)) }, "×"))),
+      ids.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, titles.get(id) || "Unknown"),
+        xBtn("Remove", () => put(ids.filter((x) => x !== id))))),
       f.many || !ids.length ? add : null));
   }
 
@@ -490,13 +497,13 @@
   function filesRow(f) {
     const files = Array.isArray(props()[f.key]) ? props()[f.key] : [];
     return row(labelOf(f), el("div", { class: "grow chips" },
-      files.map((a) => el("span", { class: "chip-p file", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile(a.sha256, a.filename) },
-        el("span", { class: "fname" }, a.filename),
-        el("button", { title: "Take off", onclick: (e) => {
+      files.map((a) => el("span", { class: "chip file", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile(a.sha256, a.filename) },
+        el("span", { class: "lbl" }, a.filename),
+        xBtn("Take off", (e) => {
           e.stopPropagation();
           const rest = files.filter((x) => x.sha256 !== a.sha256);
           setProps({ [f.key]: rest.length ? rest : null }).then(drawPerson);
-        } }, "×"))),
+        }))),
       el("button", { class: "t-btn", onclick: () => { say(""); bridge && bridge.attach(chosen, f.key); } }, "Add files…")), true);
   }
 
@@ -609,7 +616,7 @@
     }
     return el("div", { class: "card" },
       el("div", { class: "c-main" },
-        el("div", { class: "c-book" }, c.bookName || c.book),
+        el("div", { class: "label c-book" }, c.bookName || c.book),
         el("div", { class: "c-name" }, c.name || "No name"),
         cardLines(c), also),
       el("div", { class: "c-acts" },
@@ -668,7 +675,7 @@
     const emails = asList(emailKey() ? p[emailKey()] : []).filter((x) => x.includes("@"));
     const asks = [name.trim(), ...emails].filter((q) => q.trim().length >= 2);
     const list = el("div", {}, el("div", { class: "hint" }, "Looking…"));
-    const find = Kit.searchBox(el("input", { type: "text", id: "card-q", placeholder: "Find someone by name or address", spellcheck: "false" }));
+    const find = Kit.searchBox(el("input", { type: "search", id: "card-q", placeholder: "Find someone by name or address", spellcheck: "false" }));
     const found = el("div", {});
     let timer = null;
     find.addEventListener("input", () => {
@@ -724,12 +731,12 @@
         el("span", { class: "c-t" }, e.title), el("span", { class: "c-how" }, how.join(", ")))));
       const left = rows.length - count;
       more.replaceChildren(...(left > 0 ? [
-        el("button", { class: "t-btn", onclick: () => { count += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
-        left > FIRST ? el("button", { class: "t-btn", onclick: () => { count = rows.length; draw(); } }, `All ${rows.length}`) : null,
+        el("button", { class: "t-btn small", onclick: () => { count += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
+        left > FIRST ? el("button", { class: "t-btn small", onclick: () => { count = rows.length; draw(); } }, `All ${rows.length}`) : null,
       ] : []).filter(Boolean));
     };
     draw();
-    const label = el("div", { class: "c-label", style: name === ARCHIVED ? "cursor:pointer" : null }, `${name} · ${rows.length}`);
+    const label = el("div", { class: "label c-label", style: name === ARCHIVED ? "cursor:pointer" : null }, name, el("span", { class: "n" }, String(rows.length)));
     if (name === ARCHIVED) label.addEventListener("click", () => { count = count ? 0 : FIRST; draw(); });
     return el("div", { class: "c-group" }, label, list, more);
   }

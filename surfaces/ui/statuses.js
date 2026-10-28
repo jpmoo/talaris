@@ -14,7 +14,7 @@
 "use strict";
 
 (() => {
-  const PALETTE = ["#868c92", "#5fa4b5", "#7f9fbf", "#8aa878", "#c7a55a", "#c98a5b", "#c26b6b", "#b97f8e", "#6c7277"];
+  const PALETTE = Palette.MARKS;
 
   function el(tag, attrs = {}, ...kids) {
     const e = document.createElement(tag);
@@ -27,6 +27,12 @@
     }
     for (const k of kids.flat()) if (k != null && k !== false) e.append(k);
     return e;
+  }
+  /** The small × that takes a row away (controls.css .x-btn). */
+  function xBtn(title, onclick) {
+    const b = el("button", { type: "button", class: "x-btn", title, onclick });
+    b.innerHTML = Icons.close();
+    return b;
   }
 
   /** The statuses as the type has them now. */
@@ -64,7 +70,7 @@
       function draw() {
         list.replaceChildren(...rows.map((r, i) => {
           const swatches = el("span", { class: "st-swatches" }, PALETTE.map((c) =>
-            el("button", { type: "button", class: "st-sw" + (r.color === c ? " on" : ""), style: `background:${c}`, title: c,
+            el("button", { type: "button", class: "cv-swatch st-sw" + (r.color === c ? " is-on" : ""), style: `background:${c}`, title: c,
               onclick: () => { r.color = c; draw(); } })));
           return el("div", { class: "st-row" + (r.complete ? " done" : "") },
             el("span", { class: "st-move" },
@@ -75,17 +81,17 @@
             swatches,
             // No browser picker (a <select> opens a window of its own): a button, and a small menu of what fits.
             el("span", { class: "st-means-wrap" },
-              el("button", { type: "button", class: "t-btn st-means" + (r.state ? "" : " unset"), title: "What it means to other apps",
+              el("button", { type: "button", class: "t-btn small st-means" + (r.state ? "" : " unset"), title: "What it means to other apps",
                 // The kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
                 onclick: (e) => {
                   e.stopPropagation();
                   if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
                   Kit.menu(e.currentTarget, fits(r.complete).map((m) => ({ label: MEANINGS[m], on: r.state === m, act: () => { r.state = m; draw(); } })));
                 } }, r.state ? MEANINGS[r.state] : "Means…")),
-            el("button", { type: "button", class: "t-btn st-flag" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.state && !fits(r.complete).includes(r.state)) r.state = r.complete ? "done" : "not-started"; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
-            el("button", { type: "button", class: "t-btn st-flag" + (def === r.value && r.value ? " on" : ""), title: "New tasks start here",
+            el("button", { type: "button", class: "t-btn small" + (r.complete ? " on" : ""), title: "Counts as done", onclick: () => { r.complete = !r.complete; if (r.state && !fits(r.complete).includes(r.state)) r.state = r.complete ? "done" : "not-started"; if (r.complete && def === r.value) def = (rows.find((x) => !x.complete) || {}).value; draw(); } }, "Done"),
+            el("button", { type: "button", class: "t-btn small" + (def === r.value && r.value ? " on" : ""), title: "New tasks start here",
               disabled: r.complete || !r.value ? "" : null, onclick: () => { def = r.value; draw(); } }, "Start"),
-            el("button", { type: "button", class: "icon-btn", title: "Remove", onclick: () => { rows.splice(i, 1); if (def === r.value) def = (rows.find((x) => !x.complete && x.value) || {}).value; draw(); } }, "×"));
+            xBtn("Remove", () => { rows.splice(i, 1); if (def === r.value) def = (rows.find((x) => !x.complete && x.value) || {}).value; draw(); }));
         }));
         drawGone();
       }
@@ -103,7 +109,7 @@
           return el("div", { class: "le-row" },
             el("span", { class: "le-label" }, s.label),
             el("span", { class: "le-val" },
-              targets.map((t) => el("button", { type: "button", class: "t-btn st-flag" + (t.value === now ? " on" : ""), onclick: () => { moveTo[s.value] = t.value; drawGone(); } }, t.label))));
+              targets.map((t) => el("button", { type: "button", class: "t-btn small" + (t.value === now ? " on" : ""), onclick: () => { moveTo[s.value] = t.value; drawGone(); } }, t.label))));
         }));
       }
 
@@ -125,7 +131,7 @@
       }
 
       sheet.append(
-        el("div", { class: "title le-title" }, "Statuses"),
+        el("div", { class: "label le-title" }, "Statuses"),
         el("div", { class: "le-muted st-hint" }, "“Means” is what a status is to other apps — a sync with Hermes Notes carries statuses only once every one has a meaning."),
         list,
         el("div", {}, el("button", { type: "button", class: "t-btn", onclick: () => {
@@ -137,7 +143,7 @@
         gone, err,
         el("div", { class: "le-acts" }, el("span", { class: "spacer" }),
           el("button", { type: "button", class: "t-btn", onclick: () => close(null) }, "Cancel"),
-          el("button", { type: "button", class: "t-btn le-save", onclick: save }, "Save")));
+          el("button", { type: "button", class: "t-btn primary", onclick: save }, "Save")));
       dim.append(sheet);
       dim.addEventListener("pointerdown", (e) => { if (e.target === dim) close(null); });
       addEventListener("keydown", esc, true);
@@ -152,20 +158,15 @@
     .st-rows { display: flex; flex-direction: column; gap: 6px; }
     .st-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
     .st-move { display: inline-flex; }
-    .st-move .icon-btn { width: 20px; height: 22px; padding: 0; font-size: 12px; }
+    .st-move .icon-btn { font-size: 12px; }
     .st-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .st-label { flex: 1; min-width: 90px; padding: 4px 8px; font-size: 12.5px; }
+    .st-label { flex: 1; min-width: 90px; font-size: 12.5px; }
     .st-row.done .st-label { color: var(--muted); }
     .st-swatches { display: inline-flex; gap: 3px; }
-    .st-sw { width: 14px; height: 14px; border-radius: 4px; padding: 0; border: 1px solid transparent !important; cursor: pointer; }
-    .st-sw.on { box-shadow: 0 0 0 2px var(--text); }
-    .st-flag { font-size: 11.5px !important; padding: 2px 9px !important; }
-    .st-flag.on { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-wash) !important; }
+    .st-sw { width: 14px; height: 14px; padding: 0; cursor: pointer; }
     .st-means-wrap { position: relative; display: inline-flex; }
-    .st-means { font-size: 11.5px !important; padding: 2px 9px !important; white-space: nowrap; }
+    .st-means { white-space: nowrap; }
     .st-means.unset { color: var(--danger) !important; border-color: var(--danger) !important; }
-    .st-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; display: flex; flex-direction: column; min-width: 120px; padding: 4px; }
-    .st-menu .menu-item.on { color: var(--accent); }
     .st-hint { margin: -2px 0 8px; font-size: 11.5px; }
     .st-gone:empty { display: none; }
     .st-gone-head { margin: 6px 0 4px; }
