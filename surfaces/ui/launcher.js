@@ -85,7 +85,9 @@ function build(c) {
 
 /** How well `q` names `text`: 0 for not at all. */
 function score(q, text) {
-  const t = (text || "").toLowerCase();
+  // Accents aside, as everything is found (kit.js): "kaufer" is Käufer.
+  const t = Kit.fold(text);
+  q = Kit.fold(q);
   if (!t) return 0;
   if (t === q) return 100;
   if (t.startsWith(q)) return 80;
@@ -422,6 +424,8 @@ function choose(i, there = false) {
   bridge.act(JSON.stringify(there && x.act.kind === "app" ? { ...x.act, there: true } : x.act), (error) => { if (error) say(error, true); });
 }
 
+// Escape clears it first, as every box that narrows a list does (kit.js).
+Kit.searchBox($("q"));
 $("q").addEventListener("input", () => {
   at = 0; armed = null; say(""); draw();
   clearTimeout(talkSoon);

@@ -173,7 +173,7 @@
       if (listEl.dataset.q !== asked) return;
       const low = q.toLowerCase();
       const found = (people || []).map((p) => ({ email: p.email, name: p.name && !p.name.includes("@") ? p.name : "" }))
-        .filter((p) => p.name.toLowerCase().includes(low) || p.email.toLowerCase().split("@")[0].includes(low)).slice(0, 6);
+        .filter((p) => Kit.matches(low, p.name, p.email.split("@")[0])).slice(0, 6);
       listEl.found = found;
       listEl.replaceChildren(...found.map((p, i) => el("button", { class: "menu-item" + (i === 0 ? " first" : ""), onclick: () => choose(p) },
         el("span", {}, p.name || p.email), p.name ? el("span", { class: "addr" }, p.email) : null)));

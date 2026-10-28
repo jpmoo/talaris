@@ -779,7 +779,8 @@
     const host = $("detail");
     const name = el("input", { type: "text", placeholder: parent ? `A list inside ${listName(parent)}` : `A new list in ${projectName(project)}`, spellcheck: "false" });
     const go = () => name.value.trim() && api("POST", "/files/lists", { project, name: name.value.trim(), parent }).then((l) => { filters.list = l.id; chosen = null; say(`${l.name} made: add to it from any file's details`); return load(); }).catch(failed);
-    name.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") drawDetail(); });
+    // Escape gives the naming up, and goes no further (the panel stays).
+    name.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") { e.preventDefault(); drawDetail(); } });
     host.replaceChildren(el("h2", {}, parent ? `A list inside ${listName(parent)}` : "A new list"),
       el("div", { class: "d-status" }, "A list holds things of this project's without moving them: a file can be in any number of lists."),
       el("div", { class: "inline" }, name, el("button", { class: "t-btn", onclick: go }, "Make it")));
@@ -843,7 +844,7 @@
     const host = $("inline");
     host.className = "inline";
     if (what === "attach") {
-      const q = el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" });
+      const q = Kit.searchBox(el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" }));
       const found = el("div", { style: "width:100%" });
       let timer = 0;
       q.addEventListener("input", () => {
@@ -934,7 +935,7 @@
     } else if (what === "list") {
       listPicker(host, r.project, [r]);
     } else if (what === "attach") {
-      const q = el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" });
+      const q = Kit.searchBox(el("input", { type: "text", placeholder: "Find a task", spellcheck: "false" }));
       const found = el("div", { style: "width:100%" });
       let timer = 0;
       q.addEventListener("input", () => {
@@ -1106,7 +1107,9 @@
   }
 
   let typing = 0;
-  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { filters.q = $("q").value.trim(); reload(); }, 180); });
+  // Escape clears it first, as every box that narrows a list does (kit.js).
+  Kit.searchBox($("q"));
+  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { filters.q = $("q").value.trim(); reload(); }, Kit.SEARCH_MS); });
   // Files, or a whole folder (every file in it and its folders): asked which first.
   $("bring").addEventListener("click", () => {
     if (!bridge) return;
@@ -1128,6 +1131,8 @@
   // Keys: arrows through the rows, Enter opens, / finds, Escape puts away what is open, then the panel.
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      // What has heard Escape already (the list-name field, a box cleared) keeps it: the innermost first, then the panel.
+      if (e.defaultPrevented) return;
       e.preventDefault();
       if (!$("sheet").hidden) { $("sheet").hidden = true; return; }
       if (bridge) bridge.file();

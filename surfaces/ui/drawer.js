@@ -322,7 +322,7 @@ async function drawPageTags() {
     closeMenu();
     at = -1;
     const q = input.value.trim().replace(/^#+/, "").toLowerCase();
-    offered = known.filter(({ tag }) => !tags.includes(tag) && tag.toLowerCase().includes(q));
+    offered = known.filter(({ tag }) => !tags.includes(tag) && Kit.matches(q, tag));
     if (!offered.length || document.activeElement !== input) return;
     offeredList = el("div", { class: "menu-list" }, ...offered.map(({ tag, count }) =>
       el("button", { class: "menu-item", title: `#${tag}`, onmousedown: (e) => { e.preventDefault(); closeMenu(); add(tag); } },
@@ -1190,7 +1190,7 @@ function connectMenu(anchor) {
       : [el("div", { class: "menu-item off" }, "Nothing by that name")]));
   };
   let timer = null;
-  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, 150); });
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, Kit.SEARCH_MS); });
   q.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); const first = list.querySelector("button"); if (first) first.click(); }
   });

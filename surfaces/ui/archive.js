@@ -213,10 +213,9 @@
   // ---------------------------------------------------------------- keys and buttons
 
   let typed = null;
-  $("q").addEventListener("input", () => { clearTimeout(typed); typed = setTimeout(() => search($("q").value), 220); });
-  $("q").addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $("q").value) { e.preventDefault(); e.stopPropagation(); $("q").value = ""; search(""); }
-  });
+  $("q").addEventListener("input", () => { clearTimeout(typed); typed = setTimeout(() => search($("q").value), Kit.SEARCH_MS); });
+  // Escape clears it first, as every box that narrows a list does (kit.js); the search follows the box.
+  Kit.searchBox($("q"), () => search(""));
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented) return;
     if (e.key === "Escape") { e.preventDefault(); if (bridge) bridge.file(); }

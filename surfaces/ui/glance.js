@@ -120,7 +120,8 @@
   // ---------------------------------------------------------------- filters
 
   const query = () => $("q").value.trim().toLowerCase();
-  const matches = (n, q) => !q || String(n.title || "").toLowerCase().includes(q);
+  // Found as everything is found (kit.js): every word typed, accents aside.
+  const matches = (n, q) => Kit.matches(q, n.title);
   // Shown at all: its kind is on, and it is the project's own when only those are wanted.
   // The project itself is always there — the graph hangs from it.
   const shown = (n) => isRoot(n) || (!off.has(groupOf(n)) && (!mine || n.own));
@@ -894,6 +895,8 @@
   // ---------------------------------------------------------------- keys and buttons
 
   const typing = (t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  // Escape clears it first, as every box that narrows a list does (kit.js).
+  Kit.searchBox($("q"));
   $("q").addEventListener("input", () => { if (view === "list") drawList(); else Graph.need(); });
   $("q").addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("q").value) { e.preventDefault(); e.stopPropagation(); $("q").value = ""; if (view === "list") drawList(); else Graph.need(); }

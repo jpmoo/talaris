@@ -682,7 +682,7 @@ const TaskViews = (() => {
     const drawer = el("aside", { class: "tv-drawer" }, el("header", {}, el("span", { class: "tv-col-label" }, "Drawer"), count,
       el("button", { class: "tv-x tv-shut", title: "Put the drawer away", onclick: () => { setDrawer(list.id, true); redraw(); } }, "×")));
     if (byHand) {
-      const q = el("input", { type: "search", placeholder: "Find tasks", spellcheck: "false" });
+      const q = Kit.searchBox(el("input", { type: "search", placeholder: "Find tasks", spellcheck: "false" }));
       q.value = searches.get(list.id) || "";
       let timer = 0, asked = 0;
       const run = () => {

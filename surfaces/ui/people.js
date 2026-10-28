@@ -168,7 +168,8 @@
   const NO_ORG = "No organization";
   function matches(p, q) {
     if (!q) return true;
-    return [p.title, p.organization, p.role, p.email].some((x) => x && x.toLowerCase().includes(q));
+    // Found as everything is found (kit.js): every word typed, accents aside.
+    return Kit.matches(q, p.title, p.organization, p.role, p.email);
   }
   // Known by a name, or only by an address (a name is what the person has unless it is just their address).
   const unnamed = (p) => /^[^\s@]+@[^\s@]+$/.test(String(p.title || "").trim()) || !String(p.title || "").trim();
@@ -448,7 +449,7 @@
     const put = (next) => setProps({ [f.key]: next.length ? (f.many ? next : next[0]) : null }).then(() => loadPerson());
     const add = el("button", { class: "add", title: "Add", onclick: () => {
       if (Kit.openedBy() === add) { popAway(); return; }
-      const find = el("input", { type: "text", class: "find", placeholder: "Find", spellcheck: "false" });
+      const find = Kit.searchBox(el("input", { type: "text", class: "find", placeholder: "Find", spellcheck: "false" }));
       const list = el("div", { class: "menu-list" });
       let found = [];
       const search = async () => {
@@ -673,7 +674,7 @@
     const emails = asList(emailKey() ? p[emailKey()] : []).filter((x) => x.includes("@"));
     const asks = [name.trim(), ...emails].filter((q) => q.trim().length >= 2);
     const list = el("div", {}, el("div", { class: "hint" }, "Looking…"));
-    const find = el("input", { type: "text", id: "card-q", placeholder: "Find someone by name or address", spellcheck: "false" });
+    const find = Kit.searchBox(el("input", { type: "text", id: "card-q", placeholder: "Find someone by name or address", spellcheck: "false" }));
     const found = el("div", {});
     let timer = null;
     find.addEventListener("input", () => {
@@ -870,6 +871,8 @@
     const next = i < 0 ? ids[0] : ids[Math.max(0, Math.min(ids.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))];
     if (next !== chosen) choose(next);
   });
+  // Escape clears it first, as every box that narrows a list does (kit.js).
+  Kit.searchBox($("q"));
   $("q").addEventListener("input", drawList);
   $("q").addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("q").value) { e.preventDefault(); e.stopPropagation(); $("q").value = ""; drawList(); }

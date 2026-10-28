@@ -757,7 +757,7 @@ async function mgMemory() {
     again();
   };
 
-  const filter = el("input", { type: "text", spellcheck: "false", placeholder: "Filter topics and notes" });
+  const filter = Kit.searchBox(el("input", { type: "text", spellcheck: "false", placeholder: "Find topics and notes" }));
   filter.value = mgFilter;
   filter.addEventListener("input", () => { mgFilter = filter.value; drawTopics(); });
   const list = el("div", { class: "mg-scroll mg-topics" });
@@ -823,7 +823,7 @@ async function mgMemory() {
 
   function drawTopics() {
     const q = mgFilter.trim().toLowerCase();
-    const has = (s) => String(s || "").toLowerCase().includes(q);
+    const has = (s) => Kit.matches(q, s);
     const blocks = [];
     for (const t of topics) {
       const all = t.notes.map((text, index) => ({ text, index }));

@@ -47,7 +47,7 @@ window.TalarisMentions = (api, open, opts) => {
       const q = query.trim().toLowerCase();
       // An address book's "name" is sometimes just another address: then there is none.
       people = (people || []).map((p) => ({ email: p.email, name: p.name && !p.name.includes("@") ? p.name : "" }))
-        .filter((p) => (p.name || "").toLowerCase().includes(q) || p.email.toLowerCase().split("@")[0].includes(q));
+        .filter((p) => Kit.matches(q, p.name, p.email.split("@")[0]));
       if (!people.length) return out;
       const known = await api("POST", "/entities/people/known", { emails: people.map((p) => p.email) }).catch(() => ({}));
       const have = new Set(out.map((x) => x.id).filter(Boolean));

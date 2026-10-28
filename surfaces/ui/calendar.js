@@ -643,7 +643,9 @@ $("e-delete").addEventListener("click", () => {
 $("e-cancel").addEventListener("click", closeEditor);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { if (!!Kit.isOpen()) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
+  // What has heard Escape already (a field of its own, a box cleared) keeps it: the innermost first, then the panel.
+  if (e.key === "Escape" && e.defaultPrevented) return;
+  if (e.key === "Escape") { if (Kit.isOpen()) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
   if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA") $("e-save").click();
 });
 
@@ -679,7 +681,9 @@ $("grow").addEventListener("click", () => bridge && bridge.grow());
 $("close").addEventListener("click", () => bridge && bridge.closeWindow());
 // Search (drawFound): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
 let searchTimer = 0;
-$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search($("search").value.trim()), 300); });
+// Escape clears it first, as every box that narrows a list does (kit.js).
+Kit.searchBox($("search"));
+$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search($("search").value.trim()), Kit.SEARCH_MS); });
 $("search").addEventListener("keydown", (e) => { if (e.key === "Escape" && $("search").value) { e.stopPropagation(); $("search").value = ""; search(""); } });
 document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); $("search").select(); } });
 $("grow").innerHTML = Icons.grow();

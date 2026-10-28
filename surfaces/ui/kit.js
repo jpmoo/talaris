@@ -399,8 +399,10 @@ const Kit = (() => {
     });
     return input;
   }
+  /** How long typing pauses before a search is asked of the core: the same everywhere. */
+  const SEARCH_MS = 200;
   /** One call after typing has paused: the same pause everywhere. */
-  function debounce(fn, ms = 200) {
+  function debounce(fn, ms = SEARCH_MS) {
     let t = null;
     return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   }
@@ -425,6 +427,6 @@ const Kit = (() => {
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, say, empty,
+    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty,
   };
 })();

@@ -1120,9 +1120,11 @@
 
   // Search (drawSearch): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
   let searchTimer = 0;
+  // Escape clears it first, as every box that narrows a list does (kit.js).
+  Kit.searchBox($("search"));
   $("search").addEventListener("input", () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { searching = $("search").value.trim(); drawView(); }, 250);
+    searchTimer = setTimeout(() => { searching = $("search").value.trim(); drawView(); }, Kit.SEARCH_MS);
   });
   $("search").addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !$("search").value) return;
@@ -1182,7 +1184,7 @@
     if (Kit.openedBy() === anchor) { popAway(); return; }
     const find = el("input", { type: "text", class: "find", placeholder: "Project", spellcheck: "false" });
     const list = el("div", { class: "menu-list" });
-    const candidates = () => projects.filter((p) => !p.archived && !mine.includes(p.id) && p.title.toLowerCase().includes(find.value.trim().toLowerCase()));
+    const candidates = () => projects.filter((p) => !p.archived && !mine.includes(p.id) && Kit.matches(find.value, p.title));
     const draw = () => list.replaceChildren(...candidates().map((p) => el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); popAway(); setProjects([...mine, p.id]); } }, p.title)));
     find.addEventListener("input", draw);
     find.addEventListener("keydown", (e) => {
