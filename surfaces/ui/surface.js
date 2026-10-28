@@ -36,6 +36,8 @@ const Surface = (() => {
         const state = (text) => {
           const s = JSON.parse(text);
           applyTheme(s.theme);
+          // The clock as Settings has it, for the kit's times (kit.js).
+          if (window.Kit && s.clock) Kit.setClock(s.clock);
           if (onState) onState(s);
         };
         bridge.state.connect(state);

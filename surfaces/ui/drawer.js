@@ -112,6 +112,7 @@ function leave() {
 let leaving = null;
 
 function update(next) {
+  if (window.Kit && next.clock) Kit.setClock(next.clock);
   const was = state.mode;
   // Another project: what was open belonged to the last one.
   if (state.project && next.project && state.project.id && next.project.id !== state.project.id) {

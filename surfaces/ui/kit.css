@@ -1,0 +1,35 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The kit's look (kit.js): the one pop-up, its menu, the month and the times,
+asking twice, an empty list, a line said back — the same on every page.
+*/
+.kit-pop { position: fixed; z-index: 80; background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control, 8px);
+  box-shadow: var(--menu-shadow); padding: 4px; overflow-y: auto; overflow-x: hidden; max-width: min(320px, calc(100vw - 12px)); }
+.kit-pop[hidden] { display: none; }
+.kit-pop .menu-list { display: flex; flex-direction: column; min-width: 150px; }
+.kit-pop .menu-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kit-pop .menu-item .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-pop .menu-item .n { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 11px; }
+.kit-pop .menu-item.hot { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.kit-pop .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+.kit-mini { width: 232px; padding: 2px; }
+.kit-mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; color: var(--text); }
+.kit-mini-head .icon-btn { border: 0 !important; background: none !important; color: var(--muted) !important; padding: 2px 6px !important; cursor: pointer; display: grid; place-items: center; }
+.kit-mini-head .icon-btn:hover { color: var(--accent) !important; }
+.kit-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.kit-mini-grid .dow { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
+.kit-mini-grid .day { border: 0 !important; background: none; padding: 4px 0 !important; border-radius: var(--radius-row) !important; font-size: 12px; color: var(--text) !important; cursor: pointer; }
+.kit-mini-grid .day.other { color: var(--muted) !important; }
+.kit-mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.kit-mini-grid .day:hover, .kit-mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.kit-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.kit-chips .t-btn { font-size: 11.5px !important; padding: 1px 8px !important; }
+.kit-times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }
+.kit-times .time { border: 0 !important; background: none; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; color: var(--text) !important; cursor: pointer; }
+.kit-times .time:hover, .kit-times .time.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
+/* Asking: the button says what a second press will do, in the danger color. */
+button.armed, .armed > button { color: var(--danger, #e06c6c) !important; border-color: var(--danger, #e06c6c) !important; font-weight: 600; }
+.kit-empty { color: var(--muted); font-size: 12.5px; padding: 10px 8px; }
+.err { color: var(--danger, #e06c6c) !important; }
