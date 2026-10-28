@@ -453,7 +453,7 @@ window.pressedAt = (x, y) => { const at = document.elementFromPoint(x, y); if (b
 function how() {
   const m = state.motion || {};
   return {
-    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.body, viewport: state.viewport,
+    kind: m.motion, speed: m.speed, edge: "top", flush: false, viewport: state.viewport,
     shown: () => { $("q").focus(); if (bridge) bridge.drawn(); },
     rules: (rule, rel, P) => {
       const top = $("top").getBoundingClientRect(), foot = $("foot").getBoundingClientRect();

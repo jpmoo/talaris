@@ -17,7 +17,7 @@ on the one in front goes there; Escape puts it away.
 <link rel="stylesheet" href="controls.css">
 <link rel="stylesheet" href="motion.css">
 <style>
-html { background: rgba(0, 0, 0, .32); overflow: hidden; height: 100%; cursor: pointer; }
+html { background: rgba(0, 0, 0, .01); overflow: hidden; height: 100%; cursor: pointer; }
 body { margin: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
 #panel {
   cursor: default; position: relative; width: min(1100px, calc(100% - 32px)); height: 340px; overflow: hidden;
@@ -148,7 +148,7 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
 
   function how() {
     const m = surface.motion || {};
-    return { kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement, viewport: surface.viewport,
+    return { kind: m.motion, speed: m.speed, edge: "top", flush: false, viewport: surface.viewport,
       shown: () => bridge && bridge.drawn() };
   }
   function onState(s) {

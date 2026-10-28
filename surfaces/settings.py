@@ -46,7 +46,6 @@ from core import Bridge, call as core_call, route_ok
 SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
 from layershell import KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
 from morgan import command
-from sensor import Catcher
 from views import log, make_view, zoom
 
 SIZE = (860, 620)
@@ -442,9 +441,10 @@ class Settings(QObject):
         self.bridge = SettingsBridge(self, self)
         # Its windows, keys and launcher entries follow a plugin's change, once it has started or stopped.
         self.bridge.pluginsTouched.connect(lambda: QTimer.singleShot(1500, self.desktop.webapps.refresh))
-        # Its page, and the clear layer behind it, made the first time Settings opens: kept for a page opened now and then.
+        # Its page, made the first time Settings opens: kept for a page opened now and then. The dim behind it is
+        # every panel's (dim.py): a click off Settings, on it, puts Settings away.
         self.profile = profile
-        self._view = self._surface = self._catcher = None
+        self._view = self._surface = None
         # Wi-Fi and Bluetooth: the same readings and changes as the bar's panels.
         desktop.machine.panel.connect(self.bridge.panel.emit)
         self.idle = QTimer(self)
@@ -454,8 +454,6 @@ class Settings(QObject):
     def _make(self) -> None:
         self._view = make_view(self.profile, "settings", "talaris-ui://ui/settings.html", self.bridge, self)
         self._surface = LayerSurface(self._view, "talaris-settings")
-        # A clear layer behind it, over the windows: a click off Settings closes it.
-        self._catcher = Catcher(self.profile, self.file_away, self, name="settings-catcher")
 
     @property
     def view(self):
@@ -468,12 +466,6 @@ class Settings(QObject):
         if self._surface is None:
             self._make()
         return self._surface
-
-    @property
-    def catcher(self):
-        if self._catcher is None:
-            self._make()
-        return self._catcher
 
     def describe(self) -> dict:
         # Its size in its page's pixels, for arriving to wait for — once it has a page.
@@ -488,9 +480,9 @@ class Settings(QObject):
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
             self.up = True
-            # Clear until the page has drawn itself and begun to arrive (`pointer_back`), then dimmed with it.
+            # The dim every panel has (dim.py): up and clear now, darkened as the page has drawn and arrives (`pointer_back`).
             if not getattr(self, "_chooser", None):
-                self.catcher.show(dim=False)
+                self.desktop.dim.hold(self)
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -511,7 +503,7 @@ class Settings(QObject):
         while it is open (its page as it was), and comes back when it closes.
         """
         self.idle.stop()
-        self.catcher.hide()
+        self.desktop.dim.release(self)
         if self.up:
             self._aside = True
             self.view.hide()
@@ -524,7 +516,8 @@ class Settings(QObject):
         if not self.up:
             return
         self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
-        self.catcher.show(dim=True)
+        self.desktop.dim.hold(self)
+        self.desktop.dim.deepen(self)
         self.touched()
 
     def file_away(self) -> None:
@@ -532,7 +525,7 @@ class Settings(QObject):
             return
         self.up = False
         self.idle.stop()
-        self.catcher.hide()
+        self.desktop.dim.release(self)
         self.desktop.bar.changed()
         # The page plays its leaving, then says so (`left`); then the surface goes.
         self.leaving = True
@@ -553,8 +546,8 @@ class Settings(QObject):
 
     def pointer_back(self) -> None:
         """The page has drawn and is arriving (core.Bridge.drawn): the screen behind dimmed with it, and the pointer given back."""
-        if self.up and not getattr(self, "_chooser", None) and self._catcher is not None and self._catcher.up:
-            self._catcher.dim(True)
+        if self.up and not getattr(self, "_chooser", None):
+            self.desktop.dim.deepen(self)
         hypr.refocus_pointer()
 
     def add_account(self) -> None:

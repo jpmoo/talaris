@@ -12,20 +12,18 @@ which puts the drawer away.
 <meta charset="utf-8">
 <style>
 html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); }
-body.dim { background: rgba(0, 0, 0, .32); animation: dim .25s ease-out; }
-@keyframes dim { from { background: rgba(0, 0, 0, .01); } }
-@media (prefers-reduced-motion: reduce) { body.dim { animation: none; } }
+/* Darkened and lightened by the same fade, either way (dim.py waits it out before the layer goes). */
+body { transition: background-color .25s ease-out; }
+body.dim { background: rgba(0, 0, 0, .32); }
+@media (prefers-reduced-motion: reduce) { body { transition: none; } }
 </style>
 </head>
 <body>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>
 "use strict";
-// Dimmed or clear; dimming again restarts the fade, as the catcher has just come out.
-window.dim = (on) => {
-  document.body.classList.remove("dim");
-  if (on) { void document.body.offsetWidth; document.body.classList.add("dim"); }
-};
+// Dimmed or clear, faded either way from where it is.
+window.dim = (on) => { document.body.classList.toggle("dim", !!on); };
 new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
   for (const type of ["pointerdown", "mousedown", "touchstart"]) document.addEventListener(type, () => bridge.touched(), true);

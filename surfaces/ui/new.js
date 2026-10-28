@@ -862,7 +862,7 @@
 
   function how() {
     const m = surface.motion || {};
-    return { kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement, viewport: surface.viewport,
+    return { kind: m.motion, speed: m.speed, edge: "top", flush: false, viewport: surface.viewport,
       shown: () => bridge && bridge.drawn() };
   }
   function onState(s) {

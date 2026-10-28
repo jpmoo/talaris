@@ -280,6 +280,8 @@ class Launcher(QObject):
         self.up = True
         self.leaving = False
         point_at(self.view)
+        # The dim every panel has (dim.py): up and clear now, darkened as the page arrives.
+        self.desktop.dim.hold(self)
         screen = QApplication.primaryScreen().geometry()
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
                                      screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
@@ -290,6 +292,8 @@ class Launcher(QObject):
         log("launcher: open" + (f" ({mode})" if mode else ""))
 
     def pointer_back(self) -> None:
+        if self.up:
+            self.desktop.dim.deepen(self)
         pointer_back(self.view)
 
     def toggle(self, mode: str = "") -> None:
@@ -304,6 +308,7 @@ class Launcher(QObject):
             return
         self.up = False
         self.idle.stop()
+        self.desktop.dim.release(self)
         self.desktop.bar.changed()
         self.leaving = True
         self.bridge.leave.emit()

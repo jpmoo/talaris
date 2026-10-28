@@ -60,6 +60,7 @@ from notifications import Notifications
 import docs
 import thumbs
 from osd import Osd
+from dim import Dim
 from fullscreen import Fullscreen
 from pins import Pins
 from tip import Tip
@@ -217,6 +218,8 @@ class Desktop(QObject):
         # The bar first: its reserved space is what the drawers keep clear of.
         self.bar = Bar(self.config["bar"], profile, self)
         self.bar.place()
+        # The dim behind every panel, the launcher and Settings: one, the same for all (dim.py).
+        self.dim = Dim(profile, self)
         self.events = hypr.Events(self)
         self.dock = Dock(self.config["dock"], profile, self, self.apps)
         self.dock.place()

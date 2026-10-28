@@ -30,7 +30,7 @@
      the whole surface, nothing dimmed. */
   /* Clipped here too: otherwise Chromium hands the body's overflow to the
      window, and the body's rounded corners stop clipping its header. */
-  html { background: rgba(0, 0, 0, .32); overflow: hidden; }
+  html { background: rgba(0, 0, 0, .01); overflow: hidden; }
   /* The dim is a button: a press there closes it — the bar's button under it included. */
   html:not([data-window]) { cursor: pointer; }
   body { cursor: default; }
@@ -789,7 +789,7 @@ let surfaceState = { up: false };
 function how() {
   const m = surfaceState.motion || {};
   return {
-    kind: m.motion, speed: m.speed, edge: "top", flush: false, backdrop: document.documentElement,
+    kind: m.motion, speed: m.speed, edge: "top", flush: false,
     rules: (rule, rel, P) => { const f = document.querySelector("footer").getBoundingClientRect(); rule(rel(P.left, f.top), rel(P.right, f.top)); },
   };
 }

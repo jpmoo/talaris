@@ -254,13 +254,8 @@ const Motion = (() => {
     if (still(o)) { panel.style.visibility = ""; settled(o.viewport).then(() => drawn(o)); return; }
     const mine = ++arrival;
     panel.style.visibility = "hidden";
-    // The dim held clear too while the panel waits unseen: shown at once, it
-    // sat there before anything came, then went clear as the fade began.
-    const bd = o.backdrop, was = bd ? [bd.style.getPropertyValue("background-color"), bd.style.getPropertyPriority("background-color")] : null;
-    if (bd) bd.style.setProperty("background-color", "rgba(0, 0, 0, 0)", "important");
     settled(o.viewport).then(() => {
       panel.style.visibility = "";
-      if (bd) { if (was[0]) bd.style.setProperty("background-color", was[0], was[1]); else bd.style.removeProperty("background-color"); }
       // Gone again, or arriving afresh, before it settled: this arrival is not wanted.
       if (mine === arrival) { play(panel, o); drawn(o); }
     });

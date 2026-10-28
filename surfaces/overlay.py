@@ -130,6 +130,9 @@ class Overlay(QObject):
         return self._surface
 
     def pointer_back(self) -> None:
+        """Its page has drawn and is arriving (core.Bridge.drawn): the screen behind darkened with it (dim.py), the pointer given back."""
+        if self.up:
+            self.desktop.dim.deepen(self)
         pointer_back(self.view)
 
     def describe(self) -> dict:
@@ -158,6 +161,8 @@ class Overlay(QObject):
         if not self.up:
             self.up = True
             point_at(self.view)
+            # The dim every panel has (dim.py): up and clear now, darkened as the page arrives.
+            self.desktop.dim.hold(self)
             self._place()
             log(f"{self.NAME}: open")
             self.opened()
@@ -194,6 +199,7 @@ class Overlay(QObject):
             self.up = False
             self.leaving = False
             self.idle.stop()
+            self.desktop.dim.release(self)
             self.view.hide()
             self.surface.placement = None
         self.windowed = True
@@ -249,6 +255,7 @@ class Overlay(QObject):
         its page as it was, until `come_back`.
         """
         self.idle.stop()
+        self.desktop.dim.release(self)
         if self.up and not getattr(self, "_aside", False):
             self._aside = True
             self.view.hide()
@@ -259,6 +266,8 @@ class Overlay(QObject):
             return
         self._aside = False
         if self.up:
+            self.desktop.dim.hold(self)
+            self.desktop.dim.deepen(self)
             self._place()
             self.view.setFocus()
             self.touched()
@@ -271,6 +280,7 @@ class Overlay(QObject):
             return
         self.up = False
         self.idle.stop()
+        self.desktop.dim.release(self)
         self.closed()
         # The page plays its leaving, then says so (`left`); then the surface goes.
         self.leaving = True
