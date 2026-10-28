@@ -20,9 +20,10 @@ import re
 import os
 import socket
 import threading
+import time
 from urllib.parse import parse_qs, urlsplit
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QThreadPool, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 import hypr
@@ -55,6 +56,54 @@ def call(method: str, path: str, body: str | None = None, timeout: float = 10) -
         return 503, json.dumps({"error": f"the core is not answering ({e.strerror or e})"})
     finally:
         conn.close()
+        # A project made, renamed, archived or brought back, by whoever asked: the list held (`projects`) is old.
+        if method.upper() != "GET" and path.startswith("/projects"):
+            forget_projects()
+
+
+def get_json(path: str, fallback=None, timeout: float = 10):
+    """
+    A read from the core, parsed: `fallback` for anything but a 200 with
+    JSON in it — the core away, an error, a reply cut short. Every reading of
+    the core in this process goes through here, so none of them is the one
+    left without its `try`.
+    """
+    status, text = call("GET", path, timeout=timeout)
+    if status != 200:
+        return fallback
+    try:
+        return json.loads(text)
+    except ValueError:
+        return fallback
+
+
+#: Every project, as the core last listed them, and when (`projects`).
+_projects: tuple[float, list] = (0.0, [])
+#: How long that list is good for. Short: it saves asking again within one
+#: gesture (the dock naming each desktop, a change of project sliding in), not
+#: for minutes; and any change of a project through this process forgets it.
+PROJECTS_FOR_S = 5.0
+
+
+def projects() -> list[dict]:
+    """
+    Every project (`GET /projects`), archived ones too — callers that list
+    projects leave those out themselves. Each is a copy: one changed by a
+    caller does not change the next caller's. [] when the core is away.
+    """
+    global _projects
+    at, held = _projects
+    if not held or time.monotonic() - at > PROJECTS_FOR_S:
+        got = get_json("/projects", [])
+        held = [p for p in got if isinstance(p, dict)] if isinstance(got, list) else []
+        if held:
+            _projects = (time.monotonic(), held)
+    return [dict(p) for p in held]
+
+
+def forget_projects() -> None:
+    global _projects
+    _projects = (0.0, [])
 
 
 #: Answers `/people/find?q=` — the calendar's address books, which live in this
@@ -90,14 +139,40 @@ def route_ok(allowed, path: str) -> bool:
     return not _REWRITTEN.search(where) and bool(allowed.match(path))
 
 
-class _Call(QRunnable):
-    def __init__(self, bridge: "Bridge", rid: int, method: str, path: str, body: str | None) -> None:
-        super().__init__()
-        self.bridge, self.rid, self.method, self.path, self.body = bridge, rid, method, path, body
+def _in_thread(job) -> None:
+    threading.Thread(target=job, daemon=True).start()
 
-    def run(self) -> None:
-        status, text = local_call(self.method, self.path, self.body)
-        self.bridge.replied.emit(self.rid, status, text)
+
+def ask_core(routes, method: str, path: str, body: str, answer, timeout: float | None = None, writes=None,
+             who: str = "this page", refused: int = 400, start=_in_thread, by: str = "") -> None:
+    """
+    A page's call to the core, as every bridge makes it: one of the page's
+    routes (`route_ok`) and — for a page that may change only some things
+    (`writes`, asked with the method and the path) — a read or one of those;
+    else refused. Asked on a worker (`start`; a thread of its own unless the
+    bridge keeps a pool), so a slow answer never stops the surface drawing,
+    and `answer(status, text)` told from there.
+    """
+    method = str(method).upper()
+    if not route_ok(routes, path) or (writes is not None and method != "GET" and not writes(method, path)):
+        log(f"bridge: refused {method} {str(path)[:120]} from {by or who}")
+        answer(refused, json.dumps({"error": f"not a route {who} uses"}))
+        return
+    start(lambda: answer(*local_call(method, path, body or None, timeout)))
+
+
+def reply_data(status: int, text: str, text_ok: bool = False):
+    """
+    What a page is told a reply was: its JSON; nothing, for an empty one; and
+    one that is not JSON, `{error: text}` — or, `text_ok`, the text itself
+    when it succeeded (a page of the archive, which is its Markdown).
+    """
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text if text_ok and status == 200 else {"error": text}
 
 
 class Bridge(QObject):
@@ -118,6 +193,8 @@ class Bridge(QObject):
     show = Signal(str)
     #: Files chosen and kept in a project (`attachToProject`): {project, files: [{name, path}], error}.
     projectFiles = Signal(str)
+    #: The core's answer to a panel's `core` slot (`answer_core`): {id, status, data}.
+    coreReply = Signal(str)
 
     def __init__(self, owner, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -132,11 +209,21 @@ class Bridge(QObject):
     def request(self, rid: int, method: str, path: str, body: str) -> None:
         # Only the routes this page needs: a page that ever ran someone else's script must not reach the rest
         # (installing a plugin, the vault, a plugin's settings).
-        if not route_ok(self.ROUTES, path):
-            log(f"bridge: refused {method} {path[:120]} from {type(self).__name__}")
-            self.replied.emit(rid, 403, json.dumps({"error": "not a route this page uses"}))
-            return
-        self._pool.start(_Call(self, rid, method.upper(), path, body if body else None))
+        ask_core(self.ROUTES, method, path, body, lambda status, text: self.replied.emit(rid, status, text),
+                 refused=403, start=self._pool.start, by=type(self).__name__)
+
+    def answer_core(self, ident: str, method: str, path: str, body: str, routes, timeout: float = 30, writes=None,
+                    who: str = "this page", text_ok: bool = False, then=None) -> None:
+        """
+        A panel's `core` slot: its page's call, checked against its routes and
+        answered later on `coreReply` as `{id, status, data}` (`reply_data`).
+        `then(status)` is told after, on the worker: what follows a change.
+        """
+        def answer(status: int, text: str) -> None:
+            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": reply_data(status, text, text_ok)}))
+            if then is not None:
+                then(status)
+        ask_core(routes, method, path, body, answer, timeout=timeout, writes=writes, who=who)
 
     @Slot()
     def toggle(self) -> None:

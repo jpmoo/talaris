@@ -18,12 +18,11 @@ import json
 import os
 import re
 import subprocess
-import threading
 
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call, route_ok
+from core import Bridge
 from files import choose_files, choose_folder
 from views import log
 from overlay import Overlay
@@ -44,25 +43,13 @@ def _launch(*args: str) -> None:
 
 
 class FilesBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     #: Files chosen in the desktop's chooser, to bring in: [path].
     chosen = Signal(str)
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not route_ok(ALLOWED, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route Files uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=60)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Answered later, on `coreReply` (core.Bridge.answer_core)."""
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=60, who="Files")
 
     @Slot(str)
     def open(self, path: str) -> None:

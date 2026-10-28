@@ -31,7 +31,7 @@ from PySide6.QtWidgets import QApplication
 
 import hypr
 from core import Bridge
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_ON_DEMAND, OVERLAY, LayerSurface, Placement
+from layershell import KEYBOARD_ON_DEMAND, LayerSurface, Placement, full_screen
 from sensor import Presses
 from views import log, make_view
 
@@ -92,6 +92,15 @@ class Overlay(QObject):
     #: Its page made the first time it is wanted, not at start: a page is a renderer's worth of memory,
     #: kept for one opened now and then. False: made at start, for one wanted at once (Morgan, Tasks).
     LAZY = False
+    #: The keyboard while it is out: when a field in it is pressed — or its own, for one opened to be
+    #: typed into or answered by keys (the launcher, New, the carousel).
+    KEYBOARD = KEYBOARD_ON_DEMAND
+    #: The pointing hand as it arrives: over the whole screen, the dim under the pointer is a button
+    #: (`point_at`). A box in the middle of the screen (Settings) leaves the pointer to its page.
+    HAND = True
+    #: Its surface gives the pointer back once the compositor shows it (layershell's nudge). A page that
+    #: says when it has drawn (`pointer_back`) is given it back then instead: nudged before, it showed an arrow.
+    NUDGE = False
 
     def __init__(self, profile: QWebEngineProfile, desktop, url: str, bridge: Bridge, area: str = "interface") -> None:
         super().__init__(desktop)
@@ -113,7 +122,7 @@ class Overlay(QObject):
 
     def _make(self) -> None:
         self._view = make_view(self.profile, self.NAME, self.url, self.bridge, self, area=self.area)
-        self._surface = LayerSurface(self._view, f"talaris-{self.NAME}", nudge=False)
+        self._surface = LayerSurface(self._view, f"talaris-{self.NAME}", nudge=self.NUDGE)
         Presses(self._view, dead=self._dead)
 
     @property
@@ -131,19 +140,26 @@ class Overlay(QObject):
 
     def pointer_back(self) -> None:
         """Its page has drawn and is arriving (core.Bridge.drawn): the screen behind darkened with it (dim.py), the pointer given back."""
-        if self.up:
+        if self.up and not getattr(self, "_aside", False):
             self.desktop.dim.deepen(self)
-        pointer_back(self.view)
+        if self.HAND:
+            pointer_back(self.view)
+        else:
+            hypr.refocus_pointer()
 
     def describe(self) -> dict:
+        # The clock as Settings has it (12 or 24 hours), so any time a page shows reads the same as the bar's.
         return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,
-                "motion": self.desktop.motion(self.NAME), "viewport": viewport(self._view) if self._view is not None else None}
+                "motion": self.desktop.motion(self.NAME), "viewport": viewport(self._view) if self._view is not None else None,
+                "clock": self.desktop.config.get("clock", {})}
+
+    def placement(self) -> Placement:
+        """Where it goes: the whole screen, the page drawing the panel in it. A box in the middle (Settings) says otherwise."""
+        return full_screen(self.KEYBOARD)
 
     def _place(self) -> None:
-        screen = QApplication.primaryScreen().geometry()
         self.surface.placement = None
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_ON_DEMAND, exclusive=-1))
+        self.surface.apply(self.placement())
         self.bridge.state.emit(json.dumps(self.describe()))
 
     # What a subclass adds to coming and going.
@@ -160,9 +176,12 @@ class Overlay(QObject):
         self.leaving = False
         if not self.up:
             self.up = True
-            point_at(self.view)
-            # The dim every panel has (dim.py): up and clear now, darkened as the page arrives.
-            self.desktop.dim.hold(self)
+            if self.HAND:
+                point_at(self.view)
+            # The dim every panel has (dim.py): up and clear now, darkened as the page arrives —
+            # not while another program's window is in front of it (`step_aside`).
+            if not getattr(self, "_aside", False):
+                self.desktop.dim.hold(self)
             self._place()
             log(f"{self.NAME}: open")
             self.opened()

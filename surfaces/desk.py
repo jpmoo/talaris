@@ -16,12 +16,11 @@ import json
 import os
 
 from PySide6.QtCore import QObject, Slot
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import wallpaper
 from core import Bridge
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, BOTTOM, KEYBOARD_NONE, LayerSurface, Placement
+from layershell import BOTTOM, KEYBOARD_NONE, LayerSurface, full_screen
 from views import log, make_view
 
 
@@ -59,9 +58,7 @@ class Desk(QObject):
 
     def place(self) -> None:
         """The whole screen, under the windows, clear of what the bar and the dock keep."""
-        screen = QGuiApplication.primaryScreen().geometry()
-        self.surface.apply(Placement(BOTTOM, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_NONE, exclusive=0))
+        self.surface.apply(full_screen(KEYBOARD_NONE, layer=BOTTOM, exclusive=0))
         self.up = True
         self.changed()
 

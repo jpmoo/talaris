@@ -22,7 +22,7 @@ import threading
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call, route_ok
+from core import Bridge
 from files import choose_files, open_kept_file, send_files
 from overlay import Overlay
 
@@ -32,25 +32,13 @@ ALLOWED = re.compile(r"^/(people|entities|entity-types|mentionables|contacts/car
 
 
 class PeopleBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     #: Files kept with a person, or why not: {id, field, added, error}.
     attached = Signal(str)
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not route_ok(ALLOWED, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route People uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=30)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Answered later, on `coreReply` (core.Bridge.answer_core)."""
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=30, who="People")
 
     @Slot(str, str)
     def attach(self, person: str, field: str) -> None:

@@ -19,11 +19,10 @@ import re
 import threading
 
 from PySide6.QtCore import Signal, Slot
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, local_call, route_ok
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, Placement
+from core import Bridge
+from layershell import KEYBOARD_EXCLUSIVE
 from overlay import Overlay
 from files import choose_files, send_files, send_project_files
 from views import log
@@ -33,8 +32,6 @@ ALLOWED = re.compile(r"^/(tasks|entities|entity-types|people/find|mentionables|p
 
 
 class NewBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
     #: A calendar's answer to `createEvent`: {req, error, uid}.
     eventMade = Signal(str)
     #: Files chosen for a field, not yet sent: {field, files: [{path, name, size}]}.
@@ -44,18 +41,8 @@ class NewBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not route_ok(ALLOWED, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route New uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=30)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Answered later, on `coreReply` (core.Bridge.answer_core)."""
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=30, who="New")
 
     @Slot(result=str)
     def calendars(self) -> str:
@@ -109,6 +96,8 @@ class New(Overlay):
     LAZY = True
     TITLE = "New"
     IDLE_MS = 5 * 60 * 1000
+    # As every panel, the whole screen — but the keyboard is its own: it opened to be typed into.
+    KEYBOARD = KEYBOARD_EXCLUSIVE
 
     def __init__(self, profile: QWebEngineProfile, desktop, service) -> None:
         super().__init__(profile, desktop, "talaris-ui://ui/new.html", NewBridge(None, None))
@@ -122,14 +111,6 @@ class New(Overlay):
     def describe(self) -> dict:
         # The current project, which a note is written into unless another is chosen.
         return {**super().describe(), "project": self.desktop.project.get("id", "")}
-
-    def _place(self) -> None:
-        # As every panel, the whole screen — but the keyboard is its own: it opened to be typed into.
-        screen = QGuiApplication.primaryScreen().geometry()
-        self.surface.placement = None
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                     screen.width(), screen.height(), KEYBOARD_EXCLUSIVE, exclusive=-1))
-        self.bridge.state.emit(json.dumps(self.describe()))
 
     def grow(self) -> None:
         """A sheet, not a panel: there is no window of it."""

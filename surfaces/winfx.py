@@ -22,11 +22,11 @@ import json
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWebEngineCore import QWebEngineProfile
-from PySide6.QtWidgets import QApplication
 
 import hypr
+from config import pace
 from core import Bridge
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, QT_SCALE, TOP, LayerSurface, Placement
+from layershell import KEYBOARD_NONE, QT_SCALE, TOP, LayerSurface, full_screen
 from views import make_view
 
 #: How long the layer stays up after the last drawing began, at normal speed.
@@ -112,15 +112,12 @@ class WindowDraw(QObject):
         if not rect or rect["w"] < 20 or rect["h"] < 20:
             return
         if not self.up:
-            screen = QApplication.primaryScreen().geometry()
             self.surface.placement = None
-            self.surface.apply(Placement(TOP, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
-                                         screen.width(), screen.height(), KEYBOARD_NONE, exclusive=-1))
+            self.surface.apply(full_screen(KEYBOARD_NONE, layer=TOP))
             self.up = True
         self.bridge.draw.emit(json.dumps({"kind": kind, **rect, "speed": self._speed(),
                                           "accent": self.desktop.config["theme"]["accent"]}))
-        pace = {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(self._speed(), 1)
-        self.down.start(int(LINGER_MS * pace) + 200)
+        self.down.start(int(LINGER_MS * pace(self._speed())) + 200)
 
     def _down(self) -> None:
         if self.up:

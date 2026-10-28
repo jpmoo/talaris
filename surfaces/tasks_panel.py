@@ -22,7 +22,7 @@ import threading
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
-from core import Bridge, call, local_call, route_ok
+from core import Bridge, call
 from files import choose_files, open_kept_file, send_files
 from overlay import Overlay
 import wallpaper
@@ -33,23 +33,10 @@ ALLOWED = re.compile(r"^/(tasks|lists|entities|entity-types|people/find|mentiona
 
 
 class TasksBridge(Bridge):
-    #: The core's answer to `core`: {id, status, data}.
-    coreReply = Signal(str)
-
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        if not route_ok(ALLOWED, path):
-            self.coreReply.emit(json.dumps({"id": ident, "status": 400, "data": {"error": "not a route the Tasks panel uses"}}))
-            return
-
-        def run() -> None:
-            status, text = local_call(method, path, body or None, timeout=30)
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = {"error": text}
-            self.coreReply.emit(json.dumps({"id": ident, "status": status, "data": data}))
-        threading.Thread(target=run, daemon=True).start()
+        """Answered later, on `coreReply` (core.Bridge.answer_core)."""
+        self.answer_core(ident, method, path, body, ALLOWED, timeout=30, who="the Tasks panel")
 
 
     #: Files attached, or why not: {task, added, error}.

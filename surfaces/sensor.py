@@ -19,6 +19,7 @@ nothing, so the windows keep the space); left for a moment, it goes again.
 
 from __future__ import annotations
 
+import time
 from typing import Callable
 
 import shiboken6
@@ -28,7 +29,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 import hypr
 from core import Bridge
-from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement, to_compositor
+from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement, full_screen, to_compositor
 from views import make_view
 
 #: The touch target, as Settings sets it (Desktop keeps this current): how
@@ -149,12 +150,10 @@ class Catcher(QObject):
         self.dim(dim)
         if self.up:
             return
-        screen = QApplication.primaryScreen().geometry()
         self.surface.placement = None
         # Clear of the bar (a dropdown's): it keeps out of the space the bar
         # reserves, so a press on another of the bar's buttons reaches it.
-        self.surface.apply(Placement(TOP, EDGE_ANCHOR["top"] | EDGE_ANCHOR["bottom"] | EDGE_ANCHOR["left"] | EDGE_ANCHOR["right"],
-                                     screen.width(), screen.height(), KEYBOARD_NONE, exclusive=0 if clear_of_bar else -1))
+        self.surface.apply(full_screen(KEYBOARD_NONE, layer=TOP, exclusive=0 if clear_of_bar else -1))
         self.up = True
         self._watch()
 
@@ -190,6 +189,41 @@ class Catcher(QObject):
 
     def touched(self) -> None:
         pass
+
+
+#: Making a surface anew takes its focus away and gives it back, which its
+#: page hears as the pointer going elsewhere. For this long after a dropdown
+#: appears, its page cannot send it away.
+SETTLE_S = 0.5
+
+
+class ClickAway(QObject):
+    """
+    How a dropdown — the bar's popups, the dock's menu — goes when you are
+    done with it, other than by its own buttons: a press anywhere off it,
+    heard by a clear layer under it that keeps off the bar and the dock so
+    their other buttons still answer; and its page saying the pointer went
+    elsewhere, which is not believed while it is still settling (`SETTLE_S`).
+    One way, for both: they had a way each, and the dock's had neither.
+    """
+
+    def __init__(self, profile: QWebEngineProfile, close: Callable[[], None], parent: QObject, name: str) -> None:
+        super().__init__(parent)
+        self.catcher = Catcher(profile, close, self, name=name)
+        self.shown_at = 0.0
+
+    def shown(self) -> float:
+        """The dropdown has come out: the layer under it up. Answers when, which names this showing."""
+        self.shown_at = time.monotonic()
+        self.catcher.show(clear_of_bar=True)
+        return self.shown_at
+
+    def settling(self) -> bool:
+        """Too soon after it came out for its page's word that the pointer left to mean anything."""
+        return time.monotonic() - self.shown_at < SETTLE_S
+
+    def gone(self) -> None:
+        self.catcher.hide()
 
 
 class Presses(QObject):
