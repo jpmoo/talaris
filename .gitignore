@@ -7,3 +7,6 @@ surfaces/ui/editor.js
 surfaces/ui/editor.js.map
 packages/*/dist/
 surfaces/ui/canvas/
+
+# The Hermes Notes plugin: kept on this machine, not published (only its owner uses Hermes Notes).
+plugins/hermes-sync/
