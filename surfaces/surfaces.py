@@ -550,7 +550,7 @@ class Desktop(QObject):
             return self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
         return f"name:{project_id}"
 
-    def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
+    def go_to_project(self, project_id: str, move: bool = True, announce: bool = False, slide: str = "") -> None:
         """
         The current project changes: the bar says so, the canvas and the
         writing surface open on it, the dock shows its pins, the wallpaper its
@@ -572,6 +572,10 @@ class Desktop(QObject):
             return
         if move:
             back = self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
+            # From the carousel, the desktop slides in from the side the project sat on (`slide`), then the
+            # workspaces' own animation is put back; any other way of going keeps it as it is.
+            if slide in ("left", "right") and found["id"] != self.project.get("id"):
+                self._slide_once(slide)
             hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
         # Already there (an app opened, a window focused): nothing to say — the flash is for arriving.
         if found["id"] == self.project.get("id"):
@@ -590,6 +594,44 @@ class Desktop(QObject):
         if announce:
             self.say_where(found)
         log(f"project: {found['name']}")
+
+    #: How long a workspace's slide may take before its own animation is put back.
+    SLIDE_BACK_MS = 900
+
+    def _slide_once(self, side: str) -> None:
+        """
+        The next change of desktop slides in from `side`: the workspaces'
+        animations given that style, their speed and curve kept, and put back
+        as they were once it has played. Hyprland follows the side it is told
+        (checked 2026-10-27: told left and told right, the same two moves
+        went opposite ways).
+        """
+        try:
+            now = json.loads(hypr.ask("j/animations") or "[]")
+        except ValueError:
+            return
+        found = [a for g in now for a in (g if isinstance(g, list) else [g])
+                 if isinstance(a, dict) and a.get("name") in ("workspaces", "workspacesIn", "workspacesOut")]
+        if not found:
+            return
+        # Kept from the first slide of a run, so a second before the first is put back does not keep the slide as "theirs".
+        if not getattr(self, "_slide_kept", None):
+            self._slide_kept = {a["name"]: a for a in found}
+        for name, a in self._slide_kept.items():
+            if a.get("enabled"):
+                hypr.keyword("animation", f"{name},1,{a.get('speed', 4)},{a.get('bezier', 'default')},slide {side}")
+        if not hasattr(self, "_slide_back"):
+            self._slide_back = QTimer(self)
+            self._slide_back.setSingleShot(True)
+            self._slide_back.timeout.connect(self._slide_restore)
+        self._slide_back.start(self.SLIDE_BACK_MS)
+
+    def _slide_restore(self) -> None:
+        for name, a in (getattr(self, "_slide_kept", None) or {}).items():
+            if a.get("enabled"):
+                style = f",{a['style']}" if a.get("style") else ""
+                hypr.keyword("animation", f"{name},1,{a.get('speed', 4)},{a.get('bezier', 'default')}{style}")
+        self._slide_kept = None
 
     def _workspace_changed(self, name: str) -> None:
         """A workspace gone to: a project's (by its id), or an ordinary one — numbered, or named by you — which is Home's."""

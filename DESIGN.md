@@ -1540,7 +1540,11 @@ Super+Tab and Enter is back where you were. Left and Right (Tab, the wheel,
 or Super+Tab again) turn it; letters narrow it to the projects with them
 anywhere in the name, still most recent first, and it goes the moment one is
 left; Enter or a click goes to the one in front; Space, before anything is
-typed, goes straight to Home (2026-10-27). Wherever a key changed the
+typed, goes straight to Home (2026-10-27). The desktop chosen slides in from
+the side of the ring it sat on, the nearer way round: Hyprland's workspace
+animations are given that side for the one change, their speed and curve
+kept, and put back after (any other way of going keeps them as they are).
+Wherever a key changed the
 project, the on-screen display says which. It replaced the Super+Alt jump
 (Super+Alt and a letter, or held while typing), which was slow to reach for;
 Super+Alt is no longer bound at all.
