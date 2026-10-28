@@ -349,36 +349,17 @@ function starButton(starred, set) {
  * siblings' new order, as shown, is handed to `commit`. Only within the same
  * parent — moving a page or a canvas to another parent is its own act.
  */
-let lifted = null; // { list, parent, key }
-const unmark = () => document.querySelectorAll(".drop-before, .drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+// Dragged as every list's are (kit.js): by pointer, a copy following it, the one drop line.
 function dragRow(row, list, parent, key, keys, commit) {
-  row.draggable = true;
-  const mine = () => lifted && lifted.list === list && lifted.parent === parent && lifted.key !== key;
-  row.addEventListener("dragstart", (e) => {
-    e.stopPropagation();
-    lifted = { list, parent, key };
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", key);
-    row.classList.add("lifted");
-  });
-  row.addEventListener("dragend", () => { lifted = null; row.classList.remove("lifted"); unmark(); });
-  row.addEventListener("dragover", (e) => {
-    if (!mine()) return;
-    e.preventDefault();
-    const r = row.getBoundingClientRect();
-    unmark();
-    row.classList.add(e.clientY > r.top + r.height / 2 ? "drop-after" : "drop-before");
-  });
-  row.addEventListener("drop", (e) => {
-    if (!mine()) return;
-    e.preventDefault();
-    const after = row.classList.contains("drop-after");
-    const moving = lifted.key;
-    unmark();
-    const next = keys.filter((k) => k !== moving);
-    next.splice(next.indexOf(key) + (after ? 1 : 0), 0, moving);
-    setSort(list, "manual");
-    commit(next);
+  Kit.draggable(row, { list, parent, key }, { ignore: "button, input, .tw" });
+  Kit.dropZone(row, {
+    accepts: (p) => p.list === list && p.parent === parent && p.key !== key,
+    drop: (p, where) => {
+      const next = keys.filter((k) => k !== p.key);
+      next.splice(next.indexOf(key) + (where === "below" ? 1 : 0), 0, p.key);
+      setSort(list, "manual");
+      commit(next);
+    },
   });
 }
 

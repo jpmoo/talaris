@@ -456,10 +456,23 @@ uses it rather than writing its own.
   `ensureHome`. Overdue is `localtime.ts` `isOverdue`: a time once passed, a
   date from the next day.
 
-Left as they are on purpose: the Hermes sync's own reading of the format (two
-implementations prove it), and each list's sort control (a table's column
-header and a tree's order menu are different things). Still to unify: dragging
-works three ways, though the drop line looks the same.
+  - **Dragging:** by pointer, never the browser's drag and drop, which goes
+    through the compositor's drag protocol that a layer surface takes no part
+    in. A copy follows the pointer, there is one drop line (above, below, in),
+    and the list scrolls at its edge. Used by Tasks, the task views, the drawers
+    and Library.
+- **Following a thing that goes:** `merge.ts` `repoint` and `rememberMerge`,
+  for two people made one and two projects made one alike. Its reference
+  fields, mentions in fields, pages and bodies, and links all move, and the
+  one gone is remembered.
+
+Left as they are on purpose:
+- the Hermes sync's own reading of the format (two implementations prove it);
+- each list's sort control (a table's column header and a tree's order menu
+  are different things);
+- the dock trading places along its row as you drag, a gesture of its own;
+- files dragged in from other applications, which only the browser's drag can
+  bring.
 
 ## Morgan
 

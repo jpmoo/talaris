@@ -60,9 +60,6 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .item:hover { background: color-mix(in srgb, var(--accent-wash) 60%, transparent); }
 .item.on { background: var(--accent-wash); color: var(--accent); }
 .item input, #side .new { width: 100%; padding: 3px 6px; font-size: 13px; }
-.item.dragging, .row.dragging { opacity: .4; }
-.drop-above { box-shadow: inset 0 2px 0 var(--accent); }
-.drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* The right: quick add over what is shown. */
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -215,7 +212,6 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #side .item.proj .n { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 4px; }
 #side .item.proj.on .n { color: inherit; }
 #side .item.in-group { padding-left: 22px; }
-.drop-in { background: var(--accent-wash) !important; box-shadow: inset 0 0 0 1px var(--accent); }
 /* Below the last of the column: a place to drop something last, in no group. */
 .col-end { height: 14px; }
 /* A project, in its panel on the right. */

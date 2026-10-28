@@ -152,31 +152,20 @@
 
   // ---------------------------------------------------------------- dragging into order
 
-  let dragging = null;
-  function clearMarks() { for (const x of document.querySelectorAll(".drop-above, .drop-below, .drop-in")) x.classList.remove("drop-above", "drop-below", "drop-in"); }
+  // Dragged as every list's are (kit.js): by pointer, a copy following it, the one drop line.
   // Dropped above or below a neighbour: the core places it between the two.
   function sortable(item, id, scope, drop) {
-    item.draggable = true;
     item.dataset.scope = scope;
-    item.addEventListener("dragstart", (e) => { dragging = { id, scope }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); item.classList.add("dragging"); });
-    item.addEventListener("dragend", () => { item.classList.remove("dragging"); clearMarks(); dragging = null; });
-    item.addEventListener("dragover", (e) => {
-      if (!dragging || dragging.scope !== scope || dragging.id === id) return;
-      e.preventDefault();
-      const b = item.getBoundingClientRect();
-      const above = e.clientY < b.top + b.height / 2;
-      if (!item.classList.contains(above ? "drop-above" : "drop-below")) { clearMarks(); item.classList.add(above ? "drop-above" : "drop-below"); }
-    });
-    item.addEventListener("drop", (e) => {
-      if (!dragging || dragging.scope !== scope) return;
-      e.preventDefault();
-      const above = item.classList.contains("drop-above");
-      clearMarks();
-      const order = [...document.querySelectorAll(`[data-scope="${scope}"]`)].map((x) => x.dataset.id).filter((x) => x !== dragging.id);
-      const i = order.indexOf(id);
-      const after = above ? (order[i - 1] ?? null) : id;
-      const before = above ? id : (order[i + 1] ?? null);
-      drop(dragging.id, after, before);
+    Kit.draggable(item, { id, scope });
+    Kit.dropZone(item, {
+      accepts: (p) => p.scope === scope && p.id !== id,
+      drop: (p, where) => {
+        const order = [...document.querySelectorAll(`[data-scope="${scope}"]`)].map((x) => x.dataset.id).filter((x) => x !== p.id);
+        const i = order.indexOf(id);
+        const after = where === "above" ? (order[i - 1] ?? null) : id;
+        const before = where === "above" ? id : (order[i + 1] ?? null);
+        drop(p.id, after, before);
+      },
     });
   }
 
@@ -197,32 +186,20 @@
   }
   const arrange = (entries) => api("PUT", "/tasks/column", { entries }).then(loadSide).catch(failed);
   const topAt = (entries, key) => entries.findIndex((x) => (x.kind === "group" ? `g:${x.name}` : `p:${x.id}`) === key);
-  /** Where a drop lands on this row: above or below by the half, or (a group's heading) in it. */
-  function zone(node, e, isGroup, folded) {
-    const b = node.getBoundingClientRect();
-    const f = (e.clientY - b.top) / b.height;
-    if (!isGroup || dragging.scope === "group") return f < .5 ? "above" : "below";
-    return f < .3 ? "above" : folded && f > .7 ? "below" : "in";
+  /** Where a drop lands on this row: above or below by the half, or (a group's heading, for a project) in it. */
+  function zone(node, e, isGroup, folded, carried) {
+    if (!isGroup || carried.scope === "group") return Kit.halves(e, node);
+    const w = Kit.halves(e, node, true);
+    // An open group's heading has its projects right under it: below it is in it.
+    return w === "below" && !folded ? "in" : w;
   }
-  const MARK = { above: "drop-above", below: "drop-below", in: "drop-in" };
 
   /** One row of the column as a drop target. `at`: what it is — a project (and its group, if any), a group's heading, or the column's end. */
   function dropOn(node, at) {
-    node.addEventListener("dragover", (e) => {
-      if (!dragging || (dragging.scope !== "project" && dragging.scope !== "group")) return;
-      if (dragging.id === at.id || (dragging.scope === "group" && at.kind === "group" && dragging.id === at.name)) return;
-      e.preventDefault();
-      const mark = MARK[at.kind === "end" ? "above" : zone(node, e, at.kind === "group", at.folded)];
-      if (!node.classList.contains(mark)) { clearMarks(); node.classList.add(mark); }
-    });
-    node.addEventListener("dragleave", (e) => { if (!node.contains(e.relatedTarget)) node.classList.remove("drop-above", "drop-below", "drop-in"); });
-    node.addEventListener("drop", (e) => {
-      if (!dragging || (dragging.scope !== "project" && dragging.scope !== "group")) return;
-      e.preventDefault();
-      const where = node.classList.contains("drop-in") ? "in" : node.classList.contains("drop-below") ? "below" : "above";
-      clearMarks();
-      if (dragging.scope === "project") moveProject(dragging.id, at, where);
-      else moveGroup(dragging.id, at, where);
+    Kit.dropZone(node, {
+      accepts: (p) => (p.scope === "project" || p.scope === "group") && p.id !== at.id && !(p.scope === "group" && at.kind === "group" && p.id === at.name),
+      where: (e, n, p) => (at.kind === "end" ? "above" : zone(n, e, at.kind === "group", at.folded, p)),
+      drop: (p, where) => (p.scope === "project" ? moveProject(p.id, at, where) : moveGroup(p.id, at, where)),
     });
   }
   function moveProject(id, at, where) {
@@ -252,11 +229,7 @@
     rest.splice(key ? i + (where === "below" ? 1 : 0) : i, 0, moving);
     arrange(rest);
   }
-  function draggable(node, id, scope) {
-    node.draggable = true;
-    node.addEventListener("dragstart", (e) => { dragging = { id, scope }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); node.classList.add("dragging"); });
-    node.addEventListener("dragend", () => { node.classList.remove("dragging"); clearMarks(); dragging = null; });
-  }
+  function draggable(node, id, scope) { Kit.draggable(node, { id, scope }); }
 
   // ---------------------------------------------------------------- loading
 

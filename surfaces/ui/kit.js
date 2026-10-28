@@ -407,6 +407,113 @@ const Kit = (() => {
     return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   }
 
+  // ------------------------------------------------------------ dragging
+
+  /*
+   * By pointer, never the browser's drag and drop: that goes through the
+   * compositor's drag protocol, which a layer surface does not take part in
+   * (found by the task views; the drawers and Tasks used it, and the dock,
+   * which trades places along its row as it goes, never did). A copy follows
+   * the pointer; whatever is under it that takes what is carried says where it
+   * lands — above, below, or in — with the one drop line every list has; near
+   * the edge of what scrolls, it scrolls. The press that ends a drag is not a
+   * click on what was dragged.
+   */
+  const MARKS = { above: "drop-above", below: "drop-below", in: "drop-in" };
+  let carrying = null; // { payload, node }
+  const unmark = (z) => { if (z) { z.classList.remove("kit-over", ...Object.values(MARKS)); } };
+  /** Whatever holds what is under the pointer and scrolls. */
+  function scroller(hit) {
+    for (let e = hit; e && e !== document.body; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (/(auto|scroll)/.test(cs.overflowY + cs.overflowX) && (e.scrollHeight > e.clientHeight || e.scrollWidth > e.clientWidth)) return e;
+    }
+    return null;
+  }
+  /**
+   * `node` can be picked up and carried: `payload` is what a zone is given (or
+   * a function giving it, asked as it is picked up — the rows chosen then).
+   * Not from a button or a field inside it (`ignore`), and only once it has
+   * moved a few pixels, so a press is still a press.
+   */
+  function draggable(node, payload, { ignore = "button, input, textarea, select, a, .no-drag", onStart = null } = {}) {
+    node.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || (ignore && e.target.closest(ignore))) return;
+      const sx = e.clientX, sy = e.clientY;
+      let ghost = null, over = null, where = null, got = null;
+      const move = (ev) => {
+        if (!ghost) {
+          if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
+          popAway();
+          const r = node.getBoundingClientRect();
+          ghost = node.cloneNode(true);
+          ghost.classList.add("kit-ghost");
+          Object.assign(ghost.style, { width: `${r.width}px`, left: `${r.left}px`, top: `${r.top}px` });
+          document.body.append(ghost);
+          node.classList.add("kit-dragging");
+          document.body.classList.add("kit-drag-on");
+          got = typeof payload === "function" ? payload() : payload;
+          carrying = { payload: got, node };
+          if (onStart) onStart();
+        }
+        ghost.style.transform = `translate(${ev.clientX - sx}px, ${ev.clientY - sy}px)`;
+        const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+        let z = hit && hit.closest("[data-kit-drop]");
+        while (z && !(z.kitZone.accepts(got, node))) z = z.parentElement && z.parentElement.closest("[data-kit-drop]");
+        const w = z ? z.kitZone.where(ev, z, got) : null;
+        if (z !== over || w !== where) {
+          unmark(over);
+          over = z; where = w;
+          if (over) { over.classList.add("kit-over"); if (MARKS[where]) over.classList.add(MARKS[where]); }
+        }
+        const sc = scroller(hit);
+        if (sc) {
+          const b = sc.getBoundingClientRect(), edge = 36;
+          if (ev.clientY > b.bottom - edge) sc.scrollTop += 14; else if (ev.clientY < b.top + edge) sc.scrollTop -= 14;
+          if (ev.clientX > b.right - edge) sc.scrollLeft += 14; else if (ev.clientX < b.left + edge) sc.scrollLeft -= 14;
+        }
+      };
+      const up = (ev) => {
+        removeEventListener("pointermove", move);
+        removeEventListener("pointerup", up);
+        removeEventListener("pointercancel", up);
+        if (!ghost) return;
+        ghost.remove();
+        node.classList.remove("kit-dragging");
+        document.body.classList.remove("kit-drag-on");
+        unmark(over);
+        carrying = null;
+        const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+        addEventListener("click", swallow, true);
+        setTimeout(() => removeEventListener("click", swallow, true), 0);
+        if (ev.type === "pointerup" && over) over.kitZone.drop(got, where, ev, node);
+      };
+      addEventListener("pointermove", move);
+      addEventListener("pointerup", up);
+      addEventListener("pointercancel", up);
+    });
+    return node;
+  }
+  /** Where on `node` the pointer is: its upper or lower half, or — when `into` — the top and bottom thirds, and in between. */
+  function halves(ev, node, into = false) {
+    const b = node.getBoundingClientRect(), f = (ev.clientY - b.top) / b.height;
+    if (!into) return f < .5 ? "above" : "below";
+    return f < .3 ? "above" : f > .7 ? "below" : "in";
+  }
+  /**
+   * `node` takes what is carried: `accepts(payload, dragged)` says whether,
+   * `where(ev, node, payload)` where on it (default: above or below by the
+   * half; null for no line, the whole of it lit), `drop(payload, where, ev,
+   * dragged)` what happens.
+   */
+  function dropZone(node, { accepts = () => true, where = (ev, n) => halves(ev, n), drop }) {
+    node.dataset.kitDrop = "1";
+    node.kitZone = { accepts, where, drop };
+    return node;
+  }
+  /** What is being carried now, if anything. */
+  const carried = () => (carrying ? carrying.payload : null);
+
   // ------------------------------------------------------------ asking the core
 
   /*
@@ -471,6 +578,6 @@ const Kit = (() => {
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    core, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
+    core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };
 })();

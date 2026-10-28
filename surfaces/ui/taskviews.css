@@ -52,10 +52,7 @@ Everything is under .tv- so nothing reaches into the panel's other parts.
 
 /* Over everything, out of the page's flow: stronger than a card's own position (.tv-card, below), or the copy
    would take up room where it was put — at the foot of the page, pushing a bottom drawer up while it is dragged. */
-body > .tv-ghost { position: fixed; z-index: 999; pointer-events: none; opacity: .92; box-shadow: var(--menu-shadow); margin: 0 !important; }
-.tv-dragging { opacity: .35; }
-body.tv-drag-on, body.tv-drag-on * { cursor: grabbing !important; }
-.tv-over { box-shadow: inset 0 0 0 1px var(--accent); background-color: var(--accent-wash) !important; }
+/* Dragging is the kit's (kit.css: .kit-ghost, .kit-dragging, .kit-drag-on, .kit-over). */
 
 /* ---- table --------------------------------------------------------------- */
 

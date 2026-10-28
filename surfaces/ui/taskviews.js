@@ -209,60 +209,10 @@ const TaskViews = (() => {
   // A copy follows the pointer; what is under it says where it lands — any
   // element with a drop handler (`zone`).
 
-  function zone(node, onDrop) { node.dataset.drop = "1"; node.tvDrop = onDrop; return node; }
-
-  function draggable(node, payload) {
-    node.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || e.target.closest("button, input, .tv-nodrag")) return;
-      const sx = e.clientX, sy = e.clientY;
-      let ghost = null, over = null;
-      const move = (ev) => {
-        if (!ghost) {
-          if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
-          closePop();
-          const r = node.getBoundingClientRect();
-          ghost = node.cloneNode(true);
-          ghost.classList.add("tv-ghost");
-          Object.assign(ghost.style, { width: `${r.width}px`, left: "0px", top: "0px" });
-          document.body.append(ghost);
-          const o = ghost.getBoundingClientRect();
-          ghost.style.left = `${r.left - o.left}px`; ghost.style.top = `${r.top - o.top}px`;
-          node.classList.add("tv-dragging");
-          document.body.classList.add("tv-drag-on");
-        }
-        ghost.style.transform = `translate(${ev.clientX - sx}px, ${ev.clientY - sy}px)`;
-        const hit = document.elementFromPoint(ev.clientX, ev.clientY);
-        const z = hit && hit.closest("[data-drop]");
-        if (z !== over) { if (over) over.classList.remove("tv-over"); over = z; if (over) over.classList.add("tv-over"); }
-        // Near the edge of what scrolls, it scrolls.
-        const sc = hit && hit.closest(".tv-scroll");
-        if (sc) {
-          const b = sc.getBoundingClientRect(), edge = 36;
-          if (ev.clientX > b.right - edge) sc.scrollLeft += 14; else if (ev.clientX < b.left + edge) sc.scrollLeft -= 14;
-          if (ev.clientY > b.bottom - edge) sc.scrollTop += 14; else if (ev.clientY < b.top + edge) sc.scrollTop -= 14;
-        }
-      };
-      const up = (ev) => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        window.removeEventListener("pointercancel", up);
-        if (!ghost) return;
-        ghost.remove();
-        node.classList.remove("tv-dragging");
-        document.body.classList.remove("tv-drag-on");
-        if (over) over.classList.remove("tv-over");
-        // The click that ends a drag is not a press on what was dragged.
-        const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
-        window.addEventListener("click", swallow, true);
-        setTimeout(() => window.removeEventListener("click", swallow, true), 0);
-        if (ev.type === "pointerup" && over && over.tvDrop) over.tvDrop(payload, ev, node);
-      };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-      window.addEventListener("pointercancel", up);
-    });
-    return node;
-  }
+  // The kit's drag (kit.js), as every list's: a copy follows the pointer, what is under it says where it lands.
+  // A zone here is lit whole (no line): where in it is the board's or the matrix's own reading (`neighbors`).
+  function zone(node, onDrop) { return Kit.dropZone(node, { where: () => null, drop: (payload, _where, ev, dragged) => onDrop(payload, ev, dragged) }); }
+  function draggable(node, payload) { return Kit.draggable(node, payload, { ignore: "button, input, .tv-nodrag" }); }
 
   /** Between which two cards in `box` the pointer is — the dragged one left out. */
   function neighbors(box, y, id) {

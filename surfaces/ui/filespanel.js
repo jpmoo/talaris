@@ -283,8 +283,8 @@
   function rowEl(r) {
     const gone = r.status.includes("missing");
     const where = view === "folders" ? "" : (project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`);
-    const row = el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key, draggable: "true",
-      onclick: (e) => pick(r.key, e), ondblclick: () => open(r), ondragstart: (e) => dragStart(e, r) },
+    const row = el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
+      onclick: (e) => pick(r.key, e), ondblclick: () => open(r) },
       el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, MARK_OF[r.type] || (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
@@ -296,6 +296,8 @@
       el("span", { class: "type" }, r.status.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"),
       el("span", { class: "date" }, when(r.mtime)),
       el("span", { class: "size" }, size(r.size)));
+    // Dragged as every list's are (kit.js): this row, or every row picked if it is one of them, as it is picked up.
+    Kit.draggable(row, () => ({ project: r.project, keys: picked.has(r.key) ? [...picked] : [r.key] }));
     if (filters.list) dropToOrder(row, r);
     return row;
   }
@@ -424,57 +426,29 @@
 
   // ---------------------------------------------------------------- dragging
 
-  // What is dragged from the list: the row, or every row picked if it is one of them.
-  const DRAG = "application/x-talaris-rows";
-  function dragStart(e, r) {
-    const keys = picked.has(r.key) ? [...picked] : [r.key];
-    e.dataTransfer.setData(DRAG, JSON.stringify({ project: r.project, keys }));
-    e.dataTransfer.effectAllowed = "copyMove";
-  }
-  const dragged = (e) => { try { return JSON.parse(e.dataTransfer.getData(DRAG) || "null"); } catch { return null; } };
-  const isOurs = (e) => [...(e.dataTransfer?.types || [])].includes(DRAG);
-
   /** Dropped on a list on the left: put in it (a list holds only its project's). */
   function dropOnList(target, l) {
-    target.addEventListener("dragover", (e) => { if (!isOurs(e)) return; e.preventDefault(); target.classList.add("drop"); });
-    target.addEventListener("dragleave", () => target.classList.remove("drop"));
-    target.addEventListener("drop", (e) => {
-      target.classList.remove("drop");
-      const d = dragged(e);
-      if (!d) return;
-      e.preventDefault();
+    Kit.dropZone(target, { accepts: (d) => !!(d && d.keys), where: () => null, drop: (d) => {
       api("POST", `/files/lists/${enc(l.id)}/items`, { project, keys: d.keys }).then((x) => {
         say(`${x.added ? `${x.added} in ${l.name}` : `Already in ${l.name}`}${x.refused.length ? `; ${x.refused.length} not in ${projectName(project)}, so not` : ""}`);
         return load();
       }).catch(failed);
-    });
+    } });
   }
 
   /** In a list shown, its own things dragged into an order: dropped before the one under the pointer. */
   function dropToOrder(target, r) {
     const l = flat(lists).find((x) => x.id === filters.list);
     if (!l || !l.items.includes(r.key)) return;
-    target.addEventListener("dragover", (e) => {
-      if (!isOurs(e)) return;
-      e.preventDefault();
-      const below = e.offsetY > target.offsetHeight / 2;
-      target.classList.toggle("drop-after", below);
-      target.classList.toggle("drop-before", !below);
-    });
-    target.addEventListener("dragleave", () => target.classList.remove("drop-before", "drop-after"));
-    target.addEventListener("drop", (e) => {
-      const after = target.classList.contains("drop-after");
-      target.classList.remove("drop-before", "drop-after");
-      const d = dragged(e);
-      if (!d) return;
-      e.preventDefault();
+    Kit.dropZone(target, { accepts: (d) => !!(d && d.keys), drop: (d, where) => {
+      const after = where === "below";
       const moving = d.keys.filter((k) => l.items.includes(k) && k !== r.key);
       if (!moving.length) return;
       const rest = l.items.filter((k) => !moving.includes(k));
       const at = rest.indexOf(r.key) + (after ? 1 : 0);
       rest.splice(at, 0, ...moving);
       api("PUT", `/files/lists/${enc(l.id)}/order`, { project, keys: rest }).then(reload, failed);
-    });
+    } });
   }
 
   /** A row pressed: alone; with Ctrl (or ⌘) added or taken out; with Shift, everything from the last one picked to it. */
