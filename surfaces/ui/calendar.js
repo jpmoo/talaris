@@ -121,15 +121,9 @@ function onDay(day) {
 // opened in Tasks with a press, dragged to other days, its dates going along.
 
 let tasks = [];
-let coreAsked = 0;
-const coreWaiting = new Map();
-function core(method, path, body) {
-  return new Promise((ok, fail) => {
-    const id = `t${++coreAsked}`;
-    coreWaiting.set(id, { ok, fail });
-    bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
-  });
-}
+// Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
+const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.core(id, method, path, body), true));
+function core(method, path, body) { return asked.call(method, path, body); }
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function fetchTasks() {
   if (!bridge || typeof bridge.core !== "function" || mode === "month" || (!tasksShown && !overdueShown)) return;
@@ -758,13 +752,7 @@ Surface.connect({ onState }).then((b) => {
     events = got.items; draw(); seek();
   });
   b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
-  if (b.coreReply) b.coreReply.connect((text) => {
-    const r = JSON.parse(text);
-    const w = coreWaiting.get(r.id);
-    if (!w) return;
-    coreWaiting.delete(r.id);
-    if (r.status >= 400) w.fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`)); else w.ok(r.data);
-  });
+  if (b.coreReply) b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
   // Tasks change elsewhere (Tasks, a sync): read again now and then while on show.
   setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) fetchTasks(); }, 60000);
   b.people.connect((text) => showPeople(JSON.parse(text)));

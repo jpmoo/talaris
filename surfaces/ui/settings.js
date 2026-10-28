@@ -1301,15 +1301,9 @@ $("bt-scan").addEventListener("click", () => { working("bt-msg", "Looking for de
  * sealed. Everything here is asked of the core (through the bridge, answered
  * later, so a backup does not freeze the page).
  */
-const coreWaiting = new Map();
-let coreNext = 0;
-function core(method, path, body) {
-  return new Promise((ok, fail) => {
-    const id = String(++coreNext);
-    coreWaiting.set(id, (r) => (r.status === 200 ? ok(r.data) : fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`))));
-    bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
-  });
-}
+// Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
+const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.core(id, method, path, body), true));
+function core(method, path, body) { return asked.call(method, path, body); }
 
 let vaultNow = null;
 let reviving = null; // the backup chosen to revive
@@ -1703,7 +1697,7 @@ Surface.connect({
   b.panel.connect((text) => onRadio(JSON.parse(text)));
   b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
   b.morganReply.connect(onMorganReply);
-  b.coreReply.connect((text) => { const r = JSON.parse(text); const done = coreWaiting.get(r.id); coreWaiting.delete(r.id); if (done) done(r); });
+  b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
   b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
 });

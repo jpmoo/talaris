@@ -63,8 +63,6 @@
 
   // Two pages may share the bridge — the panel and its window — so each numbers
   // its requests from somewhere of its own, and takes only its own answers.
-  const waiting = new Map();
-  let reqNext = Math.floor(Math.random() * 1e9);
   /** A name that cannot start with a space: one typed first is not taken, and one pasted at the front is taken off. */
   function noLeadingSpace(input) {
     input.addEventListener("keydown", (e) => { if (e.key === " " && input.selectionStart === 0) e.preventDefault(); });
@@ -75,15 +73,9 @@
     return input;
   }
 
-  function api(method, path, body) {
-    return new Promise((ok, fail) => {
-      if (!bridge) { fail(new Error("Not connected")); return; }
-      const id = String(++reqNext);
-      waiting.set(id, (r) => (r.status >= 200 && r.status < 300 ? ok(r.data)
-        : fail(new Error((r.data && r.data.error) || `the core answered ${r.status}`))));
-      bridge.core(id, method, path, body === undefined ? "" : JSON.stringify(body));
-    });
-  }
+  // Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
+  const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.core(id, method, path, body), true));
+  const api = (method, path, body) => asked.call(method, path, body);
   const enc = encodeURIComponent;
 
   // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
@@ -1362,7 +1354,7 @@
 
   Surface.connect({ onState }).then((b) => {
     bridge = b;
-    b.coreReply.connect((text) => { const r = JSON.parse(text); const done = waiting.get(r.id); waiting.delete(r.id); if (done) done(r); });
+    b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
     // A project's wallpaper chosen or given up: the open sheet shows it.
     if (b.wallpaperChanged) b.wallpaperChanged.connect((text) => { if (onWallpaper) onWallpaper(JSON.parse(text)); });
     // Files chosen and kept (or why not): the open task drawn again with them.

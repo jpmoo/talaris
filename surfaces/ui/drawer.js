@@ -10,26 +10,11 @@
 const NAMES = { canvas: "Canvas", writing: "Writing" };
 let bridge = null;
 let state = { drawer: "", mode: "filed", edge: "left", project: { id: "", code: "", name: "Home" }, theme: {} };
-let pending = new Map();
-let nextId = 1;
 
-function core(method, path, body) {
-  return new Promise((ok, fail) => {
-    const id = nextId++;
-    pending.set(id, { ok, fail });
-    bridge.request(id, method, path, body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body));
-  });
-}
-
-function onReply(id, status, text) {
-  const p = pending.get(id);
-  if (!p) return;
-  pending.delete(id);
-  let data = text;
-  try { data = JSON.parse(text); } catch { /* markdown */ }
-  if (status >= 200 && status < 300) p.ok(data);
-  else p.fail(new Error((data && data.error) || `status ${status}`));
-}
+// Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
+const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.request(Number(id), method, path, body), true));
+function core(method, path, body) { return asked.call(method, path, body); }
+const onReply = (id, status, text) => asked.reply(id, status, text);
 
 const $ = (id) => document.getElementById(id);
 function el(tag, attrs = {}, ...kids) {

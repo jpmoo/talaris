@@ -407,6 +407,46 @@ const Kit = (() => {
     return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   }
 
+  // ------------------------------------------------------------ asking the core
+
+  /*
+   * Every page asks the core through its bridge and hears back by id: one book
+   * of what is waiting, kept the same way. A 2xx answer is the answer; any
+   * other is an error in the core's words ("the core answered 404" when it
+   * gave none); no bridge is "Not connected"; and an answer that never comes
+   * is given up on (longer than the slowest the process waits, a backup's)
+   * rather than left pending for ever.
+   */
+  const CORE_GIVE_UP_MS = 11 * 60 * 1000;
+  function core(send) {
+    const waiting = new Map();
+    let next = Math.floor(Math.random() * 1e9);
+    function call(method, path, body) {
+      return new Promise((ok, fail) => {
+        const id = String(++next);
+        const timer = setTimeout(() => { if (waiting.delete(id)) fail(new Error("The core did not answer")); }, CORE_GIVE_UP_MS);
+        waiting.set(id, (status, data) => {
+          clearTimeout(timer);
+          if (status >= 200 && status < 300) ok(data);
+          else fail(new Error((data && data.error) || `The core answered ${status}`));
+        });
+        let sent = false;
+        try { sent = send(id, method, path, body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body)) !== false; } catch { sent = false; }
+        if (!sent) { clearTimeout(timer); waiting.delete(id); fail(new Error("Not connected")); }
+      });
+    }
+    /** An answer come back: `{id, status, data}`, or its three parts (data as text, read as JSON when it is). */
+    function reply(id, status, data) {
+      if (id && typeof id === "object") ({ id, status, data } = id);
+      const done = waiting.get(String(id));
+      if (!done) return;
+      waiting.delete(String(id));
+      if (typeof data === "string") { try { data = JSON.parse(data); } catch { /* words, as they are */ } }
+      done(status, data);
+    }
+    return { call, reply };
+  }
+
   // ------------------------------------------------------------ what is said back
 
   /**
@@ -431,6 +471,6 @@ const Kit = (() => {
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
+    core, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };
 })();

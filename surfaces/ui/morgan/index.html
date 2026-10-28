@@ -387,25 +387,10 @@ function toolCard(tool, args) {
 // The core through the bridge (core.py `request`, held to Morgan's few routes
 // in morgan.py): the @ picker, a mention's card, and what goes with a message.
 // The panel and its window may share the bridge, so each page numbers its own.
-const waiting = new Map();
-let asked = Math.floor(Math.random() * 1e9);
-function api(method, path, body) {
-  return new Promise((ok, fail) => {
-    if (!bridge) { fail(new Error("Not connected")); return; }
-    const id = ++asked;
-    waiting.set(id, { ok, fail });
-    bridge.request(id, method, path, body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body));
-  });
-}
-function replied(id, status, text) {
-  const p = waiting.get(id);
-  if (!p) return;
-  waiting.delete(id);
-  let data = text;
-  try { data = JSON.parse(text); } catch { /* a page's Markdown */ }
-  if (status >= 200 && status < 300) p.ok(data);
-  else p.fail(new Error((data && data.error) || `the core answered ${status}`));
-}
+// Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
+const coreCalls = Kit.core((id, method, path, body) => !!bridge && (bridge.request(Number(id), method, path, body), true));
+function api(method, path, body) { return coreCalls.call(method, path, body); }
+function replied(id, status, text) { coreCalls.reply(id, status, text); }
 const enc = encodeURIComponent;
 
 const MENTION = /\[@([^\]\n]*)\]\(talaris:([A-Za-z0-9_-]+)\)/g;
