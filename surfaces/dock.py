@@ -85,7 +85,8 @@ from views import make_view, zoom
 #: At the 24px icons it starts with, 50.
 DOCK_ROOM = 26
 #: The item menu's size.
-MENU = (220, 310)
+#: The menu's width, and its height before rows: with the room round it for its shadow (dockmenu.html .menu).
+MENU = (256, 334)
 #: An item menu nobody touches puts itself away.
 MENU_IDLE_MS = 10000
 #: A press, with Shift, with Ctrl: each does one of `new`, `bring`, `go` (Dock.clicks).

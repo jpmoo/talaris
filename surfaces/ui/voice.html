@@ -14,7 +14,8 @@ words — what was asked, then the answer as it is spoken.
 <style>
 html, body { height: 100%; }
 #pop {
-  position: absolute; inset: 4px 6px 8px; display: flex; flex-direction: column; gap: 8px; padding: 8px;
+  /* Room round it for its shadow (--menu-shadow: 14 above, 22 beside, 30 below). */
+  position: absolute; inset: 14px 22px 30px; display: flex; flex-direction: column; gap: 8px; padding: 8px;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
   border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow);
 }

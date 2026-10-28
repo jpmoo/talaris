@@ -27,7 +27,8 @@ from core import Bridge
 from layershell import ANCHOR_BOTTOM, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 from views import make_view, zoom
 
-SIZE = (300, 64)
+#: The level's box (300 × 48) and the room round it for its shadow (osd.html).
+SIZE = (328, 92)
 SHOW_MS = 1400
 
 SINK, SOURCE = "@DEFAULT_AUDIO_SINK@", "@DEFAULT_AUDIO_SOURCE@"

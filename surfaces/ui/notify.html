@@ -15,7 +15,7 @@ top, the surface as tall as the page says.
 <style>
 :root { --toast-bg: var(--surface); --toast-edge: var(--frame); --toast-shadow: var(--menu-shadow); }
 /* Room above for the shadow's top, below for its fall; the sides as the surface allows. */
-#col { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-direction: column; gap: 8px; padding: 6px 12px 26px; }
+#col { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-direction: column; gap: 8px; padding: 6px 22px 30px; } /* room beside and below for the shadow */
 #col:empty { padding: 0; }
 .toast {
   position: relative; overflow: hidden; padding: 9px 12px 11px;
@@ -52,9 +52,9 @@ top, the surface as tall as the page says.
 <script>
 "use strict";
 
-// The layer surface's width in Qt units (notifications.py: WIDTH + 24). The
+// The layer surface's width in Qt units (notifications.py: WIDTH + 44). The
 // process takes fit() as Qt units, not page pixels, so the page converts.
-const SURFACE_WIDTH = 404;
+const SURFACE_WIDTH = 424;
 const SPEEDS = { slow: 1.6, normal: 1, fast: .6, fastest: .3 };
 const col = document.getElementById("col");
 let bridge = null;

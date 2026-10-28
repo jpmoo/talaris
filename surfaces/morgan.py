@@ -51,7 +51,8 @@ SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(RUNTIME, "heymorgan.
 IDLE_MS = 5 * 60 * 1000
 
 #: The voice popup's size, and how long it stays after Morgan goes idle.
-VOICE = (420, 300)
+#: The voice popup's box (408 × 288) and the room round it for its shadow (voice.html).
+VOICE = (452, 332)
 LINGER_MS = 1200
 
 HERE = os.path.dirname(os.path.abspath(__file__))

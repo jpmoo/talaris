@@ -18,7 +18,7 @@ function disarm() {
 
 // The menus that are sized by their content say how tall it is: the panel
 // let go of the surface's bottom for a moment and measured, with the room
-// round it (4 above, 26 below for its shadow).
+// round it (4 above, 30 below and 22 beside for its shadow).
 function fit() {
   // Each panel's id is the popup's name.
   const panel = document.getElementById(document.body.dataset.popup);
@@ -26,7 +26,7 @@ function fit() {
   const was = panel.style.bottom;
   panel.style.bottom = "auto";
   // A few pixels to spare: a fraction lost to rounding cuts a row off.
-  const height = Math.ceil(panel.getBoundingClientRect().height + 30 + 4);
+  const height = Math.ceil(panel.getBoundingClientRect().height + 34 + 4);
   panel.style.bottom = was;
   bridge.fit(height);
   // The folded tray's pane is as wide as its icons, a row of up to eight, and
@@ -40,7 +40,7 @@ function fit() {
     const button = first ? first.getBoundingClientRect().width : 34;
     const gap = parseFloat(getComputedStyle(icons).columnGap) || 4;
     const around = px(icons, "paddingLeft", "paddingRight") + px(panel, "paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth");
-    bridge.fitWidth(Math.ceil(Math.max(120, row * button + (row - 1) * gap + around) + 36 + 2));
+    bridge.fitWidth(Math.ceil(Math.max(120, row * button + (row - 1) * gap + around) + 44 + 2));
   }
 }
 const TRAY_ROW = 8;

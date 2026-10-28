@@ -13,7 +13,8 @@ The on-screen display: what a key just changed, and to what.
 <style>
 html, body { height: 100%; }
 #osd {
-  position: absolute; inset: 6px 8px 10px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  /* Room round it for its shadow (--menu-shadow: 14 above, 22 beside, 30 below). */
+  position: absolute; inset: 14px 22px 30px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent);
   border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow);
   color: var(--accent);

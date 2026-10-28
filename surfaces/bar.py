@@ -59,9 +59,10 @@ BAR = 34
 #: the readings and the power button are.
 #: Each popup's surface: the panel and the clear room round it for the
 #: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
-POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
-          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160), "notifications": (380, 460),
-          "clipboard": (460, 560)}
+#: Each popup's surface: the panel, and room round it for its shadow (popup.html .panel's inset).
+POPUPS = {"power": (242, 224), "volume": (272, 126), "network": (332, 442), "bluetooth": (332, 422), "tray": (292, 222),
+          "trayicons": (252, 102), "battery": (312, 304), "projects": (308, 164), "notifications": (388, 464),
+          "clipboard": (468, 564)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.

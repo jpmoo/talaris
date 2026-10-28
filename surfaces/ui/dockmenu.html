@@ -14,10 +14,10 @@ another project, close.
 <link rel="stylesheet" href="theme.css">
 <style>
 html, body { height: 100%; }
-.menu { position: absolute; left: 4px; right: 4px; bottom: 6px; }
+.menu { position: absolute; left: 22px; right: 22px; bottom: 30px; } /* room for its shadow */
 /* A panel from the dock: as see-through as Settings, Panels says. */
 .menu { background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent) !important; }
-body[data-edge="top"] .menu { bottom: auto; top: 6px; }
+body[data-edge="top"] .menu { bottom: auto; top: 14px; }
 .menu-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu-item.win { padding-left: 1.6em !important; }
 #wins:empty, #wins-hint[hidden], #choose[hidden] { display: none; }
@@ -219,6 +219,8 @@ document.getElementById("presses-open").addEventListener("click", () => { if (la
 document.getElementById("p-back").addEventListener("click", () => showPresses(false));
 document.getElementById("p-default").addEventListener("click", () => bridge && bridge.setClicks(key, ""));
 addEventListener("keydown", (e) => { if (e.key === "Escape" && bridge) bridge.file(); });
+// A press beside the menu, in the room left for its shadow, is a press off it.
+addEventListener("pointerdown", (e) => { if (bridge && !e.target.closest(".menu, #presses")) bridge.file(); });
 addEventListener("blur", () => { if (bridge) bridge.file(); });
 Surface.connect({ onState }).then((b) => { bridge = b; });
 </script>

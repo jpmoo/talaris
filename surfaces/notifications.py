@@ -315,7 +315,7 @@ class Toasts(QObject):
         screen = QGuiApplication.primaryScreen().geometry()
         h = min(max(height, 1), screen.height() - 80)
         # Under the bar, at the right; it takes no keyboard, so typing goes on where it was.
-        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_RIGHT, WIDTH + 24, h, KEYBOARD_NONE, margins=(0, zoom(4), zoom(8), 0)))
+        self.surface.apply(Placement(OVERLAY, ANCHOR_TOP | ANCHOR_RIGHT, WIDTH + 44, h, KEYBOARD_NONE, margins=(0, zoom(4), zoom(8), 0)))
 
     # What the page's bridge calls on its owner; the pop-ups are no panel.
     def toggle(self) -> None:
