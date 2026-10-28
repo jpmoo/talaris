@@ -209,12 +209,14 @@ function watchSys(on) {
   if (!on && sysTimer) { clearInterval(sysTimer); sysTimer = 0; }
 }
 
+let clipsShown = null;
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   watchSys(s.popup === "power");
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
+  if (s.popup === "clipboard" && bridge && s.shown !== clipsShown) { clipsShown = s.shown; document.body.dataset.popup = s.popup; Clips.open(); }
   if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); bridge.remindersRead(); }
   document.body.dataset.popup = s.popup || "";
   if (s.popup) refit();
@@ -502,5 +504,6 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.trayMenu.connect((text) => drawTrayMenu(JSON.parse(text)));
   b.tray.connect((text) => drawTrayIcons(JSON.parse(text)));
   b.notices.connect((text) => { if (document.body.dataset.popup === "notifications") showNotices(JSON.parse(text)); });
+  b.clips.connect(() => { if (document.body.dataset.popup === "clipboard") Clips.read(); });
   b.reminders.connect((text) => { try { drawTimers(JSON.parse(text)); } catch { drawTimers(null); } });
 });

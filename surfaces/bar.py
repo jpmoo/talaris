@@ -23,17 +23,19 @@ import math
 import os
 import threading
 import time
+from urllib.parse import quote
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
-from core import Bridge, get_json, projects as core_projects
+from core import Bridge, call, get_json, projects as core_projects
 from layershell import (
     ANCHOR_BOTTOM,
     ANCHOR_LEFT,
     ANCHOR_RIGHT,
     ANCHOR_TOP,
+    KEYBOARD_EXCLUSIVE,
     KEYBOARD_NONE,
     KEYBOARD_ON_DEMAND,
     OVERLAY,
@@ -59,7 +61,8 @@ BAR = 34
 #: Each popup's surface: the panel and the clear room round it for the
 #: shadow every menu here wears (18 a side, 4 above, 26 below; popup.html).
 POPUPS = {"power": (234, 220), "volume": (264, 122), "network": (324, 438), "bluetooth": (324, 418), "tray": (284, 218),
-          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160), "notifications": (380, 460)}
+          "trayicons": (244, 98), "battery": (304, 300), "projects": (300, 160), "notifications": (380, 460),
+          "clipboard": (460, 560)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -195,6 +198,35 @@ class BarBridge(Bridge):
     @Slot(str)
     def cancelReminder(self, rid: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.bar.read_reminders(cancel=rid)
+
+    #: Pushed to the popup: the clipboard's history changed (clipboard.py); read it again.
+    clips = Signal()
+
+    @Slot(result=str)
+    def clipboard(self) -> str:
+        """The clipboard's history, pinned first, and which clip is on the clipboard now."""
+        listed = get_json("/clipboard", []) or []
+        return json.dumps({"clips": listed if isinstance(listed, list) else [], "current": self.owner.desktop.clipboard.current})
+
+    @Slot(str, result=bool)
+    def clipCopy(self, cid: str) -> bool:  # noqa: N802 — called from the page by this name
+        """A clip put back on the clipboard."""
+        return self.owner.desktop.clipboard.put_back(cid)
+
+    @Slot(str, bool)
+    def clipPin(self, cid: str, on: bool) -> None:  # noqa: N802 — called from the page by this name
+        call("PUT", f"/clipboard/{quote(cid)}/pinned", json.dumps({"pinned": on}))
+        self.owner.desktop.clipboard.changed.emit()
+
+    @Slot(str)
+    def clipRemove(self, cid: str) -> None:  # noqa: N802 — called from the page by this name
+        call("DELETE", f"/clipboard/{quote(cid)}")
+        self.owner.desktop.clipboard.removed(cid)
+
+    @Slot()
+    def clipClear(self) -> None:  # noqa: N802 — called from the page by this name
+        call("DELETE", "/clipboard")
+        self.owner.desktop.clipboard.cleared()
 
     @Slot(int)
     def dismissNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
@@ -359,15 +391,17 @@ class Popup(QObject):
         self.shown_at = self.away.shown()
         w, h = POPUPS[kind]
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
+        # The clipboard's list is typed into as soon as it is out, from its key as from its button.
+        keys = KEYBOARD_EXCLUSIVE if kind == "clipboard" else KEYBOARD_ON_DEMAND
         # Respecting other surfaces' reserved space puts it just clear of the bar.
         if kind in ("tray", "trayicons") or self.at >= 0:
             # Centered under the icon it belongs to.
             screen = QApplication.primaryScreen().geometry()
             left = max(4, min(int(self.at - zoom(w) / 2), screen.width() - zoom(w) - 4))
             self.surface.placement = None
-            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_LEFT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND, margins=(left, 0, 0, 0)))
+            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_LEFT, zoom(w), zoom(h), keys, margins=(left, 0, 0, 0)))
         else:
-            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), KEYBOARD_ON_DEMAND))
+            self.surface.apply(Placement(OVERLAY, anchor | ANCHOR_RIGHT, zoom(w), zoom(h), keys))
         self.bridge.state.emit(json.dumps(self.describe()))
         if kind in ("network", "bluetooth", "battery"):
             self.desktop.machine.panel_read(kind)
@@ -469,7 +503,7 @@ class Popup(QObject):
 
     def touched(self) -> None:
         if self.kind:
-            self.idle.start(POPUP_IDLE_LONG_MS if self.kind in ("network", "bluetooth") else POPUP_IDLE_MS)
+            self.idle.start(POPUP_IDLE_LONG_MS if self.kind in ("network", "bluetooth", "clipboard") else POPUP_IDLE_MS)
 
 
 class Bar(QObject):
@@ -595,6 +629,11 @@ class Bar(QObject):
             # The bell's dot: how many notifications have not been seen in its list.
             "unread": self.desktop.notifications.unread() if getattr(self.desktop, "notifications", None) else 0,
         }
+
+    def clips_changed(self) -> None:
+        """The clipboard's history changed: its list, if it is out, read again."""
+        if self.popup.kind == "clipboard":
+            self.popup.bridge.clips.emit()
 
     def notifications_changed(self) -> None:
         """The list of notifications changed: the bell's list, if it is out, drawn again."""

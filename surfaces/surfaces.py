@@ -57,6 +57,8 @@ from archive_panel import Archive
 from webapps import WebApps
 from desk import Desk
 from notifications import Notifications
+import clipboard
+from clipboard import Clipboard
 import docs
 import thumbs
 from osd import Osd
@@ -105,6 +107,8 @@ def register_scheme() -> None:
 #: The project carousel (jump_panel.py), and putting every panel away.
 PROJECTS_KEYS = "SUPER, TAB"
 FILE_ALL_KEYS = "SUPER, ESCAPE"
+#: Clipboard history from the bar (clipboard.py); Ctrl+Shift is taken.
+CLIP_KEYS = "SUPER, V"
 #: What Super+Alt was once bound to — the project jump, its letters, the old way
 #: to put everything away — unbound at start, so a crash's leftovers do not stay.
 RETIRED = (*(f"SUPER ALT, {chr(c)}" for c in range(ord("A"), ord("Z") + 1)),
@@ -155,6 +159,19 @@ class Files(QWebEngineUrlSchemeHandler):
                 return
             with open(path, "rb") as f:
                 self._reply(job, f.read(), mimetypes.guess_type(path)[0] or "image/jpeg")
+            return
+        # `talaris-ui://clip/?id=<clip>`: a picture from the clipboard's history, unsealed by the core;
+        # `&file=<n>`: the clip's nth file, if it is a picture — only a path the clip holds.
+        if url.host() == "clip":
+            q = QUrlQuery(url)
+            cid, n = q.queryItemValue("id"), q.queryItemValue("file")
+            got = None
+            if re.fullmatch(r"[0-9a-f-]{36}", cid or ""):
+                got = clipboard.file_preview(cid, int(n)) if n.isdigit() else clipboard.picture(f"/clipboard/{cid}/picture")
+            if not got:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+            self._reply(job, got[0], got[1])
             return
         # `talaris-ui://wallpaper/`: the default wallpaper, or `?project=<id>`
         # one project's — a picture Talaris itself is set to show, never a
@@ -251,6 +268,9 @@ class Desktop(QObject):
         self.notifications = Notifications(self, profile)
         self.notifications.changed.connect(self.bar.changed)
         self.notifications.changed.connect(self.bar.notifications_changed)
+        # Clipboard history, as Notchnik keeps it: watched here, sealed in the core, listed from the bar (Super+V).
+        self.clipboard = Clipboard(self)
+        self.clipboard.changed.connect(self.bar.clips_changed)
         # The empty desktop, under the windows: its right-click menu (the wallpaper).
         self.desk = Desk(profile, self)
         self.desk.place()
@@ -427,6 +447,7 @@ class Desktop(QObject):
         hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
         hypr.bind("SUPER SHIFT, G", f"{LAUNCHER} --glance")
+        hypr.bind(CLIP_KEYS, f"{LAUNCHER} --popup clipboard")
         # The lid, for when Talaris holds it (power.py); on the lock screen too.
         hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
         hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
@@ -436,7 +457,7 @@ class Desktop(QObject):
             self.webapps.rebind()
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -444,6 +465,7 @@ class Desktop(QObject):
         self.power.stop()
         self.tray.stop()
         self.notifications.stop()
+        self.clipboard.stop()
         self.calendar_service.stop()
 
     # ---------------------------------------------------------------- settings
@@ -468,6 +490,10 @@ class Desktop(QObject):
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
+        if after.get("clipboard") != before.get("clipboard"):
+            self.clipboard.apply()
+            if after.get("clipboard", {}).get("keep") != before.get("clipboard", {}).get("keep"):
+                core.call("PUT", "/clipboard/keep", json.dumps({"keep": self.clipboard.keep()}))
         if after.get("notifications") != before.get("notifications") or after["theme"] != before["theme"]:
             self.notifications.toasts._tell()
         if after["bar"] != before["bar"]:
@@ -524,6 +550,7 @@ class Desktop(QObject):
             {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
             {"keys": "Super + Shift + N", "does": "New: a task, an event, a person, a note, a project"},
             {"keys": "Super + Shift + G", "does": "Glance: this project, all of it"},
+            {"keys": "Super + V", "does": "Clipboard history"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
             {"keys": "Super + Shift + W", "does": "The writing surface"},
             {"keys": "Super + Alt", "does": "The projects, to go to one (type to find it)"},

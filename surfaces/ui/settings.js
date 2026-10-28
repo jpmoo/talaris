@@ -187,6 +187,7 @@ function draw() {
   for (const id of ["power-dim", "power-dimto", "power-lock", "power-off", "power-suspend"]) $(id).disabled = !pw.managed;
   if (bridge && $("power").classList.contains("on")) powerNote();
   drawNotifications();
+  drawClipboard();
 
   // Settings that only matter when another is on, dimmed while it is off.
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
@@ -281,6 +282,15 @@ $("nt-on").addEventListener("click", () => save({ notifications: { enabled: nt()
 $("nt-shadow").addEventListener("click", () => save({ notifications: { shadow: nt().shadow === false } }));
 // The process sends it (notify-send), once the bridge has the slot for it.
 $("nt-test").addEventListener("click", () => bridge && bridge.testNotification && bridge.testNotification());
+// ---------------------------------------------------------------- clipboard
+const cb = () => cfg.clipboard || {};
+function drawClipboard() {
+  const on = cb().enabled !== false;
+  $("cb-on").classList.toggle("on", on);
+  $("cb-off-note").hidden = on;
+  slider("cb-keep", cb().keep ?? 50, (v) => `${v}`, (keep) => save({ clipboard: { keep } }));
+}
+$("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
 // ---------------------------------------------------------------- the picker
 //
 // The accent of the mode being set (Look, Accent): the one in use is `accent`,
@@ -1603,7 +1613,7 @@ $("unlock-go").addEventListener("click", async () => {
 // What the bar shows, item by item. Settings is not among them: it is the way back.
 const BAR_SHOWN = [["where", "Project"], ["ask", "Launcher"], ["morgan", "Morgan"], ["new", "New"], ["tasks", "Tasks"], ["people", "People"], ["files", "Library"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
-  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["bell", "Notifications"], ["power", "Power"]];
+  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["clipboard", "Clipboard"], ["bell", "Notifications"], ["power", "Power"]];
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
 const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],

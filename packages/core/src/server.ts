@@ -73,6 +73,7 @@ import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./
 import { SealError } from "./seal.js";
 import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
 import { encryptedProjects, setProjectEncrypted } from "./sealed-projects.js";
+import { addClip, clearClips, clipPicture, keepClips, listClips, pinClip, removeClip, type NewClip } from "./clipboard.js";
 
 /**
  * The core's HTTP, on a Unix socket. No port is opened: a port would make every
@@ -870,6 +871,29 @@ route("POST", "/backups/revive", async (req) => {
 route("PUT", "/projects/:id/encrypted", async (req, [id]) => {
   const b = await json<{ on?: boolean }>(req);
   return setProjectEncrypted(id!, b.on === true);
+});
+
+// Clipboard history (clipboard.ts): the surfaces hand each copy here, and the bar's list reads it back. Not Morgan's.
+route("GET", "/clipboard", () => listClips().map((c) => (c.paths ? { ...c, missing: c.paths.some((p) => !existsSync(p)) } : c)));
+route("POST", "/clipboard", async (req, _p, q) => {
+  try { return addClip(await json<NewClip>(req), Number(q.get("keep")) || undefined); }
+  catch (e) { throw e instanceof Error && !(e instanceof Locked) && !(e instanceof SealError) ? new BadRequest(e.message) : e; }
+});
+route("PUT", "/clipboard/keep", async (req) => { keepClips(Number((await json<{ keep?: number }>(req)).keep)); return { ok: true }; });
+route("DELETE", "/clipboard", () => { clearClips(); return { ok: true }; });
+route("GET", "/clipboard/:id/picture", (_r, [id]) => {
+  const p = clipPicture(id!);
+  if (!p) throw new NotFound("no such picture");
+  return new Bytes(p.bytes, p.mime);
+});
+route("PUT", "/clipboard/:id/pinned", async (req, [id]) => {
+  const c = pinClip(id!, (await json<{ pinned?: boolean }>(req)).pinned === true);
+  if (!c) throw new NotFound("no such clip");
+  return c;
+});
+route("DELETE", "/clipboard/:id", (_r, [id]) => {
+  if (!removeClip(id!)) throw new NotFound("no such clip");
+  return { ok: true };
 });
 
 function safely<T>(f: () => T, fallback: T): T {

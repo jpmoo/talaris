@@ -100,7 +100,7 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "bell", "power")
+    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:
@@ -161,6 +161,9 @@ def _checked(c: dict) -> str:
         return "Not a notification look"
     if not 2 <= int(n.get("seconds", 6)) <= 60 or not 20 <= int(n.get("opacity", 100)) <= 100:
         return "Notifications stay 2 to 60 seconds, and are 20% to 100% solid"
+    cb = c.get("clipboard", {})
+    if not isinstance(cb.get("enabled", True), bool) or not 10 <= int(cb.get("keep", 50)) <= 500:
+        return "The clipboard keeps 10 to 500 clips"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
     if single_window(c) not in ("bring", "go"):
@@ -405,12 +408,8 @@ class SettingsBridge(Bridge):
 
     @Slot(str)
     def copyText(self, text: str) -> None:  # noqa: N802 — called from the page by this name
-        """Onto the clipboard (the recovery key, to put in a password manager)."""
-        try:
-            import subprocess
-            subprocess.run(["wl-copy"], input=text.encode(), timeout=3, check=False)
-        except (OSError, subprocess.SubprocessError):
-            pass
+        """Onto the clipboard (the recovery key, to put in a password manager) — and not into its history."""
+        self.owner.desktop.clipboard.copy_secret(text)
 
     @Slot(result=str)
     def keys(self) -> str:
@@ -550,7 +549,7 @@ class Settings(Overlay):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "meaning", "shown"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "meaning", "shown"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

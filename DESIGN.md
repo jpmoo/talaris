@@ -1969,12 +1969,22 @@ of it and comes out at the end.
     Apple), which reaches every device. Faces to decide: the clock's dropdown for today and
     the month; a full view as a drawer or full screen; contacts in the
     launcher and to Morgan; the to-do list's dated tasks on the calendar.
-19. **Clipboard history** (asked for 2026-10-24; not started). What was copied,
-    kept and found again: a hotkey, a list over the dimmed screen as project
-    jump's is, typed to narrow, Enter to paste. Questions first: text only or
-    images too; how long it is kept and where (sealed, as entities are, since
-    passwords get copied); leaving out what a password manager marks as
-    secret; whether Morgan may read it.
+19. ~~Clipboard history.~~ **Done** (2026-10-28), after Notchnik's: the
+    bar's clipboard button, beside the tray, or Super+V (Ctrl+Shift is
+    applications'). A grid of square tiles, the pinned first and then newest
+    first, each the words, the picture, the file or "N files", with when under
+    it; a press puts it back on the clipboard ("Copied"), the one on it now is
+    marked, a file since gone wears a warning. Over a tile: pin, look without
+    copying, remove (asked). Typing finds words by what they say and files by
+    their names; pictures step aside while a search is on. Arrows move, Enter
+    copies and puts the list away, Space looks. Clear all is asked.
+    `wl-paste --watch` says when the clipboard changed; files are read first,
+    then a picture, then words, as Notchnik reads the pasteboard
+    (surfaces/clipboard.py). **Sealed** in the core (clipboard.ts), the list
+    one file, each picture its own. A copy that offers
+    `x-kde-passwordManagerHint` is never read, and the vault's recovery key,
+    copied from Settings, is left out too. 50 kept besides the pinned (Settings,
+    Clipboard: 10 to 500). Morgan does not read it.
 20. **A log of what is done in Talaris, read by Morgan for the way you work**
     (asked for 2026-10-27; not started). Every action across the surfaces —
     opening, moving, pinning, sending to a project, connecting, listing,
@@ -1984,6 +1994,13 @@ of it and comes out at the end.
     what counts as an action and at what grain; how long it is kept; where a
     suggestion is shown and how one is turned down for good; whether it leaves
     the machine (Morgan's brain is on the home server).
+21. **One visual language** (asked for 2026-10-28; not started). An audit of
+    theming and the visual pieces across every surface, as the one-routine
+    audit was of behavior: the same thing — a button, a chip, a field, a
+    pulldown, a list row, a card, a heading, a confirm, an empty state, a
+    scrollbar, an icon's size and weight, spacing, radius, shadow, motion —
+    drawn one way everywhere, from the theme's tokens and `kit.css`, with
+    nothing left that is styled in one page alone. Found, listed, then made one.
 
 ## What did not come from Talaria
 

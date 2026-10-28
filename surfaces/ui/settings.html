@@ -259,6 +259,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <span class="group">System</span>
     <button data-page="power">Power</button>
     <button data-page="notifications">Notifications</button>
+    <button data-page="clipboard-page">Clipboard</button>
     <span class="group">Your data</span>
     <button data-page="data">Data</button>
     <button data-page="types">Types</button>
@@ -443,6 +444,13 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h3>Applications</h3>
       <div id="nt-apps"></div>
       <div class="data-buttons"><button class="t-btn" id="nt-test">Send a test notification</button></div>
+    </section>
+    <section id="clipboard-page">
+      <h2>Clipboard</h2>
+      <div class="row"><span class="name">Keep a history<small>Super+V, or the bar's button</small></span><span class="what"><button class="switch" id="cb-on"></button></span></div>
+      <p class="note" id="cb-off-note" hidden>Nothing new is kept; what is kept stays until cleared.</p>
+      <div class="row"><span class="name">Keep<small>Pinned clips besides</small></span><span class="what"><input type="range" id="cb-keep" min="10" max="500" step="10"><span class="n" id="cb-keep-n"></span></span></div>
+      <p class="note">Sealed, as your notes are. What a password manager marks as secret is never kept. Morgan does not read it.</p>
     </section>
     <section id="types">
       <h2>Types</h2>

@@ -60,6 +60,9 @@ DEFAULTS = {
     # every application seen sending one, to mute from Settings.
     "notifications": {"enabled": True, "animation": "slide", "shadow": True, "opacity": 100, "outline": "line",
                       "seconds": 6, "muted": [], "seen": []},
+    # Clipboard history (clipboard.py): watched at all, and how many clips are
+    # kept besides the pinned ones (10 to 500; Notchnik's 50).
+    "clipboard": {"enabled": True, "keep": 50},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},
