@@ -699,8 +699,8 @@ async function mgModels() {
     models.replaceChildren(
       el("h3", {}, "Chat model"), chips(r.chat || [], chat, "ollama.model", false), ...missing(r.chat || [], chat, false),
       el("h3", {}, "Vision model"), el("p", { class: blind ? "note err" : "note", style: "margin:0 0 6px" },
-        blind ? `${chat} cannot see: Morgan cannot look at the screen, the camera or pictures, nor describe them for Talaris, until a vision model is chosen.`
-          : "What Morgan looks with — the screen, the camera, the clipboard, pictures it reads, and pictures Talaris asks it to describe. Only models that can see are listed."),
+        blind ? `${chat} can't see. Choose a vision model below.`
+          : "What Morgan sees with. Only models that can see are listed."),
       visionChips,
       el("h3", {}, "Embedding model"), el("p", { class: "note", style: "margin:0 0 6px" }, "For finding earlier conversations. Changing it re-reads the whole transcript."),
       chips(r.embedding || [], embed, "embedModel", true), ...missing(r.embedding || [], embed, true));
@@ -1445,10 +1445,10 @@ async function drawReading() {
   const at = pel("input", { type: "time", value: m.at || "03:00", style: "width:auto" });
   at.addEventListener("change", () => save({ meaning: { ...m, scan: "schedule", at: at.value || "03:00" } }));
   const managed = Boolean((cfg.power || {}).managed);
-  const hint = scan === "change" ? "Each minute or so, and as soon as a file changes in a project's folder"
-    : scan === "idle" ? (managed ? "After two minutes away, or with the screen locked; again every ten minutes while you are away" : "With the screen locked (Talaris is not managing power, so it does not know when you are away)")
-    : scan === "schedule" ? "Once a day, at the time below — or as soon after it as the computer is on"
-    : "Only when Scan now is pressed";
+  const hint = scan === "change" ? "As soon as a file changes"
+    : scan === "idle" ? (managed ? "When you're away" : "When the screen is locked")
+    : scan === "schedule" ? "Once a day, at the time below"
+    : "When you press Scan now";
   const busy = st.indexing || st.scanning;
   const f = st.files || { read: 0, nowords: 0, waiting: 0 };
   const counts = `${f.read} read · ${f.nowords} with no words · ${f.waiting} waiting${st.lastScan ? ` · last looked ${when(st.lastScan)}` : ""}`;
@@ -1472,7 +1472,7 @@ async function drawReading() {
   let noWords = null;
   if (noWordsOpen && f.nowords) { try { noWords = await core("GET", "/meaning/nowords"); } catch { noWords = []; } }
   const noWordsRow = f.nowords && m.on ? pel("div", { class: "row" },
-    pel("span", { class: "name" }, "Files that gave no words", pel("small", {}, "Pictures with no writing, drawings, or files that could not be read — found by their names only")),
+    pel("span", { class: "name" }, "Files that gave no words", pel("small", {}, "Found by name only")),
     pel("span", { class: "what" },
       pel("button", { class: "t-btn", onclick: () => { noWordsOpen = !noWordsOpen; drawReading(); } }, noWordsOpen ? "Hide" : `Show ${f.nowords}`),
       pel("button", { class: "t-btn", disabled: busy ? "" : null, onclick: () => again(null, `all ${f.nowords}`) }, "Read all again"))) : null;
@@ -1483,15 +1483,14 @@ async function drawReading() {
     pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: busy ? "" : null, onclick: () => again([x.key], x.name) }, "Read again")))) : [];
   // Pictures with no words in them, described by Morgan's vision model (heymorgan's `describe`).
   const describeRow = pel("div", { class: "row" },
-    pel("span", { class: "name" }, "Describe pictures through Morgan", pel("small", { class: st.morganAway ? "err" : "" },
-      st.morganAway ? "Morgan is not answering (or is too old to describe): those pictures wait, and are tried again"
-        : "A picture, or a scanned page, with no words OCR can read: described by Morgan's vision model (Morgan, Models), and found by what it shows")),
+    pel("span", { class: "name" }, "Describe pictures through Morgan", pel("small", { class: m.describe !== false && st.morganAway ? "err" : "" },
+      m.describe === false ? "Off" : st.morganAway ? "Not working: Morgan isn't answering" : "Working")),
     pel("span", { class: "what" }, mgSwitch(m.describe !== false, (on) => save({ meaning: { ...m, describe: on } }))));
   host.replaceChildren(...[
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Look for new and changed files", pel("small", {}, hint)), pel("span", { class: "what" }, pick)),
     describeRow,
     scan === "schedule" ? pel("div", { class: "row" }, pel("span", { class: "name" }, "At"), pel("span", { class: "what" }, at)) : null,
-    pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Stopped: ${st.error}` : !m.on ? "Search by meaning is off, above" : counts)), progress),
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Not working: ${st.error}` : !m.on ? "Off" : counts)), progress),
     noWordsRow,
     ...noWordsList,
   ].filter(Boolean));
