@@ -4,7 +4,8 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
 import type { CanvasDocument, CanvasItem, PageNode, Project, ProjectSummary } from "@talaris/model";
-import { allRecords, bySource, deleteEntity, updateEntity, type Entity } from "./entities.js";
+import { allRecords, deleteEntity, updateEntity, type Entity } from "./entities.js";
+import { filedUnder, projectEntity } from "./filing.js";
 import { MACHINERY, WRITING, projectsRoot } from "./paths.js";
 import { Conflict, NotFound, archiveRoot, archivedProjects, findProject, folderName, listProjects, projectFile, readProject } from "./projects.js";
 import { readJson, readText, writeJson } from "./store.js";
@@ -45,7 +46,6 @@ const now = () => new Date().toISOString();
 const sourcesOf = (o: Entity) => (o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? [];
 /** The entities a project's own things stand for: its pages, canvases and canvas notes. */
 const placeOfProject = (o: Entity, id: string) => sourcesOf(o).some((s) => ["page", "canvas", "canvas-note"].includes(s.kind) && s.key.startsWith(`${id}/`));
-const projectEntity = (id: string) => bySource({ kind: "talaris-project", key: id });
 
 /** A folder name free in `dir`: the name, then "Name (2)"… */
 function free(dir: string, name: string): string {
@@ -82,10 +82,10 @@ export function archiveProject(id: string): ProjectSummary {
 
 /** A task (or anything) whose only project is this one: filed under it, and under no other project in use. */
 function filedOnlyUnder(o: Entity, projectEntityId: string): boolean {
-  const text = JSON.stringify(o.properties);
-  if (!text.includes(projectEntityId)) return false;
+  const filed = filedUnder(o);
+  if (!filed.includes(projectEntityId)) return false;
   const others = listProjects().map((p) => projectEntity(p.id)?.id).filter((x): x is string => Boolean(x) && x !== projectEntityId);
-  return !others.some((other) => text.includes(other));
+  return !others.some((other) => filed.includes(other));
 }
 
 export interface Clash {
@@ -316,6 +316,7 @@ function merge(restored: ProjectSummary, active: ProjectSummary, decisions: Reco
     const patch: Record<string, unknown> = {};
     if (moved.some((s, i) => s !== sources[i])) patch["talaris:sources"] = moved;
     if (o[WITH] === restored.id) { patch.archived = false; patch[WITH] = null; }
+    // Every reference to the one going is moved, not only filing: a mention of it in words too, or it would point at nothing.
     if (theirs && ours && o.id !== theirs.id && JSON.stringify(o.properties).includes(theirs.id)) {
       patch.properties = JSON.parse(JSON.stringify(o.properties).split(theirs.id).join(ours.id)) as Record<string, unknown>;
     }

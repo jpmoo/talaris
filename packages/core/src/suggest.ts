@@ -34,8 +34,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  allRecords, bodyOf, bySource, connect, connections, getEntity, onChange, profilesOf, titleOf, types, updateEntity, type Entity,
+  allRecords, bodyOf, bySource, connect, connections, getEntity, kindOfEntity, onChange, profilesOf, titleOf, types, updateEntity, type Entity,
 } from "./entities.js";
+import { filedUnder, projectEntity, projectIdOf } from "./filing.js";
 import { listFiles, type FileRow } from "./files.js";
 import { keptText, plainText } from "./filetext.js";
 import { linkFile } from "./links.js";
@@ -84,17 +85,12 @@ interface Thing {
   file?: FileRow;
 }
 
-const kindOfEntity = (o: Entity): string => {
-  const k = profilesOf(o);
-  return k.includes("contact") ? "person" : k.includes("task") ? "task" : k.includes("event") ? "event" : k.includes("project") ? "project" : "note";
-};
-const projectOfEntity = (o: Entity) => ((o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "talaris-project")?.key;
 
 /** The key a glance knows an entity by: its place, its project, or itself. */
 export function keyOfEntity(o: Entity): string {
   const place = placeOf(o);
   if (place) return `${place.kind}:${place.project}/${place.where}`;
-  const ws = projectOfEntity(o);
+  const ws = projectIdOf(o);
   return ws ? `project:${ws}` : `e:${o.id}`;
 }
 
@@ -136,7 +132,7 @@ export function thing(key: string, rows = fileRows()): Thing {
     const o = getEntity(key.slice(2));
     const place = placeOf(o);
     if (place) return thing(`${place.kind}:${place.project}/${place.where}`, rows);
-    const ws = projectOfEntity(o);
+    const ws = projectIdOf(o);
     if (ws) return thing(`project:${ws}`, rows);
     return { key, kind: kindOfEntity(o), title: titleOf(o), entity: o, text: entityWords(o), writes: { entity: o.id }, meaning: `e:${o.id}` };
   }
@@ -167,7 +163,7 @@ export function thing(key: string, rows = fileRows()): Thing {
   if (key.startsWith("project:")) {
     const id = key.slice(8);
     const p = findProject(id);
-    const e = bySource({ kind: "talaris-project", key: id }) ?? undefined;
+    const e = projectEntity(id) ?? undefined;
     return { key, kind: "project", title: p.name, ...(e ? { entity: e } : {}), text: e ? entityWords(e) : p.name, ...(e ? { meaning: `e:${e.id}` } : {}) };
   }
   if (key.startsWith("file:") || key.startsWith("att:")) {
@@ -194,8 +190,8 @@ function tiedTo(t: Thing): Set<string> {
   for (const m of mentionsIn(t.text)) add(m);
   if (t.file) for (const o of t.file.on) add(o);
   if (t.kind === "project" && t.entity) {
-    // What is filed under it: anything naming its entity.
-    for (const { object: o } of allRecords()) if (o.id !== t.entity.id && JSON.stringify(o.properties).includes(t.entity.id)) out.add(keyOfEntity(o));
+    // What is filed under it (filing.ts).
+    for (const { object: o } of allRecords()) if (o.id !== t.entity.id && filedUnder(o).includes(t.entity.id)) out.add(keyOfEntity(o));
   }
   // A file and the things it is on, the other way: a thing's own files.
   if (t.entity) {
@@ -494,7 +490,8 @@ function entityFor(t: Thing): Entity {
 const declares = (from: Entity, to: Entity) =>
   types().find((x) => x.id === from.type)?.fields.some((f) => f.kind === "reference" && f.targetType === to.type) ?? false;
 // Which end a plain link starts from: the thing that is about the other.
-const RANK = ["conversation", "page", "canvas", "note", "task", "file", "event", "person", "project"];
+// A thing of no kind the format names (a file's entity, a type of one's own) ranks where a note does.
+const RANK = ["conversation", "page", "canvas", "note", "thing", "task", "file", "event", "person", "project"];
 
 /** A suggestion taken: the two tied the way chosen. Answers what was done, in words, and after a merge the key of the one kept. */
 export function accept(key: string, other: string, way: Way): { said: string; kept?: string } {

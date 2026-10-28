@@ -19,12 +19,13 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { allRecords, bySource, titleOf, types, updateEntity, type Entity } from "./entities.js";
+import { allRecords, titleOf, types, updateEntity, type Entity } from "./entities.js";
+import { filedUnder, projectEntity as entityFor } from "./filing.js";
 import { morganDescribeProject } from "./morgan-describe.js";
 import { STATE_DIR } from "./paths.js";
 import { listProjects } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
-import { isComplete, shapeOf } from "./tasks.js";
+import { isComplete, notesOf, shapeOf } from "./tasks.js";
 
 export const BY_MORGAN = "talaris:describedByMorgan";
 const NOTHING_SAID = () => join(STATE_DIR, "project-descriptions.json");
@@ -38,18 +39,12 @@ const said = (v: unknown) => (typeof v === "string" ? v.trim() !== "" : v != nul
 
 /** A project's tasks, as Morgan is told them: still to do, then done; each its title and the start of its notes. "" for none. */
 export function projectTasksText(projectEntity: string): string {
-  const refs = new Map(types().map((t) => [t.id, t.fields.filter((f) => f.kind === "reference").map((f) => f.key)]));
   const todo: string[] = [], done: string[] = [];
   for (const { object: o } of allRecords()) {
     if (o.archived || o.stub) continue;
     const shape = shapeOf(o);
-    if (!shape) continue;
-    // Filed under it by the slot its type names for a task's project; a type naming none, by any reference.
-    const slot = shape.type.profiles?.task?.project;
-    const filed = (typeof slot === "string" ? [slot] : refs.get(o.type ?? "") ?? []).some((k) => [o.properties[k]].flat().includes(projectEntity));
-    if (!filed) continue;
-    const bodyAt = shape.type.profiles?.task?.body;
-    const notes = typeof bodyAt === "string" && typeof o.properties[bodyAt] === "string" ? (o.properties[bodyAt] as string).replace(/\s+/g, " ").trim().slice(0, 300) : "";
+    if (!shape || !filedUnder(o).includes(projectEntity)) continue;
+    const notes = notesOf(o, shape).replace(/\s+/g, " ").trim().slice(0, 300);
     (isComplete(o, shape) ? done : todo).push(`- ${titleOf(o)}${notes ? ` — ${notes}` : ""}`);
   }
   return [todo.length ? `Still to do:\n${todo.join("\n")}` : "", done.length ? `Done:\n${done.join("\n")}` : ""].filter(Boolean).join("\n\n");
@@ -62,7 +57,7 @@ export async function describeProjects(): Promise<{ described: number; morganAwa
   let described = 0;
   for (const p of listProjects()) {
     if (p.home) continue;
-    const e = bySource({ kind: "talaris-project", key: p.id });
+    const e = entityFor(p.id);
     const key = e && bodyKey(e);
     if (!e || !key || said(e.properties[key])) continue;
     const text = projectTasksText(e.id);
@@ -80,7 +75,7 @@ export async function describeProjects(): Promise<{ described: number; morganAwa
 
 /** A project's description as the Library shows it: whose it is, and whether it can be written at all (Home has none). */
 export function projectAbout(projectId: string): { entity?: string; about: string; aboutByYou: boolean; can: boolean } {
-  const e = bySource({ kind: "talaris-project", key: projectId });
+  const e = entityFor(projectId);
   const key = e && bodyKey(e);
   if (!e || !key) return { about: "", aboutByYou: false, can: false };
   const v = e.properties[key];
@@ -90,7 +85,7 @@ export function projectAbout(projectId: string): { entity?: string; about: strin
 
 /** Written by the person: theirs from now on. Cleared, it is Morgan's to write again from the tasks. */
 export function setProjectAbout(projectId: string, about: string): ReturnType<typeof projectAbout> {
-  const e = bySource({ kind: "talaris-project", key: projectId });
+  const e = entityFor(projectId);
   const key = e && bodyKey(e);
   if (!e || !key) throw new Error("this project keeps no description");
   updateEntity(e.id, { properties: { [key]: about.trim() || null }, [BY_MORGAN]: null });

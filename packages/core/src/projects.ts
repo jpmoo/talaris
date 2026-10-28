@@ -212,7 +212,12 @@ export function adoptFolder(path: string, name?: string): ProjectSummary {
   return made;
 }
 
-/** Home is the project that is always there; made on first start. */
+/**
+ * Home is the project that is always there; made on first start. This is the
+ * one way Home is found: missing when asked for (a fresh store, a test), it
+ * is made then, as it would have been at start — so nothing reads Home as
+ * absent, falls back to another project, or crashes on it.
+ */
 export function ensureHome(): ProjectSummary {
   const home = listProjects().find((p) => p.home);
   if (home) return home;

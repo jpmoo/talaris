@@ -3,7 +3,6 @@
 
 import { forgetFiles,
   allRecords,
-  bySource,
   putType,
   createEntity,
   deleteEntity,
@@ -21,6 +20,9 @@ import { forgetFiles,
   type Entity,
   type EntityType,
 } from "./entities.js";
+import { PROJECT_SOURCE, filedUnder, filingKey, filingPatch, projectEntity, projectIdOf, unfile } from "./filing.js";
+import { addDays, localMinute } from "./localtime.js";
+import { isCompleteBy, readSlot, slotOf, type Slot } from "./profile.js";
 import { Conflict, NotFound, createProject, listProjects } from "./projects.js";
 import { nextSpan, ruleErrors, summary, type Rule, type Span } from "./recurrence.js";
 // Mentions in a task's words are kept as edges wherever tasks are used, not only through the server.
@@ -73,7 +75,16 @@ export interface TaskShape {
   statusKey: string;
   complete: string[];
   defaultStatus: string;
+  /** The statuses its type offers, in their order; none, any is taken. */
+  statuses: string[];
+  /** Where "available" and "due" are: a field, or a part of one (`{field, part}`). */
+  start: Slot | null;
+  due: Slot | null;
+  /** The datespan both are parts of, where they are (the panels read it). */
   spanKey: string | null;
+  /** Where it is filed under a project (filing.ts), and where its notes are (`content`, the reserved body). */
+  projectKey: string | null;
+  bodyKey: string | null;
   doneKey: string;
 }
 
@@ -81,9 +92,7 @@ export interface TaskShape {
 export function taskShape(t: EntityType | undefined): TaskShape | null {
   const p = t?.profiles?.task;
   if (!t || !p || typeof p.status !== "string") return null;
-  const start = p.start as { field?: string } | undefined;
-  const due = p.due as { field?: string } | string | undefined;
-  const span = typeof due === "object" && due?.field ? due.field : typeof start === "object" && start?.field ? start.field : null;
+  const start = slotOf(t, "start"), due = slotOf(t, "due");
   const statusField = t.fields.find((f) => f.key === p.status);
   return {
     type: t,
@@ -91,7 +100,12 @@ export function taskShape(t: EntityType | undefined): TaskShape | null {
     statusKey: p.status,
     complete: Array.isArray(p.completeValues) ? (p.completeValues as string[]) : [],
     defaultStatus: String(t["talaris:defaultStatus"] ?? statusField?.options?.[0] ?? ""),
-    spanKey: span,
+    statuses: statusField?.options ?? [],
+    start,
+    due,
+    spanKey: (due?.part ? due.field : null) ?? (start?.part ? start.field : null),
+    projectKey: filingKey(t),
+    bodyKey: typeof p.body === "string" ? p.body : null,
     doneKey: t.fields.some((f) => f.key === "done_at") ? "done_at" : "talaris:done_at",
   };
 }
@@ -100,8 +114,43 @@ export function shapeOf(o: Entity): TaskShape | null {
   return taskShape(types().find((t) => t.id === o.type));
 }
 
+/** Complete, as its type says (profile.ts: the one reading, which `measure` holds to the format's fixtures). */
 export function isComplete(o: Entity, shape = shapeOf(o)): boolean {
-  return Boolean(shape && shape.complete.includes(String(o.properties[shape.statusKey] ?? "")));
+  return Boolean(shape && isCompleteBy(shape.type, o));
+}
+
+/** A task's notes, where its type keeps them. */
+export function notesOf(o: Entity, shape = shapeOf(o)): string {
+  const v = shape ? readSlot(shape.type, o, "body") : undefined;
+  return typeof v === "string" ? v : "";
+}
+
+/** A status its type offers, or refused: a status is the person's to define (setStatuses), not a fixed list. */
+function checkStatus(shape: TaskShape, value: string): string {
+  if (shape.statuses.length && !shape.statuses.includes(value)) throw new Conflict(`a task's status is one of ${shape.statuses.join(", ")}`);
+  return value;
+}
+
+/**
+ * Available and due, written through the type's slots: the properties that
+ * change, from what it holds now (`was`). A date given sets its slot; null or
+ * "" takes it away; undefined leaves it. Two parts of one field are written
+ * together, and a field left empty goes.
+ */
+function datesPatch(shape: TaskShape, was: Record<string, unknown>, dates: { start?: string | null; due?: string | null }): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [which, v] of [["start", dates.start], ["due", dates.due]] as const) {
+    if (v === undefined) continue;
+    const slot = shape[which];
+    if (!slot) throw new Conflict(`this kind of task has no ${which === "start" ? "available" : "due"} date`);
+    if (!slot.part) { out[slot.field] = v || null; continue; }
+    const held = slot.field in out ? out[slot.field] : was[slot.field];
+    const base = { ...(held && typeof held === "object" ? (held as Record<string, unknown>) : {}) };
+    if (v) base[slot.part] = v;
+    else delete base[slot.part];
+    out[slot.field] = Object.keys(base).length ? base : null;
+  }
+  return out;
 }
 
 /**
@@ -114,7 +163,7 @@ export function setDone(id: string, done: boolean): Entity {
   const o = getEntity(id);
   const shape = shapeOf(o);
   if (!shape) throw new Conflict("not a task");
-  const options = shape.type.fields.find((f) => f.key === shape.statusKey)?.options ?? [];
+  const options = shape.statuses;
   const value = done ? shape.complete.find((v) => options.length === 0 || options.includes(v)) ?? shape.complete[0]
     : shape.complete.includes(shape.defaultStatus) ? options.find((v) => !shape.complete.includes(v)) : shape.defaultStatus;
   if (!value) throw new Conflict(done ? "its type says no status is done" : "its type has no open status");
@@ -125,29 +174,23 @@ export function setDone(id: string, done: boolean): Entity {
 export function shiftTask(id: string, days: number): Entity {
   const o = getEntity(id);
   const shape = shapeOf(o);
-  if (!shape?.spanKey) throw new Conflict("not a task with dates");
+  if (!shape || (!shape.start && !shape.due)) throw new Conflict("not a task with dates");
   if (!Number.isInteger(days) || Math.abs(days) > 3660) throw new Conflict("a whole number of days");
-  const move = (v?: string) => {
-    if (!v || !/^\d{4}-\d\d-\d\d/.test(v)) return v;
-    const d = new Date(`${v.slice(0, 10)}T12:00:00`);
-    d.setDate(d.getDate() + days);
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}${v.slice(10)}`;
-  };
-  const was = (o.properties[shape.spanKey] ?? {}) as { start?: string; end?: string };
-  return updateEntity(id, { properties: { [shape.spanKey]: { ...was, ...(was.start ? { start: move(was.start) } : {}), ...(was.end ? { end: move(was.end) } : {}) } } });
+  const span = spanOf(o, shape);
+  return updateEntity(id, { properties: datesPatch(shape, o.properties, {
+    ...(span.start && shape.start ? { start: addDays(span.start, days) } : {}),
+    ...(span.due && shape.due ? { due: addDays(span.due, days) } : {}),
+  }) });
 }
 
+/** Available and due, read through the type's slots (a part of a field, or a field). */
 export function spanOf(o: Entity, shape = shapeOf(o)): Span {
-  const v = shape?.spanKey ? (o.properties[shape.spanKey] as { start?: string; end?: string } | undefined) : undefined;
-  return { start: v?.start || undefined, due: v?.end || undefined };
+  const at = (key: string) => {
+    const v = shape ? readSlot(shape.type, o, key) : undefined;
+    return typeof v === "string" ? v : undefined;
+  };
+  return { start: at("start"), due: at("due") };
 }
-
-const nowLocal = () => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
 
 // ------------------------------------------------------------ what completing does
 
@@ -171,7 +214,9 @@ onChange((before, after) => {
       updateEntity(after.id, { properties: { [shape.doneKey]: null } });
       return;
     }
-    const stamp = nowLocal();
+    // Local and zoneless, as Hermes stamps it — unlike `updated`, which is
+    // UTC: the two are never compared as text (localtime.ts).
+    const stamp = localMinute();
     updateEntity(after.id, { properties: { [shape.doneKey]: stamp } });
     spawnNext(getEntity(after.id), shape, stamp.slice(0, 10));
   } finally {
@@ -183,7 +228,7 @@ onChange((before, after) => {
 function spawnNext(o: Entity, shape: TaskShape, completed: string): Entity | null {
   if (o["talaris:next"]) return null; // brought already, the first time it was completed
   const seriesId = o["talaris:series"];
-  if (typeof seriesId !== "string" || !shape.spanKey) return null;
+  if (typeof seriesId !== "string" || (!shape.start && !shape.due)) return null;
   const series = seriesOf(seriesId);
   if (!series) return null;
   const span = nextSpan(series.rule, spanOf(o, shape), completed, series["talaris:origin"], series.instances.length);
@@ -191,7 +236,12 @@ function spawnNext(o: Entity, shape: TaskShape, completed: string): Entity | nul
   const properties: Record<string, unknown> = { ...o.properties };
   delete properties[shape.doneKey];
   properties[shape.statusKey] = shape.defaultStatus;
-  properties[shape.spanKey] = { ...(span.start ? { start: span.start } : {}), ...(span.due ? { end: span.due } : {}) };
+  for (const [k, v] of Object.entries(datesPatch(shape, o.properties, {
+    ...(shape.start ? { start: span.start ?? null } : {}), ...(shape.due ? { due: span.due ?? null } : {}),
+  }))) {
+    if (v === null) delete properties[k];
+    else properties[k] = v;
+  }
   const next = createEntity({
     type: o.type,
     properties,
@@ -216,15 +266,64 @@ export interface NewTask {
   [extra: string]: unknown;
 }
 
+/** A task made, each part written where its type's task profile says: its notes, dates, status, projects. */
 export function createTask(t: NewTask): Entity {
   const type = typeFor("task");
   const shape = taskShape(type)!;
   const properties: Record<string, unknown> = { [shape.titleKey]: t.title.trim() || "Untitled" };
-  if (t.description) properties.description = t.description;
-  if (shape.spanKey && (t.start || t.due)) properties[shape.spanKey] = { ...(t.start ? { start: t.start } : {}), ...(t.due ? { end: t.due } : {}) };
-  if (t.status) properties[shape.statusKey] = t.status;
-  if (t.projects?.length) properties.project = t.projects;
-  return createEntity({ type: type.id, properties, ...(t.tags?.length ? { tags: t.tags } : {}) });
+  const content = t.description && shape.bodyKey === "content" ? t.description : undefined;
+  if (t.description && shape.bodyKey && shape.bodyKey !== "content") properties[shape.bodyKey] = t.description;
+  if (t.start || t.due) Object.assign(properties, datesPatch(shape, {}, { start: t.start || undefined, due: t.due || undefined }));
+  if (t.status) properties[shape.statusKey] = checkStatus(shape, t.status);
+  if (t.projects?.length) Object.assign(properties, filingPatch(type, t.projects));
+  return createEntity({ type: type.id, properties, ...(content ? { content } : {}), ...(t.tags?.length ? { tags: t.tags } : {}) });
+}
+
+export interface TaskPatch {
+  title?: string;
+  /** Its notes. */
+  body?: string;
+  /** Available and due: a date, or "" to take it away. */
+  start?: string;
+  due?: string;
+  status?: string;
+  /** Project entities, by id. */
+  addProjects?: string[];
+  removeProjects?: string[];
+  addTags?: string[];
+  removeTags?: string[];
+}
+
+/** A task changed by what it means — its title, notes, dates, status, projects, tags — each where its type keeps it. */
+export function updateTask(id: string, p: TaskPatch): Entity {
+  const o = getEntity(id);
+  const shape = shapeOf(o);
+  if (!shape) throw new Conflict("not a task");
+  const properties: Record<string, unknown> = {};
+  let content: string | null | undefined;
+  if (p.title !== undefined) properties[shape.titleKey] = p.title;
+  if (p.body !== undefined) {
+    if (!shape.bodyKey) throw new Conflict("this kind of task keeps no notes");
+    if (shape.bodyKey === "content") content = p.body || null;
+    else properties[shape.bodyKey] = p.body;
+  }
+  if (p.status !== undefined) properties[shape.statusKey] = checkStatus(shape, p.status);
+  Object.assign(properties, datesPatch(shape, o.properties, { start: p.start, due: p.due }));
+  if (p.addProjects?.length || p.removeProjects?.length) {
+    const filed = new Set(filedUnder(o));
+    for (const x of p.addProjects ?? []) filed.add(x);
+    for (const x of p.removeProjects ?? []) filed.delete(x);
+    if (!shape.projectKey) throw new Conflict("this kind of task is filed under no project");
+    Object.assign(properties, filingPatch(shape.type, [...filed]));
+  }
+  let tags: string[] | undefined;
+  if (p.addTags?.length || p.removeTags?.length) {
+    const kept = new Set(o.tags ?? []);
+    for (const t of p.addTags ?? []) kept.add(t.toLowerCase());
+    for (const t of p.removeTags ?? []) kept.delete(t.toLowerCase());
+    tags = [...kept];
+  }
+  return updateEntity(id, { properties, ...(content !== undefined ? { content } : {}), ...(tags ? { tags } : {}) });
 }
 
 /**
@@ -289,20 +388,21 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
       unfileHome(p.id);
       continue;
     }
-    const source = { kind: "talaris-project", key: p.id };
-    const known = bySource(source);
-    if (!known) createEntity({ type: type.id, properties: { title: p.name }, sources: [source] });
+    const known = projectEntity(p.id);
+    if (!known) createEntity({ type: type.id, properties: { title: p.name }, sources: [{ kind: PROJECT_SOURCE, key: p.id }] });
     else if (known.properties.title !== p.name) updateEntity(known.id, { properties: { title: p.name } });
   }
   return findEntities({ kind: "project", limit: 1000, archived: true }).map((s) => {
     const e = getEntity(s.id);
-    const ws = ((e["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((x) => x.kind === "talaris-project");
+    const ws = projectIdOf(e);
     // Its group is Tasks' own way of arranging the list (`talaris:group`): no folder, no meaning anywhere else.
     const group = typeof e["talaris:group"] === "string" && e["talaris:group"] ? (e["talaris:group"] as string) : undefined;
-    const description = typeof e.properties.description === "string" && e.properties.description ? e.properties.description : undefined;
+    // Its description where its type keeps it: the `project` profile's body.
+    const about = readSlot(types().find((t) => t.id === e.type), e, "body", "project");
+    const description = typeof about === "string" ? about : undefined;
     // Its place in Tasks' column, dragged there (`talaris:position`); none yet, after those that have one, by name.
     const position = typeof e["talaris:position"] === "number" ? (e["talaris:position"] as number) : undefined;
-    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws.key } : {}), ...(group ? { group } : {}), ...(description ? { description } : {}),
+    return { id: s.id, title: s.title, ...(e.archived ? { archived: true } : {}), ...(ws ? { workspace: ws } : {}), ...(group ? { group } : {}), ...(description ? { description } : {}),
       ...(position !== undefined ? { position } : {}) };
   }).sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
 }
@@ -384,14 +484,11 @@ export function arrangeColumn(entries: ({ kind: "group"; name: string; projects:
  * thing, not a task project beside a workspace of the same name.
  */
 function unfileHome(homeId: string): void {
-  const home = bySource({ kind: "talaris-project", key: homeId });
+  const home = projectEntity(homeId);
   if (!home) return;
   for (const r of allRecords()) {
-    const v = r.object.properties.project;
-    if (Array.isArray(v) && v.includes(home.id)) {
-      const rest = v.filter((x) => x !== home.id);
-      updateEntity(r.object.id, { properties: { project: rest.length ? rest : null } });
-    }
+    const patch = unfile(r.object, home.id);
+    if (patch) updateEntity(r.object.id, { properties: patch });
   }
   deleteEntity(home.id);
 }
@@ -401,7 +498,7 @@ export function createTaskProject(title: string): Entity {
   if (!name) throw new Conflict("a project has a name");
   const made = createProject(name);
   taskProjects();
-  const e = bySource({ kind: "talaris-project", key: made.id });
+  const e = projectEntity(made.id);
   if (!e) throw new Conflict("the project was made but is not listed for tasks");
   return e;
 }

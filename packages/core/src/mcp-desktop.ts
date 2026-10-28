@@ -69,21 +69,19 @@ const PANELS = ["canvas", "writing", "tasks", "calendar", "people", "glance", "m
 export function desktopTools(core: Core): DesktopTool[] {
   const now = async () => (await surfaces<{ now: Now }>({ do: "now" })).now;
 
-  /** A project by id or name (exact, then part of one); none given, the current one. */
+  /**
+   * A project as it is named, by the core's one resolver (filing.ts, the task
+   * tools ask the same); none given, the current one — or, the desktop not
+   * answering, Home.
+   */
   async function project(name: unknown): Promise<ProjectRow> {
-    const all = await core<ProjectRow[]>("GET", "/projects");
+    const resolve = (n: string) => core<{ id?: string; name: string; code?: string; home?: boolean }>("GET", `/projects/resolve?name=${encodeURIComponent(n)}`);
     const n = str(name).trim();
-    if (!n) {
-      const here = await now().then((x) => x.project.id, () => "");
-      return all.find((p) => p.id === here) ?? all.find((p) => p.home) ?? all[0]!;
-    }
-    const l = n.toLowerCase();
-    // The pages of no other project are Home's (its Pages): asked for as "notes" or "unaffiliated", Home.
-    if (l === "notes" || l === "unaffiliated") return all.find((p) => p.home) ?? all[0]!;
-    const hit = all.find((p) => p.id === n) ?? all.find((p) => p.name.toLowerCase() === l || p.code.toLowerCase() === l)
-      ?? all.find((p) => p.name.toLowerCase().includes(l));
-    if (!hit) throw new Error(`no project called ${n}; there are ${all.map((p) => p.name).join(", ")}`);
-    return hit;
+    const here = n ? "" : await now().then((x) => x.project.id, () => "");
+    // The current one gone from under the desktop (archived a moment ago): Home, as with no desktop at all.
+    const hit = n ? await resolve(n) : await resolve(here).catch(() => resolve(""));
+    if (!hit.id) throw new Error(`${hit.name} has no folder here: its pages and canvases are not in Talaris`);
+    return { id: hit.id, name: hit.name, code: hit.code ?? "", ...(hit.home ? { home: true } : {}) };
   }
 
   /** A canvas by id or title in a project; none given, the one the canvas drawer shows there, or the top one. */

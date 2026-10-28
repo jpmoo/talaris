@@ -29,7 +29,7 @@
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, typeFor, types, updateEntity, type Entity } from "./entities.js";
-import { Conflict, PAGES, UNDATED, ensureHome, listProjects, pagesPlace } from "./projects.js";
+import { Conflict, PAGES, UNDATED, ensureHome, pagesPlace } from "./projects.js";
 import { DAILY, createPage, movePage, pageTree, readPage, writePage } from "./pages.js";
 import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
@@ -101,7 +101,7 @@ function mirror(path: string, id?: string): Entity {
 export const DAY_MARK = "talaris:daily";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Home, made if it is not yet: the project that is always there, and where the undated notes and daily notes are.
-const homeId = () => listProjects().find((p) => p.home)?.id ?? ensureHome().id;
+const homeId = () => ensureHome().id;
 const daySource = (date: string) => ({ kind: "page", key: `${homeId()}/${DAILY}/${date}` });
 
 function dayDates(): string[] {
