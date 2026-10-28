@@ -546,9 +546,11 @@ function tie(key: string, other: string, way: Way): string | { said: string; kep
     else if (row.sha256) {
       const f = types().find((x) => x.id === o.type)?.fields.find((x) => x.kind === "attachment");
       if (!f) throw new Conflict(`${holder.title} keeps no files`);
-      const now = Array.isArray(o.properties[f.key]) ? (o.properties[f.key] as unknown[]) : [];
+      const now = Array.isArray(o.properties[f.key]) ? (o.properties[f.key] as unknown[]) : o.properties[f.key] ? [o.properties[f.key]] : [];
       if (!now.some((v) => (v as { sha256?: string })?.sha256 === row.sha256)) {
-        updateEntity(o.id, { properties: { [f.key]: [...now, { kind: "attachment", filename: row.name, sha256: row.sha256 }] } });
+        const added = { kind: "attachment", filename: row.name, sha256: row.sha256 };
+        // As the field holds them: a list where it says many, else the one.
+        updateEntity(o.id, { properties: { [f.key]: f.many === true ? [...now, added] : added } });
       }
     } else throw new Conflict(`${row.name} cannot be found to attach`);
     return `${file.title} is on ${holder.title} now.`;

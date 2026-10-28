@@ -338,6 +338,22 @@ function load(): Index {
       ix.types.set(t.id, merged);
     }
   }
+  // An attachment field that holds one, found holding a list (links.ts wrote
+  // lists whatever the field, until 2026-10-28): put right where it is kept,
+  // as it was meant to be written — not an edit, so nothing hears of it.
+  for (const rec of recs) {
+    const t = ix.types.get(rec.object.type ?? "");
+    let fixed = false;
+    for (const f of t?.fields ?? []) {
+      const v = rec.object.properties?.[f.key];
+      if (f.kind === "attachment" && f.many !== true && Array.isArray(v)) {
+        rec.object.properties[f.key] = v.length ? v[v.length - 1] : null;
+        if (!v.length) delete rec.object.properties[f.key];
+        fixed = true;
+      }
+    }
+    if (fixed) writeSealed(join(dir("objects"), safe(rec.object.id)), rec);
+  }
   for (const rec of recs) indexIn(ix, rec);
   return (index = ix);
 }

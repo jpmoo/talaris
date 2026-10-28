@@ -104,6 +104,16 @@ export async function linkFileAsync(entityId: string, path: string): Promise<Val
   return linked(entityId, full, sha256, st.size, st.mtimeMs);
 }
 
+/**
+ * Attachments as their field holds them: a list where the type says `many`,
+ * else the one (the newest). Written as a list whatever the field, a File's
+ * one `file` broke the format's cardinality rule in every backup (2026-10-28).
+ */
+function asField(o: Entity, key: string, list: Value[]): Value[] | Value | null {
+  const field = types().find((t) => t.id === o.type)?.fields.find((f) => f.key === key);
+  return field && field.many !== true ? (list[list.length - 1] ?? null) : list;
+}
+
 function linked(entityId: string, full: string, sha256: string, size: number, mtime: number): Value {
   const filename = basename(full);
   const value: Value = { kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256, [LINK]: { path: full, size, mtime } };
@@ -112,7 +122,7 @@ function linked(entityId: string, full: string, sha256: string, size: number, mt
   const now = valuesIn(o.properties[key]);
   // The same file linked again, or the same contents already kept: one value.
   if (now.some((a) => a[LINK]?.path === full || a.sha256 === value.sha256)) return now.find((a) => a[LINK]?.path === full || a.sha256 === value.sha256)!;
-  updateEntity(entityId, { properties: { [key]: [...now, value] } });
+  updateEntity(entityId, { properties: { [key]: asField(o, key, [...now, value]) } });
   return value;
 }
 
@@ -244,8 +254,8 @@ function relink(from: string, to: string): void {
     for (const [key, v] of Object.entries(o.properties ?? {})) {
       const list = valuesIn(v);
       if (!list.some((a) => a[LINK]?.path === from)) continue;
-      updateEntity(o.id, { properties: { [key]: list.map((a) => (a[LINK]?.path === from
-        ? { ...a, filename: basename(to), [LINK]: { path: to, size: st.size, mtime: st.mtimeMs } } : a)) } });
+      updateEntity(o.id, { properties: { [key]: asField(o, key, list.map((a) => (a[LINK]?.path === from
+        ? { ...a, filename: basename(to), [LINK]: { path: to, size: st.size, mtime: st.mtimeMs } } : a))) } });
     }
   }
 }
@@ -290,7 +300,7 @@ export function trashLinked(entityId: string, sha256: string): void {
       throw new Conflict(`could not put it in the Trash: ${String((e as { stderr?: Buffer }).stderr ?? (e as Error).message).trim()}`);
     }
   }
-  updateEntity(entityId, { properties: { [key]: list.filter((_, i) => i !== at) } });
+  updateEntity(entityId, { properties: { [key]: asField(getEntity(entityId), key, list.filter((_, i) => i !== at)) } });
   refreshLinks();
 }
 
@@ -304,7 +314,7 @@ export function toSnapshot(entityId: string, sha256: string): Value {
   const kept = putFile(bytes, a.filename, a.mediaType) as Value;
   const next = [...list];
   next[at] = kept;
-  updateEntity(entityId, { properties: { [key]: next } });
+  updateEntity(entityId, { properties: { [key]: asField(getEntity(entityId), key, next) } });
   return kept;
 }
 
@@ -327,7 +337,7 @@ export function toLink(entityId: string, sha256: string, folder: string): Value 
     [LINK]: { path, size: st.size, mtime: st.mtimeMs } };
   const next = [...list];
   next[at] = linked;
-  updateEntity(entityId, { properties: { [key]: next } });
+  updateEntity(entityId, { properties: { [key]: asField(getEntity(entityId), key, next) } });
   forgetFiles([a.sha256]);
   return linked;
 }
