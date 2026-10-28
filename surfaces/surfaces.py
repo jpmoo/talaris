@@ -370,7 +370,12 @@ class Desktop(QObject):
             return
         hypr.keyword("animation", f"windows,{int(moving)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
         hypr.keyword("animation", f"windowsIn,{int(opening)},{ds(4.5)},talarisIn" + (f",{style}" if style else ""))
-        hypr.keyword("animation", f"windowsOut,{int(opening)},{ds(3)},talarisOut" + (f",{style}" if style else ""))
+        # Closing never slides: a window at the top went up through the screen's
+        # edge, behind the floating bar, and its corners showed in the bar's
+        # rounded ends at the screen's top corners (2026-10-28). It shrinks and
+        # fades where it is instead.
+        going = "popin 87%" if style else ""
+        hypr.keyword("animation", f"windowsOut,{int(opening)},{ds(3)},talarisOut" + (f",{going}" if going else ""))
         hypr.keyword("animation", f"windowsMove,{int(moving)},{ds(4.5)},talarisIn")
         # Fading goes with everything but none: the whole of "fade", and under the others.
         hypr.keyword("animation", f"fadeIn,{int(moving)},{ds(2.5)},talarisIn")
