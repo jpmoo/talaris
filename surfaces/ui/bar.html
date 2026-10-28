@@ -41,7 +41,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
    without shouting. Going to another project still lights it fully (below). */
 .side:first-child { align-self: stretch; }
 #where { --where-rest: color-mix(in srgb, var(--accent) 13%, transparent);
-  cursor: pointer; align-self: stretch; display: flex; align-items: center; padding: 0 14px;
+  cursor: pointer; align-self: stretch; display: flex; align-items: center; padding: 0 14px 0 16px;
+  margin-left: -8px; /* the bar's own padding: the pill starts at its very edge */
   border: 1px solid transparent; border-radius: 999px; background: var(--where-rest); transition: background .15s, border-color .15s; }
 #where:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 #where:hover, #where:hover .code { color: var(--accent); }
