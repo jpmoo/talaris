@@ -595,16 +595,21 @@ class Desktop(QObject):
             self.say_where(found)
         log(f"project: {found['name']}")
 
-    #: How long a workspace's slide may take before its own animation is put back.
+    #: How the carousel's change of desktop goes: a slide part of the way, faded as it moves — in that way,
+    #: out the same — over half a second, on a curve that changes most at once (the fade is seen as soon as
+    #: it moves) and settles gently. Hyprland's tenths of a second.
+    SLIDE_STYLE, SLIDE_SPEED, SLIDE_CURVE = "slidefade {side} 30%", 5, "talarisGlide,0.16,1,0.3,1"
+    #: How long it may take before the workspaces' own animation is put back.
     SLIDE_BACK_MS = 900
 
     def _slide_once(self, side: str) -> None:
         """
-        The next change of desktop slides in from `side`: the workspaces'
-        animations given that style, their speed and curve kept, and put back
-        as they were once it has played. Hyprland follows the side it is told
-        (checked 2026-10-27: told left and told right, the same two moves
-        went opposite ways).
+        The next change of desktop slides and fades in from `side`, and out the
+        same way: the workspaces' animations given the carousel's own
+        (`SLIDE_*`), and put back as they were once it has played. Hyprland
+        follows the side it is told, plain slide and slidefade alike (checked
+        2026-10-27: told left and told right, the same two moves went opposite
+        ways).
         """
         try:
             now = json.loads(hypr.ask("j/animations") or "[]")
@@ -617,9 +622,10 @@ class Desktop(QObject):
         # Kept from the first slide of a run, so a second before the first is put back does not keep the slide as "theirs".
         if not getattr(self, "_slide_kept", None):
             self._slide_kept = {a["name"]: a for a in found}
-        for name, a in self._slide_kept.items():
-            if a.get("enabled"):
-                hypr.keyword("animation", f"{name},1,{a.get('speed', 4)},{a.get('bezier', 'default')},slide {side}")
+        hypr.keyword("bezier", self.SLIDE_CURVE)
+        curve = self.SLIDE_CURVE.split(",", 1)[0]
+        for name in self._slide_kept:
+            hypr.keyword("animation", f"{name},1,{self.SLIDE_SPEED},{curve},{self.SLIDE_STYLE.format(side=side)}")
         if not hasattr(self, "_slide_back"):
             self._slide_back = QTimer(self)
             self._slide_back.setSingleShot(True)
@@ -628,9 +634,9 @@ class Desktop(QObject):
 
     def _slide_restore(self) -> None:
         for name, a in (getattr(self, "_slide_kept", None) or {}).items():
-            if a.get("enabled"):
-                style = f",{a['style']}" if a.get("style") else ""
-                hypr.keyword("animation", f"{name},1,{a.get('speed', 4)},{a.get('bezier', 'default')}{style}")
+            style = f",{a['style']}" if a.get("style") else ""
+            on = 1 if a.get("enabled") else 0
+            hypr.keyword("animation", f"{name},{on},{a.get('speed', 4)},{a.get('bezier', 'default')}{style}")
         self._slide_kept = None
 
     def _workspace_changed(self, name: str) -> None:
