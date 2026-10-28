@@ -96,7 +96,7 @@ function draw() {
   const ov = cfg.overlays || {};
   // What the bar's items open are drawn with them (drawBarShown); these open another way.
   for (const who of ["glance", "archive", "settings"]) {
-    seg(`ov-${who}`, [["windows", "As windows"], ["drawers", "As panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
+    seg(`ov-${who}`, [["windows", "Like windows"], ["drawers", "Like panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
   seg("outline", [["focus", "Accent in use"], ["line", "Line"], ["none", "None"]], p.outline, (outline) => save({ panels: { outline } }));
@@ -1640,7 +1640,7 @@ function drawBarShown() {
     // Shown first, then how it comes and goes — greyed, and not to be changed, while it is off the bar.
     const who = opens[0], gone = off(id);
     const how = el("span", { class: "seg" + (gone ? " off" : ""), title: gone ? "Not on the bar" : "How it comes and goes" },
-      ...[["windows", "As windows"], ["drawers", "As panels"]].map(([value, text]) =>
+      ...[["windows", "Like windows"], ["drawers", "Like panels"]].map(([value, text]) =>
         el("button", { class: value === (ov[who] || "windows") ? "on" : "", ...(gone ? { disabled: "" } : {}),
           onclick: () => !gone && value !== (ov[who] || "windows") && save({ overlays: { ...(cfg.overlays || {}), [who]: value } }) }, text)));
     return el("div", { class: "row" }, name, el("span", { class: "what" }, sw, how));
