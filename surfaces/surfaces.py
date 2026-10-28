@@ -64,6 +64,7 @@ import thumbs
 from osd import Osd
 from dim import Dim
 from fullscreen import Fullscreen
+from stall import Stall
 from pins import Pins
 from tip import Tip
 import desktop_api
@@ -294,6 +295,8 @@ class Desktop(QObject):
         self.pins = Pins(self)
         # A window fullscreen in front: logged, and the bar brought out over it from the edge (fullscreen.py).
         self.fullscreen = Fullscreen(self)
+        # The main thread held for seconds, written down with where it was (stall.py).
+        self.stall = Stall(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
         try:
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
