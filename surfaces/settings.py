@@ -488,8 +488,9 @@ class Settings(QObject):
             # No anchors: the compositor puts it in the middle of the screen.
             self.surface.apply(Placement(OVERLAY, 0, zoom(SIZE[0]), zoom(SIZE[1]), KEYBOARD_ON_DEMAND))
             self.up = True
+            # Clear until the page has drawn itself and begun to arrive (`pointer_back`), then dimmed with it.
             if not getattr(self, "_chooser", None):
-                self.catcher.show(dim=True)
+                self.catcher.show(dim=False)
             log("settings: open")
         self.bridge.state.emit(json.dumps(self.describe()))
         self.page = ""
@@ -549,6 +550,12 @@ class Settings(QObject):
     def touched(self) -> None:
         if self.up:
             self.idle.start(IDLE_MS)
+
+    def pointer_back(self) -> None:
+        """The page has drawn and is arriving (core.Bridge.drawn): the screen behind dimmed with it, and the pointer given back."""
+        if self.up and not getattr(self, "_chooser", None) and self._catcher is not None and self._catcher.up:
+            self._catcher.dim(True)
+        hypr.refocus_pointer()
 
     def add_account(self) -> None:
         """GNOME Online Accounts' own window, beside Settings: the provider's sign-in, then the account is here."""

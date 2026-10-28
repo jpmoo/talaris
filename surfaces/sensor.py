@@ -132,14 +132,21 @@ class Catcher(QObject):
         # listener did not hear it, and a catcher that misses a click is a
         # drawer that will not go away.
         self._watched = None
-        self.view.loadFinished.connect(lambda _ok: self._watch())
+        # Dimmed or not, as last asked: said again once the page has loaded — a
+        # catcher made on its first use was asked before its page could hear.
+        self.dimmed = False
+        self.view.loadFinished.connect(lambda _ok: (self._watch(), self.dim(self.dimmed) if self.up else None))
 
     def describe(self) -> dict:
         return {}
 
+    def dim(self, on: bool) -> None:
+        """The rest of the screen sat back behind the drawer, or not; the page fades it."""
+        self.dimmed = on
+        self.view.page().runJavaScript(f"window.dim && dim({'true' if on else 'false'})")
+
     def show(self, dim: bool = False, clear_of_bar: bool = False) -> None:
-        # Dimmed, the rest of the screen sits back behind the drawer; the page fades it.
-        self.view.page().runJavaScript(f"window.dim && dim({'true' if dim else 'false'})")
+        self.dim(dim)
         if self.up:
             return
         screen = QApplication.primaryScreen().geometry()

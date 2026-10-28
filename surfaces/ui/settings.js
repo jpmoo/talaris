@@ -1676,6 +1676,8 @@ let motionNow = {};
 function how() {
   return {
     kind: motionNow.motion, speed: motionNow.speed, edge: "top", flush: false, viewport: motionNow.viewport,
+    // Drawn and arriving: the screen behind is dimmed with it (settings.py, pointer_back).
+    shown: () => bridge && bridge.drawn(),
     rules: (rule, rel, P) => { const n = document.querySelector("nav").getBoundingClientRect(); rule(rel(n.right, P.top), rel(n.right, P.bottom)); },
   };
 }
