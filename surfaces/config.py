@@ -67,6 +67,9 @@ DEFAULTS = {
     # the screen's pixels, 0 square. In place of a screen shader, which left
     # half-drawn corners behind.
     "screen": {"corners": 12},
+    # What is done through Talaris, kept for suggestions about how you work
+    # (activity.py): off until turned on; each choice is yours (Settings, Activity).
+    "activity": {"enabled": False, "grain": "actions", "keep": 90, "suggest": "morgan", "share": "summary"},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},

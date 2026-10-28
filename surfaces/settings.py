@@ -40,7 +40,7 @@ import power
 import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config, settle_accent, settle_opacity, single_window
-from core import Bridge, projects as core_projects
+from core import Bridge, call, get_json, projects as core_projects
 from layershell import OVERLAY, Placement
 from morgan import command
 from overlay import Overlay
@@ -161,6 +161,11 @@ def _checked(c: dict) -> str:
         return "Not a notification look"
     if not 2 <= int(n.get("seconds", 6)) <= 60 or not 20 <= int(n.get("opacity", 100)) <= 100:
         return "Notifications stay 2 to 60 seconds, and are 20% to 100% solid"
+    a = c.get("activity", {})
+    if not isinstance(a.get("enabled", False), bool) or a.get("grain", "actions") not in ("actions", "focus", "titles") \
+            or int(a.get("keep", 90)) not in (30, 90, 365) or a.get("suggest", "morgan") not in ("morgan", "notify", "asked") \
+            or a.get("share", "summary") not in ("summary", "raw", "local"):
+        return "Not an activity setting"
     if not 0 <= int(c.get("screen", {}).get("corners", 0)) <= 32:
         return "Screen corners are 0 to 32 pixels"
     cb = c.get("clipboard", {})
@@ -194,6 +199,38 @@ def _checked(c: dict) -> str:
 
 
 class SettingsBridge(Bridge):
+    # ---- Activity (activity.py): what is kept, and what it suggests — read off the screen's thread, answered on `activityState`
+    activityState = Signal(str)
+
+    @Slot()
+    def activityRead(self) -> None:  # noqa: N802 — called from the page by this name
+        act = self.owner.desktop.activity
+
+        def read() -> None:
+            summary = get_json(f"/activity/summary?days={int(act.settings()['keep'])}", None)
+            found = act.suggestions() if act.on() else []
+            act.last_found = {x["key"]: x for x in found}
+            self.activityState.emit(json.dumps({"total": (summary or {}).get("total", 0), "from": (summary or {}).get("from"),
+                                                 "suggestions": [{"key": x["key"], "text": x["text"]} for x in found]}))
+        threading.Thread(target=read, daemon=True).start()
+
+    @Slot(str)
+    def activityDo(self, key: str) -> None:  # noqa: N802 — called from the page by this name
+        act = self.owner.desktop.activity
+        found = getattr(act, "last_found", {}).get(key)
+        if found:
+            act.do(found)
+        self.activityRead()
+
+    @Slot(str)
+    def activityDismiss(self, key: str) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.activity.dismiss(key)
+        self.activityRead()
+
+    @Slot()
+    def activityClear(self) -> None:  # noqa: N802 — called from the page by this name
+        threading.Thread(target=lambda: (call("DELETE", "/activity"), self.activityRead()), daemon=True).start()
+
     @Slot(result=str)
     def openWindows(self) -> str:  # noqa: N802 — called from the page by this name
         """The applications with a window open now, by class and name: for choosing which are always solid."""
@@ -551,7 +588,7 @@ class Settings(Overlay):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "meaning", "shown"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "activity", "meaning", "shown"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

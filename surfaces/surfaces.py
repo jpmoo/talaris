@@ -66,6 +66,7 @@ from dim import Dim
 from fullscreen import Fullscreen
 from stall import Stall
 from corners import Corners
+from activity import Activity
 from pins import Pins
 from tip import Tip
 import desktop_api
@@ -300,6 +301,8 @@ class Desktop(QObject):
         self.stall = Stall(self)
         # The screen's corners, rounded: four small surfaces over everything (corners.py).
         self.corners = Corners(self)
+        # What is done through Talaris, kept as Settings says (activity.py); off until turned on.
+        self.activity = Activity(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
         try:
             active = str(json.loads(hypr.ask("j/activeworkspace")).get("name", ""))
@@ -496,6 +499,8 @@ class Desktop(QObject):
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
+        if after.get("activity") != before.get("activity"):
+            self.activity.tell_core()
         if after.get("screen") != before.get("screen"):
             self.corners.apply()
         if after.get("clipboard") != before.get("clipboard"):
@@ -604,6 +609,7 @@ class Desktop(QObject):
         # Already there (an app opened, a window focused): nothing to say — the flash is for arriving.
         if found["id"] == self.project.get("id"):
             return
+        self.activity.record("project.go", to=found["id"])
         self.project = found
         self.jump.went(found["id"])
         for w in self.workspaces.values():

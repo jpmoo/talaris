@@ -157,9 +157,25 @@ class Notifications(QObject):
         self._keep()
         self.changed.emit()
 
+    def own(self, summary: str, body: str, actions: list[tuple[str, str]], answer) -> int:
+        """
+        One of Talaris's own, shown and listed as any other: its buttons
+        answered here (`answer(key)`), not over the bus — negative ids, which
+        no application's can be.
+        """
+        self._own_id = getattr(self, "_own_id", 0) - 1
+        self._answers = getattr(self, "_answers", {})
+        self._answers[self._own_id] = answer
+        self._came({"id": self._own_id, "app": "Talaris", "appId": "talaris", "summary": summary, "body": body,
+                    "actions": [[k, label] for k, label in actions], "icon": ""})
+        return self._own_id
+
     def _gone(self, nid: int, told: bool = True, reason: int = 2) -> None:
         """Off the screen: closed by its application (`told` False), or by you."""
         self.toasts.drop(nid)
+        if nid < 0:
+            getattr(self, "_answers", {}).pop(nid, None)
+            return
         if told:
             self._send({"do": "closed", "id": nid, "reason": reason})
 
@@ -190,6 +206,12 @@ class Notifications(QObject):
     def act(self, nid: int, key: str) -> None:
         """One of its buttons, or its body ("default"): the application told; gone unless it says it stays."""
         n = next((x for x in self.items if x.get("id") == nid), None)
+        if nid < 0:
+            answer = getattr(self, "_answers", {}).get(nid)
+            if answer:
+                answer(key)
+            self.dismiss(nid)
+            return
         self._send({"do": "action", "id": nid, "key": key})
         if not (n and n.get("resident")):
             self._gone(nid)

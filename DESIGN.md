@@ -2036,15 +2036,20 @@ of it and comes out at the end.
     `x-kde-passwordManagerHint` is never read, and the vault's recovery key,
     copied from Settings, is left out too. 50 kept besides the pinned (Settings,
     Clipboard: 10 to 500). Morgan does not read it.
-20. **A log of what is done in Talaris, read by Morgan for the way you work**
-    (asked for 2026-10-27; not started). Every action across the surfaces —
-    opening, moving, pinning, sending to a project, connecting, listing,
-    finishing a task — kept as a sealed log, and Morgan reading it now and then
-    to suggest how the work could go: a habit worth a verb, a window always
-    sent to the same project, things always opened together. Questions first:
-    what counts as an action and at what grain; how long it is kept; where a
-    suggestion is shown and how one is turned down for good; whether it leaves
-    the machine (Morgan's brain is on the home server).
+20. ~~A log of what is done in Talaris, read by Morgan for the way you work.~~
+    **Built** (2026-10-28), every choice the person's (Settings, Activity),
+    off until turned on: what is kept (what is done through Talaris; and
+    which application has your attention, for how long; and windows'
+    titles), for 30, 90 or 365 days; suggestions in Morgan with a weekly
+    nudge, as notifications with Do it and Not for me, or only when asked;
+    and what Morgan may read (a summary made here, everything, or nothing).
+    Sealed in the core (activity.ts), recorded by the surfaces off the
+    screen's thread (activity.py). Talaris's own rules suggest keeping an
+    application in the project it is always sent to, and pinning what is
+    opened often or together. **Never the Oracle:** Talaris's MCP offers the
+    two activity tools to Morgan's own client alone, and Morgan, having read
+    them, does not consult the Oracle again in that conversation (the
+    Oracle is sent the conversation so far).
 21. ~~One visual language.~~ **Done** (2026-10-28): see *One visual language*.
 
 ## What did not come from Talaria

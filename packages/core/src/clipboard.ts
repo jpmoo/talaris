@@ -69,9 +69,10 @@ function save(): void {
 
 /** The pinned first (newest copied first), then the rest, newest first: as Notchnik shows them. */
 export function listClips(): Clip[] {
-  const all = load();
-  const newest = (a: Clip, b: Clip) => b.at - a.at;
-  return [...all.filter((c) => c.pinned).sort(newest), ...all.filter((c) => !c.pinned).sort(newest)];
+  // Of two copied in one millisecond, the one kept after is the newer.
+  const all = load().map((c, i) => ({ c, i }));
+  const newest = (a: { c: Clip; i: number }, b: { c: Clip; i: number }) => b.c.at - a.c.at || b.i - a.i;
+  return [...all.filter((x) => x.c.pinned).sort(newest), ...all.filter((x) => !x.c.pinned).sort(newest)].map((x) => x.c);
 }
 
 const sha = (data: Buffer | string) => createHash("sha256").update(data).digest("hex");

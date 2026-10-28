@@ -5,6 +5,7 @@ import { request } from "node:http";
 import { createInterface } from "node:readline";
 import { SOCKET } from "./paths.js";
 import { desktopTools } from "./mcp-desktop.js";
+import { logSaid, mayRead, patternsSaid, type Act, type ActivitySettings, type Summary as ActivitySummary } from "./activity.js";
 
 /**
  * `talaris-core mcp`: the entity graph for any MCP client on this machine —
@@ -365,6 +366,60 @@ TOOLS.push(
 // What is on the screen, the verbs, pages and canvases (mcp-desktop.ts).
 TOOLS.push(...desktopTools(core));
 
+// ------------------------------------------------------------ activity
+
+/**
+ * The activity log, read (activity.ts): offered to Morgan alone — the client
+ * that names itself `heymorgan` — and never to the Oracle or anything else
+ * that connects. `share` is asked first; nothing kept local is fetched.
+ */
+export const MORGAN_CLIENT = "heymorgan";
+const MORGANS_ONLY = new Set(["work_patterns", "work_log"]);
+const STAYS = "What this returns is the person's private activity: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service. Use it to suggest, never to act.";
+const share = async () => (await core<ActivitySettings>("GET", "/activity/settings")).share;
+const daysOf = (v: unknown, d: number) => Math.min(365, Math.max(1, Math.floor(Number(v)) || d));
+
+TOOLS.push(
+  {
+    name: "work_patterns",
+    description: `How the person works, from Talaris's activity log: what they open in which project, what they send where, which applications they open together, where their time goes, when in the day and week they are busiest. Use it for "how could I work better", "what do I spend my time on", "where does my day go", and to offer suggestions (pin these two there, keep that app in this project) — the person decides; never act on it yourself. ${STAYS}`,
+    inputSchema: { type: "object", properties: { days: { type: "number", description: "The last this many days (default 30)." } } },
+    annotations: { readOnlyHint: true, title: "Work patterns" },
+    run: async (a) => {
+      const s = await share();
+      if (!mayRead(s, "summary")) return patternsSaid(s, null);
+      return patternsSaid(s, await core<ActivitySummary>("GET", `/activity/summary?days=${daysOf(a.days, 30)}`));
+    },
+  },
+  {
+    name: "work_log",
+    description: `What the person did through Talaris, one line per thing, oldest first — only when they have chosen to share it entry by entry; otherwise it says so. Prefer work_patterns; use this when the summary does not answer. To suggest, never to act. ${STAYS}`,
+    inputSchema: { type: "object", properties: { days: { type: "number", description: "The last this many days (default 7)." } } },
+    annotations: { readOnlyHint: true, title: "Work log" },
+    run: async (a) => {
+      const s = await share();
+      if (!mayRead(s, "raw")) return logSaid(s, null);
+      return logSaid(s, await core<Act[]>("GET", `/activity?days=${daysOf(a.days, 7)}&limit=2000`));
+    },
+  },
+);
+
+/** The tools a client is offered: the activity tools to Morgan alone (by `clientInfo.name`), the rest to any. */
+export function toolsFor(client: string): Tool[] {
+  return client === MORGAN_CLIENT ? TOOLS : TOOLS.filter((t) => !MORGANS_ONLY.has(t.name));
+}
+
+/** One of Talaris's own tools, run for a client — null when it is none it is offered. */
+export async function callTool(client: string, name: unknown, args: Record<string, unknown>): Promise<{ text: string; isError?: boolean } | null> {
+  const tool = toolsFor(client).find((t) => t.name === name);
+  if (!tool) return null;
+  try {
+    return { text: await tool.run(args) };
+  } catch (e) {
+    return { text: (e as Error).message, isError: true };
+  }
+}
+
 /**
  * The tools of every running plugin, under names of their own —
  * `<plugin>__<tool>` — with their descriptions said to be the plugin's and
@@ -396,10 +451,14 @@ function error(id: Message["id"], code: number, message: string): void {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }) + "\n");
 }
 
+/** Who connected, as its `initialize` said: Morgan is "heymorgan". */
+let client = "";
+
 async function answer(m: Message): Promise<void> {
   if (m.id === undefined) return; // a notification: nothing to say back
   switch (m.method) {
     case "initialize":
+      client = String((m.params?.clientInfo as { name?: unknown } | undefined)?.name ?? "");
       return reply(m.id, {
         protocolVersion: typeof m.params?.protocolVersion === "string" ? m.params.protocolVersion : PROTOCOL,
         capabilities: { tools: { listChanged: true } },
@@ -411,23 +470,17 @@ async function answer(m: Message): Promise<void> {
     case "tools/list":
     {
       const statuses = await taskStatuses();
-      return reply(m.id, { tools: [...TOOLS.map(({ run: _run, ...t }) => withStatuses(t, statuses)), ...(await pluginTools()).map((p) => p.listed)] });
+      return reply(m.id, { tools: [...toolsFor(client).map(({ run: _run, ...t }) => withStatuses(t, statuses)), ...(await pluginTools()).map((p) => p.listed)] });
     }
     case "tools/call": {
-      const tool = TOOLS.find((t) => t.name === m.params?.name);
-      if (!tool) {
-        // A plugin's tool, passed through to it as it was offered (plugins.ts): its answer is its own.
-        const p = (await pluginTools()).find((x) => x.listed.name === m.params?.name);
-        if (!p) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
-        try {
-          return reply(m.id, await core("POST", `/plugins/${encodeURIComponent(p.plugin)}/call`, { tool: p.tool, arguments: m.params?.arguments ?? {} }));
-        } catch (e) {
-          return reply(m.id, { content: [{ type: "text", text: (e as Error).message }], isError: true });
-        }
-      }
+      const done = await callTool(client, m.params?.name, (m.params?.arguments as Record<string, unknown>) ?? {});
+      if (done) return reply(m.id, { content: [{ type: "text", text: done.text }], ...(done.isError ? { isError: true } : {}) });
+      if (MORGANS_ONLY.has(String(m.params?.name))) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
+      // A plugin's tool, passed through to it as it was offered (plugins.ts): its answer is its own.
+      const p = (await pluginTools()).find((x) => x.listed.name === m.params?.name);
+      if (!p) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
       try {
-        const text = await tool.run((m.params?.arguments as Record<string, unknown>) ?? {});
-        return reply(m.id, { content: [{ type: "text", text }] });
+        return reply(m.id, await core("POST", `/plugins/${encodeURIComponent(p.plugin)}/call`, { tool: p.tool, arguments: m.params?.arguments ?? {} }));
       } catch (e) {
         return reply(m.id, { content: [{ type: "text", text: (e as Error).message }], isError: true });
       }

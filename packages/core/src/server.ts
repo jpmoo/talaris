@@ -73,6 +73,7 @@ import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./
 import { SealError } from "./seal.js";
 import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
 import { encryptedProjects, setProjectEncrypted } from "./sealed-projects.js";
+import * as activity from "./activity.js";
 import { addClip, clearClips, clipPicture, keepClips, listClips, pinClip, removeClip, type NewClip } from "./clipboard.js";
 
 /**
@@ -895,6 +896,20 @@ route("DELETE", "/clipboard/:id", (_r, [id]) => {
   if (!removeClip(id!)) throw new NotFound("no such clip");
   return { ok: true };
 });
+
+// The activity log (activity.ts): the surfaces send what is done and read the summary for their suggestions,
+// whatever `share` says; Morgan's tools ask /activity/settings first and read only what it allows.
+const checked = <T>(f: () => T): T => {
+  try { return f(); } catch (e) { throw e instanceof Error && !(e instanceof Locked) && !(e instanceof SealError) ? new BadRequest(e.message) : e; }
+};
+route("POST", "/activity", async (req) => { const b = await json<Record<string, unknown>>(req); return checked(() => activity.appendAct(b)); });
+route("GET", "/activity", (_r, _p, q) => activity.listActs(q.get("days") ?? 7, q.get("limit") ?? 2000));
+route("DELETE", "/activity", () => { activity.clearActs(); return { ok: true }; });
+route("GET", "/activity/summary", (_r, _p, q) => activity.activitySummary(q.get("days") ?? 30));
+route("GET", "/activity/settings", () => activity.activitySettings());
+route("PUT", "/activity/settings", async (req) => { const b = await json<{ keep?: unknown; share?: unknown }>(req); return checked(() => activity.setActivitySettings(b)); });
+route("GET", "/activity/dismissed", () => activity.dismissedSuggestions());
+route("POST", "/activity/dismissed", async (req) => { const b = await json<{ key?: unknown }>(req); return checked(() => activity.dismissSuggestion(b.key)); });
 
 function safely<T>(f: () => T, fallback: T): T {
   try { return f(); } catch { return fallback; }

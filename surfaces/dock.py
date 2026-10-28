@@ -299,6 +299,7 @@ class DockMenu(QObject):
             follow = verb == "send-follow"
 
             def send(project: str) -> None:
+                self.desktop.activity.record("window.send", app=key, to=project)
                 hypr.carry(address, self.desktop.workspace_for(project))
                 if follow:
                     self.desktop.go_to_project(project, announce=True)
@@ -653,6 +654,7 @@ class Dock(QObject):
         item = self.items.get(key)
         if not item:
             return
+        self.desktop.activity.record(f"dock.{verb}", app=item.get("id") or key)
         cfg = self.desktop.config["dock"]
         if item.get("doc") and verb in ("pin-all", "pin-here", "unpin"):
             # A document: moved between every project and this one, or taken off.

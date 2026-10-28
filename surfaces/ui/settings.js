@@ -189,6 +189,7 @@ function draw() {
   if (bridge && $("power").classList.contains("on")) powerNote();
   drawNotifications();
   drawClipboard();
+  drawActivity();
 
   // Settings that only matter when another is on, dimmed while it is off.
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
@@ -292,6 +293,48 @@ function drawClipboard() {
   slider("cb-keep", cb().keep ?? 50, (v) => `${v}`, (keep) => save({ clipboard: { keep } }));
 }
 $("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
+// ---------------------------------------------------------------- activity
+//
+// What is done through Talaris, kept for suggestions (activity.py). Every
+// choice is the person's; nothing is kept until the switch is on.
+const ac = () => ({ enabled: false, grain: "actions", keep: 90, suggest: "morgan", share: "summary", ...(cfg.activity || {}) });
+const GRAIN_NOTE = {
+  actions: "What you do through Talaris: windows opened, closed, sent; projects gone to; the dock and the launcher.",
+  focus: "That, and which application has your attention, and for how long: its name and project, not what is in it.",
+  titles: "That, and windows' titles. Titles can hold an email's subject, a document's name, a meeting's.",
+};
+const SHARE_NOTE = {
+  summary: "Morgan reads a summary (counts, habits, times), made here; the record itself stays on this machine.",
+  raw: "Morgan reads the record itself. It goes to where Morgan runs, and stays there.",
+  local: "Morgan reads none of it. Suggestions come from Talaris's own rules.",
+};
+function drawActivity() {
+  const a = ac();
+  $("ac-on").classList.toggle("on", a.enabled);
+  $("ac-off-note").hidden = a.enabled;
+  seg("ac-grain", [["actions", "Actions"], ["focus", "+ Focus"], ["titles", "+ Titles"]], a.grain, (grain) => save({ activity: { grain } }));
+  $("ac-grain-note").textContent = GRAIN_NOTE[a.grain];
+  seg("ac-keep", [[30, "30 days"], [90, "90 days"], [365, "A year"]], Number(a.keep), (keep) => save({ activity: { keep: Number(keep) } }));
+  seg("ac-suggest", [["morgan", "In Morgan"], ["notify", "Notifications"], ["asked", "Only when asked"]], a.suggest, (suggest) => save({ activity: { suggest } }));
+  seg("ac-share", [["summary", "A summary"], ["raw", "Everything"], ["local", "Nothing"]], a.share, (share) => save({ activity: { share } }));
+  $("ac-share-note").textContent = SHARE_NOTE[a.share];
+  needs(["ac-grain", "ac-keep", "ac-suggest", "ac-share"], a.enabled);
+  if (bridge && bridge.activityRead) bridge.activityRead();
+}
+function showActivity(text) {
+  const got = JSON.parse(text);
+  $("ac-count").textContent = got.total ? `${got.total} things, since ${Kit.day(got.from)}` : "Nothing yet";
+  const clear = el("button", { class: "t-btn danger" }, "Clear it");
+  Kit.twice(clear, { key: "ac-clear", ask: "Clear it all?", act: () => bridge.activityClear() });
+  $("ac-clear-at").replaceChildren(...(got.total ? [clear] : []));
+  $("ac-found").replaceChildren(...(got.suggestions.length ? got.suggestions.map((x) => el("div", { class: "row" },
+    el("span", { class: "name" }, x.text),
+    el("span", { class: "what" },
+      el("button", { class: "t-btn small primary", onclick: () => bridge.activityDo(x.key) }, "Do it"),
+      el("button", { class: "t-btn small", onclick: () => bridge.activityDismiss(x.key) }, "Not for me"))))
+    : [Kit.empty(ac().enabled ? "None yet" : "Turned off")]));
+}
+$("ac-on").addEventListener("click", () => save({ activity: { enabled: !ac().enabled } }));
 // ---------------------------------------------------------------- the picker
 //
 // The accent of the mode being set (Look, Accent): the one in use is `accent`,
@@ -1714,6 +1757,7 @@ Surface.connect({
   b.accountsChanged.connect(() => { if ($("accounts").classList.contains("on")) drawAccounts(); });
   b.morganReply.connect(onMorganReply);
   b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
+  if (b.activityState) b.activityState.connect(showActivity);
   b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
 });

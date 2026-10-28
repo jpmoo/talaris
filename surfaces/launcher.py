@@ -349,6 +349,7 @@ class Launcher(Overlay):
             except (OSError, subprocess.SubprocessError):
                 return "Could not copy it"
             return ""
+        self.desktop.activity.record("launcher.pick", target=f"{kind}:{r.get('id') or r.get('name') or r.get('path') or ''}"[:120])
         if kind == "close":
             # Kept open: the list of windows is drawn again as they go.
             return self.close_windows([str(a) for a in r.get("addresses", [])])

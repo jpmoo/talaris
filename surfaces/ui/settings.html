@@ -248,6 +248,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <button data-page="power">Power</button>
     <button data-page="notifications">Notifications</button>
     <button data-page="clipboard-page">Clipboard</button>
+    <button data-page="activity-page">Activity</button>
     <span class="group">Your data</span>
     <button data-page="data">Data</button>
     <button data-page="types">Types</button>
@@ -440,6 +441,21 @@ footer #msg.err, .note.err { color: var(--danger); }
       <p class="note" id="cb-off-note" hidden>Nothing new is kept; what is kept stays until cleared.</p>
       <div class="row"><span class="name">Keep<small>Pinned clips besides</small></span><span class="what"><input type="range" id="cb-keep" min="10" max="500" step="10"><span class="n" id="cb-keep-n"></span></span></div>
       <p class="note">Sealed, as your notes are. What a password manager marks as secret is never kept. Morgan does not read it.</p>
+    </section>
+    <section id="activity-page">
+      <h2>Activity</h2>
+      <div class="row"><span class="name">Keep a record<small>What you do through Talaris, for suggestions about how you work</small></span><span class="what"><button class="switch" id="ac-on"></button></span></div>
+      <p class="note" id="ac-off-note">Off: nothing is kept.</p>
+      <div class="row"><span class="name">What is kept</span><span class="what"><span class="seg" id="ac-grain"></span></span></div>
+      <p class="note" id="ac-grain-note"></p>
+      <div class="row"><span class="name">For</span><span class="what"><span class="seg" id="ac-keep"></span></span></div>
+      <div class="row"><span class="name">Suggestions</span><span class="what"><span class="seg" id="ac-suggest"></span></span></div>
+      <div class="row"><span class="name">Morgan may read<small>Never passed to the Oracle</small></span><span class="what"><span class="seg" id="ac-share"></span></span></div>
+      <p class="note" id="ac-share-note"></p>
+      <h3>Suggestions now</h3>
+      <div id="ac-found"></div>
+      <h3>Kept</h3>
+      <div class="row"><span class="name" id="ac-count"></span><span class="what" id="ac-clear-at"></span></div>
     </section>
     <section id="types">
       <h2>Types</h2>
