@@ -519,6 +519,22 @@
       if (cm) cm.focus(); else first.dataset.focus = "1";
     } else first.focus();
   }
+  /*
+   * The cursor in the first field as soon as it can be: the panel cannot take
+   * focus while it is still hidden for its arrival, so this tries until it
+   * holds (as the launcher's box does) — Super+Shift+N, then type.
+   */
+  function focusSoon() {
+    let tries = 0;
+    const go = () => {
+      if (!surface.up) return;
+      focusFirst();
+      const first = $("rows").querySelector("input.field, .ed");
+      const held = first && (first === document.activeElement || first.contains(document.activeElement));
+      if (!held && ++tries < 40) setTimeout(go, 40);
+    };
+    setTimeout(go, 0);
+  }
   const titleKeyOf = (k) => (k === "event" ? "title" : typeFor(k) ? readType(typeFor(k)).titleKey : "title");
   function choose(k) {
     if (k === kind) return;
@@ -541,11 +557,11 @@
     say("");
     paintKinds();
     paint();
-    setTimeout(focusFirst, 30);
+    focusSoon();
     // What the forms are made from, fresh each time it opens: the types (and
     // the projects, mirrored as entities when asked for), the calendars.
     Promise.all([api("GET", "/entity-types"), api("GET", "/tasks/projects").catch(() => [])])
-      .then(([t]) => { types = t || []; if (kind !== "event") { paint(); setTimeout(focusFirst, 0); } }).catch((e) => say(e.message, true));
+      .then(([t]) => { types = t || []; if (kind !== "event") { paint(); focusSoon(); } }).catch((e) => say(e.message, true));
     api("GET", "/projects").then((ps) => { projectList = ps || []; if (kind === "note") paint(); }).catch(() => {});
     if (bridge) bridge.calendars((text) => { try { calendars = JSON.parse(text) || []; } catch { calendars = []; } if (kind === "event") paint(); });
   }
@@ -790,7 +806,7 @@
   function how() {
     const m = surface.motion || {};
     return { kind: m.motion, speed: m.speed, edge: "top", flush: false, viewport: surface.viewport,
-      shown: () => bridge && bridge.drawn() };
+      shown: () => { if (bridge) bridge.drawn(); focusSoon(); } };
   }
   function onState(s) {
     const was = surface;
