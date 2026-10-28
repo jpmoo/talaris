@@ -28,6 +28,7 @@ const VERBS = [
   { name: "writing", title: "Writing", sub: "Pull out the writing drawer" },
   { name: "file-all", title: "Put the drawers away" },
   { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a graph of how it is connected" },
+  { name: "windows", title: "Open windows", sub: "Every one, by project: go to one, or close one, an app's, a project's or all" },
   { name: "archive", title: "Archive", sub: "Archived projects: browse them, search them, bring one back" },
   { name: "settings", title: "Talaris Settings", sub: "Appearance, layout, keys, Morgan" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },
@@ -68,6 +69,7 @@ function remember(key) {
 
 function build(c) {
   here = (c.project || {}).id || "";
+  openWindows = c.windows || [];
   const icon = (name) => (name ? `talaris-ui://icon/?n=${encodeURIComponent(name)}` : "");
   items = [
     ...c.projects.map((p) => ({ kind: "project", key: `project:${p.id}`, title: p.title, sub: p.code, act: { kind: "project", id: p.id },
@@ -233,6 +235,7 @@ function figure(v) {
 }
 
 function draw() {
+  if (viewing === "windows") { drawWindows(); return; }
   const query = $("q").value;
   shown = rank(query);
   // "#tag": everything carrying it — pages (opened where they are), tasks, people; "#" alone, the tags in use.
@@ -372,6 +375,99 @@ function draw() {
   if (on) on.scrollIntoView({ block: "nearest" });
 }
 
+// ---------------------------------------------------------------- open windows
+//
+// Every window, by project (this one first), and by application within it:
+// a press goes to it; × closes it; Close all closes an application's, a
+// project's or every one, asked first. Closing is graceful (launcher.py,
+// close_windows): a window is asked to close as its own button would, and an
+// application all of whose windows go is asked to quit, so a browser keeps
+// its session.
+let viewing = null;
+let openWindows = [];
+const HINT = "↑↓ choose · Enter open · Esc close";
+
+function showWindows(on) {
+  viewing = on ? "windows" : null;
+  $("q").value = "";
+  at = 0;
+  armed = null;
+  say("");
+  $("q").placeholder = on ? "Find a window" : "Find anything, or ask";
+  $("scope").textContent = on ? "OPEN WINDOWS" : (state.project && state.project.name) || "";
+  $("hint").textContent = on ? "↑↓ choose · Enter go to · Del close · Esc back" : HINT;
+  draw();
+  if (bridge) bridge.catalog((text) => { build(JSON.parse(text)); draw(); });
+}
+
+function closeWindows(addresses) {
+  if (!addresses.length || !bridge) return;
+  bridge.act(JSON.stringify({ kind: "close", addresses }), (error) => { if (error) say(error, true); });
+  // Gone as each application lets it go: looked at again a moment later, and again.
+  for (const ms of [400, 1500]) setTimeout(() => { if (viewing && bridge) bridge.catalog((text) => { build(JSON.parse(text)); draw(); }); }, ms);
+}
+
+function drawWindows() {
+  const query = $("q").value;
+  const found = openWindows.filter((w) => !query.trim() || Kit.matches(query, w.title, w.app, w.project));
+  // This project first, then the rest by name, the dock's hidden last.
+  const here_ = (state.project && state.project.name) || "";
+  const order = (p) => (p === here_ ? "0" : p === "Hidden" ? "2" : "1") + p.toLowerCase();
+  const byProject = new Map();
+  for (const w of found) byProject.set(w.project, [...(byProject.get(w.project) || []), w]);
+  const projects = [...byProject.keys()].sort((a, b) => order(a).localeCompare(order(b)));
+  shown = [];
+  const rows = [];
+  const closeAll = (label, wins, key) => Kit.twice(Object.assign(document.createElement("button"), { className: "t-btn small", textContent: label }),
+    { key, ask: `Close ${wins.length}?`, act: () => closeWindows(wins.map((w) => w.address)) });
+  if (found.length > 1) {
+    rows.push(Object.assign(document.createElement("div"), { className: "group all" }));
+    rows[rows.length - 1].append(Object.assign(document.createElement("span"), { className: "label", textContent: `${found.length} windows` }),
+      closeAll("Close all", found, "close:all"));
+  }
+  for (const p of projects) {
+    const wins = byProject.get(p);
+    const head = Object.assign(document.createElement("div"), { className: "group" });
+    head.append(Object.assign(document.createElement("span"), { className: "label", textContent: p + (p === here_ ? " · here" : "") }),
+      Object.assign(document.createElement("span"), { className: "n", textContent: String(wins.length) }));
+    if (wins.length > 1) head.append(closeAll("Close all", wins, `close:p:${p}`));
+    rows.push(head);
+    const byApp = new Map();
+    for (const w of wins) byApp.set(w.appId, [...(byApp.get(w.appId) || []), w]);
+    for (const [, appWins] of byApp) {
+      if (appWins.length > 1) {
+        const sub = Object.assign(document.createElement("div"), { className: "group app" });
+        sub.append(Object.assign(document.createElement("span"), { className: "aname", textContent: appWins[0].app }),
+          Object.assign(document.createElement("span"), { className: "n", textContent: String(appWins.length) }),
+          closeAll(`Close ${appWins[0].app}'s`, appWins, `close:a:${p}:${appWins[0].appId}`));
+        rows.push(sub);
+      }
+      for (const w of appWins.sort((a, b) => a.recent - b.recent)) {
+        const i = shown.length;
+        shown.push(w);
+        const row = Object.assign(document.createElement("div"), { className: "item" + (i === at ? " on" : "") + (appWins.length > 1 ? " related" : "") });
+        const icon = Object.assign(document.createElement("span"), { className: "icon" });
+        const img = Object.assign(document.createElement("img"), { alt: "", src: w.icon ? `talaris-ui://icon/?n=${encodeURIComponent(w.icon)}` : "" });
+        img.addEventListener("error", () => { icon.innerHTML = Icons.go(); });
+        icon.append(img);
+        const text = Object.assign(document.createElement("span"), { className: "text" });
+        text.append(mark(w.title, query), Object.assign(document.createElement("span"), { className: "sub", textContent: w.app }));
+        const x = Object.assign(document.createElement("button"), { className: "x-btn", title: "Close it" });
+        x.innerHTML = Icons.close();
+        x.addEventListener("click", (e) => { e.stopPropagation(); closeWindows([w.address]); });
+        row.append(icon, text, x);
+        row.addEventListener("mousemove", () => { if (at !== i) { at = i; draw(); } });
+        row.addEventListener("click", () => bridge && bridge.act(JSON.stringify({ kind: "window", address: w.address }), (error) => { if (error) say(error, true); }));
+        rows.push(row);
+      }
+    }
+  }
+  at = Math.min(at, Math.max(0, shown.length - 1));
+  $("list").replaceChildren(...(rows.length ? rows : [Kit.empty(query.trim() ? "No open window by that" : "No windows open")]));
+  const on = $("list").querySelector(".item.on");
+  if (on) on.scrollIntoView({ block: "nearest" });
+}
+
 // The dock's three for an application open elsewhere, as words and the key each is on (Enter, Shift+Enter, Ctrl+Enter).
 const HOW = { go: "Go to it", bring: "Bring here", new: "New here" };
 const KEYS = { click: "↵", shift: "⇧↵", ctrl: "Ctrl ↵" };
@@ -416,6 +512,8 @@ function choose(i, there = false) {
   // Asked as everything is asked (kit.js): the row says what Enter again will do, for as long as anything asks.
   if (x.ask && armed !== x.key) { armed = x.key; setTimeout(() => { if (armed === x.key) { armed = null; draw(); } }, Kit.ASK_MS); draw(); return; }
   armed = null;
+  // Open windows: a view of its own, here in the launcher.
+  if (x.act.kind === "verb" && x.act.name === "windows") { showWindows(true); return; }
   // A tag chosen from "#": typed in, so what carries it shows.
   if (x.act.kind === "fill") { $("q").value = x.act.text; $("q").dispatchEvent(new Event("input")); return; }
   if (x.key) remember(x.key);
@@ -437,13 +535,17 @@ addEventListener("keydown", (e) => {
   if (!bridge) return;
   bridge.activity();
   const n = shown.length;
-  if (e.key === "Escape") { e.preventDefault(); bridge.file(); }
+  // In Open windows, Escape goes back to the launcher (once the box is empty); Delete closes the window chosen.
+  if (e.key === "Escape" && viewing && !$("q").value) { e.preventDefault(); showWindows(false); }
+  else if (e.key === "Escape") { e.preventDefault(); bridge.file(); }
+  else if (e.key === "Delete" && viewing && shown[at]) { e.preventDefault(); closeWindows([shown[at].address]); }
   else if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) { e.preventDefault(); if (n) { at = (at + 1) % n; armed = null; draw(); } }
   else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) { e.preventDefault(); if (n) { at = (at - 1 + n) % n; armed = null; draw(); } }
   else if (e.key === "Enter") {
     e.preventDefault();
     // An application open elsewhere: Enter, Shift+Enter and Ctrl+Enter are the dock's press, Shift-press and Ctrl-press.
     const x = shown[at];
+    if (viewing) { if (x) bridge.act(JSON.stringify({ kind: "window", address: x.address }), (error) => { if (error) say(error, true); }); return; }
     const how = x && x.presses && x.presses[e.ctrlKey ? "ctrl" : e.shiftKey ? "shift" : "click"];
     if (how) chooseHow(x, how);
     else choose(at, e.shiftKey);
@@ -475,6 +577,8 @@ function onState(s) {
   if (!was) Motion.arrive($("box"), how());
   // Each opening starts clean, with a fresh look at what there is — the tags too.
   $("q").value = "";
+  viewing = null;
+  $("hint").textContent = HINT;
   tagCache = new Map();
   at = 0;
   armed = null;

@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import subprocess
 import os
+import signal
 
 from PySide6.QtCore import QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
@@ -289,21 +290,24 @@ class Launcher(Overlay):
         pages = _flatten(get_json(f"/projects/{pid}/pages", []), "path") if pid else []
         now = hypr.windows()
         names = {w["id"]: w["name"] for w in now["workspaces"]}
+        # Where, by its project's name: a project's desktop is named by its id, and the ordinary ones are Home's (hypr.project_of).
+        named = {p["id"]: p["name"] for p in projects}
+        home = next((p["id"] for p in projects if p.get("home")), "")
+        place = lambda ws: (lambda n: named.get(hypr.project_of(n, home)) or ("Home" if hypr.is_ordinary(n) else n))(names.get(ws, str(ws)))  # noqa: E731
         windows = []
         for w in now["windows"]:
             app = self.apps.lookup(w["class"])
-            windows.append({"address": w["address"], "title": w["title"] or app["name"], "app": app["name"],
-                            "icon": app["icon"], "where": names.get(w["workspace"], str(w["workspace"])),
-                            "recent": w["recent"]})
+            # Its project, for the list of open windows (Open windows): hidden by the dock, it is still its project's.
+            ws_name = names.get(w["workspace"], str(w["workspace"]))
+            windows.append({"address": w["address"], "title": w["title"] or app["name"], "app": app["name"], "appId": app.get("id") or w["class"],
+                            "icon": app["icon"], "where": ws_name, "recent": w["recent"], "hidden": w["hidden"],
+                            "project": "Hidden" if w["hidden"] else place(w["workspace"]),
+                            "here": w["workspace"] == now["active"]})
         self._windows = {w["address"] for w in windows}
         # An application open only in another project: where, and what a press, Shift-press and Ctrl-press do with it
         # (the dock's, as its menu or Settings, Dock says) — offered in the launcher as all three.
         away: dict[str, dict] = {}
         here_apps = set()
-        # Where, by its project's name: a project's desktop is named by its id, and the ordinary ones are Home's (hypr.project_of).
-        named = {p["id"]: p["name"] for p in projects}
-        home = next((p["id"] for p in projects if p.get("home")), "")
-        place = lambda ws: (lambda n: named.get(hypr.project_of(n, home)) or ("Home" if hypr.is_ordinary(n) else n))(names.get(ws, str(ws)))  # noqa: E731
         for w in now["windows"]:
             app_id = self.apps.lookup(w["class"]).get("id")
             if not app_id:
@@ -345,6 +349,9 @@ class Launcher(Overlay):
             except (OSError, subprocess.SubprocessError):
                 return "Could not copy it"
             return ""
+        if kind == "close":
+            # Kept open: the list of windows is drawn again as they go.
+            return self.close_windows([str(a) for a in r.get("addresses", [])])
         self.file_away()
         if kind == "app":
             if not self.apps.is_launchable(r["id"]):
@@ -392,6 +399,42 @@ class Launcher(Overlay):
             self.desktop.glance.open_on(str(r["key"]))
         else:
             return "That cannot be done"
+        return ""
+
+    def close_windows(self, addresses: list[str]) -> str:
+        """
+        Windows closed gracefully, never killed. One window (×) is asked to
+        close, as its own close button would: it may ask to save, and an app
+        that lives in the tray stays there. Many at once (Close all), every
+        window an application has among them is the application quitting
+        instead, as its own Quit does: a browser closing its windows one by
+        one keeps only the last in the session it restores; quitting, it
+        keeps them all.
+        """
+        now = hypr.windows()["windows"]
+        asked = {a for a in addresses if a in self._windows}
+        if not asked:
+            return "Those windows have gone"
+        by_pid: dict[int, list[str]] = {}
+        for w in now:
+            by_pid.setdefault(int(w.get("pid") or 0), []).append(w["address"])
+        quit_, closed = set(), []
+        for pid, theirs in by_pid.items():
+            mine = [a for a in theirs if a in asked]
+            if not mine:
+                continue
+            # The whole application, and not Talaris itself: told to quit (SIGTERM, which is how a desktop asks).
+            if len(asked) > 1 and pid > 1 and pid != os.getpid() and set(theirs) <= asked:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    quit_.add(pid)
+                    continue
+                except OSError:
+                    pass
+            closed.extend(mine)
+        for a in closed:
+            hypr.close(a)
+        log(f"launcher: closing {len(closed)} window(s); {len(quit_)} application(s) asked to quit")
         return ""
 
     def call_app(self, app_id: str, there: bool = False) -> None:
