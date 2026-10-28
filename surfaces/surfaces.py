@@ -245,6 +245,8 @@ class Desktop(QObject):
         self.new = New(profile, self, self.calendar_service)
         # The project carousel: Super+Tab.
         self.jump = Jump(profile, self)
+        # A window focused on another project's desktop slides in as any change of project does (`_slide_toward`).
+        hypr.before_focus = self._slide_toward
         # Notifications: Talaris's own, in place of mako; the bar's bell lists them.
         self.notifications = Notifications(self, profile)
         self.notifications.changed.connect(self.bar.changed)
@@ -550,7 +552,7 @@ class Desktop(QObject):
             return self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
         return f"name:{project_id}"
 
-    def go_to_project(self, project_id: str, move: bool = True, announce: bool = False, slide: str = "") -> None:
+    def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
         """
         The current project changes: the bar says so, the canvas and the
         writing surface open on it, the dock shows its pins, the wallpaper its
@@ -572,10 +574,8 @@ class Desktop(QObject):
             return
         if move:
             back = self._ordinary if self._ordinary.isdigit() else f"name:{self._ordinary}"
-            # From the carousel, the desktop slides in from the side the project sat on (`slide`), then the
-            # workspaces' own animation is put back; any other way of going keeps it as it is.
-            if slide in ("left", "right") and found["id"] != self.project.get("id"):
-                self._slide_once(slide)
+            # Slid in from its side of the carousel's ring, as every change of project is (`_slide_toward`).
+            self._slide_toward(found["id"])
             hypr.ask(f"/dispatch workspace {back}" if found.get("home") else f"/dispatch workspace name:{found['id']}")
         # Already there (an app opened, a window focused): nothing to say — the flash is for arriving.
         if found["id"] == self.project.get("id"):
@@ -601,6 +601,33 @@ class Desktop(QObject):
     SLIDE_STYLE, SLIDE_SPEED, SLIDE_CURVE = "slidefade {side} 30%", 5, "talarisGlide,0.16,1,0.3,1"
     #: How long it may take before the workspaces' own animation is put back.
     SLIDE_BACK_MS = 900
+
+    def _slide_toward(self, target: str) -> None:
+        """
+        Every change of project, by whatever way — the carousel, the bar's
+        menu, the launcher, the dock, a window focused on another desktop —
+        slides and fades in from the side of the carousel's ring the project
+        sits on, the nearer way round: one routine. `target` is a project's
+        id, or a workspace's name (a project's desktop is named by its id;
+        the numbered ones are Home's). The same project, or a special
+        workspace, is no change, and keeps the workspaces' own animation.
+        """
+        if not target or target.startswith("special"):
+            return
+        ring = self.jump._ordered()
+        home = next((p.get("id") for p in ring if p.get("home")), "")
+        pid = target if any(p.get("id") == target for p in ring) else (home if not target.startswith("prj_") else target)
+        here = self.project.get("id", "")
+        ids = [p.get("id") for p in ring]
+        if pid == here or pid not in ids or here not in ids:
+            return
+        n, d = len(ids), ids.index(pid) - ids.index(here)
+        if n >= 5:
+            if d > n / 2:
+                d -= n
+            if d < -n / 2:
+                d += n
+        self._slide_once("right" if d > 0 else "left")
 
     def _slide_once(self, side: str) -> None:
         """

@@ -37,17 +37,12 @@ class JumpBridge(Bridge):
 
     @Slot(str)
     def choose(self, project_id: str) -> None:
-        self.chooseSliding(project_id, "")
-
-    @Slot(str, str)
-    def chooseSliding(self, project_id: str, side: str) -> None:  # noqa: N802 — called from the page by this name
-        """One chosen, and the side of the ring it sat on: its desktop slides in from there."""
         picking, self.owner.picking = self.owner.picking, None
         self.owner.file_away()
         if picking:
             picking(project_id)
         else:
-            self.owner.desktop.go_to_project(project_id, announce=True, slide=side)
+            self.owner.desktop.go_to_project(project_id, announce=True)
 
 
 class Jump(Overlay):

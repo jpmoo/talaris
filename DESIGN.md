@@ -1545,7 +1545,11 @@ fades in from the side of the ring it sat on, the nearer way round, and the
 one left slides and fades out the same way: a slide of 30%, faded as it
 moves, over half a second, on a curve that changes most at once so the fade
 is seen as soon as it moves. Hyprland's workspace animations are given that
-for the one change and put back after (any other way of going keeps them).
+for the one change and put back after. **Every change of project does it**,
+one routine (`_slide_toward`), whatever brought it — the carousel, the bar's
+menu, the launcher, the dock, a window focused on another project's desktop
+(`hypr.focus` says where it is going first): the side is the one the project
+sits on in the carousel's ring.
 Wherever a key changed the
 project, the on-screen display says which. It replaced the Super+Alt jump
 (Super+Alt and a letter, or held while typing), which was slow to reach for;

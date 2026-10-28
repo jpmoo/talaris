@@ -167,9 +167,21 @@ def carry(address: str, to: str) -> None:
         ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
 
 
+#: Told a window's workspace (as `j/clients` gives it) just before `focus` goes to it — the desktop's one way of
+#: seeing a change of project coming, whoever brought it (surfaces.py, `_slide_toward`). None: nothing told.
+before_focus = None
+
+
 def focus(address: str) -> None:
     """Bring a window forward, going to its workspace if it is on another."""
     if address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower()):
+        if before_focus is not None:
+            try:
+                found = next((c for c in json.loads(ask("j/clients") or "[]") if c.get("address") == address), None)
+                if found:
+                    before_focus(found.get("workspace", {}).get("name", ""))
+            except (OSError, ValueError):
+                pass
         ask(f"/dispatch focuswindow address:{address}")
 
 

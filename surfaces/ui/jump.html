@@ -113,23 +113,8 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
     });
   }
   function turn(by) { if (shown.length) { at += by; draw(); } }
-  /*
-   * Which side the chosen one sits on, from where you are (the current, first
-   * in the ring): the nearer way round, as the ring draws it. The desktop
-   * slides in from that side — turned right, it comes from the right.
-   */
-  function side(p) {
-    const all = surface.projects || [], n = all.length;
-    const from = all.findIndex((x) => x.current), to = all.indexOf(p);
-    if (from < 0 || to < 0 || from === to) return "";
-    let d = to - from;
-    if (n >= 5) { if (d > n / 2) d -= n; if (d < -n / 2) d += n; }
-    return d > 0 ? "right" : "left";
-  }
-  function go(p) {
-    if (!p || !bridge) return;
-    if (bridge.chooseSliding) bridge.chooseSliding(p.id, side(p)); else bridge.choose(p.id);
-  }
+  function go(p) { if (p && bridge) bridge.choose(p.id); }
+
 
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey) return;
