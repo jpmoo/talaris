@@ -10,12 +10,11 @@ which puts the drawer away.
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="tokens.css">
 <style>
-html, body { margin: 0; height: 100%; background: var(--catch); }
+html, body { margin: 0; height: 100%; background: rgba(0, 0, 0, .01); } /* look: --catch, written in — a press must land before any stylesheet has */
 /* Darkened and lightened by the same fade, either way (dim.py waits it out before the layer goes). */
 body { transition: background-color .25s ease-out; }
-body.dim { background: var(--scrim); }
+body.dim { background: rgba(0, 0, 0, .35); } /* look: --scrim, written in, as above */
 @media (prefers-reduced-motion: reduce) { body { transition: none; } }
 </style>
 </head>
