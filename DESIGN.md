@@ -1973,8 +1973,9 @@ of it and comes out at the end.
     Talaris's MCP as `<id>__<tool>`, with Morgan's Allow, Ask or Off. Settings,
     Plugins shows each before and after enabling. `examples/plugins/hello` is a
     whole plugin with no dependencies; `examples/plugins/README.md` is how to
-    write one. **The Hermes sync plugin is built** (`plugins/hermes-sync`, its
-    README says how it decides): matching on the first sync with the unsure
+    write one. **The Hermes sync plugin is built** (`plugins/hermes-sync`, kept on
+    its owner's machine and out of the repo since 2026-10-28; its README says
+    how it decides): matching on the first sync with the unsure
     put to the person and the plan confirmed before anything is written;
     merge with conflicts put to the person, or one side winning; deletions
     asked about, never carried; events not synced at all (they are the
