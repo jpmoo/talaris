@@ -240,8 +240,8 @@ function trayRows() {
       return el("div", { class: "row" }, name, el("span", { class: "what" }, sw));
     });
     $("tray-items").replaceChildren(...(rows.length ? rows : [Kit.empty("No tray icons right now")]));
-    needs(["tray-items"], cfg.bar.tray !== false);
-    $("tray-items").classList.toggle("needs-off", cfg.bar.tray === false);
+    // The tray off, each icon's row greyed with it: dimming is a row's (.row.needs-off), so each is.
+    for (const row of $("tray-items").querySelectorAll(".row")) row.classList.toggle("needs-off", cfg.bar.tray === false);
   });
 }
 
