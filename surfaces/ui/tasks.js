@@ -65,6 +65,16 @@
   // its requests from somewhere of its own, and takes only its own answers.
   const waiting = new Map();
   let reqNext = Math.floor(Math.random() * 1e9);
+  /** A name that cannot start with a space: one typed first is not taken, and one pasted at the front is taken off. */
+  function noLeadingSpace(input) {
+    input.addEventListener("keydown", (e) => { if (e.key === " " && input.selectionStart === 0) e.preventDefault(); });
+    input.addEventListener("input", () => {
+      const trimmed = input.value.replace(/^\s+/, "");
+      if (trimmed !== input.value) { input.value = trimmed; input.dispatchEvent(new Event("input")); }
+    });
+    return input;
+  }
+
   function api(method, path, body) {
     return new Promise((ok, fail) => {
       if (!bridge) { fail(new Error("Not connected")); return; }
@@ -523,7 +533,7 @@
   }
 
   function newProjectRow() {
-    const input = el("input", { type: "text", class: "new", placeholder: "Name", spellcheck: "false" });
+    const input = noLeadingSpace(el("input", { type: "text", class: "new", placeholder: "Name", spellcheck: "false" }));
     let done = false;
     const finish = async (save) => {
       if (done) return;

@@ -6,7 +6,8 @@ Copyright (c) 2026 Jeff Moore
 The project carousel (jump_panel.py): every project in a ring, most recent
 first, turned to the one before this. Left and Right (or Tab, or Super+Tab
 again) turn it; letters narrow it to the names holding them; Enter or a click
-on the one in front goes there; Escape puts it away.
+on the one in front goes there; Space, before anything is typed, goes to Home;
+Escape puts it away.
 -->
 <html>
 <head>
@@ -91,7 +92,7 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
     at = n ? ((at % n) + n) % n : 0;
     $("typed").replaceChildren(...(typed
       ? [document.createTextNode(n === 1 ? "1 project" : `${n} projects`), Object.assign(document.createElement("b"), { textContent: typed })]
-      : [document.createTextNode(surface.prompt ? `${surface.prompt} — type to find one` : "Projects — type to find one")]));
+      : [document.createTextNode(surface.prompt || "Projects")]));
     const ring = $("ring");
     const live = new Set(shown.map((p) => p.id));
     for (const [id, c] of cards) if (!live.has(id)) { c.remove(); cards.delete(id); }
@@ -122,6 +123,8 @@ body { margin: 0; height: 100%; display: flex; align-items: center; justify-cont
     else if (k === "ArrowLeft" || (k === "Tab" && e.shiftKey)) { e.preventDefault(); turn(-1); }
     else if (k === "Enter") { e.preventDefault(); go(shown[at]); }
     else if (k === "Backspace") { e.preventDefault(); if (typed) { typed = typed.slice(0, -1); at = 0; draw(); } }
+    // Space before anything is typed: straight to Home. Once typing, a space is part of the name (Board of Education).
+    else if (k === " " && !typed) { e.preventDefault(); go((surface.projects || []).find((p) => p.home)); }
     else if (k.length === 1 && !e.altKey) {
       e.preventDefault();
       typed += k;

@@ -46,6 +46,16 @@
 
   const waiting = new Map();
   let reqNext = Math.floor(Math.random() * 1e9);
+  /** A name that cannot start with a space: one typed first is not taken, and one pasted at the front is taken off. */
+  function noLeadingSpace(input) {
+    input.addEventListener("keydown", (e) => { if (e.key === " " && input.selectionStart === 0) e.preventDefault(); });
+    input.addEventListener("input", () => {
+      const trimmed = input.value.replace(/^\s+/, "");
+      if (trimmed !== input.value) { input.value = trimmed; input.dispatchEvent(new Event("input")); }
+    });
+    return input;
+  }
+
   function api(method, path, body) {
     return new Promise((ok, fail) => {
       if (!bridge) { fail(new Error("Not connected")); return; }
@@ -444,6 +454,7 @@
     if (titleField && info.titleTakesAt) title = row(name, circle, writing(info.titleKey, placeholder, { big: true }));
     else {
       const input = line(info.titleKey, placeholder, { big: true, spell: !info.email });
+      if (kind === "project") noLeadingSpace(input);
       title = [row(name, input)];
       if (info.email) {
         // A person: the address books' people as their name is typed — a click, or Enter, fills them in.
