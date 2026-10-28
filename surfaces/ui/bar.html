@@ -40,7 +40,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #where { cursor: pointer; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--radius-control); }
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
-#where { margin-left: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
+#where { margin-right: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 /* A project gone to: its name lit up a moment — the accent filling it, then fading — so where you are is plain. */
 @keyframes where-flash {
@@ -126,6 +126,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 <body data-edge="top">
 <div id="bar">
   <div class="side">
+    <!-- Where you are, first: then what opens from there. -->
+    <div id="where"></div>
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
     <button id="morgan" class="bar-item absent" title="Morgan"><span id="morgan-ic"></span><span class="arc"></span></button>
     <button id="new" class="bar-item" title="New (Super+Shift+N)"></button>
@@ -134,7 +136,6 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="files" class="bar-item" title="Library"></button>
     <button id="canvas" class="bar-item" title="Canvas (Super+Shift+C)"></button>
     <button id="writing" class="bar-item" title="Writing (Super+Shift+W)"></button>
-    <div id="where"></div>
   </div>
   <span id="clock"><span class="day" id="day"></span><span id="time"></span></span>
   <div class="side end">
