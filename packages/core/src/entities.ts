@@ -94,6 +94,17 @@ const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "eve
  * The types Talaris starts with. Their names are only names — the user's to
  * change; what makes each what it is is its profile, or `talaris:role`.
  */
+/**
+ * Fields a built-in type once had and gave up. A type grown since keeps every
+ * field it does not know as one a person added — but these were its own, and
+ * kept they come back as a second copy of what replaced them. The task's own
+ * date (`due`) went when its days became one `schedule` (Available, Due), and
+ * New offered Due twice (2026-10-28). Taken off only while empty: one a person
+ * has filled stays, theirs.
+ */
+const RETIRED: Record<string, string[]> = { t_task: ["due"] };
+const empty = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length);
+
 export const BUILT_IN: EntityType[] = [
   {
     // A contact card's fields (vCard's, by and large), so a person can be tied
@@ -138,7 +149,7 @@ export const BUILT_IN: EntityType[] = [
     // Hermes' task, field for field, so a sync maps one to one (DESIGN, Tasks).
     // Version 5: the task profile says which field is its project. Version 6:
     // and which is its notes (`body`), so a sync carries them.
-    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 6,
+    id: "t_task", name: "Task", "talaris:role": "task", "talaris:version": 7,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "description", kind: "richtext" },
@@ -305,6 +316,9 @@ function load(): Index {
     const t = readSealed<EntityType>(join(dir("types"), name));
     ix.types.set(t.id, t);
   }
+  // Read before the types are settled, so a retired field still holding something is seen to (RETIRED); indexed after.
+  const recs = readdirSync(dir("objects")).filter((name) => !name.startsWith(".")).map((name) => readSealed<Record_>(join(dir("objects"), name)));
+  const inUse = (type: string, key: string) => recs.some(({ object: o }) => o.type === type && !empty(o.properties?.[key]));
   for (const t of BUILT_IN) {
     const had = ix.types.get(t.id);
     const behind = had && Number(t["talaris:version"] ?? 1) > Number(had["talaris:version"] ?? 1);
@@ -317,16 +331,14 @@ function load(): Index {
       const fields = t.fields.map((f) => theirs.get(f.key) ?? f);
       // Its profiles: a slot new in the built-in added, every slot already there kept as it was (its statuses, set by hand).
       const profiles = had ? { ...(had.profiles ?? {}), ...Object.fromEntries(Object.entries(t.profiles ?? {}).map(([n, m]) => [n, { ...m, ...(had.profiles?.[n] ?? {}) }])) } : t.profiles;
-      const merged = had ? { ...t, name: had.name, fields: [...fields, ...had.fields.filter((f) => !mine.has(f.key))], ...(profiles ? { profiles } : {}),
+      const retired = new Set((RETIRED[t.id] ?? []).filter((k) => !inUse(t.id, k)));
+      const merged = had ? { ...t, name: had.name, fields: [...fields, ...had.fields.filter((f) => !mine.has(f.key) && !retired.has(f.key))], ...(profiles ? { profiles } : {}),
         ...(had["talaris:defaultStatus"] !== undefined ? { "talaris:defaultStatus": had["talaris:defaultStatus"] } : {}) } : t;
       writeSealed(join(dir("types"), safe(t.id)), merged);
       ix.types.set(t.id, merged);
     }
   }
-  for (const name of readdirSync(dir("objects"))) {
-    if (name.startsWith(".")) continue;
-    indexIn(ix, readSealed<Record_>(join(dir("objects"), name)));
-  }
+  for (const rec of recs) indexIn(ix, rec);
   return (index = ix);
 }
 

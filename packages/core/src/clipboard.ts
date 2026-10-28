@@ -89,7 +89,8 @@ export function addClip(c: NewClip, keep = KEEP): { clip: Clip; added: boolean }
   if (c.kind === "text" && !c.text) throw new Error("no words");
   if ((c.kind === "file" || c.kind === "files") && !c.paths?.length) throw new Error("no files");
   const hash = sha(bytes ?? (c.kind === "text" ? `t:${c.text}` : `f:${(c.paths ?? []).join("\n")}`));
-  const newest = [...all].sort((a, b) => b.at - a.at)[0];
+  // The last copied: the latest time, and of two in one millisecond the one kept after.
+  const newest = all.reduce<Clip | undefined>((n, c) => (!n || c.at >= n.at ? c : n), undefined);
   if (newest && newest.hash === hash) return { clip: newest, added: false };
   const clip: Clip = {
     id: randomUUID(), kind: c.kind, at: Date.now(), hash,

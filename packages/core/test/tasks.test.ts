@@ -279,3 +279,21 @@ test("a writing page and a canvas note hold their mentions through entities that
   assert.ok(note.entity, "the note became an entity");
   assert.ok(entities.connections(ada.id).in.some((c) => c.entity.id === note.entity));
 });
+
+test("a field the task type gave up goes when the type grows, unless a task holds something in it", () => {
+  const t = entities.typeFor("task");
+  // As a store from before `schedule` has it: the old `due` field beside it, and one a person added.
+  entities.putType({ ...t, "talaris:version": 6, fields: [...t.fields, { key: "due", kind: "date" }, { key: "mood", kind: "text" }] });
+  entities.reloadEntities();
+  const keys = () => entities.typeFor("task").fields.map((f) => f.key);
+  assert.ok(!keys().includes("due"), "the old due field is gone");
+  assert.ok(keys().includes("mood"), "a field a person added stays");
+  assert.ok(keys().includes("schedule"));
+  // One that holds a date stays: the date is somebody's.
+  const now = entities.typeFor("task");
+  entities.putType({ ...now, "talaris:version": 6, fields: [...now.fields, { key: "due", kind: "date" }] });
+  const kept = tasks.createTask({ title: "old due" });
+  entities.updateEntity(kept.id, { properties: { due: "2026-11-02" } });
+  entities.reloadEntities();
+  assert.ok(keys().includes("due"), "kept while a task holds a value in it");
+});
