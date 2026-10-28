@@ -537,13 +537,7 @@
       function paintDanger() {
         if (!list) { dangerBox.replaceChildren(); return; }
         // Deleting cannot be undone, so it asks twice: the button arms, then acts.
-        const del = el("button", { type: "button", class: "t-btn danger" }, "Delete");
-        let armed = 0;
-        del.addEventListener("click", () => {
-          if (armed) return remove();
-          del.textContent = "Delete?";
-          armed = setTimeout(() => { armed = 0; del.textContent = "Delete"; }, 3000);
-        });
+        const del = Kit.twice(el("button", { type: "button", class: "t-btn danger" }, "Delete"), { ask: "Delete it?", act: remove });
         dangerBox.replaceChildren(list.archived ? el("button", { type: "button", class: "t-btn", onclick: unarchive }, "Restore")
           : el("button", { type: "button", class: "t-btn danger", onclick: archive }, "Archive"), del);
       }

@@ -799,7 +799,7 @@ async function mgMemory() {
       const moveBtn = el("button", { class: "t-btn", onclick: () => { menu.hidden = !menu.hidden; } }, "Move to…");
       return el("div", { class: "mg-note" + (locked ? " locked" : "") },
         el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
-          ...(locked ? [] : [twiceBtn("×", "Delete?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])), menu);
+          ...(locked ? [] : [twiceBtn("×", "Delete it?", () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted"))])), menu);
     });
     if (!t.notes.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "Nothing here yet."));
     else if (!notesShown.length) notes.push(el("p", { class: "note", style: "margin:4px 0" }, "No note here matches."));
@@ -930,7 +930,7 @@ async function mgReadDoc(title) {
 async function mgViewPicture(p) {
   const box = el("div", { class: "mg-sheet-pic" }, el("p", { class: "note" }, "Opening…"));
   mgSheet(p.label, box, ...(p.note ? [el("p", { class: "note" }, p.note)] : []),
-    el("div", { class: "data-buttons" }, twiceBtn("Delete", "Delete this picture?", async () => {
+    el("div", { class: "data-buttons" }, twiceBtn("Delete", "Delete it?", async () => {
       if (await change("memory.picture.delete", { label: p.label }, "Picture deleted")) { mgCloseSheet(); if (mgLive()) loadMorgan(true); }
     })));
   const r = await ask("memory.picture.view", { label: p.label });
@@ -1222,15 +1222,9 @@ function drawCalendars() {
 // itself; every device of yours, with whether it may reconnect by itself.
 const bars = (s) => (s == null ? "" : s > 70 ? "Strong" : s > 45 ? "Good" : s > 20 ? "Weak" : "Faint");
 let wifiNow = null, btNow = null;
-// A first press on Forget asks; a second, within a few seconds, does it.
+// A first press asks; a second, within a few seconds, does it — as everything is asked (kit.js).
 function twiceBtn(label, ask, act) {
-  const b = el("button", { class: "t-btn danger" }, label);
-  b.addEventListener("click", () => {
-    if (b.dataset.armed) { act(); return; }
-    b.dataset.armed = "1"; b.textContent = ask;
-    setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000);
-  });
-  return b;
+  return Kit.twice(el("button", { class: "t-btn danger" }, label), { ask, act });
 }
 function working(id, text) { $(id).textContent = text; $(id).className = "note"; }
 function netRow(name, meta, cls, ...controls) {
@@ -1475,7 +1469,7 @@ function drawDemo() {
     const ask = (label, sure, verb) => {
       const b = el("button", { class: "t-btn" }, label);
       b.addEventListener("click", () => {
-        if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = sure; setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000); return; }
+        if (!Kit.ask(b, { ask: sure })) return;
         b.disabled = true;
         b.textContent = "Restarting…";
         bridge.demoMode(verb);

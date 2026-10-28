@@ -228,7 +228,6 @@ window.Peek = (() => {
 
   function suggestions(key, api, opts = {}) {
     const host = el("div", { class: "peek-sugg" });
-    let armed = "";
     let dismissed = 0;
     // Those turned down for it, offered again: beside the heading, or alone when nothing else is suggested.
     const reset = () => (dismissed ? el("button", { class: "t-btn peek-reset", title: `Suggest the ${dismissed} turned down for this again`,
@@ -243,12 +242,11 @@ window.Peek = (() => {
         el("div", { class: "peek-why" }, s.why.join(" · ")),
         el("div", { class: "peek-ways" }, s.ways.map((w) => {
           const id = `${s.key}|${w.how}|${w.text || ""}`;
-          const asking = w.how === "merge" && armed === id;
-          return el("button", { class: "t-btn" + (asking ? " armed" : ""), onclick: () => {
-            if (w.how === "merge" && !asking) { armed = id; draw(list); return; }
-            armed = "";
+          // A merge is asked first, as everything is asked (kit.js).
+          return el("button", { class: "t-btn", onclick: (e) => {
+            if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
             api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
-          } }, asking ? "Merge? Again to do it" : w.label);
+          } }, w.label);
         })))));
     };
     const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => { dismissed = (r && r.dismissed) || 0; draw((r && r.suggestions) || []); }).catch(() => draw([]));

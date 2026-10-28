@@ -305,27 +305,41 @@ const Kit = (() => {
    */
   const ASK_MS = 4000;
   const armed = new Map(); // key → time it stops asking
-  function twice(button, { key, ask, act, ms = ASK_MS }) {
-    const label = button.innerHTML;
-    const k = key || label;
-    const on = () => (armed.get(k) || 0) > Date.now();
-    const paint = () => { button.classList.toggle("armed", on()); if (on()) button.textContent = ask; else button.innerHTML = label; };
-    paint();
-    button.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!on()) {
-        armed.set(k, Date.now() + ms);
-        paint();
-        setTimeout(() => { if (!on()) { armed.delete(k); if (button.isConnected) paint(); } }, ms + 20);
-        return;
-      }
-      armed.delete(k);
-      paint();
-      act();
-    });
-    button.addEventListener("keydown", (e) => { if (e.key === "Escape" && on()) { e.stopPropagation(); armed.delete(k); paint(); } });
+  const labels = new WeakMap(); // button → what it said before it asked
+  const live = (k) => (armed.get(k) || 0) > Date.now();
+  function paint(button, k, ask) {
+    if (!labels.has(button)) labels.set(button, button.innerHTML);
+    const on = live(k);
+    button.classList.toggle("armed", on);
+    if (on) button.textContent = ask; else button.innerHTML = labels.get(button);
+  }
+  /**
+   * Inside a press's own handler: false the first time (the button now asks),
+   * true the second (do it). `key` keeps the asking across a redraw.
+   */
+  function ask(button, { key, ask: question, ms = ASK_MS }) {
+    const k = key || button;
+    if (live(k)) { armed.delete(k); paint(button, k, question); return true; }
+    armed.set(k, Date.now() + ms);
+    paint(button, k, question);
+    setTimeout(() => { if (!live(k)) { armed.delete(k); if (button.isConnected) paint(button, k, question); } }, ms + 20);
+    if (!button.dataset.kitAsks) {
+      button.dataset.kitAsks = "1";
+      button.addEventListener("keydown", (e) => { if (e.key === "Escape" && live(k)) { e.stopPropagation(); armed.delete(k); paint(button, k, question); } });
+    }
+    return false;
+  }
+  /** A button that asks before it acts (`ask` below, as its whole press). Drawn again under the same key, it is still asking. */
+  function twice(button, { key, ask: question, act, ms = ASK_MS }) {
+    const k = key || button;
+    if (live(k)) paint(button, k, question);
+    button.addEventListener("click", (e) => { e.stopPropagation(); if (ask(button, { key: k, ask: question, ms })) act(); });
     return button;
   }
+  /** Whether a key is asking now (a redraw paints it so). */
+  const asking = (key) => live(key);
+  /** Asking no more (a menu shown afresh): the button says what it said. */
+  function unask(button, key) { const k = key || button; armed.delete(k); if (button && labels.has(button)) { button.classList.remove("armed"); button.innerHTML = labels.get(button); } }
 
   // ------------------------------------------------------------ finding by typing
 
@@ -386,6 +400,6 @@ const Kit = (() => {
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, menu, monthPicker, timeList, DAY_CHIPS,
-    twice, ASK_MS, fold, matches, rank, searchBox, debounce, say, empty,
+    twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, say, empty,
   };
 })();

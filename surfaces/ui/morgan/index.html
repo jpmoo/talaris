@@ -530,8 +530,6 @@ function onOurClock(r) {
   const skew = r.now ? r.now - Date.now() : 0;
   return (r.reminders || []).map((t) => ({ ...t, at: t.at - skew, made: t.made ? t.made - skew : t.made }));
 }
-// The one whose × was pressed once: asking "Cancel?" until pressed again, or until it waits too long.
-let cancelling = "", disarm = null;
 function loadTimers() {
   bridge.call("reminders", (answer) => {
     try { const r = JSON.parse(answer); timers = r.ok ? onOurClock(r) : []; } catch { timers = []; }
@@ -540,11 +538,7 @@ function loadTimers() {
 }
 setInterval(loadTimers, 60_000);
 const two = (n) => String(n).padStart(2, "0");
-function left(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  return h ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`;
-}
+const left = (ms) => Kit.left(ms);
 // Further off than the hour: when, as the kit says anything to come (the bell's list says it the same way).
 function at(ms) { return Kit.future(ms); }
 function drawTimers() {
@@ -554,21 +548,10 @@ function drawTimers() {
     const row = el("div", "timer");
     row.dataset.at = t.at;
     row.dataset.made = t.made || "";
-    // Asked twice: × first only asks "Cancel?"; a second press cancels. Let alone, it goes back to × after a few seconds.
-    const armed = cancelling === t.id;
-    const cancel = el("button", armed ? "armed" : "", armed ? "Cancel?" : "×");
-    cancel.title = armed ? "Press again to cancel it" : "Cancel it";
-    cancel.onclick = () => {
-      if (cancelling !== t.id) {
-        cancelling = t.id;
-        clearTimeout(disarm);
-        disarm = setTimeout(() => { cancelling = ""; drawTimers(); }, 4000);
-        return drawTimers();
-      }
-      cancelling = "";
-      clearTimeout(disarm);
-      bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers);
-    };
+    // Asked as everything is asked (kit.js): × first says "Cancel it?"; a second press cancels; kept by key across a redraw.
+    const cancel = Kit.twice(el("button", "", "×"), { key: `timer-${t.id}`, ask: "Cancel it?",
+      act: () => bridge.call(`admin ${JSON.stringify({ op: "reminders.cancel", args: { id: t.id } })}`, loadTimers) });
+    cancel.title = "Cancel it";
     row.append(el("i", "ti", glyph(t.text ? "bell" : "hourglass")), el("span", "what", t.text || "Timer"), el("span", "when"), el("span", "bar"), cancel);
     return row;
   }));

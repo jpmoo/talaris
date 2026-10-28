@@ -12,8 +12,7 @@ let dragging = false;
 
 function disarm() {
   for (const b of document.querySelectorAll(".menu-item.armed")) {
-    b.classList.remove("armed");
-    b.textContent = b.dataset.label;
+    Kit.unask(b);
   }
 }
 
@@ -247,15 +246,10 @@ function onMachine(m) {
  * and says what the second will do.
  */
 for (const b of document.querySelectorAll("#power .menu-item")) {
-  b.dataset.label = b.textContent;
   b.addEventListener("click", () => {
     if (!bridge) return;
-    if (b.dataset.ask && !b.classList.contains("armed")) {
-      disarm();
-      b.classList.add("armed");
-      b.textContent = b.dataset.ask;
-      return;
-    }
+    // Asked as everything is asked (kit.js): the row says what a second press will do.
+    if (b.dataset.ask && !Kit.ask(b, { ask: b.dataset.ask })) return;
     disarm();
     bridge.power(b.dataset.verb);
   });
@@ -306,11 +300,8 @@ function row(icon, name, meta, { current = false, busy = false, onclick } = {}) 
 }
 /** Asked twice, like the power menu: the first press only says what the second will do. */
 function twice(text, key, act) {
-  return button(open.armed === key ? `${text}?` : text, (b) => {
-    if (open.armed !== key) { open.armed = key; b.textContent = `${text}?`; b.classList.add("armed"); return; }
-    open.armed = "";
-    act();
-  }, "t-btn" + (open.armed === key ? " armed" : ""));
+  // Asked as everything is asked (kit.js), kept by key across the list being drawn again.
+  return Kit.twice(button(text, () => {}, "t-btn"), { key, ask: `${text} it?`, act });
 }
 function toggleOpen(key, redraw) { open.key = open.key === key ? "" : key; open.armed = ""; redraw(); }
 

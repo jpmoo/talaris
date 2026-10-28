@@ -498,14 +498,12 @@
     }
     chosen = picked.size === 1 ? [...picked][0] : picked.size ? null : key;
     if (picked.size === 1) picked.clear();
-    armed = "";
     drawRows();
     drawDetail();
   }
 
   // ---------------------------------------------------------------- the one chosen
 
-  let armed = "";
   /**
    * A project chosen and nothing in it: the project itself — what it is about (Morgan's, from its tasks, or yours,
    * edited here), what is in it, and what it might be connected to (suggest.ts, by its description), with Glance a
@@ -610,16 +608,16 @@
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Connect to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
     if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
-    if (s.includes("shortcut")) act(armed === r.key ? "Yes, take the shortcut away" : "Remove the shortcut", () => {
-      if (armed !== r.key) { armed = r.key; drawDetail(); return; }
-      armed = "";
+    if (s.includes("shortcut")) act("Remove the shortcut", (e) => {
+      // Asked as everything is asked (kit.js).
+      if (!Kit.ask(e.currentTarget, { key: `sc:${r.key}`, ask: "Take the shortcut away?" })) return;
       api("DELETE", `/files/shortcut/${enc(r.entity)}`).then((x) => { say(x && x.fromWatched ? "Shortcut removed, and not linked again from its watched folder; the file is where it was" : "Shortcut removed; the file is where it was"); return load(); }).catch(failed);
-    }, `danger${armed === r.key ? " armed" : ""}`);
-    if (s.includes("folder") && !s.includes("page")) act(armed === r.key ? "Yes, to the trash" : "Delete…", () => {
-      if (armed !== r.key) { armed = r.key; drawDetail(); return; }
-      armed = "";
+    }, "danger");
+    if (s.includes("folder") && !s.includes("page")) act("Delete…", (e) => {
+      // Asked as everything is asked (kit.js).
+      if (!Kit.ask(e.currentTarget, { key: `tr:${r.key}`, ask: "Move it to the trash?" })) return;
       api("POST", "/files/trash", { project: r.project, path: r.path }).then(() => { say(`${r.name} is in the trash`); chosen = null; return load(); }).catch(failed);
-    }, `danger${armed === r.key ? " armed" : ""}`);
+    }, "danger");
 
     // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
     const gkey = glanceKey(r);
@@ -738,16 +736,16 @@
     if (theirs.length === 1) act("Add to a list…", () => { const host = $("inline"); host.className = "inline"; listPicker(host, theirs[0], list); });
     if (filters.list) act(`Take out of ${listName(filters.list)}`, () => done(`out of ${listName(filters.list)}; nothing deleted`,
       [() => api("DELETE", `/files/lists/${enc(filters.list)}/items`, { project, keys: list.map((r) => r.key) })]));
-    if (shortcuts.length) act(armed === "many-sc" ? `Yes, take ${shortcuts.length} shortcuts away` : `Remove the shortcuts${of(shortcuts)}`, () => {
-      if (armed !== "many-sc") { armed = "many-sc"; drawDetail(); return; }
-      armed = "";
+    if (shortcuts.length) act(`Remove the shortcuts${of(shortcuts)}`, (e) => {
+      // Asked as everything is asked (kit.js).
+      if (!Kit.ask(e.currentTarget, { key: "many-sc", ask: `Take ${shortcuts.length} shortcuts away?` })) return;
       done("shortcuts removed; the files are where they were", shortcuts.map((r) => () => api("DELETE", `/files/shortcut/${enc(r.entity)}`)));
-    }, `danger${armed === "many-sc" ? " armed" : ""}`);
-    if (trashable.length) act(armed === "many-tr" ? `Yes, ${trashable.length} to the trash` : `Delete…${of(trashable)}`, () => {
-      if (armed !== "many-tr") { armed = "many-tr"; drawDetail(); return; }
-      armed = "";
+    }, "danger");
+    if (trashable.length) act(`Delete…${of(trashable)}`, (e) => {
+      // Asked as everything is asked (kit.js).
+      if (!Kit.ask(e.currentTarget, { key: "many-tr", ask: `Move ${trashable.length} to the trash?` })) return;
       done("in the trash", trashable.map((r) => () => api("POST", "/files/trash", { project: r.project, path: r.path })));
-    }, `danger${armed === "many-tr" ? " armed" : ""}`);
+    }, "danger");
     act("Clear the selection", () => { picked.clear(); chosen = null; drawRows(); drawDetail(); });
     const names = list.slice(0, 8).map((r) => el("div", { class: "d-line" }, el("span", { class: "v" }, r.name)));
     $("detail").replaceChildren(
@@ -812,11 +810,11 @@
       host.replaceChildren(el("div", { class: "pick-list" }, l.parent ? el("button", { class: "t-btn", onclick: () => to(null) }, "To the top") : null,
         ...all.filter((x) => !inside.has(x.id) && x.id !== l.parent).map((x) => el("button", { class: "t-btn", onclick: () => to(x.id) }, `Inside ${[...x.path, x.name].join(" › ")}`))));
     });
-    act(armed === `list:${l.id}` ? `Yes, delete ${l.name}${l.children.length ? " and the lists in it" : ""}` : "Delete the list…", () => {
-      if (armed !== `list:${l.id}`) { armed = `list:${l.id}`; drawDetail(); return; }
-      armed = "";
+    act("Delete the list…", (e) => {
+      // Asked as everything is asked (kit.js).
+      if (!Kit.ask(e.currentTarget, { key: `list:${l.id}`, ask: `Delete ${l.name}${l.children.length ? " and the lists in it" : ""}?` })) return;
       api("DELETE", `/files/lists/${enc(l.id)}?project=${enc(project)}`).then(() => { say(`${l.name} deleted; what it held is where it was`); filters.list = ""; return load(); }).catch(failed);
-    }, `danger${armed === `list:${l.id}` ? " armed" : ""}`);
+    }, "danger");
     $("detail").replaceChildren(...[
       el("h2", {}, l.name),
       el("div", { class: "d-status" }, `${l.count} thing${l.count === 1 ? "" : "s"}${l.children.length ? `, with ${l.children.length} list${l.children.length === 1 ? "" : "s"} inside it` : ""}${l.path.length ? `. Inside ${l.path.join(" › ")}.` : "."} A list holds without moving: deleting it, or taking something out, deletes nothing.`),
@@ -1132,7 +1130,6 @@
     if (e.key === "Escape") {
       e.preventDefault();
       if (!$("sheet").hidden) { $("sheet").hidden = true; return; }
-      if (armed) { armed = ""; drawDetail(); return; }
       if (bridge) bridge.file();
       return;
     }

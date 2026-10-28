@@ -822,7 +822,6 @@
     drawSugg();
   }
 
-  let armed = "";   // a merge asked once: "<key>|merge"
   function drawSugg() {
     const box = $("sugg");
     box.hidden = !data;
@@ -854,10 +853,10 @@
       el("div", { class: "why" }, s.why.join(" · ")),
       el("div", { class: "ways" }, s.ways.map((w) => {
         const id = `${s.key}|${w.how}|${w.text || ""}`;
-        const asking = w.how === "merge" && armed === id;
-        return el("button", { class: "t-btn" + (asking ? " armed" : ""), title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
-          onclick: () => { if (w.how === "merge" && !asking) { armed = id; drawSugg(); return; } armed = ""; take(s, w); } },
-          asking ? "Merge? Again to do it" : w.label);
+        // A merge is asked first, as everything is asked (kit.js).
+        return el("button", { class: "t-btn", title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
+          onclick: (e) => { if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return; take(s, w); } },
+          w.label);
       })));
   }
   async function take(s, w) {

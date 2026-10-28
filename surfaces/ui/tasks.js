@@ -898,9 +898,7 @@
     const p = projects.find((x) => x.id === projectOn);
     const b = $("p-archive");
     if (!p || !p.workspace || !bridge || typeof bridge.archiveProject !== "function") return;
-    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Archive it?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Archive"; }, 4000); return; }
-    delete b.dataset.armed;
-    b.textContent = "Archive";
+    if (!Kit.ask(b, { ask: "Archive it?" })) return;
     bridge.archiveProject(p.workspace, (error) => {
       if (error) { failed(new Error(error)); return; }
       closeProject();
@@ -1081,7 +1079,6 @@
             : `${a.filename} — linked from ${dirOf(link.path)}`;
           // Removing one stored on the task only deletes it: the × asks once more ("Delete?") before it does.
           // One in a folder: taken off the task, the file staying where it is — or, asked again, deleted to the Trash.
-          let armed = 0;
           const x = el("button", { title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task, or delete the file", onclick: (e) => {
             e.stopPropagation();
             if (where !== "task") {
@@ -1093,13 +1090,7 @@
               ]);
               return;
             }
-            if (!armed) {
-              x.textContent = "Delete?";
-              x.classList.add("arming");
-              armed = setTimeout(() => { armed = 0; x.textContent = "×"; x.classList.remove("arming"); }, 3000);
-              return;
-            }
-            clearTimeout(armed);
+            if (!Kit.ask(x, { ask: "Delete it?" })) return;
             api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
           } }, "×");
           return el("span", { class: `chip-p at-${where}` + (missing ? " missing" : ""), title: said,

@@ -354,7 +354,7 @@ function draw() {
     const text = document.createElement("span");
     text.className = "text";
     text.append(x.kind === "morgan" || x.kind === "sum" ? Object.assign(document.createElement("span"), { className: "title", textContent: x.title })
-      : mark(armed === x.key ? `${x.title} — Enter again` : x.title, query));
+      : mark(armed === x.key ? `${x.title}?` : x.title, query));
     if (x.sub) text.append(Object.assign(document.createElement("span"), { className: "sub", textContent: x.sub }));
     const kind = Object.assign(document.createElement("span"), { className: "kind", textContent: KIND[x.kind] });
     row.append(icon, text);
@@ -411,7 +411,8 @@ function glanceKey(x) {
 function choose(i, there = false) {
   const x = shown[i];
   if (!x || !bridge) return;
-  if (x.ask && armed !== x.key) { armed = x.key; draw(); return; }
+  // Asked as everything is asked (kit.js): the row says what Enter again will do, for as long as anything asks.
+  if (x.ask && armed !== x.key) { armed = x.key; setTimeout(() => { if (armed === x.key) { armed = null; draw(); } }, Kit.ASK_MS); draw(); return; }
   armed = null;
   // A tag chosen from "#": typed in, so what carries it shows.
   if (x.act.kind === "fill") { $("q").value = x.act.text; $("q").dispatchEvent(new Event("input")); return; }

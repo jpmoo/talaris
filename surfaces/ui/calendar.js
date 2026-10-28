@@ -671,7 +671,7 @@ $("e-save").addEventListener("click", () => {
 $("e-delete").addEventListener("click", () => {
   if (!editing) return;
   const b = $("e-delete");
-  if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Delete it?"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Delete"; }, 4000); return; }
+  if (!Kit.ask(b, { ask: "Delete it?" })) return;
   send({ do: "delete", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which }, closeEditor);
 });
 $("e-cancel").addEventListener("click", closeEditor);
