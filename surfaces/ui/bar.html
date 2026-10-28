@@ -44,8 +44,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
   cursor: pointer; align-self: stretch; display: flex; align-items: center; padding: 0 14px 0 16px;
   margin: -1px 0 -1px -9px; /* over the bar's padding and its frame: the pill is the bar's own edge */
   border: 1px solid transparent; background: var(--where-rest);
-  /* Its left end the bar's own corner (none, for a strip), so the two are one edge; its right end round. */
-  border-radius: var(--bar-r, 0px) 999px 999px var(--bar-r, 0px); transition: background .15s, border-color .15s; }
+  /* Both ends the bar's own corner (none, for a strip): its left end is the bar's edge, its right end the same shape. */
+  border-radius: var(--bar-r, 0px); transition: background .15s, border-color .15s; }
 #where:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
