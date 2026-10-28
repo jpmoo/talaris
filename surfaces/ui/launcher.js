@@ -265,12 +265,12 @@ function draw() {
   if (query.trim() && !tagAsked && named.query === query.trim().replace(/\s+/g, " ")) {
     const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
     const ids = new Set();
-    const dayOf = (s) => new Date(s.length > 10 ? s : `${s}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const dayOf = (s) => Kit.day(new Date(s.length > 10 ? s : `${s}T12:00:00`));
     const detail = (r) => r.kind === "task" ? (r.done ? "Done" : r.due ? `Due ${dayOf(r.due)}` : "Task")
       : r.kind === "person" ? "Person"
       : r.kind === "conversation" ? `Conversation with Morgan${r.updated ? ` · ${dayOf(r.updated)}` : ""}`
       : r.kind === "note" ? (r.path.startsWith("Pages/") ? "Page in Home" : r.path.startsWith("Daily/") ? "Daily page" : "Page")
-      : `${dayOf(r.start)}${r.allDay ? "" : ` · ${new Date(r.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}${r.location ? ` · ${r.location}` : ""}`;
+      : `${dayOf(r.start)}${r.allDay ? "" : ` · ${Kit.clock(r.start)}`}${r.location ? ` · ${r.location}` : ""}`;
     const row = (r, sub = detail(r)) => {
       ids.add(r.id || `${r.calendar}:${r.uid}`);
       const key = r.kind === "event" ? `event:${r.calendar}:${r.uid}` : r.kind === "conversation" ? `conversation:${r.thread}` : `${r.kind}:${r.id}`;

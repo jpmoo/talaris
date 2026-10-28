@@ -77,7 +77,7 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 // Weeks start on Sunday, as the bar's clock reads in en-US.
 function startOfWeek(d) { return addDays(startOfDay(d), -startOfDay(d).getDay()); }
-const clock = (ms) => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const clock = (ms) => Kit.clock(ms);
 const colorOf = (id) => (calendars.find((c) => c.id === id) || {}).color || "var(--accent)";
 
 // ---------------------------------------------------------------- the range on show
@@ -102,7 +102,7 @@ function title() {
     const s = startOfWeek(focus), e = addDays(s, 6);
     return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   }
-  return focus.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return Kit.month(focus);
 }
 function shown() {
   return events.filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined"));
@@ -142,7 +142,7 @@ function fetchTasks() {
     draw();
   }).catch(() => {});
 }
-const dayWord = (s) => new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const dayWord = (s) => Kit.day(new Date(`${s.slice(0, 10)}T12:00:00`));
 
 /**
  * The tasks' row: bars packed into as few lines as they fit, each spanning its
@@ -235,7 +235,7 @@ function search(q) {
 }
 const whenWords = (e) => {
   const d = new Date(e.start);
-  const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) });
+  const day = Kit.day(d);
   return e.allDay ? `${day} · all day` : `${day} · ${clock(e.start)}`;
 };
 function drawFound(view) {
@@ -361,7 +361,7 @@ function drawDays(view, cols) {
     el("div", { ondblclick: () => create(d, true) }, ...onDay(d).filter((e) => e.allDay).map((e) => chip(e, false))))));
   const grid = el("div", { class: "grid" });
   const hours = el("div", { class: "hours" });
-  const label = el("div", {}, ...Array.from({ length: 24 }, (_, h) => el("div", { class: "hour" }, h ? new Date(2000, 0, 1, h).toLocaleTimeString("en-US", { hour: "numeric" }) : "")));
+  const label = el("div", {}, ...Array.from({ length: 24 }, (_, h) => el("div", { class: "hour" }, h ? Kit.hour(h) : "")));
   hours.append(label);
   for (const d of days) {
     const col = el("div", { class: "col" });
@@ -407,19 +407,11 @@ function drawDays(view, cols) {
 
 let editing = null;
 const MIN = 60000;
-const dayLabel = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-const timeLabel = (m) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const dayLabel = (d) => Kit.day(d);
+const timeLabel = (m) => Kit.minutes(m);
 /** "9", "9:30", "930", "9:30 pm", "21:30" — minutes after midnight, or null. */
-function parseTime(text) {
-  const t = text.trim().toLowerCase().replace(/\s+/g, "");
-  const m = t.match(/^(\d{1,2})(?::?(\d{2}))?(a|am|p|pm)?$/);
-  if (!m) return null;
-  let h = Number(m[1]); const mi = Number(m[2] || 0);
-  if (mi > 59) return null;
-  if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3][0] === "p" ? 12 : 0); }
-  if (h > 23) return null;
-  return h * 60 + mi;
-}
+// What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
+const parseTime = (text) => Kit.parseTime(text);
 
 // One small list at a time, under what opened it.
 function popUnder(anchor, content) {
@@ -441,7 +433,7 @@ function monthPicker(chosen, pick) {
     wrap.replaceChildren(
       el("div", { class: "mini-head" },
         el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); drawMini(); } }, "‹"),
-        el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+        el("span", {}, Kit.month(shown)),
         el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); drawMini(); } }, "›")),
       el("div", { class: "mini-grid" },
         ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),

@@ -50,6 +50,8 @@ const Kit = (() => {
   function clock(x, { seconds = false } = {}) {
     return asDate(x).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hour12: hours !== "24" });
   }
+  /** An hour on its own, for a day's gutter: "2 PM", or "14:00" with a 24-hour clock. */
+  const hour = (h) => (hours === "24" ? `${pad(h)}:00` : new Date(2000, 0, 1, h).toLocaleTimeString("en-US", { hour: "numeric" }));
   /** A time of day given in minutes after midnight, as `clock` says it. */
   const minutes = (m) => clock(new Date(2000, 0, 1, Math.floor(m / 60), m % 60));
   /** "Fri, Oct 30" — the year only when it is not this one; `weekday: false` for "Oct 30". */
@@ -108,9 +110,10 @@ const Kit = (() => {
    * "today", "tom", "fri", "next fri", "+3", "in 2w", "10/30", "10/30/27",
    * "oct 30", "30 oct", "2026-10-30" — a day, or null. A weekday is the coming
    * one, today counting ("fri" on a Friday is today; "next fri" a week on). A
-   * month and day with no year is the next one to come.
+   * month and day with no year is the next one to come — or, with `past` (a
+   * birthday, a day met), this year's, and a two-year "80" is 1980.
    */
-  function parseDay(text) {
+  function parseDay(text, { past = false } = {}) {
     let t = String(text || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/^[a-z]{3,}, (?=[a-z]{3,}\.? \d)/, "");
     const next = /^next /.test(t);
     t = t.replace(/^(next|this|on) /, "");
@@ -142,7 +145,9 @@ const Kit = (() => {
     return null;
     function valid(y, mo, d) { const x = new Date(y, mo - 1, d); return x.getMonth() === mo - 1 && x.getDate() === d ? x : null; }
     function ahead(mo, d, y) {
+      if (y && y.length === 2 && past) return valid((Number(y) > today.getFullYear() % 100 ? 1900 : 2000) + Number(y), mo, d);
       if (y) return valid(y.length === 2 ? 2000 + Number(y) : Number(y), mo, d);
+      if (past) return valid(today.getFullYear(), mo, d);
       const x = valid(today.getFullYear(), mo, d);
       return x && x < today ? valid(today.getFullYear() + 1, mo, d) : x;
     }
@@ -379,7 +384,7 @@ const Kit = (() => {
   const empty = (text) => el("div", { class: "kit-empty" }, String(text).replace(/\.$/, ""));
 
   return {
-    el, setClock, clock, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
+    el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, menu, monthPicker, timeList, DAY_CHIPS,
     twice, ASK_MS, fold, matches, rank, searchBox, debounce, say, empty,
   };

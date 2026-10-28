@@ -53,8 +53,8 @@
   function say(text, error = false) { $("msg").textContent = text || ""; $("msg").className = error ? "err" : ""; }
   const failed = (e) => say(e.message, true);
 
-  const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
-  const MONTHS = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "long" });
+  const day = (iso) => (iso ? Kit.day(iso, { weekday: false }) : "");
+  const MONTHS = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "long" });
 
   // ---------------------------------------------------------------- the list
 

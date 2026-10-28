@@ -93,15 +93,8 @@ function drawNotices() {
     showNotices(list);
   });
 }
-/** "now", "5 min", "2:14 PM" today, "Mon" this week, "Mar 3" before. */
-function noticeWhen(at) {
-  const then = new Date(at), now = new Date(), mins = Math.floor((now - then) / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins} min`;
-  if (then.toDateString() === now.toDateString()) return then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  if (now - then < 6 * 86400000) return then.toLocaleDateString("en-US", { weekday: "short" });
-  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+/** When it came, as the kit says when anything happened. */
+const noticeWhen = (at) => Kit.ago(at);
 /** A body's markup (the spec allows a little: <b>, <i>, <a>) as plain text; parsed inert, never run. */
 function plainText(markup) {
   if (!markup) return "";
@@ -149,15 +142,8 @@ function drawTimers(answer) {
     showTimers();
   }, 1000) : null;
 }
-/** Within the hour, the time left ("4:32"); further off, when ("2:15 PM", "Thu 9:00 AM"). As Morgan's own panel. */
-function timeLeft(at) {
-  const s = Math.max(0, Math.round((at - Date.now()) / 1000));
-  if (s >= 3600) {
-    const d = new Date(at), time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
-  }
-  return s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "now";
-}
+/** Within the hour, the time left ("4:32"); further off, when — as the kit says anything to come, Morgan's panel too. */
+const timeLeft = (at) => Kit.future(at);
 /** How much of a timer is left, 1 to 0, within the hour; none further off. */
 function share(t) {
   const now = Date.now(), made = t.made || now;
@@ -169,7 +155,7 @@ function showTimers() {
     d.insertAdjacentHTML("beforeend", t.text ? Icons.clock() : Icons.timer());
     const what = Object.assign(document.createElement("div"), { className: "what", textContent: t.text || "Timer" });
     what.append(Object.assign(document.createElement("small"), {
-      textContent: new Date(t.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) }));
+      textContent: Kit.clock(t.at) }));
     d.append(what, Object.assign(document.createElement("span"), { className: "left", textContent: timeLeft(t.at) }),
       twice("Cancel", `timer-${t.id}`, () => bridge.cancelReminder(t.id)));
     const bar = Object.assign(document.createElement("span"), { className: "bar" });

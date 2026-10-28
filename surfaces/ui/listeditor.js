@@ -121,7 +121,7 @@
           el("button", { type: "button", class: "le-chip" + (v === value ? " on" : ""), onclick: () => { popAway(); pick(v); } }, label))),
         el("div", { class: "le-mini-head" },
           el("button", { type: "button", class: "icon-btn", onclick: move(-1) }, "‹"),
-          el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("span", {}, Kit.month(shown)),
           el("button", { type: "button", class: "icon-btn", onclick: move(1) }, "›")),
         el("div", { class: "le-mini-grid" },
           ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),

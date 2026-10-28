@@ -320,17 +320,12 @@ function review(box, t, notes) {
 }
 
 // When something was said: the time today, the date and time before.
-function stamp(t) {
-  const at = new Date(t);
-  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (at.toDateString() === new Date().toDateString()) return time;
-  return `${at.toLocaleDateString([], { month: "short", day: "numeric", ...(at.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }) })}, ${time}`;
-}
+function stamp(t) { return Kit.stamp(t); }
 
 function message(who, text, oracle, record, at) {
   const box = el("div", `msg ${who}`);
   const head = el("div", "who", who === "you" ? "You" : name);
-  if (at) { const time = el("span", "time", stamp(at)); time.title = new Date(at).toLocaleString(); head.append(time); }
+  if (at) { const time = el("span", "time", stamp(at)); time.title = `${Kit.day(at)} · ${Kit.clock(at)}`; head.append(time); }
   const copy = el("button", "copy");
   copy.title = "Copy this message";
   copy.append(icon("copy"));
@@ -550,14 +545,8 @@ function left(ms) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`;
 }
-function at(ms) {
-  const d = new Date(ms), now = new Date();
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  if (d.toDateString() === now.toDateString()) return time;
-  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow ${time}`;
-  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
-}
+// Further off than the hour: when, as the kit says anything to come (the bell's list says it the same way).
+function at(ms) { return Kit.future(ms); }
 function drawTimers() {
   const box = $("timers");
   box.hidden = !timers.length;
@@ -874,7 +863,7 @@ function recent(done) {
 // ---------------------------------------------------------------- earlier conversations, by day
 
 const DAY = { weekday: "long", month: "long", day: "numeric" };
-const clock = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const clock = (t) => Kit.clock(t);
 let shownMonth = new Date(); shownMonth.setDate(1);
 let monthDays = {};
 
@@ -886,7 +875,7 @@ function calendar(open) {
 
 function month() {
   const year = shownMonth.getFullYear(), index = shownMonth.getMonth();
-  $("monthname").textContent = shownMonth.toLocaleDateString([], { month: "long", year: "numeric" });
+  $("monthname").textContent = Kit.month(shownMonth);
   $("daylist").hidden = true;
   const key = `${year}-${String(index + 1).padStart(2, "0")}`;
   bridge.call(`days ${key}`, (answer) => {
@@ -925,7 +914,7 @@ function month() {
 // A day with several conversations: each, by its time and a few words of what it was about.
 function pick(date, held) {
   const list = $("daylist");
-  list.replaceChildren(el("div", "when", date.toLocaleDateString([], DAY)));
+  list.replaceChildren(el("div", "when", date.toLocaleDateString("en-US", DAY)));
   for (const entry of held) {
     const row = el("button");
     row.append(el("small", "", clock(entry.t0)), el("span", "", entry.title));
@@ -950,7 +939,7 @@ function load(entry) {
     viewing = found.id;
     $("log").replaceChildren(); writing = null; heldOracle = "";
     const bar = el("div", "past");
-    bar.append(icon("history"), el("span", "", `${new Date(found.t0).toLocaleDateString([], DAY)}, ${clock(found.t0)} · `));
+    bar.append(icon("history"), el("span", "", `${new Date(found.t0).toLocaleDateString("en-US", DAY)}, ${clock(found.t0)} · `));
     bar.lastChild.append(el("b", "", found.title));
     const back = el("button", "", "Back to now");
     back.onclick = () => recent();

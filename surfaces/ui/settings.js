@@ -1330,7 +1330,7 @@ let reviving = null; // the backup chosen to revive
 
 const when = (iso) => {
   const d = new Date(iso);
-  return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  return isNaN(d) ? "" : Kit.stamp(d);
 };
 const size = (n) => (n > 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 

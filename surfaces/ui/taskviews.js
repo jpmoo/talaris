@@ -64,19 +64,12 @@ const TaskViews = (() => {
   const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / DAY_MS);
   // Moving a date keeps its time, if it has one.
   const shiftValue = (s, n) => ymd(addDays(parseDay(s), n)) + s.slice(10);
-  const clock = (hm) => { const [h, m] = hm.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); };
+  const clock = (hm) => { const [h, m] = hm.split(":").map(Number); return Kit.minutes(h * 60 + m); };
 
   /** "Today", "Tomorrow", a weekday within the week, else "Oct 27". */
   function shortDate(s) {
     if (!s || !/^\d{4}-\d\d-\d\d/.test(s)) return s || "";
-    const d = parseDay(s), today = startOfDay(new Date());
-    const diff = Math.round((d - today) / DAY_MS);
-    let out;
-    if (diff === 0) out = "Today";
-    else if (diff === 1) out = "Tomorrow";
-    else if (diff === -1) out = "Yesterday";
-    else if (diff > 1 && diff < 7) out = d.toLocaleDateString("en-US", { weekday: "short" });
-    else out = d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+    const out = Kit.relDay(parseDay(s));
     return s.length > 10 ? `${out} ${clock(s.slice(11, 16))}` : out;
   }
 
@@ -247,7 +240,7 @@ const TaskViews = (() => {
       wrap.replaceChildren(quick,
         el("div", { class: "tv-mini-head" },
           el("button", { class: "icon-btn", onclick: step(-1) }, ICON.prev()),
-          el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("span", {}, Kit.month(shown)),
           el("button", { class: "icon-btn", onclick: step(1) }, ICON.next())),
         el("div", { class: "tv-mini-grid" },
           ...["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
@@ -803,7 +796,7 @@ const TaskViews = (() => {
     if (calMode === "week") {
       const s = startOfWeek(calFocus), e = addDays(s, 6);
       title = `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-    } else title = calFocus.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    } else title = Kit.month(calFocus);
     const modes = el("span", { class: "seg" }, ...[["month", "Month"], ["week", "Week"]].map(([m, label]) =>
       el("button", { class: m === calMode ? "on" : "", onclick: () => setMode(m) }, label)));
     const bar = el("div", { class: "tv-calbar" },

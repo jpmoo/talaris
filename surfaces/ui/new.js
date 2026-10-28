@@ -77,60 +77,14 @@
   const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   const startOfWeek = (d) => addDays(new Date(d.getFullYear(), d.getMonth(), 1), -new Date(d.getFullYear(), d.getMonth(), 1).getDay());
   const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dayLabel = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) });
-  const timeLabel = (m) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const dayLabel = (d) => Kit.day(d);
+  const timeLabel = (m) => Kit.minutes(m);
   const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-  /** "today", "tom", "fri", "next fri", "+3", "+2w", "10/30", "10/30/27", "oct 30", "30 oct", "2026-10-30" — a day, or null. */
-  function parseDay(text) {
-    // "Fri, Oct 30" — as a picked day is shown — reads as "oct 30".
-    const t = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/^(next|this|on) /, "").replace(/^[a-z]{3,}, (?=[a-z]{3,}\.? \d)/, "");
-    const today = startOfDay(new Date());
-    if (!t) return null;
-    if (/^(today|tod|now)$/.test(t)) return today;
-    if (/^(tomorrow|tom|tmr|tmrw)$/.test(t)) return addDays(today, 1);
-    let m = t.match(/^(?:\+|in )(\d+) ?(d|day|days|w|wk|week|weeks|m|mo|month|months)?$/);
-    if (m) {
-      const n = Number(m[1]), u = (m[2] || "d")[0];
-      return u === "w" ? addDays(today, 7 * n) : u === "m" ? new Date(today.getFullYear(), today.getMonth() + n, today.getDate()) : addDays(today, n);
-    }
-    const wd = WEEKDAYS.findIndex((w) => t.length >= 2 && (w.startsWith(t) || t.startsWith(w)));
-    if (wd >= 0 && /^[a-z]+$/.test(t)) return addDays(today, ((wd - today.getDay() + 6) % 7) + 1);
-    m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m) return valid(Number(m[1]), Number(m[2]), Number(m[3]));
-    m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/);
-    if (m) return ahead(Number(m[1]), Number(m[2]), m[3]);
-    m = t.match(/^([a-z]{3,})\.? (\d{1,2})(?:,? (\d{4}))?$/) || t.match(/^(\d{1,2}) ([a-z]{3,})\.?(?: (\d{4}))?$/);
-    if (m) {
-      const [word, day] = /^\d/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
-      const mo = MONTHS.findIndex((x) => word.startsWith(x));
-      if (mo >= 0) return ahead(mo + 1, Number(day), m[3]);
-    }
-    return null;
-    function valid(y, mo, d) { const x = new Date(y, mo - 1, d); return x.getMonth() === mo - 1 && x.getDate() === d ? x : null; }
-    // A month and day with no year is the next one to come.
-    function ahead(mo, d, y) {
-      if (y) return valid(y.length === 2 ? 2000 + Number(y) : Number(y), mo, d);
-      const x = valid(today.getFullYear(), mo, d);
-      return x && x < today ? valid(today.getFullYear() + 1, mo, d) : x;
-    }
-  }
-  /** "9", "9:30", "930", "9:30 pm", "21:30", "noon" — minutes after midnight, or null. */
-  function parseTime(text) {
-    const t = text.trim().toLowerCase().replace(/\s+/g, "").replace(/\.m\.?$/, "m").replace(/\./g, "");
-    if (t === "noon") return 12 * 60;
-    if (t === "midnight") return 0;
-    const m = t.match(/^(\d{1,2})(?::?(\d{2}))?(a|am|p|pm)?$/);
-    if (!m) return null;
-    let h = Number(m[1]); const mi = Number(m[2] || 0);
-    if (mi > 59) return null;
-    if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3][0] === "p" ? 12 : 0); }
-    // A bare 1–6 is the afternoon: nobody meets at 3 in the morning.
-    else if (!m[2] && h >= 1 && h <= 6) h += 12;
-    if (h > 23) return null;
-    return h * 60 + mi;
-  }
+  // What is typed, read as every page reads it (kit.js): "3" is the afternoon; "fri" on a Friday is today.
+  const parseDay = (text) => Kit.parseDay(text);
+  const parseTime = (text) => Kit.parseTime(text);
 
   // ---------------------------------------------------------------- the one small list
 
@@ -162,7 +116,7 @@
       wrap.replaceChildren(
         el("div", { class: "mini-head" },
           el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1); draw(); } }, "‹"),
-          el("span", {}, shown.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("span", {}, Kit.month(shown)),
           el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1); draw(); } }, "›")),
         el("div", { class: "mini-grid" },
           ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),

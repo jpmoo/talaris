@@ -793,7 +793,7 @@ async function drawCalendar() {
   const [y, m] = shownMonth.split("-").map(Number);
   const first = new Date(y, m - 1, 1);
   const count = new Date(y, m, 0).getDate();
-  const name = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const name = Kit.month(first);
   const openDate = isDaily(open) ? open.slice(DAILY.length + 1) : null;
   const month = (delta) => () => {
     const d = new Date(y, m - 1 + delta, 1);
@@ -828,7 +828,7 @@ function pageHeading() {
   if (scope === "daily" && isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
     // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
-    return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
+    return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
   return (scope === "undated" ? `Pages · ${open.slice(PAGES.length + 1).split("/").join(" / ")}${inHome() ? "" : " · in Home"}` : open.split("/").join(" / ")).toUpperCase();
 }

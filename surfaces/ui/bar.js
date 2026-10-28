@@ -158,7 +158,7 @@ function tick() {
     hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
     ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
   });
-  $("clock").title = now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + " — calendar";
+  $("clock").title = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + " — calendar";
   const wait = clock.seconds ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
   ticking = setTimeout(tick, wait + 20);
 }
@@ -215,7 +215,7 @@ function tickBell() {
   const live = timers.filter((t) => t.at > now).sort((a, b) => a.at - b.at);
   $("bell").classList.toggle("timing", live.length > 0);
   const next = live[0];
-  const due = next ? `${live.length > 1 ? `${live.length} set, next: ` : ""}${next.text || "Timer"} at ${new Date(next.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "";
+  const due = next ? `${live.length > 1 ? `${live.length} set, next: ` : ""}${next.text || "Timer"} at ${Kit.future(next.at)}` : "";
   $("bell").title = ["Notifications", bellUnread ? `${bellUnread} unread` : "", due].filter(Boolean).join(" · ");
 }
 // Every half minute is enough to put the dot out after the last one is due (Morgan's word on it comes sooner).

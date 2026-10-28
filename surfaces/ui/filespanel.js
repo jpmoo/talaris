@@ -107,9 +107,7 @@
   const size = (n) => (n == null ? "" : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
   function when(iso) {
     if (!iso) return "";
-    const d = new Date(iso), now = new Date();
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    return d.toLocaleDateString([], { month: "short", day: "numeric", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+    return Kit.ago(iso);
   }
   function dateGroup(iso) {
     if (!iso) return "No date";
@@ -585,7 +583,7 @@
       r.size != null ? ["Size", size(r.size)] : null,
       // Every project it is in: where it lives, then each with a shortcut to it; each a press away.
       ["Projects", projectsOf(r)],
-      r.mtime ? ["Changed", new Date(r.mtime).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })] : null,
+      r.mtime ? ["Changed", Kit.stamp(r.mtime)] : null,
     ].filter(Boolean);
     const acts = [];
     const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn ${cls}`, onclick: fn }, label));

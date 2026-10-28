@@ -101,34 +101,14 @@
   const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
   const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dayLabel = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const dayLabel = (d) => Kit.day(d, { weekday: false });
   const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
   function readIso(v) {
     const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
     return m ? { day: new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), time: m[4] ? `T${m[4]}:${m[5]}` : "" } : { day: null, time: "" };
   }
-  /** "today", "10/30/1980", "oct 30 1980", "30 oct", "1980-10-30" — a day, or null. A birthday is mostly in the past, so a year is kept as typed. */
-  function parseDay(text) {
-    const t = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/^[a-z]{3,}, (?=[a-z]{3,}\.? \d)/, "");
-    if (!t) return null;
-    const today = startOfDay(new Date());
-    if (/^(today|tod)$/.test(t)) return today;
-    if (/^(tomorrow|tom)$/.test(t)) return addDays(today, 1);
-    if (/^yesterday$/.test(t)) return addDays(today, -1);
-    const valid = (y, mo, d) => { const x = new Date(y, mo - 1, d); return x.getMonth() === mo - 1 && x.getDate() === d ? x : null; };
-    const year = (y) => (!y ? today.getFullYear() : y.length === 2 ? (Number(y) > (today.getFullYear() % 100) ? 1900 : 2000) + Number(y) : Number(y));
-    let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m) return valid(Number(m[1]), Number(m[2]), Number(m[3]));
-    m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/);
-    if (m) return valid(year(m[3]), Number(m[1]), Number(m[2]));
-    m = t.match(/^([a-z]{3,})\.? (\d{1,2})(?:,? (\d{4}))?$/) || t.match(/^(\d{1,2}) ([a-z]{3,})\.?(?:,? (\d{4}))?$/);
-    if (m) {
-      const [word, day] = /^\d/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
-      const mo = MONTHS.findIndex((x) => word.startsWith(x));
-      if (mo >= 0) return valid(year(m[3]), mo + 1, Number(day));
-    }
-    return null;
-  }
+  // A birthday is mostly in the past: read as every page reads a day (kit.js), the year kept as typed or this one.
+  const parseDay = (text) => Kit.parseDay(text, { past: true });
 
   // ---------------------------------------------------------------- the one pop at a time
   //
@@ -172,7 +152,7 @@
         el("div", { class: "mini-head" },
           el("button", { class: "icon-btn", title: "A year back", onclick: step(-12) }, "«"),
           el("button", { class: "icon-btn", title: "A month back", onclick: step(-1) }, "‹"),
-          el("span", {}, month.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("span", {}, Kit.month(month)),
           el("button", { class: "icon-btn", title: "A month on", onclick: step(1) }, "›"),
           el("button", { class: "icon-btn", title: "A year on", onclick: step(12) }, "»")),
         el("div", { class: "mini-grid" },

@@ -129,36 +129,17 @@
     return { day: new Date(y, m - 1, dd), time };
   }
   const join = (day, time) => (day ? isoDay(day) + (time != null ? `T${pad(Math.floor(time / 60))}:${pad(time % 60)}` : "") : null);
-  const timeLabel = (m) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const timeLabel = (m) => Kit.minutes(m);
   /** Short: Today, Tomorrow, a weekday within the week, else "Oct 27". */
   function shortDate(v) {
     const { day, time } = split(v);
     if (!day) return "";
-    const today = startOfDay(new Date());
-    const diff = Math.round((day - today) / DAY_MS);
-    let s;
-    if (diff === 0) s = "Today";
-    else if (diff === 1) s = "Tomorrow";
-    else if (diff === -1) s = "Yesterday";
-    else if (diff > 1 && diff < 7) s = day.toLocaleDateString("en-US", { weekday: "short" });
-    else s = day.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(day.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+    const s = Kit.relDay(day);
     return time != null ? `${s} ${timeLabel(time)}` : s;
   }
   /** "9", "9:30", "930", "9:30 pm", "21:30" — minutes after midnight, or null. */
-  function parseTime(text) {
-    const t = text.trim().toLowerCase().replace(/\s+/g, "");
-    const m = t.match(/^(\d{1,2})(?::?(\d{2}))?(a|am|p|pm)?$/);
-    if (!m) return null;
-    let h = Number(m[1]); const mi = Number(m[2] || 0);
-    if (mi > 59) return null;
-    if (m[3]) { if (h < 1 || h > 12) return null; h = (h % 12) + (m[3][0] === "p" ? 12 : 0); }
-    if (h > 23) return null;
-    return h * 60 + mi;
-  }
-  const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  const DAY_WORDS = /^(sun(day)?|mon(day)?|tue(s|sday)?|wed(nesday)?|thu(rs|rsday)?|fri(day)?|sat(urday)?)$/;
-  // The coming one: today counts, so "!fri" on a Friday is today.
-  function comingWeekday(i) { const t = startOfDay(new Date()); return addDays(t, (i - t.getDay() + 7) % 7); }
+  // What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
+  const parseTime = (text) => Kit.parseTime(text);
   // Strictly after today: the picker's "Next Mon".
   function nextWeekday(i) { const t = startOfDay(new Date()); return addDays(t, ((i - t.getDay() + 6) % 7) + 1); }
 
@@ -203,7 +184,7 @@
       wrap.replaceChildren(
         el("div", { class: "mini-head" },
           el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); month = new Date(month.getFullYear(), month.getMonth() - 1, 1); draw(); } }, "‹"),
-          el("span", {}, month.toLocaleDateString("en-US", { month: "long", year: "numeric" })),
+          el("span", {}, Kit.month(month)),
           el("button", { class: "icon-btn", onclick: (e) => { e.stopPropagation(); month = new Date(month.getFullYear(), month.getMonth() + 1, 1); draw(); } }, "›")),
         el("div", { class: "mini-grid" },
           ["S", "M", "T", "W", "T", "F", "S"].map((d) => el("span", { class: "dow" }, d)),
@@ -750,9 +731,8 @@
       const bang = w.match(/^!(\S+)$/);
       if (bang) {
         const k = bang[1].toLowerCase();
-        const day = k === "today" ? startOfDay(new Date()) : k === "tomorrow" ? addDays(startOfDay(new Date()), 1)
-          : DAY_WORDS.test(k) ? comingWeekday(WEEKDAYS.indexOf(k.slice(0, 3)))
-            : /^\d{4}-\d{2}-\d{2}$/.test(k) && split(k).day ? split(k).day : null;
+        // Read as every page reads a day (kit.js): "!fri", "!tomorrow", "!+3", "!oct 30".
+        const day = Kit.parseDay(k);
         if (day) { due = isoDay(day); continue; }
       }
       const tag = w.match(/^#([\p{L}\p{N}_/-]+)$/u);
@@ -1135,7 +1115,7 @@
     }
     if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");
     const stamp = split(p[shape.doneKey]);
-    $("s-done").textContent = stamp.day ? `Done ${stamp.day.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${stamp.time != null ? `, ${timeLabel(stamp.time)}` : ""}` : "";
+    $("s-done").textContent = stamp.day ? `Done ${Kit.day(stamp.day, { weekday: false })}${stamp.time != null ? ` · ${timeLabel(stamp.time)}` : ""}` : "";
     $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
     // Where else it lives (a sync's way back), beside its own buttons.
     // And what plugins put on a task (Sync now).
