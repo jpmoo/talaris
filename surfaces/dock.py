@@ -191,7 +191,7 @@ class DockMenu(QObject):
                 "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else "",
                 # Pinned nowhere, and open: its window can be sent to another project (chosen in the carousel).
                 # One pinned anywhere already has a place, and goes by that.
-                "canSend": bool(item) and not item.get("doc") and bool(self.everywhere) and not self._pinned_anywhere(item)}
+                "canSend": bool(item) and not item.get("doc") and bool(self.everywhere) and not self._placed(item)}
 
     #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
     everywhere: list = []
@@ -208,13 +208,20 @@ class DockMenu(QObject):
                 names[pid] = name
         return [{"id": pid, "name": name} for pid, name in names.items()]
 
-    def _pinned_anywhere(self, item: dict) -> bool:
-        """Pinned to every project, or to any one of them."""
+    def _placed(self, item: dict) -> bool:
+        """
+        Pinned in every project, pinned in this one, or kept in one (a stay):
+        it has its place, and Send to would fight it. Pinned only in another
+        project it has none here — Chrome pinned in Home, open in Coding —
+        and may be sent like any other.
+        """
         if item.get("pinned"):
             return True
         cfg = self.desktop.config["dock"]
         ident = item.get("id") or item.get("key")
-        return ident in cfg.get("pinned", []) or any(ident in ids for ids in cfg.get("pinnedIn", {}).values())
+        here = self.desktop.project.get("id", "")
+        return (ident in cfg.get("pinned", []) or ident in cfg.get("pinnedIn", {}).get(here, [])
+                or ident in cfg.get("stays", {}))
 
     def _window_to_send(self) -> str:
         """The window a Send to moves: the last used here, else the last used anywhere."""
@@ -251,7 +258,7 @@ class DockMenu(QObject):
         places = {"hidden" if x["hidden"] else "here" if x["here"] else x["project"] for x in self.everywhere}
         rows = len(self.everywhere) + len(places) + 1 if len(self.everywhere) > 1 else 0
         rows += len(self._go_to(item))
-        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120 + (52 if not item.get("doc") and self.everywhere and not self._pinned_anywhere(item) else 0))
+        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120 + (52 if not item.get("doc") and self.everywhere and not self._placed(item) else 0))
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
