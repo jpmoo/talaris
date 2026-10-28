@@ -75,11 +75,15 @@ function done(id, how, key = "") {
   if (bridge) bridge.done(JSON.stringify({ id, how, key }));
 }
 
+// Its laid-out height, not its drawn one: a toast arriving is drawn scaled or
+// moved, and measured so the surface came out short and cut it off. Measured
+// again whenever the column's size changes (a body wrapping, an image in).
 function fit() {
   if (!bridge) return;
-  bridge.fit(col.children.length ? Math.ceil(col.getBoundingClientRect().height * zoom()) : 0);
+  bridge.fit(col.children.length ? Math.ceil(col.offsetHeight * zoom()) : 0);
 }
 const refit = () => document.fonts.ready.then(() => requestAnimationFrame(fit));
+if (window.ResizeObserver) new ResizeObserver(() => refit()).observe(col);
 
 /*
  * The surface grows after the page asks, a frame or more later; a card moving
