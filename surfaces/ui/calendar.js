@@ -552,14 +552,14 @@ function open(e, isNew) {
   } };
   $("e-title").value = e.title || "";
   $("e-where").value = e.location || "";
-  $("e-notes").value = e.notes || "";
+  showNotes(e.notes || "");
   $("e-which-row").hidden = isNew || !e.recurring;
   // A repeating event: this one alone, or every one of them.
   const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); if (editing.v) paintRepeats(); };
   which("this");
   $("e-delete").hidden = isNew;
   editing.readOnly = !isNew && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
-  for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-notes", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
+  for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
   $("e-cal").disabled = editing.readOnly || !isNew;
   popAway();
   paintEditor();
@@ -614,12 +614,56 @@ for (const [id, key] of [["e-st", "st"], ["e-et", "et"]]) {
 // A press elsewhere in the editor puts a list away.
 $("editor").addEventListener("click", (e) => { if (!e.target.closest(".kit-pop") && !["e-st", "e-et"].includes(e.target.id)) popAway(); });
 
+// ---------------------------------------------------------------- notes
+// The editor every description is (editor.js): Markdown drawn as it is
+// written, links that open, @ to name a person, task or event. Notes that came
+// as HTML (Google writes its invitations so) are shown as Markdown, and sent
+// back as they came unless they were changed here.
+let notesEd = null, notesShown = "";
+const notesReady = import("./editor.js").then((m) => {
+  notesEd = m.createEditor($("e-notes"), notesShown, {
+    live: true, compact: true, placeholder: $("e-notes").dataset.placeholder,
+    onOpenUrl: (u) => bridge && bridge.openUrl(u),
+    mentions: TalarisMentions(core, null, {
+      openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where), openPerson: (id) => bridge && bridge.openPerson(id),
+      openTask: (id) => bridge && bridge.openTask(id), openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u),
+    }),
+  });
+  return notesEd;
+}).catch(() => null);
+function showNotes(raw) {
+  notesShown = /<\/?[a-z][^>]*>/i.test(raw) ? htmlToMarkdown(raw) : raw;
+  if (notesEd) notesEd.set(notesShown); else notesReady.then((ed) => ed && ed.set(notesShown));
+}
+/** What is sent: the notes as written here, or as they came if nothing was changed. */
+function notesNow() {
+  const text = notesEd ? notesEd.text : notesShown;
+  return text === notesShown && editing && !editing.isNew ? (editing.notes || "") : text;
+}
+/** HTML (an invitation's) as Markdown: links, breaks, paragraphs, lists, bold and italic; parsed inert, never run. */
+function htmlToMarkdown(html) {
+  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  const walk = (n) => {
+    if (n.nodeType === 3) return n.textContent.replace(/\s+/g, " ");
+    if (n.nodeType !== 1) return "";
+    const tag = n.tagName.toLowerCase(), inner = [...n.childNodes].map(walk).join("");
+    if (tag === "br") return "\n";
+    if (tag === "a") { const href = n.getAttribute("href") || ""; const t = inner.trim(); return /^https?:/i.test(href) ? (t && t !== href ? `[${t}](${href})` : href) : t; }
+    if (tag === "b" || tag === "strong") return inner.trim() ? `**${inner.trim()}**` : "";
+    if (tag === "i" || tag === "em") return inner.trim() ? `_${inner.trim()}_` : "";
+    if (tag === "li") return `\n- ${inner.trim()}`;
+    if (["p", "div", "ul", "ol", "h1", "h2", "h3", "h4", "tr", "table"].includes(tag)) return `\n${inner}\n`;
+    return inner;
+  };
+  return walk(doc.body).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function collected() {
   const v = editing.v;
   let start = new Date(v.sd.getTime() + (v.allDay ? 0 : v.st * MIN));
   let end = v.allDay ? addDays(v.ed, 1) : new Date(v.ed.getTime() + v.et * MIN);
   if (end <= start) end = new Date(start.getTime() + (v.allDay ? DAY_MS : 3600000));
-  const event = { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: $("e-notes").value,
+  const event = { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: notesNow(),
     rrule: ruleText(v.rule, v.sd), origStart: editing.start };
   // The invitees, if this calendar can invite and the event is mine to invite to.
   if (calOf(v.calendar).invites && (editing.isNew || editing.organizing || !(editing.attendees || []).length)) event.attendees = v.people;

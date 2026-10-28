@@ -126,6 +126,22 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
         return false;
       }
 
+      // An address written as it is — `https://zoom.us/j/…`, or `<https://…>` —
+      // is a link as much as `[text](url)` is: drawn as one, and opened on a
+      // click (a meeting's link in an event's notes, 2026-10-28).
+      if (name === "URL" || name === "Autolink") {
+        const parent = node.node.parent?.name;
+        if (name === "URL" && (parent === "Link" || parent === "Image" || parent === "Autolink")) return;
+        const c = node.node.cursor();
+        let url = state.doc.sliceString(node.from, node.to);
+        if (name === "Autolink" && c.firstChild()) {
+          do { if (c.name === "URL") url = state.doc.sliceString(c.from, c.to); } while (c.nextSibling());
+        }
+        if (/^www\./i.test(url)) url = `https://${url}`;
+        if (/^https?:\/\//i.test(url)) specs.push({ kind: "mark", from: node.from, to: node.to, cls: "cm-link", url });
+        return false;
+      }
+
       if (name === "Blockquote") {
         lineStarts(node.from, node.to, "cm-quote");
         return;

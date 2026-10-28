@@ -79,6 +79,22 @@ function inline(escaped) {
     },
   );
 
+  // Talaris's own mentions (`[@Name](talaris:id)`, the editor's @) and kept
+  // files (`talaris-file:`): chips, as in the editor; the page opens them.
+  s = s.replace(
+    /\[([^\]]+)\]\((talaris:[A-Za-z0-9_.:-]+|talaris-file:[^\s)]+)\)/g,
+    (_, text, href) => `<a class="chip-link ${href.startsWith("talaris-file:") ? "file" : "talaris"}" href="${href}">${text}</a>`,
+  );
+
+  // An address written as it is — a meeting's link in an event's notes — is a
+  // link too. The links already made are set aside first, so an address inside
+  // one is not made a second.
+  const made = [];
+  s = s.replace(/<a [^>]*>.*?<\/a>/g, (m) => { made.push(m); return "\u0001" + (made.length - 1) + "\u0001"; });
+  s = s.replace(/(^|[\s(])((?:https?:\/\/|www\.)[^\s<]+[^\s<.,;:!?)\]'"])/g,
+    (_, before, url) => `${before}<a href="${url.startsWith("www.") ? "https://" + url : url}" target="_blank" rel="noopener">${url}</a>`);
+  s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => made[Number(i)]);
+
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
   s = s.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");

@@ -1215,10 +1215,14 @@ addEventListener("contextmenu", (e) => {
     el("div", { class: "hint" }, "Paper"), papers));
 });
 
-// A link opens in the browser, not in the drawer.
+// A link opens in the browser, not in the drawer; a mention, what it names.
 addEventListener("click", (e) => {
   const a = e.target.closest && e.target.closest("a[href]");
-  if (!a || !/^https?:/.test(a.href)) return;
+  if (!a) return;
+  // A mention in Preview opens what it names, as it does in the editor.
+  const href = a.getAttribute("href") || "";
+  if (href.startsWith("talaris:")) { e.preventDefault(); TalarisMentions(core).open(href.slice(8)); return; }
+  if (!/^https?:/.test(a.href)) return;
   e.preventDefault();
   bridge && bridge.openUrl(a.href);
 }, true);

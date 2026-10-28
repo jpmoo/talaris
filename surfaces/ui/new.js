@@ -119,6 +119,7 @@
       const ed = m.createEditor(host, v[key] || "", {
         live: true, compact: true, singleLine: !body, placeholder,
         mentions: TalarisMentions(api, null, mentionOpts),
+        onOpenUrl: (u) => bridge && bridge.openUrl(u),
         ...(files ? { files } : {}),
         ...(body ? {} : { onEnter: () => make_(false) }),
         });
@@ -486,7 +487,7 @@
       row("Invite", el("div", { class: "grow col" }, v.people.length ? chips : null, invite)),
       found,
       row("Where", line("location", "Optional", { spell: true })),
-      row("Notes", line("notes", "Optional", { spell: true })),
+      row("Notes", writing("notes", "Optional: @ to link a person, event or task", { body: true })),
       // Kept with the event's entity, made as soon as the calendar has it.
       fileField({ key: "files", kind: "attachment", many: true, "talaris:label": "Files" }),
     ];

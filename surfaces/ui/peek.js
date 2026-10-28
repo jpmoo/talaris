@@ -150,6 +150,24 @@ window.Peek = (() => {
     return el("div", { class: "peek-group" }, label, list, more);
   }
 
+  /**
+   * Its description drawn as everywhere else (markdown.js): Markdown, links
+   * that open, a mention that opens what it names here, in the card.
+   */
+  function noteOf(text, id, api, opts) {
+    const box = el("div", { class: "peek-note" }, text);
+    import("./markdown.js").then((m) => { box.replaceChildren(m.render(text)); }).catch(() => {});
+    box.addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (!a) return;
+      e.preventDefault();
+      const href = a.getAttribute("href") || "";
+      if (/^https?:/.test(href)) { if (opts.openUrl) { close(); opts.openUrl(href); } }
+      else if (href.startsWith("talaris:") && href.slice(8) !== id) show(href.slice(8), api, opts);
+    });
+    return box;
+  }
+
   async function show(id, api, opts = {}) {
     let got;
     try { got = await api("GET", `/entities/${encodeURIComponent(id)}?shown=1`); } catch { return; }
@@ -212,7 +230,7 @@ window.Peek = (() => {
         el("span", { class: "peek-title" }, got.title),
         marked(el("button", { class: "icon-btn", title: "Close", onclick: close }), "close")),
       Array.isArray(props.emails) && props.emails.length ? el("div", { class: "peek-line" }, props.emails.join(", ")) : null,
-      note ? el("div", { class: "peek-note" }, note.replace(/\[([^\]\n]*)\]\(talaris:[A-Za-z0-9_-]+\)/g, "$1").slice(0, 300)) : null,
+      note ? noteOf(note, id, api, opts) : null,
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, { page: "Open page", canvas: "Open canvas", thread: "Open the conversation" }[place.kind] || "Open") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
@@ -267,7 +285,8 @@ window.Peek = (() => {
     .peek-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .peek-title { flex: 1; font-size: 14px; }
     .peek-line { color: var(--muted); margin: 4px 0; }
-    .peek-note { margin: 6px 0; white-space: pre-wrap; }
+    .peek-note { margin: 6px 0; max-height: 9em; overflow: auto; }
+    .peek-note p { margin: 0 0 4px; } .peek-note a { color: var(--accent); }
     .peek-group { margin-top: 10px; }
     .peek-label { display: block; margin-bottom: 4px; }
     .peek-n { margin-left: 6px; letter-spacing: 0; }

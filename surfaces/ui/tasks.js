@@ -1074,10 +1074,12 @@
   }
   import("./editor.js").then((m) => {
     const mentions = TalarisMentions(api, openMention);
-    quickEd = m.createEditor($("quick"), "", { live: true, compact: true, singleLine: true, placeholder: "Add a task", mentions, onEnter: () => { addQuick(); } });
-    titleEd = m.createEditor($("s-title"), "", { live: true, compact: true, singleLine: true, mentions, onEnter: () => { saveTitle(); $("s-title").querySelector(".cm-content")?.blur(); } });
-    notesEd = m.createEditor($("s-notes"), "", { live: true, compact: true, mentions });
-    projectEd = m.createEditor($("p-desc"), "", { live: true, compact: true, mentions, placeholder: "What the project is for" });
+    // A link in any of them opens in the browser.
+    const onOpenUrl = (u) => bridge && bridge.openUrl(u);
+    quickEd = m.createEditor($("quick"), "", { live: true, compact: true, singleLine: true, placeholder: "Add a task", mentions, onOpenUrl, onEnter: () => { addQuick(); } });
+    titleEd = m.createEditor($("s-title"), "", { live: true, compact: true, singleLine: true, mentions, onOpenUrl, onEnter: () => { saveTitle(); $("s-title").querySelector(".cm-content")?.blur(); } });
+    notesEd = m.createEditor($("s-notes"), "", { live: true, compact: true, mentions, onOpenUrl });
+    projectEd = m.createEditor($("p-desc"), "", { live: true, compact: true, mentions, onOpenUrl, placeholder: "What the project is for" });
     $("p-desc").addEventListener("focusout", saveProjectAbout);
     if (projectOn) { const p = projects.find((x) => x.id === projectOn); if (p) paintProjectAbout(p, true); }
     $("s-title").addEventListener("focusout", saveTitle);

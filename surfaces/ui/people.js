@@ -480,7 +480,7 @@
     let kept = props()[f.key] || "";
     import("./editor.js").then((m) => {
       if (!host.isConnected) return;
-      const ed = m.createEditor(host, kept, { live: true, compact: true, mentions: TalarisMentions(api, openMention, mentionOpts), placeholder: "@ to link a person, event or task" });
+      const ed = m.createEditor(host, kept, { live: true, compact: true, mentions: TalarisMentions(api, openMention, mentionOpts), onOpenUrl: (u) => bridge && bridge.openUrl(u), placeholder: "@ to link a person, event or task" });
       editors.push(ed);
       host.addEventListener("focusout", (e) => {
         if (host.contains(e.relatedTarget)) return;

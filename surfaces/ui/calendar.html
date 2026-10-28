@@ -144,7 +144,8 @@ main { flex: 1; min-height: 0; display: flex; }
 #editor .pick { flex: 1; font-size: 12.5px; }
 #editor input.time-in { flex: 0 0 96px; text-align: center; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-#editor textarea { min-height: 70px; resize: vertical; }
+#e-notes { flex: 1; min-height: 70px; max-height: 30vh; overflow: auto; font-size: 13px; }
+#e-notes .cm-content { padding: 4px 8px; min-height: 62px; }
 #editor .acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
 #editor .acts .spacer { flex: 1; }
 #msg { font-size: 12px; color: var(--muted); }
@@ -179,7 +180,7 @@ body { position: relative; }
   <div class="row"><span>Starts</span><button class="pick" id="e-sd"></button><input type="text" class="time-in" id="e-st" spellcheck="false"></div>
   <div class="row"><span>Ends</span><button class="pick" id="e-ed"></button><input type="text" class="time-in" id="e-et" spellcheck="false"></div>
   <div class="row"><span>Where</span><input type="text" class="field" id="e-where"></div>
-  <div class="row"><span>Notes</span><textarea class="field" id="e-notes"></textarea></div>
+  <div class="row"><span>Notes</span><div class="ed-field" id="e-notes" data-placeholder="@ to link a person, event or task"></div></div>
   <div class="row"><span>Repeats</span><span class="seg" id="e-freq"></span></div>
   <div class="row" id="e-days-row"><span></span><span class="seg" id="e-days"></span></div>
   <div class="row" id="e-ends-row"><span>Ends</span><span class="seg" id="e-ends"></span><button class="pick" id="e-until"></button><input type="text" class="time-in" id="e-count" spellcheck="false"></div>
@@ -195,6 +196,8 @@ body { position: relative; }
 <script src="kit.js"></script>
 <script src="motion.js"></script>
 <script src="icons.js"></script>
+<script src="mentions.js"></script>
+<script src="peek.js"></script>
 <script src="calendar.js"></script>
 </body>
 </html>

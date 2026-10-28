@@ -116,10 +116,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #s-files .chip:hover .lbl { color: var(--accent); }
 #s-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
 #s-files-note.err { color: var(--danger); }
-/* Title and notes are the editor (editor.js), so @ works in them: drawn as fields. */
-.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
-.ed-field:focus-within { border-color: var(--accent); }
-.ed-field .cm-editor { outline: none; }
+/* Title and notes are the editor (editor.js), so @ works in them: drawn as fields (kit.css .ed-field). */
 #s-title { flex: 1; font-size: 14px; }
 #s-title .cm-content { padding: 4px 6px; }
 #s-notes { width: 100%; min-height: 110px; font-size: 12.5px; }

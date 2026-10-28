@@ -114,3 +114,15 @@ test("coloring undoes colors inside first, so colors never nest, and keeps to a 
   assert.equal(colored('a <span style="color:#d50000">b</span> c', null), "a b c");
   assert.equal(colored("one\ntwo", "#33b679"), '<span style="color:#33b679">one</span>\n<span style="color:#33b679">two</span>');
 });
+
+test("an address written as it is, bare or in <>, is a link with its url", () => {
+  const bare = at("|Join https://zoom.us/j/123?pwd=x here");
+  const link = liveSpecs(bare).find((s) => s.kind === "mark" && s.cls === "cm-link");
+  assert.equal(link && link.kind === "mark" ? link.url : "", "https://zoom.us/j/123?pwd=x");
+  const angled = at("|See <https://example.org/a> now");
+  const l2 = liveSpecs(angled).find((s) => s.kind === "mark" && s.cls === "cm-link");
+  assert.equal(l2 && l2.kind === "mark" ? l2.url : "", "https://example.org/a");
+  // Inside [text](url), the address is the link's, drawn once.
+  const named = at("|A [call](https://zoom.us/j/9) now");
+  assert.equal(liveSpecs(named).filter((s) => s.kind === "mark" && s.cls === "cm-link").length, 1);
+});

@@ -370,7 +370,9 @@ class CalendarService(QObject):
 
 
 #: What the page may ask the core for: the tasks on the days on show, ticking one done, moving its dates.
-TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/find\?text=[^&]*&limit=\d+$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$")
+TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/find\?text=[^&]*&limit=\d+$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$"
+                         # An event's notes take @ (mentions.js): finding what to name, making a person or a task by name, and opening one.
+                         r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$")
 
 
 class CalendarBridge(Bridge):
@@ -398,7 +400,7 @@ class CalendarBridge(Bridge):
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
-        """Tasks, above the day's events: only the routes for them (TASK_ROUTES), answered later on `coreReply`."""
+        """Tasks above the day's events, and @ in an event's notes: only the routes for them (TASK_ROUTES), answered later on `coreReply`."""
         self.answer_core(ident, method, path, body, TASK_ROUTES, timeout=30, who="the calendar")
 
     @Slot(str)
