@@ -1,15 +1,73 @@
 # Talaris
 
-**A thinking-space desktop for Hyprland, with an assistant built in.**
+**A thinking-space desktop for Hyprland, with an AI assistant built in.**
 
-A desktop for Hyprland built around projects instead of workspaces. Each
-project has a canvas and a writing surface, kept in drawers at the screen's
-edges; applications open from cards on the canvas and are put away again when
-you are done with them. Morgan, a voice-and-chat assistant, is built in.
-Anything outside the desktop, starting with Hermes Notes, connects through
-plugins.
+A desktop for Hyprland that rethinks the files/folders/icons paradigm, and 
+focuses on helping you get work done. Built-in note-taking, infinite canvas,
+AI assistant (via Ollama and/or Claude), calendars, contacts, and more, all
+linking and referring and speaking to one another across different workspaces
+for each of your projects.
 
-**Not built yet.** See [DESIGN.md](DESIGN.md).
+***Key features:***
+- task management with different kinds of visualizations, including boards/matrices
+- a Markdown note-taker supporting wikilinks, tags, file attachments, and more
+- a full contacts module
+- a "library" app that rethinks the file manager as a place to store all of your stuff
+- a full and fully integrated calendar app
+- support for plugins
+- all of the above is interoperable and integrated with the system, launcher, and one another
+- an AI assistant that does a lot of things (see below)
+- workspaces for each project, each with their own dock, wallpaper, and more
+- scheduled backups
+- integrated clipboard history
+- a few interesting animations
+- basic theming, but more on the way
+
+**Important notes.**
+
+This is 99% vibe-coded with Claude, primarily Opus 5.5. The other 1% is 
+mostly me hitting Copy/Paste and scratching my head on better questions 
+to ask.
+
+I'm running and building this on Ubuntu 26.06 and Hyprland on a Dell
+XPS 13 laptop. I have not tested on any other distribution or machine.
+
+Some of this was built to sync with my home-grown notes/Notion/etc. thing,
+also vibe-coded. It should work fine without that, though. I've turned that
+into a plugin.
+
+In others words, taking all of the above into consideration, your mileage
+may vary. You are entering the crazy, maze-like brain folds of a dedicated
+tinkerer. I mean, I took toasters apart as a kid and usually failed to
+put them back together into working order.
+
+**Media**
+
+[coming soon]
+
+**AI Assistant**
+
+Talaris includes Morgan, an AI assistant that is available via voice ("Hey Morgan!"
+or whatever you want to call them), keystroke, and bar icon.
+
+Morgan runs through Ollama, and can use Claude as a bakcup (as "the Oracle").
+I am also working on a separate appliance that you can run on a server, so
+that you can support multiple devices running Morgan.
+
+Morgan offers:
+- full MCP support
+- tracking (if you want) of your work for suggestions on how to be more productive
+- full awareness of notes, contacts, calendar events, etc., etc.
+- ability to work in all of those modules to do things like:
+  - "Put all of the tasks in the 'Do' box of my Eisenhower matrix on a canvas."
+  - "Look at my calendar and tasks and give me some suggestions on staging my day."
+  - "Take a look at everything you can find about my friend Rich and suggest a birthday present."
+
+**Not built yet.** 
+
+See [DESIGN.md](DESIGN.md) for some thoughts. 
+
+Also, I'm considering but still a bit lost on best ways to integrate email.
 
 ## Under the Hood
 
