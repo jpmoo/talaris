@@ -26,7 +26,7 @@ for each of your projects.
 - an attempt at a standardized spec/format for PKMS items (tasks, events, etc.) so that you can connect it to other apps
 - attractive, minimalist theming with a few interesting animation options
 
-**Important notes.**
+**Important notes**
 
 This is 99% vibe-coded with Claude, primarily Opus 5.5. The other 1% is 
 mostly me hitting Copy/Paste and scratching my head on better questions 
