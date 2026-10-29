@@ -84,13 +84,7 @@ Morgan offers:
   - "Look at my calendar and tasks and give me some suggestions on staging my day."
   - "Take a look at everything you can find about my friend Rich and suggest a birthday present."
 
-**Not built yet.** 
-
-See [docs/DESIGN.md](docs/DESIGN.md). 
-
-Also, I'm considering but still a bit lost on best ways to integrate email.
-
-**Under the Hood***
+**Under the Hood**
 
 Talaris is two processes and a set of pages.
 
