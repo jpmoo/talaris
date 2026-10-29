@@ -1,11 +1,12 @@
-<center>
-  <picture>
+ <picture>
     <source media="(prefers-color-scheme: dark)" srcset="design/logo/talaris-logo-on-dark.png">
     <img alt="Talaris" src="design/logo/talaris-logo-on-light.png" width="200">
   </picture>
-</center>center
 
-**A thinking-space desktop for Hyprland, with an AI assistant built in.**
+**A thinking-space desktop for Hyprland
+with an AI assistant built in.**
+
+**What is this?**
 
 "Talaris" is Latin, meaning "of or pertaining to the ankle or heel." It
 refers to the magical sandals of Hermes/Mercury, the messenger god.
