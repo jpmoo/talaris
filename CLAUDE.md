@@ -10,7 +10,7 @@ anything outside — Hermes Notes first — through plugins. **Hyprland is the
 first compositor backend, not the only one**: nothing outside the backend talks
 to Hyprland directly.
 
-**Building has begun.** `DESIGN.md` is the plan and the reasoning; read it
+**Building has begun.** `docs/DESIGN.md` is the plan and the reasoning; read it
 first, all of it. Its *Order* section says what is done and what is next.
 
 ## What is here
@@ -38,7 +38,9 @@ pnpm -r test
 curl -s --unix-socket $XDG_RUNTIME_DIR/talaris.sock http://talaris/projects
 ```
 
-- `DESIGN.md` — the design, the decisions, and what the one spike found.
+- `docs/DESIGN.md` — the design, the decisions, and what the one spike found.
+- `docs/PLUGINS.md` — how to write a plugin; `docs/PKM-INTERCHANGE.md` — the
+  data format plugins and other apps share. `docs/SCREENSHOTS.md` — the gallery.
 - `packages/canvas` — the canvas: Talaria's fork of Hermes' `CanvasView`, now
   Talaris's. It runs in a frame inside the canvas drawer and reaches the core
   through the drawer (`window.parent.talarisCore`), since only the drawer's main

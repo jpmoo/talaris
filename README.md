@@ -1,10 +1,16 @@
- <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="design/logo/talaris-logo-on-dark.png">
-    <img alt="Talaris" src="design/logo/talaris-logo-on-light.png" width="200">
-  </picture>
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="design/logo/talaris-logo-on-dark.png">
+  <img alt="Talaris" src="design/logo/talaris-logo-on-light.png" width="200">
+</picture>
 
 **A thinking-space desktop for Hyprland
 with an AI assistant built in.**
+
+</div>
+
+---
 
 **What is this?**
 
@@ -80,7 +86,7 @@ Morgan offers:
 
 **Not built yet.** 
 
-See [DESIGN.md](DESIGN.md). 
+See [docs/DESIGN.md](docs/DESIGN.md). 
 
 Also, I'm considering but still a bit lost on best ways to integrate email.
 
@@ -118,8 +124,8 @@ Talaris is two processes and a set of pages.
   Morgan to run.
 - **Plugins** are separate processes in any language, spoken to over MCP on
   their standard input and output. Each declares in a `plugin.toml` what it
-  may read, change and do before it is enabled. How to write one: [PLUGINS.md](PLUGINS.md);
-  the shape Talaris's data is shared in: [PKM-INTERCHANGE.md](PKM-INTERCHANGE.md).
+  may read, change and do before it is enabled. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md);
+  the shape Talaris's data is shared in: [docs/PKM-INTERCHANGE.md](docs/PKM-INTERCHANGE.md).
 
 Hyprland's own configuration stays yours: the installer writes a
 `talaris.conf` beside it, and one `source =` line in `hyprland.conf` turns
