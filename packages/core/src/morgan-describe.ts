@@ -13,6 +13,8 @@
  * waits and is tried again rather than taken for one with no words.
  */
 
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createConnection } from "node:net";
 import { join } from "node:path";
 
@@ -67,4 +69,22 @@ export function morganCommand(line: string, timeout = 240_000): Promise<Record<s
     // Written, and the connection left open: Morgan drops one half-closed before it answers.
     sock.on("connect", () => sock.write(`${line}\n`));
   });
+}
+
+/**
+ * heymorgan on this machine, as the surfaces judge it (morgan.py, `installed`): its socket there, or its user
+ * service known to systemd. Without it nothing is described, and nothing says a description is coming.
+ * TALARIS_NO_MORGAN=1: as though it were not.
+ */
+let serviceKnown = false;
+let serviceAsked = 0;
+export function morganInstalled(): boolean {
+  if (process.env.TALARIS_NO_MORGAN) return false;
+  if (existsSync(SOCKET())) return true;
+  // systemd asked off the request, a couple of minutes apart; its last answer stands meanwhile.
+  if (Date.now() - serviceAsked > 120_000) {
+    serviceAsked = Date.now();
+    execFile("systemctl", ["--user", "cat", "heymorgan.service"], { timeout: 3000 }, (err) => { serviceKnown = !err; });
+  }
+  return serviceKnown;
 }

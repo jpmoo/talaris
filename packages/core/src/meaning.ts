@@ -33,7 +33,7 @@ import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
 import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
-import { morganDescribe, morganDescribeText } from "./morgan-describe.js";
+import { morganDescribe, morganDescribeText, morganInstalled } from "./morgan-describe.js";
 import { describeProjects } from "./project-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
@@ -200,9 +200,22 @@ const fileStamp = (r: FileRow) => `${r.sha256 ?? `${r.size ?? ""}|${r.mtime ?? "
 
 export type ReadState = "read" | "nowords" | "waiting" | "unreadable";
 /** What a read file is about, for its tip in Files: its description, else the start of its words. */
-function aboutOf(key: string, about = keptAbout(key)): string {
-  // A description, or word that one is coming: never the file's own first words, which say little of what it is.
-  return about ? about : about === "" ? "Read — Morgan had nothing to say of it" : "Read — being described";
+function aboutOf(key: string, about = keptAbout(key), words = () => keptText(key) ?? ""): string {
+  // A description, or word that one is coming: never the file's own first words, which say little of what it is —
+  // unless there is no Morgan to describe it, and then they are all there is.
+  if (about) return about;
+  if (about === "") return "Read — Morgan had nothing to say of it";
+  return morganInstalled() ? "Read — being described" : firstWords(words()) || "Read";
+}
+/** A page's or thing's first passage, less the title each passage starts with. */
+const untitled = (e: { doc: Doc; chunks: Chunk[] }) => {
+  const text = e.chunks[0]?.text ?? "";
+  return (e.doc.title && text.startsWith(e.doc.title) ? text.slice(e.doc.title.length) : text).trim();
+};
+/** The start of some words, for a tip: one line, cut at a word. */
+function firstWords(text: string, most = 160): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length <= most ? t : `${t.slice(0, most).replace(/\s+\S*$/, "")}…`;
 }
 /**
  * For the Files panel: each file's words, as far as search knows them — read
@@ -235,7 +248,7 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
     if (!e) { read[r.key] = "waiting"; continue; }
     const said = e.chunks.some((c) => c.text.trim().length > e.doc.title.length + 2);
     read[r.key] = said ? "read" : "nowords";
-    if (said) about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp));
+    if (said) about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp), () => untitled(e));
   }
   // Canvases and threads, by the thing they are: read when in the index; a thread's description is Morgan's summary.
   for (const r of rows) {
@@ -246,7 +259,7 @@ export function fileReadStates(rows: FileRow[]): { reading: { on: boolean; pendi
     read[r.key] = said ? "read" : "nowords";
     if (!said) continue;
     if (e.doc.kind === "thread") about[r.key] = thingDescription(r.thing).about || "Read";
-    else about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp));
+    else about[r.key] = aboutOf(e.doc.key, pageAbout(e.doc.key, e.doc.stamp), () => untitled(e));
   }
   return { reading: { on: true, pending, indexing: status.indexing }, read, about };
 }

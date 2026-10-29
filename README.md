@@ -54,6 +54,12 @@ Some of this was built to sync with my home-grown notes/Notion/etc. thing,
 also vibe-coded. It should work fine without that, though. I've turned that
 into a plugin.
 
+Talaris is really meant to be installed alongside
+[Morgan](https://github.com/jpmoo/heymorgan), my AI assistant. It runs without
+Morgan, but without all of the AI bells and whistles it was designed for.
+For now, Morgan is a separate project that you install and run on its own; I
+plan to bring Morgan into Talaris itself in the near future.
+
 In other words, taking all of the above into consideration, your mileage
 may vary. You're entering the crazy, maze-like brain folds of a dedicated
 tinkerer. I mean, I took toasters apart as a kid and usually failed to
@@ -112,8 +118,8 @@ pages. The screenshots above come from it.
 
 Morgan is a separate, companion project:
 [heymorgan](https://github.com/jpmoo/heymorgan), installed and run on its own.
-Talaris works fine without it, and shows none of Morgan's pieces until it's
-installed. Once it is, Talaris gives Morgan its face: a bar button, a voice
+Talaris works without it, but without all of the AI bells and whistles it
+was designed for, and shows none of Morgan's pieces until it's installed. Once it is, Talaris gives Morgan its face: a bar button, a voice
 popup, a conversation panel, a key (Super+Shift+M), and "Ask Morgan" in the
 launcher. Morgan is available via voice ("Hey Morgan!" or whatever you want
 to call it), that key, and the bar button.
@@ -164,7 +170,8 @@ Talaris is two processes and a set of pages.
   ([heymorgan](https://github.com/jpmoo/heymorgan)), installed and run as its
   own service. Talaris looks for it (its user service or its socket) and,
   when it's there, shows its panel and gives it the entity graph; when it
-  isn't, Morgan's pieces stay hidden. Talaris doesn't need Morgan to run.
+  isn't, Morgan's pieces stay hidden. Talaris runs without Morgan, but
+  without the AI it was designed around.
 - **Plugins** are separate processes in any language, spoken to over MCP on
   their standard input and output. Each declares in a `plugin.toml` what it
   may read, change and do before it is enabled. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md);

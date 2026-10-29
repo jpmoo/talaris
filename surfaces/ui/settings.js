@@ -1412,6 +1412,7 @@ async function drawMeaning() {
     if (!r || !r.ok || !(r.ollama || {}).url) { say("Morgan did not say its model server", true); return; }
     save({ meaning: { ...m, url: r.ollama.url, model: r.embedModel || m.model } });
   } }, "Use Morgan's");
+  useMorgans.hidden = !morganHere;
   url.addEventListener("keydown", (e) => { if (e.key === "Enter") save({ meaning: { ...m, url: url.value.trim() } }); });
   const said = !st ? "" : st.error ? `Stopped: ${st.error}`
     : st.indexing ? `Indexing… ${st.items} found so far, ${st.pending} to go`

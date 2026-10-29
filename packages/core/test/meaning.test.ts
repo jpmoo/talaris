@@ -14,6 +14,8 @@ process.env.TALARIS_PROJECTS = join(sandbox, "Projects");
 process.env.TALARIS_CONFIG_DIR = join(sandbox, "config");
 process.env.TALARIS_STATE_DIR = join(sandbox, "state");
 process.env.TALARIS_KEY = randomBytes(32).toString("base64");
+// Never the Morgan running on this machine: a socket nothing listens on.
+process.env.HEYMORGAN_SOCKET = join(sandbox, "no-morgan.sock");
 
 const projects = await import("../src/projects.js");
 const pages = await import("../src/pages.js");
@@ -111,6 +113,11 @@ test("files: each not read until a pass reads it, then read — or read and hold
   assert.equal(of(after_, "minutes.txt"), "read");
   assert.equal(of(after_, "blank.txt"), "nowords");
   assert.equal(after_.reading.pending, 0);
+  // No Morgan to describe it: its tip is its own first words, not word that a description is coming.
+  process.env.TALARIS_NO_MORGAN = "1";
+  try {
+    assert.equal(meaning.fileReadStates(rows()).about[rows().find((x) => x.name === "minutes.txt")!.key], "The board agreed the budget for the garden.");
+  } finally { delete process.env.TALARIS_NO_MORGAN; }
   assert.ok((await meaning.searchMeaning("garden budget", { kind: "file", floor: 0.1 })).some((f) => f.title === "minutes.txt"), "found by what it says");
 });
 
