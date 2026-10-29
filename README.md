@@ -16,12 +16,6 @@ infinite canvas, AI assistant (via Ollama and/or Claude), calendars, contacts, a
 linking and referring and speaking to one another across different workspaces
 for each of your projects.
 
-![The launcher](docs/screenshots/launcher.webp)
-
-![Tasks, as an Eisenhower matrix](docs/screenshots/tasks-eisenhower.webp)
-
-More in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
-
 ***Key features:***
 - task management with different kinds of visualizations, including boards/matrices
 - a Markdown note-taker supporting wikilinks, tags, file attachments, and more
@@ -57,7 +51,12 @@ put them back together into working things. But Talaris is working for me.
 
 **Media**
 
-[coming soon]
+<p>
+  <img src="docs/screenshots/settings-dock.webp" alt="The desktop: the bar, the dock, and Settings" width="49%">
+  <img src="docs/screenshots/tasks-eisenhower.webp" alt="Tasks, as an Eisenhower matrix" width="49%">
+</p>
+
+More screenshots: [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
 **AI Assistant**
 
