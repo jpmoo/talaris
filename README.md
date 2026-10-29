@@ -6,7 +6,7 @@
 </picture>
 
 **A thinking-space desktop for Hyprland
-with an AI assistant built in.**
+with a companion AI assistant.**
 
 </div>
 
@@ -19,9 +19,10 @@ refers to the magical sandals of Hermes/Mercury, the messenger god.
 
 Talaris is a desktop for Hyprland that rethinks the files/folders/icons paradigm, 
 and focuses on helping you work and think. It has built-in note-taking, 
-infinite canvas, AI assistant (via Ollama and/or Claude), calendars, contacts, and more, all
+infinite canvas, calendars, contacts, and more, all
 linking and referring and speaking to one another across different workspaces
-for each of your projects.
+for each of your projects. It also works with Morgan, a companion AI assistant
+(via Ollama and/or Claude) that you install and run separately.
 
 ***Key features:***
 - task management with different kinds of visualizations, including boards/matrices
@@ -31,7 +32,9 @@ for each of your projects.
 - a full and fully integrated calendar app
 - support for plugins
 - all of the above is interoperable and integrated with the system, launcher, and one another
-- an AI assistant that does a lot of things (see below)
+- a launcher that finds anything by name or by meaning, and lists (and closes) every open window by project
+- Glance: everything in a project, and how it's connected, as a list or a graph
+- works with Morgan, a separate AI assistant that does a lot of things (see below)
 - workspaces for each project, each with their own dock, wallpaper, notes, and more
 - scheduled backups
 - integrated clipboard history
@@ -44,14 +47,14 @@ This is 99% vibe-coded with Claude, primarily Opus 5.5. The other 1% is
 mostly me hitting Copy/Paste and scratching my head on better questions 
 to ask.
 
-I'm running and building this in Ubuntu 26.06 and Hyprland on a Dell
+I'm running and building this in Ubuntu 26.04 and Hyprland on a Dell
 XPS 13 laptop. I haven't tested on any other distribution or machine.
 
 Some of this was built to sync with my home-grown notes/Notion/etc. thing,
 also vibe-coded. It should work fine without that, though. I've turned that
 into a plugin.
 
-In others words, taking all of the above into consideration, your mileage
+In other words, taking all of the above into consideration, your mileage
 may vary. You're entering the crazy, maze-like brain folds of a dedicated
 tinkerer. I mean, I took toasters apart as a kid and usually failed to
 put them back together into working things. But Talaris is working for me.
@@ -65,18 +68,63 @@ put them back together into working things. But Talaris is working for me.
 
 More screenshots: [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
+**Getting started**
+
+You'll need Hyprland, Node 22 or later, pnpm, and Python 3 with PySide6; the
+full list is under What it needs, below.
+
+```bash
+git clone https://github.com/jpmoo/talaris.git
+cd talaris
+./install.sh
+```
+
+The installer builds everything, starts Talaris's services, and writes
+`~/.config/hypr/talaris.conf`. To turn Talaris on, add this line to the end of
+your `hyprland.conf`, then log out and back in:
+
+```
+source = ~/.config/hypr/talaris.conf
+```
+
+[examples/hyprland.conf](examples/hyprland.conf) shows what to leave out of
+your own config, because Talaris does it. To turn Talaris off, take the line
+out again.
+
+To look around before giving it any of your own stuff, turn on demo mode
+(Settings → Data → Demo mode): a made-up world of projects, people, tasks and
+pages. The screenshots above come from it.
+
+**Keys**
+
+| Keys | Does |
+|---|---|
+| Super+Space | The launcher: find anything, or ask Morgan |
+| Super+Tab | The projects |
+| Super+Shift+N | New: a task, an event, a person, a note, a project |
+| Super+V | Clipboard history |
+| Super+Shift+G | Glance at the project you're in |
+| Super+Escape | Put everything away; a fullscreen window back in its place |
+| Super+Shift+C / W | The canvas / the writing drawer |
+| Super+Shift+M | Morgan, when it's installed |
+
 **AI Assistant**
 
-Talaris includes Morgan, an AI assistant that's available via voice ("Hey Morgan!"
-or whatever you want to call it), keystroke, and bar icon.
+Morgan is a separate, companion project:
+[heymorgan](https://github.com/jpmoo/heymorgan), installed and run on its own.
+Talaris works fine without it, and shows none of Morgan's pieces until it's
+installed. Once it is, Talaris gives Morgan its face: a bar button, a voice
+popup, a conversation panel, a key (Super+Shift+M), and "Ask Morgan" in the
+launcher. Morgan is available via voice ("Hey Morgan!" or whatever you want
+to call it), that key, and the bar button.
 
-Morgan runs through Ollama, and can use Claude as a bakcup (as "the Oracle").
-I'm also working on a separate app that you can run on a server, so
-that you can support multiple devices interacting with a centralized Morgan.
+Morgan runs through Ollama, and can use Claude as a backup (as "the Oracle").
+It can also run its brain on a server, with your laptop as a client, so that
+multiple devices talk to one centralized Morgan.
 
 Morgan offers:
 - full MCP support
-- tracking (if you want) of your work for suggestions on how to be more productive
+- tracking (off unless you turn it on, and never passed to the Oracle) of your work for suggestions on how to be more productive
 - tracking, ingesting, and embedding everything on your system to help identify related things
 - full awareness of notes, contacts, calendar events, etc., etc.
 - ability to work in all of those modules to do things like:
@@ -112,10 +160,11 @@ Talaris is two processes and a set of pages.
 - **The editor and the canvas** (`packages/editor`, `packages/canvas`) —
   TypeScript, bundled into `surfaces/ui/`: CodeMirror for writing, and the
   canvas forked from Hermes Notes.
-- **Morgan**, the voice and chat assistant, is its own project
-  ([heymorgan](https://github.com/jpmoo/heymorgan)) and its own service.
-  Talaris shows its panel and gives it the entity graph; it does not need
-  Morgan to run.
+- **Morgan**, the voice and chat assistant, is a separate companion project
+  ([heymorgan](https://github.com/jpmoo/heymorgan)), installed and run as its
+  own service. Talaris looks for it (its user service or its socket) and,
+  when it's there, shows its panel and gives it the entity graph; when it
+  isn't, Morgan's pieces stay hidden. Talaris doesn't need Morgan to run.
 - **Plugins** are separate processes in any language, spoken to over MCP on
   their standard input and output. Each declares in a `plugin.toml` what it
   may read, change and do before it is enabled. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md);
@@ -142,6 +191,9 @@ out.
   `nmcli` (Wi-Fi), `bluetoothctl`, `wpctl` (PipeWire volume), `upower` and
   `powerprofilesctl` (battery and power mode), `brightnessctl`,
   `notify-send`.
+- **Optional: Morgan.** Installed separately from
+  [heymorgan](https://github.com/jpmoo/heymorgan), with its own needs
+  (Node 22 and an Ollama server, and a Claude key if you want the Oracle).
 
 `./install.sh` builds everything, installs and starts the services, and
 writes `talaris.conf`; one `source =` line in your `hyprland.conf` turns it
@@ -188,6 +240,14 @@ does it.
 - **What leaves the machine is what you point it at:** the sync plugins'
   servers, the address set for search by meaning, and Morgan's brain where
   you run it.
+
+**Credits**
+
+Built on [Hyprland](https://hyprland.org), [Qt for Python](https://doc.qt.io/qtforpython-6/)
+(PySide6 and QtWebEngine), and [CodeMirror](https://codemirror.net). Icons
+from [Tabler Icons](https://tabler.io/icons) (MIT); the fonts Barlow Semi
+Condensed, Exo 2, Rajdhani and Saira Semi Condensed are under the SIL Open
+Font License (their licenses are beside them in `surfaces/ui/fonts`).
 
 **License**
 
