@@ -11,6 +11,13 @@ events, by name or by meaning; Morgan when nothing else fits.
 
 ![The launcher, finding by name and by meaning](screenshots/launcher.webp)
 
+## Windows
+
+Ordinary applications, tiled on each project's own desktop, with the bar
+over them.
+
+![Two windows tiled in a project](screenshots/windows-tiled.webp)
+
 ## Tasks
 
 A project's tasks, with its description and the connections Talaris suggests.
@@ -65,3 +72,7 @@ One place for the whole desktop: its look, the bar, the dock, panels,
 windows, keys, connections, power, notifications, your data and add-ons.
 
 ![Settings, Look](screenshots/settings-look.webp)
+
+The dock — pinned applications, grouped as pills — and its settings.
+
+![Settings, Dock, with the dock below](screenshots/settings-dock.webp)
