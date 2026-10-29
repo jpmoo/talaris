@@ -1,4 +1,9 @@
-# Talaris
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/logo/talaris-logo-on-dark.png">
+    <img alt="Talaris" src="design/logo/talaris-logo-on-light.png" width="360">
+  </picture>
+</h1>
 
 **A thinking-space desktop for Hyprland, with an AI assistant built in.**
 
