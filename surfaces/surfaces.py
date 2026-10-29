@@ -46,6 +46,7 @@ from config import load_config, pace, save_config
 from dock import Dock
 from launcher import Launcher
 from morgan import Link, Panel, Voice
+from morgan import installed as morgan_installed
 from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
 from new_panel import New
@@ -233,6 +234,13 @@ class Desktop(QObject):
         self.tray = Tray(self)
         # Morgan's stream, before the bar: the bar's button wears its state.
         self.morgan_link = Link(self)
+        # Morgan is a companion, installed on its own: its pieces shown only where it is (morgan.installed),
+        # looked for again now and then, and known at once when it connects.
+        self.morgan_here = morgan_installed()
+        self.morgan_link.state.connect(lambda now: self._morgan_found(True) if now != "absent" else None)
+        self._morgan_look = QTimer(self)
+        self._morgan_look.timeout.connect(lambda: self._morgan_found(morgan_installed()))
+        self._morgan_look.start(120_000)
         # A timer or reminder of Morgan's come due: on screen too, not only said.
         self.morgan_link.event.connect(self._morgan_reminder)
         # The bar first: its reserved space is what the drawers keep clear of.
@@ -453,7 +461,10 @@ class Desktop(QObject):
         hypr.bind(PROJECTS_KEYS, f"{LAUNCHER} --projects")
         hypr.bind(FILE_ALL_KEYS, f"{LAUNCHER} --file-all")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
-        hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
+        if self.morgan_here:
+            hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
+        else:
+            hypr.unbind("SUPER SHIFT, M")
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
         hypr.bind("SUPER SHIFT, G", f"{LAUNCHER} --glance")
         hypr.bind(CLIP_KEYS, f"{LAUNCHER} --popup clipboard")
@@ -559,8 +570,8 @@ class Desktop(QObject):
         """Talaris's keys, as the Keys page lists them."""
         nice = lambda k: k.replace(",", " +").replace("SUPER", "Super").replace("ALT", "Alt").replace("ESCAPE", "Escape").replace("  ", " ").strip(" +")
         return [
-            {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask"},
-            {"keys": "Super + Shift + M", "does": "Morgan's conversation"},
+            {"keys": nice(self.config["launcher"]["keys"]), "does": "Find anything, or ask" if self.morgan_here else "Find anything"},
+            *([{"keys": "Super + Shift + M", "does": "Morgan's conversation"}] if self.morgan_here else []),
             {"keys": "Super + Shift + N", "does": "New: a task, an event, a person, a note, a project"},
             {"keys": "Super + Shift + G", "does": "Glance: this project, all of it"},
             {"keys": "Super + V", "does": "Clipboard history"},
@@ -585,6 +596,21 @@ class Desktop(QObject):
         if project_id == self._home().get("id", ""):
             return hypr.target(self._ordinary)
         return hypr.target(project_id)
+
+    def _morgan_found(self, here: bool) -> None:
+        """Morgan installed, or gone: every page told, and its key bound or let go."""
+        here = here and not os.environ.get("TALARIS_NO_MORGAN")
+        if here == self.morgan_here:
+            return
+        self.morgan_here = here
+        log(f"morgan: {'installed' if here else 'not installed'}; its pieces {'shown' if here else 'hidden'}")
+        if not hasattr(self, "launcher"):
+            return  # still starting: what is made after this reads it
+        self._bind()
+        self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
+        for panel in (self.launcher, self.settings, *self.overlays()):
+            if getattr(panel, "up", False):
+                panel.bridge.state.emit(json.dumps(panel.describe()))
 
     def go_to_project(self, project_id: str, move: bool = True, announce: bool = False) -> None:
         """
@@ -869,7 +895,7 @@ class Desktop(QObject):
                 self.settings.open(arg)
             elif verb == "osd":
                 self.osd.show(arg)
-            elif verb == "morgan":
+            elif verb == "morgan" and self.morgan_here:
                 self.morgan.toggle()
             elif verb == "calendar":
                 self.calendar.toggle()

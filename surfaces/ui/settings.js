@@ -315,7 +315,11 @@ function drawActivity() {
   seg("ac-grain", [["actions", "Actions"], ["focus", "+ Focus"], ["titles", "+ Titles"]], a.grain, (grain) => save({ activity: { grain } }));
   $("ac-grain-note").textContent = GRAIN_NOTE[a.grain];
   seg("ac-keep", [[30, "30 days"], [90, "90 days"], [365, "A year"]], Number(a.keep), (keep) => save({ activity: { keep: Number(keep) } }));
-  seg("ac-suggest", [["morgan", "In Morgan"], ["notify", "Notifications"], ["asked", "Only when asked"]], a.suggest, (suggest) => save({ activity: { suggest } }));
+  // Without Morgan, suggestions come as notifications or when asked; nothing is Morgan's to read.
+  const suggestIn = morganHere ? a.suggest : a.suggest === "morgan" ? "notify" : a.suggest;
+  seg("ac-suggest", [...(morganHere ? [["morgan", "In Morgan"]] : []), ["notify", "Notifications"], ["asked", "Only when asked"]], suggestIn, (suggest) => save({ activity: { suggest } }));
+  $("ac-share").closest(".row").hidden = !morganHere;
+  $("ac-share-note").hidden = !morganHere;
   seg("ac-share", [["summary", "A summary"], ["raw", "Everything"], ["local", "Nothing"]], a.share, (share) => save({ activity: { share } }));
   $("ac-share-note").textContent = SHARE_NOTE[a.share];
   needs(["ac-grain", "ac-keep", "ac-suggest", "ac-share"], a.enabled);
@@ -1488,7 +1492,7 @@ async function drawReading() {
     pel("span", { class: "what" }, mgSwitch(m.describe !== false, (on) => save({ meaning: { ...m, describe: on } }))));
   host.replaceChildren(...[
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Look for new and changed files", pel("small", {}, hint)), pel("span", { class: "what" }, pick)),
-    describeRow,
+    morganHere ? describeRow : null,
     scan === "schedule" ? pel("div", { class: "row" }, pel("span", { class: "name" }, "At"), pel("span", { class: "what" }, at)) : null,
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Files", pel("small", { class: st.error ? "err" : "" }, st.error ? `Not working: ${st.error}` : !m.on ? "Off" : counts)), progress),
     noWordsRow,
@@ -1670,7 +1674,7 @@ function drawBarShown() {
   const hidden = new Set(cfg.bar.hidden || []);
   const ov = cfg.overlays || {};
   const off = (id) => (id === "time" ? hidden.has("day") && hidden.has("time") : hidden.has(id));
-  $("bar-shown").replaceChildren(...BAR_SHOWN.map(([id, label]) => {
+  $("bar-shown").replaceChildren(...BAR_SHOWN.filter(([id]) => id !== "morgan" || morganHere).map(([id, label]) => {
     const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: "Shown" });
     sw.addEventListener("click", () => {
       const next = new Set(cfg.bar.hidden || []);
@@ -1739,11 +1743,21 @@ function how() {
     rules: (rule, rel, P) => { const n = document.querySelector("nav").getBoundingClientRect(); rule(rel(n.right, P.top), rel(n.right, P.bottom)); },
   };
 }
+// Morgan installed on this machine (morgan.py, installed): its page, and every choice that is Morgan's, shown only then.
+let morganHere = true;
+function showMorgan() {
+  const nav = document.querySelector('[data-page="morgan"]');
+  if (nav) nav.hidden = !morganHere;
+  const size = $("text-morgan");
+  if (size) size.closest(".row").hidden = !morganHere;
+}
 Surface.connect({
   onState: (s) => {
+    morganHere = s.morganHere !== false;
+    showMorgan();
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
-    if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
+    if (bridge && s.up && (!wasUp || s.page)) reload((s.page === "morgan" && !morganHere ? "" : s.page) || "look");
     wasUp = !!s.up;
   },
 }).then((b) => {

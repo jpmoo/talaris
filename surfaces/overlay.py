@@ -151,7 +151,9 @@ class Overlay(QObject):
         # The clock as Settings has it (12 or 24 hours), so any time a page shows reads the same as the bar's.
         return {"up": self.up, "theme": self.desktop.config["theme"], "windowed": self.windowed,
                 "motion": self.desktop.motion(self.NAME), "viewport": viewport(self._view) if self._view is not None else None,
-                "clock": self.desktop.config.get("clock", {})}
+                "clock": self.desktop.config.get("clock", {}),
+                # Morgan installed on this machine: its pieces shown (morgan.installed).
+                "morganHere": bool(getattr(self.desktop, "morgan_here", True))}
 
     def placement(self) -> Placement:
         """Where it goes: the whole screen, the page drawing the panel in it. A box in the middle (Settings) says otherwise."""

@@ -252,7 +252,8 @@ class Activity(QObject):
         from config import save_config
         save_config(self.desktop.config)
         notes = self.desktop.notifications
-        if s["suggest"] == "notify":
+        # Without Morgan installed, each comes as a notification: there is no Morgan to ask.
+        if s["suggest"] == "notify" or not getattr(self.desktop, "morgan_here", True):
             for x in found[:3]:
                 notes.own("A suggestion", x["text"], [("do", "Do it"), ("no", "Not for me")],
                           lambda key, x=x: self.do(x) if key == "do" else self.dismiss(x["key"]) if key == "no" else None)

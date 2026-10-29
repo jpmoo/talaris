@@ -30,7 +30,7 @@ const VERBS = [
   { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a graph of how it is connected" },
   { name: "windows", title: "Open windows", sub: "Every one, by project: go to one, or close one, an app's, a project's or all" },
   { name: "archive", title: "Archive", sub: "Archived projects: browse them, search them, bring one back" },
-  { name: "settings", title: "Talaris Settings", sub: "Appearance, layout, keys, Morgan" },
+  { name: "settings", title: "Talaris Settings", sub: "Look, bar, dock, keys, connections, data" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },
   { name: "bluetooth", title: "Bluetooth", sub: "Devices" },
   { name: "lock", title: "Lock" },
@@ -337,7 +337,8 @@ function draw() {
         act: { kind: "conversation", id: r.id } });
     }
   }
-  if (query.trim()) {
+  // Asking Morgan, last — where Morgan is installed (it is a companion of its own).
+  if (query.trim() && state.morganHere !== false) {
     shown.push({ kind: "morgan", title: query.trim(), sub: "Ask Morgan", act: { kind: "morgan", text: query.trim() } });
   }
   // Nothing found: the question is the only thing, so it is the one chosen.
@@ -534,7 +535,7 @@ $("q").addEventListener("input", () => {
   clearTimeout(talkSoon);
   const q = $("q").value.trim().replace(/\s+/g, " ");
   if (q.length >= 2 && state.mode !== "ask" && !q.startsWith("#")) setTimeout(() => { if (bridge && bridge.thingSearch && $("q").value.trim().replace(/\s+/g, " ") === q) bridge.thingSearch(q); }, 200);
-  if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => { if (!bridge) return; bridge.morganSearch(q); if (bridge.meaningSearch && !q.startsWith("#")) bridge.meaningSearch(q); }, 350);
+  if (q.length >= 3 && state.mode !== "ask") talkSoon = setTimeout(() => { if (!bridge) return; if (state.morganHere !== false) bridge.morganSearch(q); if (bridge.meaningSearch && !q.startsWith("#")) bridge.meaningSearch(q); }, 350);
 });
 addEventListener("keydown", (e) => {
   if (!bridge) return;
@@ -589,7 +590,7 @@ function onState(s) {
   at = 0;
   armed = null;
   say("");
-  $("q").placeholder = s.mode === "ask" ? "Ask Morgan" : "Find anything, or ask";
+  $("q").placeholder = s.mode === "ask" ? "Ask Morgan" : s.morganHere === false ? "Find anything" : "Find anything, or ask";
   $("scope").textContent = s.mode === "ask" ? "MORGAN" : (s.project && s.project.name) || "";
   items = [];
   draw();

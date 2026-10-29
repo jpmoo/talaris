@@ -614,6 +614,7 @@ class Bar(QObject):
             # `absent`, `idle`, `listening`, `thinking`… and whether its
             # conversation is out.
             "morgan": self.desktop.morgan_link.now,
+            "morganHere": bool(getattr(self.desktop, "morgan_here", True)),
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),

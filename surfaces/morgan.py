@@ -47,6 +47,26 @@ from views import log, make_view, zoom
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCKET = os.environ.get("HEYMORGAN_SOCKET") or os.path.join(RUNTIME, "heymorgan.sock")
 
+def installed() -> bool:
+    """
+    heymorgan on this machine: its user service known to systemd, or its
+    socket there. Morgan is a companion, installed on its own; where it is
+    not, Talaris shows none of Morgan's pieces (the button, the panel, its
+    page in Settings, "Ask Morgan", its key) — not a button that only ever
+    says Morgan is not running.
+    """
+    # As though it were not, to see Talaris on its own (TALARIS_NO_MORGAN=1).
+    if os.environ.get("TALARIS_NO_MORGAN"):
+        return False
+    if os.path.exists(SOCKET):
+        return True
+    try:
+        import subprocess
+        return subprocess.run(["systemctl", "--user", "cat", "heymorgan.service"], capture_output=True, timeout=3).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 #: Put away after this long with no input while Morgan is idle.
 IDLE_MS = 5 * 60 * 1000
 

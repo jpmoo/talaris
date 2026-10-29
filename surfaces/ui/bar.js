@@ -56,6 +56,8 @@ function onState(s) {
   $("theme").title = dark ? "Dark — switch to light" : "Light — switch to dark";
   // What Settings, Bar has left out, and the space between what is left.
   const hidden = new Set((s.look || {}).hidden || []);
+  // Morgan's button only where Morgan is installed (morgan.py, installed): it is a companion of its own.
+  if (s.morganHere === false) hidden.add("morgan");
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);

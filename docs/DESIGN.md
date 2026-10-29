@@ -538,6 +538,14 @@ nearly as it is — already a page talking to the daemon through its host — an
 is the conversation surface, as a pull-out panel or as an ordinary window you
 tile and keep beside work.
 
+**A companion, installed on its own** (decided 2026-10-29). Talaris does
+not install Morgan, and where heymorgan is not installed (its user service
+unknown to systemd, its socket absent) Talaris shows none of Morgan's pieces:
+not the bar's button, the panel or the voice popup, not "Ask Morgan" in the
+launcher, not Morgan's page or its choices in Settings, not its key. Installed
+later, they appear (looked for every two minutes, and at once when it
+connects). `TALARIS_NO_MORGAN=1` shows Talaris as it is without it.
+
 **Its brain stays its own process,** over the socket it already has. Morgan
 crashing should not take the desktop with it, and `docs/server-and-satellites.md`
 in its repository moves the brain to the home server so one Morgan serves every
