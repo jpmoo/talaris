@@ -11,6 +11,12 @@ infinite canvas, AI assistant (via Ollama and/or Claude), calendars, contacts, a
 linking and referring and speaking to one another across different workspaces
 for each of your projects.
 
+![The launcher](docs/screenshots/launcher.webp)
+
+![Tasks, as an Eisenhower matrix](docs/screenshots/tasks-eisenhower.webp)
+
+More in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
+
 ***Key features:***
 - task management with different kinds of visualizations, including boards/matrices
 - a Markdown note-taker supporting wikilinks, tags, file attachments, and more
