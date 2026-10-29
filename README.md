@@ -251,6 +251,6 @@ Font License (their licenses are beside them in `surfaces/ui/fonts`).
 
 **License**
 
-GPL-3.0-only — see [LICENSE](LICENSE). Also available on other terms from the
+Copyright © 2026 Jeff Moore. GPL-3.0-only — see [LICENSE](LICENSE). Also available on other terms from the
 owner. Contributions need the [Contributor License Agreement](CLA.md); see
 [CONTRIBUTING.md](CONTRIBUTING.md).

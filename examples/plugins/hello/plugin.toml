@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
 # A plugin, as small as one can be: what Talaris reads before anything runs.
 # Copy this folder, change the id, and it is yours.
 

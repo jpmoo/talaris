@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
 # Talaris's session: what a desktop session starts that Hyprland alone does
 # not — the applications set to start at login (~/.config/autostart: Nextcloud,
 # 1Password). xdg-desktop-autostart.target refuses to be started by hand; it

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 /**
  * Copy / cut / paste for a text field whose own right-click menu we've taken
  * over.

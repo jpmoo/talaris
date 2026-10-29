@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 /*
  * `canvas.json`, and the shape Hermes' canvas expects to see.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 /*
  * The two small panels an entity note opens: finding an entity to link to, and
  * listing what one is connected to. Both are drawn in the node menu's own

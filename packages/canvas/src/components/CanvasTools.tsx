@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 /*
  * The tool strip: what you put on the canvas, and where it goes.
  *

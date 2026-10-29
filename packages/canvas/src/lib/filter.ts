@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
 import type { Condition, FilterGroup } from "@hermes/shared";
 
 export const emptyGroup = (): FilterGroup => ({ kind: "group", match: "all", items: [] });
