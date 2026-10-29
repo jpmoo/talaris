@@ -1,6 +1,6 @@
 # Talaris
 
-## A thinking-space desktop for Hyprland, with an AI assistant built in.
+**A thinking-space desktop for Hyprland, with an AI assistant built in.**
 
 "Talaris" is Latin, meaning "of or pertaining to the ankle or heel." It
 refers to the magical sandals of Hermes/Mercury, the messenger god.
@@ -73,9 +73,7 @@ See [DESIGN.md](DESIGN.md).
 
 Also, I'm considering but still a bit lost on best ways to integrate email.
 
-## Under the Hood
-
-### How it is put together
+**Under the Hood***
 
 Talaris is two processes and a set of pages.
 
@@ -117,7 +115,7 @@ Hyprland's own configuration stays yours: the installer writes a
 Talaris on. Binds are made at runtime, so taking that line out takes Talaris
 out.
 
-### What it needs
+**What it needs**
 
 - **Linux with Hyprland**, and `hyprpaper`, `hypridle`/`hyprlock` and
   `hyprpolkitagent` beside it.
@@ -140,7 +138,7 @@ on. [examples/hyprland.conf](examples/hyprland.conf) is an annotated
 starting point: what stays yours, and what to leave out because Talaris
 does it.
 
-### How security is handled
+**How security is handled**
 
 - **Everything stored is sealed.** Entities, their attached files, the
   clipboard history and backups are encrypted on disk with
@@ -180,7 +178,7 @@ does it.
   servers, the address set for search by meaning, and Morgan's brain where
   you run it.
 
-## License
+**License**
 
 GPL-3.0-only — see [LICENSE](LICENSE). Also available on other terms from the
 owner. Contributions need the [Contributor License Agreement](CLA.md); see
