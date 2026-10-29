@@ -1,10 +1,13 @@
 # Talaris
 
-**A thinking-space desktop for Hyprland, with an AI assistant built in.**
+## A thinking-space desktop for Hyprland, with an AI assistant built in.
 
-A desktop for Hyprland that rethinks the files/folders/icons paradigm, and 
-focuses on helping you get work done. Built-in note-taking, infinite canvas,
-AI assistant (via Ollama and/or Claude), calendars, contacts, and more, all
+"Talaris" is Latin, meaning "of or pertaining to the ankle or heel." It
+refers to the magical sandals of Hermes/Mercury, the messenger god.
+
+Talaris is a desktop for Hyprland that rethinks the files/folders/icons paradigm, 
+and focuses on helping you work and think. It has built-in note-taking, 
+infinite canvas, AI assistant (via Ollama and/or Claude), calendars, contacts, and more, all
 linking and referring and speaking to one another across different workspaces
 for each of your projects.
 
@@ -12,16 +15,16 @@ for each of your projects.
 - task management with different kinds of visualizations, including boards/matrices
 - a Markdown note-taker supporting wikilinks, tags, file attachments, and more
 - a full contacts module
-- a "library" app that rethinks the file manager as a place to store all of your stuff
+- a "library" app that rethinks the file manager into a place to store and connect all of your stuff
 - a full and fully integrated calendar app
 - support for plugins
 - all of the above is interoperable and integrated with the system, launcher, and one another
 - an AI assistant that does a lot of things (see below)
-- workspaces for each project, each with their own dock, wallpaper, and more
+- workspaces for each project, each with their own dock, wallpaper, notes, and more
 - scheduled backups
 - integrated clipboard history
-- a few interesting animations
-- basic theming, but more on the way
+- an attempt at a standardized spec/format for PKMS items (tasks, events, etc.) so that you can connect it to other apps
+- attractive, minimalist theming with a few interesting animation options
 
 **Important notes.**
 
@@ -29,17 +32,17 @@ This is 99% vibe-coded with Claude, primarily Opus 5.5. The other 1% is
 mostly me hitting Copy/Paste and scratching my head on better questions 
 to ask.
 
-I'm running and building this on Ubuntu 26.06 and Hyprland on a Dell
-XPS 13 laptop. I have not tested on any other distribution or machine.
+I'm running and building this in Ubuntu 26.06 and Hyprland on a Dell
+XPS 13 laptop. I haven't tested on any other distribution or machine.
 
 Some of this was built to sync with my home-grown notes/Notion/etc. thing,
 also vibe-coded. It should work fine without that, though. I've turned that
 into a plugin.
 
 In others words, taking all of the above into consideration, your mileage
-may vary. You are entering the crazy, maze-like brain folds of a dedicated
+may vary. You're entering the crazy, maze-like brain folds of a dedicated
 tinkerer. I mean, I took toasters apart as a kid and usually failed to
-put them back together into working order.
+put them back together into working things. But Talaris is working for me.
 
 **Media**
 
@@ -47,16 +50,17 @@ put them back together into working order.
 
 **AI Assistant**
 
-Talaris includes Morgan, an AI assistant that is available via voice ("Hey Morgan!"
-or whatever you want to call them), keystroke, and bar icon.
+Talaris includes Morgan, an AI assistant that's available via voice ("Hey Morgan!"
+or whatever you want to call it), keystroke, and bar icon.
 
 Morgan runs through Ollama, and can use Claude as a bakcup (as "the Oracle").
-I am also working on a separate appliance that you can run on a server, so
-that you can support multiple devices running Morgan.
+I'm also working on a separate app that you can run on a server, so
+that you can support multiple devices interacting with a centralized Morgan.
 
 Morgan offers:
 - full MCP support
 - tracking (if you want) of your work for suggestions on how to be more productive
+- tracking, ingesting, and embedding everything on your system to help identify related things
 - full awareness of notes, contacts, calendar events, etc., etc.
 - ability to work in all of those modules to do things like:
   - "Put all of the tasks in the 'Do' box of my Eisenhower matrix on a canvas."
@@ -65,7 +69,7 @@ Morgan offers:
 
 **Not built yet.** 
 
-See [DESIGN.md](DESIGN.md) for some thoughts. 
+See [DESIGN.md](DESIGN.md). 
 
 Also, I'm considering but still a bit lost on best ways to integrate email.
 
@@ -73,7 +77,7 @@ Also, I'm considering but still a bit lost on best ways to integrate email.
 
 ### How it is put together
 
-Talaris is a desktop shell for Hyprland, in two processes and a set of pages.
+Talaris is two processes and a set of pages.
 
 - **The core** (`packages/core`) — TypeScript on Node. It keeps everything:
   projects, pages, canvases, tasks, people, events, notes and files, as
