@@ -547,19 +547,22 @@ later, they appear (looked for every two minutes, and at once when it
 connects). `TALARIS_NO_MORGAN=1` shows Talaris as it is without it.
 
 **Its brain stays its own process,** over the socket it already has. Morgan
-crashing should not take the desktop with it, and `docs/server-and-satellites.md`
-in its repository moves the brain to the home server so one Morgan serves every
-device. In that plan this laptop is a satellite, and Talaris is the satellite's
-face.
+crashing should not take the desktop with it.
 
-**Talaris always talks to the Morgan on this machine** (decided 2026-10-23).
-Out of the box that Morgan is in its **local** role — brain, ears and voice all
-here. Moving the brain to the home server later is one setting, *Morgan's home*
-in Connections: Morgan becomes a **client**, which already means a
-`~/.config/heymorgan/client.json` naming the server and Morgan forwarding to it
-from the same local socket. So Talaris never needs to know where the brain is,
-and is built and tested against a local Morgan from the first day. The DIY Echo
-Dot is another client of the same home, with no Talaris on it at all.
+**Talaris always talks to the Morgan on this machine: its device** (decided
+2026-10-23; brain and device, 2026-10-30). Morgan is a **brain** (memory, the
+models, the Oracle, the voices it knows, speech) and **devices** (microphone,
+wake word, speaker, screen). Wherever a brain runs it is a server for however
+many devices it has, and a device reaches it at an address with a key. This
+laptop is always a device, and Talaris is its face. Its brain is either on
+this laptop too — a second user service, `heymorgan-brain`, reached at
+`localhost:8790` — or on another computer such as the home server. **Only the
+address differs**: the same socket, the same commands, the same settings, the
+same voice, so Talaris never needs to know which. Morgan's page in Settings
+says it as *On this computer* or *On another computer* — not "only this
+computer" against "one of several": a brain on this laptop takes other
+devices too — and lists the brain's **Devices**, a key each, wherever it is.
+The DIY Echo Dot is another device, with no Talaris on it at all.
 
 **What lives where.** Morgan's repository keeps everything that is not a
 screen — the brain, its roles, speech, memory, connections, and the Echo build.

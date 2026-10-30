@@ -58,10 +58,12 @@ LAUNCHER_KEYS = ("SUPER, SPACE",)
 DATE_STYLES = ("weekday-month-day", "weekday-day-month", "month-day", "day-month", "iso", "off")
 
 #: The Morgan calls this page may make, and nothing else.
-#: What the Morgan page may ask of Morgan (heymorgan's `admin`; docs/protocol.md): on a client,
-#: Morgan answers the voice and "where it lives" ones itself and hands the rest to its server.
+#: What the Morgan page may ask of Morgan (heymorgan's `admin`; docs/protocol.md): the device
+#: answers the "where its brain is" ones and the voices heard here itself, and hands the rest to
+#: its brain, on this computer or another.
 MORGAN_OPS = {
     "config.get", "config.set", "client.get", "client.set", "log.recent",
+    "devices.list", "devices.add", "devices.remove",
     "voice.list", "voice.preview", "voices.status", "voices.enroll", "voices.forget",
     "ollama.models", "oracle.account",
     "memory.list", "memory.note.add", "memory.note.set", "memory.note.delete", "memory.note.move",

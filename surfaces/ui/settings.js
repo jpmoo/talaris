@@ -551,7 +551,13 @@ function mgSwitch(on, flip, title = "") {
 }
 const mgWhen = (t) => (t ? when(typeof t === "number" ? t : String(t)) : "");
 
-// ---------------------------------------------------------------- Morgan: where it lives
+// ---------------------------------------------------------------- Morgan: where its brain is
+//
+// This computer is always a device: Morgan's ears, voice and face here. Its
+// brain — memory, models, Claude sign-in, the voices it knows — is either on
+// this computer too, or on another one this device reaches with a key. Either
+// way the device reaches it the same way, as one of however many devices it
+// has; only the address differs (docs/protocol.md §5 in heymorgan).
 
 let mgPlace = null; // client.get, for the Models page's word on whose models they are
 
@@ -559,59 +565,64 @@ async function mgWhere() {
   const c = await ask("client.get");
   if (!mgLive() || failed(c)) return;
   mgPlace = c;
+  // Asked of the brain itself (a brain's own machine with Talaris on it): its devices, nothing to switch.
   if (c.role === "server") {
-    mgBody(el("p", { class: "note" }, "This computer is the server: other computers reach Morgan through it, and its memories and models are the ones they use."));
+    mgBody(el("p", { class: "note" }, "This is Morgan's brain. Its devices reach it with a key each."), ...await mgDevices(c));
     return;
   }
-  let pick = c.role === "client" ? "client" : "local";
-  const server = mgInput(c.server, { placeholder: "home-server:8790" });
-  const key = mgInput("", { type: "password", placeholder: c.hasKey ? "keep the current one" : "hc_… from heymorgan access add" });
+  const nowHere = c.brainHere;
+  let pick = nowHere ? "here" : "elsewhere";
+  const server = mgInput(nowHere ? "" : c.server, { placeholder: "home-server:8790" });
+  const key = mgInput("", { type: "password", placeholder: c.hasKey && !nowHere ? "keep the current one" : "hc_… from the brain's Devices, or heymorgan devices add" });
   const device = mgInput(c.device, { placeholder: "laptop" });
-  const card = (value, title, what) => el("button", { class: "mg-card" + (value === pick ? " on" : "") + (value === (c.role === "client" ? "client" : "local") ? " now" : ""),
+  const card = (value, title, what) => el("button", { class: "mg-card" + (value === pick ? " on" : "") + (value === (nowHere ? "here" : "elsewhere") ? " now" : ""),
     onclick: () => { pick = value; draw(); } }, el("b", {}, title), el("small", {}, what));
   const confirmBox = el("div", { class: "kit-ask-box", hidden: "" });
+  const devices = el("div", {});
 
   const draw = () => {
-    const same = pick === (c.role === "client" ? "client" : "local");
-    const status = c.role === "client"
-      ? el("p", { class: "note" + (c.connected ? "" : " err") }, `Through ${c.server}, as ${c.device}: ${c.connected ? "connected" : "can't reach it"}`)
-      : el("p", { class: "note" }, "Wholly on this computer.");
+    const same = pick === (nowHere ? "here" : "elsewhere");
+    const status = c.role === "local"
+      ? el("p", { class: "note" }, "Morgan is wholly in one program here, as before it had devices. Keep its brain on this computer to set it up as a brain with this computer as its first device.")
+      : el("p", { class: "note" + (c.connected ? "" : " err") },
+        `${nowHere ? "On this computer" : `On ${c.server}`}; this computer is ${c.device} to it: ${c.connected ? "connected" : "can't reach it"}`);
     const go = el("button", { class: "t-btn", onclick: () => ready() }, same ? "Save" : "Switch");
     const parts = [
       el("div", { class: "mg-cards" },
-        card("local", "Only this computer", "Morgan's voice, memories, models and Claude sign-in all here"),
-        card("client", "One of several, through a server", "This computer is its ears and voice; memories and models live on the server")),
+        card("here", "On this computer", "Its memory, models and Claude sign-in here; other devices may use it too"),
+        card("elsewhere", "On another computer", "A brain elsewhere, such as a home server; this computer is one of its devices")),
       status,
     ];
-    if (pick === "client") {
-      parts.push(mgRow("Server", "Its address, host:port", server), mgRow("Access key", c.hasKey ? "One is kept; paste a new one to replace it" : "From heymorgan access add on the server", key),
-        mgRow("This device", "Its name to the server", device));
+    if (pick === "elsewhere") {
+      parts.push(mgRow("Brain", "Its address, host:port", server), mgRow("Access key", c.hasKey && !nowHere ? "One is kept; paste a new one to replace it" : "From the brain: its Devices, or heymorgan devices add", key));
     }
-    // Switching to where it is already is nothing to do; changing a client's server is.
-    if (!same || pick === "client") parts.push(el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" }, go)));
-    parts.push(confirmBox,
-      el("p", { class: "note" }, "On only this computer, the Models and Claude settings are this computer's; through a server, they are the server's, changed there from here."));
+    parts.push(mgRow("This device", "Its name to the brain", device));
+    // Choosing where it is already is nothing to do, but for a set-up that is not finished or a new address.
+    if (!same || pick === "elsewhere" || c.role === "local") parts.push(el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" }, go)));
+    parts.push(confirmBox, el("p", { class: "note" }, "The Models, Claude and Voice settings are the brain's, wherever it is, and are changed there from here."), devices);
     mgBody(...parts);
   };
 
   const ready = () => {
-    const args = pick === "local" ? { server: "" } : { server: server.value.trim(), device: device.value.trim() };
-    if (pick === "client") {
-      if (!args.server) { say("A server needs its address", true); return; }
+    const args = pick === "here" ? { here: true, device: device.value.trim() } : { server: server.value.trim(), device: device.value.trim() };
+    if (pick === "elsewhere") {
+      if (!args.server) { say("The brain needs its address", true); return; }
       const k = key.value.trim();
-      if (k && !k.startsWith("hc_")) { say("That is not a key the server issued (they start hc_)", true); return; }
-      if (!k && !c.hasKey) { say("A server needs a key: run heymorgan access add <device> on the server", true); return; }
+      if (k && !k.startsWith("hc_")) { say("That is not a key a brain issued (they start hc_)", true); return; }
+      if (!k && (!c.hasKey || nowHere)) { say("The brain needs a key: add this device in its Devices, or run heymorgan devices add there", true); return; }
       if (k) args.key = k;
     }
-    // A restart, and for "only this computer" a different set of memories: said first, done on a second press.
-    const what = pick === "local"
-      ? "Morgan will use the memories this computer had before it used a server; what it has learned on the server since stays there."
-      : c.role === "client" ? "Morgan will restart and reach the server with these." : "Morgan will restart as one of the server's computers; it will use the server's memories and models.";
+    // A restart, and a different set of memories: said first, done on a second press.
+    const what = pick === "here"
+      ? (nowHere ? "Morgan will set up its brain on this computer again, with a new key for this device."
+        : `Morgan's brain will be on this computer, with the memories this computer kept before; what it learned on ${c.server} stays there.`)
+      : nowHere ? `This device will use the brain on ${args.server}. The brain on this computer is stopped; its memories stay here for if it comes back.`
+        : "Morgan will restart and reach the brain with these.";
     confirmBox.hidden = false;
     confirmBox.replaceChildren(el("p", { class: "note", style: "margin:0" }, what),
       el("div", { class: "data-buttons" },
         el("button", { class: "t-btn", onclick: () => { confirmBox.hidden = true; } }, "Cancel"),
-        el("button", { class: "t-btn", onclick: () => doSwitch(args) }, pick === "local" ? "Use only this computer" : "Use the server")));
+        el("button", { class: "t-btn", onclick: () => doSwitch(args) }, pick === "here" ? "Keep it on this computer" : "Use that brain")));
   };
 
   const doSwitch = async (args) => {
@@ -619,9 +630,74 @@ async function mgWhere() {
     if (!r) return;
     say("Morgan is restarting…");
     mgBody(el("p", { class: "note" }, "Morgan is restarting…"));
-    setTimeout(() => loadMorgan(), 4000);
+    setTimeout(() => loadMorgan(), 6000);
   };
   draw();
+  if (c.connected || c.role === "local") devices.replaceChildren(...await mgDevices(c));
+}
+
+/*
+ * The devices that may reach the brain: a key each, connected or not, asked
+ * of the brain wherever it is (`devices.*`). A new one's key is shown once,
+ * with the line to run on it. One that hears its owner poorly can be taught
+ * that voice there: it says each line to repeat, having no screen of its own.
+ */
+async function mgDevices(c) {
+  const r = await ask("devices.list");
+  if (!mgLive()) return [];
+  if (!r.ok) return [el("h3", {}, "Devices"), el("p", { class: "note err" }, r.error || "The brain did not say")];
+  const box = el("div", {});
+  const shown = el("div", {});
+  const drawList = (list) => {
+    const rows = (list.devices || []).map((d) => {
+      const bits = [d.connected ? `connected${d.kind ? `, ${d.kind}` : ""}` : `last seen ${d.used ? mgWhen(d.used) : "never"}`];
+      if ((d.ownVoices || []).length) bits.push(`its own voices: ${d.ownVoices.join(", ")}`);
+      if (d.hearsPoorly) bits.push("hears you poorly");
+      const mine = d.name === c.device;
+      const controls = [];
+      if (d.connected && (d.can || []).includes("voice")) {
+        controls.push(el("button", { class: "t-btn", onclick: () => teach(d.name) }, d.hearsPoorly ? "Teach it your voice" : "Teach a voice there"));
+      }
+      if (!mine) controls.push(twiceBtn("Remove", "Remove it?", async () => { if (await change("devices.remove", { name: d.name }, `${d.name} removed`)) refresh(); }));
+      return mgRow(`${d.name}${mine ? " (this one)" : ""}`, bits.join(" · "), ...controls);
+    });
+    box.replaceChildren(...(rows.length ? rows : [Kit.empty("No devices yet")]));
+  };
+  const refresh = async () => { const again = await ask("devices.list"); if (again.ok) drawList(again); };
+  // Taught there, aloud: the device says each line, its person says it back.
+  const teach = (deviceName) => {
+    const who = mgInput("", { placeholder: "Whose voice?" });
+    const go = async () => {
+      const name = who.value.trim();
+      if (!name) { say("Whose voice is it? Type a name first", true); return; }
+      if (await change("voices.enroll", { name, device: deviceName, scope: deviceName === c.device ? "auto" : "device" })) {
+        shown.replaceChildren(el("p", { class: "note" }, `${deviceName} will say six short lines; ${name} says each back. About a minute.`));
+      }
+    };
+    who.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+    shown.replaceChildren(mgRow(`Teach on ${deviceName}`, "Its person repeats what it says", who, el("button", { class: "t-btn", onclick: go }, "Start")));
+  };
+  drawList(r);
+  const newName = mgInput("", { placeholder: "kitchen-dot" });
+  const add = async () => {
+    const name = newName.value.trim();
+    if (!name) { say("A device needs a name", true); return; }
+    const made = await change("devices.add", { name });
+    if (!made) return;
+    newName.value = "";
+    const where = c.brainHere || c.role === "server" ? "<this computer's address>:8790" : c.server;
+    shown.replaceChildren(el("p", { class: "note" }, `${made.name}'s key, shown only now. On ${made.name}, run:`),
+      el("pre", { class: "mg-key" }, `heymorgan connect ${where} ${made.key} ${made.name}`));
+    refresh();
+  };
+  newName.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
+  const parts = [el("h3", {}, "Devices"), box, mgRow("Add a device", "Its key is shown once", newName, el("button", { class: "t-btn", onclick: add }, "Add")), shown];
+  // A brain on a laptop lets in only that laptop's device unless it is told otherwise; a home server's says by its own setup.
+  if ((c.brainHere || c.role === "server") && !r.housed) {
+    parts.push(mgRow("Let other devices in", r.listen === "network" ? "Devices on the network may reach it, each with its key" : "Only this computer's own device reaches it now",
+      mgSwitch(r.listen === "network", (on) => setConfig({ listen: on ? "network" : "local" }))));
+  }
+  return parts;
 }
 
 // ---------------------------------------------------------------- Morgan: the assistant
@@ -718,16 +794,20 @@ async function mgModels() {
   const accountRow = el("div", {});
   const drawAccount = (a) => {
     const said = !a.ok ? (a.error || "Morgan did not say") : a.loggedIn ? `${a.email || "Signed in"}${a.plan ? ` · ${a.plan}` : ""}` : a.error || "Not signed in";
-    const sign = a.ok && a.loggedIn
-      ? el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("logout"); say("Sign out in the terminal, then Check again"); } }, "Sign out")
-      : el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("login"); say("Sign in in the terminal and your browser, then Check again"); } }, "Sign in");
+    // The sign-in is the brain's, kept where it runs: on another computer, it is made there.
+    const elsewhere = mgPlace && mgPlace.role === "client" && !mgPlace.brainHere;
+    const sign = elsewhere
+      ? el("small", { class: "note" }, `On ${mgPlace.server}: heymorgan ${a.ok && a.loggedIn ? "logout" : "login"} there`)
+      : a.ok && a.loggedIn
+        ? el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("logout"); say("Sign out in the terminal, then Check again"); } }, "Sign out")
+        : el("button", { class: "t-btn", onclick: () => { bridge.morganAccount("login"); say("Sign in in the terminal and your browser, then Check again"); } }, "Sign in");
     accountRow.replaceChildren(mgRow("Claude account", said, sign,
       el("button", { class: "t-btn", onclick: async () => { say("Checking…"); const r = await ask("oracle.account"); if (mgLive()) { drawAccount(r); say(""); } } }, "Check again")));
   };
   drawAccount(account);
 
-  const whose = mgPlace && mgPlace.role === "client"
-    ? `These are the server's (${mgPlace.server}), changed there from here.` : "These are this computer's.";
+  const whose = mgPlace && mgPlace.role === "client" && !mgPlace.brainHere
+    ? `These are the brain's, on ${mgPlace.server}, changed there from here.` : "These are the brain's, on this computer.";
   mgBody(
     el("p", { class: "note", style: "margin:0 0 6px" }, whose),
     el("h3", {}, "Ollama"),
@@ -755,7 +835,9 @@ async function mgVoice() {
   const chosenName = el("span", { class: "n", style: "width:auto" }, chosen || "");
   drawGrid();
   const parts = [el("h3", {}, "Morgan's voice")];
-  if (!v.kokoroInstalled) parts.push(el("p", { class: "note err" }, "Kokoro is not installed here."));
+  const made = heard.ok && heard.where === "here" ? "on this computer" : "by the brain";
+  parts.push(el("p", { class: "note" }, `Morgan's speech is made ${made}, and heard here.`));
+  if (!v.kokoroInstalled) parts.push(el("p", { class: "note err" }, `Kokoro is not installed where Morgan's speech is made (${made}).`));
   if (v.engine !== "kokoro") parts.push(el("p", { class: "note" }, `Morgan speaks with Piper now (${v.piperVoice || "its voice"}); using a voice here moves it to Kokoro.`));
   parts.push(grid, mgRow("Chosen", "Hear it before using it", chosenName,
     el("button", { class: "t-btn", onclick: async () => { if (chosen) await change("voice.preview", { engine: "kokoro", voice: chosen }, "Playing…"); } }, "Hear it"),
@@ -772,23 +854,26 @@ async function mgVoice() {
   const known = el("div", {});
   const drawKnown = (s) => {
     if (!s.ok) { known.replaceChildren(el("p", { class: "note err" }, s.error || "Morgan did not say")); return; }
-    if (!s.installed) { known.replaceChildren(el("p", { class: "note" }, "Telling voices apart is not installed here.")); return; }
+    if (!s.installed) { known.replaceChildren(el("p", { class: "note" }, "Telling voices apart is not installed where Morgan's speech is made.")); return; }
     const who = el("input", { type: "text", spellcheck: "false", placeholder: "Whose voice?" });
     const teach = async () => {
       const name = who.value.trim();
       if (!name) { say("Whose voice is it? Type a name first", true); return; }
-      if (await change("voices.enroll", { name })) {
+      if (await change("voices.enroll", { name, aloud: true })) {
         say("Speak when Morgan asks");
         known.append(el("p", { class: "note" }, `Speak when Morgan asks: ${name}, six short lines, about a minute.`),
           el("div", { class: "data-buttons" }, el("button", { class: "t-btn", onclick: async () => drawKnown(await ask("voices.status")) }, "Look again")));
       }
     };
     who.addEventListener("keydown", (e) => { if (e.key === "Enter") teach(); });
+    // Taught here, a voice is this device's own; one shared by every device is forgotten for all of them.
+    const prints = s.prints || (s.enrolled || []).map((name) => ({ name, own: s.where === "here" }));
     known.replaceChildren(
-      ...(s.enrolled || []).map((name) => mgRow(name, "", twiceBtn("Forget", "Forget it?", async () => {
-        const r = await change("voices.forget", { name }, `${name} forgotten`);
-        if (r) drawKnown(r);
-      }))),
+      ...prints.map((p) => mgRow(p.name, s.where === "here" ? "" : p.own ? "Taught on this device, for this device" : "Shared by every device",
+        twiceBtn("Forget", p.own || s.where === "here" ? "Forget it?" : "Forget on every device?", async () => {
+          const r = await change("voices.forget", { name: p.name, scope: p.own ? "device" : "everywhere" }, `${p.name} forgotten`);
+          if (r) drawKnown(r);
+        }))),
       ...((s.enrolled || []).length ? [] : [Kit.empty("None taught yet")]),
       mgRow("Teach a voice", "Its person speaks six short lines", who, el("button", { class: "t-btn", onclick: teach }, "Enroll")));
   };
@@ -1008,8 +1093,8 @@ const MODES = [["allow", "Allow"], ["ask", "Ask"], ["off", "Off"]];
 const MODE_SAID = { allow: "runs when Morgan calls it", ask: "waits for your yes", off: "not given to Morgan" };
 
 /*
- * Morgan's MCP servers, in two lists: those Morgan's brain keeps — here, or on
- * the server when this machine is its client — and **this machine's own**
+ * Morgan's MCP servers, in two lists: those Morgan's brain keeps, on this
+ * computer or another — and **this machine's own**
  * (`client.json`), which run here and reach only what is here: Talaris's,
  * which reads this machine's encrypted store, first among them. Both are
  * changed from here; each tool is Allow (run when Morgan calls it), Ask (put
