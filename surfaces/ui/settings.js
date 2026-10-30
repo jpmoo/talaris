@@ -838,7 +838,6 @@ async function mgVoice() {
   const made = heard.ok && heard.where === "here" ? "on this computer" : "by the brain";
   parts.push(el("p", { class: "note" }, `Morgan's speech is made ${made}, and heard here.`));
   if (!v.kokoroInstalled) parts.push(el("p", { class: "note err" }, `Kokoro is not installed where Morgan's speech is made (${made}).`));
-  if (v.engine !== "kokoro") parts.push(el("p", { class: "note" }, `Morgan speaks with Piper now (${v.piperVoice || "its voice"}); using a voice here moves it to Kokoro.`));
   parts.push(grid, mgRow("Chosen", "Hear it before using it", chosenName,
     el("button", { class: "t-btn", onclick: async () => { if (chosen) await change("voice.preview", { engine: "kokoro", voice: chosen }, "Playing…"); } }, "Hear it"),
     el("button", { class: "t-btn", onclick: () => {
