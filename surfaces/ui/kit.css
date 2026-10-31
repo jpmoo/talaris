@@ -17,7 +17,7 @@ asking twice, an empty list, a line said back — the same on every page.
 .kit-pop > div:focus { outline: none; }
 .kit-pop .menu-item.hot { background: var(--accent-wash) !important; color: var(--accent) !important; }
 .kit-pop .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-.kit-mini { width: 232px; padding: 2px; }
+.kit-mini { position: relative; width: 232px; padding: 2px; }
 .kit-mini-head .m { flex: 1; text-align: center; }
 .kit-mini-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; color: var(--text); }
 .kit-mini-head .icon-btn { border: 0 !important; background: none !important; color: var(--muted) !important; padding: 2px 6px !important; cursor: pointer; display: grid; place-items: center; }
@@ -28,7 +28,12 @@ asking twice, an empty list, a line said back — the same on every page.
 .kit-mini-grid .day.other { color: var(--muted) !important; }
 .kit-mini-grid .day.today { box-shadow: inset 0 0 0 1px var(--accent); }
 .kit-mini-grid .day:hover, .kit-mini-grid .day.on { background: var(--accent-wash) !important; color: var(--accent) !important; }
-.kit-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.kit-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 6px; }
+/* The picker's pulldown: the rest of the quick days, up over the month. */
+.kit-more { position: relative; display: inline-flex; }
+.kit-more-list { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); z-index: 1; min-width: 120px;
+  background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); padding: 4px; }
+.kit-more-list[hidden] { display: none; }
 .kit-chips .t-btn { font-size: 11.5px !important; padding: 1px 8px !important; }
 .kit-times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }
 .kit-times .time { border: 0 !important; background: none; text-align: left; padding: 4px 10px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; color: var(--text) !important; cursor: pointer; }

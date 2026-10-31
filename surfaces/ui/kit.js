@@ -276,7 +276,8 @@ const Kit = (() => {
    * A month to choose a day in: Sunday first, today ringed, the chosen one
    * lit; ‹ › by the month. `chips`: quick choices under it, each
    * `[label, date | value]` (the standard set: `Kit.DAY_CHIPS`, with Clear when
-   * `clear` is set). `pick` is given the day (or a chip's value).
+   * `clear` is set) — the first a button, the rest in a pulldown beside it,
+   * Clear last. `pick` is given the day (or a chip's value).
    */
   /** The quick days, the same everywhere: today, a day and a week on from `base` (the day chosen, else today), next Monday. */
   const DAY_CHIPS = (base = null) => {
@@ -295,7 +296,18 @@ const Kit = (() => {
       // A year at a time too, for a day long ago (a birthday).
       const back = years ? el("button", { class: "icon-btn", title: "The year before", onclick: step(-12) }, "«") : null;
       const on = years ? el("button", { class: "icon-btn", title: "The year after", onclick: step(12) }, "»") : null;
-      const quick = [...(chips || []), ...(clear ? [["Clear", null]] : [])];
+      const chip = ([label, v]) => el("button", { class: "t-btn", onclick: (e) => choose(e, v) }, label);
+      const [lead, ...rest] = chips || [];
+      // The rest in a pulldown of the picker's own, opening up over the month: one pop-up at a time.
+      let more = null;
+      if (rest.length) {
+        const list = el("div", { class: "menu-list kit-more-list", role: "menu", hidden: true },
+          rest.map(([label, v]) => el("button", { class: "menu-item", onclick: (e) => choose(e, v) }, el("span", { class: "lbl" }, label))));
+        const btn = el("button", { class: "t-btn", "aria-haspopup": "menu", onclick: (e) => { e.stopPropagation(); list.hidden = !list.hidden; } }, "More ▾");
+        more = el("span", { class: "kit-more" }, btn, list);
+        wrap.onpointerdown = (e) => { if (!more.contains(e.target)) list.hidden = true; };
+      }
+      const quick = [lead ? chip(lead) : null, more, clear ? chip(["Clear", null]) : null].filter(Boolean);
       wrap.replaceChildren(
         el("div", { class: "kit-mini-head" }, back, prev, el("span", { class: "m" }, month(month0)), next, on),
         el("div", { class: "kit-mini-grid" },
@@ -305,7 +317,7 @@ const Kit = (() => {
             return el("button", { class: "day" + (d.getMonth() !== month0.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
               onclick: (e) => choose(e, d) }, String(d.getDate()));
           })),
-        quick.length ? el("div", { class: "kit-chips" }, quick.map(([label, v]) => el("button", { class: "t-btn", onclick: (e) => choose(e, v) }, label))) : null);
+        quick.length ? el("div", { class: "kit-chips" }, quick) : null);
     };
     draw();
     return wrap;
