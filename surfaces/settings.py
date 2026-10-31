@@ -183,7 +183,10 @@ def _checked(c: dict) -> str:
             or not all(v in ("allow", "deny") for v in loc.get("apps", {}).values()) \
             or loc.get("by", "auto") not in ("auto", "hand") \
             or not (loc.get("place") is None or (isinstance(loc["place"], dict) and isinstance(loc["place"].get("lat"), (int, float))
-                                                 and isinstance(loc["place"].get("lon"), (int, float)))):
+                                                 and isinstance(loc["place"].get("lon"), (int, float)))) \
+            or not isinstance(loc.get("places", []), list) \
+            or not all(isinstance(p, dict) and isinstance(p.get("ssid"), str) and isinstance(p.get("bssids"), list)
+                       and isinstance(p.get("lat"), (int, float)) and isinstance(p.get("lon"), (int, float)) for p in loc.get("places", [])):
         return "Not a location setting"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
@@ -244,6 +247,15 @@ class SettingsBridge(Bridge):
         """Places by that name, found off the screen's thread and answered on `locationFound`."""
         import location
         threading.Thread(target=lambda: self.locationFound.emit(json.dumps(location.find_places(query))), daemon=True).start()
+
+    @Slot(str)
+    def locationPin(self, place: str) -> None:  # noqa: N802 — called from the page by this name
+        """The Wi-Fi in use named as this place ({name, lat, lon}): there, Talaris takes you to be there."""
+        self.owner.desktop.location.pin_network(json.loads(place))
+
+    @Slot(int)
+    def locationUnpin(self, index: int) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.location.unpin_network(index)
 
     @Slot()
     def locationSetUp(self) -> None:  # noqa: N802 — called from the page by this name

@@ -360,6 +360,7 @@ function drawLocation() {
   $("lc-status").textContent = !l.on ? "Off: nothing knows where you are"
     : !w.fix ? "Looking…"
     : w.fix.hand ? `Set by hand: ${w.fix.name}`
+    : w.fix.known ? `${w.fix.name}, by its Wi-Fi`
     // Not Wi-Fi: the internet address, which places your provider — maybe nowhere near.
     : w.fix.coarse ? `Found ${ago(w.fix.at)}, roughly, from your internet address`
     : `Found ${ago(w.fix.at)}, to about ${Math.max(1, Math.round(w.fix.accuracy / 1000))} km`;
@@ -370,8 +371,20 @@ function drawLocation() {
     else { byHand = true; drawLocation(); $("lc-find").focus(); }
   });
   $("lc-by-note").textContent = l.by === "hand" && l.place ? l.place.name
-    : w.fix && w.fix.coarse ? "No Wi-Fi nearby is known, so it's a guess: set it by hand to be sure" : "From Wi-Fi, or your internet address";
-  $("lc-find-row").hidden = !(l.on && (byHand || l.by === "hand"));
+    : w.fix && w.fix.coarse ? (w.network ? "A guess from your internet address: say where this Wi-Fi is, below, to be sure here" : "A guess from your internet address")
+    : "Your Wi-Fi's place where you've named it; elsewhere, found";
+  $("lc-find-row").hidden = !(l.on && (byHand || pinning || l.by === "hand"));
+  // Places known by their Wi-Fi (location.py): on one, Talaris takes you to be there, exactly; named here, once.
+  const automatic = l.on && (l.by || "auto") === "auto";
+  $("lc-net-row").hidden = !(automatic && w.network);
+  $("lc-net-note").textContent = w.network ? (w.here ? `${w.network}: ${w.here}` : `${w.network}: not named yet`) : "";
+  $("lc-net-act").replaceChildren(w.here
+    ? el("button", { class: "t-btn", onclick: () => { const i = (w.places || []).findIndex((p) => p.ssid === w.network && p.name === w.here); if (i >= 0 && bridge) bridge.locationUnpin(i); } }, "Forget")
+    : el("button", { class: "t-btn", title: "Say where this network is: here, Talaris will take you to be there", onclick: () => { pinning = true; drawLocation(); $("lc-find").focus(); } }, "Set where this is…"));
+  const others = (w.places || []).map((p, i) => ({ ...p, i })).filter((p) => !(p.ssid === w.network && p.name === w.here));
+  $("lc-places").replaceChildren(...(automatic && others.length ? [el("h3", {}, "Known places"), ...others.map((p) => el("div", { class: "row" },
+    el("span", { class: "name" }, p.name, el("small", {}, p.ssid)),
+    el("span", { class: "what" }, el("button", { class: "t-btn", onclick: () => bridge && bridge.locationUnpin(p.i) }, "Forget"))))] : []));
   // Set up once, and gone for good: what it wrote is there (location.py, setUp), whatever GeoClue last said.
   $("lc-setup").hidden = !l.on || w.setUp !== false;
   for (const [id, key] of [["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
@@ -394,7 +407,7 @@ function drawLocation() {
 }
 $("lc-setup-go").addEventListener("click", () => bridge && bridge.locationSetUp && bridge.locationSetUp());
 // Setting where you are by hand: a name typed, places found (settings.py, locationFind), one chosen.
-let byHand = false, findTimer = null;
+let byHand = false, pinning = false, findTimer = null;
 $("lc-find").addEventListener("input", () => {
   clearTimeout(findTimer);
   const q = $("lc-find").value.trim();
@@ -403,7 +416,12 @@ $("lc-find").addEventListener("input", () => {
 function showFound(text) {
   const places = JSON.parse(text);
   $("lc-found").replaceChildren(...(places.length ? places.map((p) => el("button", { class: "t-btn small", title: `${p.lat}, ${p.lon}`,
-    onclick: () => { byHand = false; $("lc-find").value = ""; $("lc-found").replaceChildren(); save({ location: { by: "hand", place: { ...p, at: Math.round(Date.now() / 1000) } } }); } }, p.name))
+    onclick: () => {
+      $("lc-find").value = ""; $("lc-found").replaceChildren();
+      // Naming this network's place, or setting where you are by hand.
+      if (pinning) { pinning = false; if (bridge && bridge.locationPin) bridge.locationPin(JSON.stringify(p)); return; }
+      byHand = false; save({ location: { by: "hand", place: { ...p, at: Math.round(Date.now() / 1000) } } });
+    } }, p.name))
     : [el("small", {}, "Nothing by that name")]));
 }
 
@@ -440,7 +458,7 @@ function drawMap(fix) {
   host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Where you are">`
     + `<path class="grid" d="${grid.join("")}"/><path class="land" d="${d}"/>`
     + `<circle class="sure" cx="${w / 2}" cy="${h / 2}" r="${r.toFixed(1)}"/><circle class="here" cx="${w / 2}" cy="${h / 2}" r="3"/>`
-    + `<text class="tick" x="8" y="${h - 8}">${fix.hand ? `${fix.name.split(",")[0]} · ` : ""}${deg(fix.lat, "N", "S")} ${deg(fix.lon, "E", "W")}${fix.hand ? "" : fix.coarse ? " · roughly" : ` · within about ${Math.round(sure)} km`}</text></svg>`;
+    + `<text class="tick" x="8" y="${h - 8}">${fix.hand || fix.known ? `${fix.name.split(",")[0]} · ` : ""}${deg(fix.lat, "N", "S")} ${deg(fix.lon, "E", "W")}${fix.hand || fix.known ? "" : fix.coarse ? " · roughly" : ` · within about ${Math.round(sure)} km`}</text></svg>`;
 }
 for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
   $(id).addEventListener("click", () => save({ location: { [key]: !lc()[key] } }));

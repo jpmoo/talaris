@@ -55,7 +55,11 @@ AGENT_CONF = "/etc/geoclue/conf.d/90-talaris.conf"
 DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": True,
             "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False,
             # Where Talaris takes you to be: found ("auto"), or a place you chose ("hand": `place`).
-            "by": "auto", "place": None}
+            "by": "auto", "place": None,
+            # Places known by their Wi-Fi: on one of these networks, that place — exactly, where a guess cannot be.
+            "places": []}
+#: How often the Wi-Fi in use is looked at, for a known place arrived at or left.
+NETWORK_EVERY_MS = 2 * 60 * 1000
 #: A fix this rough came from the internet address, not from Wi-Fi: said so, not taken as a distance.
 COARSE_M = 15000
 FIX_EVERY_MS = 30 * 60 * 1000
@@ -126,6 +130,7 @@ class Location(QObject):
     _forecast_fetched = Signal(str, str)
     _set_up = Signal(int, str)
     _finger = Signal()
+    _network_seen = Signal(str)
     _zone_set = Signal(str, str)
 
     def __init__(self, desktop) -> None:
@@ -149,6 +154,9 @@ class Location(QObject):
         self._finger.connect(lambda: self.desktop.notifications.own(
             "Touch the fingerprint reader", "The password window is waiting for your finger first.", [], lambda _k: None))
         self._forecast_fetched.connect(self._fetched_forecast)
+        #: The Wi-Fi in use and the routers in reach, as last looked at (look_at_network).
+        self.network: dict = {"ssid": "", "bssids": []}
+        self._network_seen.connect(self._got_network)
         self._outlook: dict | None = None
         self._start()
         self._fixes = QTimer(self)
@@ -160,6 +168,9 @@ class Location(QObject):
         self._tick = QTimer(self)
         self._tick.timeout.connect(self.daylight)
         self._tick.start(TICK_MS)
+        self._networks = QTimer(self)
+        self._networks.timeout.connect(lambda: self.on() and self.look_at_network())
+        self._networks.start(NETWORK_EVERY_MS)
         QTimer.singleShot(4000, self.configured)
 
     # ------------------------------------------------------------ settings
@@ -171,11 +182,17 @@ class Location(QObject):
         return bool(self.settings()["on"])
 
     def last(self) -> dict | None:
-        """Where you are, as Talaris takes it: the place you chose, set by hand; else the last fix."""
+        """
+        Where you are, as Talaris takes it: the place you chose, set by hand;
+        else the place you named for the Wi-Fi in use; else the last fix.
+        """
         s = self.settings()
         place = s.get("place")
         if s.get("by") == "hand" and isinstance(place, dict) and "lat" in place:
             return {"lat": place["lat"], "lon": place["lon"], "accuracy": 1000, "at": place.get("at", 0), "name": place.get("name", ""), "hand": True}
+        known = self.known_place()
+        if known:
+            return {"lat": known["lat"], "lon": known["lon"], "accuracy": 1000, "at": int(time.time()), "name": known.get("name", ""), "known": True}
         fix = self.desktop.config.get("location", {}).get("last")
         return fix if isinstance(fix, dict) and "lat" in fix else None
 
@@ -188,6 +205,8 @@ class Location(QObject):
         """The settings, as they now are: the helper told, a fix asked for, the sun and the weather as they say."""
         s = self.settings()
         self._send({"do": "on", "on": s["on"]})
+        if s["on"]:
+            self.look_at_network()
         # Possibly somewhere else now (set by hand, or back to found): the forecast asked anew.
         self._outlook = None
         if s["on"]:
@@ -360,6 +379,66 @@ class Location(QObject):
         return self.on() and self.in_use and not self.locating
 
     # ------------------------------------------------------------ Talaris's own fix
+
+    # ------------------------------------------------------------ places known by their Wi-Fi
+
+    def known_place(self) -> dict | None:
+        """The place named for the Wi-Fi in use: its name, and one of its routers in reach — so another network called the same is not it."""
+        net = self.network
+        if not net.get("ssid"):
+            return None
+        for p in self.settings().get("places") or []:
+            if p.get("ssid") == net["ssid"] and set(p.get("bssids") or []) & set(net.get("bssids") or []):
+                return p
+        return None
+
+    def look_at_network(self) -> None:
+        """The Wi-Fi in use, and the routers in reach (nmcli), read off the screen's thread; a known place come or gone, said."""
+        def run() -> None:
+            try:
+                out = subprocess.run(["nmcli", "-t", "-f", "IN-USE,SSID,BSSID", "dev", "wifi", "list"], capture_output=True, text=True, timeout=15).stdout
+            except (OSError, subprocess.SubprocessError):
+                out = ""
+            ssid, bssids = "", []
+            for line in out.splitlines():
+                # BSSIDs come with their colons escaped (\:): split on the others.
+                parts = line.replace("\\:", "\x00").split(":")
+                if len(parts) < 3:
+                    continue
+                bssid = parts[-1].replace("\x00", ":").lower()
+                bssids.append(bssid)
+                if parts[0] == "*":
+                    ssid = ":".join(parts[1:-1]).replace("\x00", ":")
+            self._network_seen.emit(json.dumps({"ssid": ssid, "bssids": bssids}))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _got_network(self, text: str) -> None:
+        was = (self.known_place() or {}).get("name")
+        self.network = json.loads(text)
+        now = (self.known_place() or {}).get("name")
+        if now != was:
+            log(f"location: {'at a known place' if now else 'no known place'} by its Wi-Fi")
+            self._outlook = None
+            self.fetch()
+            self.daylight()
+            self._tell_morgan()
+            self.changed.emit()
+
+    def pin_network(self, place: dict) -> None:
+        """The Wi-Fi in use named as this place (Settings, Location): kept with its routers in reach now."""
+        net = self.network
+        if not net.get("ssid") or not isinstance(place, dict) or "lat" not in place:
+            return
+        places = [p for p in (self.settings().get("places") or []) if p.get("ssid") != net["ssid"] or not set(p.get("bssids") or []) & set(net["bssids"])]
+        places.append({"ssid": net["ssid"], "bssids": sorted(set(net["bssids"]))[:40], "name": str(place.get("name", ""))[:120],
+                       "lat": round(float(place["lat"]), 2), "lon": round(float(place["lon"]), 2)})
+        self.desktop.settings.apply({"location": {"places": places}})
+
+    def unpin_network(self, index: int) -> None:
+        places = list(self.settings().get("places") or [])
+        if 0 <= index < len(places):
+            places.pop(index)
+            self.desktop.settings.apply({"location": {"places": places}})
 
     def locate(self) -> None:
         # Set by hand: nothing to find.
@@ -593,8 +672,12 @@ class Location(QObject):
                 "weather": self.weather if s["on"] and s["weather"] else None,
                 # Rounded as kept (about a kilometre): for Settings' map, which is drawn on this machine.
                 "fix": {"lat": fix["lat"], "lon": fix["lon"], "accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0),
-                        "name": fix.get("name", ""), "hand": bool(fix.get("hand")),
+                        "name": fix.get("name", ""), "hand": bool(fix.get("hand")), "known": bool(fix.get("known")),
                         # Not from Wi-Fi: from the internet address, which places the provider, not you.
-                        "coarse": not fix.get("hand") and fix.get("accuracy", 0) >= COARSE_M} if fix else None,
+                        "coarse": not fix.get("hand") and not fix.get("known") and fix.get("accuracy", 0) >= COARSE_M} if fix else None,
+                # The Wi-Fi in use (its name only), and the places named for networks: for Settings to name this one, or forget one.
+                "network": self.network.get("ssid", ""),
+                "places": [{"ssid": p.get("ssid", ""), "name": p.get("name", "")} for p in (s.get("places") or [])],
+                "here": (self.known_place() or {}).get("name", ""),
                 "zone": _system_zone(), "units": self.units(),
                 "apps": [{"id": a, "name": self.app_name(a), "how": h} for a, h in sorted(s["apps"].items())]}
