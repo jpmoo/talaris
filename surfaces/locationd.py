@@ -93,18 +93,30 @@ class Location:
     # ------------------------------------------------------------ the agent
 
     def _add_agent(self) -> None:
+        """
+        Asked of GeoClue without waiting on it: as it takes an agent, GeoClue
+        asks the agent its MaxAccuracyLevel — a call waited on here would not
+        be answered, and both would wait until the call timed out.
+        """
+        self.manager.call("AddAgent", GLib.Variant("(s)", (TALARIS,)), Gio.DBusCallFlags.NONE, 10000, None, self._agent_added)
+
+    def _agent_added(self, proxy, result) -> None:
         try:
-            self.manager.call_sync("AddAgent", GLib.Variant("(s)", (TALARIS,)), Gio.DBusCallFlags.NONE, 10000, None)
-            now = "on"
-            why = ""
+            proxy.call_finish(result)
+            now, why = "on", ""
         except GLib.Error as e:
             # Not listed in GeoClue's configuration (setup/location.sh), or GeoClue not there at all — or
-            # GeoClue leaving as it was asked (idle): nothing learned, the last answer stands.
+            # GeoClue busy starting (just set up, it is restarted to read its configuration), or leaving
+            # (idle): asked again in a few seconds, a few times, rather than taken as an answer.
             msg = e.message.lower()
-            if "noreply" in msg or "disconnected" in msg:
+            if "noreply" in msg or "disconnected" in msg or "timeout" in msg:
+                self._busy_tries = getattr(self, "_busy_tries", 0) + 1
+                if self._busy_tries <= 5:
+                    GLib.timeout_add_seconds(4, lambda: (self._add_agent(), False)[1])
                 return
             refused = "not allowed" in msg or "accessdenied" in msg or "denied" in msg
             now, why = ("refused" if refused else "absent"), e.message[:160]
+        self._busy_tries = 0
         if now != self.agent:
             self.agent = now
             say({"agent": now, **({"why": why} if why else {})})
@@ -210,10 +222,14 @@ class Location:
 
         state["signal"] = client.connect("g-signal", signalled)
         state["timer"] = GLib.timeout_add_seconds(FIX_S, lambda: (finish(None, "no fix in time"), False)[1])
-        try:
-            client.call_sync("Start", None, Gio.DBusCallFlags.NONE, 15000, None)
-        except GLib.Error as e:
-            finish(None, e.message[:160])
+        # Not waited on: starting it, GeoClue asks this very agent whether Talaris may (AuthorizeApp), and a
+        # call waited on here would leave that unanswered until it timed out.
+        def started(proxy, result) -> None:
+            try:
+                proxy.call_finish(result)
+            except GLib.Error as e:
+                finish(None, e.message[:160])
+        client.call("Start", None, Gio.DBusCallFlags.NONE, 15000, None, started)
 
     def do(self, msg: dict) -> None:
         what = msg.get("do")

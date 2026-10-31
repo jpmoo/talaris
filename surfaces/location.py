@@ -213,8 +213,12 @@ class Location(QObject):
             if "agent" in msg:
                 if msg["agent"] != self.agent:
                     log(f"location: agent {msg['agent']}" + (f" ({msg.get('why', '')})" if msg["agent"] != "on" else ""))
+                became = msg["agent"] == "on" and self.agent != "on"
                 self.agent = msg["agent"]
                 self.changed.emit()
+                if became:
+                    # The agent now: a fix by the way it is meant to come (GeoClue asking Talaris), at once.
+                    self.locate()
             elif "ask" in msg:
                 self._asked(int(msg["ask"]), str(msg.get("app", "")), int(msg.get("accuracy", 4)))
             elif "inUse" in msg:
@@ -338,6 +342,8 @@ class Location(QObject):
         if not self.on() or self.locating:
             return
         self.locating = True
+        # Told it is on first: asked for a fix the moment the helper starts, it may not have heard yet.
+        self._send({"do": "on", "on": True})
         self._send({"do": "locate"})
         # Never answered (the helper gone): not locating for ever.
         QTimer.singleShot(60_000, lambda: setattr(self, "locating", False))
@@ -559,7 +565,7 @@ class Location(QObject):
     def describe(self) -> dict:
         s = self.settings()
         fix = self.last()
-        return {"on": s["on"], "agent": self.agent, "looking": self.others_looking(),
+        return {"on": s["on"], "agent": self.agent, "setUp": os.path.exists(AGENT_CONF), "looking": self.others_looking(),
                 "weather": self.weather if s["on"] and s["weather"] else None,
                 "fix": {"accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0)} if fix else None,
                 "zone": _system_zone(), "units": self.units(),

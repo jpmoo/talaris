@@ -359,7 +359,8 @@ function drawLocation() {
   const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 2 ? "just now" : m < 90 ? `${m} min ago` : `${Math.round(m / 60)} hours ago`; };
   $("lc-status").textContent = !l.on ? "Off: nothing knows where you are"
     : w.fix ? `Found ${ago(w.fix.at)}, to about ${Math.max(1, Math.round(w.fix.accuracy / 1000))} km` : "Looking…";
-  $("lc-setup").hidden = !(l.on && w.agent === "refused");
+  // Set up once, and gone for good: what it wrote is there (location.py, setUp), whatever GeoClue last said.
+  $("lc-setup").hidden = !l.on || w.setUp !== false;
   for (const [id, key] of [["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
     $(id).classList.toggle("on", !!l[key]);
   }
