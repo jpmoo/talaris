@@ -62,7 +62,7 @@ BAR = 34
 #: Each popup's surface: the panel, and room round it for its shadow (popup.html .panel's inset).
 POPUPS = {"power": (242, 224), "volume": (272, 126), "network": (332, 442), "bluetooth": (332, 422), "tray": (292, 222),
           "trayicons": (252, 102), "battery": (312, 304), "projects": (308, 164), "notifications": (388, 464),
-          "clipboard": (468, 564)}
+          "clipboard": (468, 564), "weather": (376, 468)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -404,6 +404,9 @@ class Popup(QObject):
         self.bridge.state.emit(json.dumps(self.describe()))
         if kind in ("network", "bluetooth", "battery"):
             self.desktop.machine.panel_read(kind)
+        elif kind == "weather":
+            # The forecast asked for each time it opens: an hour old is old (location.py).
+            self.desktop.location.forecast()
         self.touched()
         shown = self.shown_at
         QTimer.singleShot(1200, lambda: self._check_drawn(kind, shown))

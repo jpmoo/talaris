@@ -726,6 +726,20 @@ $("prev").innerHTML = Icons.prev();
 $("next").innerHTML = Icons.next();
 $("prev").addEventListener("click", () => step(-1));
 $("next").addEventListener("click", () => step(1));
+// A touchpad's two-finger swipe, left or right, over the calendar: a day, a week or a month on or back,
+// as the arrows do — left is on, as a page is turned. One swipe is one step: its deltas add up to
+// SWIPE_PX, then nothing more is taken until the swipe (and its glide) has stopped for a moment.
+const SWIPE_PX = 90, SWIPE_REST_MS = 260;
+let swiped = 0, swipeDone = false, swipeQuiet = null;
+document.querySelector("main").addEventListener("wheel", (e) => {
+  if (editing || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  clearTimeout(swipeQuiet);
+  swipeQuiet = setTimeout(() => { swiped = 0; swipeDone = false; }, SWIPE_REST_MS);
+  if (swipeDone) return;
+  swiped += e.deltaX;
+  if (Math.abs(swiped) >= SWIPE_PX) { step(swiped > 0 ? 1 : -1); swipeDone = true; }
+}, { passive: false });
 $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(0, 0, 0); at.setHours(at.getHours() + 1); create(mode === "month" && !sameDay(focus, new Date()) ? (() => { const d = new Date(focus); d.setHours(9); return d; })() : at, false); });
 // A panel's one button makes it a window (the expand corners); a window's one
 // button closes it.

@@ -89,6 +89,8 @@ class Location(QObject):
     #: Something the bar or Settings shows changed: the weather, in use, the agent, a fix.
     changed = Signal()
     _fetched = Signal(str)
+    #: The forecast for the weather popup, as its page takes it ({"kind": "weather", "state", "error"}).
+    forecast_ready = Signal(str)
     _zone_set = Signal(str, str)
 
     def __init__(self, desktop) -> None:
@@ -292,6 +294,48 @@ class Location(QObject):
                     self._fetched.emit(reply.read().decode("utf-8"))
             except Exception as e:  # noqa: BLE001 — offline, or the service down: the last weather stands, then none
                 log(f"location: no weather ({type(e).__name__})")
+        threading.Thread(target=run, daemon=True).start()
+
+    def forecast(self) -> None:
+        """
+        The weather popup's: the next 24 hours, hour by hour, and the next 10
+        days — asked of Open-Meteo off the screen's thread, with the rounded
+        fix and nothing else, each time the popup opens.
+        """
+        fix = self.last()
+        if not self.on() or not fix:
+            self.forecast_ready.emit(json.dumps({"kind": "weather", "state": None,
+                                                 "error": "Location is off" if not self.on() else "Not found yet"}))
+            return
+        unit = self.units()
+        q = urllib.parse.urlencode({"latitude": fix["lat"], "longitude": fix["lon"], "timezone": "auto",
+                                    "current": "temperature_2m,weather_code,is_day,apparent_temperature",
+                                    "hourly": "temperature_2m,weather_code,is_day,precipitation_probability",
+                                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                                    "forecast_hours": 24, "forecast_days": 10,
+                                    "temperature_unit": "fahrenheit" if unit == "f" else "celsius"})
+
+        def run() -> None:
+            try:
+                with urllib.request.urlopen(f"https://api.open-meteo.com/v1/forecast?{q}", timeout=15) as reply:
+                    got = json.loads(reply.read().decode("utf-8"))
+                sky = lambda code: SKY.get(int(code if code is not None else -1), ("", "cloud"))  # noqa: E731
+                h, d, c = got["hourly"], got["daily"], got["current"]
+                state = {
+                    "unit": "°F" if unit == "f" else "°C",
+                    "now": {"temp": round(c["temperature_2m"]), "feels": round(c.get("apparent_temperature", c["temperature_2m"])),
+                            "sky": sky(c["weather_code"])[0], "icon": sky(c["weather_code"])[1], "day": bool(c.get("is_day", 1))},
+                    "hours": [{"at": t, "temp": round(tt), "icon": sky(code)[1], "sky": sky(code)[0], "day": bool(dd), "rain": rain or 0}
+                              for t, tt, code, dd, rain in zip(h["time"], h["temperature_2m"], h["weather_code"], h["is_day"],
+                                                               h.get("precipitation_probability") or [0] * len(h["time"]))],
+                    "days": [{"at": t, "hi": round(hi), "lo": round(lo), "icon": sky(code)[1], "sky": sky(code)[0], "rain": rain or 0}
+                             for t, code, hi, lo, rain in zip(d["time"], d["weather_code"], d["temperature_2m_max"], d["temperature_2m_min"],
+                                                              d.get("precipitation_probability_max") or [0] * len(d["time"]))],
+                }
+                self.forecast_ready.emit(json.dumps({"kind": "weather", "state": state, "error": ""}))
+            except Exception as e:  # noqa: BLE001 — offline, or the service down
+                self.forecast_ready.emit(json.dumps({"kind": "weather", "state": None, "error": "No forecast just now"}))
+                log(f"location: no forecast ({type(e).__name__})")
         threading.Thread(target=run, daemon=True).start()
 
     def _got_weather(self, text: str) -> None:

@@ -229,6 +229,7 @@ function onState(s) {
   // Two frames on, said: a page that is not being drawn never gets there, and the process mends it (bar.py, _check_drawn).
   if (s.popup && bridge && bridge.shownDrawn) { const shown = s.shown; requestAnimationFrame(() => requestAnimationFrame(() => bridge.shownDrawn(shown))); }
   disarm();
+  if (opening && s.popup === "weather") { forecast = null; wxMode = "hours"; drawWeather(); }
   if (opening && (s.popup === "network" || s.popup === "bluetooth")) {
     open = { key: "", busy: "", armed: "", scanning: false };
     $(s.popup === "network" ? "nets" : "devs").replaceChildren(note("Reading…"));
@@ -410,6 +411,9 @@ function onPanel(p) {
     drawWifi();
   } else if (p.kind === "battery") {
     drawBattery(p.state, p.error);
+  } else if (p.kind === "weather") {
+    forecast = p.state;
+    drawWeather(p.error);
   } else if (p.kind === "bluetooth") {
     blue = p.state;
     open.busy = "";
@@ -418,6 +422,41 @@ function onPanel(p) {
     if (!p.error) open.key = "";
     drawBlue();
   }
+}
+
+// ---------------------------------------------------------------- the weather
+// Now, large; then the next 24 hours, or (the switch) the next 10 days — fetched each time it opens (location.py).
+let forecast = null;
+let wxMode = "hours";
+function drawWeather(error) {
+  const f = forecast;
+  const seg = $("wx-mode");
+  seg.replaceChildren(...[["hours", "Hours"], ["days", "10 days"]].map(([v, label]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.className = v === wxMode ? "on" : "";
+    b.onclick = () => { wxMode = v; drawWeather(); };
+    return b;
+  }));
+  if (!f) { $("wx-now").replaceChildren(); $("wx-rows").replaceChildren(note(error || "Reading…")); refit(); return; }
+  const now = f.now;
+  $("wx-now").innerHTML = `${Icons.sky(now.icon, now.day)}<span class="t">${now.temp}${f.unit}</span>`
+    + `<span class="s"><b>${now.sky}</b><span>Feels like ${now.feels}°</span></span>`;
+  const row = (when, icon, sky, temp, rain) => {
+    const r = document.createElement("div");
+    r.className = "wx-row";
+    r.innerHTML = `<span class="when">${when}</span>${icon}<span class="sky">${sky}</span><span class="temp">${temp}${rain >= 20 ? `<span class="rain">${rain}%</span>` : ""}</span>`;
+    return r;
+  };
+  const rows = wxMode === "hours"
+    ? f.hours.map((h, i) => row(i === 0 ? "Now" : Kit.minutes(Number(h.at.slice(11, 13)) * 60), Icons.sky(h.icon, h.day), h.sky, `${h.temp}°`, h.rain))
+    : f.days.map((d, i) => {
+      const day = new Date(`${d.at}T12:00`);
+      const name = i === 0 ? "Today" : i === 1 ? "Tomorrow" : day.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      return row(name, Icons.sky(d.icon, true), d.sky, `${d.hi}°<span class="lo">${d.lo}°</span>`, d.rain);
+    });
+  $("wx-rows").replaceChildren(...rows);
+  refit();
 }
 
 // ---------------------------------------------------------------- the battery

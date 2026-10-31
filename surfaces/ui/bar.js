@@ -211,6 +211,8 @@ $("tasks").addEventListener("click", () => bridge && bridge.openPanel("tasks"));
 $("writing").addEventListener("click", () => bridge && bridge.openPanel("writing"));
 // The date and time open the calendar, and it lights them while it is out.
 $("clock").addEventListener("click", () => bridge && bridge.calendar());
+// The weather, in the clock: its own popup (the hours, and the days), not the calendar.
+$("weather").addEventListener("click", (e) => { e.stopPropagation(); if (bridge) bridge.popupAt("weather", under("weather")); });
 // Wi-Fi and Bluetooth open centered under their buttons.
 const under = (id) => { const r = $(id).getBoundingClientRect(); return r.left + r.width / 2; };
 $("net").addEventListener("click", () => bridge && bridge.popupAt("network", under("net")));

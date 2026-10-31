@@ -20,7 +20,7 @@ html, body { height: 100%; }
 .panel.menu { background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent) !important; }
 body[data-popup="power"] #power, body[data-popup="volume"] #volume,
 body[data-popup="network"] #network, body[data-popup="bluetooth"] #bluetooth,
-body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[data-popup="battery"] #battery, body[data-popup="projects"] #projects, body[data-popup="notifications"] #notifications, body[data-popup="clipboard"] #clipboard { display: flex; }
+body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[data-popup="battery"] #battery, body[data-popup="projects"] #projects, body[data-popup="notifications"] #notifications, body[data-popup="clipboard"] #clipboard, body[data-popup="weather"] #weather { display: flex; }
 .menu .hint { align-items: center; }
 
 /* Wi-Fi and Bluetooth: a list that scrolls, things you can do under it. */
@@ -48,6 +48,22 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #bat-rows .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 10px; font-size: 12.5px; }
 #bat-rows .kv span:first-child { color: var(--muted); }
 #bat-profiles { align-self: flex-start; margin: 6px 10px 2px; }
+/* The weather: now, large; then the hours or the days, a row each, scrolling. */
+.wx-now { display: flex; align-items: center; gap: 12px; padding: 4px 10px 10px; }
+.wx-now .ic { width: 34px; height: 34px; color: var(--accent); }
+.wx-now .t { font-size: 28px; color: var(--text); font-variant-numeric: tabular-nums; }
+.wx-now .s { display: flex; flex-direction: column; font-size: 12.5px; color: var(--muted); }
+.wx-now .s b { font-weight: 500; color: var(--text); }
+#wx-rows { flex: 1; min-height: 0; overflow: auto; }
+.wx-row { display: grid; grid-template-columns: 76px 20px 1fr auto; align-items: center; gap: 8px; padding: 4px 10px; font-size: 12.5px;
+  border-radius: var(--radius-row); font-variant-numeric: tabular-nums; }
+.wx-row:hover { background: var(--accent-wash); }
+.wx-row .when { color: var(--muted); }
+.wx-row .ic { width: 16px; height: 16px; }
+.wx-row .sky { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx-row .temp { color: var(--text); text-align: right; }
+.wx-row .temp .lo { color: var(--muted); margin-left: 6px; }
+.wx-row .rain { color: var(--accent); font-size: 11px; margin-left: 6px; }
 #bat-profiles:empty { display: none; }
 #project-list { overflow-y: auto; overscroll-behavior: contain; }
 #project-list .menu-item { justify-content: space-between; }
@@ -209,6 +225,11 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
   <div class="seg" id="bat-profiles"></div>
   <div class="menu-sep"></div>
   <button class="menu-item" id="bat-settings">Power settings…</button>
+</div>
+<div class="panel menu" id="weather">
+  <div class="hint"><span>Weather</span><span class="seg" id="wx-mode"></span></div>
+  <div class="wx-now" id="wx-now"></div>
+  <div id="wx-rows"></div>
 </div>
 <div class="panel menu" id="trayicons">
   <div class="hint"><span>Tray</span></div>
