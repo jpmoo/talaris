@@ -248,10 +248,10 @@
   }
 
   function drawMode() {
-    seg("mode", [["org", "Organization"], ["az", "A–Z"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
+    seg("mode", [["org", "Org"], ["az", "A–Z"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
     seg("named", [["all", "All"], ["named", "Named"], ["unnamed", "No name"]], named, (n) => { named = n; store.set("talaris.people.named", n); drawMode(); drawList(); });
     // Pressed again, the one chosen lets go: everyone.
-    seg("orgd", [["has", "Has organization"], ["mine", "My organizations"], ["none", "No organization"]], orgd, (o) => {
+    seg("orgd", [["has", "Has org"], ["mine", "My orgs"], ["none", "No org"]], orgd, (o) => {
       orgd = o === orgd ? "all" : o; store.set("talaris.people.orgd", orgd); drawMode(); drawList();
     });
   }
