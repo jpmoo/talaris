@@ -141,7 +141,7 @@
   // What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
   const parseTime = (text) => Kit.parseTime(text);
   const timeList = (current, pick) => Kit.timeList(current, pick);
-  // Strictly after today: the picker's "Next Mon".
+  // Strictly after today: the picker's "Next Mon" and the rest of the week.
 
   // ---------------------------------------------------------------- the one pop at a time
   //

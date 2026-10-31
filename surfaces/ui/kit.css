@@ -33,6 +33,9 @@ asking twice, an empty list, a line said back — the same on every page.
 .kit-more { position: relative; display: inline-flex; }
 .kit-more-list { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); z-index: 1; min-width: 120px;
   background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-control); box-shadow: var(--menu-shadow); padding: 4px; }
+/* Two columns: a day and a week on, then the week's days in pairs — short enough to stay over the month. */
+.kit-more-list:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; min-width: 190px; }
+.kit-more-list .menu-item { white-space: nowrap; }
 .kit-more-list[hidden] { display: none; }
 .kit-chips .t-btn { font-size: 11.5px !important; padding: 1px 8px !important; }
 .kit-times { display: flex; flex-direction: column; max-height: 220px; overflow: auto; min-width: 110px; }

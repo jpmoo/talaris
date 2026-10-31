@@ -279,10 +279,15 @@ const Kit = (() => {
    * `clear` is set) — the first a button, the rest in a pulldown beside it,
    * Clear last. `pick` is given the day (or a chip's value).
    */
-  /** The quick days, the same everywhere: today, a day and a week on from `base` (the day chosen, else today), next Monday. */
+  /**
+   * The quick days, the same everywhere: today, a day and a week on from `base` (the day chosen, else today),
+   * and each day of the next week — the first of its name strictly after today, Monday first.
+   */
   const DAY_CHIPS = (base = null) => {
     const t = startOfDay(new Date()), b = base ? startOfDay(base) : t;
-    return [["Today", t], ["+1 day", addDays(b, 1)], ["+1 week", addDays(b, 7)], ["Next Mon", addDays(t, ((1 - t.getDay() + 7) % 7) || 7)]];
+    const next = (dow) => addDays(t, ((dow - t.getDay() + 7) % 7) || 7);
+    return [["Today", t], ["+1 day", addDays(b, 1)], ["+1 week", addDays(b, 7)],
+      ...["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => [`Next ${d}`, next((i + 1) % 7)])];
   };
   function monthPicker(chosen, pick, { chips = null, clear = false, years = false } = {}) {
     let month0 = new Date((chosen || new Date()).getFullYear(), (chosen || new Date()).getMonth(), 1);
