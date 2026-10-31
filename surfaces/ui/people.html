@@ -33,7 +33,9 @@ html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
 /* Wrapping onto a second line rather than running off the panel's side. */
-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+header { display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+header .tools { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+header .corner { flex: none; display: flex; align-items: center; min-height: 28px; }
 /* The actions keep to the right, on whichever line they land. */
 #list-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; white-space: nowrap; }
@@ -152,6 +154,7 @@ input.field.bad { border-color: var(--danger) !important; }
 </head>
 <body data-arrives>
 <header>
+  <div class="tools">
   <h1>People</h1>
   <span id="count"></span>
   <input type="search" id="q" placeholder="Find" spellcheck="false">
@@ -162,8 +165,9 @@ input.field.bad { border-color: var(--danger) !important; }
   <span class="spacer"></span>
   <span id="list-actions"></span>
   <button class="t-btn" id="add">+ Person</button>
-  <button class="icon-btn" id="grow"></button>
-  <button class="icon-btn" id="close"></button>
+  </div>
+  <!-- Expand (a panel) or close (a window): the top right corner, however the rest wraps. -->
+  <span class="corner"><button class="icon-btn" id="grow"></button><button class="icon-btn" id="close"></button></span>
 </header>
 <main>
   <aside id="list" tabindex="0"></aside>

@@ -30,7 +30,9 @@ body {
 html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+header { display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; min-width: 0; }
+header .tools { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+header .corner { flex: none; display: flex; align-items: center; min-height: 28px; }
 header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
 header .spacer { flex: 1; }
 header .t-btn { white-space: nowrap; flex: none; }
@@ -164,6 +166,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
 </head>
 <body data-arrives>
 <header>
+  <div class="tools">
   <h1>Library</h1>
   <span id="count"></span>
   <input type="search" id="q" placeholder="Find" spellcheck="false">
@@ -174,8 +177,9 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
   <span class="spacer"></span>
   <button class="t-btn" id="bring" title="Files from anywhere in your home folder: as shortcuts (left where they are), or moved into the project">Add…</button>
   <button class="icon-btn" id="reveal" title="Open this project's folder in Files"></button>
-  <button class="icon-btn" id="grow"></button>
-  <button class="icon-btn" id="close"></button>
+  </div>
+  <!-- Expand (a panel) or close (a window): the top right corner, however the rest wraps. -->
+  <span class="corner"><button class="icon-btn" id="grow"></button><button class="icon-btn" id="close"></button></span>
 </header>
 <main>
   <aside id="side"></aside>
