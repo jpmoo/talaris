@@ -19,3 +19,9 @@ Type=simple
 ExecStart=__ROOT__/surfaces/talaris-surfaces
 Restart=on-failure
 RestartSec=2
+# Stopped, the surfaces alone are told: they put their pages away and leave, and
+# only then are QtWebEngine's own processes ended. Told all at once (the
+# default), those die first, under pages still drawn, and the surfaces abort
+# ("Failed to restore OpenGL context after clean-up") — a core dump a stop.
+KillMode=mixed
+TimeoutStopSec=5
