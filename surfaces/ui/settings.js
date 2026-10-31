@@ -377,6 +377,7 @@ function drawLocation() {
       el("button", { class: "t-btn", title: "It asks again next time", onclick: () => bridge && bridge.locationApp(a.id, "") }, "Forget"))))
     : [Kit.empty(l.on ? "No app has asked yet" : "Off")]));
 }
+$("lc-setup-go").addEventListener("click", () => bridge && bridge.locationSetUp && bridge.locationSetUp());
 for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
   $(id).addEventListener("click", () => save({ location: { [key]: !lc()[key] } }));
 }

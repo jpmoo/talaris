@@ -91,6 +91,7 @@ class Location(QObject):
     _fetched = Signal(str)
     #: The forecast for the weather popup, as its page takes it ({"kind": "weather", "state", "error"}).
     forecast_ready = Signal(str)
+    _set_up = Signal(int, str)
     _zone_set = Signal(str, str)
 
     def __init__(self, desktop) -> None:
@@ -110,6 +111,7 @@ class Location(QObject):
         self._restarts = 0
         self._fetched.connect(self._got_weather)
         self._zone_set.connect(self._zone_done)
+        self._set_up.connect(self._setup_done)
         self._start()
         self._fixes = QTimer(self)
         self._fixes.timeout.connect(self.locate)
@@ -229,6 +231,36 @@ class Location(QObject):
             self._send({"do": "answer", "id": ident, "allow": key in ("once", "always"), "accuracy": accuracy})
         self.desktop.notifications.own(f"{name} wants your location", f"To know {ACCURACY.get(accuracy, 'where you are')}.",
                                        [("once", "Allow once"), ("always", "Always"), ("no", "Don't allow")], answered)
+
+    def set_up(self) -> None:
+        """
+        setup/location.sh, run as root through pkexec — a password window, no
+        terminal (Settings, Location's Set up): Talaris listed as GeoClue's
+        agent, and the time zone settable without a password. Then the helper
+        becomes the agent at once.
+        """
+        script = os.path.join(os.path.dirname(HERE), "setup", "location.sh")
+
+        def run() -> None:
+            try:
+                done = subprocess.run(["pkexec", script], capture_output=True, text=True, timeout=300)
+                self._set_up.emit(done.returncode, done.stderr.strip()[-200:])
+            except (OSError, subprocess.SubprocessError) as e:
+                self._set_up.emit(-1, str(e)[:200])
+        threading.Thread(target=run, daemon=True).start()
+
+    def _setup_done(self, code: int, said: str) -> None:
+        if code == 0:
+            log("location: set up (setup/location.sh)")
+            self._send({"do": "agent"})
+            self.desktop.notifications.own("Location is set up", "Apps can ask for your location, and the time zone follows you.", [], lambda _k: None)
+        elif code in (126, 127):
+            # pkexec: the password window dismissed (126), or not authorized (127).
+            log("location: set up cancelled")
+        else:
+            log(f"location: set up failed ({code}: {said})")
+            self.desktop.notifications.own("Location not set up", said or f"It stopped ({code}).", [], lambda _k: None)
+        self.changed.emit()
 
     def forget(self, app: str) -> None:
         apps = {k: v for k, v in self.settings()["apps"].items() if k != app}

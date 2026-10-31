@@ -28,6 +28,7 @@ stops looking, and its "in use" says what other applications are doing.
   {"do": "on", "on": bool}                         — location on for Talaris at all
   {"do": "answer", "id": …, "allow": bool, "accuracy": n}
   {"do": "locate"}                                 — Talaris's own fix, once
+  {"do": "agent"}                                  — be GeoClue's agent, now (just set up)
 """
 
 from __future__ import annotations
@@ -218,6 +219,8 @@ class Location:
             self.answer(int(msg.get("id", 0)), bool(msg.get("allow")), int(msg.get("accuracy", CITY)))
         elif what == "locate":
             self.locate()
+        elif what == "agent":
+            self._add_agent()
 
 
 def main() -> int:

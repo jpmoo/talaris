@@ -103,8 +103,9 @@ pages. The screenshots above come from it.
 
 Location (Settings → Location) is off until you turn it on. For apps to be
 able to ask for your location, and for the time zone to follow you without a
-password each time, run `setup/location.sh` once; it uses `sudo`, says what it
-writes, and `setup/location.sh --undo` takes it back.
+password each time, press **Set up…** there once: it asks for your password
+and writes two small system files (or run `setup/location.sh` yourself;
+`setup/location.sh --undo` takes them back).
 
 **Keys**
 

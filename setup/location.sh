@@ -15,14 +15,18 @@
 #
 #   setup/location.sh          set up
 #   setup/location.sh --undo   both files removed
+#
+# Settings, Location's Set up button runs it through pkexec (a password window,
+# no terminal): as root already, it uses no sudo.
 set -euo pipefail
+if [ "$(id -u)" = 0 ]; then SUDO=(); else SUDO=(sudo); fi
 
 AGENTS=/etc/geoclue/conf.d/90-talaris.conf
 ZONE=/etc/polkit-1/rules.d/50-talaris-timezone.rules
 
 if [ "${1:-}" = "--undo" ]; then
-  sudo rm -f "$AGENTS" "$ZONE"
-  sudo systemctl try-restart geoclue.service 2>/dev/null || true
+  "${SUDO[@]}" rm -f "$AGENTS" "$ZONE"
+  "${SUDO[@]}" systemctl try-restart geoclue.service 2>/dev/null || true
   echo "Removed $AGENTS and $ZONE."
   exit 0
 fi
@@ -32,13 +36,13 @@ allowed=$(sed -n '/^\[agent\]/,/^\[/{s/^whitelist=//p}' /etc/geoclue/geoclue.con
 case ";$allowed;" in *";talaris;"*) list="$allowed" ;; *) list="${allowed:+$allowed;}talaris" ;; esac
 
 echo "==> $AGENTS"
-sudo install -d -m 755 /etc/geoclue/conf.d
-printf '# Talaris (setup/location.sh): GeoClue'"'"'s agent on this desktop.\n[agent]\nwhitelist=%s\n' "$list" | sudo tee "$AGENTS" >/dev/null
-sudo chmod 644 "$AGENTS"
+"${SUDO[@]}" install -d -m 755 /etc/geoclue/conf.d
+printf '# Talaris (setup/location.sh): GeoClue'"'"'s agent on this desktop.\n[agent]\nwhitelist=%s\n' "$list" | "${SUDO[@]}" tee "$AGENTS" >/dev/null
+"${SUDO[@]}" chmod 644 "$AGENTS"
 
 echo "==> $ZONE"
-sudo install -d -m 755 /etc/polkit-1/rules.d
-sudo tee "$ZONE" >/dev/null <<'EOF'
+"${SUDO[@]}" install -d -m 755 /etc/polkit-1/rules.d
+"${SUDO[@]}" tee "$ZONE" >/dev/null <<'EOF'
 // Talaris (setup/location.sh): the time zone kept where you are, without a password each time.
 // Setting the time zone only, by a member of sudo or wheel at this machine.
 polkit.addRule(function (action, subject) {
@@ -48,8 +52,8 @@ polkit.addRule(function (action, subject) {
   }
 });
 EOF
-sudo chmod 644 "$ZONE"
+"${SUDO[@]}" chmod 644 "$ZONE"
 
 # GeoClue reads its configuration as it starts.
-sudo systemctl try-restart geoclue.service 2>/dev/null || true
+"${SUDO[@]}" systemctl try-restart geoclue.service 2>/dev/null || true
 echo "Done. Turn Location on in Talaris Settings; Talaris becomes GeoClue's agent as it next starts (or now, if it is running: it tries again)."

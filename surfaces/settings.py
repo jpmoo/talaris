@@ -233,6 +233,11 @@ class SettingsBridge(Bridge):
             act.do(found)
         self.activityRead()
 
+    @Slot()
+    def locationSetUp(self) -> None:  # noqa: N802 — called from the page by this name
+        """Set up, for apps to ask and the zone to follow: a password window (location.py, set_up)."""
+        self.owner.desktop.location.set_up()
+
     @Slot(str, str)
     def locationApp(self, app: str, how: str) -> None:  # noqa: N802 — called from the page by this name
         """An app's location: allowed, not allowed, or (empty) forgotten — it asks again next time."""
