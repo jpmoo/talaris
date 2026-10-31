@@ -1018,7 +1018,15 @@ def main() -> int:
     tick.start(250)
     app.aboutToQuit.connect(desktop.unbind)
     log("up")
-    return app.exec()
+    code = app.exec()
+    # Done: the keys given back (aboutToQuit), and everything kept as it changed. Left at that,
+    # Python would now tear the web views down in no order, after the windows whose OpenGL
+    # they draw with — QtWebEngine aborts ("Failed to restore OpenGL context after clean-up")
+    # and a stop ends in a core dump. Nothing is left to do, so nothing is torn down.
+    log("down")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
 
 
 if __name__ == "__main__":
