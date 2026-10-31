@@ -608,7 +608,7 @@
     });
     // In this project's lists (a list holds only what is in its project).
     if (!s.includes("missing")) act("Add to a list…", () => inline("list", r));
-    if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs));
+    if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs, r.project));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Pin to the dock", () => { bridge.pin(r.abs, r.name); say(`${r.name} pinned to the dock, in this project`); });
     if (s.includes("folder") && !s.includes("page")) {
       act("Rename", () => inline("rename", r));
@@ -977,10 +977,11 @@
     if (r.status.includes("missing")) { say(`${r.name} is missing from its folder`, true); return; }
     if (r.status.includes("snapshot") || r.sealed) {
       api("POST", "/files/open-copy", r.sha256 ? { sha256: r.sha256, name: r.name } : { project: r.project, path: r.path })
-        .then((x) => bridge.open(x.path)).catch(failed);
+        .then((x) => bridge.open(x.path, r.project)).catch(failed);
       return;
     }
-    if (r.abs) bridge.open(r.abs);
+    // On the desktop of the project it is in, and you there with it.
+    if (r.abs) bridge.open(r.abs, r.project);
   }
 
   // ---------------------------------------------------------------- bringing in
@@ -1138,7 +1139,7 @@
   });
   $("reveal").addEventListener("click", () => {
     const p = projects.find((x) => x.id === (project || surface.project));
-    if (p && bridge) bridge.reveal(p.folder);
+    if (p && bridge) bridge.reveal(p.folder, p.id);
   });
 
   // Keys: arrows through the rows, Enter opens, / finds, Escape puts away what is open, then the panel.

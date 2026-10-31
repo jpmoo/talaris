@@ -51,22 +51,30 @@ class FilesBridge(Bridge):
         """Answered later, on `coreReply` (core.Bridge.answer_core)."""
         self.answer_core(ident, method, path, body, ALLOWED, timeout=60, who="Files")
 
-    @Slot(str)
-    def open(self, path: str) -> None:
-        """A file in its application, as the system opens it."""
+    def _follow(self, project: str) -> None:
+        """To the desktop of the project it belongs to, first: what opens opens there, and you with it."""
+        desktop = self.owner.desktop
+        if project and project != desktop.project.get("id"):
+            desktop.go_to_project(project)
+
+    @Slot(str, str)
+    def open(self, path: str, project: str) -> None:
+        """A file in its application, as the system opens it — on its project's desktop."""
         full = _in_home(path)
         if full and os.path.exists(full):
-            _launch("xdg-open", full)
             # Out of the way of what opens: the panel goes (a window stays, as windows do).
             self.owner.file_away()
+            self._follow(project)
+            _launch("xdg-open", full)
 
-    @Slot(str)
-    def reveal(self, path: str) -> None:
-        """A file shown in the file manager, chosen there; a folder, opened."""
+    @Slot(str, str)
+    def reveal(self, path: str, project: str) -> None:
+        """A file shown in the file manager, chosen there; a folder, opened — on its project's desktop."""
         full = _in_home(path)
         if not full:
             return
         self.owner.file_away()
+        self._follow(project)
         if os.path.isdir(full):
             _launch("xdg-open", full)
             return
