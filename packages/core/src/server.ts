@@ -318,8 +318,18 @@ route("POST", "/files/folder", async (req) => {
   if (!b.project || !b.path) throw new BadRequest("a folder, and the project to link it into");
   return files.linkFolder(b.project, b.path);
 });
-route("DELETE", "/files/folder", (_r, _p, q) => { files.unlinkFolder(need(q, "project"), need(q, "path")); return { ok: true }; });
+// Unlinked: no longer watched, and its files out of the project (the files themselves untouched).
+route("DELETE", "/files/folder", (_r, _p, q) => ({ gone: files.unlinkFolder(need(q, "project"), need(q, "path")) }));
+// Looked at now, rather than when it next changes: what is new linked, what is gone let go.
+route("POST", "/files/folder/refresh", async (req) => {
+  const b = await json<{ project?: string; path?: string }>(req);
+  if (!b.project || !b.path) throw new BadRequest("a linked folder, and its project");
+  if (!files.foldersLinked(b.project).some((f) => f.folder === b.path)) throw new NotFound("not a folder linked into that project");
+  return { changed: await files.syncFolder(b.project, b.path) };
+});
 route("GET", "/files/folders", (_r, _p, q) => files.foldersLinked(q.get("project") || undefined));
+// What a project has linked from elsewhere: its folders and its files linked on their own (the Library's project pane).
+route("GET", "/files/linked", (_r, _p, q) => files.linkedInto(need(q, "project")));
 route("GET", "/files/ignored", (_r, _p, q) => files.ignoredIn(need(q, "project")));
 route("POST", "/files/rename", async (req) => {
   const b = await json<{ project?: string; path?: string; name?: string }>(req);

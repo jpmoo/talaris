@@ -56,8 +56,7 @@
   const picked = new Set();
   let anchor = null;
   let order = [];   // the keys as drawn, top to bottom: what Shift picks between
-  let watched = [];
-  let counts = null;  // how many of each thing the left side lists (/files/counts)   // the folders linked into the project shown, watched for new files
+  let counts = null;  // how many of each thing the left side lists (/files/counts)
   // How far search has read each file (the core's meaning.ts): `waiting` until it has; and whether it reads at all.
   let readState = {};
   let readAbout = {};   // what each read file is about (its description, or its first words): the book's tip
@@ -157,12 +156,11 @@
     if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
     // Asked together, not one after another.
-    const [got, w, c, l] = await Promise.all([
+    const [got, c, l] = await Promise.all([
       api("GET", `/files?${q}`),
-      inProject ? api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [],
       api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts),
       inProject ? api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : []]);
-    watched = w; counts = c; lists = l;
+    counts = c; lists = l;
     if (inProject) listsOf.set(project, lists);
     if (filters.list && !flat(lists).some((l) => l.id === filters.list)) filters.list = "";
     readState = got.read || {};
@@ -250,13 +248,6 @@
         item("All projects", project === "", () => setProject(""), null, c.all),
         item("No project", project === NONE, () => setProject(NONE), null, c.none ?? 0),
         ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
-      // The folders linked into this project, watched for new files: each let go of by its ×.
-      ...(watched.length ? section("watched", "Watched folders", watched.map((f) => el("div", { class: "s-item s-watch", title: `${f.folder}${f.exists ? "" : " — not there now"}` },
-        el("span", { class: "nm" }, f.folder.replace(/^\/home\/[^/]+/, "~")),
-        xBtn("Stop watching it (what is linked stays)", async () => {
-          try { await api("DELETE", `/files/folder?project=${enc(f.project)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} no longer watched; what was linked stays`); } catch (e) { failed(e); }
-          reload();
-        })))) : []),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
       ...(oneProject() ? section("lists", "Lists", listRows,
         el("button", { class: "add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
@@ -507,6 +498,8 @@
     }).catch(() => {});
     const acts = [];
     if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k), "t-btn small"));
+    const linkedHost = el("div", { class: "d-linked" });
+    drawLinked(id, linkedHost);
     const sugg = window.Peek ? Peek.suggestions(key, api, {
       open: (eid) => Peek.show(eid, api, { openTask: (t) => bridge.openTask(t), openPerson: (x) => bridge.openPerson(x),
         openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where), openEvent: (cal, u, st) => bridge.openEvent(cal, u, st), openUrl: (u) => bridge.openUrl(u) }),
@@ -517,10 +510,47 @@
       el("h2", {}, p.name || "A project"),
       el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
       aboutHost,
+      linkedHost,
       acts.length ? el("div", { class: "d-sub" }, "Do") : null,
       acts.length ? el("div", { class: "d-acts" }, ...acts) : null,
       sugg,
     ].filter(Boolean));
+  }
+
+  /**
+   * What the project has linked from elsewhere: each folder (watched, so what
+   * changes in it changes here; refreshed now by hand) and each file linked on
+   * its own — each unlinked on a second press. Nothing on disk is touched.
+   */
+  function drawLinked(id, host) {
+    api("GET", `/files/linked?project=${enc(id)}`).then((got) => {
+      if (project !== id || chosen) return;
+      const home = (p) => p.replace(/^\/home\/[^/]+/, "~");
+      const files = (n) => `${n} file${n === 1 ? "" : "s"}`;
+      const folders = got.folders.map((f) => el("div", { class: "d-link" },
+        el("span", { class: "nm", title: f.folder }, el("b", {}, f.folder.split("/").pop()),
+          el("small", { class: f.exists ? "" : "bad" }, f.exists ? `${home(f.folder)} · ${files(f.files)}` : `${home(f.folder)} · not there now`)),
+        el("button", { class: "t-btn small", title: "Look at it now for what is new or gone", onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try { const r = await api("POST", "/files/folder/refresh", { project: id, path: f.folder }); say(r.changed ? `${files(r.changed)} changed` : "Up to date"); } catch (x) { failed(x); }
+          reload();
+        } }, "Refresh"),
+        el("button", { class: "t-btn small", title: "Take its files out of this project; nothing on disk changes", onclick: async (e) => {
+          if (!Kit.ask(e.currentTarget, { key: `unlink:${f.folder}`, ask: "Unlink it?" })) return;
+          try { const r = await api("DELETE", `/files/folder?project=${enc(id)}&path=${enc(f.folder)}`); say(`${f.folder.split("/").pop()} unlinked; ${files(r.gone)} out of the project, none deleted`); } catch (x) { failed(x); }
+          reload();
+        } }, "Unlink")));
+      const singles = got.files.map((f) => el("div", { class: "d-link" },
+        el("span", { class: "nm", title: f.path }, el("b", {}, f.name),
+          el("small", { class: f.exists ? "" : "bad" }, f.exists ? home(f.path) : `${home(f.path)} · not there now`)),
+        el("button", { class: "t-btn small", title: "Take it out of this project; the file stays where it is", onclick: async (e) => {
+          if (!Kit.ask(e.currentTarget, { key: `unlink:${f.entity}`, ask: "Unlink it?" })) return;
+          try { await api("DELETE", `/files/shortcut/${enc(f.entity)}`); say(`${f.name} unlinked; the file is where it was`); } catch (x) { failed(x); }
+          reload();
+        } }, "Unlink")));
+      host.replaceChildren(...(folders.length ? [el("div", { class: "d-sub" }, "Linked folders"), ...folders] : []),
+        ...(singles.length ? [el("div", { class: "d-sub" }, "Linked files"), ...singles] : []));
+    }).catch(() => {});
   }
 
   /** The projects a thing is in, each to go to; only Home's, said so. */

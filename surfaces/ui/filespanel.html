@@ -133,6 +133,13 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .d-proj:hover { color: var(--accent); border-bottom-style: solid; }
 .d-dim { color: var(--muted); }
 .d-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+/* What a project has linked from elsewhere: a folder or a file a row, its buttons at the end. */
+.d-link { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.d-link .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.d-link .nm b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d-link .nm small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d-link .nm small.bad { color: var(--danger); }
+.d-link .t-btn { flex: none; }
 .d-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 .on-item { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 3px 6px; border-radius: var(--radius-row); color: var(--text); font: inherit; cursor: pointer; }
 .on-item:hover { background: var(--accent-wash); color: var(--accent); }

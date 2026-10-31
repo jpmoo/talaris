@@ -186,13 +186,23 @@ export function startWatching(): void {
   watchProjects();
   started = setInterval(() => {
     try { watchProjects(); } catch { /* a project unreadable for now */ }
-    // Files linked from elsewhere, and folders linked whole, are looked at when search reads files (meaning.ts, scanFiles).
+    // Linked folders: watched as they change (watchFolder); files linked on their own are looked at when search reads files.
   }, 60_000);
   started.unref();
+  try { watchFolders(); } catch { /* the list of linked folders unreadable for now */ }
+  foldersTimer = setInterval(() => {
+    try { watchFolders(); } catch { /* unreadable for now */ }
+    for (const { project, folder, exists } of foldersLinked()) if (exists) syncFolder(project, folder).catch(() => undefined);
+  }, FOLDERS_EVERY_MS);
+  foldersTimer.unref();
 }
+let foldersTimer: NodeJS.Timeout | null = null;
 export function stopAll(): void {
   if (started) clearInterval(started);
   started = null;
+  if (foldersTimer) clearInterval(foldersTimer);
+  foldersTimer = null;
+  for (const w of [...folderWatches.values()]) unwatchFolder(w.project, w.folder);
   for (const ix of indexes.values()) stopWatching(ix);
   indexes.clear();
 }
@@ -764,6 +774,88 @@ async function linkPathsNow(projectId: string, paths: string[]): Promise<{ made:
   return { made, skipped };
 }
 
+/** A shortcut's file, where it is one to a file (not to a canvas or a thread). */
+const shortcutPath = (o: Entity): string | undefined =>
+  typeof o[SHORTCUT] === "string" && typeof o[SHORTCUT_TO] !== "string" ? valuesIn(o.properties.file)[0]?.[LINK]?.path : undefined;
+const under = (folder: string, path: string) => path.startsWith(folder.endsWith("/") ? folder : `${folder}/`);
+
+/**
+ * A linked folder made to match what is in it now: a file new in it linked
+ * (what was taken out by hand stays out); one gone from it — deleted, or moved
+ * out — no longer linked, rather than kept as missing (the folder is what is
+ * linked, and it no longer holds it); one changed, read again. Answers how
+ * many changed.
+ */
+export async function syncFolder(projectId: string, folder: string): Promise<number> {
+  if (!existsSync(folder) || !listProjects().some((p) => p.id === projectId)) return 0;
+  const out = new Set(skipped()[projectId] ?? []);
+  let changed = (await linkPaths(projectId, folderFiles(folder).paths.filter((p) => !out.has(p)))).made;
+  const mine: string[] = [];
+  for (const { object: o } of allRecords()) {
+    const path = o[SHORTCUT] === projectId ? shortcutPath(o) : undefined;
+    if (!path || !under(folder, path)) continue;
+    if (existsSync(path)) { mine.push(o.id); continue; }
+    deleteEntity(o.id);
+    changed++;
+  }
+  changed += refreshLinks(mine);
+  if (changed) version++;
+  return changed;
+}
+
+/*
+ * Each linked folder watched (inotify, its folders too): a change, and a
+ * moment later the folder synced — a burst of changes (a copy of many files)
+ * synced once. Looked at every few minutes besides, for what a watch misses
+ * (a folder on a network share, a watch the system ran out of).
+ */
+interface FolderWatch { project: string; folder: string; watcher: FSWatcher | null; timer: NodeJS.Timeout | null }
+const folderWatches = new Map<string, FolderWatch>();
+const FOLDER_SETTLE_MS = 1500;
+const FOLDERS_EVERY_MS = 5 * 60_000;
+const watchKey = (projectId: string, folder: string) => `${projectId}\u0000${folder}`;
+
+function watchFolder(projectId: string, folder: string): void {
+  const key = watchKey(projectId, folder);
+  if (folderWatches.has(key)) return;
+  const w: FolderWatch = { project: projectId, folder, watcher: null, timer: null };
+  folderWatches.set(key, w);
+  const soon = () => {
+    if (w.timer) clearTimeout(w.timer);
+    w.timer = setTimeout(() => { w.timer = null; syncFolder(projectId, folder).catch(() => undefined); }, FOLDER_SETTLE_MS);
+    w.timer.unref();
+  };
+  try {
+    w.watcher = watch(folder, { recursive: true, persistent: false }, (_ev, name) => {
+      // Hidden files and programs' machinery are never linked: their changes are nothing to look at.
+      const n = String(name ?? "");
+      if (n && n.split("/").some((part) => part.startsWith(".") || SKIP_DIRS.has(part))) return;
+      soon();
+    });
+    w.watcher.on("error", () => { w.watcher?.close(); w.watcher = null; });
+  } catch { /* not watchable now (gone, or no watches left): the look every few minutes finds its changes */ }
+}
+
+function unwatchFolder(projectId: string, folder: string): void {
+  const key = watchKey(projectId, folder);
+  const w = folderWatches.get(key);
+  if (!w) return;
+  w.watcher?.close();
+  if (w.timer) clearTimeout(w.timer);
+  folderWatches.delete(key);
+}
+
+/** Every linked folder watched, and each one no longer linked let go. */
+function watchFolders(): void {
+  const now = new Set<string>();
+  for (const { project, folder, exists } of foldersLinked()) {
+    if (!exists) continue;
+    now.add(watchKey(project, folder));
+    watchFolder(project, folder);
+  }
+  for (const [key, w] of [...folderWatches]) if (!now.has(key)) unwatchFolder(w.project, w.folder);
+}
+
 /** A folder linked into a project: what is in it linked now, and it watched from now on. */
 export async function linkFolder(projectId: string, path: string): Promise<{ folder: string; made: number; skipped: number; most: boolean }> {
   findProject(projectId);
@@ -775,16 +867,50 @@ export async function linkFolder(projectId: string, path: string): Promise<{ fol
   const l = linkedFolders();
   l[projectId] = [...new Set([...(l[projectId] ?? []), folder])];
   saveLinkedFolders(l);
+  watchFolder(projectId, folder);
   return { folder, most, ...(await linkPaths(projectId, paths)) };
 }
 
-/** A folder no longer watched for a project. Its shortcuts stay; nothing new is linked from it. */
-export function unlinkFolder(projectId: string, path: string): void {
+/**
+ * A folder unlinked from a project: no longer watched, and its files no
+ * longer in the project — their shortcuts gone, the files themselves where
+ * they are. Answers how many left the project.
+ */
+export function unlinkFolder(projectId: string, path: string): number {
   const l = linkedFolders();
   l[projectId] = (l[projectId] ?? []).filter((f) => f !== path);
   if (!l[projectId].length) delete l[projectId];
   saveLinkedFolders(l);
+  unwatchFolder(projectId, path);
+  let gone = 0;
+  for (const { object: o } of allRecords()) {
+    const p = o[SHORTCUT] === projectId ? shortcutPath(o) : undefined;
+    if (p && under(path, p)) { deleteEntity(o.id); gone++; }
+  }
+  // What was taken out of it by hand: nothing to keep out any more.
+  const sk = skipped();
+  if (sk[projectId]) { sk[projectId] = sk[projectId].filter((p) => !under(path, p)); saveSkipped(sk); }
   version++;
+  return gone;
+}
+
+/**
+ * What a project has linked from elsewhere: each folder (watched; how many of
+ * its files are in the project), and each file linked on its own — for the
+ * Library's project pane, to refresh and to unlink.
+ */
+export function linkedInto(projectId: string): { folders: { folder: string; exists: boolean; files: number }[]; files: { entity: string; path: string; name: string; exists: boolean }[] } {
+  const folders = foldersLinked(projectId).map((f) => ({ folder: f.folder, exists: f.exists, files: 0 }));
+  const files: { entity: string; path: string; name: string; exists: boolean }[] = [];
+  for (const { object: o } of allRecords()) {
+    const path = o[SHORTCUT] === projectId && !o.archived ? shortcutPath(o) : undefined;
+    if (!path) continue;
+    const f = folders.find((x) => under(x.folder, path));
+    if (f) f.files++;
+    else files.push({ entity: o.id, path, name: basename(path), exists: existsSync(path) });
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
+  return { folders, files };
 }
 
 /** The folders watched for a project (or every project's). */
@@ -802,12 +928,7 @@ export async function watchLinked(): Promise<number> {
   let changed = refreshLinks();
   for (const { project, folder, exists } of foldersLinked()) {
     if (!exists) continue;
-    try {
-      if (!listProjects().some((p) => p.id === project)) continue;
-      // What was taken out of it by hand stays out.
-      const out = new Set(skipped()[project] ?? []);
-      changed += (await linkPaths(project, folderFiles(folder).paths.filter((p) => !out.has(p)))).made;
-    } catch { /* unreadable for now */ }
+    try { changed += await syncFolder(project, folder); } catch { /* unreadable for now */ }
   }
   if (changed) version++;
   return changed;

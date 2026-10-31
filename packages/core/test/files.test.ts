@@ -219,7 +219,41 @@ test("a folder linked: every file in it a shortcut, hidden ones aside; watched f
   assert.ok(!shortcuts().some((r) => r.name === "c.csv"), "stays out");
   // Linked again on purpose: what was taken out comes back with it; nothing twice.
   assert.equal((await files.linkFolder(p.id, dir)).made, 1);
-  files.unlinkFolder(p.id, dir);
+  assert.equal(files.unlinkFolder(p.id, dir), 3, "its three files out of the project");
   assert.deepEqual(files.foldersLinked(p.id), []);
-  assert.equal(shortcuts().length, 3, "no longer watched; its shortcuts stay");
+  assert.equal(shortcuts().length, 0, "unlinked: its files no longer in the project");
+  assert.ok(existsSync(join(dir, "a.txt")), "and the files themselves where they were");
+});
+
+test("a linked folder watched: a file put in it linked, one deleted or moved out let go — with no look asked for", async () => {
+  const p = projects.createProject("Watched project");
+  const dir = join(sandbox, "Watched");
+  mkdirSync(join(dir, "inner"), { recursive: true });
+  writeFileSync(join(dir, "keep.txt"), "keep");
+  writeFileSync(join(dir, "inner", "gone.txt"), "gone");
+  writeFileSync(join(sandbox, "alone.md"), "a file linked on its own");
+  await files.linkFolder(p.id, dir);
+  await files.makeShortcut(p.id, join(sandbox, "alone.md"));
+  const names = () => files.listFiles({ project: p.id }).rows.filter((r) => r.status.includes("shortcut")).map((r) => r.name).sort();
+  assert.deepEqual(names(), ["alone.md", "gone.txt", "keep.txt"]);
+  // For the project pane: the folder with its count; the file linked on its own apart.
+  const linked = files.linkedInto(p.id);
+  assert.deepEqual(linked.folders.map((f) => [f.folder, f.files]), [[dir, 2]]);
+  assert.deepEqual(linked.files.map((f) => f.name), ["alone.md"]);
+  // Changed on disk, nobody asking: the watch sees it.
+  writeFileSync(join(dir, "inner", "new.txt"), "new");
+  rmSync(join(dir, "inner", "gone.txt"));
+  const until = async (ok: () => boolean) => { for (let i = 0; i < 60 && !ok(); i++) await new Promise((r) => setTimeout(r, 100)); };
+  await until(() => names().includes("new.txt") && !names().includes("gone.txt"));
+  assert.deepEqual(names(), ["alone.md", "keep.txt", "new.txt"], "new linked, gone let go — not kept as missing");
+  // Refreshed by hand: the same, at once.
+  writeFileSync(join(dir, "now.txt"), "now");
+  assert.ok(await files.syncFolder(p.id, dir) >= 1);
+  assert.ok(names().includes("now.txt"));
+  // Unlinked: the folder's files leave; the one linked on its own stays.
+  files.unlinkFolder(p.id, dir);
+  assert.deepEqual(names(), ["alone.md"]);
+  writeFileSync(join(dir, "after.txt"), "after");
+  await new Promise((r) => setTimeout(r, 2500));
+  assert.deepEqual(names(), ["alone.md"], "no longer watched: nothing new linked from it");
 });
