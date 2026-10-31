@@ -24,7 +24,7 @@ function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
   // A button whose popup is out shows it, as a pressed button would.
-  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where", notifications: "bell", clipboard: "clipboard" };
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where", notifications: "bell", clipboard: "clipboard", weather: "weather" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);

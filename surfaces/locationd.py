@@ -87,8 +87,8 @@ class Location:
         self._in_use()
         # GeoClue starts when asked for and leaves when idle, forgetting its agent: told again each time it is back.
         Gio.bus_watch_name_on_connection(self.bus, NAME, Gio.BusNameWatcherFlags.NONE, lambda *_: self._add_agent(), None)
-        # Refused (setup/location.sh not run yet): tried again now and then, so running it needs no restart.
-        GLib.timeout_add_seconds(60, lambda: (self.agent != "on" and self._add_agent(), True)[1])
+        # No asking again on a timer: each try would wake GeoClue only to be refused. Set up (Settings, Location)
+        # says {"do": "agent"}; and GeoClue started by anything else is watched for, above.
 
     # ------------------------------------------------------------ the agent
 
@@ -98,8 +98,12 @@ class Location:
             now = "on"
             why = ""
         except GLib.Error as e:
-            # Not listed in GeoClue's configuration (setup/location.sh), or GeoClue not there at all.
-            refused = "not allowed" in e.message.lower() or "accessdenied" in e.message.lower() or "denied" in e.message.lower()
+            # Not listed in GeoClue's configuration (setup/location.sh), or GeoClue not there at all — or
+            # GeoClue leaving as it was asked (idle): nothing learned, the last answer stands.
+            msg = e.message.lower()
+            if "noreply" in msg or "disconnected" in msg:
+                return
+            refused = "not allowed" in msg or "accessdenied" in msg or "denied" in msg
             now, why = ("refused" if refused else "absent"), e.message[:160]
         if now != self.agent:
             self.agent = now

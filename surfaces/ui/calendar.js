@@ -330,6 +330,45 @@ function chip(e, timedLook) {
     onclick: (ev) => { ev.stopPropagation(); edit(e); } }, (!e.allDay ? `${clock(e.start)} ` : "") + (e.title || "(no title)"));
 }
 
+// ---------------------------------------------------------------- the weather on its days and hours
+//
+// Shown or not (the header's Weather; remembered): the forecast where you are (location.py), ten days of it,
+// asked for when shown and when the calendar comes out. Days beyond it, and days gone, have none.
+let weatherShown = false;
+try { weatherShown = localStorage.getItem("talaris.calendar.weather") === "1"; } catch { /* fine */ }
+let weather = { days: new Map(), hours: new Map(), unit: "" };
+const ymdOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function readWeather() { if (weatherShown && bridge && bridge.weatherRead) bridge.weatherRead(); }
+function gotWeather(text) {
+  const got = JSON.parse(text);
+  const s = got.state;
+  weather = s ? { days: new Map(s.days.map((d) => [d.at, d])), hours: new Map(s.hours.map((h) => [h.at.slice(0, 13), h])), unit: s.unit } : { days: new Map(), hours: new Map(), unit: "" };
+  if (!s && weatherShown) say(got.error || "No forecast just now");
+  draw();
+}
+function wxDay(d) {
+  const w = weatherShown && weather.days.get(ymdOf(d));
+  if (!w) return null;
+  const span = el("span", { class: "wx-day", title: `${w.sky}, ${w.hi}° / ${w.lo}°${w.rain >= 20 ? `, ${w.rain}% rain` : ""}` });
+  span.innerHTML = `${Icons.sky(w.icon, true)}<span>${w.hi}°</span><span class="lo">${w.lo}°</span>`;
+  return span;
+}
+function wxHour(d, h) {
+  const w = weatherShown && weather.hours.get(`${ymdOf(d)}T${String(h).padStart(2, "0")}`);
+  if (!w) return null;
+  const span = el("span", { class: "wx-hour", title: `${w.sky}, ${w.temp}°${w.rain >= 20 ? `, ${w.rain}% rain` : ""}` });
+  span.innerHTML = `${Icons.sky(w.icon, w.day)}<span>${w.temp}°</span>`;
+  return span;
+}
+$("wx").classList.toggle("on", weatherShown);
+$("wx").addEventListener("click", () => {
+  weatherShown = !weatherShown;
+  try { localStorage.setItem("talaris.calendar.weather", weatherShown ? "1" : "0"); } catch { /* fine */ }
+  $("wx").classList.toggle("on", weatherShown);
+  if (weatherShown) readWeather();
+  draw();
+});
+
 function drawMonth(view) {
   const [start] = span();
   const today = new Date();
@@ -339,7 +378,9 @@ function drawMonth(view) {
     const day = addDays(start, i);
     const cell = el("div", { class: "cell" + (day.getMonth() !== focus.getMonth() ? " other" : "") + (sameDay(day, today) ? " today" : ""),
       ondblclick: () => create(day, true) });
-    cell.append(el("span", { class: "n", title: "This day", onclick: () => { focus = day; mode = "day"; draw(); fetchRange(); } }, String(day.getDate())));
+    cell.append(el("div", { class: "top" },
+      el("span", { class: "n", title: "This day", onclick: () => { focus = day; mode = "day"; draw(); fetchRange(); } }, String(day.getDate())),
+      wxDay(day)));
     const list = onDay(day);
     // As many as fit; the rest a count that opens the day.
     const room = 3;
@@ -356,7 +397,7 @@ function drawDays(view, cols) {
   const days = Array.from({ length: cols }, (_, i) => addDays(start, i));
   const wrap = el("div", { class: "days", style: `--cols:${cols}` });
   wrap.append(el("div", { class: "dayhead" }, el("div"), ...days.map((d) => el("div", { class: sameDay(d, today) ? "today" : "" },
-    d.toLocaleDateString("en-US", { weekday: "short", month: cols === 1 ? "long" : undefined, day: "numeric" })))));
+    d.toLocaleDateString("en-US", { weekday: "short", month: cols === 1 ? "long" : undefined, day: "numeric" }), wxDay(d)))));
   const taskBars = taskRow(days);
   if (taskBars) wrap.append(taskBars);
   wrap.append(el("div", { class: "allday" }, el("div", {}, "all day"), ...days.map((d) =>
@@ -369,7 +410,7 @@ function drawDays(view, cols) {
     const col = el("div", { class: "col" });
     for (let h = 0; h < 24; h++) {
       const at = new Date(d); at.setHours(h);
-      col.append(el("div", { class: "slot", ondblclick: () => create(at, false) }));
+      col.append(el("div", { class: "slot", ondblclick: () => create(at, false) }, wxHour(d, h)));
     }
     // Timed events laid side by side where they overlap.
     const timed = onDay(d).filter((e) => !e.allDay).sort((a, b) => a.start - b.start);
@@ -779,7 +820,7 @@ function onState(s) {
     Motion.arrive(document.body, how());
     // Out to show one event: on its day; otherwise on today.
     focus = startOfDay(sought ? sought.at : new Date());
-    draw(); fetchRange();
+    draw(); fetchRange(); readWeather();
   }
 }
 
@@ -826,6 +867,7 @@ Surface.connect({ onState }).then((b) => {
   // Tasks change elsewhere (Tasks, a sync): read again now and then while on show.
   setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) fetchTasks(); }, 60000);
   b.people.connect((text) => showPeople(JSON.parse(text)));
+  if (b.weather) { b.weather.connect(gotWeather); readWeather(); }
   b.done.connect((text) => {
     const d = JSON.parse(text);
     const after = pending.get(d.req);

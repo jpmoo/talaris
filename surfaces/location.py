@@ -91,6 +91,9 @@ class Location(QObject):
     _fetched = Signal(str)
     #: The forecast for the weather popup, as its page takes it ({"kind": "weather", "state", "error"}).
     forecast_ready = Signal(str)
+    #: The whole forecast, for the calendar's days and hours ({"state", "error"}).
+    calendar_weather = Signal(str)
+    _forecast_fetched = Signal(str, str)
     _set_up = Signal(int, str)
     _zone_set = Signal(str, str)
 
@@ -112,6 +115,8 @@ class Location(QObject):
         self._fetched.connect(self._got_weather)
         self._zone_set.connect(self._zone_done)
         self._set_up.connect(self._setup_done)
+        self._forecast_fetched.connect(self._fetched_forecast)
+        self._outlook: dict | None = None
         self._start()
         self._fixes = QTimer(self)
         self._fixes.timeout.connect(self.locate)
@@ -297,6 +302,7 @@ class Location(QObject):
         self._keep(last=kept)
         if moved:
             log(f"location: a fix, to about {kept['accuracy'] // 1000 or 1} km")
+            self._outlook = None  # somewhere else: its forecast is not this one
         self.fetch()
         self.daylight()
         self._tell_morgan()
@@ -328,24 +334,28 @@ class Location(QObject):
                 log(f"location: no weather ({type(e).__name__})")
         threading.Thread(target=run, daemon=True).start()
 
-    def forecast(self) -> None:
+    def forecast(self, to: str = "popup") -> None:
         """
-        The weather popup's: the next 24 hours, hour by hour, and the next 10
-        days — asked of Open-Meteo off the screen's thread, with the rounded
-        fix and nothing else, each time the popup opens.
+        The forecast — every hour of the next 10 days, and the days — for the
+        weather popup (`to` "popup": the next 24 hours of it) or the calendar
+        ("calendar": all of it). Asked of Open-Meteo off the screen's thread,
+        with the rounded fix and nothing else; kept a quarter of an hour, so
+        the popup and the calendar share one asking.
         """
         fix = self.last()
         if not self.on() or not fix:
-            self.forecast_ready.emit(json.dumps({"kind": "weather", "state": None,
-                                                 "error": "Location is off" if not self.on() else "Not found yet"}))
+            self._forecast_out(to, None, "Location is off" if not self.on() else "Not found yet")
             return
         unit = self.units()
+        kept = self._outlook
+        if kept and kept["unit"] == ("°F" if unit == "f" else "°C") and time.time() - kept["fetched"] < 15 * 60:
+            self._forecast_out(to, kept, "")
+            return
         q = urllib.parse.urlencode({"latitude": fix["lat"], "longitude": fix["lon"], "timezone": "auto",
                                     "current": "temperature_2m,weather_code,is_day,apparent_temperature",
                                     "hourly": "temperature_2m,weather_code,is_day,precipitation_probability",
                                     "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
-                                    "forecast_hours": 24, "forecast_days": 10,
-                                    "temperature_unit": "fahrenheit" if unit == "f" else "celsius"})
+                                    "forecast_days": 10, "temperature_unit": "fahrenheit" if unit == "f" else "celsius"})
 
         def run() -> None:
             try:
@@ -354,21 +364,42 @@ class Location(QObject):
                 sky = lambda code: SKY.get(int(code if code is not None else -1), ("", "cloud"))  # noqa: E731
                 h, d, c = got["hourly"], got["daily"], got["current"]
                 state = {
-                    "unit": "°F" if unit == "f" else "°C",
+                    "unit": "°F" if unit == "f" else "°C", "fetched": time.time(),
+                    # Where it is now, in the place's own zone (Open-Meteo's): the hour the popup starts from.
+                    "hour": str(c.get("time", ""))[:13],
                     "now": {"temp": round(c["temperature_2m"]), "feels": round(c.get("apparent_temperature", c["temperature_2m"])),
                             "sky": sky(c["weather_code"])[0], "icon": sky(c["weather_code"])[1], "day": bool(c.get("is_day", 1))},
                     "hours": [{"at": t, "temp": round(tt), "icon": sky(code)[1], "sky": sky(code)[0], "day": bool(dd), "rain": rain or 0}
                               for t, tt, code, dd, rain in zip(h["time"], h["temperature_2m"], h["weather_code"], h["is_day"],
-                                                               h.get("precipitation_probability") or [0] * len(h["time"]))],
+                                                               h.get("precipitation_probability") or [0] * len(h["time"]))
+                              if tt is not None],
                     "days": [{"at": t, "hi": round(hi), "lo": round(lo), "icon": sky(code)[1], "sky": sky(code)[0], "rain": rain or 0}
                              for t, code, hi, lo, rain in zip(d["time"], d["weather_code"], d["temperature_2m_max"], d["temperature_2m_min"],
-                                                              d.get("precipitation_probability_max") or [0] * len(d["time"]))],
+                                                              d.get("precipitation_probability_max") or [0] * len(d["time"]))
+                             if hi is not None and lo is not None],
                 }
-                self.forecast_ready.emit(json.dumps({"kind": "weather", "state": state, "error": ""}))
+                self._forecast_fetched.emit(to, json.dumps(state))
             except Exception as e:  # noqa: BLE001 — offline, or the service down
-                self.forecast_ready.emit(json.dumps({"kind": "weather", "state": None, "error": "No forecast just now"}))
+                self._forecast_fetched.emit(to, "")
                 log(f"location: no forecast ({type(e).__name__})")
         threading.Thread(target=run, daemon=True).start()
+
+    def _fetched_forecast(self, to: str, text: str) -> None:
+        if not text:
+            self._forecast_out(to, None, "No forecast just now")
+            return
+        self._outlook = json.loads(text)
+        self._forecast_out(to, self._outlook, "")
+
+    def _forecast_out(self, to: str, state: dict | None, error: str) -> None:
+        if to == "calendar":
+            self.calendar_weather.emit(json.dumps({"state": state, "error": error}))
+            return
+        if state:
+            # The popup: from this hour, the next 24.
+            hours = [h for h in state["hours"] if h["at"][:13] >= state.get("hour", "")][:24]
+            state = {**state, "hours": hours}
+        self.forecast_ready.emit(json.dumps({"kind": "weather", "state": state, "error": error}))
 
     def _got_weather(self, text: str) -> None:
         try:

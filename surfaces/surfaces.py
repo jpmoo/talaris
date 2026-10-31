@@ -303,6 +303,7 @@ class Desktop(QObject):
         self.location = Location(self)
         self.location.changed.connect(lambda: self.bar.bridge.state.emit(json.dumps(self.bar.describe())))
         self.location.forecast_ready.connect(self.bar.popup.bridge.panel.emit)
+        self.location.calendar_weather.connect(lambda text: self.calendar.bridge.weather.emit(text) if getattr(self, "calendar", None) else None)
         self.location.changed.connect(lambda: self.settings.up and self.settings.bridge.state.emit(json.dumps(self.settings.describe())))
         # The canvas and the writing surface: panels from the bar, as the rest.
         self.workspaces = {name: Workspace(name, profile, self) for name in ("canvas", "writing")}

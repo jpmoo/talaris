@@ -101,11 +101,16 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
-/* The weather after the time: the sky's icon and the temperature, muted as the day is. */
-#clock #weather { display: flex; align-items: center; gap: 4px; color: var(--muted); margin-left: 10px; }
-#clock #weather .ic { width: 14px; height: 14px; }
-#clock #weather:empty, #weather.bar-hidden { display: none; }
-#clock:hover #weather, #clock.on #weather { color: var(--accent); }
+/* The weather beside the clock: the sky's icon and the temperature, muted as the day is — its own button,
+   lit by its own hover and while its popup is out, never the clock's. */
+#middle { display: flex; align-items: center; gap: 2px; }
+#weather { display: flex; align-items: center; gap: 4px; height: var(--control); padding: 0 8px; font-size: 13px; letter-spacing: 1px;
+  color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: pointer;
+  border: 1px solid transparent; border-radius: var(--radius-control); }
+#weather .ic { width: 14px; height: 14px; }
+#weather:empty, #weather.bar-hidden { display: none; }
+#weather:hover { color: var(--accent); }
+#weather.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
 /* Something looking for where you are (location.py): a pin, in the accent, while it is. */
 #loc { display: flex; align-items: center; color: var(--accent); padding: 0 4px; }
 #loc .ic { width: 14px; height: 14px; }
@@ -158,7 +163,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="canvas" class="bar-item" title="Canvas (Super+Shift+C)"></button>
     <button id="writing" class="bar-item" title="Writing (Super+Shift+W)"></button>
   </div>
-  <span id="clock"><span class="day" id="day"></span><span id="time"></span><span id="weather"></span></span>
+  <!-- The middle: the clock (the calendar), and beside it the weather (its own popup) — each its own button. -->
+  <span id="middle"><span id="clock"><span class="day" id="day"></span><span id="time"></span></span><span id="weather"></span></span>
   <div class="side end">
     <span id="loc" hidden></span>
     <span id="tray"></span>

@@ -389,6 +389,8 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
 
 
 class CalendarBridge(Bridge):
+    #: The forecast for its days and hours, when the page shows the weather ({"state", "error"}; location.py).
+    weather = Signal(str)
     calendars = Signal(str)
     events = Signal(str)
     done = Signal(str)
@@ -421,6 +423,15 @@ class CalendarBridge(Bridge):
         """A task, open in Tasks' editor (the panel goes, out of its way)."""
         self.owner.file_away()
         self.owner.desktop.show_task(entity)
+
+    @Slot()
+    def weatherRead(self) -> None:  # noqa: N802 — called from the page by this name
+        """The forecast, for the weather on its days and hours: answered on `weather`."""
+        location = getattr(self.owner.desktop, "location", None)
+        if location is not None:
+            location.forecast("calendar")
+        else:
+            self.weather.emit(json.dumps({"state": None, "error": "Location is off"}))
 
     @Slot()
     def accounts(self) -> None:
