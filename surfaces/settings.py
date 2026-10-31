@@ -180,7 +180,10 @@ def _checked(c: dict) -> str:
     loc = c.get("location", {})
     if not all(isinstance(loc.get(k, False), bool) for k in ("on", "weather", "zone", "sunTheme", "nightLight", "morgan")) \
             or loc.get("units", "auto") not in ("auto", "c", "f") or not 2500 <= int(loc.get("warmth", 4000)) <= 6000 \
-            or not all(v in ("allow", "deny") for v in loc.get("apps", {}).values()):
+            or not all(v in ("allow", "deny") for v in loc.get("apps", {}).values()) \
+            or loc.get("by", "auto") not in ("auto", "hand") \
+            or not (loc.get("place") is None or (isinstance(loc["place"], dict) and isinstance(loc["place"].get("lat"), (int, float))
+                                                 and isinstance(loc["place"].get("lon"), (int, float)))):
         return "Not a location setting"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
@@ -232,6 +235,15 @@ class SettingsBridge(Bridge):
         if found:
             act.do(found)
         self.activityRead()
+
+    #: Places found by name, for setting where you are by hand (location.py, find_places).
+    locationFound = Signal(str)
+
+    @Slot(str)
+    def locationFind(self, query: str) -> None:  # noqa: N802 — called from the page by this name
+        """Places by that name, found off the screen's thread and answered on `locationFound`."""
+        import location
+        threading.Thread(target=lambda: self.locationFound.emit(json.dumps(location.find_places(query))), daemon=True).start()
 
     @Slot()
     def locationSetUp(self) -> None:  # noqa: N802 — called from the page by this name

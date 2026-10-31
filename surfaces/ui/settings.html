@@ -32,6 +32,8 @@ html, body { height: 100%; }
 #lc-map .grid { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; }
 #lc-map .sure { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
 #lc-map .here { fill: var(--accent); }
+#lc-find { width: 100%; }
+#lc-found { flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 60%; }
 #lc-map .tick { fill: var(--muted); font-size: 10px; stroke: var(--desk); stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; }
 nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 0; }
 nav .label { padding: 0 10px 10px; }
@@ -48,6 +50,8 @@ section.on { display: block; }
 h2 { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; margin: 0 0 14px; }
 h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 22px 0 8px; }
 .row { display: flex; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); min-height: 40px; }
+/* A row told hidden is gone: .row's flex would otherwise override the attribute (the Set up row, Morgan's rows without Morgan). */
+.row[hidden], #lc-map[hidden] { display: none !important; }
 .row > .name { width: 190px; flex: none; }
 .row > .name small { display: block; color: var(--muted); font-size: 12px; }
 .row > .what { flex: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -470,6 +474,8 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h2>Location</h2>
       <div class="row"><span class="name">Location<small id="lc-status"></small></span><span class="what"><button class="switch" id="lc-on"></button></span></div>
       <div id="lc-map" hidden></div>
+      <div class="row" id="lc-by-row"><span class="name">Where you are<small id="lc-by-note"></small></span><span class="what"><span class="seg" id="lc-by"></span></span></div>
+      <div class="row" id="lc-find-row" hidden><span class="name"><input type="search" id="lc-find" placeholder="A town or an address" spellcheck="false"></span><span class="what" id="lc-found"></span></div>
       <div class="row" id="lc-setup" hidden><span class="name">Set up<small>So apps can ask for your location, and the time zone can follow you. Asks once, for your fingerprint or password.</small></span><span class="what"><button class="t-btn primary" id="lc-setup-go">Set up…</button></span></div>
       <div class="row"><span class="name">Weather by the clock</span><span class="what"><span class="seg" id="lc-units"></span><button class="switch" id="lc-weather"></button></span></div>
       <div class="row"><span class="name">Time zone, kept where you are<small id="lc-zone-now"></small></span><span class="what"><button class="switch" id="lc-zone"></button></span></div>

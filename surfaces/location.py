@@ -53,7 +53,11 @@ SETUP = os.path.join(os.path.dirname(HERE), "setup", "location.sh")
 #: What set up writes first: there, and the setup has been done (however it was run).
 AGENT_CONF = "/etc/geoclue/conf.d/90-talaris.conf"
 DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": True,
-            "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False}
+            "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False,
+            # Where Talaris takes you to be: found ("auto"), or a place you chose ("hand": `place`).
+            "by": "auto", "place": None}
+#: A fix this rough came from the internet address, not from Wi-Fi: said so, not taken as a distance.
+COARSE_M = 15000
 FIX_EVERY_MS = 30 * 60 * 1000
 WEATHER_EVERY_MS = 20 * 60 * 1000
 TICK_MS = 60 * 1000
@@ -90,6 +94,18 @@ def _fingerprint() -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return " - #" in listed
+
+
+def find_places(query: str) -> list[dict]:
+    """Places by name, for setting where you are by hand: Open-Meteo's geocoding, told only what was typed."""
+    q = urllib.parse.urlencode({"name": query.strip()[:80], "count": 6, "language": "en", "format": "json"})
+    try:
+        with urllib.request.urlopen(f"https://geocoding-api.open-meteo.com/v1/search?{q}", timeout=12) as reply:
+            got = json.loads(reply.read().decode("utf-8")).get("results") or []
+    except Exception:  # noqa: BLE001 — offline, or the service down: nothing found
+        return []
+    return [{"name": ", ".join(x for x in (p.get("name"), p.get("admin1"), p.get("country")) if x),
+             "lat": round(float(p["latitude"]), 2), "lon": round(float(p["longitude"]), 2)} for p in got if "latitude" in p]
 
 
 def _system_zone() -> str:
@@ -155,6 +171,11 @@ class Location(QObject):
         return bool(self.settings()["on"])
 
     def last(self) -> dict | None:
+        """Where you are, as Talaris takes it: the place you chose, set by hand; else the last fix."""
+        s = self.settings()
+        place = s.get("place")
+        if s.get("by") == "hand" and isinstance(place, dict) and "lat" in place:
+            return {"lat": place["lat"], "lon": place["lon"], "accuracy": 1000, "at": place.get("at", 0), "name": place.get("name", ""), "hand": True}
         fix = self.desktop.config.get("location", {}).get("last")
         return fix if isinstance(fix, dict) and "lat" in fix else None
 
@@ -167,6 +188,8 @@ class Location(QObject):
         """The settings, as they now are: the helper told, a fix asked for, the sun and the weather as they say."""
         s = self.settings()
         self._send({"do": "on", "on": s["on"]})
+        # Possibly somewhere else now (set by hand, or back to found): the forecast asked anew.
+        self._outlook = None
         if s["on"]:
             if not self.last():
                 self.locate()
@@ -339,7 +362,8 @@ class Location(QObject):
     # ------------------------------------------------------------ Talaris's own fix
 
     def locate(self) -> None:
-        if not self.on() or self.locating:
+        # Set by hand: nothing to find.
+        if not self.on() or self.locating or self.settings().get("by") == "hand":
             return
         self.locating = True
         # Told it is on first: asked for a fix the moment the helper starts, it may not have heard yet.
@@ -568,6 +592,9 @@ class Location(QObject):
         return {"on": s["on"], "agent": self.agent, "setUp": os.path.exists(AGENT_CONF), "looking": self.others_looking(),
                 "weather": self.weather if s["on"] and s["weather"] else None,
                 # Rounded as kept (about a kilometre): for Settings' map, which is drawn on this machine.
-                "fix": {"lat": fix["lat"], "lon": fix["lon"], "accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0)} if fix else None,
+                "fix": {"lat": fix["lat"], "lon": fix["lon"], "accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0),
+                        "name": fix.get("name", ""), "hand": bool(fix.get("hand")),
+                        # Not from Wi-Fi: from the internet address, which places the provider, not you.
+                        "coarse": not fix.get("hand") and fix.get("accuracy", 0) >= COARSE_M} if fix else None,
                 "zone": _system_zone(), "units": self.units(),
                 "apps": [{"id": a, "name": self.app_name(a), "how": h} for a, h in sorted(s["apps"].items())]}

@@ -358,7 +358,20 @@ function drawLocation() {
   $("lc-on").classList.toggle("on", l.on);
   const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 2 ? "just now" : m < 90 ? `${m} min ago` : `${Math.round(m / 60)} hours ago`; };
   $("lc-status").textContent = !l.on ? "Off: nothing knows where you are"
-    : w.fix ? `Found ${ago(w.fix.at)}, to about ${Math.max(1, Math.round(w.fix.accuracy / 1000))} km` : "Looking…";
+    : !w.fix ? "Looking…"
+    : w.fix.hand ? `Set by hand: ${w.fix.name}`
+    // Not Wi-Fi: the internet address, which places your provider — maybe nowhere near.
+    : w.fix.coarse ? `Found ${ago(w.fix.at)}, roughly, from your internet address`
+    : `Found ${ago(w.fix.at)}, to about ${Math.max(1, Math.round(w.fix.accuracy / 1000))} km`;
+  // Found, or a place chosen: by hand, a town or an address looked up (Open-Meteo, told only what is typed).
+  $("lc-by-row").hidden = !l.on;
+  seg("lc-by", [["auto", "Automatic"], ["hand", "By hand"]], l.by || "auto", (by) => {
+    if (by === "auto") save({ location: { by } });
+    else { byHand = true; drawLocation(); $("lc-find").focus(); }
+  });
+  $("lc-by-note").textContent = l.by === "hand" && l.place ? l.place.name
+    : w.fix && w.fix.coarse ? "No Wi-Fi nearby is known, so it's a guess: set it by hand to be sure" : "From Wi-Fi, or your internet address";
+  $("lc-find-row").hidden = !(l.on && (byHand || l.by === "hand"));
   // Set up once, and gone for good: what it wrote is there (location.py, setUp), whatever GeoClue last said.
   $("lc-setup").hidden = !l.on || w.setUp !== false;
   for (const [id, key] of [["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
@@ -380,6 +393,20 @@ function drawLocation() {
     : [Kit.empty(l.on ? "No app has asked yet" : "Off")]));
 }
 $("lc-setup-go").addEventListener("click", () => bridge && bridge.locationSetUp && bridge.locationSetUp());
+// Setting where you are by hand: a name typed, places found (settings.py, locationFind), one chosen.
+let byHand = false, findTimer = null;
+$("lc-find").addEventListener("input", () => {
+  clearTimeout(findTimer);
+  const q = $("lc-find").value.trim();
+  findTimer = setTimeout(() => { if (q.length >= 2 && bridge && bridge.locationFind) bridge.locationFind(q); else $("lc-found").replaceChildren(); }, 350);
+});
+function showFound(text) {
+  const places = JSON.parse(text);
+  $("lc-found").replaceChildren(...(places.length ? places.map((p) => el("button", { class: "t-btn small", title: `${p.lat}, ${p.lon}`,
+    onclick: () => { byHand = false; $("lc-find").value = ""; $("lc-found").replaceChildren(); save({ location: { by: "hand", place: { ...p, at: Math.round(Date.now() / 1000) } } }); } }, p.name))
+    : [el("small", {}, "Nothing by that name")]));
+}
+
 // The map: drawn here, from outlines that come with Talaris (map-lines.js, loaded the first time) — nothing asked
 // of any map service. Wide enough to see the region; the circle is how sure the fix is.
 let mapLines = null;
@@ -413,7 +440,7 @@ function drawMap(fix) {
   host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Where you are">`
     + `<path class="grid" d="${grid.join("")}"/><path class="land" d="${d}"/>`
     + `<circle class="sure" cx="${w / 2}" cy="${h / 2}" r="${r.toFixed(1)}"/><circle class="here" cx="${w / 2}" cy="${h / 2}" r="3"/>`
-    + `<text class="tick" x="8" y="${h - 8}">${deg(fix.lat, "N", "S")} ${deg(fix.lon, "E", "W")} · within about ${Math.round(sure)} km</text></svg>`;
+    + `<text class="tick" x="8" y="${h - 8}">${fix.hand ? `${fix.name.split(",")[0]} · ` : ""}${deg(fix.lat, "N", "S")} ${deg(fix.lon, "E", "W")}${fix.hand ? "" : fix.coarse ? " · roughly" : ` · within about ${Math.round(sure)} km`}</text></svg>`;
 }
 for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
   $(id).addEventListener("click", () => save({ location: { [key]: !lc()[key] } }));
@@ -1947,6 +1974,7 @@ Surface.connect({
   b.morganReply.connect(onMorganReply);
   b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
   if (b.activityState) b.activityState.connect(showActivity);
+  if (b.locationFound) b.locationFound.connect(showFound);
   b.picked.connect((text) => onPicked(JSON.parse(text)));
   reload("look");
 });
