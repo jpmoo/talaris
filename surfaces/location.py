@@ -83,6 +83,15 @@ def warm_rgb(kelvin: int) -> tuple[float, float, float]:
     return max(0.0, min(1.0, r)), max(0.0, min(1.0, g)), max(0.0, min(1.0, b))
 
 
+def _fingerprint() -> bool:
+    """A finger enrolled for you (fprintd): polkit's password windows then wait for it before a password."""
+    try:
+        listed = subprocess.run(["fprintd-list", os.environ.get("USER", "")], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return " - #" in listed
+
+
 def _system_zone() -> str:
     try:
         return os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
@@ -100,6 +109,7 @@ class Location(QObject):
     calendar_weather = Signal(str)
     _forecast_fetched = Signal(str, str)
     _set_up = Signal(int, str)
+    _finger = Signal()
     _zone_set = Signal(str, str)
 
     def __init__(self, desktop) -> None:
@@ -120,6 +130,8 @@ class Location(QObject):
         self._fetched.connect(self._got_weather)
         self._zone_set.connect(self._zone_done)
         self._set_up.connect(self._setup_done)
+        self._finger.connect(lambda: self.desktop.notifications.own(
+            "Touch the fingerprint reader", "The password window is waiting for your finger first.", [], lambda _k: None))
         self._forecast_fetched.connect(self._fetched_forecast)
         self._outlook: dict | None = None
         self._start()
@@ -250,6 +262,10 @@ class Location(QObject):
         becomes the agent at once.
         """
         def run() -> None:
+            # A finger enrolled: polkit waits for it first (pam_fprintd), and the password window does not say
+            # so — it shows only a password box, and a password typed then goes nowhere. So Talaris says it.
+            if _fingerprint():
+                self._finger.emit()
             try:
                 done = subprocess.run(["pkexec", SETUP], capture_output=True, text=True, timeout=300)
                 self._set_up.emit(done.returncode, done.stderr.strip()[-200:])
@@ -267,7 +283,7 @@ class Location(QObject):
             # password window itself fails to hand the password on (hyprpolkitagent with polkit 127: "conversation
             # failed"). Either way, offered the way that does not need it: sudo, in a terminal.
             log(f"location: set up not done (pkexec {code}: {said or 'dismissed, or the password window failed'})")
-            self.desktop.notifications.own("Location isn't set up", "The password window didn't finish. Set it up in a terminal instead?",
+            self.desktop.notifications.own("Location isn't set up", "The password window didn't finish (with a fingerprint enrolled, it waits for your finger). Set it up in a terminal instead?",
                                            [("terminal", "Use a terminal")], lambda key: self.set_up_in_terminal() if key == "terminal" else None)
         else:
             log(f"location: set up failed ({code}: {said})")
