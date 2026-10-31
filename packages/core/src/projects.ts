@@ -78,8 +78,27 @@ const dirsIn = (dir: string) => {
   }
 };
 
+/*
+ * Kept while one call reads many things' projects (Files' list of every file
+ * asks once a thing): the folders looked at once, not once a thing. Only for
+ * that call — it runs in one go, and nothing else runs meanwhile — and dropped
+ * when a project is made or renamed in it, so it is never one out of date.
+ */
+let kept: ProjectSummary[] | null = null;
+let keeping = 0;
+export function withProjectsKept<T>(read: () => T): T {
+  keeping++;
+  try { return read(); } finally { if (--keeping === 0) kept = null; }
+}
+
 /** Every project, in use and archived. */
 export function allProjects(): ProjectSummary[] {
+  if (keeping && kept) return kept;
+  const found = lookForProjects();
+  if (keeping) kept = found;
+  return found;
+}
+function lookForProjects(): ProjectSummary[] {
   const root = projectsRoot();
   const folders = new Set<string>();
   for (const folder of dirsIn(root)) if (folder !== archiveRoot()) folders.add(folder);
@@ -173,6 +192,8 @@ function initialize(folder: string, name: string, options: { home?: boolean } = 
   // project.json last: until it exists the folder is not a project, so a crash
   // partway leaves a folder that can simply be made a project again.
   writeJson(projectFile(folder), project);
+  // A project now: any kept list is looked for again.
+  kept = null;
   excludeFromGit(folder);
   return { id, code: project.code, name, folder, home: options.home === true };
 }
@@ -295,6 +316,7 @@ export function renameProject(projectId: string, name: string): ProjectSummary {
   if (!clean) throw new Conflict("a project needs a name");
   const { folder } = writableProject(projectId);
   writeJson(projectFile(folder), { ...readProject(folder), name: clean });
+  kept = null;
   return findProject(projectId);
 }
 

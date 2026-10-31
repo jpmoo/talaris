@@ -35,7 +35,7 @@ import { LINK, homeHolds, linkFile, linkFileAsync, real, refreshLinks, toLink } 
 import { seal, unseal } from "./seal.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
-import { Conflict, NotFound, ensureHome, findProject, listProjects } from "./projects.js";
+import { Conflict, NotFound, ensureHome, findProject, listProjects, withProjectsKept } from "./projects.js";
 import { folderProjectOf } from "./filing.js";
 import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
@@ -281,7 +281,20 @@ function projectsByEntity(): { of: (o: Entity) => string; home: string } {
 const kindOf = (o: Entity) => ["task", "contact", "event", "note", "project"].find((k) => profilesOf(o).includes(k)) ?? "thing";
 
 /** Every row, before filtering: the folders, then what the entities hold. */
+/** Whether each file is sealed, kept until its size or time changes: asked of every listed file, on every list. */
+const sealedSeen = new Map<string, { size: number; mtime: number; sealed: boolean }>();
+function sealedNow(abs: string, seen: { size: number; mtime: number }): boolean {
+  const had = sealedSeen.get(abs);
+  if (had && had.size === seen.size && had.mtime === seen.mtime) return had.sealed;
+  const sealed = isSealedFile(abs);
+  sealedSeen.set(abs, { size: seen.size, mtime: seen.mtime, sealed });
+  return sealed;
+}
+
 function allRows(only?: string): FileRow[] {
+  return withProjectsKept(() => rowsNow(only));
+}
+function rowsNow(only?: string): FileRow[] {
   watchProjects();
   const rows = new Map<string, FileRow>();
   for (const ix of indexes.values()) {
@@ -293,7 +306,7 @@ function allRows(only?: string): FileRow[] {
       const abs = join(ix.root, rel);
       rows.set(`p:${ix.id}/${rel}`, { key: `p:${ix.id}/${rel}`, project: ix.id, name: basename(rel), path: rel, abs, type: page ? "document" : typeOfName(rel),
         size: seen.size, mtime: new Date(seen.mtime).toISOString(), status: [page ? "page" : "folder"], on: [], tags: [],
-        ...((rel.startsWith(`${WRITING}/`) || rel.startsWith(`${FILES}/`)) && isSealedFile(abs) ? { sealed: true } : {}) });
+        ...((rel.startsWith(`${WRITING}/`) || rel.startsWith(`${FILES}/`)) && sealedNow(abs, seen) ? { sealed: true } : {}) });
     }
   }
   thingRows(rows, only);

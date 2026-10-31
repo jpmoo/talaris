@@ -15,7 +15,7 @@ import { glance, nearProject } from "./glance.js";
 import { archiveProject, archivedContents, listArchive, restoreProject, searchArchive, type Restore } from "./archive.js";
 import { setStarredOrder, starredOrder } from "./starred.js";
 import { findMentionables, placeEntity, placeOf } from "./mentionables.js";
-import { Conflict, NotFound, adoptFolder, createProject, ensureHome, findProject, listProjects, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
+import { Conflict, NotFound, adoptFolder, createProject, ensureHome, findProject, listProjects, withProjectsKept, attachedFile, putProjectFile, readProject, renameProject, readProjectFile, writeExport } from "./projects.js";
 import {
   backlinks,
   canvasTree,
@@ -247,13 +247,13 @@ route("GET", "/projects/:id/file", (_r, [id], q) => {
 });
 route("GET", "/projects/:id/file/data", (_r, [id], q) => ({ data: readProjectFile(id!, need(q, "path")).toString("base64") }));
 // Files (files.ts): every project's files, and what Talaris holds for each project that is not a file there.
-route("GET", "/files", (_r, _p, q) => {
+route("GET", "/files", (_r, _p, q) => withProjectsKept(() => {
   const got = files.listFiles({ project: q.get("project") ?? "", q: q.get("q") ?? "", type: q.get("type") ?? "",
     status: q.get("status") ?? "", tags: q.getAll("tag"), days: Number(q.get("days") ?? 0) || undefined,
     sort: q.get("sort") === "date" ? "date" : "name", limit: Number(q.get("limit") ?? 2000), ...(q.get("list") ? { list: q.get("list")! } : {}) });
   // How far search has read each (meaning.ts): what the panel marks as not read yet.
   return { ...got, ...meaning.fileReadStates(got.rows) };
-});
+}));
 route("GET", "/files/version", () => ({ version: files.filesVersion() }));
 // A canvas or one of Morgan's threads brought into another project: a shortcut there (files.ts).
 route("POST", "/files/thing-shortcut", async (req) => {

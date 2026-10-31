@@ -156,10 +156,13 @@
     const inProject = oneProject();
     if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
-    const got = await api("GET", `/files?${q}`);
-    watched = inProject ? await api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [];
-    counts = await api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts);
-    lists = inProject ? await api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [];
+    // Asked together, not one after another.
+    const [got, w, c, l] = await Promise.all([
+      api("GET", `/files?${q}`),
+      inProject ? api("GET", `/files/folders?project=${enc(project)}`).catch(() => []) : [],
+      api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts),
+      inProject ? api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : []]);
+    watched = w; counts = c; lists = l;
     if (inProject) listsOf.set(project, lists);
     if (filters.list && !flat(lists).some((l) => l.id === filters.list)) filters.list = "";
     readState = got.read || {};

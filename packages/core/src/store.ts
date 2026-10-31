@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, renameSync, readFileSync } from "node:fs";
+import { mkdirSync, openSync, readSync, writeSync, fsyncSync, closeSync, renameSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, basename, join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -58,9 +58,15 @@ export async function readBytesAsync(path: string): Promise<Buffer> {
   return sealer && sealer.isSealed(data) ? sealer.open(data) : data;
 }
 
-/** Whether a file on disk is sealed: it cannot be handed to another program as it is. */
+/** Whether a file on disk is sealed: it cannot be handed to another program as it is. Its mark only is read, not the whole of it. */
 export function isSealedFile(path: string): boolean {
-  return Boolean(sealer && sealer.isSealed(readFileSync(path)));
+  if (!sealer) return false;
+  const head = Buffer.alloc(5);
+  let fd: number | null = null;
+  try {
+    fd = openSync(path, "r");
+    return sealer.isSealed(head.subarray(0, readSync(fd, head, 0, 5, 0)));
+  } catch { return false; } finally { if (fd !== null) closeSync(fd); }
 }
 
 /**
