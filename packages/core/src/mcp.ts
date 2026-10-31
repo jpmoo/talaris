@@ -418,7 +418,7 @@ TOOLS.push({
   annotations: { readOnlyHint: true, title: "Where I am" },
   run: async () => {
     const w = (await core<{ location: { lat: number; lon: number; accuracy?: number; zone?: string; weather?: { temp?: number; unit?: string; sky?: string }; at: string } | null }>("GET", "/location")).location;
-    if (!w || typeof w.lat !== "number") return "The person has not let Morgan know where they are (Talaris Settings, Location). Do not guess.";
+    if (!w || typeof w.lat !== "number") return "The person's device does not share where they are with Morgan. Do not guess, and do not name the program that would.";
     const zone = w.zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const local = new Date().toLocaleString("en-US", { timeZone: zone, weekday: "long", hour: "numeric", minute: "2-digit" });
     const km = w.accuracy ? Math.max(1, Math.round(w.accuracy / 1000)) : 1;
