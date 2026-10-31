@@ -750,7 +750,10 @@ async function mgAssistant() {
   const inputs = {
     name: mgInput(m.name), userName: mgInput(m.userName), wakeWord: mgInput(m.wakeWord), interruptWord: mgInput(m.interruptWord),
     followUpSeconds: el("input", {}), timeZone: mgInput(m.timeZone, { placeholder: here }),
+    home: mgInput(m.home, { placeholder: "Portland, Maine — or 43.66, -70.26" }),
   };
+  let units = m.weatherUnits || "auto";
+  const unitsPick = choiceOf([["auto", "By time zone"], ["f", "°F"], ["c", "°C"]], units, (u) => { units = u; });
   inputs.followUpSeconds.value = m.followUpSeconds ?? "";
   const known = mgSwitch(!!m.knownVoicesOnly, (on, sw) => sw.classList.toggle("on", on));
   const save = async () => {
@@ -765,6 +768,7 @@ async function mgAssistant() {
     }
     const kv = known.classList.contains("on");
     if (kv !== !!m.knownVoicesOnly) values.knownVoicesOnly = kv;
+    if (units !== (m.weatherUnits || "auto")) values.weatherUnits = units;
     if (!Object.keys(values).length) { say("Nothing changed"); return; }
     setConfig(values);
   };
@@ -776,6 +780,8 @@ async function mgAssistant() {
     mgRow("Follow-up", "Seconds it listens after answering", stepper(inputs.followUpSeconds, { min: 0, max: 30 })),
     mgRow("Time zone", `Where you are; empty is this computer's, ${here}`, inputs.timeZone,
       el("button", { class: "t-btn", onclick: () => { inputs.timeZone.value = here; } }, "This computer's")),
+    mgRow("Home", "The weather here when a device cannot say where it is (a speaker); with Location on, this computer says", inputs.home),
+    mgRow("Weather in", "", unitsPick),
     mgRow("Known voices only", "Answer only voices it has been taught", known),
     el("div", { class: "row" }, el("span", { class: "name" }), el("span", { class: "what" },
       el("button", { class: "t-btn", onclick: save }, "Save to Morgan"), el("span", { class: "note", style: "margin:0" }, "Some changes restart Morgan for a moment"))));
