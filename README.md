@@ -101,6 +101,11 @@ To look around before giving it any of your own stuff, turn on demo mode
 (Settings → Data → Demo mode): a made-up world of projects, people, tasks and
 pages. The screenshots above come from it.
 
+Location (Settings → Location) is off until you turn it on. For apps to be
+able to ask for your location, and for the time zone to follow you without a
+password each time, run `setup/location.sh` once; it uses `sudo`, says what it
+writes, and `setup/location.sh --undo` takes it back.
+
 **Keys**
 
 | Keys | Does |

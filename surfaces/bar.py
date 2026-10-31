@@ -603,6 +603,8 @@ class Bar(QObject):
             "project": self.desktop.project,
             # Demo mode (demo.py): the bar says so, so a made-up world is never taken for the real one.
             "demo": bool(os.environ.get("TALARIS_DEMO")),
+            # Where you are (location.py): the weather by the clock, and whether anything else is looking.
+            "location": self.desktop.location.describe() if getattr(self.desktop, "location", None) else {},
             "theme": self.desktop.config["theme"],
             # The clear room below (or above) the bar, in the page's pixels.
             "room": round(getattr(self, "room", 0) / (zoom_of("bar") or 1), 3),

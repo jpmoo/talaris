@@ -260,6 +260,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <button data-page="notifications">Notifications</button>
     <button data-page="clipboard-page">Clipboard</button>
     <button data-page="activity-page">Activity</button>
+    <button data-page="location-page">Location</button>
     <span class="group">Your data</span>
     <button data-page="data">Data</button>
     <button data-page="types">Types</button>
@@ -456,6 +457,19 @@ footer #msg.err, .note.err { color: var(--danger); }
       <p class="note">Sealed, as your notes are. What a password manager marks as secret is never kept. Morgan does not read it.</p>
       <div class="row"><span class="name">Codes from texts<small id="cb-codes-note"></small></span><span class="what"><button class="switch" id="cb-codes"></button></span></div>
       <p class="note">A sign-in code texted to you goes onto the clipboard, but not into its history.</p>
+    </section>
+    <section id="location-page">
+      <h2>Location</h2>
+      <div class="row"><span class="name">Location<small id="lc-status"></small></span><span class="what"><button class="switch" id="lc-on"></button></span></div>
+      <p class="note" id="lc-setup" hidden>Apps can't ask for your location yet. Run <code>setup/location.sh</code> once, in the Talaris folder; it asks for your password.</p>
+      <div class="row"><span class="name">Weather by the clock</span><span class="what"><span class="seg" id="lc-units"></span><button class="switch" id="lc-weather"></button></span></div>
+      <div class="row"><span class="name">Time zone, kept where you are<small id="lc-zone-now"></small></span><span class="what"><button class="switch" id="lc-zone"></button></span></div>
+      <div class="row"><span class="name">Light and dark by the sun</span><span class="what"><button class="switch" id="lc-sun"></button></span></div>
+      <div class="row"><span class="name">Night light<small>Warmer after sunset</small></span><span class="what"><input type="range" id="lc-warmth" min="2500" max="6000" step="100"><span class="n" id="lc-warmth-n"></span><button class="switch" id="lc-night"></button></span></div>
+      <div class="row" id="lc-morgan-row"><span class="name">Morgan may know where you are<small>Never passed to the Oracle</small></span><span class="what"><button class="switch" id="lc-morgan"></button></span></div>
+      <h3>Apps</h3>
+      <div id="lc-apps"></div>
+      <p class="note">Found from the Wi-Fi networks around you, usually to about a town, and kept on this computer rounded to a kilometre. Weather and the time zone ask Open-Meteo with that, and nothing else.</p>
     </section>
     <section id="activity-page">
       <h2>Activity</h2>

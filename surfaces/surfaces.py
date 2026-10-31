@@ -61,6 +61,7 @@ from notifications import Notifications
 import clipboard
 from clipboard import Clipboard
 from bluebubbles import Codes
+from location import Location
 import docs
 import thumbs
 from osd import Osd
@@ -298,6 +299,10 @@ class Desktop(QObject):
         self.settings = Settings(profile, self)
         self.power = Power(self)
         self.power.apply()
+        # Where you are, and what is done with it — all off until Settings, Location says (location.py).
+        self.location = Location(self)
+        self.location.changed.connect(lambda: self.bar.bridge.state.emit(json.dumps(self.bar.describe())))
+        self.location.changed.connect(lambda: self.settings.up and self.settings.bridge.state.emit(json.dumps(self.settings.describe())))
         # The canvas and the writing surface: panels from the bar, as the rest.
         self.workspaces = {name: Workspace(name, profile, self) for name in ("canvas", "writing")}
         self.winfx = WindowDraw(profile, self)
@@ -498,6 +503,9 @@ class Desktop(QObject):
             self.unbind()
         except Exception as e:  # noqa: BLE001 — leaving regardless
             log(f"leaving: keys not given back ({e})")
+        # The night light taken off: Talaris gone, the screen is not left tinted by it.
+        if getattr(self, "location", None) is not None:
+            self.location.stop()
         log("down")
         sys.stdout.flush()
         sys.stderr.flush()
@@ -539,6 +547,8 @@ class Desktop(QObject):
         self.config = after
         if after.get("activity") != before.get("activity"):
             self.activity.tell_core()
+        if after.get("location") != before.get("location"):
+            self.location.configured()
         if after.get("screen") != before.get("screen"):
             self.corners.apply()
         if after.get("clipboard") != before.get("clipboard"):

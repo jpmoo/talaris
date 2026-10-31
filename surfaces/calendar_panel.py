@@ -169,7 +169,20 @@ class CalendarService(QObject):
         for line in text.strip().splitlines():
             log(f"calendar: {line}")
 
+    def zone_changed(self) -> None:
+        """The time zone changed (location.py): calendard reads it as it starts, so it is started again."""
+        if self.process and self.process.state() == QProcess.ProcessState.Running:
+            self._again = True
+            self.process.terminate()
+        else:
+            self._start()
+
     def _ended(self, code: int, _status) -> None:
+        if getattr(self, "_again", False):
+            # Ended on purpose, to read the new zone: started again at once, and not counted as falling over.
+            self._again = False
+            self._start()
+            return
         if "Namespace" in self._errors and "not available" in self._errors:
             # The bindings are not installed: say what to install, and do not try again.
             self._tell({"ready": False, "error": "The calendar needs a few packages", "needs": NEEDS})

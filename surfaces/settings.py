@@ -104,7 +104,7 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power")
+    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:
@@ -177,6 +177,11 @@ def _checked(c: dict) -> str:
         return "The clipboard keeps 10 to 500 clips"
     if not isinstance(cb.get("codes", False), bool):
         return "Codes from texts are on or off"
+    loc = c.get("location", {})
+    if not all(isinstance(loc.get(k, False), bool) for k in ("on", "weather", "zone", "sunTheme", "nightLight", "morgan")) \
+            or loc.get("units", "auto") not in ("auto", "c", "f") or not 2500 <= int(loc.get("warmth", 4000)) <= 6000 \
+            or not all(v in ("allow", "deny") for v in loc.get("apps", {}).values()):
+        return "Not a location setting"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
     if single_window(c) not in ("bring", "go"):
@@ -227,6 +232,12 @@ class SettingsBridge(Bridge):
         if found:
             act.do(found)
         self.activityRead()
+
+    @Slot(str, str)
+    def locationApp(self, app: str, how: str) -> None:  # noqa: N802 — called from the page by this name
+        """An app's location: allowed, not allowed, or (empty) forgotten — it asks again next time."""
+        loc = self.owner.desktop.location
+        loc.decide(app, how) if how else loc.forget(app)
 
     @Slot(str)
     def activityDismiss(self, key: str) -> None:  # noqa: N802 — called from the page by this name
@@ -498,7 +509,9 @@ class Settings(Overlay):
         z = (self._view.zoomFactor() or 1) if self._view is not None else 1
         return {**super().describe(), "page": self.page, "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)],
                 # Whether the BlueBubbles app here is signed in to a server: codes from texts need it.
-                "blueBubbles": bluebubbles.server() is not None}
+                "blueBubbles": bluebubbles.server() is not None,
+                # Where you are, as Settings, Location shows it (location.py).
+                **({"location": self.desktop.location.describe()} if getattr(self.desktop, "location", None) else {})}
 
     def open(self, page: str = "") -> None:
         self.page = page
@@ -596,7 +609,7 @@ class Settings(Overlay):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "activity", "meaning", "shown"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "activity", "meaning", "shown", "location"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

@@ -4,7 +4,7 @@
   "license": "GPL-3.0-only",
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test && node surfaces/check-look.mjs && python3 surfaces/test_otp.py",
+    "test": "pnpm -r test && node surfaces/check-look.mjs && python3 surfaces/test_otp.py && python3 surfaces/test_sun.py",
     "check:look": "node surfaces/check-look.mjs",
     "typecheck": "pnpm -r typecheck"
   },

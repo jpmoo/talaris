@@ -70,6 +70,9 @@ DEFAULTS = {
     # What is done through Talaris, kept for suggestions about how you work
     # (activity.py): off until turned on; each choice is yours (Settings, Activity).
     "activity": {"enabled": False, "grain": "actions", "keep": 90, "suggest": "morgan", "share": "summary"},
+    # Where you are (location.py): nothing at all until `on`; then each use as it says.
+    "location": {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": True, "sunTheme": False,
+                 "nightLight": False, "warmth": 4000, "morgan": False},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
     "calendar": {"hidden": []},

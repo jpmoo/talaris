@@ -190,6 +190,7 @@ function draw() {
   drawNotifications();
   drawClipboard();
   drawActivity();
+  drawLocation();
 
   // Settings that only matter when another is on, dimmed while it is off.
   needs(["bar-motion", "bar-speed"], !!cfg.bar.autohide);
@@ -345,6 +346,40 @@ function showActivity(text) {
     : [Kit.empty(ac().enabled ? "None yet" : "Turned off")]));
 }
 $("ac-on").addEventListener("click", () => save({ activity: { enabled: !ac().enabled } }));
+// ---------------------------------------------------------------- location
+//
+// Where you are, and each use of it (location.py): nothing until it is on. `whereNow` is what the
+// surfaces say of it — GeoClue's agent, the last fix, the zone, the apps that asked — told with the state.
+const lc = () => ({ on: false, apps: {}, weather: true, units: "auto", zone: true, sunTheme: false, nightLight: false, warmth: 4000, morgan: false, ...(cfg.location || {}) });
+let whereNow = {};
+function drawLocation() {
+  const l = lc();
+  const w = whereNow || {};
+  $("lc-on").classList.toggle("on", l.on);
+  const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 2 ? "just now" : m < 90 ? `${m} min ago` : `${Math.round(m / 60)} hours ago`; };
+  $("lc-status").textContent = !l.on ? "Off: nothing knows where you are"
+    : w.fix ? `Found ${ago(w.fix.at)}, to about ${Math.max(1, Math.round(w.fix.accuracy / 1000))} km` : "Looking…";
+  $("lc-setup").hidden = !(l.on && w.agent === "refused");
+  for (const [id, key] of [["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
+    $(id).classList.toggle("on", !!l[key]);
+  }
+  seg("lc-units", [["auto", "Auto"], ["c", "°C"], ["f", "°F"]], l.units, (units) => save({ location: { units } }));
+  $("lc-zone-now").textContent = w.zone ? `Now ${w.zone.replace(/_/g, " ")}` : "";
+  slider("lc-warmth", l.warmth, (v) => `${v}K`, (warmth) => save({ location: { warmth: Number(warmth) } }));
+  $("lc-morgan-row").hidden = !morganHere;
+  needs(["lc-weather", "lc-zone", "lc-sun", "lc-night", "lc-morgan"], l.on);
+  // Each app that asked: allowed or not, changed here, or forgotten (it asks again next time).
+  const apps = w.apps || [];
+  $("lc-apps").replaceChildren(...(apps.length ? apps.map((a) => el("div", { class: "row" },
+    el("span", { class: "name" }, a.name, a.name !== a.id ? el("small", {}, a.id) : null),
+    el("span", { class: "what" },
+      segOf([["allow", "Allowed"], ["deny", "Not allowed"]], a.how, (how) => bridge && bridge.locationApp(a.id, how)),
+      el("button", { class: "t-btn", title: "It asks again next time", onclick: () => bridge && bridge.locationApp(a.id, "") }, "Forget"))))
+    : [Kit.empty(l.on ? "No app has asked yet" : "Off")]));
+}
+for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
+  $(id).addEventListener("click", () => save({ location: { [key]: !lc()[key] } }));
+}
 // ---------------------------------------------------------------- the picker
 //
 // The accent of the mode being set (Look, Accent): the one in use is `accent`,
@@ -1755,7 +1790,7 @@ $("unlock-go").addEventListener("click", async () => {
 
 // What the bar shows, item by item. Settings is not among them: it is the way back.
 const BAR_SHOWN = [["where", "Project"], ["ask", "Launcher"], ["morgan", "Morgan"], ["new", "New"], ["tasks", "Tasks"], ["people", "People"], ["files", "Library"], ["canvas", "Canvas"],
-  ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
+  ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["weather", "Weather"], ["loc", "Location in use"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
   ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["clipboard", "Clipboard"], ["bell", "Notifications"], ["power", "Power"]];
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
@@ -1847,6 +1882,7 @@ Surface.connect({
     morganHere = s.morganHere !== false;
     showMorgan();
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
+    if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
     if (bridge && s.up && (!wasUp || s.page)) reload((s.page === "morgan" && !morganHere ? "" : s.page) || "look");

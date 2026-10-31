@@ -374,7 +374,7 @@ TOOLS.push(...desktopTools(core));
  * that connects. `share` is asked first; nothing kept local is fetched.
  */
 export const MORGAN_CLIENT = "heymorgan";
-const MORGANS_ONLY = new Set(["work_patterns", "work_log"]);
+const MORGANS_ONLY = new Set(["work_patterns", "work_log", "where"]);
 const STAYS = "What this returns is the person's private activity: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service. Use it to suggest, never to act.";
 const share = async () => (await core<ActivitySettings>("GET", "/activity/settings")).share;
 const daysOf = (v: unknown, d: number) => Math.min(365, Math.max(1, Math.floor(Number(v)) || d));
@@ -403,6 +403,29 @@ TOOLS.push(
     },
   },
 );
+
+// ------------------------------------------------------------ where the person is
+
+/**
+ * Roughly where the person is (server.ts, /location): to Morgan alone, and
+ * only while Settings, Location lets Morgan know; never to the Oracle. A
+ * place to about a kilometre, its time zone, and the weather there.
+ */
+TOOLS.push({
+  name: "where",
+  description: "Roughly where the person is now — latitude and longitude to about a kilometre (often only to the nearest town: it comes from Wi-Fi), their time zone and local time, and the weather there if known. Use it for \"near me\", \"what's the weather\", \"what time is it there\", and to put times in their zone. If they have not let Morgan know where they are, it says so: do not guess, and do not ask them for their address. What it returns is private: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.",
+  inputSchema: { type: "object", properties: {} },
+  annotations: { readOnlyHint: true, title: "Where I am" },
+  run: async () => {
+    const w = (await core<{ location: { lat: number; lon: number; accuracy?: number; zone?: string; weather?: { temp?: number; unit?: string; sky?: string }; at: string } | null }>("GET", "/location")).location;
+    if (!w || typeof w.lat !== "number") return "The person has not let Morgan know where they are (Talaris Settings, Location). Do not guess.";
+    const zone = w.zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const local = new Date().toLocaleString("en-US", { timeZone: zone, weekday: "long", hour: "numeric", minute: "2-digit" });
+    const km = w.accuracy ? Math.max(1, Math.round(w.accuracy / 1000)) : 1;
+    const weather = w.weather && typeof w.weather.temp === "number" ? ` The weather there: ${w.weather.sky ? `${w.weather.sky}, ` : ""}${w.weather.temp}${w.weather.unit ?? ""}.` : "";
+    return `About ${w.lat}, ${w.lon} (to within about ${km} km), in the time zone ${zone}, where it is ${local}.${weather} This is where the person is: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.`;
+  },
+});
 
 /** The tools a client is offered: the activity tools to Morgan alone (by `clientInfo.name`), the rest to any. */
 export function toolsFor(client: string): Tool[] {

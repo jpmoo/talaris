@@ -72,6 +72,23 @@ const Icons = (() => {
   // Dark mode: a crescent.
   const moon = () => svg('<path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6z"/>');
   const sun = () => svg('<circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>');
+  // The sky, for the weather by the clock: one shape each, day or night where it differs.
+  const CLOUD = "M4.6 12.5h7a2.6 2.6 0 0 0 .2-5.2 3.8 3.8 0 0 0-7.3-.4A2.8 2.8 0 0 0 4.6 12.5z";
+  const sky = (kind, day = true) => {
+    const cloudAt = (d) => `<path d="${CLOUD}" transform="${d}"/>`;
+    switch (kind) {
+      case "clear": return day ? sun() : moon();
+      case "partly": return svg((day ? '<circle cx="5.5" cy="5.5" r="2"/><path d="M5.5 1.6v.9M1.6 5.5h.9M2.7 2.7l.6.6M8.3 2.7l-.6.6"/>'
+        : '<path d="M7.6 5.6A3 3 0 1 1 4 2a2.4 2.4 0 0 0 3.6 3.6z"/>') + cloudAt("translate(1.4 1.6) scale(.85)"));
+      case "fog": return svg('<path d="M2.5 6h11M3.5 9h9M2.5 12h11"/>');
+      case "rain": return svg(cloudAt("translate(0 -2)") + '<path d="M5.5 12.5l-.7 1.8M8.3 12.5l-.7 1.8M11.1 12.5l-.7 1.8"/>');
+      case "snow": return svg(cloudAt("translate(0 -2)") + '<path d="M5.5 13.2h.01M8.2 14.2h.01M10.9 13.2h.01" stroke-width="2"/>');
+      case "storm": return svg(cloudAt("translate(0 -2)") + '<path d="M8.6 10.6l-1.6 2.3h2.2l-1.4 2.3"/>');
+      default: return svg(`<path d="${CLOUD}"/>`);
+    }
+  };
+  // Something looking for where you are: a map pin.
+  const pin_place = () => svg('<path d="M8 14.5s-4.5-4.4-4.5-7.8a4.5 4.5 0 0 1 9 0c0 3.4-4.5 7.8-4.5 7.8z"/><circle cx="8" cy="6.7" r="1.6"/>');
 
   // The launcher: four tiles, the way to anything.
   const launcher = () => svg('<rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/>');
@@ -140,5 +157,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

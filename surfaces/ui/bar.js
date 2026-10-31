@@ -18,7 +18,7 @@ $("bell-ic").innerHTML = Icons.bell();
 $("clipboard").innerHTML = Icons.clipboard();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power"];
+const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -59,6 +59,13 @@ function onState(s) {
   // Morgan's button only where Morgan is installed (morgan.py, installed): it is a companion of its own.
   if (s.morganHere === false) hidden.add("morgan");
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
+  // Where you are (location.py): the weather after the clock, and a pin while anything else looks.
+  const where = s.location || {};
+  const w = where.weather;
+  $("weather").innerHTML = w ? `${Icons.sky(w.icon, w.day)}<span>${w.temp}°</span>` : "";
+  $("weather").title = w ? `${w.sky}, ${w.temp}${w.unit}` : "";
+  $("loc").hidden = !where.looking;
+  if (where.looking) { $("loc").innerHTML = Icons.pin_place(); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   $("where").innerHTML = "";

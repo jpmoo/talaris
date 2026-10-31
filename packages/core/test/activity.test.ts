@@ -166,6 +166,13 @@ test("the activity tools are Morgan's alone: no other client sees or calls them"
     assert.equal(await mcp.callTool(other, "work_patterns", {}), null);
     assert.equal(await mcp.callTool(other, "work_log", { days: 7 }), null);
   }
+  // Where the person is: Morgan's alone too, and said to stay with it.
+  const where = mcp.toolsFor("heymorgan").find((t) => t.name === "where");
+  assert.ok(where && where.annotations.readOnlyHint && /never be passed to the Oracle/.test(where.description));
+  for (const other of ["", "claude-code", "oracle", "heymorgan "]) {
+    assert.ok(!names(other).includes("where"), `${other || "(none)"} sees where`);
+    assert.equal(await mcp.callTool(other, "where", {}), null);
+  }
   // The rest are anyone's.
   assert.ok(names("claude-code").includes("talaris_find"));
 });

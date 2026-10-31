@@ -921,6 +921,35 @@ route("PUT", "/activity/settings", async (req) => { const b = await json<{ keep?
 route("GET", "/activity/dismissed", () => activity.dismissedSuggestions());
 route("POST", "/activity/dismissed", async (req) => { const b = await json<{ key?: unknown }>(req); return checked(() => activity.dismissSuggestion(b.key)); });
 
+// ------------------------------------------------------------ where you are (the surfaces' location.py)
+
+/*
+ * Roughly where you are, for Morgan (mcp.ts, `where`): told by the surfaces
+ * only while Settings, Location lets Morgan know — rounded to about a
+ * kilometre — and held in memory only, never written. Null: not to be known.
+ */
+interface Whereabouts { lat: number; lon: number; accuracy?: number; zone?: string; weather?: Record<string, unknown> }
+let whereabouts: (Whereabouts & { at: string }) | null = null;
+route("PUT", "/location", async (req) => {
+  const b = await json<Whereabouts | null>(req);
+  whereabouts = b && typeof b.lat === "number" && typeof b.lon === "number"
+    ? { lat: Math.round(b.lat * 100) / 100, lon: Math.round(b.lon * 100) / 100, accuracy: Number(b.accuracy) || 0,
+      ...(typeof b.zone === "string" ? { zone: b.zone } : {}), ...(b.weather && typeof b.weather === "object" ? { weather: b.weather } : {}), at: new Date().toISOString() }
+    : null;
+  return { ok: true };
+});
+// Wrapped: a bare null would go out as {ok: true}.
+route("GET", "/location", () => ({ location: whereabouts }));
+// The machine's time zone changed (location.py keeps it where you are): this process's dates follow it.
+route("PUT", "/time/zone", async (req) => {
+  const b = await json<{ zone?: unknown }>(req);
+  if (typeof b.zone !== "string") throw new BadRequest("a time zone");
+  try { new Intl.DateTimeFormat("en-US", { timeZone: b.zone }); } catch { throw new BadRequest(`not a time zone: ${b.zone}`); }
+  // Node reads the zone again when TZ is set.
+  process.env.TZ = b.zone;
+  return { zone: b.zone, now: new Date().toString() };
+});
+
 function safely<T>(f: () => T, fallback: T): T {
   try { return f(); } catch { return fallback; }
 }

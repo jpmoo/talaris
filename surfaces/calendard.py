@@ -70,16 +70,21 @@ def say(obj: dict) -> None:
 
 
 def _local_zone():
-    """This machine's zone as libical knows it, for all-day dates and new events."""
+    """
+    This machine's zone as libical knows it, for all-day dates and new events:
+    /etc/localtime first — the one timedated changes when the zone is set
+    (location.py keeps it where you are) — and /etc/timezone, which it may
+    leave behind, only if that says nothing.
+    """
     try:
-        name = open("/etc/timezone", encoding="utf-8").read().strip()
-    except OSError:
+        import os
+        name = os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
+    except (OSError, IndexError):
         name = ""
     if not name:
         try:
-            import os
-            name = os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
-        except (OSError, IndexError):
+            name = open("/etc/timezone", encoding="utf-8").read().strip()
+        except OSError:
             name = ""
     zone = ICalGLib.Timezone.get_builtin_timezone(name) if name else None
     return zone or UTC

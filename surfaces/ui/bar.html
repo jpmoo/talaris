@@ -101,6 +101,15 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 #clock { display: flex; align-items: center; height: var(--control); }
 #clock { font-size: 13px; letter-spacing: 1px; color: var(--text); padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #clock .day { color: var(--muted); margin-right: 8px; }
+/* The weather after the time: the sky's icon and the temperature, muted as the day is. */
+#clock #weather { display: flex; align-items: center; gap: 4px; color: var(--muted); margin-left: 10px; }
+#clock #weather .ic { width: 14px; height: 14px; }
+#clock #weather:empty, #weather.bar-hidden { display: none; }
+#clock:hover #weather, #clock.on #weather { color: var(--accent); }
+/* Something looking for where you are (location.py): a pin, in the accent, while it is. */
+#loc { display: flex; align-items: center; color: var(--accent); padding: 0 4px; }
+#loc .ic { width: 14px; height: 14px; }
+#loc[hidden], #loc.bar-hidden { display: none; }
 #clock { cursor: pointer; border: 1px solid transparent; border-radius: var(--radius-control); }
 #clock:hover, #clock:hover .day, #clock.on .day { color: var(--accent); }
 #clock.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
@@ -149,8 +158,9 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="canvas" class="bar-item" title="Canvas (Super+Shift+C)"></button>
     <button id="writing" class="bar-item" title="Writing (Super+Shift+W)"></button>
   </div>
-  <span id="clock"><span class="day" id="day"></span><span id="time"></span></span>
+  <span id="clock"><span class="day" id="day"></span><span id="time"></span><span id="weather"></span></span>
   <div class="side end">
+    <span id="loc" hidden></span>
     <span id="tray"></span>
     <button id="clipboard" class="bar-item" title="Clipboard (Super+V)"></button>
     <button id="theme" class="bar-item" title="Light or dark"></button>
