@@ -1137,7 +1137,6 @@
   $("grow").addEventListener("click", () => bridge && bridge.grow());
   $("close").addEventListener("click", () => bridge && bridge.closeWindow());
   $("grow").innerHTML = Icons.grow();
-  $("reveal").innerHTML = Icons.folder();
   $("grow").title = "Make it a window";
   $("grow").hidden = WINDOW;
   $("close").innerHTML = Icons.close();
