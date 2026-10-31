@@ -366,6 +366,7 @@ function drawLocation() {
   }
   seg("lc-units", [["auto", "Auto"], ["c", "°C"], ["f", "°F"]], l.units, (units) => save({ location: { units } }));
   $("lc-zone-now").textContent = w.zone ? `Now ${w.zone.replace(/_/g, " ")}` : "";
+  drawMap(l.on && w.fix);
   slider("lc-warmth", l.warmth, (v) => `${v}K`, (warmth) => save({ location: { warmth: Number(warmth) } }));
   $("lc-morgan-row").hidden = !morganHere;
   needs(["lc-weather", "lc-zone", "lc-sun", "lc-night", "lc-morgan"], l.on);
@@ -379,6 +380,41 @@ function drawLocation() {
     : [Kit.empty(l.on ? "No app has asked yet" : "Off")]));
 }
 $("lc-setup-go").addEventListener("click", () => bridge && bridge.locationSetUp && bridge.locationSetUp());
+// The map: drawn here, from outlines that come with Talaris (map-lines.js, loaded the first time) — nothing asked
+// of any map service. Wide enough to see the region; the circle is how sure the fix is.
+let mapLines = null;
+function drawMap(fix) {
+  const host = $("lc-map");
+  host.hidden = !fix;
+  if (!fix) return;
+  if (!mapLines) {
+    if (!window.MAP_LINES) {
+      if (!document.getElementById("map-lines")) document.head.append(el("script", { id: "map-lines", src: "map-lines.js", onload: () => drawLocation() }));
+      return;
+    }
+    // Delta-encoded hundredths of a degree, decoded once: [[lon, lat], ...] a line.
+    mapLines = window.MAP_LINES.map((f) => { const pts = [[f[0] / 100, f[1] / 100]]; for (let i = 2; i < f.length; i += 2) pts.push([pts[pts.length - 1][0] + f[i] / 100, pts[pts.length - 1][1] + f[i + 1] / 100]); return pts; });
+  }
+  const sure = Math.max(1, fix.accuracy / 1000);  // km
+  // Degrees of latitude, top to middle: the region round you — no closer than the outlines (about 5 km) stay smooth.
+  const half = Math.min(25, Math.max(3, (sure / 111) * 6));
+  const w = host.clientWidth || 520, h = 190, cos = Math.cos(fix.lat * Math.PI / 180) || 1;
+  const halfLon = half * (w / h) / cos;
+  const x = (lon) => ((lon - fix.lon) / halfLon + 1) * w / 2, y = (lat) => (1 - (lat - fix.lat) / half) * h / 2;
+  const near = (p) => Math.abs(p[0] - fix.lon) < halfLon * 1.5 && Math.abs(p[1] - fix.lat) < half * 1.5;
+  const d = mapLines.filter((pts) => pts.some(near)).map((pts) => "M" + pts.map((p) => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("L")).join("");
+  // A degree apart near; five, wider.
+  const step = half < 4 ? 1 : 5;
+  const grid = [];
+  for (let la = Math.ceil((fix.lat - half) / step) * step; la <= fix.lat + half; la += step) grid.push(`M0,${y(la).toFixed(1)}H${w}`);
+  for (let lo = Math.ceil((fix.lon - halfLon) / step) * step; lo <= fix.lon + halfLon; lo += step) grid.push(`M${x(lo).toFixed(1)},0V${h}`);
+  const r = Math.max(5, (sure / 111) / half * h / 2);
+  const deg = (v, pos, neg) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? pos : neg}`;
+  host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Where you are">`
+    + `<path class="grid" d="${grid.join("")}"/><path class="land" d="${d}"/>`
+    + `<circle class="sure" cx="${w / 2}" cy="${h / 2}" r="${r.toFixed(1)}"/><circle class="here" cx="${w / 2}" cy="${h / 2}" r="3"/>`
+    + `<text class="tick" x="8" y="${h - 8}">${deg(fix.lat, "N", "S")} ${deg(fix.lon, "E", "W")} · within about ${Math.round(sure)} km</text></svg>`;
+}
 for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {
   $(id).addEventListener("click", () => save({ location: { [key]: !lc()[key] } }));
 }

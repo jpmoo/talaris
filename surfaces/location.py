@@ -567,6 +567,7 @@ class Location(QObject):
         fix = self.last()
         return {"on": s["on"], "agent": self.agent, "setUp": os.path.exists(AGENT_CONF), "looking": self.others_looking(),
                 "weather": self.weather if s["on"] and s["weather"] else None,
-                "fix": {"accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0)} if fix else None,
+                # Rounded as kept (about a kilometre): for Settings' map, which is drawn on this machine.
+                "fix": {"lat": fix["lat"], "lon": fix["lon"], "accuracy": fix.get("accuracy", 0), "at": fix.get("at", 0)} if fix else None,
                 "zone": _system_zone(), "units": self.units(),
                 "apps": [{"id": a, "name": self.app_name(a), "how": h} for a, h in sorted(s["apps"].items())]}

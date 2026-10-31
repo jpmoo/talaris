@@ -25,6 +25,14 @@ html, body { height: 100%; }
   position: absolute; inset: 14px 22px 30px; display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 1fr auto;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); overflow: hidden;
 }
+/* Where you are, drawn here from bundled outlines (map-lines.js): coastlines and borders, a grid, a dot and how sure. */
+#lc-map { margin: 6px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: var(--desk); }
+#lc-map svg { display: block; width: 100%; height: 190px; }
+#lc-map .land { fill: none; stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+#lc-map .grid { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; }
+#lc-map .sure { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+#lc-map .here { fill: var(--accent); }
+#lc-map .tick { fill: var(--muted); font-size: 10px; stroke: var(--desk); stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; }
 nav { grid-row: 1 / 3; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 0; }
 nav .label { padding: 0 10px 10px; }
 nav .group { padding: 9px 10px 2px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
@@ -461,6 +469,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <section id="location-page">
       <h2>Location</h2>
       <div class="row"><span class="name">Location<small id="lc-status"></small></span><span class="what"><button class="switch" id="lc-on"></button></span></div>
+      <div id="lc-map" hidden></div>
       <div class="row" id="lc-setup" hidden><span class="name">Set up<small>So apps can ask for your location, and the time zone can follow you. Asks once, for your fingerprint or password.</small></span><span class="what"><button class="t-btn primary" id="lc-setup-go">Set up…</button></span></div>
       <div class="row"><span class="name">Weather by the clock</span><span class="what"><span class="seg" id="lc-units"></span><button class="switch" id="lc-weather"></button></span></div>
       <div class="row"><span class="name">Time zone, kept where you are<small id="lc-zone-now"></small></span><span class="what"><button class="switch" id="lc-zone"></button></span></div>
