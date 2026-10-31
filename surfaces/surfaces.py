@@ -485,6 +485,24 @@ class Desktop(QObject):
         if hasattr(self, "webapps"):
             self.webapps.rebind()
 
+    def leave(self, code: int = 0) -> None:
+        """
+        Gone, at once: the keys given back, and the process ended — not by
+        QApplication.quit, which closes every window first, and so the GL each
+        web view draws with while the views still stand: QtWebEngine aborts
+        ("Failed to restore OpenGL context after clean-up") and every stop of a
+        process that had run a while dumped core. Everything else is kept as it
+        changes; nothing is left to tear down.
+        """
+        try:
+            self.unbind()
+        except Exception as e:  # noqa: BLE001 — leaving regardless
+            log(f"leaving: keys not given back ({e})")
+        log("down")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+
     def unbind(self) -> None:
         for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
@@ -936,7 +954,7 @@ class Desktop(QObject):
             elif verb == "popup":
                 self.bar.toggle_popup(arg)
             elif verb == "quit":
-                QApplication.quit()
+                self.leave()
             conn.write(b"ok\n")
             conn.flush()
             conn.disconnectFromServer()
@@ -1010,8 +1028,9 @@ def main() -> int:
     desktop = Desktop(app)
     import signal
 
-    signal.signal(signal.SIGTERM, lambda *_: QTimer.singleShot(0, app.quit))
-    signal.signal(signal.SIGINT, lambda *_: QTimer.singleShot(0, app.quit))
+    # Stopped (systemd's SIGTERM) or interrupted: left at once, from the event loop (Desktop.leave).
+    signal.signal(signal.SIGTERM, lambda *_: QTimer.singleShot(0, desktop.leave))
+    signal.signal(signal.SIGINT, lambda *_: QTimer.singleShot(0, lambda: desktop.leave(130)))
     # Signal handlers run between Python bytecodes; a ticking timer gives them some.
     tick = QTimer(app)
     tick.timeout.connect(lambda: None)
@@ -1019,14 +1038,8 @@ def main() -> int:
     app.aboutToQuit.connect(desktop.unbind)
     log("up")
     code = app.exec()
-    # Done: the keys given back (aboutToQuit), and everything kept as it changed. Left at that,
-    # Python would now tear the web views down in no order, after the windows whose OpenGL
-    # they draw with — QtWebEngine aborts ("Failed to restore OpenGL context after clean-up")
-    # and a stop ends in a core dump. Nothing is left to do, so nothing is torn down.
-    log("down")
-    sys.stdout.flush()
-    sys.stderr.flush()
-    os._exit(code)
+    # Only if the loop ended some other way than leave(): nothing torn down, for the same reason.
+    desktop.leave(code)
 
 
 if __name__ == "__main__":
