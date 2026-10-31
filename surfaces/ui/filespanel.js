@@ -319,8 +319,8 @@
   // nothing in it to find it by. None for what is not read (a page is a page; audio, archives…).
   function book(r) {
     const st = readState[r.key];
-    const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet. Set reading interval/schedule in Settings."
-      : st === "nowords" ? "Read, but nothing in it to find it by" : st === "unreadable" ? "Can't be read for search: found by its name only" : "" });
+    const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet. Settings → Data sets when files are read."
+      : st === "nowords" ? "No words in it, so it's found by its name only" : st === "unreadable" ? "Can't be read, so it's found by its name only" : "" });
     if (st) b.innerHTML = Icons.book();
     return b;
   }
@@ -541,23 +541,23 @@
     if (!r) { $("detail").replaceChildren(Kit.empty("Choose a file to see what it is and what can be done with it")); return; }
     const s = r.status;
     const said = [];
-    if (s.includes("folder")) said.push(el("span", {}, el("b", {}, "In the folder"), ` of ${projectName(r.project)}.`));
-    if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A writing page"), " — Writing opens it, and moves and renames it with its children."));
-    if (s.includes("canvas")) said.push(el("span", {}, el("b", {}, "A canvas"), ` of ${projectName(r.project)}.`));
-    if (s.includes("conversation")) said.push(el("span", {}, el("b", {}, "A conversation with Morgan"), ", as Morgan filed it. It lives in Home."));
-    if (s.includes("shortcut") && r.thing) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a ${r.type === "canvas" ? "canvas" : "conversation with Morgan"} that lives in ${projectName((r.alsoIn || [])[0])}.`));
-    else if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` in ${projectName(r.project)} to a file that lives ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere"}. Nothing of it is in this project's folder.`));
-    if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", by a shortcut there" : ""}.`));
-    if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked on a task"), " from where it lives, outside every project."));
-    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""} — in no folder until it is saved to the project's.`));
-    if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing from its folder:"), " moved or deleted."));
-    if (r.sealed) said.push(el("span", {}, "Sealed: it opens as a copy, since only Talaris can read it."));
+    if (s.includes("folder")) said.push(el("span", {}, "In ", el("b", {}, `${projectName(r.project)}'s folder`), "."));
+    if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A writing page."), " Open it in Writing to edit, move or rename it."));
+    if (s.includes("canvas")) said.push(el("span", {}, el("b", {}, "A canvas"), ` in ${projectName(r.project)}.`));
+    if (s.includes("conversation")) said.push(el("span", {}, el("b", {}, "A conversation with Morgan"), `, kept in ${projectName(r.project)}.`));
+    if (s.includes("shortcut") && r.thing) said.push(el("span", {}, el("b", {}, "A shortcut"), ` to a ${r.type === "canvas" ? "canvas" : "conversation with Morgan"} kept in ${projectName((r.alsoIn || [])[0])}.`));
+    else if (s.includes("shortcut")) said.push(el("span", {}, el("b", {}, "A shortcut"), ` to a file ${r.livesIn ? `in ${projectName(r.livesIn.project)}'s folder` : "elsewhere on this computer"}. The file itself isn't in this project's folder.`));
+    if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", through a shortcut" : ""}.`));
+    if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked from a task."), " The file itself is outside every project."));
+    if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""}. It isn't in any folder until you save it to the project's.`));
+    if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing:"), " moved or deleted from its folder."));
+    if (r.sealed) said.push(el("span", {}, el("b", {}, "Encrypted."), " It opens as a copy, since only Talaris can read it."));
     // What search knows of what it says.
     const rs = readState[r.key];
-    if (rs === "read") said.push(el("span", {}, el("b", {}, "Read"), " — found by what it says, by search and Morgan, and suggested with what it is about."));
-    else if (rs === "nowords") said.push(el("span", {}, el("b", {}, "Read, no words in it"), " — found by its name only."));
-    else if (rs === "waiting") said.push(el("span", {}, "Not read yet. Set reading interval/schedule in Settings."));
-    else if (!reading.on && !s.includes("page") && !s.includes("missing")) said.push(el("span", {}, "Not read: search by meaning is off (Settings, Data)."));
+    if (rs === "read") said.push(el("span", {}, el("b", {}, "Searchable"), " by what it says, not just its name."));
+    else if (rs === "nowords") said.push(el("span", {}, el("b", {}, "No words in it,"), " so it's found by its name only."));
+    else if (rs === "waiting") said.push(el("span", {}, el("b", {}, "Not read yet."), " Settings → Data sets when files are read."));
+    else if (!reading.on && !s.includes("page") && !s.includes("missing")) said.push(el("span", {}, el("b", {}, "Not read:"), " search by meaning is off (Settings → Data)."));
     const lines = [
       r.path ? ["Where", r.path] : r.abs ? ["Where", r.abs.replace(/^\/home\/[^/]+/, "~")] : null,
       ["Type", s.includes("page") ? "Page" : TYPE_ONE[r.type] || "Other"],
