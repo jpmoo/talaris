@@ -440,6 +440,10 @@ function drawWeather(error) {
   }));
   if (!f) { $("wx-now").replaceChildren(); $("wx-rows").replaceChildren(note(error || "Reading…")); refit(); return; }
   const now = f.now;
+  // Where it is for: the place chosen, or the fix's town — "near", and roughly, when the fix is only a guess.
+  const place = f.place ? (f.rough ? `Near ${f.place.split(",")[0]}, roughly` : f.place.split(",").slice(0, 2).join(",")) : "";
+  $("wx-place").textContent = place ? `Weather · ${place}` : "Weather";
+  $("wx-place").title = f.place || "";
   $("wx-now").innerHTML = `${Icons.sky(now.icon, now.day)}<span class="t">${now.temp}${f.unit}</span>`
     + `<span class="s"><b>${now.sky}</b><span>Feels like ${now.feels}°</span></span>`;
   const row = (when, icon, sky, temp, rain) => {

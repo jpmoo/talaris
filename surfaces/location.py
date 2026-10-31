@@ -91,6 +91,31 @@ def warm_rgb(kelvin: int) -> tuple[float, float, float]:
     return max(0.0, min(1.0, r)), max(0.0, min(1.0, g)), max(0.0, min(1.0, b))
 
 
+_named: dict[tuple, str] = {}
+
+
+def place_name(lat: float, lon: float) -> str:
+    """
+    A fix's town, for the weather popup to say where it is for: OpenStreetMap's
+    Nominatim, asked at a town's detail with the rounded fix, and remembered —
+    asked once a place. "" when it cannot say.
+    """
+    key = (round(lat, 2), round(lon, 2))
+    if key in _named:
+        return _named[key]
+    q = urllib.parse.urlencode({"lat": key[0], "lon": key[1], "format": "jsonv2", "zoom": 10, "accept-language": "en"})
+    try:
+        request = urllib.request.Request(f"https://nominatim.openstreetmap.org/reverse?{q}", headers={"User-Agent": "Talaris (desktop weather)"})
+        with urllib.request.urlopen(request, timeout=10) as reply:
+            a = json.loads(reply.read().decode("utf-8")).get("address", {})
+    except Exception:  # noqa: BLE001 — offline, or the service down: no name
+        return ""
+    town = a.get("city") or a.get("town") or a.get("village") or a.get("hamlet") or a.get("suburb") or a.get("county", "")
+    state = a.get("state", "") if a.get("country_code") == "us" else a.get("country", "")
+    _named[key] = ", ".join(x for x in (town, state) if x)
+    return _named[key]
+
+
 def _fingerprint() -> bool:
     """A finger enrolled for you (fprintd): polkit's password windows then wait for it before a password."""
     try:
@@ -138,15 +163,6 @@ def find_places(query: str) -> list[dict]:
         return all(w in held for w in wants)
     found = [p for p in got if "latitude" in p and named(p)][:8]
     return [{"name": ", ".join(says(p)), "lat": round(float(p["latitude"]), 2), "lon": round(float(p["longitude"]), 2)} for p in found]
-
-
-def _fingerprint() -> bool:
-    """A finger enrolled for you (fprintd): polkit's password windows then wait for it before a password."""
-    try:
-        listed = subprocess.run(["fprintd-list", os.environ.get("USER", "")], capture_output=True, text=True, timeout=5).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return " - #" in listed
 
 
 def _system_zone() -> str:
@@ -572,6 +588,9 @@ class Location(QObject):
                                                               d.get("precipitation_probability_max") or [0] * len(d["time"]))
                              if hi is not None and lo is not None],
                 }
+                # Where it is for: the place chosen (by hand, or by its Wi-Fi), else the fix's town, roughly.
+                state["place"] = fix.get("name") or place_name(fix["lat"], fix["lon"])
+                state["rough"] = not (fix.get("hand") or fix.get("known")) and fix.get("accuracy", 0) >= COARSE_M
                 self._forecast_fetched.emit(to, json.dumps(state))
             except Exception as e:  # noqa: BLE001 — offline, or the service down
                 self._forecast_fetched.emit(to, "")
