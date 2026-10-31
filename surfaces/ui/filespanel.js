@@ -39,7 +39,9 @@
   if (WINDOW) document.documentElement.dataset.window = "1";
 
   // What is shown: a project ("" is all of them), a view, and the filters.
-  let view = store.get("talaris.files.view", "folders");
+  // Folders was a view once: the tree shows them now.
+  let view = store.get("talaris.files.view", "tree");
+  if (view === "folders") view = "tree";
   let project = null;
   let filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
   // The chosen project's lists (the core's filelists.ts), as a tree; and the lists of each project asked for, by id.
@@ -290,7 +292,7 @@
 
   function rowEl(r) {
     const gone = r.status.includes("missing");
-    const where = view === "folders" ? "" : (project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`);
+    const where = project ? whereOf(r) : `${projectName(r.project)}${whereOf(r) ? ` / ${whereOf(r)}` : ""}`;
     const row = el("div", { class: `row${r.key === chosen || picked.has(r.key) ? " on" : ""}${gone ? " gone" : ""}`, "data-key": r.key,
       onclick: (e) => pick(r.key, e), ondblclick: () => open(r) },
       el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, MARK_OF[r.type] || (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
@@ -327,7 +329,7 @@
       $("rows").replaceChildren(Kit.empty(filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
         ? `Nothing in ${listName(filters.list)} yet. Drag things onto it on the left, or choose one and Add to a list.`
         : filters.q || filters.status || filters.type || filters.days || filters.tags.length
-        ? "Nothing matches" : `No files here yet. Add some with Add from elsewhere${WINDOW ? ", or drop them on this window" : ""}.`));
+        ? "Nothing matches" : `No files here yet. Add some with Add…${WINDOW ? ", or drop them on this window" : ""}.`));
       return;
     }
     // Where each lives, nested — but a list is its own order, so it is shown as one.
@@ -1079,9 +1081,9 @@
   }
 
   function drawControls() {
-    seg("view", [["folders", "Folders"], ["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
-    seg("days", [["0", "Any time"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
-    seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Not read"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
+    seg("view", [["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
+    seg("days", [["0", "Any"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
+    seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Unread"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
   }
 
   let typing = 0;
@@ -1135,6 +1137,7 @@
   $("grow").addEventListener("click", () => bridge && bridge.grow());
   $("close").addEventListener("click", () => bridge && bridge.closeWindow());
   $("grow").innerHTML = Icons.grow();
+  $("reveal").innerHTML = Icons.folder();
   $("grow").title = "Make it a window";
   $("grow").hidden = WINDOW;
   $("close").innerHTML = Icons.close();
