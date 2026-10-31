@@ -60,6 +60,7 @@ from desk import Desk
 from notifications import Notifications
 import clipboard
 from clipboard import Clipboard
+from bluebubbles import Codes
 import docs
 import thumbs
 from osd import Osd
@@ -282,6 +283,9 @@ class Desktop(QObject):
         # Clipboard history, as Notchnik keeps it: watched here, sealed in the core, listed from the bar (Super+V).
         self.clipboard = Clipboard(self)
         self.clipboard.changed.connect(self.bar.clips_changed)
+        # Sign-in codes texted to you, onto the clipboard but not into its history (bluebubbles.py; off until switched on).
+        self.codes = Codes(self)
+        self.codes.found.connect(self._code_came)
         # The empty desktop, under the windows: its right-click menu (the wallpaper).
         self.desk = Desk(profile, self)
         self.desk.place()
@@ -328,6 +332,11 @@ class Desktop(QObject):
         self.control.newConnection.connect(self._command)
         # The current project's own wallpaper, once hyprpaper (started beside this) is up.
         QTimer.singleShot(4000, lambda: wallpaper.show(self.config, self.project.get("id", "")))
+
+    def _code_came(self, code: str, sender: str) -> None:
+        """A sign-in code texted: on the clipboard, kept out of its history, and said."""
+        self.clipboard.copy_secret(code)
+        self.notifications.own(f"Code copied: {code}", f"From {sender}." if sender else "From a text.", [], lambda _key: None)
 
     def _home(self) -> dict:
         home = next((p for p in core.projects() if p.get("home")), None)

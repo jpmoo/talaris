@@ -291,8 +291,14 @@ function drawClipboard() {
   $("cb-on").classList.toggle("on", on);
   $("cb-off-note").hidden = on;
   slider("cb-keep", cb().keep ?? 50, (v) => `${v}`, (keep) => save({ clipboard: { keep } }));
+  // Codes from texts: through the BlueBubbles app here (bluebubbles.py), which must be signed in.
+  $("cb-codes").classList.toggle("on", cb().codes === true);
+  $("cb-codes-note").textContent = blueBubbles ? "Through BlueBubbles" : "Needs the BlueBubbles app, signed in";
+  $("cb-codes-note").classList.toggle("err", !blueBubbles && cb().codes === true);
 }
+let blueBubbles = false;
 $("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
+$("cb-codes").addEventListener("click", () => save({ clipboard: { codes: cb().codes !== true } }));
 // ---------------------------------------------------------------- activity
 //
 // What is done through Talaris, kept for suggestions (activity.py). Every
@@ -1840,6 +1846,7 @@ Surface.connect({
   onState: (s) => {
     morganHere = s.morganHere !== false;
     showMorgan();
+    if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
     if (bridge && s.up && (!wasUp || s.page)) reload((s.page === "morgan" && !morganHere ? "" : s.page) || "look");

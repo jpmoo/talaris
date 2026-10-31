@@ -36,6 +36,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
 import accounts
+import bluebubbles
 import power
 import wallpaper
 from power import LID_ACTIONS
@@ -174,6 +175,8 @@ def _checked(c: dict) -> str:
     cb = c.get("clipboard", {})
     if not isinstance(cb.get("enabled", True), bool) or not 10 <= int(cb.get("keep", 50)) <= 500:
         return "The clipboard keeps 10 to 500 clips"
+    if not isinstance(cb.get("codes", False), bool):
+        return "Codes from texts are on or off"
     if c["launcher"]["keys"] not in LAUNCHER_KEYS:
         return "Not one of the launcher's keys"
     if single_window(c) not in ("bring", "go"):
@@ -493,7 +496,9 @@ class Settings(Overlay):
     def describe(self) -> dict:
         # Its size in its page's pixels, for arriving to wait for — once it has a page.
         z = (self._view.zoomFactor() or 1) if self._view is not None else 1
-        return {**super().describe(), "page": self.page, "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)]}
+        return {**super().describe(), "page": self.page, "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)],
+                # Whether the BlueBubbles app here is signed in to a server: codes from texts need it.
+                "blueBubbles": bluebubbles.server() is not None}
 
     def open(self, page: str = "") -> None:
         self.page = page
