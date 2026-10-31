@@ -309,6 +309,10 @@ function drawSide() {
   el("div", { class: "cal" + (declinedShown ? " on" : " muted"), style: "--c:var(--muted)" },
     el("button", { class: "sw", title: declinedShown ? "Hide declined events" : "Show declined events", onclick: () => showDeclined(!declinedShown) }),
     el("span", {}, "Declined events")),
+  // The forecast on the days and hours (location.py): ten days ahead, where you are.
+  el("div", { class: "cal" + (weatherShown ? " on" : " muted"), style: "--c:var(--muted)" },
+    el("button", { class: "sw", title: weatherShown ? "Hide the weather" : "Show the weather on its days and hours", onclick: () => showWeather(!weatherShown) }),
+    el("span", {}, "Weather")),
   // Tasks are drawn in Day and Week only, so they are offered there only.
   ...(mode === "month" ? [] : [
     el("div", { class: "cal" + (tasksShown ? " on" : " muted"), style: "--c:var(--accent)" },
@@ -360,14 +364,12 @@ function wxHour(d, h) {
   span.innerHTML = `${Icons.sky(w.icon, w.day)}<span>${w.temp}°</span>`;
   return span;
 }
-$("wx").classList.toggle("on", weatherShown);
-$("wx").addEventListener("click", () => {
-  weatherShown = !weatherShown;
-  try { localStorage.setItem("talaris.calendar.weather", weatherShown ? "1" : "0"); } catch { /* fine */ }
-  $("wx").classList.toggle("on", weatherShown);
-  if (weatherShown) readWeather();
+function showWeather(on) {
+  weatherShown = on;
+  try { localStorage.setItem("talaris.calendar.weather", on ? "1" : "0"); } catch { /* fine */ }
+  if (on) readWeather();
   draw();
-});
+}
 
 function drawMonth(view) {
   const [start] = span();

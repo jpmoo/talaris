@@ -30,6 +30,7 @@ import json
 import locale
 import math
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -42,11 +43,15 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
 import core
 import hypr
+import spawn
 from config import save_config
 from sun import is_day, next_change
 from views import log
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SETUP = os.path.join(os.path.dirname(HERE), "setup", "location.sh")
+#: What set up writes first: there, and the setup has been done (however it was run).
+AGENT_CONF = "/etc/geoclue/conf.d/90-talaris.conf"
 DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": True,
             "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False}
 FIX_EVERY_MS = 30 * 60 * 1000
@@ -244,11 +249,9 @@ class Location(QObject):
         agent, and the time zone settable without a password. Then the helper
         becomes the agent at once.
         """
-        script = os.path.join(os.path.dirname(HERE), "setup", "location.sh")
-
         def run() -> None:
             try:
-                done = subprocess.run(["pkexec", script], capture_output=True, text=True, timeout=300)
+                done = subprocess.run(["pkexec", SETUP], capture_output=True, text=True, timeout=300)
                 self._set_up.emit(done.returncode, done.stderr.strip()[-200:])
             except (OSError, subprocess.SubprocessError) as e:
                 self._set_up.emit(-1, str(e)[:200])
@@ -260,12 +263,41 @@ class Location(QObject):
             self._send({"do": "agent"})
             self.desktop.notifications.own("Location is set up", "Apps can ask for your location, and the time zone follows you.", [], lambda _k: None)
         elif code in (126, 127):
-            # pkexec: the password window dismissed (126), or not authorized (127).
-            log("location: set up cancelled")
+            # pkexec: the window dismissed (126), or not authorized (127) — which is also what it says when the
+            # password window itself fails to hand the password on (hyprpolkitagent with polkit 127: "conversation
+            # failed"). Either way, offered the way that does not need it: sudo, in a terminal.
+            log(f"location: set up not done (pkexec {code}: {said or 'dismissed, or the password window failed'})")
+            self.desktop.notifications.own("Location isn't set up", "The password window didn't finish. Set it up in a terminal instead?",
+                                           [("terminal", "Use a terminal")], lambda key: self.set_up_in_terminal() if key == "terminal" else None)
         else:
             log(f"location: set up failed ({code}: {said})")
             self.desktop.notifications.own("Location not set up", said or f"It stopped ({code}).", [], lambda _k: None)
         self.changed.emit()
+
+    def set_up_in_terminal(self) -> None:
+        """setup/location.sh with sudo, in your terminal (a window of yours); watched for, so it takes at once."""
+        terminal = os.environ.get("TERMINAL") or next((t for t in ("ghostty", "kitty", "foot", "alacritty") if shutil.which(t)), None)
+        if not terminal:
+            self.desktop.notifications.own("No terminal found", f"Run {SETUP} with sudo.", [], lambda _k: None)
+            return
+        spawn.start(terminal, "-e", "bash", "-c", f'sudo "{SETUP}"; echo; read -rp "Press Enter to close. "')
+        self._watch_setup = getattr(self, "_watch_setup", None) or QTimer(self)
+        self._watch_setup.setInterval(3000)
+        tries = {"n": 0}
+
+        def look() -> None:
+            tries["n"] += 1
+            if os.path.exists(AGENT_CONF):
+                self._watch_setup.stop()
+                self._setup_done(0, "")
+            elif tries["n"] > 200:  # ten minutes: given up looking
+                self._watch_setup.stop()
+        try:
+            self._watch_setup.timeout.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        self._watch_setup.timeout.connect(look)
+        self._watch_setup.start()
 
     def forget(self, app: str) -> None:
         apps = {k: v for k, v in self.settings()["apps"].items() if k != app}
