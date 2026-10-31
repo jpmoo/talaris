@@ -375,6 +375,8 @@ class Dock(QObject):
         self.hider = Autohide(profile, "dock", self.view, self._show, self._hide,
                               busy=lambda: bool(self.menu.key), parent=self)
         self.menu = DockMenu(profile, self)
+        #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
+        self.covered = False
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)
         self._soon.timeout.connect(self.refresh)
@@ -387,11 +389,22 @@ class Dock(QObject):
             self.menu.close()
             self._hide()
             return
+        if self.covered:
+            # Hiding as if set to, its edge above the window: out over it when the pointer reaches the edge.
+            self.hider.set(True, self.edge, OVERLAY)
+            self.refresh()
+            return
         hide = bool(self.desktop.config["dock"].get("autohide"))
         self.hider.set(hide, self.edge)
         if not hide:
             self._show()
         self.refresh()
+
+    def cover(self, covered: bool) -> None:
+        """A window covering the screen, or none any more: the dock placed for it, as the bar is."""
+        if covered != self.covered:
+            self.covered = covered
+            self.place()
 
     def tip(self, text: str, x: float) -> None:
         # Clear of the dock (its reserved space, or its height while it hides)
@@ -408,7 +421,7 @@ class Dock(QObject):
     def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_TOP if self.edge == "top" else ANCHOR_BOTTOM
-        hide = bool(self.desktop.config["dock"].get("autohide"))
+        hide = bool(self.desktop.config["dock"].get("autohide")) or self.covered
         # Room beyond the space reserved, clear: for a shadow to fall into, and
         # for icons to swell into when magnified (a 36px item at its largest).
         look = self.desktop.config["dock"]
@@ -419,7 +432,7 @@ class Dock(QObject):
         # The keyboard on demand: on Wayland a press says nothing of the keys held, and Shift-
         # and Ctrl-press need them — they come with the keyboard. Focus follows the mouse, so
         # it is the dock's while the pointer is on it, and the window's again once it leaves.
-        self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
+        self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
