@@ -58,7 +58,6 @@ import os
 import shlex
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
@@ -90,8 +89,6 @@ DOCK_ROOM = 26
 MENU = (256, 334)
 #: An item menu nobody touches puts itself away.
 MENU_IDLE_MS = 10000
-#: A press that went to no window: this long, then the keyboard back to the window you were in.
-GIVE_BACK_MS = 600
 #: A press, with Shift, with Ctrl: each does one of `new`, `bring`, `go` (Dock.clicks).
 PRESSES = ("click", "shift", "ctrl")
 
@@ -382,23 +379,6 @@ class Dock(QObject):
         self._soon.setSingleShot(True)
         self._soon.timeout.connect(self.refresh)
         desktop.events.windows.connect(lambda: self._soon.start(80))
-        # Pressed, the dock has the keyboard; a press that went to no window leaves it there, so
-        # a moment after, the window you were in has it back.
-        self._give = QTimer(self)
-        self._give.setSingleShot(True)
-        self._give.timeout.connect(self._give_back)
-        QGuiApplication.instance().focusWindowChanged.connect(
-            lambda w: self._give.start(GIVE_BACK_MS) if w is not None and w == self.view.windowHandle() else None)
-
-    def _give_back(self) -> None:
-        if QGuiApplication.focusWindow() != self.view.windowHandle():
-            return
-        try:
-            active = json.loads(hypr.ask("j/activewindow") or "{}").get("address", "")
-        except (OSError, ValueError):
-            return
-        if active:
-            hypr.focus(active)
 
     def place(self) -> None:
         """Along its edge — or, set to hide, away until the edge is touched — or, turned off, nowhere."""
@@ -436,8 +416,9 @@ class Dock(QObject):
         room = max(14 if look.get("shadow") else 0, swell + 6 if swell else 0)
         self.surface.placement = None
         tall = self.thickness()
-        # The keyboard on a press: on Wayland a press says nothing of the keys held, and
-        # Shift- and Ctrl-press need them — they come with the keyboard. Given back after (_give_back).
+        # The keyboard on demand: on Wayland a press says nothing of the keys held, and Shift-
+        # and Ctrl-press need them — they come with the keyboard. Focus follows the mouse, so
+        # it is the dock's while the pointer is on it, and the window's again once it leaves.
         self.surface.apply(Placement(TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
