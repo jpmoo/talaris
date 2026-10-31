@@ -30,6 +30,7 @@ import threading
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
 from power import charging, on_mains
+import spawn
 
 #: How often the bar's readings are refreshed while one of its popups is open (Wi-Fi, sound, battery…)…
 POLL_MS = 3000
@@ -445,7 +446,8 @@ class Machine(QObject):
         terminal = os.environ.get("TERMINAL") or next(
             (t for t in ("ghostty", "kitty", "foot", "alacritty") if shutil.which(t)), None)
         if terminal:
-            _detach(terminal, "-e", *TOOLS[name])
+            # A window of yours: apart from Talaris (spawn.py), so a restart of Talaris leaves it.
+            spawn.start(terminal, "-e", *TOOLS[name])
 
     # ------------------------------------------------------------ the panels
 

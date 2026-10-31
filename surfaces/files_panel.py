@@ -26,6 +26,7 @@ from core import Bridge
 from files import choose_files, choose_folder
 from views import log
 from overlay import Overlay
+import spawn
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
 ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+(/place)?$|^/entities/[A-Za-z0-9_.:%-]+/links$")
@@ -39,7 +40,8 @@ def _in_home(path: str) -> str | None:
 
 
 def _launch(*args: str) -> None:
-    subprocess.Popen(list(args), start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Apart from Talaris (spawn.py): what you open is not ended when Talaris restarts.
+    spawn.start(*args)
 
 
 class FilesBridge(Bridge):

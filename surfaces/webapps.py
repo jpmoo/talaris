@@ -25,6 +25,7 @@ from PySide6.QtCore import QObject, QTimer
 
 import hypr
 from core import get_json
+import spawn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APPS_DIR = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "applications")
@@ -128,5 +129,5 @@ class WebApps(QObject):
         args = [sys.executable, os.path.join(HERE, "webapp.py"), "--id", k, "--name", a["name"], "--url", a["url"]]
         if a.get("icon"):
             args += ["--icon", a["icon"]]
-        # Its own process, apart from Talaris's: a crash of either leaves the other.
-        subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        # Its own process, in a place of its own (spawn.py): a crash or a restart of either leaves the other.
+        spawn.start(*args)

@@ -23,6 +23,7 @@ from PySide6.QtCore import QProcess
 
 from core import ask_json
 from views import log
+import spawn
 
 #: Sealed files opened, unsealed where only the user can read them and that is
 #: cleared at logout: the runtime directory, which lives in memory.
@@ -123,7 +124,8 @@ def send_project_files(project: str, files: list) -> dict:
 
 
 def _launch(path: str) -> None:
-    subprocess.Popen(["xdg-open", path], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Apart from Talaris (spawn.py): what you open is not ended when Talaris restarts.
+    spawn.start("xdg-open", path)
 
 
 def _copy_out(tag: str, filename: str, data: bytes) -> str:
