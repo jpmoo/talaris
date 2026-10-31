@@ -918,6 +918,9 @@ class Desktop(QObject):
             verb, _, arg = line.partition(" ")
             if verb == "toggle" and arg in self.workspaces:
                 self.workspaces[arg].toggle()
+            elif verb == "toasts-away":
+                # A left click somewhere while pop-ups show (notifications.py, Toasts.clicked).
+                self.notifications.toasts.clicked()
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()
@@ -1027,6 +1030,8 @@ def main() -> int:
         return send(f"popup {args[1]}")
     if args[:1] == ["--file-all"]:
         return send("file-all")
+    if args[:1] == ["--toasts-away"]:
+        return send("toasts-away")
     if args[:1] == ["--quit"]:
         return send("quit")
 

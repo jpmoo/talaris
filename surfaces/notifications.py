@@ -37,6 +37,9 @@ from core import Bridge
 from layershell import ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 from views import log, make_view, zoom
 
+#: This program's own command, for a bind to reach it.
+LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 KEPT = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-notifications.json")
 MOST = 300
@@ -296,6 +299,49 @@ class Toasts(QObject):
         if not self.height:
             self.fit(1)
         self._tell()
+        self._listen_for_away(True)
+
+    # ------------------------------------------------------------ a click anywhere else
+
+    #: The press that means "away", heard without being taken: Hyprland's bindn passes it on to what was pressed.
+    AWAY_KEYS = ", mouse:272"
+
+    def _listen_for_away(self, on: bool) -> None:
+        """
+        A third way for the pop-ups to go, after their x and their time: a click
+        anywhere off them. Heard by a pass-through bind on the left button
+        (bindn: the click still reaches what was clicked — a pop-up arrives
+        unasked, and must not cost the next click), held only while any shows.
+        """
+        if on == getattr(self, "_away_on", False):
+            return
+        self._away_on = on
+        if on:
+            hypr.bind(self.AWAY_KEYS, f"{LAUNCHER} --toasts-away", "n")
+        else:
+            hypr.unbind(self.AWAY_KEYS)
+
+    def clicked(self) -> None:
+        """A left click somewhere (the bind): off the pop-ups, every one showing is put away, as its x would."""
+        if not self.showing or not self.height:
+            return
+        try:
+            at = json.loads(hypr.ask("j/cursorpos") or "{}")
+            layers = json.loads(hypr.ask("j/layers") or "{}")
+        except (OSError, ValueError):
+            return
+        for monitor in layers.values():
+            for level in monitor.get("levels", {}).values():
+                for layer in level:
+                    if layer.get("namespace") == "talaris-notify":
+                        x, y, w, h = layer.get("x", 0), layer.get("y", 0), layer.get("w", 0), layer.get("h", 0)
+                        if x <= at.get("x", -1) < x + w and y <= at.get("y", -1) < y + h:
+                            return  # on them: theirs to answer
+        for t in list(self.showing):
+            nid = int(t.get("id", 0))
+            self.drop(nid)
+            if nid > 0:
+                self.notifications._send({"do": "closed", "id": nid, "reason": 2})
 
     def drop(self, nid: int) -> None:
         if any(t.get("id") == nid for t in self.showing):
@@ -308,6 +354,7 @@ class Toasts(QObject):
             self.height = 0
             self.view.hide()
             self.surface.placement = None
+            self._listen_for_away(False)
             return
         if height == self.height:
             return
