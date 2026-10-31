@@ -100,16 +100,53 @@ def _fingerprint() -> bool:
     return " - #" in listed
 
 
+#: US states by their postal abbreviations, for "Clinton, NJ".
+STATES = dict(zip("AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(),
+                  ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "District of Columbia", "Florida",
+                   "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts",
+                   "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+                   "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+                   "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"]))
+
+
 def find_places(query: str) -> list[dict]:
-    """Places by name, for setting where you are by hand: Open-Meteo's geocoding, told only what was typed."""
-    q = urllib.parse.urlencode({"name": query.strip()[:80], "count": 6, "language": "en", "format": "json"})
+    """
+    Places by name, for where you are: Open-Meteo's geocoding, told only what
+    was typed. It finds by the name alone and ranks by size, so a small town
+    sits behind bigger ones of its name: asked for a hundred, and what comes
+    after a comma ("Clinton, NJ", "Clinton, Hunterdon", "Paris, France")
+    keeps those it names. Each said with its county, so two of a name in one
+    state are told apart.
+    """
+    name, _, rest = query.strip()[:120].partition(",")
+    wants = [w.strip().lower() for w in rest.split(",") if w.strip()]
+    wants = [STATES.get(w.upper(), w).lower() for w in wants]
+    q = urllib.parse.urlencode({"name": name.strip(), "count": 100, "language": "en", "format": "json"})
     try:
         with urllib.request.urlopen(f"https://geocoding-api.open-meteo.com/v1/search?{q}", timeout=12) as reply:
             got = json.loads(reply.read().decode("utf-8")).get("results") or []
     except Exception:  # noqa: BLE001 — offline, or the service down: nothing found
         return []
-    return [{"name": ", ".join(x for x in (p.get("name"), p.get("admin1"), p.get("country")) if x),
-             "lat": round(float(p["latitude"]), 2), "lon": round(float(p["longitude"]), 2)} for p in got if "latitude" in p]
+
+    def says(p: dict) -> list[str]:
+        county = p.get("admin2", "")
+        county = county if not county or county.endswith(("County", "Parish", "Borough")) or p.get("country_code") != "US" else f"{county} County"
+        return [x for x in (p.get("name"), county, p.get("admin1"), p.get("country")) if x]
+
+    def named(p: dict) -> bool:
+        held = " ".join(says(p) + [p.get("country_code", ""), p.get("admin2", "")]).lower()
+        return all(w in held for w in wants)
+    found = [p for p in got if "latitude" in p and named(p)][:8]
+    return [{"name": ", ".join(says(p)), "lat": round(float(p["latitude"]), 2), "lon": round(float(p["longitude"]), 2)} for p in found]
+
+
+def _fingerprint() -> bool:
+    """A finger enrolled for you (fprintd): polkit's password windows then wait for it before a password."""
+    try:
+        listed = subprocess.run(["fprintd-list", os.environ.get("USER", "")], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return " - #" in listed
 
 
 def _system_zone() -> str:
