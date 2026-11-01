@@ -413,17 +413,19 @@ TOOLS.push(
  */
 TOOLS.push({
   name: "where",
-  description: "Roughly where the person is now — latitude and longitude to about a kilometre (often only to the nearest town: it comes from Wi-Fi), their time zone and local time, and the weather there if known. Use it for \"near me\", \"what's the weather\", \"what time is it there\", and to put times in their zone. If they have not let Morgan know where they are, it says so: do not guess, and do not ask them for their address. What it returns is private: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.",
+  description: "Roughly where the person is now — latitude and longitude to about a kilometre (often only to the nearest town: it comes from Wi-Fi) and the town by name — use that name; do not work one out from the numbers, their time zone and local time, and the weather there if known. Use it for \"near me\", \"what's the weather\", \"what time is it there\", and to put times in their zone. If they have not let Morgan know where they are, it says so: do not guess, and do not ask them for their address. What it returns is private: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.",
   inputSchema: { type: "object", properties: {} },
   annotations: { readOnlyHint: true, title: "Where I am" },
   run: async () => {
-    const w = (await core<{ location: { lat: number; lon: number; accuracy?: number; zone?: string; weather?: { temp?: number; unit?: string; sky?: string }; at: string } | null }>("GET", "/location")).location;
+    const w = (await core<{ location: { lat: number; lon: number; accuracy?: number; name?: string; zone?: string; weather?: { temp?: number; unit?: string; sky?: string }; at: string } | null }>("GET", "/location")).location;
     if (!w || typeof w.lat !== "number") return "The person's device does not share where they are with Morgan. Do not guess, and do not name the program that would.";
     const zone = w.zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const local = new Date().toLocaleString("en-US", { timeZone: zone, weekday: "long", hour: "numeric", minute: "2-digit" });
     const km = w.accuracy ? Math.max(1, Math.round(w.accuracy / 1000)) : 1;
     const weather = w.weather && typeof w.weather.temp === "number" ? ` The weather there: ${w.weather.sky ? `${w.weather.sky}, ` : ""}${w.weather.temp}${w.weather.unit ?? ""}.` : "";
-    return `About ${w.lat}, ${w.lon} (to within about ${km} km), in the time zone ${zone}, where it is ${local}.${weather} This is where the person is: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.`;
+    // The town as Talaris names it: the numbers alone left Morgan to guess one, and it guessed wrong.
+    const near = w.name ? `, in or near ${w.name}` : "";
+    return `About ${w.lat}, ${w.lon}${near} (to within about ${km} km), in the time zone ${zone}, where it is ${local}.${weather} This is where the person is: it stays with Morgan and must never be passed to the Oracle, to any other model, or to any other service.`;
   },
 });
 

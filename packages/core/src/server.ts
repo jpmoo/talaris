@@ -928,12 +928,13 @@ route("POST", "/activity/dismissed", async (req) => { const b = await json<{ key
  * only while Settings, Location lets Morgan know — rounded to about a
  * kilometre — and held in memory only, never written. Null: not to be known.
  */
-interface Whereabouts { lat: number; lon: number; accuracy?: number; zone?: string; weather?: Record<string, unknown> }
+interface Whereabouts { lat: number; lon: number; accuracy?: number; name?: string; zone?: string; weather?: Record<string, unknown> }
 let whereabouts: (Whereabouts & { at: string }) | null = null;
 route("PUT", "/location", async (req) => {
   const b = await json<Whereabouts | null>(req);
   whereabouts = b && typeof b.lat === "number" && typeof b.lon === "number"
     ? { lat: Math.round(b.lat * 100) / 100, lon: Math.round(b.lon * 100) / 100, accuracy: Number(b.accuracy) || 0,
+      ...(typeof b.name === "string" && b.name ? { name: b.name.slice(0, 120) } : {}),
       ...(typeof b.zone === "string" ? { zone: b.zone } : {}), ...(b.weather && typeof b.weather === "object" ? { weather: b.weather } : {}), at: new Date().toISOString() }
     : null;
   return { ok: true };

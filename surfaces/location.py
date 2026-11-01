@@ -727,7 +727,19 @@ class Location(QObject):
                     **({"weather": self.weather} if self.weather else {})}
         else:
             body = None
-        threading.Thread(target=lambda: core.call("PUT", "/location", json.dumps(body)), daemon=True).start()
+
+        def tell() -> None:
+            # The town by name, so Morgan need not guess one from the numbers (it said Larchmont for Clinton):
+            # the place chosen or named for the Wi-Fi, else the fix's town, looked up off the main thread.
+            if body is not None:
+                try:
+                    name = fix.get("name") or place_name(fix["lat"], fix["lon"])
+                except Exception:  # noqa: BLE001 — offline: the numbers alone
+                    name = ""
+                if name:
+                    body["name"] = name
+            core.call("PUT", "/location", json.dumps(body))
+        threading.Thread(target=tell, daemon=True).start()
 
     # ------------------------------------------------------------ for the bar and Settings
 
