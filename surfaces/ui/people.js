@@ -820,6 +820,15 @@
       [found, cards] = await Promise.all([api("GET", "/people/review"), api("GET", "/contacts/cards?all=1").catch(() => [])]);
     } catch (err) { list.replaceChildren(el("div", { class: "hint err" }, err.message)); return; }
     if (!reviewing) return;
+    // After one is made one, asked again: a name three share is three rows, and the others are about who it became.
+    const refresh = async () => {
+      const again = await api("GET", "/people/review");
+      if (reviewing) drawReview(list, matches(again, cards), refresh);
+    };
+    drawReview(list, matches(found, cards), refresh);
+  }
+
+  function matches(found, cards) {
     const items = [];
     for (const p of found.pairs || []) items.push({ kind: "pair", a: p.a, b: p.b, why: p.why });
     // People with no card, matched to one: the same address first, else the same name — one card each, the best.
@@ -843,10 +852,10 @@
       const others = (tiedTo.get(cardKeyOf(card)) || []).filter((o) => o.id !== r.id);
       items.push({ kind: "card", a: r, card, why: [email ? "The same address" : "The same name"], others });
     }
-    drawReview(list, items);
+    return items;
   }
 
-  function drawReview(list, items) {
+  function drawReview(list, items, refresh) {
     if (!items.length) { list.replaceChildren(Kit.empty("No one looks entered twice")); return; }
     const who = (p) => el("div", { class: "c-main" },
       el("div", { class: "c-name" }, p.title),
@@ -858,7 +867,10 @@
         try {
           const r = await api("POST", `/people/${enc(it.a.id)}/same`, it.kind === "pair" ? { person: it.b.id } : { card: cardKeyOf(it.card) });
           done(r.said || "Done");
-          loadPeople();
+          await loadPeople();
+          const top = $("person").scrollTop;
+          await refresh();
+          $("person").scrollTop = top;
         } catch (err) { failed(err); }
       };
       const notSame = async () => {

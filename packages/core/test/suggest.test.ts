@@ -177,4 +177,10 @@ test("the same person: a card tied, anyone else on it made one; or two made one"
   const m = suggest.samePerson(other.id, { person: solo.id });
   assert.match(m.said, /^Made one/);
   assert.equal(entities.listPeople().filter((p) => p.title === "Tamsin Gale").length, 1);
+  // Three of one name are three pairs: after the first is made one, the others still go to whoever they became.
+  const [x, y, z] = [person("Odile Fenn"), person("Odile Fenn"), person("Odile Fenn")];
+  suggest.samePerson(x.id, { person: y.id });
+  assert.match(suggest.samePerson(x.id, { person: z.id }).said, /^Made one/);
+  assert.match(suggest.samePerson(y.id, { person: z.id }).said, /^Already one/);
+  assert.equal(entities.listPeople().filter((p) => p.title === "Odile Fenn").length, 1);
 });

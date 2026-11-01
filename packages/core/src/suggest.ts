@@ -40,7 +40,7 @@ import { filedUnder, projectEntity, projectIdOf } from "./filing.js";
 import { listFiles, type FileRow } from "./files.js";
 import { keptText, plainText } from "./filetext.js";
 import { linkFile } from "./links.js";
-import { mergeEntities, syncedBy } from "./merge.js";
+import { mergeEntities, mergedInto, syncedBy } from "./merge.js";
 import { indexed, nearTo } from "./meaning.js";
 import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
@@ -553,13 +553,17 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
  * the shared card was the proof, so no second step is asked for. Answers what was done and who was kept.
  */
 export function samePerson(id: string, other: { person?: string; card?: string }): { said: string; kept: string } {
-  let keep = id;
+  // Either may have been made one with someone already (a name three people share is three pairs): each is
+  // followed to whoever it became, and two that are already one are said to be.
+  const now = (x: string) => { try { getEntity(x); return x; } catch { const to = mergedInto(x); if (!to) throw new NotFound(`no person ${x}`); return to; } };
+  let keep = now(id);
+  if (other.person && now(other.person) === keep) return { said: `Already one: ${titleOf(getEntity(keep))}`, kept: keep };
   const merged: string[] = [];
   const mergeIn = (otherId: string) => {
     const r = tie(`e:${keep}`, `e:${otherId}`, { how: "merge", label: "Same person" });
     if (typeof r !== "string") { merged.push(otherId); keep = r.kept.replace(/^e:/, ""); }
   };
-  if (other.person) mergeIn(other.person);
+  if (other.person) mergeIn(now(other.person));
   if (other.card) {
     const me = getEntity(keep);
     const sources = (me["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? [];
