@@ -180,11 +180,12 @@ const TOOLS: Tool[] = [
   },
   {
     name: "talaris_create",
-    description: "Make a new person, event, page, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email. What the user calls a note is a page: one made here is a page of no other project, kept in Home under Pages (and in Hermes Notes as a note); a page in a project (\"a note in this project\") is made with talaris_page_write.",
+    description: "Make a new person, event, page, task or project in Talaris. Returns its id. To find or make a person by email, give kind person and email. What the user calls a note is a page. Asked for in a project (\"a note in my Home project\", \"in Family\"), give that project: the page is made at the top of its writing. With no project named, it is a page of no project, kept in Home under Pages (and in Hermes Notes as a note).",
     inputSchema: { type: "object", properties: {
       kind: { type: "string", enum: ["person", "event", "page", "task", "project"] },
       title: { type: "string" },
       body: { type: "string", description: "A page's words, in Markdown." },
+      project: { type: "string", description: "A page's project, by name, when the user names one. Left out, it is a note of no project." },
       email: { type: "string", description: "A person's email." },
     }, required: ["kind", "title"] },
     annotations: { readOnlyHint: false, title: "Create in Talaris" },
@@ -193,12 +194,15 @@ const TOOLS: Tool[] = [
         const p = await core<{ id: string }>("POST", "/entities/person", { email: str(a.email), name: str(a.title) });
         return `${str(a.title)} [${p.id}]`;
       }
-      // A page — a note, as it may be asked for — is one of no other project: Home's, under Pages, as the writing drawer makes one.
+      // A page — a note, as it may be asked for — in the project named, at the top of its writing; Home's too, when it is
+      // the one named ("a note in my Home project" was put among the notes of no project). With none named, one of no
+      // project: Home's, under Pages, as the writing drawer makes one.
       if (a.kind === "page" || a.kind === "note") {
-        const home = { id: (await project("home")).id! };
-        const page = await core<{ path: string }>("POST", `/projects/${home.id}/pages`, { parent: "Pages", title: str(a.title) });
-        if (a.body) await core("PUT", `/projects/${home.id}/page?path=${encodeURIComponent(page.path)}`, str(a.body));
-        return `Made the page ${page.path} in Home (project "${home.id}", path "${page.path}")`;
+        const named = a.project ? await project(str(a.project)) : null;
+        const where = named ?? await project("home");
+        const page = await core<{ path: string }>("POST", `/projects/${where.id}/pages`, { parent: named ? null : "Pages", title: str(a.title) });
+        if (a.body) await core("PUT", `/projects/${where.id}/page?path=${encodeURIComponent(page.path)}`, str(a.body));
+        return `Made the page ${page.path} in ${named ? where.name : "Home, as a note of no project"} (project "${where.id}", path "${page.path}")`;
       }
       const role = ROLE[str(a.kind)];
       if (!role) throw new Error("kind is person, event, page, task or project");
