@@ -67,6 +67,38 @@ export function forgetPages(projectId: string, paths: string[]): void {
 }
 
 /** Every tag in use, with how many things carry it, the most used first. */
+/**
+ * The tags written in a page's words: `#word`, after a space or at a line's start, as Hermes and every note
+ * app reads them. Not a heading (`# Title` has its space), not a link's anchor (no space before its #), not
+ * in code, not a bare number (#2 is an issue or a rank), and a tag ending at the punctuation after it.
+ */
+export function inlineTags(text: string): string[] {
+  const prose = String(text ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`\n]*`/g, " ");
+  const found: string[] = [];
+  for (const m of prose.matchAll(/(^|[\s(\[{>])#([\p{L}\p{N}][\p{L}\p{N}_\-/]*)/gu)) {
+    const tag = m[2]!.replace(/[-/_]+$/, "");
+    if (tag && !/^\p{N}+$/u.test(tag)) found.push(tag);
+  }
+  return [...new Set(found)];
+}
+
+/**
+ * A page's words, saved: the tags written in them put on it, any it lacks — a tag already had, in whatever case
+ * it was first written, rather than one more beside it ("#Packing" is the packing that is already there). Only
+ * added: a tag is taken off where tags are, so one written and then deleted from the words stays until then.
+ */
+export function addInlineTags(projectId: string, path: string, text: string): void {
+  const written = inlineTags(text);
+  if (!written.length) return;
+  const known = new Map(allTags().map(({ tag }) => [tag.toLowerCase(), tag]));
+  const have = pageTags(projectId, path);
+  const mine = new Set(have.map((t) => t.toLowerCase()));
+  const more = written.map((t) => known.get(t.toLowerCase()) ?? t).filter((t) => !mine.has(t.toLowerCase()));
+  if (more.length) setPageTags(projectId, path, [...have, ...more]);
+}
+
 export function allTags(): { tag: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const { object: o } of allRecords()) {

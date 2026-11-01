@@ -718,7 +718,8 @@ async function drawEditor() {
       onChange: changed,
       onOpenUrl: (url) => bridge && bridge.openUrl(url),
       // @ names anything; a mention clicked opens it, or peeks at it (mentions.js, peek.js).
-      mentions: TalarisMentions(core),
+      // `#` offers tags here: a writing page takes each `#word` as a tag when saved (core, tags.ts).
+      mentions: TalarisMentions(core, null, { ...(window.talarisMentionDefaults || {}), tags: true }),
       // A file dropped or pasted is kept in the project and linked (files.js).
       files: window.talarisFileDefaults,
     });

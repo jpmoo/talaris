@@ -361,6 +361,8 @@ export interface Mentions {
   /** Make something new by this name: a person, unless another kind is chosen. */
   create?(name: string, kind: string): Promise<{ id: string; title: string }>;
   open?(id: string): void;
+  /** The tags there are, most used first: `#` offers them as it is typed (the page takes them when saved). */
+  tags?(): Promise<string[]>;
 }
 
 export interface MentionFound {
@@ -562,5 +564,39 @@ function mentionPicker(m: Mentions) {
     }
     return { from: at + 1, options, filter: false };
   };
-  return autocompletion({ override: [source], activateOnTyping: true, icons: false, closeOnBlur: true });
+  return autocompletion({ override: [source, ...(m.tags ? [tagSource(m.tags)] : [])], activateOnTyping: true, icons: false, closeOnBlur: true });
+}
+
+/**
+ * `#` as it is typed: the tags there are, then a new one by what was typed. Only once a letter follows it, so
+ * starting a heading (`# `) opens nothing. What goes in is the tag as it is already written ("#packing" for
+ * "#Pack…"), so one tag is never two by case; the page takes it as a tag when it is saved (core, tags.ts).
+ */
+function tagSource(list: () => Promise<string[]>) {
+  let held: { at: number; tags: string[] } | null = null;
+  const tags = async () => {
+    if (held && Date.now() - held.at < 30_000) return held.tags;
+    let got: string[] = [];
+    try { got = await list(); } catch { got = []; }
+    held = { at: Date.now(), tags: got };
+    return got;
+  };
+  return async (context: CompletionContext): Promise<CompletionResult | null> => {
+    const typed = context.matchBefore(/(?:^|[\s(\[{>])#[\p{L}\p{N}][\p{L}\p{N}_\-/]*$/u);
+    if (!typed) return null;
+    const hash = typed.from + typed.text.indexOf("#");
+    const query = context.state.sliceDoc(hash + 1, context.pos);
+    const q = query.toLowerCase();
+    const all = await tags();
+    if (context.aborted) return null;
+    const put = (tag: string) => (view: EditorView, _c: Completion, _from: number, to: number) => {
+      const text = `#${tag} `;
+      view.dispatch({ changes: { from: hash, to, insert: text }, selection: EditorSelection.cursor(hash + text.length) });
+    };
+    const starts = all.filter((t) => t.toLowerCase().startsWith(q));
+    const holds = all.filter((t) => !t.toLowerCase().startsWith(q) && t.toLowerCase().includes(q));
+    const options: Completion[] = [...starts, ...holds].slice(0, 8).map((t) => ({ label: `#${t}`, detail: "tag", apply: put(t) }));
+    if (!all.some((t) => t.toLowerCase() === q)) options.push({ label: `New tag: #${query}`, detail: "", boost: -99, apply: put(query) });
+    return { from: hash, options, filter: false };
+  };
 }

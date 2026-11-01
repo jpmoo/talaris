@@ -833,3 +833,19 @@ test("search finds the start of a word before the middle of one, and the kind pr
   assert.ok(titles.indexOf("Chuck Berry") < titles.indexOf("Lunch with Chuck"), titles.join(" | "));
   assert.ok(titles.indexOf("Lunch with Chuck") < titles.indexOf("dschumacher@example.org"), titles.join(" | "));
 });
+
+test("tags written in a page's words: put on the page, an existing tag in its own case, never a heading or code", async () => {
+  const projects = await import("../src/projects.js");
+  const pages = await import("../src/pages.js");
+  const tags = await import("../src/tags.js");
+  assert.deepEqual(tags.inlineTags("# Heading\n#packing list, (#Trip) and #to-do-\nSee https://x.example/#anchor and `#code` and #2 and issue#3"),
+    ["packing", "Trip", "to-do"]);
+  const p = projects.createProject("Tag trials");
+  const other = pages.createPage(p.id, null, "Earlier");
+  tags.setPageTags(p.id, other.path, ["packing"]);
+  const page = pages.createPage(p.id, null, "Packing List");
+  pages.writePage(p.id, page.path, "#Packing for #Phoenix\n- [ ] Shirts");
+  assert.deepEqual(tags.pageTags(p.id, page.path), ["packing", "Phoenix"], "#Packing is the packing already there");
+  pages.writePage(p.id, page.path, "#Packing for #Phoenix and #Denver");
+  assert.deepEqual(tags.pageTags(p.id, page.path), ["packing", "Phoenix", "Denver"], "added, never twice");
+});

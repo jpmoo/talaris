@@ -18,7 +18,7 @@
 // to open a thing (the Tasks panel opens a task in its editor).
 //
 // `opts`: {project: () => id, openPlace: ({kind, project, where}) => …, openPerson: (id) => …,
-// openTask: (id) => …, openEvent: (calendar, uid, start) => …}. A
+// openTask: (id) => …, openEvent: (calendar, uid, start) => …, tags: true where `#` offers tags}. A
 // page sets them once as `window.talarisMentionDefaults`, so a picker made
 // without them (a canvas note, inside the drawer) still has them.
 
@@ -67,6 +67,12 @@ window.TalarisMentions = (api, open, opts) => {
       }
       return [...out.slice(0, 4), ...extra, ...out.slice(4)].slice(0, 10);
     },
+    // The tags there are, most used first (`/tags`): what `#` offers as it is typed (editor.js) — only where a
+    // `#word` becomes a tag when saved, a writing page (`opts.tags`); elsewhere `#` is only typed.
+    ...(opts && opts.tags ? { async tags() {
+      const all = await api("GET", "/tags").catch(() => []);
+      return (all || []).map((t) => t.tag).filter(Boolean);
+    } } : {}),
     async create(name, kind) {
       // A task is made as tasks are (its default status); the rest as entities of their role.
       const made = kind === "task"

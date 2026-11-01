@@ -10,7 +10,7 @@ import { readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { membersMoved } from "./filelists.js";
 import { starredPageMoved } from "./starred.js";
-import { forgetPages, pageTags, setPageTags } from "./tags.js";
+import { addInlineTags, forgetPages, pageTags, setPageTags } from "./tags.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 
 /**
@@ -183,6 +183,8 @@ export function writePage(projectId: string, path: string, text: string): void {
   saveVersion(versionDir(join(folder, MACHINERY), "page", safe(path)), text, "md");
   // What it mentions, held by an entity standing for the page (mentions.ts).
   syncText({ kind: "page", key: `${projectId}/${safe(path)}` }, safe(path).split("/").pop() ?? path, text);
+  // And what it tags in its words (`#word`): on the page, as the tag chips put them.
+  addInlineTags(projectId, safe(path), text);
 }
 
 /** A title that is free among its siblings: "Untitled", then "Untitled 2"… */
