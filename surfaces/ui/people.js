@@ -260,6 +260,25 @@
   async function loadPeople() {
     [people, myOrgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/my-organizations").catch(() => [])]);
     drawList();
+    warnTwice();
+  }
+
+  // People who may be entered twice (suggest.ts, peopleReview), said above everything until reviewed: what is tied
+  // to each copy stays with that copy, so whatever reads one of them — Morgan, suggestions, the person's page — sees
+  // only part. Hidden while the review is open; asked again whenever the list is.
+  let twiceAsked = 0;
+  async function warnTwice() {
+    const mine = ++twiceAsked;
+    let n = 0;
+    try { n = ((await api("GET", "/people/review")).pairs || []).length; } catch { n = 0; }
+    if (mine !== twiceAsked) return;
+    const bar = $("twice");
+    bar.hidden = !n || reviewing;
+    if (!n) return;
+    bar.replaceChildren(
+      el("span", { class: "t-text" }, `${n === 1 ? "One person may be" : `${n} people may be`} entered twice. Until they're made one, `
+        + "what's tied to each copy stays split between them, so Morgan, suggestions and their pages each see only part of what you know about them."),
+      el("button", { class: "t-btn", onclick: () => { if (!reviewing) review().catch(failed); } }, "Review"));
   }
 
   // ---------------------------------------------------------------- the one chosen
@@ -267,7 +286,7 @@
   let loadSeq = 0;
   function choose(id) {
     if (id === chosen && got && !reviewing) return;
-    reviewing = false;
+    if (reviewing) { reviewing = false; warnTwice(); }
     $("review").classList.remove("on");
     chosen = id;
     store.set("talaris.people.chosen", id);
@@ -804,9 +823,10 @@
   };
 
   async function review() {
-    if (reviewing) { reviewing = false; $("review").classList.remove("on"); got = null; if (chosen) choose(chosen); else drawPerson(); return; }
+    if (reviewing) { reviewing = false; $("review").classList.remove("on"); warnTwice(); got = null; if (chosen) choose(chosen); else drawPerson(); return; }
     reviewing = true;
     $("review").classList.add("on");
+    $("twice").hidden = true;
     putAwayEditors();
     popAway();
     for (const r of document.querySelectorAll(".prow.on")) r.classList.remove("on");
