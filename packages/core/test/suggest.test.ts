@@ -200,3 +200,17 @@ test("the same person: a card tied, anyone else on it made one; or two made one"
   suggest.samePerson(blank.id, { person: namedOne.id });
   assert.equal(entities.getEntity(blank.id).properties.title, "Wren Abara");
 });
+
+test("a similar name, by its family: Jeff and Jeffrey of one last name; the nameless listed, until left", () => {
+  const j1 = person("Jeff Ostrowski");
+  const j2 = person("Jeffrey Ostrowski");
+  const j3 = person("Jeffrey Pindar");
+  const r = suggest.peopleReview();
+  const p = r.pairs.find((x) => [x.a.id, x.b.id].sort().join() === [j1.id, j2.id].sort().join());
+  assert.deepEqual(p?.why, ["A similar name"]);
+  assert.ok(!r.pairs.some((x) => [x.a.id, x.b.id].includes(j3.id)), "another last name: not similar");
+  const blank = entities.createEntity({ role: "person", properties: { emails: ["nobody@x.example"] } });
+  assert.ok(suggest.peopleReview().nameless.some((x) => x.id === blank.id));
+  suggest.leaveNameless(blank.id);
+  assert.ok(!suggest.peopleReview().nameless.some((x) => x.id === blank.id), "left: not listed again");
+});

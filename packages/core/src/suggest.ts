@@ -41,6 +41,7 @@ import { listFiles, type FileRow } from "./files.js";
 import { keptText, plainText } from "./filetext.js";
 import { linkFile } from "./links.js";
 import { mergeEntities, mergedInto, syncedBy } from "./merge.js";
+import { nameFamilies } from "./nicknames.js";
 import { indexed, nearTo } from "./meaning.js";
 import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
@@ -502,7 +503,9 @@ export interface ReviewPerson { id: string; title: string; emails: string[]; org
  * addresses, for People to match against the address books (which the surfaces read, not this), and the
  * cards each was told is not them.
  */
-export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why: string[] }[]; people: ReviewPerson[]; notCards: Record<string, string[]> } {
+export function peopleReview(): {
+  pairs: { a: ReviewPerson; b: ReviewPerson; why: string[] }[]; people: ReviewPerson[]; notCards: Record<string, string[]>; nameless: ReviewPerson[];
+} {
   const personType = types().find((t) => t["talaris:role"] === "person")?.id;
   const people: ReviewPerson[] = [];
   const nameKey = types().find((t) => t.id === personType)?.profiles?.contact?.title;
@@ -523,6 +526,11 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
   for (const p of people) {
     const said = named.has(p.id) ? norm(spokenName(named.get(p.id)!)) : "";
     if (said) into(`The same name\u0000${said}`, p);
+    // A similar name: the same last name, and first names of one family (Jeff and Jeffrey; nicknames.ts).
+    const words = said.split(" ").filter(Boolean);
+    // Not of an address used as a name ("andy.johnsen@smusd.org" is no Andy … Org).
+    const isAddress = named.get(p.id)?.includes("@") ?? false;
+    if (words.length >= 2 && !isAddress) for (const f of nameFamilies(words[0]!)) into(`A similar name\u0000${f} ${words[words.length - 1]}`, p);
     for (const e of p.emails) into(`The same address\u0000${e}`, p);
     for (const c of p.cards) into(`The same contact card\u0000${c}`, p);
   }
@@ -539,8 +547,11 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
       why.set(id, got);
     }
   }
-  // Surest first: a shared card, then an address, then the name alone.
-  const rank = (w: Set<string>) => (w.has("The same contact card") ? 3 : 0) + (w.has("The same address") ? 2 : 0) + (w.has("The same name") ? 1 : 0);
+  // The same name says more than a similar one: only one of the two is given.
+  for (const x of why.values()) if (x.why.has("The same name")) x.why.delete("A similar name");
+  // Surest first: a shared card, then an address, then the name, then a similar name alone.
+  const rank = (w: Set<string>) => (w.has("The same contact card") ? 3 : 0) + (w.has("The same address") ? 2 : 0) + (w.has("The same name") ? 1 : 0)
+    + (w.has("A similar name") ? 0.5 : 0);
   const pairs = [...why.values()].sort((x, y) => rank(y.why) - rank(x.why) || x.a.title.localeCompare(y.a.title))
     .map((x) => ({ a: x.a, b: x.b, why: [...x.why] }));
   const notCards: Record<string, string[]> = {};
@@ -549,8 +560,14 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
     const [person, card] = x!.startsWith("card:") ? [y!, x!] : [x!, y!];
     if (card?.startsWith("card:") && person?.startsWith("e:")) (notCards[person.slice(2)] ??= []).push(card.slice(5));
   }
-  return { pairs, people, notCards };
+  // No name at all: nothing to match them by, so shown for who they are (a name given, or someone chosen), unless left.
+  const nameless = people.filter((p) => !named.has(p.id) && !no.has(pair(`e:${p.id}`, NAMELESS_LEFT)));
+  return { pairs, people, notCards, nameless };
 }
+
+/** A nameless person left as they are (People, Review's "Leave it"): kept with the suggestions turned down. */
+const NAMELESS_LEFT = "nameless:left";
+export const leaveNameless = (id: string) => dismiss(`e:${id}`, NAMELESS_LEFT);
 
 /**
  * The same person (People): one answer, whatever the match is. Another person here is made one with them; an

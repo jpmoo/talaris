@@ -533,6 +533,8 @@ route("DELETE", "/people/:id/ties", (_r, [id], q) => entities.tieContact(id!, ne
 // Everyone swept for one person entered twice (People, Review), and one answer for "the same person": merged with
 // another here, or tied to a card (and made one with anyone else tied to it) — suggest.ts.
 route("GET", "/people/review", () => suggest.peopleReview());
+// A nameless person left as they are: not shown in the review again.
+route("POST", "/people/:id/leave-nameless", (_r, [id]) => { suggest.leaveNameless(id!); return { ok: true }; });
 route("POST", "/people/:id/same", async (req, [id]) => {
   const b = await json<{ person?: string; card?: string }>(req);
   if (!b.person && !b.card) throw new Conflict("the same as whom: a person, or a card");

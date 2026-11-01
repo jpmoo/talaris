@@ -808,6 +808,23 @@
       sugg);
   }
 
+  // Someone already here, picked by name or address: for "Both are…" and "Same person as…".
+  function pickPerson(anchor, leaveOut, picked) {
+    const box = el("input", { type: "search", class: "find", placeholder: "Who are they?", spellcheck: "false" });
+    const hits = el("div", { class: "menu-list" });
+    const show = () => {
+      const q = box.value.trim().toLowerCase();
+      const rows = people.filter((r) => !leaveOut.includes(r.id) && q
+        && (r.title.toLowerCase().includes(q) || String(r.email || "").toLowerCase().includes(q))).slice(0, 8);
+      hits.replaceChildren(...(rows.length ? rows.map((r) => el("button", { class: "menu-item", onclick: () => { popAway(); picked(r); } },
+        r.title, r.email ? el("span", { class: "hint" }, `  ${r.email}`) : null)) : [el("div", { class: "hint" }, q ? "No one by that name" : "Type a name")]));
+    };
+    box.addEventListener("input", show);
+    show();
+    popUnder(anchor, el("div", {}, box, hits));
+    setTimeout(() => box.focus(), 0);
+  }
+
   // ---------------------------------------------------------------- review: everyone at once
   //
   // One person entered twice, swept for across everyone: two here who share a
@@ -872,6 +889,8 @@
       const others = (tiedTo.get(cardKeyOf(card)) || []).filter((o) => o.id !== r.id);
       items.push({ kind: "card", a: r, card, why: [email ? "The same address" : "The same name"], others });
     }
+    // Last, those with no name, who match nothing until they have one.
+    for (const r of found.nameless || []) items.push({ kind: "nameless", a: r });
     return items;
   }
 
@@ -881,45 +900,64 @@
       el("div", { class: "c-name" }, p.title),
       p.emails && p.emails.length ? el("div", { class: "c-line" }, p.emails.join(", ")) : null,
       p.organization ? el("div", { class: "c-line" }, p.organization) : null);
-    const row = (it) => {
+    const row = (it) => (it.kind === "nameless" ? namelessRow(it) : pairRow(it));
+    const namelessRow = (it) => {
+      const nameBox = el("input", { type: "text", class: "find", placeholder: "Their name", spellcheck: "false", hidden: true });
+      const line = el("div", { class: "r-item" },
+        el("div", { class: "label r-why" }, "No name"),
+        el("div", { class: "card" }, el("div", { class: "c-main" },
+          el("div", { class: "c-name" }, it.a.emails[0] || it.a.title),
+          it.a.emails.length > 1 ? el("div", { class: "c-line" }, it.a.emails.slice(1).join(", ")) : null,
+          it.a.organization ? el("div", { class: "c-line" }, it.a.organization) : null, nameBox)),
+        el("div", { class: "c-acts" },
+          el("button", { class: "t-btn primary", onclick: () => { nameBox.hidden = false; nameBox.focus(); } }, "Name it"),
+          el("button", { class: "t-btn", title: "Someone already here: made one with them", onclick: (e) => pickPerson(e.currentTarget, [it.a.id], async (target) => {
+            try { await api("POST", `/people/${enc(target.id)}/same`, { person: it.a.id }); await after(`Made one: ${target.title}`); } catch (err) { failed(err); }
+          }) }, "Same person as…"),
+          el("button", { class: "t-btn", title: "Leave them without a name, and don't ask again", onclick: async () => {
+            try { await api("POST", `/people/${enc(it.a.id)}/leave-nameless`); done("Left as they are"); } catch (err) { failed(err); }
+          } }, "Leave it")));
       const done = (text) => { line.remove(); say(text); count(); };
+      const after = async (text) => {
+        done(text);
+        await loadPeople();
+        const top = $("person").scrollTop;
+        await refresh();
+        $("person").scrollTop = top;
+      };
+      nameBox.addEventListener("keydown", async (e) => {
+        if (e.key === "Escape") { nameBox.hidden = true; return; }
+        if (e.key !== "Enter" || !nameBox.value.trim()) return;
+        try {
+          await api("PATCH", `/entities/${enc(it.a.id)}`, { properties: { [titleKey()]: nameBox.value.trim() } });
+          // Named, they can be matched like anyone: the review asked again may pair them.
+          await after(`Named ${nameBox.value.trim()}`);
+        } catch (err) { failed(err); }
+      });
+      return line;
+    };
+    const pairRow = (it) => {
+      const done = (text) => { line.remove(); say(text); count(); };
+      const after = async (text) => {
+        done(text);
+        await loadPeople();
+        const top = $("person").scrollTop;
+        await refresh();
+        $("person").scrollTop = top;
+      };
       const same = async () => {
         try {
           const r = await api("POST", `/people/${enc(it.a.id)}/same`, it.kind === "pair" ? { person: it.b.id } : { card: cardKeyOf(it.card) });
-          done(r.said || "Done");
-          await loadPeople();
-          const top = $("person").scrollTop;
-          await refresh();
-          $("person").scrollTop = top;
+          await after(r.said || "Done");
         } catch (err) { failed(err); }
       };
       // Both the same, and someone else already here (two addresses that are both you): each made one with them.
-      const bothAre = (e) => {
-        const box = el("input", { type: "search", class: "find", placeholder: "Who are they?", spellcheck: "false" });
-        const hits = el("div", { class: "menu-list" });
-        const pick = async (target) => {
-          popAway();
-          try {
-            for (const x of [it.a.id, it.b.id].filter((x) => x !== target.id)) await api("POST", `/people/${enc(target.id)}/same`, { person: x });
-            done(`Made one: ${target.title}`);
-            await loadPeople();
-            const top = $("person").scrollTop;
-            await refresh();
-            $("person").scrollTop = top;
-          } catch (err) { failed(err); }
-        };
-        const show = () => {
-          const q = box.value.trim().toLowerCase();
-          const rows = people.filter((r) => r.id !== it.a.id && r.id !== it.b.id && q
-            && (r.title.toLowerCase().includes(q) || String(r.email || "").toLowerCase().includes(q))).slice(0, 8);
-          hits.replaceChildren(...(rows.length ? rows.map((r) => el("button", { class: "menu-item", onclick: () => pick(r) },
-            r.title, r.email ? el("span", { class: "hint" }, `  ${r.email}`) : null)) : [el("div", { class: "hint" }, q ? "No one by that name" : "Type a name")]));
-        };
-        box.addEventListener("input", show);
-        show();
-        popUnder(e.currentTarget, el("div", {}, box, hits));
-        setTimeout(() => box.focus(), 0);
-      };
+      const bothAre = (e) => pickPerson(e.currentTarget, [it.a.id, it.b.id], async (target) => {
+        try {
+          for (const x of [it.a.id, it.b.id]) await api("POST", `/people/${enc(target.id)}/same`, { person: x });
+          await after(`Made one: ${target.title}`);
+        } catch (err) { failed(err); }
+      });
       const notSame = async () => {
         try {
           await api("POST", "/suggestions/dismiss", { key: `e:${it.a.id}`, other: it.kind === "pair" ? `e:${it.b.id}` : `card:${cardKeyOf(it.card)}` });
@@ -957,6 +995,20 @@
         el("button", { class: "t-btn", id: "del-cancel", onclick: () => draw(false) }, "Cancel"),
         el("button", { class: "t-btn danger", onclick: remove }, "Delete"),
       ] : [
+        // Someone already here they really are (the same person entered twice, under another name or none):
+        // made one with them, who is kept, and shown.
+        el("button", { class: "t-btn", title: "Someone already here: this one is made one with them", onclick: (e) => {
+          const id = chosen;
+          pickPerson(e.currentTarget, [id], async (target) => {
+            try {
+              const r = await api("POST", `/people/${enc(target.id)}/same`, { person: id });
+              say(r.said || "Done");
+              await loadPeople();
+              got = null;
+              choose(r.kept || target.id);
+            } catch (err) { failed(err); }
+          });
+        } }, "Same person as…"),
         el("span", { class: "spacer" }),
         el("button", { class: "t-btn danger", onclick: () => { draw(true); setTimeout(() => $("del-cancel") && $("del-cancel").focus(), 0); } }, "Delete person"),
       ]));
