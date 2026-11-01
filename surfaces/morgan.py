@@ -39,6 +39,7 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
+import away
 from core import Bridge, route_ok
 from layershell import ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 from overlay import Overlay
@@ -350,6 +351,7 @@ class Voice(QObject):
         # Anchored to the top alone, the compositor centers it under the bar.
         self.surface.apply(Placement(OVERLAY, ANCHOR_TOP, zoom(VOICE[0], "morgan"), zoom(VOICE[1], "morgan"), KEYBOARD_NONE))
         self.up = True
+        away.hold("voice", True)
         log("voice: up")
         self.bridge.state.emit(json.dumps(self.describe()))
 
@@ -357,10 +359,16 @@ class Voice(QObject):
         if not self.up:
             return
         self.up = False
+        away.hold("voice", False)
         self._linger.stop()
         self.view.hide()
         self.surface.placement = None
         self.bridge.state.emit(json.dumps(self.describe()))
+
+    def clicked(self) -> None:
+        """A left click somewhere (away.py): off the popup, it goes, as its x would."""
+        if self.up and away.over("talaris-voice") is False:
+            self.file_away()
 
     # What the page's bridge calls on its owner.
     def toggle(self) -> None:

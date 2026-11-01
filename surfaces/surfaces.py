@@ -38,6 +38,7 @@ from PySide6.QtWebEngineCore import (
 )
 from PySide6.QtWidgets import QApplication
 
+import away
 import hypr
 from apps import Apps
 from bar import Bar
@@ -466,6 +467,7 @@ class Desktop(QObject):
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
+        away.rebind()
         self.style_compositor()
         self.solid_windows()
         for name, keys in (("canvas", "SUPER SHIFT, C"), ("writing", "SUPER SHIFT, W")):
@@ -918,9 +920,10 @@ class Desktop(QObject):
             verb, _, arg = line.partition(" ")
             if verb == "toggle" and arg in self.workspaces:
                 self.workspaces[arg].toggle()
-            elif verb == "toasts-away":
-                # A left click somewhere while pop-ups show (notifications.py, Toasts.clicked).
+            elif verb in ("away", "toasts-away"):
+                # A left click somewhere while something listens for one (away.py); toasts-away is the old name.
                 self.notifications.toasts.clicked()
+                self.voice.clicked()
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()
@@ -1030,8 +1033,8 @@ def main() -> int:
         return send(f"popup {args[1]}")
     if args[:1] == ["--file-all"]:
         return send("file-all")
-    if args[:1] == ["--toasts-away"]:
-        return send("toasts-away")
+    if args[:1] in (["--away"], ["--toasts-away"]):
+        return send("away")
     if args[:1] == ["--quit"]:
         return send("quit")
 
