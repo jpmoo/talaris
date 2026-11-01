@@ -203,7 +203,7 @@ out.
   `wl-clipboard` (clipboard history), `grim` (project thumbnails),
   `nmcli` (Wi-Fi), `bluetoothctl`, `wpctl` (PipeWire volume), `upower` and
   `powerprofilesctl` (battery and power mode), `brightnessctl`,
-  `notify-send`.
+  `notify-send`, `gammastep` (night light).
 - **Optional: Morgan.** Installed separately from
   [heymorgan](https://github.com/jpmoo/heymorgan), with its own needs
   (Node 22 and an Ollama server, and a Claude key if you want the Oracle).

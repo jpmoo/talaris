@@ -12,8 +12,9 @@ Where you are, and what Talaris does with it — **all off until Location is on*
   rounded to about a kilometre, and only on this machine (config.json).
 - **Light and dark by the sun**: the theme set dark at sunset and light at
   sunrise, worked out here (sun.py).
-- **Night light**: the screen warmed after sunset, gradually, by a shader of
-  Hyprland's (nothing to install), and back after sunrise.
+- **Night light**: the screen warmed after sunset, gradually, by gammastep
+  setting the display's gamma (setup: `apt install gammastep`), and back after
+  sunrise.
 - **Weather by the clock**: sky and temperature, from Open-Meteo — asked with
   the rounded fix and nothing else, no account and no key.
 - **The time zone, kept**: the zone where you are (Open-Meteo says it with the
@@ -28,7 +29,6 @@ from __future__ import annotations
 
 import json
 import locale
-import math
 import os
 import shutil
 import subprocess
@@ -67,7 +67,9 @@ WEATHER_EVERY_MS = 20 * 60 * 1000
 TICK_MS = 60 * 1000
 #: Night light comes on over this long before sunset, and goes over this long after sunrise.
 RAMP_S = 45 * 60
-SHADER = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-night.frag")
+#: Where the night light warmed the screen before gammastep: a screen shader of Hyprland's, which 0.53 applies only
+#: to what it redraws — the pointer warm while it moved, tooltips flashing orange as they drew. Cleared if left on.
+OLD_SHADER = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-night.frag")
 #: Countries whose weather is told in Fahrenheit.
 FAHRENHEIT = {"US", "LR", "MM", "BS", "KY", "PW", "FM", "MH"}
 ACCURACY = {1: "your country", 4: "your city", 5: "your neighbourhood", 6: "your street", 8: "exactly where you are"}
@@ -82,13 +84,11 @@ SKY = {0: ("Clear", "clear"), 1: ("Mostly clear", "clear"), 2: ("Partly cloudy",
        95: ("Thunderstorm", "storm"), 96: ("Thunderstorm, hail", "storm"), 99: ("Thunderstorm, hail", "storm")}
 
 
-def warm_rgb(kelvin: int) -> tuple[float, float, float]:
-    """A colour temperature as what to multiply red, green and blue by (6500 K: nothing changed). Tanner Helland's fit."""
-    t = max(1000, min(6500, kelvin)) / 100
-    r = 1.0 if t <= 66 else min(1.0, 329.698727446 * ((t - 60) ** -0.1332047592) / 255)
-    g = (99.4708025861 * math.log(t) - 161.1195681661) / 255 if t <= 66 else 288.1221695283 * ((t - 60) ** -0.0755148492) / 255
-    b = 1.0 if t >= 66 else (0.0 if t <= 19 else (138.5177312231 * math.log(t - 10) - 305.0447927307) / 255)
-    return max(0.0, min(1.0, r)), max(0.0, min(1.0, g)), max(0.0, min(1.0, b))
+def _die_with_parent() -> None:
+    """In the child, before gammastep runs: ended with Talaris, so a crash never leaves the screen warmed."""
+    import ctypes
+    import signal
+    ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
 
 
 _named: dict[tuple, str] = {}
@@ -195,7 +195,10 @@ class Location(QObject):
         self.locating = False
         self.weather: dict | None = None
         self.warmth = 6500
-        self._cursor = None  # no_hardware_cursors as it was, while the night light draws the cursor in software
+        #: gammastep holding the screen at `warmth`: the gamma is the display's, so every pixel is warmed, pointer
+        #: and all, whatever is redrawn — and it lasts only while gammastep runs, so it is never left behind.
+        self._gamma: subprocess.Popen | None = None
+        self._clear_old_shader()
         #: The sun up or down at the last look, for the theme: set as it changes, not every minute — a mode you
         #: choose yourself stands until the next sunrise or sunset.
         self._sun_was: bool | None = None
@@ -691,30 +694,36 @@ class Location(QObject):
         return round((6500 - (6500 - warm) * share) / 100) * 100
 
     def _night(self, kelvin: int) -> None:
-        """The screen warmed to `kelvin` (Hyprland's screen shader), or (6500) left alone — and only when it changes."""
+        """The screen warmed to `kelvin` (gammastep, the display's gamma), or (6500) left alone — and only when it changes."""
         if kelvin == self.warmth:
             return
         self.warmth = kelvin
+        # One gamma per screen at a time: the old one goes before the new one asks.
+        if self._gamma is not None:
+            self._gamma.terminate()
+            try:
+                self._gamma.wait(2)
+            except subprocess.TimeoutExpired:
+                self._gamma.kill()
+            self._gamma = None
         if kelvin >= 6500:
-            hypr.keyword("decoration:screen_shader", "[[EMPTY]]")
-            if self._cursor is not None:
-                hypr.keyword("cursor:no_hardware_cursors", str(self._cursor))
-                self._cursor = None
             return
-        r, g, b = warm_rgb(kelvin)
+        if not shutil.which("gammastep"):
+            log("location: no night light — gammastep is not installed")
+            return
         try:
-            with open(SHADER, "w", encoding="utf-8") as f:
-                f.write("#version 300 es\nprecision highp float;\nin vec2 v_texcoord;\nuniform sampler2D tex;\nout vec4 fragColor;\n"
-                        f"void main() {{\n    vec4 c = texture(tex, v_texcoord);\n    fragColor = vec4(c.rgb * vec3({r:.4f}, {g:.4f}, {b:.4f}), c.a);\n}}\n")
-        except OSError:
-            return
-        hypr.keyword("decoration:screen_shader", SHADER)
-        # The hardware cursor is its own plane, which the shader never reaches: left there it
-        # stays white, and looks blue against a warmed screen. Drawn in software, it is warmed too.
-        if self._cursor is None:
-            was = hypr.option("cursor:no_hardware_cursors")
-            self._cursor = was if was is not None else 2
-            hypr.keyword("cursor:no_hardware_cursors", "1")
+            self._gamma = subprocess.Popen(["gammastep", "-m", "wayland", "-P", "-O", str(kelvin)],
+                                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                           preexec_fn=_die_with_parent)
+        except OSError as e:
+            log(f"location: no night light ({e})")
+
+    @staticmethod
+    def _clear_old_shader() -> None:
+        """A screen shader left by a Talaris before gammastep, and the software pointer it asked for, put back."""
+        if hypr.option("decoration:screen_shader") == OLD_SHADER:
+            hypr.keyword("decoration:screen_shader", "[[EMPTY]]")
+            hypr.keyword("cursor:no_hardware_cursors", "2")  # Hyprland's own default; hyprland.conf sets none
 
     # ------------------------------------------------------------ Morgan
 
