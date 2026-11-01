@@ -10,6 +10,10 @@
 const NAMES = { canvas: "Canvas", writing: "Writing" };
 let bridge = null;
 let state = { drawer: "", mode: "filed", edge: "left", project: { id: "", code: "", name: "Home" }, theme: {} };
+// Another project's notes or canvases, looked through from this drawer (its project's name is a menu): the
+// workspace stays where it is. null is the workspace's own. here() is the project the drawer shows.
+let browsing = null;
+const here = () => browsing || state.project;
 
 // Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
 const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.request(Number(id), method, path, body), true));
@@ -115,6 +119,7 @@ function update(next) {
   const was = state.mode;
   // Another project: what was open belonged to the last one.
   if (state.project && next.project && state.project.id && next.project.id !== state.project.id) {
+    browsing = null;
     viewing = null;
     open = null;
     canvasTreeCache = null;
@@ -155,11 +160,44 @@ function update(next) {
     ? '<path d="M2 3h10M2 6h10M2 9h10M2 12h6"/>'
     : '<rect x="1.5" y="1.5" width="11" height="11" rx="2"/><rect x="4" y="4.5" width="4" height="3" rx=".6"/>';
   if (state.drawer !== "canvas") {
-    $("where").innerHTML = "";
-    $("where").append(state.project.name || "Home", el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+    $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
   }
   if (!WINDOW && state.mode !== "filed" && was === "filed") arrive();
   if (state.mode !== "filed") load();
+}
+
+// ---------------------------------------------------------------- the project shown
+
+/**
+ * The project's name in the header, a menu of every project: another's notes or
+ * canvases looked through here, the workspace left as it is. Said plainly while
+ * away, with the way back first in the menu.
+ */
+function projectCrumb() {
+  const away = Boolean(browsing);
+  return el("button", {
+    class: "crumb proj" + (away ? " away" : ""),
+    title: away ? `Looking through ${here().name} — the workspace is still ${state.project.name || "Home"}` : `Look through another project's ${state.drawer === "canvas" ? "canvases" : "notes"}, without leaving this one`,
+    onclick: (e) => { e.stopPropagation(); projectMenu(e.currentTarget); },
+  }, here().name || "Home", " ▾");
+}
+
+async function projectMenu(anchor) {
+  let all = [];
+  try { all = await core("GET", "/projects"); } catch (e) { status(e.message); return; }
+  const shown = (all || []).filter((p) => !p.archived)
+    .sort((a, b) => Number(Boolean(b.home)) - Number(Boolean(a.home)) || String(a.name).localeCompare(String(b.name)));
+  const items = shown.map((p) => ({ label: p.id === state.project.id ? `${p.name} (this workspace)` : p.name, on: p.id === here().id, act: () => browse(p) }));
+  Kit.menu(anchor, browsing ? [{ label: `Back to ${state.project.name || "Home"}`, act: () => browse(state.project) }, "sep", ...items] : items);
+}
+
+function browse(p) {
+  browsing = p.id === state.project.id ? null : { id: p.id, code: p.code || "", name: p.name, home: Boolean(p.home) };
+  viewing = null;
+  open = null;
+  canvasTreeCache = null;
+  if (state.drawer !== "canvas") $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  load();
 }
 
 // ---------------------------------------------------------------- trees
@@ -390,10 +428,10 @@ window.talarisCore = (method, path, body) => core(method, path, body);
 // What every @ in the drawer works from (mentions.js): this project's things
 // first, and a page or a canvas opened where it lives.
 // Files dropped into a page or a canvas note are this project's (files.js).
-window.talarisFileDefaults = TalarisFiles(core, () => state.project.id, () => bridge);
+window.talarisFileDefaults = TalarisFiles(core, () => here().id, () => bridge);
 let lastOpened = { id: "", at: 0 };
 window.talarisMentionDefaults = {
-  project: () => state.project.id,
+  project: () => here().id,
   openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where),
   openPerson: (id) => bridge && bridge.openPerson(id),
   openTask: (id) => bridge && bridge.openTask(id),
@@ -412,13 +450,13 @@ function pathTo(tree, id, trail = []) {
 }
 
 async function loadCanvas() {
-  const tree = await core("GET", `/projects/${state.project.id}/canvases`);
+  const tree = await core("GET", `/projects/${here().id}/canvases`);
   canvasTreeCache = tree;
   if (!viewing || !pathTo(tree, viewing)) viewing = tree.id;
   const trail = pathTo(tree, viewing);
   const shut = shutSet(CANVAS_SHUT);
   let count = 0;
-  const pid = state.project.id;
+  const pid = here().id;
   const walk = (node, parent, siblings) => {
     count++;
     const kids = el("div", { class: "kids" });
@@ -434,7 +472,7 @@ async function loadCanvas() {
 
   // The trail is the header: each step goes back up to that canvas.
   const where = $("where");
-  where.replaceChildren(state.project.name || "Home");
+  where.replaceChildren(projectCrumb());
   for (const step of trail) {
     where.append(el("span", { class: "slash" }, " / "),
       el("span", { class: "crumb", title: "Double-click to rename", onclick: () => view(step.id), ondblclick: () => renameCanvas(step) }, step.title));
@@ -442,7 +480,7 @@ async function loadCanvas() {
 
   const frame = el("iframe", {
     class: "canvas-frame",
-    src: `canvas/index.html?project=${encodeURIComponent(state.project.id)}&canvas=${encodeURIComponent(viewing)}`,
+    src: `canvas/index.html?project=${encodeURIComponent(here().id)}&canvas=${encodeURIComponent(viewing)}`,
     title: "Canvas",
   });
   frame.addEventListener("load", () => shareTheme(frame));
@@ -457,7 +495,7 @@ async function loadCanvas() {
   const listKey = `canvas:${pid}`, top = scrolledTo(listKey);
   $("body").replaceChildren(treePane, el("div", { class: "canvas-pane" }, frame));
   scrollBack(treePane, listKey, top);
-  $("count").textContent = `${state.project.code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
+  $("count").textContent = `${here().code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
   const inside = btn("New canvas inside", newCanvas);
   const node = trail[trail.length - 1];
@@ -556,7 +594,7 @@ addEventListener("message", (e) => {
     return;
   }
   if (!m || m.talaris !== "open-canvas") return;
-  if (m.project && m.project !== state.project.id) {
+  if (m.project && m.project !== here().id) {
     status("Other projects arrive with projects");
     return;
   }
@@ -566,13 +604,13 @@ addEventListener("message", (e) => {
 // A new name for a canvas, the top one too; its cards everywhere follow (the core).
 function renameCanvas(node) {
   askName(`Rename “${node.title}”`, node.title, async (title) => {
-    await core("PUT", `/projects/${state.project.id}/canvases/${node.id}/title`, { title });
+    await core("PUT", `/projects/${here().id}/canvases/${node.id}/title`, { title });
     loadCanvas();
   });
 }
 
 function deleteCanvas(node, parent) {
-  const pid = state.project.id;
+  const pid = here().id;
   const gone = () => { viewing = parent ? parent.id : null; loadCanvas(); };
   confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. A copy is kept in its versions.", async () => {
     const { count } = await core("GET", `/projects/${pid}/canvases/${node.id}/below`);
@@ -585,10 +623,10 @@ function deleteCanvas(node, parent) {
 }
 
 async function newCanvas() {
-  const tree = canvasTreeCache ?? await core("GET", `/projects/${state.project.id}/canvases`);
+  const tree = canvasTreeCache ?? await core("GET", `/projects/${here().id}/canvases`);
   const parent = viewing ?? tree.id;
   // Named for when it was made, until it is renamed.
-  await core("POST", `/projects/${state.project.id}/canvases/${parent}/children`, { title: "" });
+  await core("POST", `/projects/${here().id}/canvases/${parent}/children`, { title: "" });
   const shut = shutSet(CANVAS_SHUT);
   shut.delete(parent);
   try { localStorage.setItem(CANVAS_SHUT, JSON.stringify([...shut])); } catch { /* fine */ }
@@ -632,7 +670,7 @@ function drawPageFiles() {
     if (!seen.has(path)) seen.set(path, m[1] || path.split("/").pop());
   }
   box.replaceChildren(...(seen.size ? [el("span", { class: "label" }, `FILES · ${seen.size}`),
-    ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(state.project.id, path) }, name))] : []));
+    ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(here().id, path) }, name))] : []));
 }
 
 function changed(next) {
@@ -724,17 +762,17 @@ const SCOPE_KEY = "talaris.writing.scope";
 let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) || "project"; } catch { return "project"; } })();
 let homeId = "";
 const openIn = { project: new Map(), undated: null }; // the page last open in each, per project for Project
-const wpid = () => (scope === "undated" || scope === "daily" ? homeId : state.project.id);
-const inHome = () => Boolean(state.project.home);
+const wpid = () => (scope === "undated" || scope === "daily" ? homeId : here().id);
+const inHome = () => Boolean(here().home);
 async function setScope(next) {
   if (next === scope) return;
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
   if (editor) { editor.destroy(); editor = null; }
-  if (scope === "project") openIn.project.set(state.project.id, open);
+  if (scope === "project") openIn.project.set(here().id, open);
   if (scope === "undated") openIn.undated = open;
   scope = next;
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
-  open = scope === "daily" ? `${DAILY}/${today()}` : scope === "undated" ? openIn.undated : openIn.project.get(state.project.id) ?? null;
+  open = scope === "daily" ? `${DAILY}/${today()}` : scope === "undated" ? openIn.undated : openIn.project.get(here().id) ?? null;
   if (scope === "daily") shownMonth = today().slice(0, 7);
   loadWriting();
 }
@@ -840,12 +878,12 @@ async function loadWriting() {
   };
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const tabs = el("div", { class: "seg wtabs", role: "tablist" },
-    tab("project", inHome() ? "Home" : state.project.name, "This project's own pages"),
+    tab("project", inHome() ? "Home" : here().name, "This project's own pages"),
     tab("daily", "Daily", "Home's daily pages"),
     tab("undated", "Pages", "Home's pages of no other project — the same from every project"));
   // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
-  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, state.project.name), "'s")
-    : scope === "undated" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " pages — not ", el("b", {}, state.project.name), "'s")
+  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, here().name), "'s")
+    : scope === "undated" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " pages — not ", el("b", {}, here().name), "'s")
     : "";
   const tree = el("div", { class: "tree" + (scope !== "project" && !inHome() ? " away" : "") },
     tabs, whose,
@@ -868,7 +906,7 @@ async function loadWriting() {
   const listKey = `writing:${scope}:${pid}`, top = scrolledTo(listKey);
   $("body").replaceChildren(tree, pane);
   scrollBack(tree, listKey, top);
-  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : state.project.code} · ${count} PAGE${count === 1 ? "" : "S"}`;
+  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
   if (!dailyOn) actions.push(" ", btn("New page", () => newPage(scope === "undated" ? PAGES : null)));
   // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
@@ -881,7 +919,7 @@ async function loadWriting() {
   if (open && !dailyOn) {
     const here = { path: open, title: open.split("/").pop() };
     // Across: from this project to Home's Pages, or from them into this project.
-    const other = scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Pages";
+    const other = scope === "undated" ? (inHome() ? "Home" : here().name) : "Pages";
     actions.push(" ", btn("New page inside", () => newPage(open)),
       " ", btn("Rename", () => renamePage(here)),
       " ", btn(`Move to ${other}`, () => transfer(false)),
@@ -909,7 +947,7 @@ async function loadWriting() {
  */
 window.talarisChanged = (c) => {
   if (!c) return;
-  if (c.kind === "canvas" && c.project === state.project.id && state.drawer === "canvas" && c.where === viewing) loadCanvas();
+  if (c.kind === "canvas" && c.project === here().id && state.drawer === "canvas" && c.where === viewing) loadCanvas();
   // A page is the set shown's: this project's, the undated notes', or Home's daily.
   if (c.kind === "page" && c.project === wpid() && state.drawer === "writing" && c.where === open) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
@@ -997,14 +1035,14 @@ function renamePage(n) {
 async function transfer(copy) {
   if (!open) return;
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
-  const from = wpid(), to = scope === "undated" ? state.project.id : homeId;
+  const from = wpid(), to = scope === "undated" ? here().id : homeId;
   try {
     const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, parent: scope === "undated" ? null : PAGES, copy });
-    status(`${copy ? "Copied" : "Moved"} to ${scope === "undated" ? (inHome() ? "Home" : state.project.name) : "Pages"}`);
+    status(`${copy ? "Copied" : "Moved"} to ${scope === "undated" ? (inHome() ? "Home" : here().name) : "Pages"}`);
     // Moved, it is followed there; copied, this one stays open.
     if (!copy) {
       if (editor) { editor.destroy(); editor = null; }
-      if (scope === "undated") { openIn.undated = null; scope = "project"; } else { openIn.project.set(state.project.id, null); scope = "undated"; }
+      if (scope === "undated") { openIn.undated = null; scope = "project"; } else { openIn.project.set(here().id, null); scope = "undated"; }
       try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
       open = landed.path;
     }
@@ -1097,7 +1135,7 @@ function askName(title, value, act) {
 // ---------------------------------------------------------------- the rest
 
 async function load() {
-  if (!state.project.id) { status("Core not answering", true); return; }
+  if (!here().id) { status("Core not answering", true); return; }
   try {
     if (state.drawer === "canvas") await loadCanvas();
     else if (state.drawer === "writing") await loadWriting();
@@ -1257,7 +1295,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
       // Told which set it is in (an undated note: `undated`), the drawer turns to that tab first.
       const into = target.scope || (scope === "undated" ? "project" : scope === "daily" && !target.page.startsWith(`${DAILY}/`) ? "project" : scope);
       if (into !== scope) {
-        if (scope === "project") openIn.project.set(state.project.id, open);
+        if (scope === "project") openIn.project.set(here().id, open);
         if (scope === "undated") openIn.undated = open;
         scope = into;
         try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
