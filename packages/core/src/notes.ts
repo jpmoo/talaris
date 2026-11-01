@@ -120,7 +120,10 @@ function mirrorDay(date: string, id?: string): Entity {
   const e = bySource(daySource(date));
   const props = { title: date, date, body: text };
   if (!e) return createEntity({ ...(id ? { id } : {}), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date });
-  if (e.type === type.id && e.properties.date === date && e.properties.body === text && e.properties.title === date && e[DAY_MARK] === date) return e;
+  // An empty page's body is never kept (updateEntity drops ""), so none counts as empty: compared bare, an empty day
+  // was written again on every reconcile, a new version each time — every write to it refused as stale, and every
+  // reader of changes (the calendar) told of one, every few seconds.
+  if (e.type === type.id && e.properties.date === date && String(e.properties.body ?? "") === text && e.properties.title === date && e[DAY_MARK] === date) return e;
   // The page's entity (its mentions' holder, made as a plain note) becomes the day's.
   return updateEntity(e.id, { type: type.id, properties: props, [DAY_MARK]: date });
 }

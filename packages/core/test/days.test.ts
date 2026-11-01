@@ -58,3 +58,16 @@ test("a day whose page is deleted is gone from the binding", () => {
   assert.ok(!existsSync(dayFile("2026-10-23")));
   assert.deepEqual(days().map((d) => d.properties!.date), ["2026-10-24"]);
 });
+
+test("an empty day keeps its version from one reading to the next, and takes a write made against it", () => {
+  pages.writePage(home.id, "Daily/2026-11-09", "");
+  const notes = days().filter((o) => o.properties!.date === "2026-11-09");
+  assert.equal(notes.length, 1);
+  const first = notes[0]!;
+  const again = days().find((o) => o.properties!.date === "2026-11-09")!;
+  assert.equal(String(again.version), String(first.version), "read twice, unchanged: not written again");
+  // A sync writing Hermes Notes' words into the empty day, against the version it read.
+  const r = interchange.patchObject(first.id, { set: { body: "Packing list" }, version: first.version });
+  assert.equal(r.ok, true, "not refused as changed meanwhile");
+  assert.equal(readFileSync(dayFile("2026-11-09"), "utf8"), "Packing list");
+});
