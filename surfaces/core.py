@@ -116,7 +116,7 @@ def forget_projects() -> None:
 #: Answers `/people/find?q=` — the calendar's address books, which live in this
 #: process and not the core's — when the calendar has set it (surfaces.py).
 find_people = None
-#: Answers `/contacts/cards?q=&keys=` — address-book cards, by search or by "book/uid" — likewise.
+#: Answers `/contacts/cards?q=&keys=&all=` — address-book cards, by search, by "book/uid" or all — likewise.
 find_cards = None
 
 
@@ -125,6 +125,9 @@ def local_call(method: str, path: str, body: str | None, timeout: float | None =
     if method == "GET" and path.startswith("/contacts/cards?"):
         query = parse_qs(urlsplit(path).query)
         keys = [k for k in query.get("keys", [""])[0].split(",") if k]
+        # `all=1`: every card in every address book, for People's review — slower, so given longer.
+        if query.get("all", [""])[0] == "1":
+            return 200, json.dumps(find_cards(everything=True, wait=20) if find_cards else [])
         return 200, json.dumps(find_cards(query.get("q", [""])[0], keys) if find_cards else [])
     if method == "GET" and path.startswith("/people/find?"):
         q = parse_qs(urlsplit(path).query).get("q", [""])[0]

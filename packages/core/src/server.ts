@@ -530,6 +530,15 @@ route("POST", "/people/:id/ties", async (req, [id]) => {
   return entities.tieContact(id!, b.key ?? "", true);
 });
 route("DELETE", "/people/:id/ties", (_r, [id], q) => entities.tieContact(id!, need(q, "key"), false));
+// Everyone swept for one person entered twice (People, Review), and one answer for "the same person": merged with
+// another here, or tied to a card (and made one with anyone else tied to it) — suggest.ts.
+route("GET", "/people/review", () => suggest.peopleReview());
+route("POST", "/people/:id/same", async (req, [id]) => {
+  const b = await json<{ person?: string; card?: string }>(req);
+  if (!b.person && !b.card) throw new Conflict("the same as whom: a person, or a card");
+  if (b.card && !/^[^/]+\/.+/.test(b.card)) throw new Conflict("a card is known by its book and its id");
+  return { ok: true, ...suggest.samePerson(id!, b) };
+});
 // Others tied to a card this person is tied to: the same person twice, to be made one (People).
 route("GET", "/people/:id/same-card", (_r, [id]) => entities.sharingCards(id!));
 // Which of these addresses are people already: an @ picker's address-book finds, told apart from the new.

@@ -51,6 +51,7 @@
   let mode = store.get("talaris.people.mode", "org");
   let shut = new Set(store.get("talaris.people.shut", []));
   let editors = [];     // the editor fields drawn for the chosen one, to be put away
+  let reviewing = false; // the right pane is the review of everyone, not one person
 
   // ---------------------------------------------------------------- the core
 
@@ -265,7 +266,9 @@
 
   let loadSeq = 0;
   function choose(id) {
-    if (id === chosen && got) return;
+    if (id === chosen && got && !reviewing) return;
+    reviewing = false;
+    $("review").classList.remove("on");
     chosen = id;
     store.set("talaris.people.chosen", id);
     for (const r of document.querySelectorAll(".prow")) r.classList.toggle("on", r.dataset.id === id);
@@ -309,6 +312,7 @@
   function putAwayEditors() { for (const ed of editors) { try { ed.destroy(); } catch { /* gone */ } } editors = []; }
 
   function drawPerson() {
+    if (reviewing) return;
     putAwayEditors();
     popAway();
     const host = $("person");
@@ -629,7 +633,18 @@
       el("div", { class: "c-main" },
         el("div", { class: "c-name" }, c.name || "No name", el("span", { class: "hint" }, `  ${c.bookName || c.book}`)),
         cardLines(c)),
-      el("div", { class: "c-acts" }, el("button", { class: "t-btn", onclick: () => tie(cardKeyOf(c), true) }, "Connect")));
+      el("div", { class: "c-acts" }, el("button", { class: "t-btn", title: "Tie this card to them; anyone else here tied to it is made one with them",
+        onclick: () => sameAsCard(cardKeyOf(c)) }, "Same person")));
+  }
+  // The same person as a card: tied, and made one with anyone else here already tied to it (suggest.ts, samePerson).
+  async function sameAsCard(key) {
+    const id = chosen;
+    try {
+      const r = await api("POST", `/people/${enc(id)}/same`, { card: key });
+      say(r.said || "Done");
+      await loadPeople();
+      if (r.kept && r.kept !== id) { got = null; choose(r.kept); } else if (id === chosen) await loadPerson();
+    } catch (err) { failed(err); }
   }
 
   // Ranked: the same address, then the name exactly, then a name that holds theirs (or theirs it).
@@ -774,6 +789,103 @@
       sugg);
   }
 
+  // ---------------------------------------------------------------- review: everyone at once
+  //
+  // One person entered twice, swept for across everyone: two here who share a
+  // name, an address or a card, and people with no card who match one in the
+  // address books. One answer for each, whatever the match — Same person
+  // (made one, or the card tied, or both: suggest.ts, samePerson) or Not the
+  // same, remembered so it is not asked again.
+
+  // A name as it is said: "Groninger, Margaret" is Margaret Groninger (suggest.ts, spokenName).
+  const spoken = (t) => {
+    const m = String(t || "").match(/^\s*([^,]+),\s*([^,]+)\s*$/);
+    return (m ? `${m[2]} ${m[1]}` : String(t || "")).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  };
+
+  async function review() {
+    if (reviewing) { reviewing = false; $("review").classList.remove("on"); got = null; if (chosen) choose(chosen); else drawPerson(); return; }
+    reviewing = true;
+    $("review").classList.add("on");
+    putAwayEditors();
+    popAway();
+    for (const r of document.querySelectorAll(".prow.on")) r.classList.remove("on");
+    const host = $("person");
+    host.dataset.id = "";
+    const list = el("div", {}, el("div", { class: "hint" }, "Looking through everyone and your address books…"));
+    host.replaceChildren(el("section", { class: "part" }, el("h3", {}, el("span", {}, "Probably the same person")), list));
+    host.scrollTop = 0;
+    let found, cards;
+    try {
+      [found, cards] = await Promise.all([api("GET", "/people/review"), api("GET", "/contacts/cards?all=1").catch(() => [])]);
+    } catch (err) { list.replaceChildren(el("div", { class: "hint err" }, err.message)); return; }
+    if (!reviewing) return;
+    const items = [];
+    for (const p of found.pairs || []) items.push({ kind: "pair", a: p.a, b: p.b, why: p.why });
+    // People with no card, matched to one: the same address first, else the same name — one card each, the best.
+    const noCard = new Set(people.filter((r) => r.noContact).map((r) => r.id));
+    const tiedTo = new Map();
+    for (const r of found.people || []) for (const k of r.cards) tiedTo.set(k, [...(tiedTo.get(k) || []), r]);
+    const byEmail = new Map(), byName = new Map();
+    for (const c of (cards || []).filter((c) => !c.gone && c.uid)) {
+      for (const e of c.emails || []) byEmail.set(String(e).toLowerCase(), c);
+      const n = spoken(c.name);
+      if (n) byName.set(n, [...(byName.get(n) || []), c]);
+    }
+    for (const r of found.people || []) {
+      if (r.cards.length || noCard.has(r.id)) continue;
+      const no = new Set((found.notCards || {})[r.id] || []);
+      const fits = (c) => c && !no.has(cardKeyOf(c));
+      const email = r.emails.map((e) => byEmail.get(e)).find(fits);
+      const named = (byName.get(spoken(r.title)) || []).filter(fits);
+      const card = email || (named.length === 1 ? named[0] : null); // a name shared by several cards says nothing
+      if (!card) continue;
+      const others = (tiedTo.get(cardKeyOf(card)) || []).filter((o) => o.id !== r.id);
+      items.push({ kind: "card", a: r, card, why: [email ? "The same address" : "The same name"], others });
+    }
+    drawReview(list, items);
+  }
+
+  function drawReview(list, items) {
+    if (!items.length) { list.replaceChildren(Kit.empty("No one looks entered twice")); return; }
+    const who = (p) => el("div", { class: "c-main" },
+      el("div", { class: "c-name" }, p.title),
+      p.emails && p.emails.length ? el("div", { class: "c-line" }, p.emails.join(", ")) : null,
+      p.organization ? el("div", { class: "c-line" }, p.organization) : null);
+    const row = (it) => {
+      const done = (text) => { line.remove(); say(text); count(); };
+      const same = async () => {
+        try {
+          const r = await api("POST", `/people/${enc(it.a.id)}/same`, it.kind === "pair" ? { person: it.b.id } : { card: cardKeyOf(it.card) });
+          done(r.said || "Done");
+          loadPeople();
+        } catch (err) { failed(err); }
+      };
+      const notSame = async () => {
+        try {
+          await api("POST", "/suggestions/dismiss", { key: `e:${it.a.id}`, other: it.kind === "pair" ? `e:${it.b.id}` : `card:${cardKeyOf(it.card)}` });
+          done("Won't be asked again");
+        } catch (err) { failed(err); }
+      };
+      const other = it.kind === "pair" ? who(it.b) : el("div", { class: "c-main" },
+        el("div", { class: "label c-book" }, it.card.bookName || it.card.book),
+        el("div", { class: "c-name" }, it.card.name || "No name"), cardLines(it.card),
+        it.others.length ? el("div", { class: "c-line c-also" }, `Also tied to ${it.others.map((o) => o.title).join(", ")}: made one too`) : null);
+      const line = el("div", { class: "r-item" },
+        el("div", { class: "label r-why" }, it.why.join(" · ")),
+        el("div", { class: "r-two" }, el("div", { class: "card" }, who(it.a)), el("div", { class: "card" + (it.kind === "card" ? " r-card" : "") }, other)),
+        el("div", { class: "c-acts" },
+          el("button", { class: "t-btn primary", onclick: same }, "Same person"),
+          el("button", { class: "t-btn", onclick: notSame }, "Not the same")));
+      return line;
+    };
+    const head = el("div", { class: "hint" });
+    const rows = el("div", {}, ...items.map(row));
+    const count = () => { const n = rows.children.length; head.textContent = n ? `${n} to look at` : ""; if (!n) list.replaceChildren(Kit.empty("No one looks entered twice")); };
+    list.replaceChildren(head, rows);
+    count();
+  }
+
   // ---------------------------------------------------------------- making and removing
 
   function foot() {
@@ -886,6 +998,7 @@
     }
   });
   $("add").addEventListener("click", addPerson);
+  $("review").addEventListener("click", () => review().catch(failed));
 
   document.addEventListener("keydown", (e) => {
     // Peek and the editor's @ picker keep their own Escape, and say so.

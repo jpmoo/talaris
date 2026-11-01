@@ -493,6 +493,87 @@ const declares = (from: Entity, to: Entity) =>
 // A thing of no kind the format names (a file's entity, a type of one's own) ranks where a note does.
 const RANK = ["conversation", "page", "canvas", "note", "thing", "task", "file", "event", "person", "project"];
 
+// ------------------------------------------------------------ everyone at once: the same person twice (People, Review)
+
+export interface ReviewPerson { id: string; title: string; emails: string[]; organization?: string; cards: string[] }
+/**
+ * Everyone, swept for one person entered twice: two here of one name (as it is said), one address or one
+ * address-book card, each pair once and none turned down before. With everyone here and their cards and
+ * addresses, for People to match against the address books (which the surfaces read, not this), and the
+ * cards each was told is not them.
+ */
+export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why: string[] }[]; people: ReviewPerson[]; notCards: Record<string, string[]> } {
+  const personType = types().find((t) => t["talaris:role"] === "person")?.id;
+  const people: ReviewPerson[] = [];
+  for (const { object: o } of allRecords()) {
+    if (o.type !== personType || o.stub || o.archived) continue;
+    const org = o.properties.organization;
+    people.push({ id: o.id, title: titleOf(o), emails: emailsOf(o), cards: cardsOf(o), ...(typeof org === "string" && org.trim() ? { organization: org.trim() } : {}) });
+  }
+  // Grouped by each thing that would make two one: a pair is found once, whatever it shares.
+  const why = new Map<string, { a: ReviewPerson; b: ReviewPerson; why: Set<string> }>();
+  const groups = new Map<string, ReviewPerson[]>();
+  const into = (k: string, p: ReviewPerson) => groups.set(k, [...(groups.get(k) ?? []), p]);
+  for (const p of people) {
+    const said = norm(spokenName(p.title));
+    if (said && said !== "unnamed") into(`The same name\u0000${said}`, p);
+    for (const e of p.emails) into(`The same address\u0000${e}`, p);
+    for (const c of p.cards) into(`The same contact card\u0000${c}`, p);
+  }
+  const no = new Set(keptState().no);
+  for (const [k, ps] of groups) {
+    if (ps.length < 2 || ps.length > 6) continue; // more than a few of one name is a common name, not one person
+    const reason = k.split("\u0000")[0]!;
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+      const [a, b] = [ps[i]!, ps[j]!];
+      const id = pair(`e:${a.id}`, `e:${b.id}`);
+      if (no.has(id)) continue;
+      const got = why.get(id) ?? { a, b, why: new Set<string>() };
+      got.why.add(reason);
+      why.set(id, got);
+    }
+  }
+  // Surest first: a shared card, then an address, then the name alone.
+  const rank = (w: Set<string>) => (w.has("The same contact card") ? 3 : 0) + (w.has("The same address") ? 2 : 0) + (w.has("The same name") ? 1 : 0);
+  const pairs = [...why.values()].sort((x, y) => rank(y.why) - rank(x.why) || x.a.title.localeCompare(y.a.title))
+    .map((x) => ({ a: x.a, b: x.b, why: [...x.why] }));
+  const notCards: Record<string, string[]> = {};
+  for (const n of keptState().no) {
+    const [x, y] = n.split("\u0000");
+    const [person, card] = x!.startsWith("card:") ? [y!, x!] : [x!, y!];
+    if (card?.startsWith("card:") && person?.startsWith("e:")) (notCards[person.slice(2)] ??= []).push(card.slice(5));
+  }
+  return { pairs, people, notCards };
+}
+
+/**
+ * The same person (People): one answer, whatever the match is. Another person here is made one with them; an
+ * address-book card is tied to them, and anyone else here already tied to that card is made one with them too —
+ * the shared card was the proof, so no second step is asked for. Answers what was done and who was kept.
+ */
+export function samePerson(id: string, other: { person?: string; card?: string }): { said: string; kept: string } {
+  let keep = id;
+  const merged: string[] = [];
+  const mergeIn = (otherId: string) => {
+    const r = tie(`e:${keep}`, `e:${otherId}`, { how: "merge", label: "Same person" });
+    if (typeof r !== "string") { merged.push(otherId); keep = r.kept.replace(/^e:/, ""); }
+  };
+  if (other.person) mergeIn(other.person);
+  if (other.card) {
+    const me = getEntity(keep);
+    const sources = (me["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? [];
+    if (!sources.some((s) => s.kind === "eds-contact" && s.key === other.card)) {
+      updateEntity(keep, { "talaris:sources": [...sources, { kind: "eds-contact", key: other.card }] });
+    }
+    // Who else is on the card, gathered first: each merge changes which one is kept.
+    const also = allRecords().map((r) => r.object)
+      .filter((o) => o.id !== keep && !o.stub && !o.archived && o.type === me.type && cardsOf(o).includes(other.card!)).map((o) => o.id);
+    for (const x of also) if (x !== keep) mergeIn(x);
+  }
+  const name = titleOf(getEntity(keep));
+  return { said: merged.length ? `Made one: ${name}` : `Connected: ${name}`, kept: keep };
+}
+
 /** A suggestion taken: the two tied the way chosen. Answers what was done, in words, and after a merge the key of the one kept. */
 export function accept(key: string, other: string, way: Way): { said: string; kept?: string } {
   const r = tie(key, other, way);

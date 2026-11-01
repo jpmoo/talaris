@@ -138,3 +138,41 @@ test("a web page read as what a reader sees: no scripts, styles or tags", () => 
   assert.match(t, /Garden/);
   assert.match(t, /Beds & paths/);
 });
+
+test("everyone reviewed: one person twice found by card, address or name, once each; turned down, not again", () => {
+  const a = person("Whitlock, Imogen");
+  const b = person("Imogen Whitlock");
+  const c = person("Ivo Marsh", { emails: ["ivo@marsh.example"] });
+  const d = person("I. Marsh", { emails: ["IVO@marsh.example "] });
+  const e = person("Pell Ostrander");
+  const f = person("P Ostrander");
+  entities.tieContact(e.id, "book1/card-9", true);
+  entities.tieContact(f.id, "book1/card-9", true);
+  const pairs = () => suggest.peopleReview().pairs.map((p) => ({ ids: [p.a.id, p.b.id].sort().join(), why: p.why }));
+  const of = (x: string, y: string) => pairs().find((p) => p.ids === [x, y].sort().join());
+  assert.deepEqual(of(a.id, b.id)?.why, ["The same name"], "a name as it is said");
+  assert.deepEqual(of(c.id, d.id)?.why, ["The same address"]);
+  assert.deepEqual(of(e.id, f.id)?.why, ["The same contact card"]);
+  assert.equal(pairs()[0]!.why[0], "The same contact card", "surest first");
+  suggest.dismiss(`e:${a.id}`, `e:${b.id}`);
+  assert.equal(of(a.id, b.id), undefined, "not the same: not asked again");
+  suggest.dismiss(`e:${c.id}`, "card:book2/card-1");
+  assert.deepEqual(suggest.peopleReview().notCards[c.id], ["book2/card-1"]);
+});
+
+test("the same person: a card tied, anyone else on it made one; or two made one", () => {
+  const kept = person("Rosalind Achebe");
+  const twin = person("R. Achebe");
+  entities.tieContact(twin.id, "book1/card-77", true);
+  const r = suggest.samePerson(kept.id, { card: "book1/card-77" });
+  assert.match(r.said, /^Made one/);
+  const all = entities.listPeople().filter((p) => p.title.includes("Achebe"));
+  assert.equal(all.length, 1, "one left");
+  assert.deepEqual(all[0]!.ties, ["book1/card-77"], "tied to the card");
+  const solo = person("Tamsin Gale");
+  assert.match(suggest.samePerson(solo.id, { card: "book1/card-80" }).said, /^Connected/);
+  const other = person("Tamsin Gale");
+  const m = suggest.samePerson(other.id, { person: solo.id });
+  assert.match(m.said, /^Made one/);
+  assert.equal(entities.listPeople().filter((p) => p.title === "Tamsin Gale").length, 1);
+});
