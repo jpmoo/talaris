@@ -8,6 +8,7 @@
 
 const $ = (id) => document.getElementById(id);
 let bridge = null;
+let barLeaving = null; // the slide back into hiding, held until the bar is taken away
 let state = { popup: "" };
 
 $("ask").innerHTML = Icons.launcher();
@@ -41,9 +42,14 @@ function onState(s) {
   if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;
   document.body.style.setProperty("--room", `${s.room ?? (look.shadow ? 14 : 0)}px`);
   // Out from hiding, in the bar's own motion: slide, or none.
-  if (s.arrived && (look.motion || "slide") === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    $("bar").animate([{ transform: s.edge === "bottom" ? "translateY(110%)" : "translateY(-110%)" }, { transform: "none" }],
-      { duration: Math.round(260 * ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1)), easing: getComputedStyle(document.documentElement).getPropertyValue("--ease").trim() || "ease" });
+  // And back into hiding the same way (`leaving`: bar.py, _slide_out), held at the edge until it is taken away.
+  {
+    const slides = (look.motion || "slide") === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const away = s.edge === "bottom" ? "translateY(110%)" : "translateY(-110%)";
+    const timing = { duration: Math.round(260 * ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1)), easing: getComputedStyle(document.documentElement).getPropertyValue("--ease").trim() || "ease" };
+    if (barLeaving) { barLeaving.cancel(); barLeaving = null; }
+    if (s.leaving && slides) barLeaving = $("bar").animate([{ transform: "none" }, { transform: away }], { ...timing, fill: "forwards" });
+    else if (s.arrived && slides) $("bar").animate([{ transform: away }, { transform: "none" }], timing);
   }
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
   document.body.dataset.edge = s.edge || "top";

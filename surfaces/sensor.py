@@ -304,12 +304,18 @@ class Autohide(QObject):
 
     def __init__(self, profile: QWebEngineProfile, name: str, view: QWidget,
                  reveal: Callable[[], None], conceal: Callable[[], None],
-                 busy: Callable[[], bool] = lambda: False, parent: QObject | None = None) -> None:
+                 busy: Callable[[], bool] = lambda: False, parent: QObject | None = None,
+                 slide_out: Callable[[], int] = lambda: 0) -> None:
         super().__init__(parent)
         self.on = False
         self.out = False
         self.name = name
-        self._reveal, self._conceal, self._busy = reveal, conceal, busy
+        self._reveal, self._conceal, self._busy, self._slide_out = reveal, conceal, busy, slide_out
+        # Slid back to its edge by its page first (`slide_out`, how long it takes), then taken away: it came
+        # out sliding, and went by Hyprland's fade.
+        self._leaving = QTimer(self)
+        self._leaving.setSingleShot(True)
+        self._leaving.timeout.connect(lambda: None if self.out else self._conceal())
         self.sensor = EdgeSensor(profile, name, "top", self.touched, self)
         self._away = QTimer(self)
         self._away.setSingleShot(True)
@@ -356,12 +362,22 @@ class Autohide(QObject):
             self._away.start(AWAY_MS)
             return
         self._out(False)
-        self._conceal()
+        self._put_away()
 
     def _out(self, out: bool) -> None:
         """Out or away; while out, a click anywhere off it puts it away (away.py, `clicked`)."""
         self.out = out
+        if out:
+            self._leaving.stop()
         away.hold(f"autohide-{self.name}", out)
+
+    def _put_away(self) -> None:
+        """Back to its edge: slid there by its page, if it slides, and then taken away."""
+        ms = self._slide_out()
+        if ms > 0:
+            self._leaving.start(ms)
+        else:
+            self._conceal()
 
     def clicked(self) -> None:
         """
@@ -372,4 +388,4 @@ class Autohide(QObject):
         if self.on and self.out and not self._busy() and away.over(f"talaris-{self.name}") is False:
             self._away.stop()
             self._out(False)
-            self._conceal()
+            self._put_away()

@@ -524,7 +524,7 @@ class Bar(QObject):
         self.popup = Popup(profile, self)
         #: A fullscreen window covers the top layer: the bar hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
-        self.hider = Autohide(profile, "bar", self.view, self._show, self._hide,
+        self.hider = Autohide(profile, "bar", self.view, self._show, self._hide, slide_out=self._slide_out,
                               busy=lambda: bool(self.popup.kind), parent=self)
         desktop.machine.changed.connect(self._reading)
         # Read every few seconds while a popup shows the readings; every so often otherwise (machine.py).
@@ -599,6 +599,14 @@ class Bar(QObject):
     def _hide(self) -> None:
         self.view.hide()
         self.surface.placement = None
+
+    def _slide_out(self) -> int:
+        """Going back into hiding: its page slides it to the edge, as it came out; answers how long that takes (0: no slide)."""
+        look = self.desktop.config["bar"]
+        if (look.get("motion") or "slide") != "slide" or not self.view.isVisible():
+            return 0
+        self.bridge.state.emit(json.dumps({**self.describe(), "leaving": True}))
+        return round(260 * {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(look.get("speed"), 1)) + 30
 
     def describe(self) -> dict:
         return {

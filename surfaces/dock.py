@@ -372,7 +372,7 @@ class Dock(QObject):
         self.bridge = DockBridge(self, self)
         self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-dock")
-        self.hider = Autohide(profile, "dock", self.view, self._show, self._hide,
+        self.hider = Autohide(profile, "dock", self.view, self._show, self._hide, slide_out=self._slide_out,
                               busy=lambda: bool(self.menu.key), parent=self)
         self.menu = DockMenu(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
@@ -439,6 +439,14 @@ class Dock(QObject):
     def _hide(self) -> None:
         self.view.hide()
         self.surface.placement = None
+
+    def _slide_out(self) -> int:
+        """Going back into hiding: its page slides it to the edge, as it came out; answers how long that takes (0: no slide)."""
+        look = self.desktop.config["dock"]
+        if (look.get("motion") or "slide") != "slide" or not self.view.isVisible():
+            return 0
+        self.bridge.state.emit(json.dumps({**self.describe(), "leaving": True}))
+        return round(260 * {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(look.get("speed"), 1)) + 30
 
     def describe(self) -> dict:
         return {"edge": self.edge, "theme": self.desktop.config["theme"], "look": self.desktop.config["dock"]}

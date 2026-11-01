@@ -7,6 +7,8 @@
 "use strict";
 
 let bridge = null;
+
+let leaving = null; // the slide back into hiding, held until the dock is taken away
 let listing = { pinned: [], open: [] };
 
 function el(tag, cls, text) {
@@ -202,11 +204,17 @@ Surface.connect({
     if (pills !== wasPills && listing) draw(listing);
     if (look.shadow) document.body.dataset.shadow = "1"; else delete document.body.dataset.shadow;
     // Out from hiding, in the dock's own motion: slide, or none.
+    // And back into hiding the same way (`leaving`: dock.py, _slide_out), held at the edge until it is taken away.
     const motion = look.motion || "slide";
-    if (s.arrived && motion === "slide" && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const from = (s.edge || "bottom") === "bottom" ? "translateY(110%)" : "translateY(-110%)";
-      const pace = { slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1;
-      document.getElementById("dock").animate([{ transform: from }, { transform: "none" }], { duration: Math.round(260 * pace), easing: getComputedStyle(document.documentElement).getPropertyValue("--ease").trim() || "ease" });
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const away = (s.edge || "bottom") === "bottom" ? "translateY(110%)" : "translateY(-110%)";
+    const pace = { slow: 1.6, normal: 1, fast: .6, fastest: .3 }[look.speed] || 1;
+    const ease = getComputedStyle(document.documentElement).getPropertyValue("--ease").trim() || "ease";
+    if (leaving) { leaving.cancel(); leaving = null; }
+    if (s.leaving && motion === "slide" && !still) {
+      leaving = document.getElementById("dock").animate([{ transform: "none" }, { transform: away }], { duration: Math.round(260 * pace), easing: ease, fill: "forwards" });
+    } else if (s.arrived && motion === "slide" && !still) {
+      document.getElementById("dock").animate([{ transform: away }, { transform: "none" }], { duration: Math.round(260 * pace), easing: ease });
     }
   },
 }).then((b) => {
