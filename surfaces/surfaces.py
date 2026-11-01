@@ -924,6 +924,9 @@ class Desktop(QObject):
                 # A left click somewhere while something listens for one (away.py); toasts-away is the old name.
                 self.notifications.toasts.clicked()
                 self.voice.clicked()
+                # The dock and the bar, out from hiding: put away again (sensor.py, Autohide).
+                self.dock.hider.clicked()
+                self.bar.hider.clicked()
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()

@@ -27,6 +27,7 @@ from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication, QWidget
 
+import away
 import hypr
 from core import Bridge
 from layershell import EDGE_ANCHOR, EDGE_SPAN, KEYBOARD_NONE, TOP, LayerSurface, Placement, full_screen, to_compositor
@@ -307,6 +308,7 @@ class Autohide(QObject):
         super().__init__(parent)
         self.on = False
         self.out = False
+        self.name = name
         self._reveal, self._conceal, self._busy = reveal, conceal, busy
         self.sensor = EdgeSensor(profile, name, "top", self.touched, self)
         self._away = QTimer(self)
@@ -318,7 +320,7 @@ class Autohide(QObject):
         """Turned on or off, or moved to another edge or layer."""
         self.on = on
         if on:
-            self.out = False
+            self._out(False)
             self._conceal()
             self.sensor.show(edge, layer)
         else:
@@ -328,13 +330,13 @@ class Autohide(QObject):
     def peek(self, ms: int) -> None:
         """Out for a moment, by itself (a project gone to, said on the bar), then away again unless the pointer stays."""
         if self.on and not self.out:
-            self.out = True
+            self._out(True)
             self._reveal()
             self._away.start(ms)
 
     def touched(self) -> None:
         if self.on and not self.out:
-            self.out = True
+            self._out(True)
             self._reveal()
             # Out because the pointer came; if it does not stay, it goes.
             self._away.start(AWAY_MS * 2)
@@ -353,5 +355,21 @@ class Autohide(QObject):
         if self._busy():
             self._away.start(AWAY_MS)
             return
-        self.out = False
+        self._out(False)
         self._conceal()
+
+    def _out(self, out: bool) -> None:
+        """Out or away; while out, a click anywhere off it puts it away (away.py, `clicked`)."""
+        self.out = out
+        away.hold(f"autohide-{self.name}", out)
+
+    def clicked(self) -> None:
+        """
+        A left click somewhere (away.py): off the surface, it goes now — a third
+        way, after the pointer leaving and its time, for when the pointer's
+        leaving was never heard and it stayed out.
+        """
+        if self.on and self.out and not self._busy() and away.over(f"talaris-{self.name}") is False:
+            self._away.stop()
+            self._out(False)
+            self._conceal()
