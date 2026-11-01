@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import * as notesM from "./notes.js";
 import { leavesOut, leftOut, shownSettings } from "./shown.js";
 import { describeProjects, projectAbout, setProjectAbout } from "./project-describe.js";
 import { DEMO_ROOT, inDemo } from "./demo.js";
@@ -509,6 +510,10 @@ route("GET", "/tags", () => tagsM.allTags());
 route("GET", "/tags/things", (_r, _p, q) => tagsM.tagged(q.getAll("tag"), { all: q.get("all") === "1", ...(q.get("kind") ? { kind: q.get("kind")! } : {}) }));
 route("GET", "/projects/:id/page/tags", (_r, [id], q) => tagsM.pageTags(id!, need(q, "path")));
 route("PUT", "/projects/:id/page/tags", async (req, [id], q) => tagsM.setPageTags(id!, need(q, "path"), (await json<{ tags?: string[] }>(req)).tags ?? []));
+// A page's projects (notes.ts): the one it lives in first, then any it is also in, by the entities standing for them;
+// set whole — the one it lives in taken off moves it to the first left, or among Home's Pages. Answers where it is now.
+route("GET", "/projects/:id/page/projects", (_r, [id], q) => notesM.pageProjects(id!, need(q, "path")));
+route("PUT", "/projects/:id/page/projects", async (req, [id], q) => notesM.setPageProjects(id!, need(q, "path"), (await json<{ projects?: string[] }>(req)).projects ?? []));
 route("PUT", "/people/my-organizations", async (req) => entities.setMyOrganizations((await json<{ names?: string[] }>(req)).names ?? []));
 // Address-book cards as people (People: everyone in your address books).
 route("POST", "/people/from-cards", async (req) => {

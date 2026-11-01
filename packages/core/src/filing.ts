@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { bySource, findEntities, getEntity, profilesOf, types, type Entity, type EntityType } from "./entities.js";
+import { bySource, createEntity, findEntities, getEntity, profilesOf, typeFor, types, updateEntity, type Entity, type EntityType } from "./entities.js";
 import { NotFound, ensureHome, listProjects } from "./projects.js";
 
 /**
@@ -23,6 +23,17 @@ export const PROJECT_SOURCE = "talaris-project";
 /** The entity standing for a Talaris project, by the project's id. */
 export function projectEntity(projectId: string): Entity | null {
   return bySource({ kind: PROJECT_SOURCE, key: projectId });
+}
+
+/**
+ * The entity standing for a Talaris project, made if it has none yet and kept to the project's name: what a task's
+ * or a note's project field holds. Not for Home: it is the scratchpad, and nothing is filed under it.
+ */
+export function ensureProjectEntity(p: { id: string; name: string; home?: boolean }): Entity | null {
+  if (p.home) return null;
+  const known = projectEntity(p.id);
+  if (!known) return createEntity({ type: typeFor("project").id, properties: { title: p.name }, sources: [{ kind: PROJECT_SOURCE, key: p.id }] });
+  return known.properties.title === p.name ? known : updateEntity(known.id, { properties: { title: p.name } });
 }
 
 /** The Talaris project an entity stands for, by its id; none for a project only the store knows. */

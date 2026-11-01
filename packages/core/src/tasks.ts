@@ -20,7 +20,7 @@ import { forgetFiles,
   type Entity,
   type EntityType,
 } from "./entities.js";
-import { PROJECT_SOURCE, filedUnder, filingKey, filingPatch, projectEntity, projectIdOf, unfile } from "./filing.js";
+import { ensureProjectEntity, filedUnder, filingKey, filingPatch, projectEntity, projectIdOf, unfile } from "./filing.js";
 import { addDays, localMinute } from "./localtime.js";
 import { isCompleteBy, readSlot, slotOf, type Slot } from "./profile.js";
 import { Conflict, NotFound, createProject, listProjects } from "./projects.js";
@@ -379,7 +379,6 @@ export function dropSeries(id: string): void {
  * known by its source so a rename in either place is the same project.
  */
 export function taskProjects(): { id: string; title: string; archived?: boolean; workspace?: string; group?: string; description?: string; position?: number }[] {
-  const type = typeFor("project");
   for (const p of listProjects()) {
     // Home is the scratchpad, not a project: nothing is filed under it. One
     // mirrored before that was decided goes, and what was filed there is
@@ -388,9 +387,7 @@ export function taskProjects(): { id: string; title: string; archived?: boolean;
       unfileHome(p.id);
       continue;
     }
-    const known = projectEntity(p.id);
-    if (!known) createEntity({ type: type.id, properties: { title: p.name }, sources: [{ kind: PROJECT_SOURCE, key: p.id }] });
-    else if (known.properties.title !== p.name) updateEntity(known.id, { properties: { title: p.name } });
+    ensureProjectEntity(p);
   }
   return findEntities({ kind: "project", limit: 1000, archived: true }).map((s) => {
     const e = getEntity(s.id);

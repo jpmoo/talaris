@@ -2,47 +2,57 @@
 // Copyright (c) 2026 Jeff Moore
 
 /*
- * Undated notes, for the live binding (interchange.ts) and so for a sync.
+ * Notes, for the live binding (interchange.ts) and so for a sync: every
+ * writing page, in every project, but a day's (those are daily notes, below).
  *
- * A note's words live in its file in Home's `Writing/Pages` (pages.ts: Home's
- * page `Pages/<title>`), and the file is the truth. What the binding hands out
- * is an entity standing for it — the same one that holds its mentions (a
- * page's source, `<home>/Pages/<path>`) — carrying its title, its words where the note
- * profile puts a body (Talaris's own Note type: its `body` field; `content`
- * for a type that says so) and a mark, `talaris:undated`, so that a sync can tell an
- * undated note from every other note-shaped thing in the store (a page's or
- * a canvas note's mentions). Renamed or moved, it is the same entity
- * (`movedText`); nested, it is too: where it sits is Talaris's alone, and
- * only its own title travels.
+ * A note's words live in its page's file, and the file is the truth. What the
+ * binding hands out is an entity standing for it — the same one that holds its
+ * mentions (a page's source, `<project>/<path>`) — carrying its title, its
+ * words where the note profile puts a body (Talaris's own Note type: its `body`
+ * field; `content` for a type that says so), the project it is in where the
+ * profile names a `project` slot (none for one of Home's Pages, the notes of no
+ * project), and a mark, `talaris:undated` — a page written through to its
+ * file, the name kept from when only Home's Pages were notes — so that a sync
+ * can tell these from every other note-shaped thing in the store (a canvas
+ * note's mentions). Renamed or moved, even to another project, it is the same
+ * entity (`movedText`); nested, it is too: where it sits is Talaris's alone,
+ * and only its own title and project travel.
  *
  * Kept in step by looking (`reconcileNotes`), before every read and write
- * through the binding: so a note edited in another editor, one moved into a
- * project (it loses its mark: no longer undated), and one deleted (its entity
- * goes, which the feed says) are all seen, without every page call having to
- * remember to say so.
+ * through the binding: so a note edited in another editor, one moved to
+ * another project, and one deleted (its entity goes, which the feed says) are
+ * all seen, without every page call having to remember to say so. An archived
+ * project's pages stay notes: archiving a project is not deleting its writing.
  *
- * A write through the binding goes to the file: a new title renames the
- * note where it is, new words are written to it; a note made through the
- * binding is made at the top of the undated notes, at the id asked for.
+ * A write through the binding goes to the file: a new title renames the page
+ * where it is, new words are written to it, another project moves it there
+ * (none: among Home's Pages); a note made through the binding is made at the
+ * top of its project's writing, or of Home's Pages, at the id asked for.
  */
 
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, typeFor, types, updateEntity, type Entity } from "./entities.js";
-import { Conflict, PAGES, UNDATED, ensureHome, pagesPlace } from "./projects.js";
-import { DAILY, createPage, movePage, pageTree, readPage, writePage } from "./pages.js";
+import { Conflict, PAGES, UNDATED, allProjects, ensureHome, findProject, pagesPlace } from "./projects.js";
+import { DAILY, createPage, movePage, pageTree, readPage, transferPage, writePage } from "./pages.js";
+import { ensureProjectEntity, projectIdOf } from "./filing.js";
 import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
 
 export const MARK = "talaris:undated";
-/** A note's page source, `<home>/Pages/`, and its path below it. */
-const prefix = () => `${homeId()}/${PAGES}/`;
 /** Their old address, before they were Home's (pages-home.ts): never written, only refused. */
 const LEGACY = `${UNDATED}/`;
-const sourceOf = (path: string) => ({ kind: "page", key: `${prefix()}${path}` });
-/** A note's path below Pages as Home's page path, and back. */
-const inHome = (path: string) => `${PAGES}/${path}`;
+/** A note is a project's page: `<project>/<path>`, the key its page source already has (pages.ts, writePage). */
+interface Place { project: string; path: string }
+const keyOf = (at: Place) => `${at.project}/${at.path}`;
+const sourceOf = (at: Place) => ({ kind: "page", key: keyOf(at) });
+const placeOf = (key: string): Place | null => {
+  const cut = key.indexOf("/");
+  return cut > 0 ? { project: key.slice(0, cut), path: key.slice(cut + 1) } : null;
+};
 const titleOf = (path: string) => path.split("/").pop() ?? path;
+/** A page of Home's: a note of no project — Home is the scratchpad, and nothing is filed under it (tasks.ts). */
+const unfiled = (at: Place) => at.project === homeId();
 const pageSource = (e: Entity) => ((e["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "page");
 
 /** The property a note's title is kept in, as the note profile says (Talaris's own note type: `title`). */
@@ -57,34 +67,84 @@ export function bodyKey(typeId: string | undefined): string {
 }
 /** A note entity's words, wherever its type keeps them. */
 const wordsOf = (e: Entity) => { const k = bodyKey(e.type); return String((k === "content" ? e.content : e.properties[k]) ?? ""); };
+/** The property a note's project is kept in, where its type's note profile names one (Talaris's own: `project`). */
+function projectKey(typeId: string | undefined): string | null {
+  const p = types().find((x) => x.id === typeId)?.profiles?.note?.project;
+  return typeof p === "string" ? p : null;
+}
+/** The project a note lives in — the entity standing for the project whose writing holds its page; none for Home's. */
+const livesIn = (at: Place): string | null => {
+  if (unfiled(at)) return null;
+  let p;
+  try { p = findProject(at.project); } catch { return null; }
+  return ensureProjectEntity(p)?.id ?? null;
+};
+/** Where a note's entity keeps the project it lives in, apart from the rest of its projects. */
+const LIVES = "talaris:livesIn";
+/**
+ * A note's projects, as its project field holds them: the one it lives in first, then any it is also in — kept
+ * whatever happens to its page, but the one it lived in before, which a move leaves behind.
+ */
+const projectsOf = (at: Place, e: Entity | null, pk: string | null): string[] | null => {
+  const here = livesIn(at);
+  const had = e && pk ? (Array.isArray(e.properties[pk]) ? (e.properties[pk] as unknown[]).map(String) : e.properties[pk] ? [String(e.properties[pk])] : []) : [];
+  const was = e ? (e[LIVES] as string | undefined) : undefined;
+  const also = had.filter((x) => x !== here && x !== was);
+  const list = [...(here ? [here] : []), ...also];
+  return list.length ? list : null;
+};
+
 /** The patch that puts words where a type keeps them. */
 const wordsAt = (typeId: string | undefined, text: string) => { const k = bodyKey(typeId); return k === "content" ? { content: text } : { properties: { [k]: text } }; };
 
-function allPaths(): string[] {
-  const out: string[] = [];
-  const walk = (nodes: PageNode[]) => { for (const n of nodes) { out.push(n.path); walk(n.children); } };
-  const pages = pageTree(homeId()).find((n) => n.path === PAGES);
-  // Paths below Pages: what a note is known by.
-  walk(pages?.children ?? []);
-  return out.map((p) => p.slice(PAGES.length + 1));
+/**
+ * Every note's place: every page of every project's writing (an archived project's too), but Home's daily pages,
+ * and Home's Pages folder itself (its pages are notes; it is only where they are kept).
+ */
+function allPlaces(): Place[] {
+  const out: Place[] = [];
+  const home = homeId();
+  for (const project of allProjects()) {
+    let tree: PageNode[] = [];
+    try { tree = pageTree(project.id); } catch { continue; }
+    const walk = (nodes: PageNode[]) => {
+      for (const n of nodes) {
+        const daily = project.id === home && (n.path === DAILY || n.path.startsWith(`${DAILY}/`));
+        if (daily) continue;
+        if (!(project.id === home && n.path === PAGES)) out.push({ project: project.id, path: n.path });
+        walk(n.children);
+      }
+    };
+    walk(tree);
+  }
+  return out;
 }
 
-/** An undated note's entity brought up to date with its file — made, if it has none; `id` only when it is made. */
-function mirror(path: string, id?: string): Entity {
-  const title = titleOf(path);
+/** A note's entity brought up to date with its page — made, if it has none; `id` only when it is made. */
+function mirror(at: Place, id?: string): Entity {
+  const title = titleOf(at.path);
   let text = "";
-  try { text = readPage(homeId(), inHome(path)); } catch { /* a folder with no page of its own: a note with no words */ }
-  const e = bySource(sourceOf(path));
+  try { text = readPage(at.project, at.path); } catch { /* a folder with no page of its own: a note with no words */ }
+  const e = bySource(sourceOf(at));
+  const here = livesIn(at);
   if (!e) {
     const type = typeFor("note");
     const words = wordsAt(type.id, text);
-    return createEntity({ ...(id ? { id } : {}), type: type.id, properties: { [titleKey(type.id)]: title, ...(words.properties ?? {}) },
-      ...(words.content !== undefined ? { content: words.content } : {}), sources: [sourceOf(path)], "talaris:textElsewhere": true, [MARK]: true });
+    const pk = projectKey(type.id);
+    const project = projectsOf(at, null, pk);
+    return createEntity({ ...(id ? { id } : {}), type: type.id,
+      properties: { [titleKey(type.id)]: title, ...(words.properties ?? {}), ...(pk && project ? { [pk]: project } : {}) },
+      ...(words.content !== undefined ? { content: words.content } : {}), sources: [sourceOf(at)], "talaris:textElsewhere": true, [MARK]: true,
+      [LIVES]: here });
   }
   const key = titleKey(e.type);
-  if (e.properties[key] === title && wordsOf(e) === text && e[MARK] === true) return e;
+  const pk = projectKey(e.type);
+  const project = projectsOf(at, e, pk);
+  const sameProject = !pk || JSON.stringify(e.properties[pk] ?? null) === JSON.stringify(project);
+  if (e.properties[key] === title && wordsOf(e) === text && e[MARK] === true && sameProject && (e[LIVES] ?? null) === here) return e;
   const words = wordsAt(e.type, text);
-  return updateEntity(e.id, { properties: { [key]: title, ...(words.properties ?? {}) }, ...(words.content !== undefined ? { content: words.content } : {}), [MARK]: true });
+  return updateEntity(e.id, { properties: { [key]: title, ...(words.properties ?? {}), ...(pk ? { [pk]: project } : {}) },
+    ...(words.content !== undefined ? { content: words.content } : {}), [MARK]: true, [LIVES]: here });
 }
 
 // ------------------------------------------------------------ daily notes
@@ -160,7 +220,7 @@ export function createDay(id: string, date: string, words: string): Entity {
   return mirrorDay(date, id);
 }
 
-/** Every undated note's entity as its file is; any that stood for one gone or moved into a project, said so. */
+/** Every note's entity as its page is; any that stood for a page gone, gone (the feed says so). */
 export function reconcileNotes(): void {
   reconcileDays();
   // Any note still at its old address: not moved into Home yet (pages-home.ts) — tidying now would take it for gone.
@@ -168,23 +228,16 @@ export function reconcileNotes(): void {
     console.log("talaris-core: undated notes not yet moved into Home; not reconciled");
     return;
   }
-  const PREFIX = prefix();
-  const paths = new Set(allPaths());
-  for (const p of paths) mirror(p);
+  const places = allPlaces();
+  const keys = new Set(places.map(keyOf));
+  for (const at of places) mirror(at);
   for (const r of allRecords()) {
     const e = r.object;
     if (e[MARK] !== true) continue;
     const src = pageSource(e);
-    const path = src?.key.startsWith(PREFIX) ? src.key.slice(PREFIX.length) : null;
-    if (path && paths.has(path)) continue;
-    if (!src || src.key.startsWith(PREFIX)) {
-      // Its note deleted: gone, as the feed will say.
-      deleteEntity(e.id);
-    } else {
-      // Moved into a project: still the page its mentions know, no longer an undated note — its words stay in the file alone.
-      const k = bodyKey(e.type);
-      updateEntity(e.id, { ...(k === "content" ? { content: null } : { properties: { [k]: null } }), [MARK]: null });
-    }
+    if (src && keys.has(src.key)) continue;
+    // Its page deleted: gone, as the feed will say.
+    deleteEntity(e.id);
   }
 }
 
@@ -200,20 +253,57 @@ export function isUndated(id: string): boolean {
  */
 export function writeNote(id: string, set: Record<string, unknown>, content: string | undefined): Entity {
   const e = getEntity(id);
-  const src = pageSource(e);
-  const PREFIX = prefix();
-  if (!src?.key.startsWith(PREFIX)) throw new Error(`${id} is not an undated note`);
-  let path = src.key.slice(PREFIX.length);
+  let at = pageSource(e) ? placeOf(pageSource(e)!.key) : null;
+  if (!at || e[MARK] !== true) throw new Error(`${id} is not a note`);
+  // Its projects: kept as given; and if the one it lives in is not among them, its page moved to the first that is —
+  // to the top of that project's writing — or, with none, among Home's Pages.
+  const pk = projectKey(e.type);
+  if (pk && pk in set) {
+    const asked = (Array.isArray(set[pk]) ? (set[pk] as unknown[]) : set[pk] ? [set[pk]] : []).map(String);
+    const workspaces = asked.map((x) => { try { return projectIdOf(getEntity(x)) ?? null; } catch { return null; } });
+    const bad = asked.find((_, i) => !workspaces[i]);
+    if (bad) throw new Conflict(`${bad} is not a Talaris project`);
+    const here = livesIn(at);
+    if (!here || !asked.includes(here)) {
+      const to = (workspaces[0] as string | undefined) ?? null;
+      if (to !== (unfiled(at) ? null : at.project)) {
+        const node = transferPage(at.project, at.path, to ?? homeId(), to ? null : PAGES, false);
+        at = { project: to ?? homeId(), path: node.path };
+      }
+    }
+    // The rest kept on it: mirror puts the one it now lives in first.
+    updateEntity(e.id, { properties: { [pk]: asked.length ? asked : null }, [LIVES]: livesIn(at) });
+  }
   const key = titleKey(e.type);
   const title = typeof set[key] === "string" ? (set[key] as string).trim() : "";
-  if (title && title !== titleOf(path)) {
-    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : null;
-    path = movePage(homeId(), inHome(path), parent ? inHome(parent) : PAGES, title).path.slice(PAGES.length + 1);
+  if (title && title !== titleOf(at.path)) {
+    const parent = at.path.includes("/") ? at.path.slice(0, at.path.lastIndexOf("/")) : null;
+    at = { project: at.project, path: movePage(at.project, at.path, parent, title).path };
   }
   const k = bodyKey(e.type);
   const words = k === "content" ? content : typeof set[k] === "string" ? (set[k] as string) : k in set && set[k] === null ? "" : undefined;
-  if (words !== undefined) writePage(homeId(), inHome(path), words);
-  return mirror(path);
+  if (words !== undefined) writePage(at.project, at.path, words);
+  return mirror(at);
+}
+
+/**
+ * A page's projects, for the writing drawer: the one it lives in first (none for Home's), then the rest, by the
+ * entities standing for them; and set whole, as a write through the binding would (`writeNote`). Answers where the
+ * page is now, which a move changes.
+ */
+export function pageProjects(projectId: string, path: string): string[] {
+  const e = mirror({ project: projectId, path });
+  const pk = projectKey(e.type);
+  const v = pk ? e.properties[pk] : null;
+  return Array.isArray(v) ? v.map(String) : v ? [String(v)] : [];
+}
+export function setPageProjects(projectId: string, path: string, projects: string[]): { project: string; path: string; projects: string[] } {
+  const e = mirror({ project: projectId, path });
+  const pk = projectKey(e.type);
+  if (!pk) throw new Conflict("this note type keeps no project");
+  const after = writeNote(e.id, { [pk]: projects.length ? projects : null }, undefined);
+  const at = placeOf(pageSource(after)!.key)!;
+  return { ...at, projects: pageProjects(at.project, at.path) };
 }
 
 /** Home's Pages folder, made if there is none yet: where an undated note is made. */
@@ -222,14 +312,20 @@ export function ensurePagesFolder(): void {
   if (home) mkdirSync(join(pagesPlace(home, true).folder, WRITING, PAGES), { recursive: true });
 }
 
-/** A note made through the binding: at the top of the undated notes, at the id asked for. */
-export function createNote(id: string, title: string, content: string): Entity {
-  ensurePagesFolder();
-  const page = createPage(homeId(), PAGES, title);
-  if (content) writePage(homeId(), page.path, content);
-  const path = page.path.slice(PAGES.length + 1);
+/**
+ * A note made through the binding: at the top of its project's writing — `project`, the entity standing for one —
+ * or, with none, of Home's Pages; at the id asked for.
+ */
+export function createNote(id: string, title: string, content: string, project?: string | null): Entity {
+  let to: string | null = null;
+  if (project) { try { to = projectIdOf(getEntity(project)) ?? null; } catch { to = null; } }
+  if (!to) ensurePagesFolder();
+  const where = to ?? homeId();
+  const page = createPage(where, to ? null : PAGES, title);
+  if (content) writePage(where, page.path, content);
+  const at = { project: where, path: page.path };
   // Made by the page calls above with an id of their own, if it mentions anything: given the one asked for instead.
-  const made = bySource(sourceOf(path));
+  const made = bySource(sourceOf(at));
   if (made && made.id !== id) deleteEntity(made.id);
-  return mirror(path, id);
+  return mirror(at, id);
 }

@@ -660,11 +660,21 @@ test("undated notes through the live binding: their file is the truth, renamed a
   assert.ok(made.created);
   assert.equal(pagesM.readPage(H, "Pages/From elsewhere"), "its words");
   assert.equal(entities.getEntity("e_made_note").properties["acme:kept"], true, "what it came with stays");
-  // Moved into a project, no longer undated; deleted, gone.
+  // Moved into a project: still a note, and in that project (note.project); deleted, gone.
   const p = projectsM.createProject("Takes a note");
   pagesM.transferPage(H, "Pages/From elsewhere", p.id, null, false);
   live.readEnvelope();
-  assert.equal(entities.getEntity("e_made_note")[notes.MARK] ?? null, null);
+  const filing = await import("../src/filing.js");
+  const pe = filing.projectEntity(p.id)!.id;
+  assert.equal(entities.getEntity("e_made_note")[notes.MARK], true, "a project's page is a note too");
+  assert.deepEqual(entities.getEntity("e_made_note").properties.project, [pe], "and says its project");
+  // A note's project changed through the binding: its page moved there; to none, back among Home's Pages.
+  assert.equal(live.patchObject("e_made_note", { set: { project: null } }).ok, true);
+  assert.equal(pagesM.readPage(H, "Pages/From elsewhere"), "its words", "moved back to Home's Pages");
+  assert.equal(entities.getEntity("e_made_note").properties.project ?? null, null);
+  // Made through the binding in a project: at the top of its writing.
+  assert.equal(live.createObject("e_in_project", { type: "t_note", properties: { title: "Plan for it", body: "hello", project: [pe] } }).ok, true);
+  assert.equal(pagesM.readPage(p.id, "Plan for it"), "hello");
   pagesM.deletePage(H, "Pages/Shared plan, revised");
   live.readEnvelope();
   assert.throws(() => entities.getEntity(note!.id));

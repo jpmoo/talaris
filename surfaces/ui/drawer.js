@@ -935,12 +935,12 @@ async function loadWriting() {
   // And on the daily notes as a whole (Sync all with Hermes Notes).
   if (scope === "daily" && window.Peek) actions.push(" ", Peek.actionButtons("daily", null, core, ""));
   if (open && !dailyOn) {
-    const here = { path: open, title: open.split("/").pop() };
-    // Across: from this project to Home's Pages, or from them into this project.
-    const other = scope === "undated" ? (inHome() ? "Home" : here().name) : "Pages";
+    const page = { path: open, title: open.split("/").pop() };
     actions.push(" ", btn("New page inside", () => newPage(open)),
-      " ", btn("Rename", () => renamePage(here)),
-      " ", btn(`Move to ${other}`, () => transfer(false)),
+      " ", btn("Rename", () => renamePage(page)),
+      // To another project's writing, or to Home's Pages; and the projects it belongs to besides (notes.ts).
+      " ", el("button", { class: "t-btn", title: "Move this page to another project, or to Home's Pages", onclick: (e) => { e.stopPropagation(); moveMenu(e.currentTarget); } }, "Move to…"),
+      " ", el("button", { class: "t-btn", title: "The projects this page belongs to: the one it lives in, and any others", onclick: (e) => { e.stopPropagation(); projectsMenu(e.currentTarget); } }, "Projects…"),
       // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
       " ", el("button", { class: "t-btn", title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
       " ", btn("Delete", deletePage, "danger"));
@@ -1049,22 +1049,81 @@ function renamePage(n) {
 }
 
 /** The open page, and all beneath it, moved or copied across: to the undated notes, or into this project. */
-async function transfer(copy) {
+// ---------------------------------------------------------------- a page's projects
+
+/** The projects there are, but Home and the archived, with the entities standing for them (tasks.ts, taskProjects). */
+async function projectChoices() {
+  const [all, records] = await Promise.all([core("GET", "/projects"), core("GET", "/tasks/projects").catch(() => [])]);
+  const entity = new Map((records || []).filter((r) => r.workspace).map((r) => [r.workspace, r.id]));
+  return (all || []).filter((p) => !p.home && !p.archived).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .map((p) => ({ ...p, entity: entity.get(p.id) || null }));
+}
+
+/** Followed where it went: its project's writing (looked through if not the workspace's), or Home's Pages. */
+function followTo(projectId, path, name) {
+  if (editor) { editor.destroy(); editor = null; }
+  if (!projectId) { scope = "undated"; browsing = null; openIn.undated = path; }
+  else {
+    browsing = projectId === state.project.id ? null : { id: projectId, code: "", name, home: false };
+    scope = "project";
+    openIn.project.set(projectId, path);
+  }
+  try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
+  open = path;
+  $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  loadWriting();
+}
+
+/** Move to…: the page to another project's writing (at its top), or to Home's Pages; followed there. */
+async function moveMenu(anchor) {
   if (!open) return;
-  if (saveTimer) { clearTimeout(saveTimer); await save(); }
-  const from = wpid(), to = scope === "undated" ? here().id : homeId;
-  try {
-    const landed = await core("POST", `/projects/${from}/page/transfer`, { path: open, to, parent: scope === "undated" ? null : PAGES, copy });
-    status(`${copy ? "Copied" : "Moved"} to ${scope === "undated" ? (inHome() ? "Home" : here().name) : "Pages"}`);
-    // Moved, it is followed there; copied, this one stays open.
-    if (!copy) {
-      if (editor) { editor.destroy(); editor = null; }
-      if (scope === "undated") { openIn.undated = null; scope = "project"; } else { openIn.project.set(here().id, null); scope = "undated"; }
-      try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
-      open = landed.path;
-    }
-    loadWriting();
-  } catch (e) { status(String(e.message || e), true); }
+  let choices;
+  try { choices = await projectChoices(); } catch (e) { status(e.message, true); return; }
+  const now = scope === "undated" || inHome() ? null : wpid();
+  const go = async (to, name) => {
+    if (saveTimer) { clearTimeout(saveTimer); await save(); }
+    try {
+      const landed = await core("POST", `/projects/${wpid()}/page/transfer`, { path: open, to: to ?? homeId, parent: to ? null : PAGES, copy: false });
+      status(`Moved to ${name}`);
+      followTo(to, landed.path, name);
+    } catch (e) { status(String(e.message || e), true); }
+  };
+  Kit.menu(anchor, [
+    ...(now ? [{ label: "Home's Pages (no project)", act: () => go(null, "Home's Pages") }, "sep"] : []),
+    ...choices.filter((p) => p.id !== now).map((p) => ({ label: p.name, act: () => go(p.id, p.name) })),
+  ]);
+}
+
+/**
+ * Projects…: the projects the page belongs to, checked — the one it lives in said so. One clicked is added, or taken
+ * off; the one it lives in taken off moves it to the next, or to Home's Pages (notes.ts, setPageProjects).
+ */
+async function projectsMenu(anchor) {
+  if (!open) return;
+  const path = open, pid = wpid();
+  let choices, mine;
+  try { [choices, mine] = await Promise.all([projectChoices(), core("GET", `/projects/${pid}/page/projects?path=${encodeURIComponent(path)}`)]); }
+  catch (e) { status(String(e.message || e), true); return; }
+  const lives = mine[0] && (choices.find((p) => p.entity === mine[0]) || {}).id === pid ? mine[0] : null;
+  const set = async (next, said) => {
+    if (saveTimer) { clearTimeout(saveTimer); await save(); }
+    try {
+      const after = await core("PUT", `/projects/${pid}/page/projects?path=${encodeURIComponent(path)}`, { projects: next });
+      status(said);
+      if (after.project !== pid || after.path !== path) {
+        const went = choices.find((p) => p.id === after.project);
+        followTo(went ? went.id : null, after.path, went ? went.name : "Home's Pages");
+      }
+    } catch (e) { status(String(e.message || e), true); }
+  };
+  Kit.menu(anchor, choices.filter((p) => p.entity).map((p) => {
+    const inIt = mine.includes(p.entity);
+    return {
+      label: p.entity === lives ? `${p.name} (lives here)` : p.name, on: inIt,
+      act: () => set(inIt ? mine.filter((x) => x !== p.entity) : [...mine, p.entity],
+        inIt ? (p.entity === lives ? `Taken out of ${p.name}: moved` : `Taken out of ${p.name}`) : `Also in ${p.name}`),
+    };
+  }));
 }
 
 function deletePage() {

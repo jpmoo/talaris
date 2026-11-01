@@ -176,7 +176,9 @@ export const BUILT_IN: EntityType[] = [
     },
   },
   {
-    id: "t_note", name: "Note", "talaris:role": "note",
+    // Version 2: the note profile says which field is its project (pkm-interchange: note.project), so a sync carries
+    // a project's pages as its notes (notes.ts).
+    id: "t_note", name: "Note", "talaris:role": "note", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text" },
       { key: "body", kind: "richtext" },
@@ -187,7 +189,7 @@ export const BUILT_IN: EntityType[] = [
     // The body is a declared field, not the reserved `content`: a mention
     // found in it has to name a field the type declares (the format's
     // `inline.field-not-declared`), and `content` is not one.
-    profiles: { note: { title: "title", body: "body" } },
+    profiles: { note: { title: "title", body: "body", project: "project" } },
   },
   {
     // Version 2: it says it is a project (the format's `project` profile).

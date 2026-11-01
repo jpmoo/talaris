@@ -629,14 +629,18 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     if (body.tags?.length) updateEntity(made.id, { tags: body.tags });
     return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
-  // A note made through the binding is an undated note: one of Home's Pages, at the id asked for (notes.ts).
+  // A note made through the binding is a page: in the project it names, at the top of its writing, else one of Home's
+  // Pages; at the id asked for (notes.ts).
   const noteTitle = types().find((t) => t.id === body.type)?.profiles?.note?.title;
   if (typeof noteTitle === "string" && !types().find((t) => t.id === body.type)?.profiles?.task) {
     const bodyField = types().find((t) => t.id === body.type)?.profiles?.note?.body;
+    const projectField = types().find((t) => t.id === body.type)?.profiles?.note?.project;
     const words = bodyField === "content" || typeof bodyField !== "string" ? body.content ?? "" : String(properties[bodyField] ?? "");
-    const made = createNote(at, String(properties[noteTitle] ?? "").trim(), words);
-    // Everything else it came with stays on it, known or not: the file holds the title and the words, the entity the rest.
-    const rest = Object.fromEntries(Object.entries(properties).filter(([k]) => k !== noteTitle && k !== bodyField));
+    const asked = typeof projectField === "string" ? properties[projectField] : undefined;
+    const project = (Array.isArray(asked) ? asked : asked ? [asked] : []).map(String)[0] ?? null;
+    const made = createNote(at, String(properties[noteTitle] ?? "").trim(), words, project);
+    // Everything else it came with stays on it, known or not: the file holds the title, the words and the project, the entity the rest.
+    const rest = Object.fromEntries(Object.entries(properties).filter(([k]) => k !== noteTitle && k !== bodyField && k !== projectField));
     if (Object.keys(rest).length || body.tags?.length) updateEntity(made.id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(body.tags?.length ? { tags: body.tags } : {}) });
     return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
