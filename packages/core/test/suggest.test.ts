@@ -153,6 +153,8 @@ test("everyone reviewed: one person twice found by card, address or name, once e
   assert.deepEqual(of(a.id, b.id)?.why, ["The same name"], "a name as it is said");
   assert.deepEqual(of(c.id, d.id)?.why, ["The same address"]);
   assert.deepEqual(of(e.id, f.id)?.why, ["The same contact card"]);
+  const thrice = person("Cathryn Q", { emails: ["cq@ex.example", "cq@ex.example", "CQ@ex.example"] });
+  assert.ok(!suggest.peopleReview().pairs.some((p) => p.a.id === thrice.id && p.b.id === thrice.id), "never paired with herself");
   assert.equal(pairs()[0]!.why[0], "The same contact card", "surest first");
   suggest.dismiss(`e:${a.id}`, `e:${b.id}`);
   assert.equal(of(a.id, b.id), undefined, "not the same: not asked again");

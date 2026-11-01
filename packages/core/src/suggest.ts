@@ -508,12 +508,13 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
   for (const { object: o } of allRecords()) {
     if (o.type !== personType || o.stub || o.archived) continue;
     const org = o.properties.organization;
-    people.push({ id: o.id, title: titleOf(o), emails: emailsOf(o), cards: cardsOf(o), ...(typeof org === "string" && org.trim() ? { organization: org.trim() } : {}) });
+    people.push({ id: o.id, title: titleOf(o), emails: [...new Set(emailsOf(o))], cards: [...new Set(cardsOf(o))], ...(typeof org === "string" && org.trim() ? { organization: org.trim() } : {}) });
   }
   // Grouped by each thing that would make two one: a pair is found once, whatever it shares.
   const why = new Map<string, { a: ReviewPerson; b: ReviewPerson; why: Set<string> }>();
   const groups = new Map<string, ReviewPerson[]>();
-  const into = (k: string, p: ReviewPerson) => groups.set(k, [...(groups.get(k) ?? []), p]);
+  // Once in a group however often they hold it: one address kept three times paired a person with herself.
+  const into = (k: string, p: ReviewPerson) => { const g = groups.get(k) ?? []; if (!g.includes(p)) groups.set(k, [...g, p]); };
   for (const p of people) {
     const said = norm(spokenName(p.title));
     if (said && said !== "unnamed") into(`The same name\u0000${said}`, p);
