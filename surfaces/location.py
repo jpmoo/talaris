@@ -195,6 +195,7 @@ class Location(QObject):
         self.locating = False
         self.weather: dict | None = None
         self.warmth = 6500
+        self._cursor = None  # no_hardware_cursors as it was, while the night light draws the cursor in software
         #: The sun up or down at the last look, for the theme: set as it changes, not every minute — a mode you
         #: choose yourself stands until the next sunrise or sunset.
         self._sun_was: bool | None = None
@@ -696,6 +697,9 @@ class Location(QObject):
         self.warmth = kelvin
         if kelvin >= 6500:
             hypr.keyword("decoration:screen_shader", "[[EMPTY]]")
+            if self._cursor is not None:
+                hypr.keyword("cursor:no_hardware_cursors", str(self._cursor))
+                self._cursor = None
             return
         r, g, b = warm_rgb(kelvin)
         try:
@@ -705,6 +709,12 @@ class Location(QObject):
         except OSError:
             return
         hypr.keyword("decoration:screen_shader", SHADER)
+        # The hardware cursor is its own plane, which the shader never reaches: left there it
+        # stays white, and looks blue against a warmed screen. Drawn in software, it is warmed too.
+        if self._cursor is None:
+            was = hypr.option("cursor:no_hardware_cursors")
+            self._cursor = was if was is not None else 2
+            hypr.keyword("cursor:no_hardware_cursors", "1")
 
     # ------------------------------------------------------------ Morgan
 
