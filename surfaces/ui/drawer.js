@@ -788,9 +788,19 @@ function step(date, days) {
   return iso(new Date(y, m - 1, d + days));
 }
 
+// The calendar redrawn where it is (a month turned, a day saved), built first and swapped in whole.
 async function drawCalendar() {
   const host = $("calendar");
   if (!host) return;
+  const node = await calendarNode();
+  if ($("calendar") === host) host.replaceWith(node);
+}
+
+/**
+ * The daily calendar, built whole before it is shown: drawn into an empty
+ * place after the drawer was, it flashed blank on every day picked.
+ */
+async function calendarNode() {
   const { enabled, days } = await core("GET", `/projects/${wpid()}/daily?month=${shownMonth}`);
   dailyOn = enabled;
   const words = new Map(days.map((d) => [d.date, d.words]));
@@ -814,7 +824,7 @@ async function drawCalendar() {
     grid.append(el("button", { class: cls, title: n ? `${n} words` : "", onclick: () => edit(`${DAILY}/${date}`) },
       el("span", {}, String(day)), el("small", {}, n ? String(n) : "")));
   }
-  host.replaceChildren(
+  return el("div", { class: "calendar", id: "calendar" },
     el("div", { class: "cal-bar" },
       el("span", { class: "label" }, "DAILY"),
       el("span", { class: "cal-nav" },
@@ -837,7 +847,10 @@ function pageHeading() {
   return (scope === "undated" ? `Pages · ${open.slice(PAGES.length + 1).split("/").join(" / ")}${inHome() ? "" : " · in Home"}` : open.split("/").join(" / ")).toUpperCase();
 }
 
+// Which load is the latest: one overtaken (days clicked quickly) draws nothing, so the day last picked is the one shown.
+let writingSeq = 0;
 async function loadWriting() {
+  const mine = ++writingSeq;
   if (!homeId) homeId = ((await core("GET", "/projects")).find((p) => p.home) || {}).id || "";
   dailyOn = scope === "daily";
   if (dailyOn && !isDaily(open)) open = `${DAILY}/${today()}`;
@@ -877,6 +890,7 @@ async function loadWriting() {
     return wrap;
   };
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
+  const calendar = dailyOn ? await calendarNode().catch(() => el("div", { class: "calendar", id: "calendar" })) : "";
   const tabs = el("div", { class: "seg wtabs", role: "tablist" },
     tab("project", inHome() ? "Home" : here().name, "This project's own pages"),
     tab("daily", "Daily", "Home's daily pages"),
@@ -887,7 +901,7 @@ async function loadWriting() {
     : "";
   const tree = el("div", { class: "tree" + (scope !== "project" && !inHome() ? " away" : "") },
     tabs, whose,
-    dailyOn ? el("div", { class: "calendar", id: "calendar" }) : "",
+    calendar,
     !dailyOn && (pages.length || filterTag) ? (() => { const head = sortButton("writing", loadWriting); head.append(tagFilterButton()); return head; })() : "",
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
       async (keys) => { await core("PUT", `/projects/${pid}/starred-order`, { kind: "pages", keys }); loadWriting(); }),
@@ -904,6 +918,9 @@ async function loadWriting() {
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
   const listKey = `writing:${scope}:${pid}`, top = scrolledTo(listKey);
+  // The page's words, read before the drawer is swapped, so the editor is drawn at once and never shows empty first.
+  const words = open ? await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "") : "";
+  if (mine !== writingSeq) return;
   $("body").replaceChildren(tree, pane);
   scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
@@ -931,10 +948,9 @@ async function loadWriting() {
   if (open && window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`page:${wpid()}/${open}`, (k) => bridge.glanceAt(k), ""));
   $("actions").replaceChildren(...actions);
   // A day with no note yet reads as empty; the file appears when you write.
-  if (open) text = await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "");
+  if (open) text = words;
   if (bridge) bridge.seen(JSON.stringify({ page: open ? { path: open } : null }));
   drawEditor();
-  drawCalendar();
   drawPageTags();
 }
 
