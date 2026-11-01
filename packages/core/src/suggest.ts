@@ -505,9 +505,14 @@ export interface ReviewPerson { id: string; title: string; emails: string[]; org
 export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why: string[] }[]; people: ReviewPerson[]; notCards: Record<string, string[]> } {
   const personType = types().find((t) => t["talaris:role"] === "person")?.id;
   const people: ReviewPerson[] = [];
+  const nameKey = types().find((t) => t.id === personType)?.profiles?.contact?.title;
+  const named = new Map<string, string>();
   for (const { object: o } of allRecords()) {
     if (o.type !== personType || o.stub || o.archived) continue;
     const org = o.properties.organization;
+    // Their name as given, not the stand-in a nameless one is shown by ("Untitled"): two without names are not one name.
+    const given = o.properties[typeof nameKey === "string" ? nameKey : "title"];
+    if (typeof given === "string" && given.trim()) named.set(o.id, given);
     people.push({ id: o.id, title: titleOf(o), emails: [...new Set(emailsOf(o))], cards: [...new Set(cardsOf(o))], ...(typeof org === "string" && org.trim() ? { organization: org.trim() } : {}) });
   }
   // Grouped by each thing that would make two one: a pair is found once, whatever it shares.
@@ -516,8 +521,8 @@ export function peopleReview(): { pairs: { a: ReviewPerson; b: ReviewPerson; why
   // Once in a group however often they hold it: one address kept three times paired a person with herself.
   const into = (k: string, p: ReviewPerson) => { const g = groups.get(k) ?? []; if (!g.includes(p)) groups.set(k, [...g, p]); };
   for (const p of people) {
-    const said = norm(spokenName(p.title));
-    if (said && said !== "unnamed") into(`The same name\u0000${said}`, p);
+    const said = named.has(p.id) ? norm(spokenName(named.get(p.id)!)) : "";
+    if (said) into(`The same name\u0000${said}`, p);
     for (const e of p.emails) into(`The same address\u0000${e}`, p);
     for (const c of p.cards) into(`The same contact card\u0000${c}`, p);
   }
@@ -559,9 +564,12 @@ export function samePerson(id: string, other: { person?: string; card?: string }
   let keep = now(id);
   if (other.person && now(other.person) === keep) return { said: `Already one: ${titleOf(getEntity(keep))}`, kept: keep };
   const merged: string[] = [];
+  // The one asked about is kept (the person chosen, for "both are someone else"), unless the other is the one
+  // another app keeps in step, which must be.
   const mergeIn = (otherId: string) => {
-    const r = tie(`e:${keep}`, `e:${otherId}`, { how: "merge", label: "Same person" });
-    if (typeof r !== "string") { merged.push(otherId); keep = r.kept.replace(/^e:/, ""); }
+    const [drop, kept] = syncedBy(getEntity(otherId)) && !syncedBy(getEntity(keep)) ? [keep, otherId] : [otherId, keep];
+    keep = mergeEntities(drop, kept).id;
+    merged.push(otherId);
   };
   if (other.person) mergeIn(now(other.person));
   if (other.card) {

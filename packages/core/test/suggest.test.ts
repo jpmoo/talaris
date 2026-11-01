@@ -183,4 +183,20 @@ test("the same person: a card tied, anyone else on it made one; or two made one"
   assert.match(suggest.samePerson(x.id, { person: z.id }).said, /^Made one/);
   assert.match(suggest.samePerson(y.id, { person: z.id }).said, /^Already one/);
   assert.equal(entities.listPeople().filter((p) => p.title === "Odile Fenn").length, 1);
+  // Two with no name are not one name; folded into a third chosen, that one is kept, and keeps its name.
+  const n1 = entities.createEntity({ role: "person", properties: { emails: ["one@me.example"] } });
+  const n2 = entities.createEntity({ role: "person", properties: { emails: ["two@me.example"] } });
+  assert.ok(!suggest.peopleReview().pairs.some((p) => [p.a.id, p.b.id].includes(n1.id)), "nameless: no name to share");
+  const me = person("Jeffrey Moore");
+  suggest.samePerson(me.id, { person: n1.id });
+  const r2 = suggest.samePerson(me.id, { person: n2.id });
+  assert.equal(r2.kept, me.id, "the one chosen is kept");
+  const got = entities.getEntity(me.id).properties;
+  assert.equal(got.title, "Jeffrey Moore");
+  assert.deepEqual([...(got.emails as string[])].sort(), ["one@me.example", "two@me.example"]);
+  // And a nameless one kept takes the other's name.
+  const blank = entities.createEntity({ role: "person", properties: { emails: ["x@y.example"] } });
+  const namedOne = person("Wren Abara");
+  suggest.samePerson(blank.id, { person: namedOne.id });
+  assert.equal(entities.getEntity(blank.id).properties.title, "Wren Abara");
 });

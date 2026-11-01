@@ -893,6 +893,33 @@
           $("person").scrollTop = top;
         } catch (err) { failed(err); }
       };
+      // Both the same, and someone else already here (two addresses that are both you): each made one with them.
+      const bothAre = (e) => {
+        const box = el("input", { type: "search", class: "find", placeholder: "Who are they?", spellcheck: "false" });
+        const hits = el("div", { class: "menu-list" });
+        const pick = async (target) => {
+          popAway();
+          try {
+            for (const x of [it.a.id, it.b.id].filter((x) => x !== target.id)) await api("POST", `/people/${enc(target.id)}/same`, { person: x });
+            done(`Made one: ${target.title}`);
+            await loadPeople();
+            const top = $("person").scrollTop;
+            await refresh();
+            $("person").scrollTop = top;
+          } catch (err) { failed(err); }
+        };
+        const show = () => {
+          const q = box.value.trim().toLowerCase();
+          const rows = people.filter((r) => r.id !== it.a.id && r.id !== it.b.id && q
+            && (r.title.toLowerCase().includes(q) || String(r.email || "").toLowerCase().includes(q))).slice(0, 8);
+          hits.replaceChildren(...(rows.length ? rows.map((r) => el("button", { class: "menu-item", onclick: () => pick(r) },
+            r.title, r.email ? el("span", { class: "hint" }, `  ${r.email}`) : null)) : [el("div", { class: "hint" }, q ? "No one by that name" : "Type a name")]));
+        };
+        box.addEventListener("input", show);
+        show();
+        popUnder(e.currentTarget, el("div", {}, box, hits));
+        setTimeout(() => box.focus(), 0);
+      };
       const notSame = async () => {
         try {
           await api("POST", "/suggestions/dismiss", { key: `e:${it.a.id}`, other: it.kind === "pair" ? `e:${it.b.id}` : `card:${cardKeyOf(it.card)}` });
@@ -908,6 +935,7 @@
         el("div", { class: "r-two" }, el("div", { class: "card" }, who(it.a)), el("div", { class: "card" + (it.kind === "card" ? " r-card" : "") }, other)),
         el("div", { class: "c-acts" },
           el("button", { class: "t-btn primary", onclick: same }, "Same person"),
+          it.kind === "pair" ? el("button", { class: "t-btn", title: "Both are someone else already here: each made one with them", onclick: bothAre }, "Both are…") : null,
           el("button", { class: "t-btn", onclick: notSame }, "Not the same")));
       return line;
     };

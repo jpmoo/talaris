@@ -73,7 +73,8 @@ export function mergeEntities(dropId: string, keepId: string): Entity {
   // What the kept one lacks, from the other; lists joined.
   const props: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(drop.properties)) {
-    if (k === "title" || empty(v)) continue;
+    // The title too, where the kept one has none: two untitled copies of a person, made one, keep the name one had.
+    if (empty(v)) continue;
     const have = keep.properties[k];
     if (empty(have)) props[k] = v;
     else if (Array.isArray(have) && Array.isArray(v)) {
