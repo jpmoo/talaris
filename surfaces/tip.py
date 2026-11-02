@@ -76,6 +76,9 @@ class Tip(QObject):
         self.label.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        # Told to the compositor as well: the attribute above is only Qt's, and a tip up under the pointer took it
+        # from the bar or dock beneath, which heard the pointer leave.
+        self.label.setWindowFlag(Qt.WindowType.WindowTransparentForInput)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.surface = LayerSurface(self.label, "talaris-tip")
         self.text = ""

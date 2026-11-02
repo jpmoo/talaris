@@ -40,8 +40,12 @@ def rebind() -> None:
         hypr.bind(KEYS, f"{LAUNCHER} --away", "n")
 
 
-def over(namespace: str) -> bool | None:
-    """Whether the pointer is on a layer surface of `namespace`; None if Hyprland couldn't say."""
+def over(namespace: str, across: tuple[float, float] = (0.0, 1.0)) -> bool | None:
+    """
+    Whether the pointer is on a layer surface of `namespace`, within the shares
+    of its width `across` (a surface wider than what it draws); None if Hyprland
+    couldn't say.
+    """
     try:
         at = json.loads(hypr.ask("j/cursorpos") or "{}")
         layers = json.loads(hypr.ask("j/layers") or "{}")
@@ -52,6 +56,6 @@ def over(namespace: str) -> bool | None:
             for layer in level:
                 if layer.get("namespace") == namespace:
                     x, y, w, h = layer.get("x", 0), layer.get("y", 0), layer.get("w", 0), layer.get("h", 0)
-                    if x <= at.get("x", -1) < x + w and y <= at.get("y", -1) < y + h:
+                    if x + across[0] * w <= at.get("x", -1) < x + across[1] * w and y <= at.get("y", -1) < y + h:
                         return True
     return False

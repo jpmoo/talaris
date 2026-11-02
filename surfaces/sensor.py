@@ -305,8 +305,10 @@ class Autohide(QObject):
     def __init__(self, profile: QWebEngineProfile, name: str, view: QWidget,
                  reveal: Callable[[], None], conceal: Callable[[], None],
                  busy: Callable[[], bool] = lambda: False, parent: QObject | None = None,
-                 slide_out: Callable[[], int] = lambda: 0) -> None:
+                 slide_out: Callable[[], int] = lambda: 0, on_it: Callable[[], bool | None] | None = None) -> None:
         super().__init__(parent)
+        #: Whether the pointer is on it now, where a press would reach it: by default anywhere on its surface.
+        self._on_it = on_it or (lambda: away.over(f"talaris-{name}"))
         self.on = False
         self.out = False
         self.name = name
@@ -358,7 +360,9 @@ class Autohide(QObject):
     def _gone(self) -> None:
         if not (self.on and self.out):
             return
-        if self._busy():
+        # The pointer's leaving is only heard, and something up over it for a moment (a surface coming and going)
+        # is heard as leaving: where the pointer is has the last word.
+        if self._busy() or self._on_it():
             self._away.start(AWAY_MS)
             return
         self._out(False)
@@ -385,7 +389,7 @@ class Autohide(QObject):
         way, after the pointer leaving and its time, for when the pointer's
         leaving was never heard and it stayed out.
         """
-        if self.on and self.out and not self._busy() and away.over(f"talaris-{self.name}") is False:
+        if self.on and self.out and not self._busy() and self._on_it() is False:
             self._away.stop()
             self._out(False)
             self._put_away()
