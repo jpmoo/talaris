@@ -52,9 +52,11 @@
   if (WINDOW) document.documentElement.dataset.window = "1";
 
   let view = store.get("talaris.glance.view", "list");
-  let off = new Set(store.get("talaris.glance.off", []));     // kinds' groups switched off
+  // Kinds' groups switched off, and only this project's: for while it is open — each opening shows everything,
+  // so nothing is missing for a filter set some other day and forgotten.
+  let off = new Set();
   let shut = new Set(store.get("talaris.glance.shut", []));   // list groups folded
-  let mine = store.get("talaris.glance.mine", false);
+  let mine = false;
   let data = null;        // the glance, as the core answers it
   // Where the walk is: "" for the project itself, or the key of the thing walked to, and
   // the things walked through on the way ({key, title}), the project first.
@@ -167,7 +169,7 @@
     $("kinds").replaceChildren(...GROUPS.map(([k, name]) => {
       const n = counts.get(k) || 0;
       return el("button", { class: "chip kchip" + (off.has(k) ? "" : " on") + (n ? "" : " none"), title: off.has(k) ? `Show ${name.toLowerCase()}` : `Hide ${name.toLowerCase()}`,
-        onclick: () => { if (off.has(k)) off.delete(k); else off.add(k); store.set("talaris.glance.off", [...off]); filtered(); } },
+        onclick: () => { if (off.has(k)) off.delete(k); else off.add(k); filtered(); } },
         el("span", { class: "dot", style: `background: var(--k-${k})` }), name, el("span", { class: "n" }, String(n)));
     }));
     $("mine").classList.toggle("on", mine);
@@ -902,7 +904,7 @@
   $("q").addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("q").value) { e.preventDefault(); e.stopPropagation(); $("q").value = ""; if (view === "list") drawList(); else Graph.need(); }
   });
-  $("mine").addEventListener("click", () => { mine = !mine; store.set("talaris.glance.mine", mine); filtered(); });
+  $("mine").addEventListener("click", () => { mine = !mine; filtered(); });
 
   // How far out from the project's own things: one step is what they touch; each more,
   // what that touches in turn (the core holds each step to a few hundred).
@@ -974,6 +976,8 @@
       return;
     }
     if (s.up && !was.up) {
+      off = new Set();
+      mine = false;
       Motion.arrive(document.body, how());
       if (bridge) load();
     } else if (s.up && pid !== wasPid && bridge) load();
