@@ -58,6 +58,7 @@ import os
 import shlex
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtGui import QRegion
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
@@ -150,6 +151,11 @@ class DockBridge(Bridge):
     @Slot(result=str)
     def listing(self) -> str:
         return self.owner.last
+
+    @Slot(float, float)
+    def span(self, left: float, right: float) -> None:
+        """Where the dock is, as shares of its surface's width: the page's, as it is drawn."""
+        self.owner.span(left, right)
 
 
 class DockMenu(QObject):
@@ -377,6 +383,8 @@ class Dock(QObject):
         self.menu = DockMenu(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
+        #: Where the dock is across its surface, as shares of its width (the page's `span`): presses reach only there.
+        self._span = (0.0, 1.0)
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)
         self._soon.timeout.connect(self.refresh)
@@ -435,6 +443,26 @@ class Dock(QObject):
         self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
+
+    def span(self, left: float, right: float) -> None:
+        self._span = (max(0.0, min(left, 1.0)), max(0.0, min(right, 1.0)))
+        self._mask()
+
+    def _mask(self) -> None:
+        """
+        Presses reach the dock only across the dock itself, with room for its
+        shadow and a swelling icon: its surface is the screen's width, and a
+        press anywhere on it — beside the dock too — was the dock's, so it
+        neither went to the window beneath nor put a hiding dock away. The
+        whole height stays, for icons to swell into.
+        """
+        w, h = self.view.width(), self.view.height()
+        if w <= 0 or h <= 0:
+            return
+        pad = 24
+        left = max(0, int(self._span[0] * w) - pad)
+        right = min(w, int(self._span[1] * w + 0.999) + pad)
+        self.view.setMask(QRegion(left, 0, max(1, right - left), h))
 
     def _hide(self) -> None:
         self.view.hide()
