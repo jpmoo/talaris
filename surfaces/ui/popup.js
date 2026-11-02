@@ -350,7 +350,7 @@ function drawWifi() {
       d.append(button("Disconnect", () => sendNet({ verb: "leave", ssid: wifi.active || n.ssid }, key)));
     } else if (n.enterprise) {
       d.append(note("Needs a sign-in this panel cannot ask for"),
-        button("More settings", () => bridge.openTool("network")));
+        button("Sign in…", () => bridge.openSettings("wifi")));
     } else {
       const pw = Object.assign(document.createElement("input"), { type: "password", placeholder: "Password" });
       const join = () => { if (pw.value) sendNet({ verb: "join", ssid: n.ssid, password: pw.value }, key); };
@@ -493,7 +493,7 @@ function drawBattery(b, error) {
   }));
   refit();
 }
-$("bat-settings").addEventListener("click", () => bridge.powerSettings());
+$("bat-settings").addEventListener("click", () => bridge.openSettings("power"));
 
 $("wifi-on").addEventListener("click", () => wifi && sendNet({ verb: "power", on: !wifi.on }, ""));
 $("bt-on").addEventListener("click", () => blue && sendBt({ verb: "power", on: !blue.on }, ""));
@@ -544,7 +544,7 @@ function drawTrayMenu(menu) {
 
 $("rescan").addEventListener("click", () => { $("nets").replaceChildren(note("Looking…")); bridge.panelRead("network", true); });
 $("scan").addEventListener("click", () => { open.scanning = true; drawBlue(); bridge.panelRead("bluetooth", true); });
-$("net-more").addEventListener("click", () => bridge.openTool("network"));
+$("net-more").addEventListener("click", () => bridge.openSettings("wifi"));
 $("bt-more").addEventListener("click", () => bridge.openTool("bluetooth"));
 
 Surface.connect({ onState, onMachine }).then((b) => {

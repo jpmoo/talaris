@@ -42,6 +42,7 @@ import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config, settle_accent, settle_opacity, single_window
 from core import Bridge, call, get_json, projects as core_projects
+from machine import wifi_addressing
 from layershell import OVERLAY, Placement
 from morgan import command
 from overlay import Overlay
@@ -378,10 +379,10 @@ class SettingsBridge(Bridge):
     def panelRead(self, kind: str, deep: bool) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.machine.panel_read(kind, deep)
 
-    @Slot(str)
-    def openTool(self, name: str) -> None:  # noqa: N802 — called from the page by this name
-        """A network that needs more than a password: nmtui, in a terminal."""
-        self.owner.desktop.machine.open_tool(name)
+    @Slot(str, result=str)
+    def wifiAddressing(self, uuid: str) -> str:  # noqa: N802 — called from the page by this name
+        """A saved network's addressing and DNS, for its details in the Wi-Fi page."""
+        return json.dumps(wifi_addressing(uuid))
 
     @Slot(str)
     def network(self, request: str) -> None:

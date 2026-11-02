@@ -267,11 +267,11 @@ class BarBridge(Bridge):
     def powerProfile(self, name: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.machine.power_profile(name)
 
-    @Slot()
-    def powerSettings(self) -> None:  # noqa: N802 — called from the page by this name
-        """The battery panel's way on: Settings, Power."""
+    @Slot(str)
+    def openSettings(self, page: str) -> None:  # noqa: N802 — called from the page by this name
+        """A panel's way on: Settings, at its page (the battery's Power, Wi-Fi's own)."""
         self.owner.desktop.bar.close_popup()
-        self.owner.desktop.settings.open("power")
+        self.owner.desktop.settings.open(page)
 
     @Slot(str)
     def volume(self, change: str) -> None:

@@ -1509,6 +1509,69 @@ function netRow(name, meta, cls, ...controls) {
 function wifiSend(request, msg) { working("wifi-msg", msg); bridge.network(JSON.stringify(request)); }
 function btSend(request, msg) { working("bt-msg", msg); bridge.bluetooth(JSON.stringify(request)); }
 
+// The one network whose form is open below its row — a sign-in, a hidden network, a saved one's details — kept
+// across redraws by its key.
+let wifiOpen = "";
+const wifiToggle = (key) => { wifiOpen = wifiOpen === key ? "" : key; drawWifi(wifiNow); };
+const field = (attrs) => el("input", { class: "field", ...attrs });
+const formRow = (name, ...controls) => el("div", { class: "row" }, el("span", { class: "name" }, name), el("span", { class: "what" }, ...controls));
+const wifiForm = (...rows) => el("div", { class: "net-form" }, ...rows);
+// 802.1X: the outer method and the inner one the password goes in (machine.py, EAP).
+const EAP_CHOICES = [["peap", "PEAP"], ["ttls-pap", "TTLS · PAP"], ["ttls-mschapv2", "TTLS · MSCHAPv2"]];
+
+/** A school's or workplace's network: a username and password, and how they are sent. */
+function signInForm(ssid) {
+  let method = "peap";
+  const how = el("span", { class: "seg" });
+  const drawHow = () => how.replaceChildren(...EAP_CHOICES.map(([v, label]) =>
+    el("button", { class: v === method ? "on" : "", onclick: () => { method = v; drawHow(); } }, label)));
+  drawHow();
+  const user = field({ placeholder: "Username" });
+  const pw = field({ type: "password", placeholder: "Password" });
+  const join = () => user.value && wifiSend({ verb: "enterprise", ssid, method, username: user.value, password: pw.value }, `Signing in to ${ssid}…`);
+  pw.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+  setTimeout(() => user.focus(), 0);
+  return wifiForm(formRow("Sign-in", how), formRow("Username", user), formRow("Password", pw),
+    formRow("", el("button", { class: "t-btn", onclick: join }, "Join")),
+    el("p", { class: "note" }, "PEAP is the usual one; ask whoever runs the network if it does not take."));
+}
+
+/** A network that does not say its name: joined by it. */
+function hiddenForm() {
+  const name = field({ placeholder: "Network name" });
+  const pw = field({ type: "password", placeholder: "None if open" });
+  const join = () => name.value && wifiSend({ verb: "hidden", ssid: name.value, password: pw.value }, `Joining ${name.value}…`);
+  pw.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+  setTimeout(() => name.focus(), 0);
+  return wifiForm(formRow("Name", name), formRow("Password", pw), formRow("", el("button", { class: "t-btn", onclick: join }, "Join")));
+}
+
+/** A saved network's addressing: automatic or its own, and DNS servers of your choosing. */
+function detailsForm(s) {
+  const box = wifiForm(el("p", { class: "note" }, "Reading…"));
+  bridge.wifiAddressing(s.uuid, (text) => {
+    const a = JSON.parse(text || "{}");
+    if (!a || a.manual === undefined) { box.replaceChildren(el("p", { class: "note err" }, "Could not read this network's settings.")); return; }
+    let manual = a.manual;
+    const how = el("span", { class: "seg" });
+    const address = field({ value: a.address || "", placeholder: "192.168.1.50/24" });
+    const gateway = field({ value: a.gateway || "", placeholder: "192.168.1.1" });
+    const dns = field({ value: a.dns || "", placeholder: "The network's own" });
+    const own = [formRow("Address", address), formRow("Gateway", gateway)];
+    const drawHow = () => {
+      how.replaceChildren(...[[false, "Automatic"], [true, "Manual"]].map(([v, label]) =>
+        el("button", { class: v === manual ? "on" : "", onclick: () => { manual = v; drawHow(); } }, label)));
+      for (const r of own) r.hidden = !manual;
+    };
+    drawHow();
+    const save = () => wifiSend({ verb: "addressing", uuid: s.uuid, manual, address: address.value, gateway: gateway.value, dns: dns.value }, `Saving ${s.name}…`);
+    box.replaceChildren(formRow("Address", how), ...own, formRow("DNS servers", dns),
+      formRow("", el("button", { class: "t-btn", onclick: save }, "Save")),
+      el("p", { class: "note" }, "DNS servers, separated by commas, replace the network's own; leave it empty to use those."));
+  });
+  return box;
+}
+
 function drawWifi(w) {
   wifiNow = w;
   $("wifi-on").classList.toggle("on", !!w.on);
@@ -1525,14 +1588,21 @@ function drawWifi(w) {
     const act = s.active
       ? el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "leave", ssid: s.name }, `Leaving ${s.name}…`) }, "Disconnect")
       : s.inRange ? el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "join", ssid: s.name, known: true }, `Joining ${s.name}…`) }, "Connect") : "";
-    return netRow(s.name, meta, s.active ? "current" : s.inRange ? "" : "dim-row", el("small", { class: "note", style: "margin:0" }, "Auto"), auto, act,
+    const key = `saved:${s.uuid}`;
+    const row = netRow(s.name, meta, s.active ? "current" : s.inRange ? "" : "dim-row", el("small", { class: "note", style: "margin:0" }, "Auto"), auto, act,
+      el("button", { class: "t-btn" + (wifiOpen === key ? " on" : ""), onclick: () => wifiToggle(key) }, "Details"),
       twiceBtn("Forget", "Forget it?", () => wifiSend({ verb: "forget", uuid: s.uuid, ssid: s.name }, `Forgetting ${s.name}…`)));
+    return wifiOpen === key ? el("div", {}, row, detailsForm(s)) : row;
   }));
   if (!(w.saved || []).length) $("wifi-saved").replaceChildren(Kit.empty("None saved"));
   const fresh = (w.networks || []).filter((n) => !n.known);
   $("wifi-near").replaceChildren(...fresh.map((n) => {
     const meta = `${bars(n.signal)}${n.secure ? " · Secured" : " · Open"}`;
-    if (n.enterprise) return netRow(n.ssid, meta + " · needs a sign-in", "", el("button", { class: "t-btn", onclick: () => bridge.openTool && bridge.openTool("network") }, "Open the network tool"));
+    if (n.enterprise) {
+      const key = `sign-in:${n.ssid}`;
+      const row = netRow(n.ssid, meta + " · needs a sign-in", "", el("button", { class: "t-btn" + (wifiOpen === key ? " on" : ""), onclick: () => wifiToggle(key) }, "Sign in"));
+      return wifiOpen === key ? el("div", {}, row, signInForm(n.ssid)) : row;
+    }
     if (!n.secure) return netRow(n.ssid, meta, "", el("button", { class: "t-btn", onclick: () => wifiSend({ verb: "join", ssid: n.ssid }, `Joining ${n.ssid}…`) }, "Join"));
     const pw = el("input", { type: "password", placeholder: "Password", class: "field" });
     const join = () => pw.value && wifiSend({ verb: "join", ssid: n.ssid, password: pw.value }, `Joining ${n.ssid}…`);
@@ -1540,6 +1610,9 @@ function drawWifi(w) {
     return netRow(n.ssid, meta, "", pw, el("button", { class: "t-btn", onclick: join }, "Join"));
   }));
   if (!fresh.length) $("wifi-near").replaceChildren(Kit.empty("Nothing new in range"));
+  const hidden = netRow("A hidden network", "One that does not show its name", "",
+    el("button", { class: "t-btn" + (wifiOpen === "hidden" ? " on" : ""), onclick: () => wifiToggle("hidden") }, "Join…"));
+  $("wifi-near").append(hidden, ...(wifiOpen === "hidden" ? [hiddenForm()] : []));
 }
 
 function drawBt(b) {

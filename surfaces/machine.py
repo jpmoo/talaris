@@ -18,6 +18,7 @@ to the full tool in a terminal, as everything did in the first pass.
 from __future__ import annotations
 
 import glob
+import ipaddress
 import json
 import os
 import re
@@ -227,7 +228,7 @@ def end_session(verb: str) -> list[str]:
 #: The settings the bar hands off rather than rebuilds.
 #: Morgan's command, for signing the Oracle in and out where it can ask in a terminal.
 _HEYMORGAN = shutil.which("heymorgan") or os.path.expanduser("~/.local/bin/heymorgan")
-TOOLS = {"network": ("nmtui",), "bluetooth": ("bluetoothctl",),
+TOOLS = {"bluetooth": ("bluetoothctl",),
          "morgan-login": (_HEYMORGAN, "login"), "morgan-logout": (_HEYMORGAN, "logout")}
 
 
@@ -296,6 +297,65 @@ def wifi_state(rescan: bool = False) -> dict:
         s["signal"] = seen.get(s["name"], {}).get("signal")
     saved.sort(key=lambda s: (not s["active"], not s["inRange"], s["name"].lower()))
     return {"on": True, "active": active, "networks": networks, "saved": saved}
+
+
+#: The sign-ins an 802.1X network may ask for: the outer method, and the inner one it carries the password in.
+EAP = {"peap": ("peap", "mschapv2"), "ttls-pap": ("ttls", "pap"), "ttls-mschapv2": ("ttls", "mschapv2")}
+
+
+def _join_enterprise(ssid: str, inner: tuple[str, str], username: str, password: str) -> str:
+    """Saved, then joined; a sign-in that fails is not kept, to be tried again rather than found later as a dud."""
+    eap, phase2 = inner
+    # The password goes into NetworkManager's own file for the network, as any saved password does.
+    error = _ran("nmcli", "connection", "add", "type", "wifi", "con-name", ssid, "ssid", ssid,
+                 "wifi-sec.key-mgmt", "wpa-eap", "802-1x.eap", eap, "802-1x.phase2-auth", phase2,
+                 "802-1x.identity", username, "802-1x.password", password,
+                 # Most such networks' certificates are their own, which a system's store does not hold.
+                 "802-1x.system-ca-certs", "no")
+    if error:
+        return error
+    error = _ran("nmcli", "connection", "up", "id", ssid, timeout=45)
+    if error:
+        _ran("nmcli", "connection", "delete", "id", ssid)
+    return error
+
+
+def wifi_addressing(uuid: str) -> dict:
+    """A saved network's addressing: automatic, or an address of its own; and the DNS servers it is told to use."""
+    out = _run("nmcli", "-t", "-g", "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns", "connection", "show", "uuid", uuid)
+    lines = out.splitlines()
+    if len(lines) < 4:
+        return {}
+    method, address, gateway, dns = (x.strip() for x in lines[:4])
+    return {"manual": method == "manual", "address": address.split(",")[0].strip(), "gateway": gateway,
+            "dns": ", ".join(d.strip() for d in dns.split(",") if d.strip())}
+
+
+def _set_addressing(uuid: str, r: dict) -> str:
+    """A saved network's addressing changed, checked first; joined again if it is the one in use, to take effect."""
+    manual = bool(r.get("manual"))
+    address, gateway = str(r.get("address", "")).strip(), str(r.get("gateway", "")).strip()
+    dns = [d for d in re.split(r"[,\s]+", str(r.get("dns", ""))) if d]
+    if manual:
+        address = address if "/" in address else address + "/24"
+    checks = [(d, ipaddress.ip_address) for d in dns]
+    if manual:
+        checks += [(address, ipaddress.ip_interface)] + ([(gateway, ipaddress.ip_address)] if gateway else [])
+    for value, check in checks:
+        try:
+            check(value)
+        except ValueError:
+            return f"Not an address: {value}"
+        args = ["ipv4.method", "manual", "ipv4.addresses", address, "ipv4.gateway", gateway]
+    else:
+        args = ["ipv4.method", "auto", "ipv4.addresses", "", "ipv4.gateway", ""]
+    # DNS of your own replaces the network's, rather than being asked after it.
+    args += ["ipv4.dns", ",".join(dns), "ipv4.ignore-auto-dns", "yes" if dns and not manual else "no"]
+    error = _ran("nmcli", "connection", "modify", "uuid", uuid, *args)
+    if error:
+        return error
+    active = uuid in _run("nmcli", "-t", "-f", "UUID", "connection", "show", "--active").split()
+    return _ran("nmcli", "connection", "up", "uuid", uuid, timeout=45) if active else ""
 
 
 def _bt_info(mac: str) -> dict:
@@ -489,6 +549,18 @@ class Machine(QObject):
             # By its uuid where Settings has one: two saved networks may share a name.
             uuid = str(r.get("uuid", ""))
             work = (lambda: _ran("nmcli", "connection", "delete", "uuid", uuid)) if uuid else (lambda: _ran("nmcli", "connection", "delete", "id", ssid))
+        elif verb == "enterprise" and ssid and r.get("username"):
+            # A school's or a workplace's network: a name and password, checked by its own server (802.1X).
+            inner = EAP.get(str(r.get("method", "")), EAP["peap"])
+            username, password = str(r["username"]), str(r.get("password", ""))
+            work = lambda: _join_enterprise(ssid, inner, username, password)
+        elif verb == "hidden" and ssid:
+            password = str(r.get("password", ""))
+            work = lambda: _ran("nmcli", "device", "wifi", "connect", ssid, *(("password", password) if password else ()),
+                                "hidden", "yes", timeout=45)
+        elif verb == "addressing" and r.get("uuid"):
+            uuid = str(r["uuid"])
+            work = lambda: _set_addressing(uuid, r)
         elif verb == "auto" and r.get("uuid"):
             uuid = str(r["uuid"])
             work = lambda: _ran("nmcli", "connection", "modify", "uuid", uuid, "connection.autoconnect", "yes" if r.get("on") else "no")
