@@ -597,6 +597,13 @@ async function setConfig(values) {
 
 function loadMorgan(keep = false) {
   mgDown("");
+  // Not installed: the page says what Morgan needs, rather than having nowhere to say it.
+  $("mg-tabs").closest(".mg-tabs").hidden = !morganHere;
+  if (!morganHere) {
+    mgBody(el("p", { class: "note" }, "Morgan is a separate install: heymorgan, which runs alongside Talaris. Once it is installed, its settings are here."),
+      el("p", { class: "about-link" }, el("a", { href: "https://github.com/jpmoo/heymorgan" }, "github.com/jpmoo/heymorgan")));
+    return;
+  }
   seg("mg-tabs", MG_TABS, mgTab, (t) => { mgTab = t; loadMorgan(); });
   const turn = ++mgTurn;
   mgLive = () => turn === mgTurn && $("morgan").classList.contains("on");
@@ -1958,23 +1965,24 @@ function how() {
     rules: (rule, rel, P) => { const n = document.querySelector("nav").getBoundingClientRect(); rule(rel(n.right, P.top), rel(n.right, P.bottom)); },
   };
 }
-// Morgan installed on this machine (morgan.py, installed): its page, and every choice that is Morgan's, shown only then.
+// Morgan installed on this machine (morgan.py, installed): every choice that is Morgan's shown only then. Its page
+// is always there — without Morgan, to say where Morgan comes from.
 let morganHere = true;
 function showMorgan() {
-  const nav = document.querySelector('[data-page="morgan"]');
-  if (nav) nav.hidden = !morganHere;
   const size = $("text-morgan");
   if (size) size.closest(".row").hidden = !morganHere;
 }
 Surface.connect({
   onState: (s) => {
+    const had = morganHere;
     morganHere = s.morganHere !== false;
     showMorgan();
+    if (had !== morganHere && $("morgan").classList.contains("on")) loadMorgan();
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
     if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
-    if (bridge && s.up && (!wasUp || s.page)) reload((s.page === "morgan" && !morganHere ? "" : s.page) || "look");
+    if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
     wasUp = !!s.up;
   },
 }).then((b) => {

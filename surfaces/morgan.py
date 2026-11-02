@@ -52,9 +52,9 @@ def installed() -> bool:
     """
     heymorgan on this machine: its user service known to systemd, or its
     socket there. Morgan is a companion, installed on its own; where it is
-    not, Talaris shows none of Morgan's pieces (the button, the panel, its
-    page in Settings, "Ask Morgan", its key) — not a button that only ever
-    says Morgan is not running.
+    not, Talaris shows none of Morgan's pieces (the button, the panel, "Ask
+    Morgan", its key) — not a button that only ever says Morgan is not
+    running. Settings keeps Morgan's page, to say where Morgan comes from.
     """
     # As though it were not, to see Talaris on its own (TALARIS_NO_MORGAN=1).
     if os.environ.get("TALARIS_NO_MORGAN"):
