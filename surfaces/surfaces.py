@@ -114,6 +114,7 @@ def register_scheme() -> None:
 #: The project carousel (jump_panel.py), and putting every panel away.
 PROJECTS_KEYS = "SUPER, TAB"
 FILE_ALL_KEYS = "SUPER, ESCAPE"
+HIDE_KEYS = "SUPER, H"
 #: Clipboard history from the bar (clipboard.py); Ctrl+Shift is taken.
 CLIP_KEYS = "SUPER, V"
 #: What Super+Alt was once bound to — the project jump, its letters, the old way
@@ -478,6 +479,7 @@ class Desktop(QObject):
         # Super+Tab: the projects, most recent first; again while it is out, the next one.
         hypr.bind(PROJECTS_KEYS, f"{LAUNCHER} --projects")
         hypr.bind(FILE_ALL_KEYS, f"{LAUNCHER} --file-all")
+        hypr.bind(HIDE_KEYS, f"{LAUNCHER} --hide-window")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         if self.morgan_here:
             hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -516,7 +518,7 @@ class Desktop(QObject):
         os._exit(code)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -620,6 +622,7 @@ class Desktop(QObject):
             {"keys": "Super + Shift + W", "does": "The writing surface"},
             {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
             {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
+            {"keys": "Super + H", "does": "Hide this window; its dock item brings it back"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]
 
@@ -927,6 +930,9 @@ class Desktop(QObject):
                 # The dock and the bar, out from hiding: put away again (sensor.py, Autohide).
                 self.dock.hider.clicked()
                 self.bar.hider.clicked()
+            elif verb == "hide-window":
+                # As the dock's Hide does, for the one with focus.
+                hypr.hide(str(hypr.windows()["focused"] or ""))
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()
@@ -1036,6 +1042,8 @@ def main() -> int:
         return send(f"popup {args[1]}")
     if args[:1] == ["--file-all"]:
         return send("file-all")
+    if args[:1] == ["--hide-window"]:
+        return send("hide-window")
     if args[:1] in (["--away"], ["--toasts-away"]):
         return send("away")
     if args[:1] == ["--quit"]:

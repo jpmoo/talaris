@@ -117,6 +117,7 @@ and writes two small system files (or run `setup/location.sh` yourself;
 | Super+V | Clipboard history |
 | Super+Shift+G | Glance at the project you're in |
 | Super+Escape | Put everything away; a fullscreen window back in its place |
+| Super+H | Hide this window; its dock item brings it back |
 | Super+Shift+C / W | The canvas / the writing drawer |
 | Super+Shift+M | Morgan, when it's installed |
 
