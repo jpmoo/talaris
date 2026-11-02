@@ -505,7 +505,7 @@ async function loadCanvas() {
     " ", btn("Rename", () => renameCanvas(node)),
   ];
   if (viewing !== tree.id) {
-    actions.push(" ", btn("Delete", () => deleteCanvas(node, trail[trail.length - 2]), "danger"));
+    actions.push(" ", Kit.twice(btn("Delete", null, "danger"), { key: `del-canvas:${node.id}`, ask: "Delete it?", act: () => deleteCanvas(node, trail[trail.length - 2]) }));
   }
   $("actions").replaceChildren(...actions);
   status("");
@@ -612,14 +612,13 @@ function renameCanvas(node) {
 function deleteCanvas(node, parent) {
   const pid = here().id;
   const gone = () => { viewing = parent ? parent.id : null; loadCanvas(); };
-  confirmDelete(`Delete “${node.title}”?`, "Its card comes off its parent canvas. A copy is kept in its versions.", async () => {
-    const { count } = await core("GET", `/projects/${pid}/canvases/${node.id}/below`);
+  // Asked already, by the button's second press; something inside it is asked again here, saying what else goes.
+  core("GET", `/projects/${pid}/canvases/${node.id}/below`).then(async ({ count }) => {
     if (!count) { await core("DELETE", `/projects/${pid}/canvases/${node.id}`); gone(); return; }
-    // Something inside it: asked again, saying what else goes.
-    return () => confirmDelete(`Delete everything inside “${node.title}” too?`,
+    confirmDelete(`Delete everything inside “${node.title}” too?`,
       `${count === 1 ? "1 canvas is" : `${count} canvases are`} inside it, and ${count === 1 ? "it goes" : "they all go"} with it. A copy of each is kept in its versions.`,
       async () => { await core("DELETE", `/projects/${pid}/canvases/${node.id}?all=1`); gone(); }, `Delete all ${count + 1}`);
-  });
+  }).catch((e) => status(e.message, true));
 }
 
 async function newCanvas() {
@@ -943,7 +942,7 @@ async function loadWriting() {
       " ", el("button", { class: "t-btn", title: "The projects this page belongs to: the one it lives in, and any others", onclick: (e) => { e.stopPropagation(); projectsMenu(e.currentTarget); } }, "Projects…"),
       // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
       " ", el("button", { class: "t-btn", title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
-      " ", btn("Delete", deletePage, "danger"));
+      " ", Kit.twice(btn("Delete", null, "danger"), { key: `del-page:${open}`, ask: "Delete it?", act: deletePage }));
   }
   // Glance on the page open: what it is connected to, and possible connections.
   if (open && window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`page:${wpid()}/${open}`, (k) => bridge.glanceAt(k), ""));
@@ -1139,24 +1138,23 @@ function deletePage() {
     text = "";
     loadWriting();
   };
-  confirmDelete(`Delete “${title}”?`, "A copy is kept in its versions.", async () => {
-    const { pages } = await core("GET", `/projects/${pid}/page/below?path=${encodeURIComponent(path)}`);
+  // Asked already, by the button's second press; pages beneath it are asked about here, saying what else goes.
+  core("GET", `/projects/${pid}/page/below?path=${encodeURIComponent(path)}`).then(async ({ pages }) => {
     if (!pages.length) { await gone(false); return; }
-    // Pages beneath it: asked again, saying what else goes.
     const n = pages.length;
-    return () => confirmDelete(`Delete everything beneath “${title}” too?`,
+    confirmDelete(`Delete everything beneath “${title}” too?`,
       `${n === 1 ? "1 page is" : `${n} pages are`} beneath it, and ${n === 1 ? "it goes" : "they all go"} with it. A copy of each is kept in its versions.`,
       () => gone(true), `Delete all ${n + 1}`);
-  });
+  }).catch((e) => status(e.message, true));
 }
 
 // ---------------------------------------------------------------- confirming
 
 /*
  * A confirmation inside the drawer, in the theme — never the browser's own
- * dialog. Deleting something with more beneath it is asked twice, the second
- * time saying how much goes with it. The core has the last word: what it
- * refuses is said here in its words, and nothing is deleted.
+ * dialog — for a delete that takes more with it, saying how much: a plain
+ * delete is asked by its button's second press (Kit.twice). The core has the
+ * last word: what it refuses is said here in its words, and nothing is deleted.
  */
 function confirmDelete(title, detail, act, label = "Delete") {
   const said = el("p", { class: "err" });

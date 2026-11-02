@@ -2605,6 +2605,18 @@ export function CanvasView({
     if (focusNote) setFocusNote(null);
   }, [focusNote]);
   const [confirmRemove, setConfirmRemove] = useState<string[] | null>(null);
+  /**
+   * "Remove from canvas" asks by a second press, as every plain delete in
+   * Talaris does (kit.js, ask): a block taken off stays in your notes. Only a
+   * note's delete — gone for good, an ephemeral note living nowhere else —
+   * opens the dialog, which says so. Four seconds, then it stops asking.
+   */
+  const [armRemove, setArmRemove] = useState<string | null>(null);
+  useEffect(() => {
+    if (!armRemove) return;
+    const t = setTimeout(() => setArmRemove(null), 4000);
+    return () => clearTimeout(t);
+  }, [armRemove]);
   const [confirmClear, setConfirmClear] = useState(false);
   /**
    * Removing from a canvas costs different things for different kinds: a block
@@ -4083,13 +4095,20 @@ export function CanvasView({
             <div className="menu-sep" />
             <button
               className="menu-item"
+              style={armRemove === nodeMenu.id ? { color: "var(--danger)" } : undefined}
               onClick={() => {
                 const id = nodeMenu.id;
+                if (!id.startsWith("n:") && armRemove !== id) {
+                  setArmRemove(id);
+                  return;
+                }
+                setArmRemove(null);
                 setNodeMenu(null);
-                setConfirmRemove([id]);
+                if (id.startsWith("n:")) setConfirmRemove([id]);
+                else void removeMany([id]);
               }}
             >
-              {nodeMenu.id.startsWith("n:") ? "Delete note" : "Remove from canvas"}
+              {nodeMenu.id.startsWith("n:") ? "Delete note" : armRemove === nodeMenu.id ? "Remove it?" : "Remove from canvas"}
             </button>
           </PointerMenu>,
           document.body,

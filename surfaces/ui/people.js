@@ -987,35 +987,24 @@
   // ---------------------------------------------------------------- making and removing
 
   function foot() {
-    const host = el("div", { class: "p-foot" });
-    const draw = (asking) => {
-      host.replaceChildren(...(asking ? [
-        el("span", {}, `Delete ${got.title}? This can't be undone.`),
-        el("span", { class: "spacer" }),
-        el("button", { class: "t-btn", id: "del-cancel", onclick: () => draw(false) }, "Cancel"),
-        el("button", { class: "t-btn danger", onclick: remove }, "Delete"),
-      ] : [
-        // Someone already here they really are (the same person entered twice, under another name or none):
-        // made one with them, who is kept, and shown.
-        el("button", { class: "t-btn", title: "Someone already here: this one is made one with them", onclick: (e) => {
-          const id = chosen;
-          pickPerson(e.currentTarget, [id], async (target) => {
-            try {
-              const r = await api("POST", `/people/${enc(target.id)}/same`, { person: id });
-              say(r.said || "Done");
-              await loadPeople();
-              got = null;
-              choose(r.kept || target.id);
-            } catch (err) { failed(err); }
-          });
-        } }, "Same person as…"),
-        el("span", { class: "spacer" }),
-        el("button", { class: "t-btn danger", onclick: () => { draw(true); setTimeout(() => $("del-cancel") && $("del-cancel").focus(), 0); } }, "Delete person"),
-      ]));
-      host.classList.toggle("asking", asking);
-    };
-    draw(false);
-    return host;
+    return el("div", { class: "p-foot" },
+      // Someone already here they really are (the same person entered twice, under another name or none):
+      // made one with them, who is kept, and shown.
+      el("button", { class: "t-btn", title: "Someone already here: this one is made one with them", onclick: (e) => {
+        const id = chosen;
+        pickPerson(e.currentTarget, [id], async (target) => {
+          try {
+            const r = await api("POST", `/people/${enc(target.id)}/same`, { person: id });
+            say(r.said || "Done");
+            await loadPeople();
+            got = null;
+            choose(r.kept || target.id);
+          } catch (err) { failed(err); }
+        });
+      } }, "Same person as…"),
+      el("span", { class: "spacer" }),
+      // Asked by a second press, as every delete is (Kit.twice); a person is not kept in versions, so it says for good.
+      Kit.twice(el("button", { class: "t-btn danger" }, "Delete person"), { key: `del-person:${chosen}`, ask: "Delete for good?", act: remove }));
   }
   async function remove() {
     const id = chosen;
@@ -1117,9 +1106,10 @@
     if (e.defaultPrevented) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      const asking = document.querySelector(".p-foot.asking #del-cancel");
+      // A delete asking (its second press) stops asking before the panel goes.
+      const asking = document.querySelector(".p-foot .armed");
       if (!!Kit.isOpen()) popAway();
-      else if (asking) asking.click();
+      else if (asking) Kit.unask(asking, `del-person:${chosen}`);
       else if (bridge) bridge.file();
       return;
     }
