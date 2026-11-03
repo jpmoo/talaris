@@ -833,13 +833,13 @@ class Desktop(QObject):
         """
         A page or a canvas, opened in its project: that project the current one
         first, if it is not. One of Home's Pages (the pages of no other project)
-        is the same from every project, so it opens where you are, on the
-        writing drawer's Pages tab. `notes` is their old name, before Home.
+        is the same from every project, so it opens where you are, the writing
+        drawer looking through Home. `notes` is their old name, before Home.
         """
         if kind == "page" and project == "notes":
             project, where = self._home().get("id", ""), f"Pages/{where}"
         if kind == "page" and where.startswith("Pages/") and project == self._home().get("id", ""):
-            self.show_in_drawer("writing", {"page": where, "scope": "undated"})
+            self.show_in_drawer("writing", {"page": where, "home": True})
             return
         if project and project != self.project.get("id"):
             self.go_to_project(project)

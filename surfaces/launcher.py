@@ -46,6 +46,8 @@ from views import log
 #: often it is looked for meanwhile.
 FOLLOW_MS = 1800
 LOOK_MS = 250
+#: How long the compositor is given to see a surface gone, before what follows it.
+GONE_MS = 80
 
 #: How far into a project folder files are looked for, and how many at most —
 #: a launcher, not a file search.
@@ -366,15 +368,15 @@ class Launcher(Overlay):
                 return "That window has gone"
             hypr.focus(r["address"])
         elif kind == "project":
-            self.desktop.go_to_project(str(r["id"]), announce=True)
+            self._gone_first(lambda: self.desktop.go_to_project(str(r["id"]), announce=True))
         elif kind == "canvas" and r.get("project"):
             # A canvas wherever it is, found by what it says: opened in its project.
-            self.desktop.open_place("canvas", str(r["project"]), str(r["id"]))
+            self._gone_first(lambda: self.desktop.open_place("canvas", str(r["project"]), str(r["id"])))
         elif kind == "canvas":
             self.desktop.show_in_drawer("canvas", {"canvas": str(r["id"])})
         elif kind == "page" and r.get("project"):
             # A page wherever it is — another project's, or an undated note — opened there.
-            self.desktop.open_place("page", str(r["project"]), str(r["path"]))
+            self._gone_first(lambda: self.desktop.open_place("page", str(r["project"]), str(r["path"])))
         elif kind == "page":
             self.desktop.show_in_drawer("writing", {"page": str(r["path"])})
         elif kind == "event":
@@ -401,6 +403,19 @@ class Launcher(Overlay):
         else:
             return "That cannot be done"
         return ""
+
+    def _gone_first(self, then) -> None:
+        """
+        What goes to another project, done once this panel has gone. It holds
+        the keyboard to itself, and when its surface goes Hyprland hands focus
+        back to the last window: on the project just left, if the one gone to
+        has no window of its own, and the desktop followed it back there, with
+        what had been opened lost on the way (a page found here, and its
+        project's list shown without it).
+        """
+        self.file_away()
+        self.left()
+        QTimer.singleShot(GONE_MS, then)
 
     def close_windows(self, addresses: list[str]) -> str:
         """

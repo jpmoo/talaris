@@ -106,10 +106,31 @@ function score(q, text) {
   return 0;
 }
 
+// The buttons under the box: one kind of thing at a time, again for all of them. Each opening starts on all.
+const FILTERS = [["app", "Apps", ["app", "window"]], ["task", "Tasks", ["task"]], ["event", "Events", ["event"]], ["page", "Pages", ["page", "note"]],
+  ["canvas", "Canvases", ["canvas"]], ["person", "People", ["person"]], ["file", "Files", ["file"]], ["project", "Projects", ["project"]], ["conversation", "Conversations", ["conversation"]]];
+let only = "";
+const filterOn = () => (only && state.mode !== "ask" ? FILTERS.find(([k]) => k === only)[2] : null);
+/** What a row is, by what it opens: found by meaning, a task is a row of the same look as a page. */
+const whatIs = (x) => (x.act?.kind === "entity" ? x.act.as || "" : x.act?.kind === "glance" ? "event" : x.kind);
+function drawFilters() {
+  $("filters").hidden = state.mode === "ask" || !!viewing;
+  $("filters").replaceChildren(...FILTERS.map(([k, label]) => {
+    const b = Object.assign(document.createElement("button"), { className: "chip" + (only === k ? " on" : ""), textContent: label });
+    b.addEventListener("click", (e) => { e.stopPropagation(); only = only === k ? "" : k; at = 0; armed = null; draw(); $("q").focus(); });
+    return b;
+  }));
+}
+
 function rank(query) {
   const q = query.trim().toLowerCase();
   const p = picks();
   if (state.mode === "ask") return [];
+  const kinds = filterOn();
+  if (!q && kinds) {
+    // Nothing typed, one kind chosen: all of it that is at hand, by name.
+    return items.filter((x) => kinds.includes(x.kind)).sort((a, b) => a.title.localeCompare(b.title));
+  }
   if (!q) {
     // Nothing typed: where you were — open windows, most recent first.
     return items.filter((x) => x.kind === "window").sort((a, b) => a.recent - b.recent).slice(0, SHOW);
@@ -126,7 +147,7 @@ function rank(query) {
   const real = found.some(([, , s]) => s >= 40);
   const kept = real ? found.filter(([, , s]) => s >= 40) : found;
   kept.sort((a, b) => b[0] - a[0]);
-  return kept.slice(0, RANK).slice(0, SHOW).map(([, x]) => x);
+  return kept.slice(0, RANK).slice(0, kinds ? RANK : SHOW).map(([, x]) => x);
 }
 
 function mark(title, query) {
@@ -235,6 +256,7 @@ function figure(v) {
 }
 
 function draw() {
+  drawFilters();
   if (viewing === "windows") { drawWindows(); return; }
   const query = $("q").value;
   shown = rank(query);
@@ -341,6 +363,8 @@ function draw() {
   if (query.trim() && state.morganHere !== false) {
     shown.push({ kind: "morgan", title: query.trim(), sub: "Ask Morgan", act: { kind: "morgan", text: query.trim() } });
   }
+  const kinds = filterOn();
+  if (kinds) shown = shown.filter((x) => kinds.includes(whatIs(x)));
   // Nothing found: the question is the only thing, so it is the one chosen.
   at = Math.min(at, Math.max(0, shown.length - 1));
   if (shown.length === 1) at = 0;
@@ -372,6 +396,7 @@ function draw() {
     if (glanceKey(x)) row.title = "Shift+Enter: in Glance";
     return row;
   }));
+  if (kinds && !shown.length) list.replaceChildren(Kit.empty(query.trim() ? "None by that" : "Type to find them"));
   const on = list.children[at];
   if (on) on.scrollIntoView({ block: "nearest" });
 }
@@ -584,6 +609,7 @@ function onState(s) {
   // Each opening starts clean, with a fresh look at what there is — the tags too.
   $("q").value = "";
   viewing = null;
+  only = "";
   $("show-windows").classList.remove("on");
   $("hint").textContent = HINT;
   tagCache = new Map();

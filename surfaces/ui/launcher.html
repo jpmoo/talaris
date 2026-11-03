@@ -36,6 +36,8 @@ body { background: var(--catch); cursor: pointer; }
 #show-windows { flex: none; }
 #scope { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
 
+#filters { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px 2px; }
+#filters[hidden] { display: none; }
 #list { max-height: 440px; overflow: auto; padding: 4px; }
 .item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--radius-row); cursor: pointer; }
 /* Chosen with the keys: the wash, and its words in the accent. */
@@ -69,6 +71,7 @@ body { background: var(--catch); cursor: pointer; }
 <body>
 <div id="box" data-arrives>
   <div id="top"><span id="glass"></span><input id="q" autocomplete="off" spellcheck="false"><span id="scope"></span><button class="icon-btn" id="show-windows" title="Open windows"></button></div>
+  <div id="filters"></div>
   <div id="list"></div>
   <div id="foot"><span id="msg"></span><span id="hint">↑↓ choose · Enter open · Esc close</span></div>
 </div>

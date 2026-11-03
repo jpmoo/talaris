@@ -187,7 +187,7 @@ async function projectMenu(anchor) {
   try { all = await core("GET", "/projects"); } catch (e) { status(e.message); return; }
   const shown = (all || []).filter((p) => !p.archived)
     .sort((a, b) => Number(Boolean(b.home)) - Number(Boolean(a.home)) || String(a.name).localeCompare(String(b.name)));
-  const items = shown.map((p) => ({ label: p.id === state.project.id ? `${p.name} (this workspace)` : p.name, on: p.id === here().id, act: () => browse(p) }));
+  const items = shown.map((p) => ({ label: p.id === state.project.id ? `${p.name} (this project)` : p.name, on: p.id === here().id, act: () => browse(p) }));
   Kit.menu(anchor, browsing ? [{ label: `Back to ${state.project.name || "Home"}`, act: () => browse(state.project) }, "sep", ...items] : items);
 }
 
@@ -745,34 +745,32 @@ function setMode(next) {
 const DAILY = "Daily";
 
 /*
- * Three sets of notes, a tab each (DESIGN, Writing):
- *   Project — this project's own pages (Home's own, in Home: not its Pages
- *             or its Daily, which have tabs of their own);
- *   Pages   — the pages of no other project: Home's `Pages`, the same from
- *             every project (scope `undated`; kept in Home/Writing/Pages,
- *             and in Hermes Notes as its notes);
- *   Daily   — Home's daily notes, the only ones there are: from any other
- *             project they are said to be Home's, plainly, so a day written
- *             there is not mistaken for this project's.
- * A note moves or is copied between Project and Pages, either way; a daily
- * note stays where it is. Which tab was last chosen is this page's to keep.
+ * Two sets of notes, a tab each (DESIGN, Writing):
+ *   Dailies       — Home's daily notes, the only ones there are: from any
+ *                   other project they are said to be Home's, plainly, so a
+ *                   day written there is not mistaken for this project's;
+ *   Project Pages — the pages of the project shown (the menu at the top looks
+ *                   through another's). Home's are the pages of no other
+ *                   project, kept in Home/Writing/Pages, and in Hermes Notes
+ *                   as its notes.
+ * A note moves between projects, Home too; a daily note stays where it is.
+ * Which tab was last chosen is this page's to keep.
  */
 const PAGES = "Pages";
 const SCOPE_KEY = "talaris.writing.scope";
-let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) || "project"; } catch { return "project"; } })();
+let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) === "daily" ? "daily" : "project"; } catch { return "project"; } })();
 let homeId = "";
-const openIn = { project: new Map(), undated: null }; // the page last open in each, per project for Project
-const wpid = () => (scope === "undated" || scope === "daily" ? homeId : here().id);
+const openIn = { project: new Map() }; // the page last open in each project
+const wpid = () => (scope === "daily" ? homeId : here().id);
 const inHome = () => Boolean(here().home);
 async function setScope(next) {
   if (next === scope) return;
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
   if (editor) { editor.destroy(); editor = null; }
   if (scope === "project") openIn.project.set(here().id, open);
-  if (scope === "undated") openIn.undated = open;
   scope = next;
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
-  open = scope === "daily" ? `${DAILY}/${today()}` : scope === "undated" ? openIn.undated : openIn.project.get(here().id) ?? null;
+  open = scope === "daily" ? `${DAILY}/${today()}` : openIn.project.get(here().id) ?? null;
   if (scope === "daily") shownMonth = today().slice(0, 7);
   loadWriting();
 }
@@ -844,7 +842,7 @@ function pageHeading() {
     // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
     return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
-  return (scope === "undated" ? `Pages · ${open.slice(PAGES.length + 1).split("/").join(" / ")}${inHome() ? "" : " · in Home"}` : open.split("/").join(" / ")).toUpperCase();
+  return (inHome() && open.startsWith(`${PAGES}/`) ? open.slice(PAGES.length + 1) : open).split("/").join(" / ").toUpperCase();
 }
 
 // Which load is the latest: one overtaken (days clicked quickly) draws nothing, so the day last picked is the one shown.
@@ -860,12 +858,11 @@ async function loadWriting() {
   const filterPaths = filterTag
     ? new Set((await core("GET", `/tags/things?tag=${encodeURIComponent(filterTag)}&kind=page`).catch(() => [])).filter((x) => x.page && x.page.project === wpid()).map((x) => x.page.path))
     : null;
-  // Home's own pages hold its daily notes and its Pages too: each shown on its own tab, not among its pages.
+  // Home's own pages hold its daily notes and its Pages too: the dailies on their tab; its Pages are its pages.
   const all = dailyOn ? [] : await core("GET", `/projects/${wpid()}/pages`);
-  const pages = scope === "undated" ? ((all.find((n) => n.path === PAGES) || {}).children || [])
-    : all.filter((n) => !(scope === "project" && inHome() && (n.path === DAILY || n.path === PAGES)));
-  // Where the tree's top is: Pages, for its tab.
-  const root = scope === "undated" ? PAGES : "";
+  const pages = inHome() ? [...((all.find((n) => n.path === PAGES) || {}).children || []), ...all.filter((n) => n.path !== DAILY && n.path !== PAGES)] : all;
+  // Where the tree's top is: Pages, for Home.
+  const root = inHome() ? PAGES : "";
   const shut = shutSet(WRITING_SHUT);
   let count = 0;
   const pid = wpid();
@@ -892,14 +889,11 @@ async function loadWriting() {
   const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const calendar = dailyOn ? await calendarNode().catch(() => el("div", { class: "calendar", id: "calendar" })) : "";
   const tabs = el("div", { class: "seg wtabs", role: "tablist" },
-    tab("project", inHome() ? "Home" : here().name, "This project's own pages"),
-    tab("daily", "Daily", "Home's daily pages"),
-    tab("undated", "Pages", "Home's pages of no other project — the same from every project"));
+    tab("daily", "Dailies", "Home's daily pages"),
+    tab("project", "Project Pages", "The pages of the project shown"));
   // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
-  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, here().name), "'s")
-    : scope === "undated" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " pages — not ", el("b", {}, here().name), "'s")
-    : "";
-  const tree = el("div", { class: "tree" + (scope !== "project" && !inHome() ? " away" : "") },
+  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, here().name), "'s") : "";
+  const tree = el("div", { class: "tree" + (scope === "daily" && !inHome() ? " away" : "") },
     tabs, whose,
     calendar,
     !dailyOn && (pages.length || filterTag) ? (() => { const head = sortButton("writing", loadWriting); head.append(tagFilterButton()); return head; })() : "",
@@ -923,11 +917,11 @@ async function loadWriting() {
   if (mine !== writingSeq) return;
   $("body").replaceChildren(tree, pane);
   scrollBack(tree, listKey, top);
-  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${scope === "undated" ? "HOME · PAGES" : here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
+  $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
-  if (!dailyOn) actions.push(" ", btn("New page", () => newPage(scope === "undated" ? PAGES : null)));
-  // What plugins put on the undated notes (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
-  if (scope === "undated" && window.Peek) {
+  if (!dailyOn) actions.push(" ", btn("New page", () => newPage(inHome() ? PAGES : null)));
+  // What plugins put on Home's pages (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
+  if (scope === "project" && inHome() && window.Peek) {
     actions.push(" ", Peek.actionButtons("notes", null, core, ""));
     if (open) actions.push(" ", Peek.actionButtons("note", `${homeId}/${open}`, core, ""));
   }
@@ -937,8 +931,8 @@ async function loadWriting() {
     const page = { path: open, title: open.split("/").pop() };
     actions.push(" ", btn("New page inside", () => newPage(open)),
       " ", btn("Rename", () => renamePage(page)),
-      // To another project's writing, or to Home's Pages; and the projects it belongs to besides (notes.ts).
-      " ", el("button", { class: "t-btn", title: "Move this page to another project, or to Home's Pages", onclick: (e) => { e.stopPropagation(); moveMenu(e.currentTarget); } }, "Move to…"),
+      // To another project's writing, or to Home; and the projects it belongs to besides (notes.ts).
+      " ", el("button", { class: "t-btn", title: "Move this page to another project, or to Home", onclick: (e) => { e.stopPropagation(); moveMenu(e.currentTarget); } }, "Move to…"),
       " ", el("button", { class: "t-btn", title: "The projects this page belongs to: the one it lives in, and any others", onclick: (e) => { e.stopPropagation(); projectsMenu(e.currentTarget); } }, "Projects…"),
       // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
       " ", el("button", { class: "t-btn", title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
@@ -964,7 +958,7 @@ async function loadWriting() {
 window.talarisChanged = (c) => {
   if (!c) return;
   if (c.kind === "canvas" && c.project === here().id && state.drawer === "canvas" && c.where === viewing) loadCanvas();
-  // A page is the set shown's: this project's, the undated notes', or Home's daily.
+  // A page is the set shown's: the project's, or Home's daily.
   if (c.kind === "page" && c.project === wpid() && state.drawer === "writing" && c.where === open) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (editor) { editor.destroy(); editor = null; }
@@ -1047,7 +1041,7 @@ function renamePage(n) {
   });
 }
 
-/** The open page, and all beneath it, moved or copied across: to the undated notes, or into this project. */
+/** The open page, and all beneath it, moved or copied across: to Home, or into this project. */
 // ---------------------------------------------------------------- a page's projects
 
 /** The projects there are, but Home and the archived, with the entities standing for them (tasks.ts, taskProjects). */
@@ -1058,27 +1052,25 @@ async function projectChoices() {
     .map((p) => ({ ...p, entity: entity.get(p.id) || null }));
 }
 
-/** Followed where it went: its project's writing (looked through if not the workspace's), or Home's Pages. */
+/** Followed where it went: its project's writing, or Home's — looked through if not the workspace's. */
 function followTo(projectId, path, name) {
   if (editor) { editor.destroy(); editor = null; }
-  if (!projectId) { scope = "undated"; browsing = null; openIn.undated = path; }
-  else {
-    browsing = projectId === state.project.id ? null : { id: projectId, code: "", name, home: false };
-    scope = "project";
-    openIn.project.set(projectId, path);
-  }
+  const to = projectId || homeId;
+  browsing = to === state.project.id ? null : { id: to, code: "", name: projectId ? name : "Home", home: !projectId };
+  scope = "project";
+  openIn.project.set(to, path);
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
   open = path;
   $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
   loadWriting();
 }
 
-/** Move to…: the page to another project's writing (at its top), or to Home's Pages; followed there. */
+/** Move to…: the page to another project's writing (at its top), or to Home; followed there. */
 async function moveMenu(anchor) {
   if (!open) return;
   let choices;
   try { choices = await projectChoices(); } catch (e) { status(e.message, true); return; }
-  const now = scope === "undated" || inHome() ? null : wpid();
+  const now = inHome() ? null : wpid();
   const go = async (to, name) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
     try {
@@ -1088,14 +1080,14 @@ async function moveMenu(anchor) {
     } catch (e) { status(String(e.message || e), true); }
   };
   Kit.menu(anchor, [
-    ...(now ? [{ label: "Home's Pages (no project)", act: () => go(null, "Home's Pages") }, "sep"] : []),
+    ...(now ? [{ label: "Home (no project)", act: () => go(null, "Home") }, "sep"] : []),
     ...choices.filter((p) => p.id !== now).map((p) => ({ label: p.name, act: () => go(p.id, p.name) })),
   ]);
 }
 
 /**
  * Projects…: the projects the page belongs to, checked — the one it lives in said so. One clicked is added, or taken
- * off; the one it lives in taken off moves it to the next, or to Home's Pages (notes.ts, setPageProjects).
+ * off; the one it lives in taken off moves it to the next, or to Home (notes.ts, setPageProjects).
  */
 async function projectsMenu(anchor) {
   if (!open) return;
@@ -1111,7 +1103,7 @@ async function projectsMenu(anchor) {
       status(said);
       if (after.project !== pid || after.path !== path) {
         const went = choices.find((p) => p.id === after.project);
-        followTo(went ? went.id : null, after.path, went ? went.name : "Home's Pages");
+        followTo(went ? went.id : null, after.path, went ? went.name : "Home");
       }
     } catch (e) { status(String(e.message || e), true); }
   };
@@ -1360,17 +1352,20 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
       editor.insert(r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ") + " ");
     }
   });
-  bridge.show.connect((json) => {
+  bridge.show.connect(async (json) => {
     const target = JSON.parse(json);
     if (state.drawer === "canvas" && target.canvas) {
       viewing = target.canvas;
       if (state.mode !== "filed") loadCanvas();
     } else if (state.drawer === "writing" && target.page) {
-      // Told which set it is in (an undated note: `undated`), the drawer turns to that tab first.
-      const into = target.scope || (scope === "undated" ? "project" : scope === "daily" && !target.page.startsWith(`${DAILY}/`) ? "project" : scope);
+      // Whatever was being looked through gives way: to Home, for one of Home's pages opened from elsewhere
+      // (the same from every project, so the workspace stays), or else the project it was opened in.
+      const home = target.home && !state.project.home ? (await core("GET", "/projects")).find((p) => p.home) : null;
+      browsing = home ? { id: home.id, code: home.code || "", name: home.name, home: true } : null;
+      $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+      const into = target.page.startsWith(`${DAILY}/`) ? "daily" : "project";
       if (into !== scope) {
         if (scope === "project") openIn.project.set(here().id, open);
-        if (scope === "undated") openIn.undated = open;
         scope = into;
         try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
         if (editor) { editor.destroy(); editor = null; }
