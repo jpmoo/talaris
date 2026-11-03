@@ -56,7 +56,7 @@ const LISTS = ["people", "tasks", "notes", "daily", "settings"];
 export interface SettingDef {
   key: string;
   label: string;
-  kind: "text" | "secret" | "choice" | "boolean" | "number";
+  kind: "text" | "secret" | "choice" | "boolean" | "number" | "color";
   choices?: string[];
   default?: unknown;
   help?: string;
@@ -111,8 +111,8 @@ export interface Manifest {
   tools: ToolDecl[];
   apps: AppDecl[];
   actions: ActionDecl[];
-  /** A calendar of its own in Talaris (`[calendar]`): its events, while the setting named in `when` is on. */
-  calendar?: { name: string; when?: string };
+  /** A calendar of its own in Talaris (`[calendar]`): its events, while the setting named in `when` is on, in the color the setting named in `color` holds. */
+  calendar?: { name: string; when?: string; color?: string };
   settings: SettingDef[];
   /**
    * What of its own a backup carries (`[backup] state = [...]`): files and
@@ -156,13 +156,13 @@ export function readManifest(dir: string): Manifest {
     const x = s as Record<string, unknown>;
     if (typeof x.key !== "string" || !/^[A-Za-z0-9_-]+$/.test(x.key)) throw new Conflict(`settings ${n + 1} needs a key of letters, digits and dashes`);
     const kind = (typeof x.kind === "string" ? x.kind : "text") as SettingDef["kind"];
-    if (!["text", "secret", "choice", "boolean", "number"].includes(kind)) throw new Conflict(`setting ${x.key}: kind is text, secret, choice, boolean or number`);
+    if (!["text", "secret", "choice", "boolean", "number", "color"].includes(kind)) throw new Conflict(`setting ${x.key}: kind is text, secret, choice, boolean or number`);
     return { key: x.key, label: typeof x.label === "string" ? x.label : x.key, kind, ...(x.choices ? { choices: strs(x.choices) } : {}),
       ...(x.default !== undefined ? { default: x.default } : {}), ...(typeof x.help === "string" ? { help: x.help } : {}) };
   });
   const cal = t.calendar as Record<string, unknown> | undefined;
   const calendar = cal && typeof cal.name === "string" && cal.name.trim()
-    ? { name: cal.name.trim(), ...(typeof cal.when === "string" ? { when: cal.when } : {}) } : undefined;
+    ? { name: cal.name.trim(), ...(typeof cal.when === "string" ? { when: cal.when } : {}), ...(typeof cal.color === "string" ? { color: cal.color } : {}) } : undefined;
   const tools = (Array.isArray(t.tools) ? t.tools : []).map((x) => {
     const d = x as Record<string, unknown>;
     if (typeof d.name !== "string") throw new Conflict("each [[tools]] needs a name");
@@ -271,6 +271,7 @@ export function setSettings(id: string, values: Record<string, unknown>): void {
     if (v === null) { delete mine[key]; continue; }
     if (s.kind === "boolean" && typeof v !== "boolean") throw new Conflict(`${s.label} is on or off`);
     if (s.kind === "number" && typeof v !== "number") throw new Conflict(`${s.label} is a number`);
+    if (s.kind === "color" && !/^#[0-9a-f]{6}$/i.test(String(v))) throw new Conflict(`${s.label} is a color, as #rrggbb`);
     if (s.kind === "choice" && !(s.choices ?? []).includes(String(v))) throw new Conflict(`${s.label} is one of ${(s.choices ?? []).join(", ")}`);
     mine[key] = v;
   }
@@ -877,12 +878,15 @@ export function pluginApps(): { plugin: string; pluginName: string; id: string; 
  * The calendars enabled plugins bring (`[calendar]`): for Talaris's calendar
  * and Settings to list beside the real ones. Read only: what is on them is the plugin's.
  */
-export function pluginCalendars(): { id: string; name: string; account: string; plugin: string; writable: false }[] {
+export function pluginCalendars(): { id: string; name: string; account: string; plugin: string; writable: false; color?: string }[] {
   const k = kept();
   return installed().filter((p) => k.enabled[p.manifest.id] && p.manifest.calendar).flatMap((p) => {
     const c = p.manifest.calendar!;
-    if (c.when && settingsShown(p.manifest)[c.when] === false) return [];
-    return [{ id: `plugin:${p.manifest.id}`, name: c.name, account: c.name, plugin: p.manifest.id, writable: false as const }];
+    const mine = settingsShown(p.manifest);
+    if (c.when && mine[c.when] === false) return [];
+    const color = c.color ? mine[c.color] : null;
+    return [{ id: `plugin:${p.manifest.id}`, name: c.name, account: c.name, plugin: p.manifest.id, writable: false as const,
+      ...(typeof color === "string" && color ? { color } : {}) }];
   });
 }
 

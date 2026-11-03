@@ -192,18 +192,18 @@ declares both `note` and `journal`, is covered by `note`.
 |---|---|---|---|
 | `key` | string | yes | `^[A-Za-z0-9_-]+$`. The name the plugin receives it under. |
 | `label` | string | no | Defaults to `key`. Shown in Settings. |
-| `kind` | string | no | `text` (default), `secret`, `choice`, `boolean`, `number`. |
+| `kind` | string | no | `text` (default), `secret`, `choice`, `boolean`, `number`, `color` (`#rrggbb`). |
 | `choices` | array of strings | for `choice` | The allowed values, shown as a chooser. |
 | `default` | any | no | Handed to the plugin when the person has set nothing. Not used for `secret`. |
 | `help` | string | no | Shown under the field. |
 
 How each is kept and checked (`setSettings`):
 
-- `text`, `choice`, `boolean`, `number` are kept in the core's config folder,
+- `text`, `choice`, `boolean`, `number`, `color` are kept in the core's config folder,
   `$TALARIS_CONFIG_DIR` or `~/.config/talaris/`, file `plugins.json`
   (`{enabled: {id: bool}, settings: {id: {key: value}}}`).
 - A write is checked: `boolean` must be a JSON boolean, `number` a JSON
-  number, `choice` one of `choices`. `text` is not checked. Writing `null`
+  number, `choice` one of `choices`, `color` a `#rrggbb`. `text` is not checked. Writing `null`
   removes the person's value, so `default` applies again.
 - `secret` is never written to a file. It goes to the login keyring under the
   name `plugin:<id>:<key>` (`vault.ts`, through `keyring.py`/libsecret).
@@ -369,6 +369,19 @@ state = ["state.json"]
 ```
 
 ---
+
+### `[calendar]` — a calendar of its own
+
+```toml
+[calendar]
+name = "Hermes Notes"   # its name in the calendar's list and Settings, Accounts
+when = "events"         # optional: a boolean setting that turns it off
+color = "eventColor"    # optional: a `color` setting holding its color (else the accent)
+```
+
+What is on it: events of no real calendar (no source of their own) carrying the
+plugin's `<id>:link`. It is shown and hidden like any calendar, while the plugin
+is enabled. An edit there changes the entity, for the plugin to carry on.
 
 ## 5. Lifecycle
 

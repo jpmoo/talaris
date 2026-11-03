@@ -2268,6 +2268,15 @@ async function loadPlugins() {
         let input;
         if (def.kind === "boolean") input = mgSwitch(Boolean(now), (on, s) => { s.classList.toggle("on", on); keep(def.key, on); });
         else if (def.kind === "choice") input = choiceOf((def.choices || []).map((c) => [c, c]), now, (v) => keep(def.key, v));
+        else if (def.kind === "color") {
+          // Chosen from the palette a calendar's color is, or typed.
+          const hex = pel("input", { type: "text", class: "hex", value: now || "", placeholder: "#rrggbb", spellcheck: "false" });
+          const swatches = () => CAL_COLORS.map((col) => pel("button", { class: "cv-swatch" + (col === r.settings[def.key] ? " is-on" : ""), style: `background:${col}`, title: col,
+            onclick: async () => { hex.value = col; await keep(def.key, col); input.replaceChildren(...swatches(), hex); } }));
+          input = pel("span", { class: "cal-palette", style: "padding:0;justify-content:flex-end" });
+          input.replaceChildren(...swatches(), hex);
+          hex.addEventListener("change", async () => { const v = hex.value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) { await keep(def.key, v); input.replaceChildren(...swatches(), hex); } else say("A color is #rrggbb", true); });
+        }
         else if (def.kind === "secret") input = pel("input", { type: "password", autocomplete: "off", placeholder: now && now.set ? "Set — type to replace" : "Not set" });
         else if (def.kind === "number") {
           const n = pel("input", { spellcheck: "false", autocomplete: "off", value: now ?? "" });
