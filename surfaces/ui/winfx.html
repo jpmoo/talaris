@@ -5,8 +5,7 @@ Copyright (c) 2026 Jeff Moore
 
 Draw, for windows (winfx.py): a clear page over the whole screen. Each window
 opening or closing is a box where it is, with the drawers' marks and lines
-played round it — drawn out as it opens, drawn back as it closes. A window
-hidden is its picture here, sent off as Settings says windows go.
+played round it — drawn out as it opens, drawn back as it closes.
 -->
 <html>
 <head>
@@ -43,35 +42,7 @@ function draw(text) {
     if (going) going.addEventListener("finish", done); else done();
   }
 }
-/** A window hidden: its picture over it; once that is on show the window goes from behind, and the picture goes as windows do. */
-async function hiding(text) {
-  const d = JSON.parse(text);
-  const pic = new Image();
-  pic.className = "ghost";
-  Object.assign(pic.style, { left: `${d.x}px`, top: `${d.y}px`, width: `${d.w}px`, height: `${d.h}px` });
-  pic.src = `data:image/png;base64,${d.image}`;
-  try { await pic.decode(); } catch { bridge.pictured(d.address); return; }
-  document.body.append(pic);
-  // A frame painted, so the window is never gone with nothing in its place.
-  requestAnimationFrame(() => requestAnimationFrame(() => bridge.pictured(d.address)));
-  const pace = ({ slow: 1.6, normal: 1, fast: .6, fastest: .3 })[d.speed] || 1;
-  // As Hyprland closes a window (Desktop.window_motion): slide off by the nearest edge, pop down to 87%, or fade.
-  let to = { opacity: 0 };
-  if (d.motion === "pop") to = { opacity: 0, transform: "scale(.87)" };
-  if (d.motion === "slide") {
-    const gaps = [[d.x + d.w, `translateX(${-(d.x + d.w)}px)`], [innerWidth - d.x, `translateX(${innerWidth - d.x}px)`],
-      [d.y + d.h, `translateY(${-(d.y + d.h)}px)`], [innerHeight - d.y, `translateY(${innerHeight - d.y}px)`]];
-    to = { transform: gaps.sort((a, b) => a[0] - b[0])[0][1] };
-  }
-  if (d.motion === "draw") draw(JSON.stringify({ kind: "close", x: d.x, y: d.y, w: d.w, h: d.h, speed: d.speed, accent: d.accent }));
-  pic.animate([{ opacity: 1, transform: "none" }, to], { duration: 300 * pace, easing: "cubic-bezier(.5,0,.9,.4)", fill: "forwards" }).onfinish = () => pic.remove();
-}
-let bridge = null;
-new QWebChannel(qt.webChannelTransport, (channel) => {
-  bridge = channel.objects.bridge;
-  bridge.draw.connect(draw);
-  bridge.hiding.connect(hiding);
-});
+new QWebChannel(qt.webChannelTransport, (channel) => channel.objects.bridge.draw.connect(draw));
 </script>
 </body>
 </html>

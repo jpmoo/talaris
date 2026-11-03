@@ -773,7 +773,7 @@ class Dock(QObject):
         elif verb == "hide":
             for w in item["windows"]:
                 if not w["hidden"]:
-                    self.desktop.winfx.hide(w["address"])
+                    hypr.hide(w["address"])
         elif verb == "show":
             for w in reversed(item["windows"]):
                 if w["hidden"]:

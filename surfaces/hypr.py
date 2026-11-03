@@ -20,7 +20,7 @@ import json
 import os
 import socket
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtNetwork import QLocalSocket
 
 
@@ -131,9 +131,60 @@ def _address(address: str) -> bool:
     return address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower())
 
 
+#: How long a window takes to fade as it is hidden; 0, not at all (Desktop.window_motion: Settings, Windows).
+fade_ms = 0
+#: A window's three opacities, which Hyprland has no way to unset: what a hidden one had, to have again.
+_OPACITIES = ("opacity", "opacity_inactive", "opacity_fullscreen")
+_opaque_as: dict[str, list[float]] = {}
+_fading: set[str] = set()
+
+
+def _opacities(address: str) -> list[float]:
+    out = []
+    for prop in _OPACITIES:
+        try:
+            out.append(float(ask(f"/getprop address:{address} {prop}").split()[0]))
+        except (OSError, ValueError, IndexError):
+            out.append(1.0)
+    return out
+
+
+def _set_opacities(address: str, values: list[float]) -> None:
+    for prop, value in zip(_OPACITIES, values):
+        ask(f"/dispatch setprop address:{address} {prop} {value}")
+
+
 def hide(address: str) -> None:
-    if _address(address):
+    """
+    To the hidden workspace, faded out first. To Hyprland that is a move, not a
+    close, so its own closing never plays; the fade is the real window's, and
+    it stays faded while hidden, so that `show` fades it back in.
+    """
+    if not _address(address) or address in _fading:
+        return
+
+    def gone() -> None:
+        _fading.discard(address)
         ask(f"/dispatch movetoworkspacesilent {HIDDEN},address:{address}")
+
+    if not fade_ms:
+        gone()
+        return
+    # Faded already (hidden, and brought back by other means, say): none of that is what it should go back to.
+    was = _opacities(address)
+    _opaque_as[address] = [v or 1.0 for v in was]
+    _fading.add(address)
+    _set_opacities(address, [0.0, 0.0, 0.0])
+    QTimer.singleShot(fade_ms, gone)
+
+
+def _unfaded(address: str) -> None:
+    """Its opacity back, if `hide` took it. Asked of the window as well: a Talaris started since has no record, and 0 is never meant."""
+    was = _opaque_as.pop(address, None)
+    if was is None and 0.0 in _opacities(address):
+        was = [1.0, 1.0, 1.0]
+    if was:
+        _set_opacities(address, was)
 
 
 def target(workspace: dict | str) -> str:
@@ -149,7 +200,7 @@ def target(workspace: dict | str) -> str:
 
 
 def show(address: str, to: str | None = None) -> None:
-    """Back from hiding (or from another desktop), onto the workspace in front of you — or `to` — and focused."""
+    """Back from hiding (or from another desktop), onto the workspace in front of you — or `to` — and focused; fading in, if it was hidden."""
     if not _address(address):
         return
     if to is None:
@@ -158,6 +209,7 @@ def show(address: str, to: str | None = None) -> None:
         except (OSError, ValueError):
             to = "1"
     ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
+    _unfaded(address)
     focus(address)
 
 

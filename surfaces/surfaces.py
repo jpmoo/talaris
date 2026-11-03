@@ -391,6 +391,9 @@ class Desktop(QObject):
         style = {"slide": "slide", "pop": "popin 87%"}.get(motion, "")
         moving = motion != "none"
         opening = motion in ("slide", "pop")
+        # Hiding and showing a window fade it (hypr.hide): Hyprland's change of a window's opacity, at the set speed.
+        hypr.keyword("animation", f"fadeSwitch,{int(moving)},{ds(3)},talarisIn")
+        hypr.fade_ms = round(300 * factor) + 40 if moving else 0
         if motion == "draw":
             # Drawn over by winfx.py: Hyprland only fades the window, in late
             # and slowly, so it fills in as the lines finish, as a drawer does.
@@ -950,7 +953,7 @@ class Desktop(QObject):
                 self.bar.hider.clicked()
             elif verb == "hide-window":
                 # As the dock's Hide does, for the one with focus.
-                self.winfx.hide(str(hypr.windows()["focused"] or ""))
+                hypr.hide(str(hypr.windows()["focused"] or ""))
             elif verb == "send-window":
                 self.send_window(arg == "follow")
             elif verb == "file-all":
