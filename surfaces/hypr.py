@@ -131,8 +131,10 @@ def _address(address: str) -> bool:
     return address.startswith("0x") and all(c in "0123456789abcdefx" for c in address.lower())
 
 
-#: How long a window takes to fade as it is hidden; 0, not at all (Desktop.window_motion: Settings, Windows).
+#: How long a window takes to fade as it is hidden or shown; 0, not at all (Desktop.window_motion: Settings, Windows).
 fade_ms = 0
+#: How many steps a fade goes in. Hyprland animates a window's opening and closing, not this, so Talaris steps it.
+FADE_STEPS = 12
 #: A window's three opacities, which Hyprland has no way to unset: what a hidden one had, to have again.
 _OPACITIES = ("opacity", "opacity_inactive", "opacity_fullscreen")
 _opaque_as: dict[str, list[float]] = {}
@@ -151,7 +153,19 @@ def _opacities(address: str) -> list[float]:
 
 def _set_opacities(address: str, values: list[float]) -> None:
     for prop, value in zip(_OPACITIES, values):
-        ask(f"/dispatch setprop address:{address} {prop} {value}")
+        ask(f"/dispatch setprop address:{address} {prop} {value:.3f}")
+
+
+def _fade(address: str, start: list[float], end: list[float], then=None) -> None:
+    """From one set of opacities to another, a step at a time; then `then`."""
+    def step(n: int) -> None:
+        share = n / FADE_STEPS
+        _set_opacities(address, [a + (b - a) * share for a, b in zip(start, end)])
+        if n < FADE_STEPS:
+            QTimer.singleShot(fade_ms // FADE_STEPS, lambda: step(n + 1))
+        elif then:
+            then()
+    step(1)
 
 
 def hide(address: str) -> None:
@@ -171,19 +185,25 @@ def hide(address: str) -> None:
         gone()
         return
     # Faded already (hidden, and brought back by other means, say): none of that is what it should go back to.
-    was = _opacities(address)
-    _opaque_as[address] = [v or 1.0 for v in was]
+    was = [v or 1.0 for v in _opacities(address)]
+    _opaque_as[address] = was
     _fading.add(address)
-    _set_opacities(address, [0.0, 0.0, 0.0])
-    QTimer.singleShot(fade_ms, gone)
+    _fade(address, was, [0.0, 0.0, 0.0], gone)
 
 
 def _unfaded(address: str) -> None:
-    """Its opacity back, if `hide` took it. Asked of the window as well: a Talaris started since has no record, and 0 is never meant."""
+    """
+    Its opacity back, if `hide` took it, faded in where that is wanted. Asked of
+    the window as well: a Talaris started since has no record, and 0 is never meant.
+    """
     was = _opaque_as.pop(address, None)
     if was is None and 0.0 in _opacities(address):
         was = [1.0, 1.0, 1.0]
-    if was:
+    if not was:
+        return
+    if fade_ms:
+        _fade(address, [0.0, 0.0, 0.0], was)
+    else:
         _set_opacities(address, was)
 
 
