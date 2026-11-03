@@ -426,8 +426,12 @@ class SettingsBridge(Bridge):
 
     @Slot(result=str)
     def calendars(self) -> str:
-        """The calendars Evolution has, each with its account's name: for showing or hiding, by account."""
-        return self.owner.desktop.calendar_service.last_calendars
+        """The calendars Evolution has, each with its account's name, and those plugins bring: for showing or hiding, by account."""
+        try:
+            real = json.loads(self.owner.desktop.calendar_service.last_calendars or "[]")
+        except ValueError:
+            real = []
+        return json.dumps(real + (get_json("/plugins/calendars", []) or []))
 
     @Slot(str, str, bool, result=str)
     def accountSwitch(self, path: str, what: str, on: bool) -> str:  # noqa: N802 — called from the page by this name

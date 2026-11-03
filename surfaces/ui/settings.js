@@ -1479,7 +1479,7 @@ function drawCalendars() {
             return hex;
           })());
         swatch.addEventListener("click", () => { palette.hidden = !palette.hidden; });
-        return el("div", {}, el("div", { class: "row" }, el("span", { class: "name" }, el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, swatch, c.name)), el("span", { class: "what" }, sw)), palette);
+        return el("div", {}, el("div", { class: "row" }, el("span", { class: "name" }, el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, ...(c.plugin ? [] : [swatch]), c.name)), el("span", { class: "what" }, sw)), palette);
       }),
     ]);
     $("acct-cals").replaceChildren(...(rows.length ? rows : [Kit.empty("No calendars yet")]));

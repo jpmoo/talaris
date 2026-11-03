@@ -6,7 +6,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { getEntity, types } from "./entities.js";
+import { allRecords, getEntity, profilesOf, titleOf, typeFor, types } from "./entities.js";
 import { onRecord } from "./feed.js";
 import { restoreLinks, unbacked } from "./links.js";
 import { createObject, defineCollection, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
@@ -111,6 +111,8 @@ export interface Manifest {
   tools: ToolDecl[];
   apps: AppDecl[];
   actions: ActionDecl[];
+  /** A calendar of its own in Talaris (`[calendar]`): its events, while the setting named in `when` is on. */
+  calendar?: { name: string; when?: string };
   settings: SettingDef[];
   /**
    * What of its own a backup carries (`[backup] state = [...]`): files and
@@ -158,6 +160,9 @@ export function readManifest(dir: string): Manifest {
     return { key: x.key, label: typeof x.label === "string" ? x.label : x.key, kind, ...(x.choices ? { choices: strs(x.choices) } : {}),
       ...(x.default !== undefined ? { default: x.default } : {}), ...(typeof x.help === "string" ? { help: x.help } : {}) };
   });
+  const cal = t.calendar as Record<string, unknown> | undefined;
+  const calendar = cal && typeof cal.name === "string" && cal.name.trim()
+    ? { name: cal.name.trim(), ...(typeof cal.when === "string" ? { when: cal.when } : {}) } : undefined;
   const tools = (Array.isArray(t.tools) ? t.tools : []).map((x) => {
     const d = x as Record<string, unknown>;
     if (typeof d.name !== "string") throw new Conflict("each [[tools]] needs a name");
@@ -204,7 +209,7 @@ export function readManifest(dir: string): Manifest {
     ...(typeof t.author === "string" ? { author: t.author } : {}),
     ...(typeof t.license === "string" ? { license: t.license } : {}),
     ...(typeof t.homepage === "string" ? { homepage: t.homepage } : {}),
-    command, tools, apps, actions, settings, backup: { state },
+    command, tools, apps, actions, ...(calendar ? { calendar } : {}), settings, backup: { state },
     // Changing a kind means reading it: a write permission brings the read with it.
     permissions: { read: [...new Set([...read, ...write])], write, notify: p.notify === true, network: strs(p.network), files: strs(p.files) },
   };
@@ -866,6 +871,54 @@ export function pluginApps(): { plugin: string; pluginName: string; id: string; 
         ...(icon && icon.startsWith(p.dir + "/") && existsSync(icon) ? { icon } : {}) }];
     });
   });
+}
+
+/**
+ * The calendars enabled plugins bring (`[calendar]`): for Talaris's calendar
+ * and Settings to list beside the real ones. Read only: what is on them is the plugin's.
+ */
+export function pluginCalendars(): { id: string; name: string; account: string; plugin: string; writable: false }[] {
+  const k = kept();
+  return installed().filter((p) => k.enabled[p.manifest.id] && p.manifest.calendar).flatMap((p) => {
+    const c = p.manifest.calendar!;
+    if (c.when && settingsShown(p.manifest)[c.when] === false) return [];
+    return [{ id: `plugin:${p.manifest.id}`, name: c.name, account: c.name, plugin: p.manifest.id, writable: false as const }];
+  });
+}
+
+/** A time as it is drawn: Date.parse reads a date alone as UTC, and a day is the day where you are. */
+function whenOf(v: unknown): { at: number; day: boolean } | null {
+  if (typeof v === "number") return { at: v, day: false };
+  if (typeof v !== "string") return null;
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const at = d ? new Date(Number(d[1]), Number(d[2]) - 1, Number(d[3])).getTime() : Date.parse(v);
+  return Number.isNaN(at) ? null : { at, day: Boolean(d) };
+}
+
+/**
+ * What is on those calendars between two times, drawn as a calendar's events
+ * are: an event of no real calendar (no source of its own) that the plugin
+ * linked (`<plugin>:link`), which is how a sync says a copy is its own.
+ */
+export function pluginCalendarEvents(from: number, to: number): Record<string, unknown>[] {
+  const cals = pluginCalendars();
+  if (!cals.length) return [];
+  const body = typeFor("event")?.profiles?.event?.body;
+  const out: Record<string, unknown>[] = [];
+  for (const { object: o } of allRecords()) {
+    if (o.archived || o.stub || !profilesOf(o).includes("event") || ((o["talaris:sources"] as unknown[] | undefined) ?? []).length) continue;
+    const cal = cals.find((c) => o.properties[`${c.plugin}:link`]);
+    const start = whenOf(o.properties.start);
+    if (!cal || !start) continue;
+    const allDay = start.day;
+    const last = whenOf(o.properties.end) ?? start;
+    // A day's end is that day's: drawn to the start of the next, as an all-day event of a real calendar's is.
+    const end = allDay ? last.at + 24 * 60 * 60 * 1000 : Math.max(last.at, start.at);
+    if (end < from || start.at > to) continue;
+    out.push({ calendar: cal.id, uid: o.id, entity: o.id, rid: "", title: titleOf(o), start: start.at, end, allDay, recurring: false,
+      location: typeof o.properties.location === "string" ? o.properties.location : "", notes: typeof body === "string" && typeof o.properties[body] === "string" ? o.properties[body] : "" });
+  }
+  return out;
 }
 
 /**

@@ -385,7 +385,9 @@ class CalendarService(QObject):
 #: What the page may ask the core for: the tasks on the days on show, ticking one done, moving its dates.
 TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d(&overdue=1)?$|^/tasks/find\?text=[^&]*&limit=\d+$|^/tasks/[A-Za-z0-9_.:-]+/(done|shift)$"
                          # An event's notes take @ (mentions.js): finding what to name, making a person or a task by name, and opening one.
-                         r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$")
+                         r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$"
+                         # The calendars plugins bring, and what is on them.
+                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+)?$")
 
 
 class CalendarBridge(Bridge):

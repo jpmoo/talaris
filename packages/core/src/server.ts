@@ -679,6 +679,8 @@ route("GET", "/demo", () => ({ on: inDemo, root: inDemo ? DEMO_ROOT : null }));
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
+route("GET", "/plugins/calendars", () => plugins.pluginCalendars());
+route("GET", "/plugins/calendars/events", (_r, _p, q) => plugins.pluginCalendarEvents(Number(q.get("from") ?? 0), Number(q.get("to") ?? 0)));
 // Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
 route("GET", "/plugins/decisions", (_r, _p, q) => plugins.decisionsOn(q.get("on") ?? ""));
 route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? "", q.get("entity") ?? undefined));

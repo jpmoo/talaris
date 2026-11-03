@@ -30,6 +30,9 @@ let surface = { up: false };
 let status = { ready: false, error: "Starting", needs: "" };
 let calendars = [];
 let events = [];
+// The calendars plugins bring (the core's pluginCalendars), read only, and what is on them in the span on show.
+let realCalendars = [], pluginCalendars = [], pluginEvents = [];
+const allCalendars = () => { calendars = [...realCalendars, ...pluginCalendars]; };
 let mode = "month";
 let focus = startOfDay(new Date());
 // Two pages may share the bridge — the panel and its window — so each numbers
@@ -89,8 +92,20 @@ function span() {
   const s = startOfWeek(first);
   return [s, addDays(s, 42)];
 }
+function fetchPlugins() {
+  if (!bridge || typeof bridge.core !== "function") return;
+  const [a, b] = span();
+  core("GET", "/plugins/calendars").then((list) => { pluginCalendars = list || []; allCalendars(); draw(); }).catch(() => {});
+  core("GET", `/plugins/calendars/events?from=${a.getTime()}&to=${b.getTime()}`).then((list) => {
+    const [x, y] = span();
+    if (x.getTime() !== a.getTime() || y.getTime() !== b.getTime()) return; // moved on meanwhile
+    pluginEvents = list || [];
+    draw();
+  }).catch(() => {});
+}
 function fetchRange() {
   fetchTasks();
+  fetchPlugins();
   if (!bridge || !status.ready) return;
   const [a, b] = span();
   wanted = ++req;
@@ -105,7 +120,7 @@ function title() {
   return Kit.month(focus);
 }
 function shown() {
-  return events.filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined"));
+  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined"));
 }
 // The events on a day: those that start before it ends and end after it starts.
 function onDay(day) {
@@ -521,7 +536,7 @@ function paintPeople() {
   const mineOnly = !editing.isNew && editing.attendees && editing.attendees.length && !editing.organizing;
   // Invited to it by someone else: the list is theirs; my part is my answer.
   $("e-who-row").hidden = !cal.invites || mineOnly;
-  $("e-who-note").hidden = cal.invites || mineOnly || editing.readOnly;
+  $("e-who-note").hidden = cal.invites || mineOnly || editing.readOnly || !!editing.entity;
   $("e-who-why").textContent = cal.invites ? "" : "This calendar cannot send invitations; choose an account's calendar to invite people.";
   $("e-chips").replaceChildren(...v.people.map((p, i) => {
     const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); v.people.splice(i, 1); paintPeople(); } });
@@ -597,11 +612,13 @@ function open(e, isNew) {
   $("e-where").value = e.location || "";
   showNotes(e.notes || "");
   $("e-which-row").hidden = isNew || !e.recurring;
+  $("e-freq").closest(".row").hidden = !!e.entity;
   // A repeating event: this one alone, or every one of them.
   const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); if (editing.v) paintRepeats(); };
   which("this");
-  $("e-delete").hidden = isNew;
-  editing.readOnly = !isNew && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
+  // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; deleted where it came from.
+  $("e-delete").hidden = isNew || !!e.entity;
+  editing.readOnly = !isNew && !e.entity && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
   for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
   $("e-cal").disabled = editing.readOnly || !isNew;
   popAway();
@@ -719,8 +736,21 @@ function send(msg, after) {
   say("Saving…");
   bridge.ask(JSON.stringify(msg));
 }
+/** A plugin's event saved as it holds its times: a day alone, or the time where you are; a day's end is that day. */
+function saveEntity() {
+  const event = collected();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = (ms) => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; };
+  const properties = { title: event.title, location: event.location || null, notes: event.notes || null,
+    start: event.allDay ? iso(new Date(event.start)) : stamp(event.start),
+    end: event.allDay ? iso(new Date(event.end - DAY_MS)) : stamp(event.end) };
+  say("Saving…");
+  core("PATCH", `/entities/${encodeURIComponent(editing.entity)}`, { properties })
+    .then(() => { say(""); closeEditor(); fetchPlugins(); }, (x) => say(x.message || "It was not saved", true));
+}
 $("e-save").addEventListener("click", () => {
   if (!editing) return;
+  if (editing.entity) { saveEntity(); return; }
   const event = collected();
   if (editing.isNew) send({ do: "create", calendar: editing.v.calendar, event }, closeEditor);
   else send({ do: "update", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, event }, closeEditor);
@@ -854,10 +884,10 @@ window.Calendar = {
 
 Surface.connect({ onState }).then((b) => {
   bridge = b;
-  const hello = (text) => { const h = JSON.parse(text); status = h.status; calendars = h.calendars; draw(); fetchRange(); };
+  const hello = (text) => { const h = JSON.parse(text); status = h.status; realCalendars = h.calendars; allCalendars(); draw(); fetchRange(); };
   b.hello(hello);
   b.status.connect((text) => { status = JSON.parse(text); draw(); fetchRange(); });
-  b.calendars.connect((text) => { calendars = JSON.parse(text); draw(); });
+  b.calendars.connect((text) => { realCalendars = JSON.parse(text); allCalendars(); draw(); });
   b.events.connect((text) => {
     const got = JSON.parse(text);
     if (got.req === searchReq && searching) { found.events = got.items; draw(); return; }
@@ -867,7 +897,7 @@ Surface.connect({ onState }).then((b) => {
   b.changed.connect(() => { if (surface.up || WINDOW) fetchRange(); });
   if (b.coreReply) b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
   // Tasks change elsewhere (Tasks, a sync): read again now and then while on show.
-  setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) fetchTasks(); }, 60000);
+  setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) { fetchTasks(); fetchPlugins(); } }, 60000);
   b.people.connect((text) => showPeople(JSON.parse(text)));
   if (b.weather) { b.weather.connect(gotWeather); readWeather(); }
   b.done.connect((text) => {
