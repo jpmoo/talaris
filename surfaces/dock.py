@@ -482,6 +482,17 @@ class Dock(QObject):
         pad = (32 + 3 * swell) / w
         return max(0.0, self._span[0] - pad), min(1.0, self._span[1] + pad)
 
+    def pointer_back(self) -> None:
+        """
+        Out, and still (core.Bridge.drawn): its icons have come to rest under a
+        pointer that has not moved, and a page says what is under the pointer
+        only on a move — so an icon took no press, and showed no hand, until
+        the pointer moved about. The move is made for it, and again a moment
+        on, for a page slow to draw that last frame.
+        """
+        hypr.refocus_pointer()
+        QTimer.singleShot(150, hypr.refocus_pointer)
+
     def _hide(self) -> None:
         self.view.hide()
         self.surface.placement = None

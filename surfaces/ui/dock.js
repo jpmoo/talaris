@@ -214,7 +214,10 @@ Surface.connect({
     if (s.leaving && motion === "slide" && !still) {
       leaving = document.getElementById("dock").animate([{ transform: "none" }, { transform: away }], { duration: Math.round(260 * pace), easing: ease, fill: "forwards" });
     } else if (s.arrived && motion === "slide" && !still) {
-      document.getElementById("dock").animate([{ transform: away }, { transform: "none" }], { duration: Math.round(260 * pace), easing: ease });
+      const coming = document.getElementById("dock").animate([{ transform: away }, { transform: "none" }], { duration: Math.round(260 * pace), easing: ease });
+      coming.onfinish = () => bridge && bridge.drawn();
+    } else if (s.arrived) {
+      requestAnimationFrame(() => requestAnimationFrame(() => bridge && bridge.drawn()));
     }
   },
 }).then((b) => {
