@@ -12,9 +12,9 @@ Where you are, and what Talaris does with it — **all off until Location is on*
   rounded to about a kilometre, and only on this machine (config.json).
 - **Light and dark by the sun**: the theme set dark at sunset and light at
   sunrise, worked out here (sun.py).
-- **Night light**: the screen warmed after sunset, gradually, by gammastep
-  setting the display's gamma (setup: `apt install gammastep`), and back after
-  sunrise.
+- **Night light**: the screen warmed round sunset and back round sunrise, by
+  gammastep setting the display's gamma (setup: `apt install gammastep`). One
+  gammastep, left running, goes by the sun's height in steps too small to see.
 - **Weather by the clock**: sky and temperature, from Open-Meteo — asked with
   the rounded fix and nothing else, no account and no key.
 - **The time zone, kept**: the zone where you are (Open-Meteo says it with the
@@ -45,7 +45,7 @@ import core
 import hypr
 import spawn
 from config import save_config
-from sun import is_day, next_change
+from sun import is_day
 from views import log
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,8 +65,10 @@ COARSE_M = 15000
 FIX_EVERY_MS = 30 * 60 * 1000
 WEATHER_EVERY_MS = 20 * 60 * 1000
 TICK_MS = 60 * 1000
-#: Night light comes on over this long before sunset, and goes over this long after sunrise.
-RAMP_S = 45 * 60
+#: Night light changes while the sun is this many degrees either side of the horizon: a couple of hours or so, each way.
+TWILIGHT = 12
+#: gammastep's settings for that, which it takes only from a file.
+GAMMA_CONF = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-gammastep.conf")
 #: Where the night light warmed the screen before gammastep: a screen shader of Hyprland's, which 0.53 applies only
 #: to what it redraws — the pointer warm while it moved, tooltips flashing orange as they drew. Cleared if left on.
 OLD_SHADER = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "talaris-night.frag")
@@ -194,10 +196,11 @@ class Location(QObject):
         self.in_use = False
         self.locating = False
         self.weather: dict | None = None
-        self.warmth = 6500
-        #: gammastep holding the screen at `warmth`: the gamma is the display's, so every pixel is warmed, pointer
+        #: gammastep warming the screen by the sun: the gamma is the display's, so every pixel is warmed, pointer
         #: and all, whatever is redrawn — and it lasts only while gammastep runs, so it is never left behind.
         self._gamma: subprocess.Popen | None = None
+        #: What it was started with, (warmth, latitude, longitude): started again only when that changes.
+        self._gamma_for: tuple | None = None
         self._clear_old_shader()
         #: The sun up or down at the last look, for the theme: set as it changes, not every minute — a mode you
         #: choose yourself stands until the next sunrise or sunset.
@@ -333,7 +336,7 @@ class Location(QObject):
 
     def stop(self) -> None:
         self._restarts = 3
-        self._night(6500)
+        self._night(None)
 
     # ------------------------------------------------------------ applications asking
 
@@ -667,7 +670,7 @@ class Location(QObject):
         s = self.settings()
         fix = self.last()
         if not s["on"] or not fix:
-            self._night(6500)
+            self._night(None)
             return
         now = datetime.now(timezone.utc)
         up = is_day(now, fix["lat"], fix["lon"])
@@ -677,27 +680,19 @@ class Location(QObject):
                 log(f"location: the sun {'up' if up else 'down'}: {mode}")
                 self.desktop.settings.apply({"theme": {"mode": mode}})
         self._sun_was = up if s["sunTheme"] else None
-        self._night(self._warmth_now(now, up, fix) if s["nightLight"] else 6500)
+        self._night((int(s["warmth"]), round(fix["lat"]), round(fix["lon"])) if s["nightLight"] else None)
 
-    def _warmth_now(self, now: datetime, up: bool, fix: dict) -> int:
-        """How warm the screen is now: full after sunset, none in the day, a ramp of RAMP_S either side."""
-        warm = int(self.settings()["warmth"])
-        nxt = next_change(now, fix["lat"], fix["lon"])
-        if up:
-            # Day: warming in the last stretch before sunset.
-            left = (nxt - now).total_seconds() if nxt else RAMP_S * 2
-            share = max(0.0, 1 - left / RAMP_S)
-        else:
-            # Night: cooling in the last stretch before sunrise.
-            left = (nxt - now).total_seconds() if nxt else RAMP_S * 2
-            share = min(1.0, left / RAMP_S)
-        return round((6500 - (6500 - warm) * share) / 100) * 100
-
-    def _night(self, kelvin: int) -> None:
-        """The screen warmed to `kelvin` (gammastep, the display's gamma), or (6500) left alone — and only when it changes."""
-        if kelvin == self.warmth:
+    def _night(self, wanted: tuple | None) -> None:
+        """
+        The screen warming and cooling by the sun, at (warmth, latitude,
+        longitude), or (None) left alone. Started once and left to run: going
+        from one warmth to the next by starting another let the display go back
+        to neutral between them, a blink that gave every step away. The place
+        is held to a degree, so moving about town does not start it again.
+        """
+        if wanted == self._gamma_for:
             return
-        self.warmth = kelvin
+        self._gamma_for = wanted
         # One gamma per screen at a time: the old one goes before the new one asks.
         if self._gamma is not None:
             self._gamma.terminate()
@@ -706,13 +701,16 @@ class Location(QObject):
             except subprocess.TimeoutExpired:
                 self._gamma.kill()
             self._gamma = None
-        if kelvin >= 6500:
+        if wanted is None:
             return
         if not shutil.which("gammastep"):
             log("location: no night light — gammastep is not installed")
             return
+        warmth, lat, lon = wanted
         try:
-            self._gamma = subprocess.Popen(["gammastep", "-m", "wayland", "-P", "-O", str(kelvin)],
+            with open(GAMMA_CONF, "w", encoding="utf-8") as f:
+                f.write(f"[general]\nelevation-high={TWILIGHT}\nelevation-low={-TWILIGHT}\nfade=0\n")
+            self._gamma = subprocess.Popen(["gammastep", "-c", GAMMA_CONF, "-m", "wayland", "-P", "-l", f"{lat}:{lon}", "-t", f"6500:{warmth}"],
                                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                            preexec_fn=_die_with_parent)
         except OSError as e:
