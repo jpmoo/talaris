@@ -471,15 +471,15 @@ class Dock(QObject):
     def _reach(self) -> tuple[float, float]:
         """
         Where presses reach the dock, as shares of its surface's width. Beside
-        the dock, room for magnifying (Settings, Dock): an icon swelling at the
-        end pushes past where the dock was drawn before it swelled.
+        the dock, room for its shadow, and for an icon at the end to swell into
+        (Settings, Dock).
         """
         w = self.view.width()
         if w <= 0:
             return self._span
         look = self.desktop.config["dock"]
         swell = round((int(look.get("iconSize", 24)) + 12) * max(0, int(look.get("magnify", 100)) - 100) / 100)
-        pad = (32 + 3 * swell) / w
+        pad = (32 + swell) / w
         return max(0.0, self._span[0] - pad), min(1.0, self._span[1] + pad)
 
     def pointer_back(self) -> None:
