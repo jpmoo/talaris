@@ -67,8 +67,8 @@ body.dropping #dock, body.dropping .pill { border-color: var(--accent) !importan
 /* One dot per window, three at most; the focused one's a longer bar in the accent. */
 .dots { position: absolute; left: 0; right: 0; bottom: 1px; display: flex; justify-content: center; gap: 3px; }
 .dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
-/* The window in use: the text's color, not the accent, which is a window's own border and would read as one. */
-.dots i.on { background: var(--text); width: 16px; border-radius: 2px; }
+/* The window in use: a mark, not a line, which along the bottom of the screen would read as a window's border. */
+.dots i.on { background: none; width: 0; height: 0; border-radius: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid var(--text); }
 </style>
 </head>
 <body data-edge="bottom">

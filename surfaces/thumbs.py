@@ -16,17 +16,22 @@ a picture of the screen is not something to leave on disk. A project not yet
 seen shows its wallpaper instead (the page asks `talaris-ui://thumb/`, which
 falls back) — and so does one left with no windows while out of view: an empty
 desktop is its wallpaper, so its old likeness is let go rather than kept.
+
+Each window in view is pictured at those times too, for the dock (DockPreview):
+as it last looked, since a window not on screen cannot be pictured.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
 import subprocess
 import threading
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QBuffer, QObject, QRect, Qt, QTimer
+from PySide6.QtGui import QImage
 
 import core
 import hypr
@@ -44,6 +49,24 @@ SETTLE_MS = 1500
 
 def path_for(project: str) -> str:
     return os.path.join(DIR, re.sub(r"[^A-Za-z0-9_-]", "", project) + ".png")
+
+
+#: Each window's picture, apart from the projects' (which `_let_go_of_empty` looks through), and its width.
+WINDOWS_DIR = os.path.join(DIR, "windows")
+WINDOW_WIDTH = 480
+
+
+def window_path(address: str) -> str:
+    return os.path.join(WINDOWS_DIR, re.sub(r"[^A-Za-z0-9]", "", address) + ".png")
+
+
+def window_picture(address: str) -> str:
+    """A window as it last looked, for a page; empty if it has not been seen."""
+    try:
+        with open(window_path(address), "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    except OSError:
+        return ""
 
 
 class Thumbs(QObject):
@@ -66,9 +89,47 @@ class Thumbs(QObject):
         ev = desktop.events
         for signal in (ev.opened, ev.closed):
             signal.connect(lambda _a: self._settle.start(SETTLE_MS))
+        ev.closed.connect(self._window_gone)
         ev.windows.connect(lambda: self._settle.start(SETTLE_MS))
         # And once at the start: what was left empty while Talaris was away.
         self._settle.start(SETTLE_MS * 2)
+
+    @staticmethod
+    def _window_gone(address: str) -> None:
+        try:
+            os.remove(window_path(address))
+        except OSError:
+            pass
+
+    def _picture_windows(self) -> None:
+        """Off the screen's thread: the screen, once, and each window in view cut out of it."""
+        try:
+            mon = next(m for m in json.loads(hypr.ask("j/monitors")) if m.get("focused"))
+            active = mon.get("activeWorkspace", {}).get("id")
+            w, h = int(mon["width"] / mon["scale"]), int(mon["height"] / mon["scale"])
+            shot = subprocess.run(["grim", "-g", f"{mon['x']},{mon['y']} {w}x{h}", "-t", "png", "-l", "1", "-"], check=True, timeout=10, capture_output=True).stdout
+            screen = QImage.fromData(shot, "PNG")
+            if screen.isNull():
+                return
+            ratio = screen.width() / w
+            os.makedirs(WINDOWS_DIR, mode=0o700, exist_ok=True)
+            os.chmod(WINDOWS_DIR, 0o700)
+            for c in json.loads(hypr.ask("j/clients")):
+                if c.get("workspace", {}).get("id") != active or not c.get("mapped", True) or c.get("hidden"):
+                    continue
+                (x, y), (cw, ch) = c["at"], c["size"]
+                part = screen.copy(QRect(int((x - mon["x"]) * ratio), int((y - mon["y"]) * ratio), int(cw * ratio), int(ch * ratio)))
+                small = part.scaledToWidth(min(WINDOW_WIDTH, part.width()), Qt.TransformationMode.SmoothTransformation)
+                tmp = window_path(c["address"]) + ".tmp"
+                buffer = QBuffer()
+                buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+                small.save(buffer, "PNG", 30)
+                with open(tmp, "wb") as f:
+                    f.write(bytes(buffer.data()))
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, window_path(c["address"]))
+        except (StopIteration, ValueError, KeyError, OSError, subprocess.SubprocessError) as e:
+            log(f"thumbs: windows: {e}")
 
     def arrived(self) -> None:
         """A project just became the current one: its likeness, once the screen has settled."""
@@ -150,4 +211,5 @@ class Thumbs(QObject):
                 os.replace(tmp, path_for(project))
             except (StopIteration, ValueError, OSError, subprocess.SubprocessError) as e:
                 log(f"thumbs: {e}")
+            self._picture_windows()
         threading.Thread(target=run, daemon=True).start()

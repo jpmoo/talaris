@@ -56,6 +56,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import time
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
@@ -80,6 +81,7 @@ from layershell import (
     Placement,
 )
 from sensor import Autohide, ClickAway
+from thumbs import window_picture
 from views import make_view, zoom
 
 #: The dock's thickness beyond its icons: their dots, and room around them.
@@ -90,6 +92,11 @@ DOCK_ROOM = 26
 MENU = (256, 334)
 #: An item menu nobody touches puts itself away.
 MENU_IDLE_MS = 10000
+#: The windows' pictures: each one's room, how many at most, how often the pointer is looked for, how long it may be off them.
+PREVIEW_CARD = (188, 164)
+PREVIEW_MOST = 6
+PREVIEW_LOOK_MS = 120
+PREVIEW_GRACE_S = 0.6
 #: A press, with Shift, with Ctrl: each does one of `new`, `bring`, `go` (Dock.clicks).
 PRESSES = ("click", "shift", "ctrl")
 
@@ -151,6 +158,11 @@ class DockBridge(Bridge):
     @Slot(result=str)
     def listing(self) -> str:
         return self.owner.last
+
+    @Slot(str, float)
+    def preview(self, key: str, x: float) -> None:
+        """At rest on an item: its windows' pictures (empty: none)."""
+        self.owner.preview.show(key, x)
 
     @Slot()
     def pressedOff(self) -> None:  # noqa: N802 — called from the page by this name
@@ -364,6 +376,99 @@ class DockMenu(QObject):
         pass
 
 
+class PreviewBridge(Bridge):
+    @Slot(str)
+    def pick(self, address: str) -> None:
+        self.owner.pick(address)
+
+
+class DockPreview(QObject):
+    """
+    A dock item's windows, wherever they are, as each last looked (thumbs.py):
+    a surface of its own, just above the item, while the pointer is on the item
+    or on it. A press on one goes to that window or brings it, as `Dock.how`
+    says for that application.
+    """
+
+    def __init__(self, profile: QWebEngineProfile, dock: "Dock") -> None:
+        super().__init__(dock)
+        self.dock = dock
+        self.desktop = dock.desktop
+        self.key = ""
+        self.windows: list = []
+        self.bridge = PreviewBridge(self, self)
+        self.view = make_view(profile, "dock-preview", "talaris-ui://ui/dockpreview.html", self.bridge, self)
+        self.surface = LayerSurface(self.view, "talaris-dock-preview")
+        self._off = 0.0
+        self.watch = QTimer(self)
+        self.watch.setInterval(PREVIEW_LOOK_MS)
+        self.watch.timeout.connect(self._look)
+
+    def describe(self) -> dict:
+        return {"up": bool(self.key), "windows": self.windows, "edge": self.dock.edge, "theme": self.desktop.config["theme"],
+                "opacity": self.desktop.config["panels"].get("opacity", 100)}
+
+    def show(self, key: str, x: float) -> None:
+        if not key:
+            self.close()
+            return
+        if self.dock.menu.key or key not in self.dock.items:
+            return
+        listed = self.dock.menu._everywhere(key)
+        if not listed:
+            self.close()
+            return
+        self.key = key
+        self._off = time.monotonic() + PREVIEW_GRACE_S
+        self.windows = [{**w, "image": window_picture(w["address"])} for w in listed[:PREVIEW_MOST]]
+        screen = QApplication.primaryScreen().geometry()
+        w, h = zoom(PREVIEW_CARD[0] * len(self.windows) + 16), zoom(PREVIEW_CARD[1] + 16)
+        left = max(4, min(int(x * self.dock.view.zoomFactor()) - w // 2, screen.width() - w - 4))
+        look = self.desktop.config["dock"]
+        swell = round((int(look.get("iconSize", 24)) + 12) * max(0, int(look.get("magnify", 100)) - 100) / 100)
+        off = self.dock.thickness() + swell
+        bottom = self.dock.edge == "bottom"
+        anchor = (ANCHOR_BOTTOM if bottom else ANCHOR_TOP) | ANCHOR_LEFT
+        self.surface.placement = None
+        self.surface.apply(Placement(OVERLAY, anchor, w, h, KEYBOARD_NONE, margins=(left, 0 if bottom else off, 0, off if bottom else 0)))
+        self.bridge.state.emit(json.dumps(self.describe()))
+        self.watch.start()
+
+    def _look(self) -> None:
+        """Off both it and the dock for a moment (the pointer crossing from one to the other is not leaving): gone."""
+        if away.over("talaris-dock-preview") or away.over("talaris-dock", self.dock._reach()):
+            self._off = time.monotonic() + PREVIEW_GRACE_S / 2
+        elif time.monotonic() > self._off:
+            self.close()
+
+    def pick(self, address: str) -> None:
+        key = self.key
+        self.close()
+        self.dock.pick_window(key, address)
+
+    def close(self) -> None:
+        self.watch.stop()
+        if self.key:
+            self.key = ""
+            self.windows = []
+            self.view.hide()
+            self.surface.placement = None
+            self.bridge.state.emit(json.dumps(self.describe()))
+
+    # What the page's bridge may call on its owner.
+    def file_away(self) -> None:
+        self.close()
+
+    def toggle(self) -> None:
+        pass
+
+    def left(self) -> None:
+        pass
+
+    def touched(self) -> None:
+        pass
+
+
 class Dock(QObject):
     def __init__(self, config: dict, profile: QWebEngineProfile, desktop, apps: Apps) -> None:
         super().__init__(desktop)
@@ -384,9 +489,10 @@ class Dock(QObject):
         self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self)
         self.surface = LayerSurface(self.view, "talaris-dock")
         self.hider = Autohide(profile, "dock", self.view, self._show, self._hide, slide_out=self._slide_out,
-                              busy=lambda: bool(self.menu.key), parent=self,
+                              busy=lambda: bool(self.menu.key or self.preview.key), parent=self,
                               on_it=lambda: away.over("talaris-dock", self._reach()))
         self.menu = DockMenu(profile, self)
+        self.preview = DockPreview(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
         #: Where the dock is across its surface, as shares of its width (the page's `span`): near it, it does not hide by itself.
@@ -588,6 +694,29 @@ class Dock(QObject):
         return next((p.get("name", key) for p in core_projects() if p.get("id") == key), key)
 
     # ------------------------------------------------------------ what it does
+
+    def pick_window(self, key: str, address: str) -> None:
+        """
+        One of its windows, chosen by its picture: shown if hidden, gone to if
+        here; elsewhere, brought or gone to as `how` says for it — a new window
+        being no answer to a window chosen, the rule in Settings says then.
+        """
+        now = hypr.windows()
+        w = next((x for x in now["windows"] if x["address"] == address), None)
+        if not w:
+            return
+        if w["hidden"]:
+            hypr.show(address)
+            return
+        if w["workspace"] == now["active"]:
+            hypr.focus(address)
+            return
+        how = self.how(key)
+        if (single_window(self.desktop.config) if how == "new" else how) == "bring":
+            hypr.show(address, now["activeTarget"])
+            self.desktop.winfx.arrived(address)
+        else:
+            hypr.focus(address)
 
     def how(self, key: str) -> str:
         """

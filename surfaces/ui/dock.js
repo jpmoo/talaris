@@ -35,6 +35,8 @@ function item(app, pinned) {
   // Another project's, said by name: where it is kept, or the desktops its windows are on.
   if (app.doc && app.away && app.awayIn && app.awayIn.length) b.title += ` — in ${app.awayIn.join(", ")}`;
   else if (app.keptIn && !app.keptHere && !app.away) b.title += " — kept in another project";
+  // Its windows have their own pictures, with their names (DockPreview): no tip over them.
+  if (!app.doc && app.windows.length) b.removeAttribute("title");
   b.classList.toggle("doc", !!app.doc);
   b.classList.toggle("missing", !!(app.doc && app.doc.missing));
   // Every window hidden: the item stays, dimmed, until shown again.
@@ -70,6 +72,16 @@ function item(app, pinned) {
   b.append(dots);
 
   // Shift and Ctrl each do one of the three a press can (its menu's "When pressed…").
+  // At rest on it a moment, its windows' pictures; moving on from one, the next's at once.
+  b.addEventListener("pointerenter", () => {
+    clearTimeout(previewSoon);
+    previewSoon = setTimeout(() => {
+      const r = b.getBoundingClientRect();
+      if (bridge) { bridge.preview(app.key, r.left + r.width / 2); previewing = true; }
+    }, previewing ? PREVIEW_NEXT_MS : PREVIEW_REST_MS);
+  });
+  b.addEventListener("pointerleave", () => clearTimeout(previewSoon));
+  b.addEventListener("pointerdown", () => { clearTimeout(previewSoon); previewing = false; if (bridge) bridge.preview("", 0); });
   b.addEventListener("click", (e) => {
     if (dragged || !bridge) return;
     const mod = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : "";
@@ -85,6 +97,8 @@ function item(app, pinned) {
   return b;
 }
 
+const PREVIEW_REST_MS = 350, PREVIEW_NEXT_MS = 60;
+let previewSoon = 0, previewing = false;
 let pills = false;
 function draw(next) {
   listing = next;
@@ -186,6 +200,7 @@ dockEl.addEventListener("pointermove", (e) => {
   }
 });
 dockEl.addEventListener("pointerleave", () => {
+  previewing = false;
   for (const b of dockEl.querySelectorAll(".app")) b.style.removeProperty("--s");
 });
 
