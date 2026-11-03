@@ -350,7 +350,7 @@ $("ac-on").addEventListener("click", () => save({ activity: { enabled: !ac().ena
 //
 // Where you are, and each use of it (location.py): nothing until it is on. `whereNow` is what the
 // surfaces say of it — GeoClue's agent, the last fix, the zone, the apps that asked — told with the state.
-const lc = () => ({ on: false, apps: {}, weather: true, units: "auto", zone: true, sunTheme: false, nightLight: false, warmth: 4000, morgan: false, ...(cfg.location || {}) });
+const lc = () => ({ on: false, apps: {}, weather: true, units: "auto", hoursAhead: 12, zone: true, sunTheme: false, nightLight: false, warmth: 4000, morgan: false, ...(cfg.location || {}) });
 let whereNow = {};
 function drawLocation() {
   const l = lc();
@@ -393,9 +393,10 @@ function drawLocation() {
   seg("lc-units", [["auto", "Auto"], ["c", "°C"], ["f", "°F"]], l.units, (units) => save({ location: { units } }));
   $("lc-zone-now").textContent = w.zone ? `Now ${w.zone.replace(/_/g, " ")}` : "";
   drawMap(l.on && w.fix);
+  slider("lc-hours", l.hoursAhead, (v) => `${v}`, (hoursAhead) => save({ location: { hoursAhead } }));
   slider("lc-warmth", l.warmth, (v) => `${v}K`, (warmth) => save({ location: { warmth: Number(warmth) } }));
   $("lc-morgan-row").hidden = !morganHere;
-  needs(["lc-weather", "lc-zone", "lc-sun", "lc-night", "lc-morgan"], l.on);
+  needs(["lc-weather", "lc-hours", "lc-zone", "lc-sun", "lc-night", "lc-morgan"], l.on);
   // Each app that asked: allowed or not, changed here, or forgotten (it asks again next time).
   const apps = w.apps || [];
   $("lc-apps").replaceChildren(...(apps.length ? apps.map((a) => el("div", { class: "row" },

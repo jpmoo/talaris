@@ -181,6 +181,7 @@ def _checked(c: dict) -> str:
     loc = c.get("location", {})
     if not all(isinstance(loc.get(k, False), bool) for k in ("on", "weather", "zone", "sunTheme", "nightLight", "morgan")) \
             or loc.get("units", "auto") not in ("auto", "c", "f") or not 2500 <= int(loc.get("warmth", 4000)) <= 6000 \
+            or not 1 <= int(loc.get("hoursAhead", 12)) <= 48 \
             or not all(v in ("allow", "deny") for v in loc.get("apps", {}).values()) \
             or loc.get("by", "auto") not in ("auto", "hand") \
             or not (loc.get("place") is None or (isinstance(loc["place"], dict) and isinstance(loc["place"].get("lat"), (int, float))

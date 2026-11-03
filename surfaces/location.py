@@ -53,7 +53,7 @@ SETUP = os.path.join(os.path.dirname(HERE), "setup", "location.sh")
 #: What set up writes first: there, and the setup has been done (however it was run).
 AGENT_CONF = "/etc/geoclue/conf.d/90-talaris.conf"
 DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": True,
-            "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False,
+            "hoursAhead": 12, "sunTheme": False, "nightLight": False, "warmth": 4000, "morgan": False,
             # Where Talaris takes you to be: found ("auto"), or a place you chose ("hand": `place`).
             "by": "auto", "place": None,
             # Places known by their Wi-Fi: on one of these networks, that place — exactly, where a guess cannot be.
@@ -551,7 +551,7 @@ class Location(QObject):
     def forecast(self, to: str = "popup") -> None:
         """
         The forecast — every hour of the next 10 days, and the days — for the
-        weather popup (`to` "popup": the next 24 hours of it) or the calendar
+        weather popup (`to` "popup": the hours ahead Settings says) or the calendar
         ("calendar": all of it). Asked of Open-Meteo off the screen's thread,
         with the rounded fix and nothing else; kept a quarter of an hour, so
         the popup and the calendar share one asking.
@@ -613,8 +613,8 @@ class Location(QObject):
             self.calendar_weather.emit(json.dumps({"state": state, "error": error}))
             return
         if state:
-            # The popup: from this hour, the next 24.
-            hours = [h for h in state["hours"] if h["at"][:13] >= state.get("hour", "")][:24]
+            # The popup: from this hour, as many ahead as Settings says.
+            hours = [h for h in state["hours"] if h["at"][:13] >= state.get("hour", "")][:int(self.settings()["hoursAhead"]) + 1]
             state = {**state, "hours": hours}
         self.forecast_ready.emit(json.dumps({"kind": "weather", "state": state, "error": error}))
 

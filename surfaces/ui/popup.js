@@ -425,7 +425,7 @@ function onPanel(p) {
 }
 
 // ---------------------------------------------------------------- the weather
-// Now, large; then the next 24 hours, or (the switch) the next 10 days — fetched each time it opens (location.py).
+// Now, large; then the hours ahead Settings says, or (the switch) the next 10 days — fetched each time it opens (location.py).
 let forecast = null;
 let wxMode = "hours";
 function drawWeather(error) {
