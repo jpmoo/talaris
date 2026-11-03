@@ -371,20 +371,26 @@ function drawLocation() {
     else { byHand = true; drawLocation(); $("lc-find").focus(); }
   });
   $("lc-by-note").textContent = l.by === "hand" && l.place ? l.place.name
+    : w.ignoring ? "Not looking while on this Wi-Fi: your last place stands"
     : w.fix && w.fix.coarse ? (w.network ? "A guess from your internet address: say where this Wi-Fi is, below, to be sure here" : "A guess from your internet address")
     : "Your Wi-Fi's place where you've named it; elsewhere, found";
   $("lc-find-row").hidden = !(l.on && (byHand || pinning || l.by === "hand"));
   // Places known by their Wi-Fi (location.py): on one, Talaris takes you to be there, exactly; named here, once.
   const automatic = l.on && (l.by || "auto") === "auto";
   $("lc-net-row").hidden = !(automatic && w.network);
-  $("lc-net-note").textContent = w.network ? (w.here ? `${w.network}: ${w.here}` : `${w.network}: not named yet`) : "";
-  $("lc-net-act").replaceChildren(w.here
-    ? el("button", { class: "t-btn", onclick: () => { const i = (w.places || []).findIndex((p) => p.ssid === w.network && p.name === w.here); if (i >= 0 && bridge) bridge.locationUnpin(i); } }, "Forget")
-    : el("button", { class: "t-btn", title: "Say where this network is: here, Talaris will take you to be there", onclick: () => { pinning = true; drawLocation(); $("lc-find").focus(); } }, "Set where this is…"));
+  $("lc-net-note").textContent = w.network ? (w.ignoring ? `${w.network}: ignored` : w.here ? `${w.network}: ${w.here}` : `${w.network}: not named yet`) : "";
+  $("lc-net-act").replaceChildren(...(w.ignoring
+    ? [el("button", { class: "t-btn", onclick: () => bridge && bridge.locationIgnore(w.network, false) }, "Stop ignoring")]
+    : [w.here
+      ? el("button", { class: "t-btn", onclick: () => { const i = (w.places || []).findIndex((p) => p.ssid === w.network && p.name === w.here); if (i >= 0 && bridge) bridge.locationUnpin(i); } }, "Forget")
+      : el("button", { class: "t-btn", title: "Say where this network is: here, Talaris will take you to be there", onclick: () => { pinning = true; drawLocation(); $("lc-find").focus(); } }, "Set where this is…"),
+      el("button", { class: "t-btn", title: "A network on the move, like a plane's: on it, Talaris keeps your last place, time zone and all", onclick: () => bridge && bridge.locationIgnore(w.network, true) }, "Ignore")]));
   const others = (w.places || []).map((p, i) => ({ ...p, i })).filter((p) => !(p.ssid === w.network && p.name === w.here));
   $("lc-places").replaceChildren(...(automatic && others.length ? [el("h3", {}, "Known places"), ...others.map((p) => el("div", { class: "row" },
     el("span", { class: "name" }, p.name, el("small", {}, p.ssid)),
-    el("span", { class: "what" }, el("button", { class: "t-btn", onclick: () => bridge && bridge.locationUnpin(p.i) }, "Forget"))))] : []));
+    el("span", { class: "what" }, el("button", { class: "t-btn", onclick: () => bridge && bridge.locationUnpin(p.i) }, "Forget"))))] : []),
+    ...(automatic && (w.ignored || []).some((x) => x !== w.network) ? [el("h3", {}, "Ignored Wi-Fi"), ...w.ignored.filter((x) => x !== w.network).map((x) => el("div", { class: "row" },
+      el("span", { class: "name" }, x), el("span", { class: "what" }, el("button", { class: "t-btn", onclick: () => bridge && bridge.locationIgnore(x, false) }, "Stop ignoring"))))] : []));
   // Set up once, and gone for good: what it wrote is there (location.py, setUp), whatever GeoClue last said.
   $("lc-setup").hidden = !l.on || w.setUp !== false;
   for (const [id, key] of [["lc-weather", "weather"], ["lc-zone", "zone"], ["lc-sun", "sunTheme"], ["lc-night", "nightLight"], ["lc-morgan", "morgan"]]) {

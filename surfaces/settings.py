@@ -187,6 +187,7 @@ def _checked(c: dict) -> str:
             or not (loc.get("place") is None or (isinstance(loc["place"], dict) and isinstance(loc["place"].get("lat"), (int, float))
                                                  and isinstance(loc["place"].get("lon"), (int, float)))) \
             or not isinstance(loc.get("places", []), list) \
+            or not (isinstance(loc.get("ignored", []), list) and all(isinstance(x, str) for x in loc.get("ignored", []))) \
             or not all(isinstance(p, dict) and isinstance(p.get("ssid"), str) and isinstance(p.get("bssids"), list)
                        and isinstance(p.get("lat"), (int, float)) and isinstance(p.get("lon"), (int, float)) for p in loc.get("places", [])):
         return "Not a location setting"
@@ -254,6 +255,11 @@ class SettingsBridge(Bridge):
     def locationPin(self, place: str) -> None:  # noqa: N802 — called from the page by this name
         """The Wi-Fi in use named as this place ({name, lat, lon}): there, Talaris takes you to be there."""
         self.owner.desktop.location.pin_network(json.loads(place))
+
+    @Slot(str, bool)
+    def locationIgnore(self, ssid: str, on: bool) -> None:  # noqa: N802 — called from the page by this name
+        """A network that tells nothing of where you are (a plane's), or no longer."""
+        self.owner.desktop.location.ignore_network(ssid, on)
 
     @Slot(int)
     def locationUnpin(self, index: int) -> None:  # noqa: N802 — called from the page by this name

@@ -57,7 +57,9 @@ DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": T
             # Where Talaris takes you to be: found ("auto"), or a place you chose ("hand": `place`).
             "by": "auto", "place": None,
             # Places known by their Wi-Fi: on one of these networks, that place — exactly, where a guess cannot be.
-            "places": []}
+            "places": [],
+            # Networks on the move (a plane's, a train's): where the internet says they are is no guide to where you are.
+            "ignored": []}
 #: How often the Wi-Fi in use is looked at, for a known place arrived at or left.
 NETWORK_EVERY_MS = 2 * 60 * 1000
 #: A fix this rough came from the internet address, not from Wi-Fi: said so, not taken as a distance.
@@ -474,10 +476,32 @@ class Location(QObject):
             self._network_seen.emit(json.dumps({"ssid": ssid, "bssids": bssids}))
         threading.Thread(target=run, daemon=True).start()
 
+    def ignoring(self) -> bool:
+        """Whether the Wi-Fi in use is one you said tells nothing of where you are: on it, no fix is taken."""
+        ssid = self.network.get("ssid")
+        return bool(ssid) and ssid in (self.settings().get("ignored") or [])
+
+    def ignore_network(self, ssid: str, on: bool) -> None:
+        """
+        A network marked (Settings, Location) or no longer. Marked once it has
+        already moved you, you go back to where you were before you joined it.
+        """
+        ignored = [x for x in (self.settings().get("ignored") or []) if x != ssid]
+        if on and ssid:
+            ignored.append(ssid)
+            last, before = self.desktop.config.get("location", {}).get("last"), self.desktop.config.get("location", {}).get("before")
+            if isinstance(last, dict) and last.get("net") == ssid and isinstance(before, dict) and "lat" in before:
+                self._keep(last=before)
+        self.desktop.settings.apply({"location": {"ignored": ignored}})
+
     def _got_network(self, text: str) -> None:
         was = (self.known_place() or {}).get("name")
+        ignored = self.ignoring()
         self.network = json.loads(text)
         now = (self.known_place() or {}).get("name")
+        # Off a network that told nothing: where you are, asked at once.
+        if ignored and not self.ignoring():
+            self.locate()
         if now != was:
             log(f"location: {'at a known place' if now else 'no known place'} by its Wi-Fi")
             self._outlook = None
@@ -514,10 +538,17 @@ class Location(QObject):
         QTimer.singleShot(60_000, lambda: setattr(self, "locating", False))
 
     def _fixed(self, fix: dict) -> None:
+        if self.ignoring():
+            return
         # Kept to about a kilometre: all the sun and the weather need, and no more.
+        net = self.network.get("ssid", "")
         kept = {"lat": round(float(fix["lat"]), 2), "lon": round(float(fix["lon"]), 2),
-                "accuracy": round(float(fix.get("accuracy", 0))), "at": int(time.time())}
+                "accuracy": round(float(fix.get("accuracy", 0))), "at": int(time.time()), "net": net}
         moved = (self.last() or {}).get("lat") != kept["lat"] or (self.last() or {}).get("lon") != kept["lon"]
+        # Where you were on the network before this one: to go back to, if this one turns out to tell nothing.
+        had = self.desktop.config.get("location", {}).get("last")
+        if isinstance(had, dict) and had.get("net") != net:
+            self._keep(before=had)
         self._keep(last=kept)
         if moved:
             log(f"location: a fix, to about {kept['accuracy'] // 1000 or 1} km")
@@ -776,5 +807,7 @@ class Location(QObject):
                 "network": self.network.get("ssid", ""),
                 "places": [{"ssid": p.get("ssid", ""), "name": p.get("name", "")} for p in (s.get("places") or [])],
                 "here": (self.known_place() or {}).get("name", ""),
+                "ignored": list(s.get("ignored") or []),
+                "ignoring": self.ignoring(),
                 "zone": _system_zone(), "units": self.units(),
                 "apps": [{"id": a, "name": self.app_name(a), "how": h} for a, h in sorted(s["apps"].items())]}
