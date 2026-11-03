@@ -859,3 +859,26 @@ test("tags written in a page's words: put on the page, an existing tag in its ow
   pages.writePage(p.id, page.path, "#Packing for #Phoenix and #Denver");
   assert.deepEqual(tags.pageTags(p.id, page.path), ["packing", "Phoenix", "Denver"], "added, never twice");
 });
+
+test("a person and an event can be in a project: a mirror leaves it alone, and archiving the project leaves them in use", async () => {
+  const { archiveProject } = await import("../src/archive.js");
+  const filingModule = await import("../src/filing.js");
+  const made = (await import("../src/projects.js")).createProject("Budget work");
+  const project = filingModule.ensureProjectEntity(made)!;
+  const person = entities.createEntity({ role: "person", properties: { title: "Sam Rivera", project: [project.id] } });
+  const source = { kind: "eds-event", key: "cal/u-budget" };
+  const event = entities.mirrorEvent({ source, title: "Budget review", start: "2026-11-10T09:00" });
+  const task = entities.createEntity({ role: "task", properties: { title: "Draft the budget", project: [project.id] } });
+  entities.updateEntity(event.id, { properties: { project: [project.id] } });
+  assert.deepEqual(filingModule.filedUnder(entities.getEntity(person.id)), [project.id]);
+
+  const moved = entities.mirrorEvent({ source, title: "Budget review (moved)", start: "2026-11-11T09:00" });
+  assert.equal(moved.properties.title, "Budget review (moved)");
+  assert.deepEqual(moved.properties.project, [project.id], "the calendar does not know of it, and does not take it away");
+
+  archiveProject(made.id);
+  assert.ok(entities.getEntity(task.id).archived, "a task filed only here goes quiet with it");
+  assert.ok(!entities.getEntity(person.id).archived, "a person outlives their project");
+  assert.ok(!entities.getEntity(event.id).archived, "a meeting stays on the calendar");
+  assert.deepEqual(filingModule.filedUnder(entities.getEntity(event.id)), [project.id], "and it still says what it was for");
+});

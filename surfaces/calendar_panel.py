@@ -387,7 +387,9 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
                          # An event's notes take @ (mentions.js): finding what to name, making a person or a task by name, and opening one.
                          r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$"
                          # The calendars plugins bring, and what is on them.
-                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+)?$")
+                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+)?$"
+                         # An event's projects: the event's entity, made if the mirror has not reached it, and what it is filed under.
+                         r"|^/tasks/projects$|^/entities/by-source\?kind=[a-z-]+&key=[^&]*$|^/entities/mirror/events$|^/entities/[A-Za-z0-9_.:-]+/projects$")
 
 
 class CalendarBridge(Bridge):

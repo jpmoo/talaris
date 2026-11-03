@@ -619,6 +619,7 @@ function open(e, isNew) {
   // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; archived, not deleted.
   $("e-delete").hidden = isNew || !!e.entity;
   $("e-archive").hidden = !e.entity;
+  loadProjects();
   editing.readOnly = !isNew && !e.entity && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
   for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
   $("e-cal").disabled = editing.readOnly || !isNew;
@@ -628,6 +629,56 @@ function open(e, isNew) {
   setTimeout(() => $("e-title").focus(), 30);
 }
 function edit(e) { open(e, false); }
+
+// ---------------------------------------------------------------- an event's projects
+//
+// Kept on the event's entity, never on its calendar, so a read-only calendar's event can have them and an account never
+// hears of them. Saved as they are chosen, as a person's are. A new event has no entity yet: held until the calendar has it.
+let projectChoices = [];
+const eventSources = (calendar, uid) => ({ source: { kind: "eds-event", key: `${calendar}/${uid}` }, also: [{ kind: "ical-uid", key: uid }] });
+function loadProjects() {
+  const was = editing;
+  was.projects = [];
+  paintProjects();
+  core("GET", "/tasks/projects").then((all) => { projectChoices = (all || []).filter((p) => !p.archived); if (editing === was) paintProjects(); }).catch(() => {});
+  if (was.isNew) return;
+  const found = was.entity ? Promise.resolve(was.entity)
+    : core("GET", `/entities/by-source?kind=eds-event&key=${encodeURIComponent(`${was.calendar}/${was.uid}`)}`).then((o) => (o && o.id) || "");
+  found.then((id) => {
+    if (editing !== was || !id) return null;
+    was.entityId = id;
+    return core("GET", `/entities/${encodeURIComponent(id)}/projects`).then((r) => { if (editing === was) { was.projects = r.projects || []; paintProjects(); } });
+  }).catch(() => {});
+}
+function paintProjects() {
+  const names = new Map(projectChoices.map((p) => [p.id, p.title]));
+  $("e-projects").replaceChildren(...editing.projects.map((id) => {
+    const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); setProjects(editing.projects.filter((p) => p !== id)); } });
+    x.innerHTML = Icons.close();
+    return el("span", { class: "chip" }, el("span", { class: "lbl" }, names.get(id) || "Project"), x);
+  }));
+}
+/** The event's entity: the one it has, or made now, as the calendar's mirror would make it later (calendar_panel.py). */
+async function eventEntity(e) {
+  if (e.entityId) return e.entityId;
+  const pad = (n) => String(n).padStart(2, "0");
+  const local = (ms) => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const m = await core("POST", "/entities/mirror/events", { events: [{ ...eventSources(e.calendar, e.uid), title: e.title || "", start: local(e.start), end: local(e.end), allDay: !!e.allDay, location: e.location || "" }] });
+  return (e.entityId = ((m && m.ids) || [])[0] || "");
+}
+function setProjects(next) {
+  const e = editing;
+  e.projects = next;
+  paintProjects();
+  if (e.isNew) return;
+  eventEntity(e).then((id) => core("PUT", `/entities/${encodeURIComponent(id)}/projects`, { projects: next }))
+    .catch((x) => say(x.message || "The project was not saved", true));
+}
+$("e-project-add").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  if (!editing || (Kit.openedBy() || {}).id === "e-project-add") { popAway(); return; }
+  Kit.menu($("e-project-add"), projectChoices.filter((p) => !editing.projects.includes(p.id)).map((p) => ({ label: p.title, act: () => setProjects([...editing.projects, p.id]) })));
+});
 function create(at, allDay) {
   if (!showing().some((c) => c.writable)) { say("No calendar on show can be written to", true); return; }
   const start = allDay ? startOfDay(at) : at;
@@ -753,7 +804,16 @@ $("e-save").addEventListener("click", () => {
   if (!editing) return;
   if (editing.entity) { saveEntity(); return; }
   const event = collected();
-  if (editing.isNew) send({ do: "create", calendar: editing.v.calendar, event }, closeEditor);
+  if (editing.isNew) {
+    const made = editing;
+    send({ do: "create", calendar: made.v.calendar, event }, (d) => {
+      // The projects chosen while it had no entity: it has somewhere to keep them now.
+      if (made.projects.length && d && d.uid) eventEntity({ ...event, calendar: made.v.calendar, uid: d.uid })
+        .then((id) => core("PUT", `/entities/${encodeURIComponent(id)}/projects`, { projects: made.projects }))
+        .catch((x) => say(x.message || "The project was not saved", true));
+      closeEditor();
+    });
+  }
   else send({ do: "update", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, event }, closeEditor);
 });
 $("e-delete").addEventListener("click", () => {
@@ -913,7 +973,7 @@ Surface.connect({ onState }).then((b) => {
     pending.delete(d.req);
     if (d.error) { say(d.error, true); return; }
     say("");
-    if (after) after();
+    if (after) after(d);
     fetchRange();
   });
   b.leave.connect(() => {

@@ -1493,6 +1493,29 @@ press away, and its **possible connections**, suggested by what its
 description says. The bar's button for the Library is a card catalog: it
 holds no work of its own, and says where each thing is.
 
+### People and events in a project (2026-11-03)
+
+A person and an event can be filed under projects, as a task or a note is: a
+Project field on each type, declared as the format's `contact.project` and
+`event.project`, and carried by a sync. People's cards and New draw the field
+from the type; an event's sheet and New's event form have their own row.
+
+**An event's projects are on its entity, never its calendar.** So a read-only
+calendar's event can have them, the account never hears of them, and the
+mirror, which writes only the fields it owns, leaves them alone. They are saved
+as they are chosen, not with the sheet's Save; a new event's wait until the
+calendar has it. A Hermes Notes event's go back to Hermes Notes with the sync.
+
+**Archiving a project leaves its people and events in use**, still tied: a
+person outlives their project, and a meeting that happened stays on the
+calendar. Its tasks, notes and pages go quiet with it, as before.
+
+**Where this is going (not built):** a project chosen in the Library is shown
+as one view of everything in it, by kind, as a list or a graph, with what might
+belong there beside it: Glance built in. The Glance window stays, sharing that
+code, because it also opens on a single thing, which is not a project's view.
+All projects and No project stay the catalog they are.
+
 ### A project described by its tasks (2026-10-27)
 
 A project with no description is given one by Morgan

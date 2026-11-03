@@ -430,6 +430,7 @@
    * files, kept in that project.
    */
   let projectList = [];
+  let taskProjectList = [];  // the projects as things to be filed under (/tasks/projects): an event's
   function noteForm() {
     if (!v.project) v.project = surface.project || (projectList.find((p) => p.home) || {}).id || "";
     const p = projectList.find((x) => x.id === v.project);
@@ -475,6 +476,10 @@
         else if (/^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/.test(typed)) add({ email: typed.toLowerCase(), name: "" });
         else say("No one found by that", true);
       } });
+    // Its projects stay with its entity, not on the calendar.
+    if (!v.projects) v.projects = [];
+    const addProject = el("button", { class: "pick empty", "data-pops": "1", onclick: () => menu(addProject, taskProjectList.filter((p) => !p.archived && !v.projects.includes(p.id)).map((p) => ({
+      label: p.title, act: () => { v.projects.push(p.id); paint(); } }))) }, el("span", { class: "lbl" }, "Add"));
     return [
       row("Event", line("title", "What it is", { big: true, spell: true })),
       row("Day", ...dayField("day", "today, fri, 10/30…"), el("span", { class: "spacer" }), ...allDay),
@@ -486,6 +491,10 @@
       row("Calendar", calBtn),
       row("Invite", el("div", { class: "grow col" }, v.people.length ? chips : null, invite)),
       found,
+      row("Project", el("div", { class: "grow chips" },
+        v.projects.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, (taskProjectList.find((p) => p.id === id) || {}).title || "Project"),
+          xBtn("Remove", () => { v.projects = v.projects.filter((x) => x !== id); paint(); }))),
+        addProject)),
       row("Where", line("location", "Optional", { spell: true })),
       row("Notes", writing("notes", "Optional: @ to link a person, event or task", { body: true })),
       // Kept with the event's entity, made as soon as the calendar has it.
@@ -561,7 +570,7 @@
     // What the forms are made from, fresh each time it opens: the types (and
     // the projects, mirrored as entities when asked for), the calendars.
     Promise.all([api("GET", "/entity-types"), api("GET", "/tasks/projects").catch(() => [])])
-      .then(([t]) => { types = t || []; if (kind !== "event") { paint(); focusSoon(); } }).catch((e) => say(e.message, true));
+      .then(([t, listed]) => { types = t || []; taskProjectList = listed || []; if (kind !== "event") { paint(); focusSoon(); } }).catch((e) => say(e.message, true));
     api("GET", "/projects").then((ps) => { projectList = ps || []; if (kind === "note") paint(); }).catch(() => {});
     if (bridge) bridge.calendars((text) => { try { calendars = JSON.parse(text) || []; } catch { calendars = []; } if (kind === "event") paint(); });
   }
@@ -707,7 +716,7 @@
           ...(v.repeat ? { rrule: eventRule(v.day) } : {}), ...(invites ? { attendees: v.people } : {}) };
         store.set("talaris.new.calendar", v.calendar);
         const r = await new Promise((ok, fail) => { eventWait = { ok, fail }; bridge.createEvent(v.calendar, JSON.stringify(event)); });
-        if ((v.files || []).length && r.uid) {
+        if (((v.files || []).length || (v.projects || []).length) && r.uid) {
           // Its entity now, as the calendar's mirror would make it later (calendar_panel.py), so the files have it to go with.
           const local = (d) => `${isoDay(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
           const m = await api("POST", "/entities/mirror/events", { events: [{
@@ -716,7 +725,8 @@
             ...(invites ? { attendees: v.people } : {}),
           }] });
           const id = (m.ids || [])[0];
-          if (id) {
+          if (id && (v.projects || []).length) await api("PUT", `/entities/${enc(id)}/projects`, { projects: v.projects });
+          if (id && (v.files || []).length) {
             say("Keeping the files…");
             const sent = await new Promise((ok) => { sentWait = ok; bridge.sendFiles(id, "files", JSON.stringify(v.files.map((x) => x.path))); });
             if (sent.error) { busy = false; say(`Event made, but: ${sent.error}`, true); return; }

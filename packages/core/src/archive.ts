@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
 import type { CanvasDocument, CanvasItem, PageNode, Project, ProjectSummary } from "@talaris/model";
-import { allRecords, deleteEntity, updateEntity, type Entity } from "./entities.js";
+import { allRecords, deleteEntity, profilesOf, updateEntity, type Entity } from "./entities.js";
 import { filedUnder, projectEntity } from "./filing.js";
 import { rememberMerge, repoint } from "./merge.js";
 import { MACHINERY, WRITING, projectsRoot } from "./paths.js";
@@ -29,7 +29,9 @@ import { taskProjects } from "./tasks.js";
  * it are archived, marked as archived *with* it (`talaris:archivedWith`) so
  * that bringing it back brings back exactly those and not a task archived by
  * hand. Every search that leaves archived things out then leaves these out,
- * with nothing more to say to any of them.
+ * with nothing more to say to any of them. A person or an event filed under it
+ * stays as it is, still tied: a person outlives their project, and a meeting
+ * that happened stays on the calendar.
  *
  * **Bringing it back** puts the folder where it was. If a project in use has
  * its name (or its folder's), the choice is the person's: **keep both** — it
@@ -85,6 +87,7 @@ export function archiveProject(id: string): ProjectSummary {
 function filedOnlyUnder(o: Entity, projectEntityId: string): boolean {
   const filed = filedUnder(o);
   if (!filed.includes(projectEntityId)) return false;
+  if (profilesOf(o).some((k) => k === "contact" || k === "event")) return false;
   const others = listProjects().map((p) => projectEntity(p.id)?.id).filter((x): x is string => Boolean(x) && x !== projectEntityId);
   return !others.some((other) => filed.includes(other));
 }

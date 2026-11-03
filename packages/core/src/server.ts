@@ -11,7 +11,7 @@ import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs"
 import { dirname, join } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { FILES, projectsRoot } from "./paths.js";
-import { folderProjectOf, projectIdOf, resolveProject } from "./filing.js";
+import { filedUnder, filingPatch, folderProjectOf, projectIdOf, resolveProject } from "./filing.js";
 import { glance, nearProject } from "./glance.js";
 import { archiveProject, archivedContents, listArchive, restoreProject, searchArchive, type Restore } from "./archive.js";
 import { setStarredOrder, starredOrder } from "./starred.js";
@@ -475,6 +475,16 @@ route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: nee
 route("POST", "/entities/mirror/events", async (req) => {
   const b = await json<{ events?: entities.MirroredEvent[] }>(req);
   return { ids: (b.events ?? []).map((e) => entities.mirrorEvent(e).id) };
+});
+// The projects a thing is filed under, by its type's own field (filing.ts): what an event's sheet shows and changes.
+route("GET", "/entities/:id/projects", (_r, [id]) => ({ projects: filedUnder(entities.getEntity(id!)) }));
+route("PUT", "/entities/:id/projects", async (req, [id]) => {
+  const o = entities.getEntity(id!);
+  const type = entities.types().find((t) => t.id === o.type);
+  const patch = filingPatch(type, (await json<{ projects?: string[] }>(req)).projects ?? []);
+  if (!Object.keys(patch).length) throw new Conflict("this kind of thing is filed under no project");
+  entities.updateEntity(o.id, { properties: patch });
+  return { projects: filedUnder(entities.getEntity(o.id)) };
 });
 route("POST", "/entities/person", async (req) => {
   const b = await json<{ email?: string; name?: string }>(req);
