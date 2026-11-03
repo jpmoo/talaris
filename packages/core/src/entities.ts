@@ -111,8 +111,9 @@ export const BUILT_IN: EntityType[] = [
     // to cards in contacts accounts and say what they say. Version 2 added role
     // and the rest; `notes` is shown as the description. Version 3: the
     // `contact` profile's slots, as the format now names them. Version 4: the
-    // projects a person is part of (pkm-interchange: contact.project).
-    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 4,
+    // projects a person is part of (pkm-interchange: contact.project). Version 5:
+    // called Projects, as a person may be in several.
+    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 5,
     fields: [
       { key: "title", kind: "text", required: true, "talaris:label": "Name" },
       { key: "emails", kind: "text", many: true },
@@ -120,7 +121,7 @@ export const BUILT_IN: EntityType[] = [
       { key: "organization", kind: "text" },
       { key: "role", kind: "text" },
       { key: "pronouns", kind: "text" },
-      { key: "project", kind: "reference", targetType: "t_project", many: true },
+      { key: "project", kind: "reference", targetType: "t_project", many: true, "talaris:label": "Projects" },
       { key: "notes", kind: "richtext", "talaris:label": "Description" },
       { key: "image", kind: "attachment" },
       { key: "files", kind: "attachment", many: true },
@@ -133,8 +134,9 @@ export const BUILT_IN: EntityType[] = [
   {
     // Version 2: files kept with an event (an agenda, the slides). Version 3:
     // the `event` profile's slots, its people among them. Version 4: the
-    // projects it is for (pkm-interchange: event.project).
-    id: "t_event", name: "Event", "talaris:role": "event", "talaris:version": 4,
+    // projects it is for (pkm-interchange: event.project). Version 5: called
+    // Projects, as it may be for several.
+    id: "t_event", name: "Event", "talaris:role": "event", "talaris:version": 5,
     fields: [
       { key: "title", kind: "text", required: true },
       { key: "start", kind: "datetime" },
@@ -143,7 +145,7 @@ export const BUILT_IN: EntityType[] = [
       { key: "location", kind: "text" },
       { key: "organizer", kind: "reference", targetType: "t_person" },
       { key: "attendees", kind: "reference", targetType: "t_person", many: true },
-      { key: "project", kind: "reference", targetType: "t_project", many: true },
+      { key: "project", kind: "reference", targetType: "t_project", many: true, "talaris:label": "Projects" },
       { key: "notes", kind: "richtext" },
       { key: "files", kind: "attachment", many: true },
     ],

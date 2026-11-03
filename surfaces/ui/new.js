@@ -491,7 +491,7 @@
       row("Calendar", calBtn),
       row("Invite", el("div", { class: "grow col" }, v.people.length ? chips : null, invite)),
       found,
-      row("Project", el("div", { class: "grow chips" },
+      row("Projects", el("div", { class: "grow chips" },
         v.projects.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, (taskProjectList.find((p) => p.id === id) || {}).title || "Project"),
           xBtn("Remove", () => { v.projects = v.projects.filter((x) => x !== id); paint(); }))),
         addProject)),

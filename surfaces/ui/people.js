@@ -860,12 +860,12 @@
     // After one is made one, asked again: a name three share is three rows, and the others are about who it became.
     const refresh = async () => {
       const again = await api("GET", "/people/review");
-      if (reviewing) drawReview(list, matches(again, cards), refresh);
+      if (reviewing) drawReview(list, reviewItems(again, cards), refresh);
     };
-    drawReview(list, matches(found, cards), refresh);
+    drawReview(list, reviewItems(found, cards), refresh);
   }
 
-  function matches(found, cards) {
+  function reviewItems(found, cards) {
     const items = [];
     for (const p of found.pairs || []) items.push({ kind: "pair", a: p.a, b: p.b, why: p.why });
     // People with no card, matched to one: the same address first, else the same name — one card each, the best.
