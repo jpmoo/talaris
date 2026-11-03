@@ -14,13 +14,22 @@ drawn back to their marks where it was as it fades out.
 **Where a window was** is remembered, because by the time Hyprland says a
 window closed it has none: every change to the windows refreshes the record.
 Only windows on the workspace in view are drawn.
+
+**Hiding** (the dock's Hide, Super+H) moves a window to a workspace nobody
+sees, and to Hyprland that is a move, not a close: it just goes. So the window
+is pictured first, its picture put here where it is, the window hidden behind
+that, and the picture sent off as Settings says windows go — slid, popped,
+faded, drawn back, or (none) not at all. The picture is held in memory, for as
+long as it takes.
 """
 
 from __future__ import annotations
 
+import base64
 import json
+import shutil
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, Qt, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
@@ -31,11 +40,20 @@ from views import make_view
 
 #: How long the layer stays up after the last drawing began, at normal speed.
 LINGER_MS = 1700
+#: A picture not said to be on show by now: the window is hidden all the same.
+PICTURE_MS = 400
 
 
 class WinFxBridge(Bridge):
     #: Pushed to the page: draw one — `{kind: "open"|"close", x, y, w, h, speed}`.
     draw = Signal(str)
+    #: Pushed to the page: a window's picture to send off — `{address, image, motion, x, y, w, h, speed, accent}`.
+    hiding = Signal(str)
+
+    @Slot(str)
+    def pictured(self, address: str) -> None:
+        """Its picture is on show: the window goes from behind it."""
+        self.owner.hide_now(address)
 
 
 class WindowDraw(QObject):
@@ -50,6 +68,8 @@ class WindowDraw(QObject):
         # Clicks go through to the windows under it.
         self.view.setWindowFlag(Qt.WindowType.WindowTransparentForInput, True)
         self.surface = LayerSurface(self.view, "talaris-winfx")
+        #: The windows being pictured, to hide once they are.
+        self.going: set[str] = set()
         self.down = QTimer(self)
         self.down.setSingleShot(True)
         self.down.timeout.connect(self._down)
@@ -111,13 +131,50 @@ class WindowDraw(QObject):
     def _draw(self, kind: str, rect: dict | None) -> None:
         if not rect or rect["w"] < 20 or rect["h"] < 20:
             return
+        self._raise()
+        self.bridge.draw.emit(json.dumps({"kind": kind, **rect, "speed": self._speed(),
+                                          "accent": self.desktop.config["theme"]["accent"]}))
+
+    def _raise(self) -> None:
         if not self.up:
             self.surface.placement = None
             self.surface.apply(full_screen(KEYBOARD_NONE, layer=TOP))
             self.up = True
-        self.bridge.draw.emit(json.dumps({"kind": kind, **rect, "speed": self._speed(),
-                                          "accent": self.desktop.config["theme"]["accent"]}))
         self.down.start(int(LINGER_MS * pace(self._speed())) + 200)
+
+    # ------------------------------------------------------------ hiding
+
+    def hide(self, address: str) -> None:
+        """A window hidden, going as Settings says windows go: at once where there is nothing to see of it."""
+        motion = self.desktop.config["windows"].get("motion", "pop")
+        rect = self._clients().get(address)
+        client = next((c for c in json.loads(hypr.ask("j/clients") or "[]") if c.get("address") == address), None) if rect else None
+        if motion == "none" or not client or not shutil.which("grim") or address in self.going:
+            hypr.hide(address)
+            return
+        self.going.add(address)
+        (x, y), (w, h) = client["at"], client["size"]
+        # Compressed least: it is shown at once and thrown away.
+        grim = QProcess(self)
+        grim.errorOccurred.connect(lambda _e: self.hide_now(address))
+        grim.finished.connect(lambda code, _s: self._pictured(address, rect, motion, grim, code))
+        grim.start("grim", ["-l", "1", "-g", f"{x},{y} {w}x{h}", "-"])
+
+    def _pictured(self, address: str, rect: dict, motion: str, grim: QProcess, code: int) -> None:
+        picture = bytes(grim.readAllStandardOutput())
+        grim.deleteLater()
+        if code != 0 or not picture:
+            self.hide_now(address)
+            return
+        self._raise()
+        self.bridge.hiding.emit(json.dumps({"address": address, "image": base64.b64encode(picture).decode("ascii"), "motion": motion, **rect,
+                                            "speed": self._speed(), "accent": self.desktop.config["theme"]["accent"]}))
+        QTimer.singleShot(PICTURE_MS, lambda: self.hide_now(address))
+
+    def hide_now(self, address: str) -> None:
+        if address in self.going:
+            self.going.discard(address)
+            hypr.hide(address)
 
     def _down(self) -> None:
         if self.up:

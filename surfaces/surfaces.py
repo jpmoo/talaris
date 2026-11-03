@@ -831,19 +831,13 @@ class Desktop(QObject):
 
     def open_place(self, kind: str, project: str, where: str) -> None:
         """
-        A page or a canvas, opened in its project: that project the current one
-        first, if it is not. One of Home's Pages (the pages of no other project)
-        is the same from every project, so it opens where you are, the writing
-        drawer looking through Home. `notes` is their old name, before Home.
+        A page or a canvas, opened where you are: the workspace stays, and the
+        drawer looks through its project if that is another's, as its menu at
+        the top does. `notes` is Home's Pages' old name.
         """
         if kind == "page" and project == "notes":
             project, where = self._home().get("id", ""), f"Pages/{where}"
-        if kind == "page" and where.startswith("Pages/") and project == self._home().get("id", ""):
-            self.show_in_drawer("writing", {"page": where, "home": True})
-            return
-        if project and project != self.project.get("id"):
-            self.go_to_project(project)
-        self.show_in_drawer("writing" if kind == "page" else "canvas", {"page": where} if kind == "page" else {"canvas": where})
+        self.show_in_drawer("writing" if kind == "page" else "canvas", {"page" if kind == "page" else "canvas": where, "project": project})
 
     def archive_project(self, project_id: str) -> str:
         """A project archived (archive.ts): out of every list, its folder in the archive. Gone from, if it is the current one."""
@@ -932,7 +926,7 @@ class Desktop(QObject):
                 self.bar.hider.clicked()
             elif verb == "hide-window":
                 # As the dock's Hide does, for the one with focus.
-                hypr.hide(str(hypr.windows()["focused"] or ""))
+                self.winfx.hide(str(hypr.windows()["focused"] or ""))
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()

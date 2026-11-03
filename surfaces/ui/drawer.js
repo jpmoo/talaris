@@ -1354,16 +1354,20 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   });
   bridge.show.connect(async (json) => {
     const target = JSON.parse(json);
+    if (!(state.drawer === "canvas" ? target.canvas : target.page)) return;
+    // Opened where you are: another project's is looked through, the workspace left as it is; whatever was being
+    // looked through gives way. A daily page is the same from every project.
+    const daily = target.page && target.page.startsWith(`${DAILY}/`);
+    const whose = target.project && target.project !== state.project.id && !daily
+      ? (await core("GET", "/projects").catch(() => [])).find((p) => p.id === target.project) : null;
+    browsing = whose ? { id: whose.id, code: whose.code || "", name: whose.name, home: Boolean(whose.home) } : null;
     if (state.drawer === "canvas" && target.canvas) {
+      canvasTreeCache = null;
       viewing = target.canvas;
       if (state.mode !== "filed") loadCanvas();
     } else if (state.drawer === "writing" && target.page) {
-      // Whatever was being looked through gives way: to Home, for one of Home's pages opened from elsewhere
-      // (the same from every project, so the workspace stays), or else the project it was opened in.
-      const home = target.home && !state.project.home ? (await core("GET", "/projects")).find((p) => p.home) : null;
-      browsing = home ? { id: home.id, code: home.code || "", name: home.name, home: true } : null;
       $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
-      const into = target.page.startsWith(`${DAILY}/`) ? "daily" : "project";
+      const into = daily ? "daily" : "project";
       if (into !== scope) {
         if (scope === "project") openIn.project.set(here().id, open);
         scope = into;
