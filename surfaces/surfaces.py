@@ -312,6 +312,7 @@ class Desktop(QObject):
         # The canvas and the writing surface: panels from the bar, as the rest.
         self.workspaces = {name: Workspace(name, profile, self) for name in ("canvas", "writing")}
         self.winfx = WindowDraw(profile, self)
+        hypr.fade_hidden()
         self.events.reloaded.connect(self._bind)
         # Home's desktop is the ordinary workspaces: the last one of them, to go back to.
         self._ordinary = "1"

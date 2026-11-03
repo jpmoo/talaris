@@ -193,6 +193,18 @@ def hide(address: str) -> None:
     _fade(address, was, [0.0, 0.0, 0.0], gone)
 
 
+def fade_hidden() -> None:
+    """At the start: hidden windows faded as `hide` leaves them, however they got there, so that each fades in when shown."""
+    try:
+        clients = json.loads(ask("j/clients") or "[]")
+    except (OSError, ValueError):
+        return
+    for c in clients:
+        if c.get("workspace", {}).get("name") == HIDDEN and 0.0 not in _opacities(c["address"]):
+            _opaque_as[c["address"]] = _opacities(c["address"])
+            _set_opacities(c["address"], [0.0, 0.0, 0.0])
+
+
 def _unfaded(address: str) -> None:
     """
     Its opacity back, if `hide` took it, faded in where that is wanted. Asked of
@@ -201,6 +213,8 @@ def _unfaded(address: str) -> None:
     Hiding backwards: the windows round it make room, and then it fades in. Fading
     while they moved, it was lost under their moving, and looked as if it just came.
     """
+    if address in _fading:
+        return
     was = _opaque_as.pop(address, None)
     if was is None and 0.0 in _opacities(address):
         was = [1.0, 1.0, 1.0]
@@ -235,7 +249,6 @@ def show(address: str, to: str | None = None) -> None:
         except (OSError, ValueError):
             to = "1"
     ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
-    _unfaded(address)
     focus(address)
 
 
@@ -271,6 +284,8 @@ def carry(address: str, to: str) -> None:
     """A window to a workspace (as a dispatcher names it), without going there or taking focus."""
     if _address(address):
         ask(f"/dispatch movetoworkspacesilent {to},address:{address}")
+        # A hidden one sent elsewhere (the dock's Send to) is seen when it is gone to.
+        _unfaded(address)
 
 
 #: Told a window's workspace (as `j/clients` gives it) just before `focus` goes to it — the desktop's one way of
@@ -289,6 +304,8 @@ def focus(address: str) -> None:
             except (OSError, ValueError):
                 pass
         ask(f"/dispatch focuswindow address:{address}")
+        # A hidden one reached this way (the launcher's list of windows) comes back to be seen.
+        _unfaded(address)
 
 
 def close(address: str) -> None:
