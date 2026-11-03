@@ -616,8 +616,9 @@ function open(e, isNew) {
   // A repeating event: this one alone, or every one of them.
   const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); if (editing.v) paintRepeats(); };
   which("this");
-  // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; deleted where it came from.
+  // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; archived, not deleted.
   $("e-delete").hidden = isNew || !!e.entity;
+  $("e-archive").hidden = !e.entity;
   editing.readOnly = !isNew && !e.entity && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
   for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
   $("e-cal").disabled = editing.readOnly || !isNew;
@@ -760,6 +761,12 @@ $("e-delete").addEventListener("click", () => {
   const b = $("e-delete");
   if (!Kit.ask(b, { ask: "Delete it?" })) return;
   send({ do: "delete", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which }, closeEditor);
+});
+$("e-archive").addEventListener("click", () => {
+  if (!editing || !editing.entity) return;
+  if (!Kit.ask($("e-archive"), { ask: "Archive it?" })) return;
+  core("PATCH", `/entities/${encodeURIComponent(editing.entity)}`, { archived: true })
+    .then(() => { closeEditor(); fetchPlugins(); }, (x) => say(x.message || "It was not archived", true));
 });
 $("e-cancel").addEventListener("click", closeEditor);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
