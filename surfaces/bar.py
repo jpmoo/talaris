@@ -62,7 +62,7 @@ BAR = 34
 #: Each popup's surface: the panel, and room round it for its shadow (popup.html .panel's inset).
 POPUPS = {"power": (242, 224), "volume": (272, 126), "network": (332, 442), "bluetooth": (332, 422), "tray": (292, 222),
           "trayicons": (252, 102), "battery": (312, 304), "projects": (308, 164), "notifications": (388, 464),
-          "clipboard": (468, 564), "weather": (376, 468)}
+          "clipboard": (468, 564), "weather": (376, 484)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
