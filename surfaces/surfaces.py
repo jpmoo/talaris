@@ -393,6 +393,7 @@ class Desktop(QObject):
         opening = motion in ("slide", "pop")
         # Hiding and showing a window fade it (hypr.hide), at the set speed.
         hypr.fade_ms = round(240 * factor) if moving else 0
+        hypr.settle_ms = round(270 * factor)
         if motion == "draw":
             # Drawn over by winfx.py: Hyprland only fades the window, in late
             # and slowly, so it fills in as the lines finish, as a drawer does.

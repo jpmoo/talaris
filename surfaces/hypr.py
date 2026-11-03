@@ -133,6 +133,8 @@ def _address(address: str) -> bool:
 
 #: How long a window takes to fade as it is hidden or shown; 0, not at all (Desktop.window_motion: Settings, Windows).
 fade_ms = 0
+#: How long the windows round one coming back take to make room, before it fades in (Desktop.window_motion).
+settle_ms = 0
 #: How many steps a fade goes in. Hyprland animates a window's opening and closing, not this, so Talaris steps it.
 FADE_STEPS = 12
 #: A window's three opacities, which Hyprland has no way to unset: what a hidden one had, to have again.
@@ -195,6 +197,9 @@ def _unfaded(address: str) -> None:
     """
     Its opacity back, if `hide` took it, faded in where that is wanted. Asked of
     the window as well: a Talaris started since has no record, and 0 is never meant.
+
+    Hiding backwards: the windows round it make room, and then it fades in. Fading
+    while they moved, it was lost under their moving, and looked as if it just came.
     """
     was = _opaque_as.pop(address, None)
     if was is None and 0.0 in _opacities(address):
@@ -202,7 +207,8 @@ def _unfaded(address: str) -> None:
     if not was:
         return
     if fade_ms:
-        _fade(address, [0.0, 0.0, 0.0], was)
+        _fading.add(address)
+        QTimer.singleShot(settle_ms, lambda: _fade(address, [0.0, 0.0, 0.0], was, lambda: _fading.discard(address)))
     else:
         _set_opacities(address, was)
 
