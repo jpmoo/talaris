@@ -49,12 +49,9 @@ body[data-outline="accent"] .pill { border-color: var(--accent); }
 .app, .app:hover, .app:focus, .app:focus-visible { border-color: transparent !important; background: transparent !important; outline: none !important; }
 .app.dragging { opacity: .7; cursor: grabbing; }
 
-/* A swell is the picture's alone: an icon's place and what a press reaches never move, or those at the ends of a
-   centered dock would slide out from under the pointer as it came. */
-.app { position: relative; width: calc(var(--icon, 24px) + 12px); height: calc(var(--icon, 24px) + 12px); padding: 0; align-self: flex-end; margin-bottom: 4px;
+.app { position: relative; width: calc((var(--icon, 24px) + 12px) * var(--s, 1)); height: calc((var(--icon, 24px) + 12px) * var(--s, 1)); padding: 0; align-self: flex-end; margin-bottom: 4px;
        transition: width var(--dur), height var(--dur); }
-.app img, .app .letter { width: var(--icon, 24px); height: var(--icon, 24px); display: block; transform: scale(var(--s, 1)); transform-origin: bottom center; transition: transform var(--dur); }
-body[data-edge="top"] .app img, body[data-edge="top"] .app .letter { transform-origin: top center; }
+.app img, .app .letter { width: calc(var(--icon, 24px) * var(--s, 1)); height: calc(var(--icon, 24px) * var(--s, 1)); display: block; transition: width var(--dur), height var(--dur); }
 body[data-edge="top"] .app { align-self: flex-start; margin-bottom: 0; margin-top: 4px; }
 .app .letter { display: grid; place-content: center; border-radius: var(--radius-row); background: var(--accent-wash); color: var(--accent); font-size: 13px; }
 /* A document: its application's icon with a corner badge — the page's own icon, or a sheet or a link drawn. */

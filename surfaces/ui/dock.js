@@ -222,8 +222,7 @@ Surface.connect({
   },
 }).then((b) => {
   bridge = b;
-  // Where the dock is across its surface, which is the screen's width: only there does a press reach it, so a
-  // press beside it goes to what is under it — and puts a dock that hides away (dock.py, Dock.span).
+  // Where the dock is across its surface, which is the screen's width: a press off it puts a dock that hides away (dock.py, Dock.span).
   const dock = document.getElementById("dock");
   const tell = () => {
     const r = dock.getBoundingClientRect();

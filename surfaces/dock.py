@@ -58,7 +58,6 @@ import os
 import shlex
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
-from PySide6.QtGui import QRegion
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
@@ -385,7 +384,7 @@ class Dock(QObject):
         self.menu = DockMenu(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
-        #: Where the dock is across its surface, as shares of its width (the page's `span`): presses reach only there.
+        #: Where the dock is across its surface, as shares of its width (the page's `span`): off it, a click is a click away.
         self._span = (0.0, 1.0)
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)
@@ -444,42 +443,26 @@ class Dock(QObject):
         # it is the dock's while the pointer is on it, and the window's again once it leaves.
         self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
                                      KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
-        # Shown afresh, the surface is made anew: its presses held to the dock again.
-        self._mask()
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def span(self, left: float, right: float) -> None:
         self._span = (max(0.0, min(left, 1.0)), max(0.0, min(right, 1.0)))
-        self._mask()
-
-    def _mask(self) -> None:
-        """
-        Presses reach the dock only across the dock itself, with room for its
-        shadow and a swelling icon: its surface is the screen's width, and a
-        press anywhere on it — beside the dock too — was the dock's, so it
-        neither went to the window beneath nor put a hiding dock away. The
-        whole height stays, for icons to swell into — and past it, since Qt's
-        units round to the screen's pixels and the last row at the edge must
-        not fall outside.
-        """
-        w, h = self.view.width(), self.view.height()
-        if w <= 0 or h <= 0:
-            return
-        left, right = self._reach()
-        self.view.setMask(QRegion(int(left * w), 0, max(1, int(right * w + 0.999) - int(left * w)), h + 4))
 
     def _reach(self) -> tuple[float, float]:
         """
-        Where presses reach the dock, as shares of its surface's width. Beside
-        the dock, room for its shadow, and for an icon at the end to swell into
-        (Settings, Dock).
+        Where the pointer counts as on the dock, as shares of its surface's
+        width: the surface is the screen's, and takes every press across it (held
+        to the dock itself, windows beneath showed through, and icons went dead;
+        Qt's mask on a layer surface is not to be relied on). Beside
+        the dock, room for magnifying (Settings, Dock): an icon swelling at the
+        end pushes past where the dock was drawn before it swelled.
         """
         w = self.view.width()
         if w <= 0:
             return self._span
         look = self.desktop.config["dock"]
         swell = round((int(look.get("iconSize", 24)) + 12) * max(0, int(look.get("magnify", 100)) - 100) / 100)
-        pad = (32 + swell) / w
+        pad = (32 + 3 * swell) / w
         return max(0.0, self._span[0] - pad), min(1.0, self._span[1] + pad)
 
     def pointer_back(self) -> None:
