@@ -152,6 +152,11 @@ class DockBridge(Bridge):
     def listing(self) -> str:
         return self.owner.last
 
+    @Slot()
+    def pressedOff(self) -> None:  # noqa: N802 — called from the page by this name
+        """A press beside the dock, on its own surface, which is the screen's width."""
+        self.owner.hider.away()
+
     @Slot(float, float)
     def span(self, left: float, right: float) -> None:
         """Where the dock is, as shares of its surface's width: the page's, as it is drawn."""
@@ -384,7 +389,7 @@ class Dock(QObject):
         self.menu = DockMenu(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
-        #: Where the dock is across its surface, as shares of its width (the page's `span`): off it, a click is a click away.
+        #: Where the dock is across its surface, as shares of its width (the page's `span`): near it, it does not hide by itself.
         self._span = (0.0, 1.0)
         self._soon = QTimer(self)
         self._soon.setSingleShot(True)

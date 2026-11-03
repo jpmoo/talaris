@@ -222,7 +222,9 @@ Surface.connect({
   },
 }).then((b) => {
   bridge = b;
-  // Where the dock is across its surface, which is the screen's width: a press off it puts a dock that hides away (dock.py, Dock.span).
+  // A press on the surface, off the dock itself: a dock that hides goes at once.
+  addEventListener("pointerdown", (e) => { if (!e.target.closest("#dock")) b.pressedOff(); });
+  // Where the dock is across its surface, which is the screen's width: while the pointer is near, it stays (dock.py, Dock.span).
   const dock = document.getElementById("dock");
   const tell = () => {
     const r = dock.getBoundingClientRect();

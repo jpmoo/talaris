@@ -383,6 +383,13 @@ class Autohide(QObject):
         else:
             self._conceal()
 
+    def away(self) -> None:
+        """Told off it, by what knows (a press beside the dock, on its own surface): it goes now."""
+        if self.on and self.out and not self._busy():
+            self._away.stop()
+            self._out(False)
+            self._put_away()
+
     def clicked(self) -> None:
         """
         A left click somewhere (away.py): off the surface, it goes now — a third
