@@ -619,6 +619,7 @@ function open(e, isNew) {
   // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; archived, not deleted.
   $("e-delete").hidden = isNew || !!e.entity;
   $("e-archive").hidden = !e.entity;
+  $("e-glance").hidden = isNew;
   loadProjects();
   editing.readOnly = !isNew && !e.entity && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
   for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
@@ -660,6 +661,7 @@ function paintProjects() {
 }
 /** The event's entity: the one it has, or made now, as the calendar's mirror would make it later (calendar_panel.py). */
 async function eventEntity(e) {
+  if (e.entity) return e.entity;
   if (e.entityId) return e.entityId;
   const pad = (n) => String(n).padStart(2, "0");
   const local = (ms) => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -827,6 +829,11 @@ $("e-archive").addEventListener("click", () => {
   if (!Kit.ask($("e-archive"), { ask: "Archive it?" })) return;
   core("PATCH", `/entities/${encodeURIComponent(editing.entity)}`, { archived: true })
     .then(() => { closeEditor(); fetchPlugins(); }, (x) => say(x.message || "It was not archived", true));
+});
+// Glance on it, by its entity: made now if the mirror has not reached it.
+$("e-glance").addEventListener("click", () => {
+  if (!editing || !bridge) return;
+  eventEntity(editing).then((id) => { if (id) bridge.glanceAt(`e:${id}`); }).catch((x) => say(x.message || "It could not be opened", true));
 });
 $("e-cancel").addEventListener("click", closeEditor);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });

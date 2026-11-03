@@ -120,6 +120,9 @@ window.Peek = (() => {
     return elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, onclick: () => open(l.url) }, `Open in ${l.label}`));
   }
   // Glance on a thing (glance_panel.py, open_on): what it is tied to, and what it might be. `go` is the page's bridge's glanceAt.
+  // How this page opens Glance, once it has its bridge: what a card's own button uses, wherever the card was asked for.
+  let glanceVia = null;
+  const glanceThrough = (go) => { glanceVia = go; };
   function glanceButton(key, go, cls = "t-btn") {
     return go ? el("button", { class: cls, title: "Its connections, and possible ones", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
   }
@@ -234,6 +237,7 @@ window.Peek = (() => {
       isTask && opts.onTask ? el("button", { class: "t-btn", onclick: () => { close(); opts.onTask(id); } }, "Open task") : null,
       place ? el("button", { class: "t-btn", onclick: () => { close(); opts.openPlace(place); } }, { page: "Open page", canvas: "Open canvas", thread: "Open the conversation" }[place.kind] || "Open") : null,
       opts.openUrl ? elsewhereButtons(got.entity, (u) => { close(); opts.openUrl(u); }) : null,
+      glanceVia ? glanceButton(`e:${id}`, (k) => { close(); glanceVia(k); }) : null,
       order.map((name) => group(name, groups.get(name), api, opts)),
       hide.size ? el("div", { class: "peek-line peek-hidden" }, hiddenSaid(hide.size)) : null,
     ].flat().filter((x) => x != null));
@@ -310,5 +314,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, suggestions, hiddenSaid };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, glanceThrough, suggestions, hiddenSaid };
 })();

@@ -504,6 +504,8 @@ async function loadCanvas() {
     " ", inside,
     " ", btn("Rename", () => renameCanvas(node)),
   ];
+  // Glance on the canvas open: what it is connected to, and possible connections.
+  if (window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`canvas:${pid}/${node.id}`, (k) => bridge.glanceAt(k), ""));
   if (viewing !== tree.id) {
     actions.push(" ", Kit.twice(btn("Delete", null, "danger"), { key: `del-canvas:${node.id}`, ask: "Delete it?", act: () => deleteCanvas(node, trail[trail.length - 2]) }));
   }
@@ -1339,6 +1341,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
+  if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
   bridge.replied.connect(onReply);
   bridge.state.connect((json) => update(JSON.parse(json)));
   bridge.leave.connect(leave);

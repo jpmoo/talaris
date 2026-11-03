@@ -46,6 +46,7 @@ const Surface = (() => {
           bridge.reading((text) => { try { onMachine(JSON.parse(text)); } catch { /* none yet */ } });
         }
         bridge.current(state);
+        if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
         ok(bridge);
       });
     });
