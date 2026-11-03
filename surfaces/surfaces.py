@@ -115,6 +115,8 @@ def register_scheme() -> None:
 PROJECTS_KEYS = "SUPER, TAB"
 FILE_ALL_KEYS = "SUPER, ESCAPE"
 HIDE_KEYS = "SUPER, H"
+SEND_KEYS = "SUPER, G"
+SEND_FOLLOW_KEYS = "SUPER CTRL, G"
 #: Clipboard history from the bar (clipboard.py); Ctrl+Shift is taken.
 CLIP_KEYS = "SUPER, V"
 #: What Super+Alt was once bound to — the project jump, its letters, the old way
@@ -480,6 +482,8 @@ class Desktop(QObject):
         hypr.bind(PROJECTS_KEYS, f"{LAUNCHER} --projects")
         hypr.bind(FILE_ALL_KEYS, f"{LAUNCHER} --file-all")
         hypr.bind(HIDE_KEYS, f"{LAUNCHER} --hide-window")
+        hypr.bind(SEND_KEYS, f"{LAUNCHER} --send-window")
+        hypr.bind(SEND_FOLLOW_KEYS, f"{LAUNCHER} --send-window follow")
         hypr.bind(self.config["launcher"]["keys"], f"{LAUNCHER} --launcher")
         if self.morgan_here:
             hypr.bind("SUPER SHIFT, M", f"{LAUNCHER} --morgan")
@@ -518,7 +522,7 @@ class Desktop(QObject):
         os._exit(code)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, SEND_KEYS, SEND_FOLLOW_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -623,6 +627,8 @@ class Desktop(QObject):
             {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
             {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
             {"keys": "Super + H", "does": "Hide this window; its dock item brings it back"},
+            {"keys": "Super + G", "does": "Send this window to a project"},
+            {"keys": "Super + Ctrl + G", "does": "Send this window to a project, and go with it"},
             {"keys": "Volume, mute, brightness", "does": "Change it, and show the level"},
         ]
 
@@ -839,6 +845,24 @@ class Desktop(QObject):
             project, where = self._home().get("id", ""), f"Pages/{where}"
         self.show_in_drawer("writing" if kind == "page" else "canvas", {"page" if kind == "page" else "canvas": where, "project": project})
 
+    def send_window(self, follow: bool = False) -> None:
+        """The window with focus, sent to a project chosen in the carousel; and, following, you with it."""
+        now = hypr.windows()
+        window = next((w for w in now["windows"] if w["address"] == now["focused"]), None)
+        if not window:
+            return
+        address, app = window["address"], window["class"]
+
+        def send(project: str) -> None:
+            self.activity.record("window.send", app=app, to=project)
+            hypr.carry(address, self.workspace_for(project))
+            if follow:
+                self.go_to_project(project, announce=True)
+                hypr.focus(address)
+
+        name = self.apps.lookup(app)["name"]
+        self.jump.pick(f"Send {name} and go with it to" if follow else f"Send {name} to", send)
+
     def archive_project(self, project_id: str) -> str:
         """A project archived (archive.ts): out of every list, its folder in the archive. Gone from, if it is the current one."""
         if not project_id:
@@ -927,6 +951,8 @@ class Desktop(QObject):
             elif verb == "hide-window":
                 # As the dock's Hide does, for the one with focus.
                 self.winfx.hide(str(hypr.windows()["focused"] or ""))
+            elif verb == "send-window":
+                self.send_window(arg == "follow")
             elif verb == "file-all":
                 # A window fullscreen in front comes back first: the screen is yours again (fullscreen.py).
                 self.fullscreen.leave()
@@ -1038,6 +1064,8 @@ def main() -> int:
         return send("file-all")
     if args[:1] == ["--hide-window"]:
         return send("hide-window")
+    if args[:1] == ["--send-window"]:
+        return send(f"send-window {args[1] if len(args) > 1 else ''}")
     if args[:1] in (["--away"], ["--toasts-away"]):
         return send("away")
     if args[:1] == ["--quit"]:

@@ -9,7 +9,7 @@ anywhere in the name, still most recent first, and it goes the moment one is
 left. Enter or a click goes to the one in front; Escape puts it away.
 
 It also asks which project, for something else to be done there (`pick`):
-the dock's Send to — the same ring, saying what it is for, without the
+the dock's Send to, and Super+G for the window in use — the same ring, saying what it is for, without the
 project you are in, and choosing does that rather than going.
 """
 
