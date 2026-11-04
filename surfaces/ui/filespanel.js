@@ -693,7 +693,8 @@
     cardDrawn = id;
     const top = $("detail").scrollTop;
     const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key, true).catch(failed), glance: bridge.glanceAt ? glanceAt : null, bridge,
-      types: () => entityTypes, kept: (t) => { entityTypes = t; }, redraw: () => drawCard(id).catch(failed), changed: () => { glanceOld = true; } });
+      types: () => entityTypes, kept: (t) => { entityTypes = t; }, redraw: () => drawCard(id).catch(failed), changed: () => { glanceOld = true; },
+      attachTask: (t) => bridge.attachTask(t), linkTask: (t) => bridge.linkTask(t) });
     if (seq !== cardSeq || cardOf !== id) return;
     if (part) { $("detail").replaceChildren(...part); $("detail").scrollTop = again ? top : 0; }
     else { cardOf = null; cardDrawn = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
@@ -1476,9 +1477,10 @@
     // Files or a picture kept on the card on show (or why not).
     b.attached.connect((text) => {
       const r = JSON.parse(text);
-      if (r.error) say(r.error, true);
+      if (r.task) TaskCard.filesSaid(r.error || "", Boolean(r.error), r.linked);
+      else if (r.error) say(r.error, true);
       ThingCard.forgetPictures();
-      if (r.id === cardOf) drawCard(cardOf).catch(failed);
+      if ((r.task || r.id) === cardOf) drawCard(cardOf).catch(failed);
     });
     b.chosen.connect((text) => {
       const got = JSON.parse(text);

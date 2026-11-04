@@ -58,9 +58,6 @@
   let current = null;  // {kind: "list" | "project", id}
   let shown = null;    // the core's Shown for it
   let editing = null;  // the task open in the sheet
-  let entity = null;   // its entity, as the core has it
-  let rec = { rule: null, summary: "" };
-  let rep = null;      // the rule being written in Repeat's editor
   let renaming = null; // a list whose name is being typed
   let addingProject = false;
   let onWallpaper = null; // the project panel's ear for wallpaperChanged
@@ -685,6 +682,25 @@
     try { await newTask(t); quickEd.set(""); say(""); } catch (err) { failed(err); }
   }
 
+  // A new one, made where you are, and opened to be named: the title chosen, so typing replaces it.
+  $("add-task").addEventListener("click", async () => {
+    const t = { title: "New task" };
+    if (current && current.kind === "project") t.projects = [current.id];
+    else if (current && current.kind === "list") t.list = current.id;
+    try {
+      const made = await newTask(t);
+      openTask(made.id);
+      const wait = setInterval(() => {
+        const box = editing === made.id ? $("sheet").querySelector(".t-title .cm-content") : null;
+        if (!box) return;
+        clearInterval(wait);
+        box.focus();
+        getSelection().selectAllChildren(box);
+      }, 30);
+      setTimeout(() => clearInterval(wait), 3000);
+    } catch (e) { failed(e); }
+  });
+
   // ---------------------------------------------------------------- Tasks' own calls
 
   async function newTask(t) {
@@ -707,24 +723,19 @@
 
   // ---------------------------------------------------------------- the task's sheet
 
-  function filesNote(text, error = false, ...more) {
-    const n = $("s-files-note");
-    if (n) { n.replaceChildren(text, ...more); n.className = error ? "err" : ""; }
-  }
-
   function openTask(id) {
     // A task opened takes the right side; closed, the project comes back.
     $("psheet").hidden = true;
     editing = id;
-    entity = null;
-    closeRep();
+    cardDrawn = null;
     $("sheet").hidden = false;
     for (const r of document.querySelectorAll(".row")) r.classList.toggle("on", r.dataset.id === id);
     loadEditing().catch(failed);
   }
   function closeSheet() {
-    editing = null; entity = null;
-    closeRep();
+    editing = null;
+    cardDrawn = null;
+    ThingCard.putAway();
     popAway();
     $("sheet").hidden = true;
     for (const r of document.querySelectorAll(".row.on")) r.classList.remove("on");
@@ -872,183 +883,43 @@
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); const p = projects.find((x) => x.id === projectOn); if (p) $("p-name").value = p.title; $("p-name").blur(); }
   });
   $("p-name").addEventListener("blur", saveProjectName);
+  // The one card (thingcard.js, taskcard.js), as the Library shows it. Drawn again when something changes the task
+  // from outside it, but not under what is being typed in.
+  let cardDrawn = null;
+  let cardSeq = 0;
+  let entityTypes = null;
+  async function drawCard() {
+    const id = editing, seq = ++cardSeq;
+    const host = $("sheet");
+    const top = host.scrollTop, same = cardDrawn === id;
+    const part = await ThingCard.draw(id, { api, say, failed, bridge, hub: "tasks",
+      types: () => entityTypes, kept: (t) => { entityTypes = t; },
+      open: (key) => openHere(key), openMention,
+      close: closeSheet,
+      redraw: () => drawCard().catch(failed),
+      changed: () => refresh(),
+      attachTask: (t) => bridge && bridge.attach(t),
+      linkTask: (t) => bridge && bridge.link(t) });
+    if (seq !== cardSeq || editing !== id) return;
+    if (!part) { closeSheet(); return; }
+    cardDrawn = id;
+    host.replaceChildren(...part);
+    host.scrollTop = same ? top : 0;
+  }
   async function loadEditing() {
-    const id = editing;
-    if (!id) return;
-    const [got, r, f] = await Promise.all([api("GET", `/entities/${enc(id)}`),
-      api("GET", `/tasks/${enc(id)}/recurrence`).catch(() => ({ rule: null, summary: "" })),
-      api("GET", `/entities/${enc(id)}/folder`).catch(() => ({ folder: "" }))]);
-    if (editing !== id) return;
-    entity = got.entity;
-    taskFolder = (f && f.folder) || "";
-    rec = r || { rule: null, summary: "" };
-    paintSheet();
+    if (!editing) return;
+    if (cardDrawn === editing && $("sheet").contains(document.activeElement)) return;
+    await drawCard();
   }
-  // The folder of the project the task is filed under: a file linked from inside it is the project's.
-  let taskFolder = "";
-  // Set while a task's files are drawn: the note offering to move those linked from another folder into this project's.
-  let offerMove = null;
-  const props = () => (entity && entity.properties) || {};
-  const focused = (id) => document.activeElement === $(id);
-  const spanNow = () => (shape && shape.spanKey ? props()[shape.spanKey] : null) || {};
-
-  // What the sheet holds, painted where it is not being typed in.
-  function paintSheet() {
-    if (!entity || !shape) return;
-    const p = props();
-    const value = String(p[shape.statusKey] ?? "");
-    const complete = completeValues().includes(value);
-    if (titleEd && !$("s-title").contains(document.activeElement) && titleEd.text !== (p[shape.titleKey] || "")) titleEd.set(p[shape.titleKey] || "");
-    $("s-check").classList.toggle("on", complete);
-    $("s-check").style.setProperty("--c", complete ? status(value).color : "var(--muted)");
-    $("s-check").title = status(value).label;
-    // Two statuses, one open and one done, say no more than the checkbox
-    // beside the title does: the row shows only when there is more to choose.
-    $("s-status-row").hidden = options().length <= 2;
-    $("s-status").replaceChildren(...options().map((v) => el("button", { class: "tv-status" + (v === value ? " on" : ""), style: `--c:${status(v).color}`,
-      onclick: () => setStatus(editing, v).catch(failed) }, el("span", { class: "tv-dot" }), status(v).label)));
-
-    const sf = shape.spanKey ? field(shape.spanKey) : null;
-    $("s-start-row").hidden = $("s-end-row").hidden = !shape.spanKey;
-    $("s-start-l").textContent = (sf && sf.startLabel) || "Available";
-    $("s-end-l").textContent = (sf && sf.endLabel) || "Due";
-    const span = spanNow();
-    for (const [part, id] of [["start", "s-start"], ["end", "s-end"]]) {
-      const { day, time } = split(span[part]);
-      $(id).replaceChildren(el("span", { class: "lbl" }, day ? shortDate(isoDay(day)) : "None"));
-      $(id).classList.toggle("empty", !day);
-      $(id).classList.toggle("overdue", part === "end" && !complete && day && (time == null ? isoDay(day) < isoDay(new Date()) : new Date(day.getTime() + time * 60000) < new Date()));
-      if (!focused(`${id}-t`)) $(`${id}-t`).value = time != null ? timeLabel(time) : "";
+  // A task here is opened here; anything else is its card, in the Library.
+  async function openHere(key) {
+    if (key.startsWith("e:")) {
+      const got = await api("GET", `/entities/${enc(key.slice(2))}`).catch(() => null);
+      if (got && (got.kinds || []).includes("task")) { openTask(key.slice(2)); return; }
     }
-
-    $("s-rep").textContent = rec.summary || "Never";
-    $("s-rep").classList.toggle("none", !rec.summary);
-
-    const pk = projectKey();
-    $("s-proj-row").hidden = !field(pk);
-    const mine = Array.isArray(p[pk]) ? p[pk] : p[pk] ? [p[pk]] : [];
-    const titleOf = (id) => (projects.find((x) => x.id === id) || {}).title || "Unknown";
-    $("s-proj").replaceChildren(...mine.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, titleOf(id)),
-      xBtn("Remove", () => setProjects(mine.filter((x) => x !== id))))),
-    el("button", { class: "add", id: "s-proj-add", title: "Add to a project", onclick: (e) => pickProject(e.currentTarget, mine) }, "+"));
-
-    const tags = entity.tags || [];
-    $("s-tags").replaceChildren(...tags.map((t) => el("span", { class: "chip" }, el("span", { class: "lbl" }, `#${t}`),
-      xBtn("Remove", () => update(editing, { tags: tags.filter((x) => x !== t) }).catch(failed)))));
-
-    /*
-     * Its files: a copy kept with it (attached), or a file linked where it is
-     * (↗; links.ts) — opened in its application either way, the link's being
-     * the file itself. A right-click turns one into the other: a link made a
-     * copy, or a copy saved into the project's Files and linked. × takes it off
-     * the task; a linked file stays where it is.
-     */
-    const fk = (type.fields.find((f) => f.kind === "attachment" && f.many) || {}).key;
-    $("s-files-row").hidden = !fk;
-    if (fk) {
-      const files = Array.isArray(p[fk]) ? p[fk] : [];
-      const id = editing;
-      const after = () => { loadEditing(); refresh(); };
-      /*
-       * Where each file is, one of three: stored on this task only (a copy
-       * Talaris keeps — removing it deletes it); in this project's folder (a
-       * link to the file there); or linked from another folder. A linked
-       * file gone from its folder is said so. Right-click moves it between
-       * them; removing one stored on the task only asks first.
-       */
-      const placeOf = (a) => {
-        const link = a["talaris:link"];
-        if (!link) return "task";
-        return taskFolder && link.path.startsWith(taskFolder.replace(/\/$/, "") + "/") ? "project" : "elsewhere";
-      };
-      const dirOf = (p) => p.replace(/\/[^/]*$/, "").replace(/^\/home\/[^/]+/, "~");
-      const projectName = taskFolder.replace(/\/$/, "").split("/").pop() || "this project";
-      const attachment = (a, verb) => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/${verb}`, {}).then(after).catch(failed);
-      // Each asks once more in a menu of its own where it was pressed: what will happen, said, and keeping it as it is.
-      const confirmAt = (x, y, label, act) => menuAt(x, y, [{ label, act }, { label: "Keep it as it is", act: () => {} }]);
-      const askMove = (x, y, a) => confirmAt(x, y, `Move “${a.filename}” from ${dirOf(a["talaris:link"].path)} into ${projectName}'s folder`, () => attachment(a, "move"));
-      const askTrash = (x, y, a) => confirmAt(x, y, `Delete “${a.filename}” from ${dirOf(a["talaris:link"].path)} (to the Trash)`, () => attachment(a, "trash"));
-      offerMove = () => {
-        const away = files.filter((a) => placeOf(a) === "elsewhere" && !a["talaris:missing"]);
-        if (!away.length) return;
-        const b = el("button", { class: "t-btn", onclick: (e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          confirmAt(r.left, r.bottom + 4, `Move ${away.length === 1 ? `“${away[0].filename}”` : `these ${away.length} files`} into ${projectName}'s folder`,
-            () => Promise.all(away.map((a) => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/move`, {}))).then(after).catch(failed));
-        } }, "Move into this project's folder…");
-        filesNote(`Linked from ${dirOf(away[0]["talaris:link"].path)}${away.length > 1 ? " and elsewhere" : ""}. `, false, b);
-      };
-      const fileMenu = (e, a) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const link = a["talaris:link"];
-        const toTask = { label: "Store on this task only", act: () => attachment(a, "snapshot") };
-        menuAt(e.clientX, e.clientY, link ? [
-          ...(a["talaris:missing"] ? [] : [toTask]),
-          ...(placeOf(a) === "elsewhere" && !a["talaris:missing"] ? [{ label: "Move into this project's folder…", act: () => askMove(e.clientX, e.clientY, a) }] : []),
-          { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
-        ] : [
-          { label: "Save to this project's folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
-        ]);
-      };
-      const ICON = { task: Icons.clip, project: Icons.folder, elsewhere: Icons.linked };
-      const icon = (svg) => { const s = el("span", { class: "fic" }); s.innerHTML = svg(); return s; };
-      $("s-files").replaceChildren(
-        ...files.map((a) => {
-          const link = a["talaris:link"], missing = a["talaris:missing"], where = placeOf(a);
-          const said = missing ? `${a.filename} — missing from ${dirOf(link.path)}. Restore missing files puts it back`
-            : where === "task" ? `${a.filename} — stored on this task only. Right-click to save it to this project's folder`
-            : where === "project" ? `${a.filename} — in this project's folder (${dirOf(link.path)})`
-            : `${a.filename} — linked from ${dirOf(link.path)}`;
-          // Removing one stored on the task only deletes it: the × asks once more ("Delete?") before it does.
-          // One in a folder: taken off the task, the file staying where it is — or, asked again, deleted to the Trash.
-          const x = el("button", { class: "x-btn", title: where === "task" ? "Delete it — it is stored on this task only" : "Take it off the task, or delete the file", onclick: (e) => {
-            e.stopPropagation();
-            if (where !== "task") {
-              const r = e.currentTarget.getBoundingClientRect();
-              menuAt(r.left, r.bottom + 4, [
-                { label: `Take off the task — it stays in ${where === "project" ? `${projectName}'s folder` : dirOf(link.path)}`,
-                  act: () => api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed) },
-                ...(missing ? [] : [{ label: "Delete the file…", act: () => askTrash(r.left, r.bottom + 4, a) }]),
-              ]);
-              return;
-            }
-            if (!Kit.ask(x, { ask: "Delete it?" })) return;
-            api("DELETE", `/tasks/${enc(id)}/attachments/${enc(a.sha256)}`).then(after).catch(failed);
-          } });
-          x.innerHTML = Icons.close();
-          return el("span", { class: `chip at-${where}` + (missing ? " missing" : ""), title: said,
-            onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
-            oncontextmenu: (e) => fileMenu(e, a) },
-            missing ? el("span", { class: "warn-mark" }, "⚠") : icon(ICON[where]),
-            el("span", { class: "lbl" }, a.filename),
-            x);
-        }),
-        el("button", { class: "add", title: "Attach files (stored on this task)", onclick: () => { filesNote(""); bridge && bridge.attach(editing); } }, "+"),
-        el("button", { class: "add link-add", title: "Link files where they are", onclick: () => { filesNote(""); bridge && bridge.link(editing); } }, "↗"),
-        el("span", { id: "s-files-note" }));
-    }
-    if (notesEd && !$("s-notes").contains(document.activeElement) && notesEd.text !== (p[notesKey()] || "")) notesEd.set(p[notesKey()] || "");
-    const stamp = split(p[shape.doneKey]);
-    $("s-done").textContent = stamp.day ? `Done ${Kit.day(stamp.day, { weekday: false })}${stamp.time != null ? ` · ${timeLabel(stamp.time)}` : ""}` : "";
-    $("s-archive").textContent = entity.archived ? "Unarchive" : "Archive";
-    // Where else it lives (a sync's way back), beside its own buttons.
-    // And what plugins put on a task (Sync now).
-    // A plugin's button done (a file restored, say): the task read again, so what changed shows.
-    // What it might be tied to and is not (suggest.ts): asked once each time another task is opened, and after a tie.
-    if (window.Peek && suggFor !== editing) {
-      suggFor = editing;
-      $("s-sugg").replaceChildren(Peek.suggestions(`e:${editing}`, api, { open: (id) => openMention(id), openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where),
-        changed: (r) => { say(r.said || "Done"); suggFor = null; loadEditing(); } }));
-    }
-    $("s-elsewhere").replaceChildren(...(window.Peek ? [...Peek.elsewhereButtons(entity, (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", editing, api, "t-btn", () => loadEditing()),
-      Peek.glanceButton(`e:${editing}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null)].filter(Boolean) : []));
+    if (window.Peek) Peek.openCard(key);
   }
-
-  // Title and notes are the editor, so @ names anything in them (mentions.js);
-  // a mention clicked opens a task here, or peeks at anything else.
-  let titleEd = null, notesEd = null;
-  let suggFor = null;   // the task whose suggestions are drawn
+  // A mention clicked opens a task here, or where it lives, or peeks at anything else.
   const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
   async function openMention(id) {
     try {
@@ -1061,39 +932,15 @@
     if (window.Peek) Peek.show(id, api, { onTask: openTask, openTask, openPlace, openPerson: (pid) => bridge && bridge.openPerson(pid),
       openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u) });
   }
-  function saveTitle() {
-    if (!entity || !shape || !titleEd) return;
-    const v = titleEd.text.trim();
-    if (v && v !== (props()[shape.titleKey] || "")) update(editing, { properties: { [shape.titleKey]: v } }).catch(failed);
-    else if (!v) titleEd.set(props()[shape.titleKey] || "");
-  }
-  function saveNotes() {
-    if (!entity || !notesEd) return;
-    const key = notesKey(), v = notesEd.text;
-    if (v !== (props()[key] || "")) update(editing, { properties: { [key]: v || null } }).catch(failed);
-  }
   import("./editor.js").then((m) => {
     const mentions = TalarisMentions(api, openMention);
     // A link in any of them opens in the browser.
     const onOpenUrl = (u) => bridge && bridge.openUrl(u);
     quickEd = m.createEditor($("quick"), "", { live: true, compact: true, singleLine: true, placeholder: "Add a task", mentions, onOpenUrl, onEnter: () => { addQuick(); } });
-    titleEd = m.createEditor($("s-title"), "", { live: true, compact: true, singleLine: true, mentions, onOpenUrl, onEnter: () => { saveTitle(); $("s-title").querySelector(".cm-content")?.blur(); } });
-    notesEd = m.createEditor($("s-notes"), "", { live: true, compact: true, mentions, onOpenUrl });
     projectEd = m.createEditor($("p-desc"), "", { live: true, compact: true, mentions, onOpenUrl, placeholder: "What the project is for" });
     $("p-desc").addEventListener("focusout", saveProjectAbout);
     if (projectOn) { const p = projects.find((x) => x.id === projectOn); if (p) paintProjectAbout(p, true); }
-    $("s-title").addEventListener("focusout", saveTitle);
-    $("s-notes").addEventListener("focusout", saveNotes);
-    if (entity) paintSheet();
   }).catch(failed);
-  $("s-check").addEventListener("click", () => {
-    if (!entity) return;
-    const complete = completeValues().includes(String(props()[shape.statusKey] ?? ""));
-    setStatus(editing, complete ? reopenValue() : doneValue()).catch(failed);
-  });
-  $("s-close").innerHTML = Icons.close();
-  $("s-close").addEventListener("click", closeSheet);
-
   // Search (drawSearch): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
   let searchTimer = 0;
   // Escape clears it first, as every box that narrows a list does (kit.js).
@@ -1113,154 +960,6 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); $("search").select(); }
   });
 
-  $("s-archive").addEventListener("click", () => { if (entity) update(editing, { archived: !entity.archived }).catch(failed); });
-
-  // Dates: the whole datespan sent each time, null when nothing is left of it.
-  function setPart(part, value) {
-    const next = { ...spanNow() };
-    if (value) next[part] = value; else delete next[part];
-    return update(editing, { properties: { [shape.spanKey]: next.start || next.end ? next : null } }).catch(failed);
-  }
-  for (const [part, id] of [["start", "s-start"], ["end", "s-end"]]) {
-    $(id).addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (!entity) return;
-      if (Kit.openedBy() === $(id)) { popAway(); return; }
-      const { day, time } = split(spanNow()[part]);
-      // The month, and the quick days every picker has (kit.js), counted from the day set; Clear takes it off.
-      popUnder($(id), monthPicker(day, (d) => setPart(part, d ? join(d, time) : null), { chips: Kit.DAY_CHIPS(day), clear: true }));
-    });
-    // A time is optional: typed, or chosen from the list; emptied, the date stays.
-    const tin = $(`${id}-t`);
-    const setTime = (m) => {
-      const { day } = split(spanNow()[part]);
-      setPart(part, join(day || startOfDay(new Date()), m));
-    };
-    tin.addEventListener("focus", () => {
-      if (!entity) return;
-      popUnder(tin, timeList(split(spanNow()[part]).time, (m) => { tin.blur(); setTime(m); }));
-    });
-    tin.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tin.blur(); } });
-    tin.addEventListener("change", () => {
-      if (!entity) return;
-      const text = tin.value.trim();
-      const { day, time } = split(spanNow()[part]);
-      if (!text) { if (day && time != null) setPart(part, join(day, null)); return; }
-      const m = parseTime(text);
-      if (m == null) { tin.value = time != null ? timeLabel(time) : ""; return; }
-      setTime(m);
-    });
-  }
-
-  // Projects: a small search over the ones there are.
-  function setProjects(ids) {
-    return update(editing, { properties: { [projectKey()]: ids.length ? ids : null } }).catch(failed);
-  }
-  function pickProject(anchor, mine) {
-    if (Kit.openedBy() === anchor) { popAway(); return; }
-    const find = Kit.searchBox(el("input", { type: "search", class: "kit-filter", placeholder: "Project", spellcheck: "false" }));
-    const list = el("div", { class: "menu-list" });
-    const candidates = () => projects.filter((p) => !p.archived && !mine.includes(p.id) && Kit.matches(find.value, p.title));
-    const draw = () => list.replaceChildren(...candidates().map((p) => el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); popAway(); setProjects([...mine, p.id]); } }, p.title)));
-    find.addEventListener("input", draw);
-    find.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { const first = candidates()[0]; if (first) { popAway(); setProjects([...mine, first.id]); } }
-    });
-    draw();
-    popUnder(anchor, el("div", {}, find, list));
-    setTimeout(() => find.focus(), 0);
-  }
-
-  // Tags: typed, Enter or a comma; Backspace in an empty field takes the last.
-  $("s-tag-in").addEventListener("keydown", (e) => {
-    if (!entity) return;
-    const tags = entity.tags || [];
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      const t = $("s-tag-in").value.trim().replace(/^#/, "").replace(/,$/, "");
-      $("s-tag-in").value = "";
-      if (t && !tags.includes(t)) update(editing, { tags: [...tags, t] }).catch(failed);
-    }
-    if (e.key === "Backspace" && !$("s-tag-in").value && tags.length) update(editing, { tags: tags.slice(0, -1) }).catch(failed);
-  });
-
-  // ---------------------------------------------------------------- Repeat's editor
-  //
-  // The format's rule: {anchor, freq, interval, byWeekday?, monthEnd?, end}.
-  // Begun from the rule there is, so anything this editor does not show (a
-  // day of the month) is kept as it was.
-
-  const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-  const UNITS = { daily: ["day", "days"], weekly: ["week", "weeks"], monthly: ["month", "months"], yearly: ["year", "years"] };
-  const dayOfTask = () => split(spanNow().end || spanNow().start).day || startOfDay(new Date());
-
-  function openRep() {
-    rep = rec.rule ? JSON.parse(JSON.stringify(rec.rule)) : { anchor: "schedule", freq: "weekly", interval: 1, end: { type: "never" } };
-    if (!rep.end) rep.end = { type: "never" };
-    $("r-err").textContent = "";
-    $("rep").hidden = false;
-    $("r-n").value = String(rep.interval || 1);
-    paintRep();
-  }
-  function closeRep() { rep = null; $("rep").hidden = true; }
-  function paintRep() {
-    if (!rep) return;
-    const n = parseInt($("r-n").value, 10) || 1;
-    seg("r-anchor", [["schedule", "Scheduled date"], ["completion", "Completion"]], rep.anchor, (v) => { rep.anchor = v; paintRep(); });
-    seg("r-freq", Object.entries(UNITS).map(([f, w]) => [f, w[n === 1 ? 0 : 1]]), rep.freq, (v) => { rep.freq = v; paintRep(); });
-    $("r-days-row").hidden = !(rep.freq === "weekly" && rep.anchor === "schedule");
-    const on = rep.byWeekday && rep.byWeekday.length ? rep.byWeekday : [DAYS[dayOfTask().getDay()]];
-    $("r-days").replaceChildren(...DAYS.map((d, i) => el("button", { class: on.includes(d) ? "on" : "", onclick: (e) => {
-      e.stopPropagation();
-      const now = new Set(on);
-      if (now.has(d) && now.size > 1) now.delete(d); else now.add(d);
-      rep.byWeekday = DAYS.filter((x) => now.has(x));
-      paintRep();
-    } }, "SMTWTFS"[i])));
-    $("r-short-row").hidden = !["monthly", "yearly"].includes(rep.freq);
-    seg("r-short", [["clamp", "Last day"], ["skip", "Skip"]], rep.monthEnd || "clamp", (v) => { rep.monthEnd = v; paintRep(); });
-    seg("r-end", [["never", "Never"], ["after", "After"], ["on", "On"]], rep.end.type, (v) => {
-      rep.end = v === "after" ? { type: "after", count: rep.end.count || 10 } : v === "on" ? { type: "on", date: rep.end.date || isoDay(addDays(dayOfTask(), 90)) } : { type: "never" };
-      paintRep();
-    });
-    $("r-count").hidden = rep.end.type !== "after";
-    if (!focused("r-count")) $("r-count").value = String(rep.end.count || 10);
-    $("r-until").hidden = rep.end.type !== "on";
-    $("r-until").replaceChildren(el("span", { class: "lbl" }, rep.end.type === "on" ? shortDate(rep.end.date) : ""));
-  }
-  $("s-rep-btn").addEventListener("click", () => { if (!entity) return; if (rep) closeRep(); else openRep(); });
-  $("r-n").addEventListener("input", () => { if (rep) paintRep(); });
-  $("r-count").addEventListener("change", () => { const c = parseInt($("r-count").value, 10); if (rep && c > 0) rep.end = { type: "after", count: c }; paintRep(); });
-  $("r-until").addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    if (!rep) return;
-    if (Kit.openedBy() === $("r-until")) { popAway(); return; }
-    popUnder($("r-until"), monthPicker(split(rep.end.date).day, (d) => { rep.end = { type: "on", date: isoDay(d) }; paintRep(); }));
-  });
-  $("r-cancel").addEventListener("click", closeRep);
-  // The core says why a rule will not do (a weekday counted from completion,
-  // say); that is shown as it is said.
-  async function putRule(rule) {
-    try {
-      await api("PUT", `/tasks/${enc(editing)}/recurrence`, { rule });
-      closeRep();
-      await refresh();
-      await loadEditing();
-    } catch (e) { $("r-err").textContent = e.message; }
-  }
-  $("r-save").addEventListener("click", () => {
-    if (!rep) return;
-    const rule = { ...rep, interval: Math.max(1, parseInt($("r-n").value, 10) || 1) };
-    if (rule.freq === "weekly" && rule.anchor === "schedule") {
-      if (!rule.byWeekday || !rule.byWeekday.length) rule.byWeekday = [DAYS[dayOfTask().getDay()]];
-    } else delete rule.byWeekday;
-    if (["monthly", "yearly"].includes(rule.freq)) rule.monthEnd = rule.monthEnd || "clamp";
-    else delete rule.monthEnd;
-    if (rule.end.type === "after") rule.end = { type: "after", count: Math.max(1, parseInt($("r-count").value, 10) || rule.end.count || 1) };
-    putRule(rule);
-  });
-  $("r-none").addEventListener("click", () => putRule(null));
-
   // ---------------------------------------------------------------- keys and buttons
 
   const typing = (t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
@@ -1270,7 +969,7 @@
     if (e.key === "Escape") {
       e.preventDefault();
       if (!!Kit.isOpen()) popAway();
-      else if (rep) closeRep();
+      else if ($("sheet").querySelector(".t-rep:not([hidden]) .r-cancel")) $("sheet").querySelector(".t-rep .r-cancel").click();
       else if (editing) closeSheet();
       else if (bridge) bridge.file();
       return;
@@ -1342,11 +1041,10 @@
     // Files chosen and kept (or why not): the open task drawn again with them.
     b.attached.connect((text) => {
       const r = JSON.parse(text);
-      if (r.task === editing) loadEditing().then(() => {
-        filesNote(r.error || "", Boolean(r.error));
-        // Linked from another folder: offered a move into this project's, then and there.
-        if (r.linked && !r.error && offerMove) offerMove();
-      }).catch(failed);
+      if (r.task === editing) {
+        TaskCard.filesSaid(r.error || "", Boolean(r.error), r.linked);
+        drawCard().catch(failed);
+      }
       refresh();
     });
     b.leave.connect(() => {

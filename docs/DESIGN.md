@@ -1562,8 +1562,10 @@ card, so a thing looks the same wherever it is seen. A person's and an organizat
 is one card now, edited where it is shown, in People and in the Library alike
 (`thingcard.js`); People adds to it what is its own: the address books, and making two
 people one or deleting one, which the Library's card reaches by Open in People. A task's
-and an event's are read on the card and worked on in their hubs until they come over:
-what changes them does more than change them.
+is one card too (`taskcard.js`), with its status, dates, repeat, projects, tags, files and
+notes: each change is the core's to carry out, as ever, so completing one from anywhere
+stamps it and brings the next of its series. An event's is read on the card and worked
+on in Calendar until it comes over.
 
 ### Organizations (2026-11-03)
 
@@ -1640,6 +1642,17 @@ project: something from elsewhere comes in by a shortcut first. Kept in the
 project's folder (`.talaris/file-lists.json`, sealed with the project), so the
 lists go with it. A file or page moved or renamed keeps its places in lists.
 Lists are not Hermes' collections, which belong to no project.
+
+### Times on another clock (2026-11-04)
+
+A thing's times are written as they read on a clock, with no offset. Hermes Notes keeps
+them on its user's clock, which need not be this machine's, so the same meeting read
+two hours apart from a real calendar's copy of it in Arizona. Hermes Notes now says which
+clock on its fields (the format's `timezone`), and the sync tells each of its events in
+Talaris, in `talaris:timezone` (`zoned.ts`). **The value stays as written**, so the two
+sides still agree and nothing is rewritten by moving about; it is read through the zone
+to be drawn where you are, and a change saved from Calendar goes back on that clock. A
+task's times are not yet: its due time means the clock on the wall wherever you are.
 
 ### Find (2026-11-03)
 

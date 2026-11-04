@@ -36,8 +36,8 @@ input.field.bad { border-color: var(--danger) !important; }
 /* A file opens on a press, as a button chip would. */
 .chip.file { cursor: pointer; transition: border-color var(--dur), color var(--dur); }
 .chip.file:hover { border-color: var(--accent); color: var(--accent); }
-.f-row .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
-.f-row .add:hover { color: var(--accent); background: var(--accent-wash) !important; }
+.f-row .add, .s-row .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
+.f-row .add:hover, .s-row .add:hover { color: var(--accent); background: var(--accent-wash) !important; }
 /* The description is the editor (editor.js), so @ works in it: drawn as a field. */
 .ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
 .ed-field:focus-within { border-color: var(--accent); }
@@ -67,3 +67,57 @@ input.field.bad { border-color: var(--danger) !important; }
 /* A reference field's small search, in the kit's pop-up. */
 .menu-list { max-height: 260px; overflow: auto; }
 .find { width: 100%; font-size: 12.5px; margin-bottom: 4px; }
+
+/* A task's: its status and title, a row to each thing it holds, its own buttons at its foot. */
+.t-card { display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+.check { width: 16px; height: 16px; flex: none; margin-top: 2px; padding: 0 !important; border-radius: 50% !important; border: 1.5px solid var(--c, var(--muted)) !important;
+  background: transparent; color: transparent; font-size: 10px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.check:hover { background: color-mix(in srgb, var(--c, var(--accent)) 25%, transparent); }
+.check.on { background: var(--c); color: var(--surface); }
+.t-head { display: flex; align-items: center; gap: 8px; }
+.s-row { display: flex; gap: 8px; align-items: center; }
+.s-row[hidden] { display: none !important; }
+.s-row > .lab { width: 70px; color: var(--muted); flex: none; }
+.s-row.top { align-items: flex-start; }
+.s-row.top > .lab { padding-top: 4px; }
+.s-row .chips { flex: 1; min-width: 0; }
+.sum { flex: 1; color: var(--text); }
+.sum.none { color: var(--muted); }
+.t-tag-in { flex: 1; min-width: 80px; font-size: 12px; }
+.t-files .chip { cursor: pointer; max-width: 220px; }
+.t-files .chip:hover .lbl { color: var(--accent); }
+.t-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
+.t-files-note.err { color: var(--danger); }
+/* Title and notes are the editor (editor.js), so @ works in them: drawn as fields (kit.css .ed-field). */
+.t-title { flex: 1; font-size: 14px; min-width: 0; }
+.t-title .cm-content { padding: 4px 6px; }
+.t-notes { width: 100%; min-height: 110px; font-size: 12.5px; }
+.t-notes .cm-content { padding: 6px 8px; min-height: 96px; }
+/* The task's own buttons: a row of their own under a rule; each on one line, the row wrapping. */
+.s-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.s-foot .t-btn { white-space: nowrap; }
+.s-foot .spacer { flex: 1; }
+.t-done { color: var(--muted); font-size: 11.5px; }
+/* Where a file is: stored on the task only (a paperclip), in this project's folder (a folder), or
+   linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
+.chip .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
+.chip .fic .ic { width: 13px; height: 13px; }
+.chip.at-project .fic, .chip.at-elsewhere .fic { color: var(--accent); }
+.chip.at-project, .chip.at-elsewhere { background: var(--accent-wash); }
+.chip.missing .lbl { text-decoration: line-through; opacity: var(--disabled); }
+.chip .warn-mark { margin-right: 3px; font-weight: 500; color: var(--danger); }
+.s-row > .pick { flex: 1; min-width: 0; font-size: 12.5px; }
+.pick.overdue .lbl { color: var(--danger); }
+.time-in { flex: 0 0 82px; width: 82px; box-sizing: border-box; text-align: center; font-size: 12.5px; }
+/* Repeat's editor, under its line. */
+.t-rep { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
+.t-rep[hidden] { display: none; }
+.t-rep .s-row > .lab { width: 62px; }
+.t-rep .s-row { flex-wrap: wrap; }
+.t-rep .seg button { padding: 2px 9px !important; }
+.r-n { width: 46px; text-align: center; font-size: 12.5px; }
+.r-n[hidden], .t-rep .pick[hidden] { display: none; }
+.r-err { color: var(--danger); font-size: 11.5px; }
+.r-err:empty { display: none; }
+.acts { display: flex; gap: 8px; align-items: center; }
+.acts .spacer { flex: 1; }

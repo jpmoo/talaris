@@ -289,6 +289,22 @@ class Bridge(QObject):
             desktop.open_place(kind, project, where)
 
     @Slot(str)
+    def openLinked(self, path: str) -> None:  # noqa: N802 — called from the page by this name
+        """A linked file itself, in its application — only one in the home folder, as a link may be."""
+        full = os.path.realpath(path)
+        if full.startswith(os.path.expanduser("~") + os.sep) and os.path.isfile(full):
+            from files import _launch
+            _launch(full)
+
+    @Slot(str)
+    def showLinked(self, path: str) -> None:  # noqa: N802 — called from the page by this name
+        """The folder a linked file is in, in the file manager."""
+        folder = os.path.dirname(os.path.realpath(path))
+        if folder.startswith(os.path.expanduser("~")) and os.path.isdir(folder):
+            from files import _launch
+            _launch(folder)
+
+    @Slot(str)
     def glanceAt(self, key: str) -> None:  # noqa: N802 — called from the page by this name
         """A thing in Glance, by its key: what it is tied to, and might be. Asked from another panel, that one goes."""
         desktop = getattr(self.owner, "desktop", None)

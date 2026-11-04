@@ -21,7 +21,7 @@ from urllib.parse import quote
 
 from PySide6.QtCore import QProcess
 
-from core import ask_json
+from core import ask_json, call
 from views import log
 import spawn
 
@@ -186,3 +186,38 @@ def attach_files(overlay, entity: str, field: str, told) -> None:
             told(json.dumps({"id": entity, "field": field, "added": added, "error": "; ".join(errors)}))
         threading.Thread(target=run, daemon=True).start()
     choose_files(overlay, "A picture" if field == "image" else "Files for them", chosen)
+
+
+def attach_to_task(overlay, task: str, told) -> None:
+    """Files for a task, copies kept with it, from the desktop's chooser; `told` the result, as JSON: {task, added, error}."""
+    def chosen(paths: list) -> None:
+        if not paths:
+            return
+
+        def run() -> None:
+            added, errors = send_files(f"/tasks/{task}/attachments", paths)
+            told(json.dumps({"task": task, "added": added, "error": "; ".join(errors)}))
+        threading.Thread(target=run, daemon=True).start()
+    choose_files(overlay, "Files for the task", chosen)
+
+
+def link_to_task(overlay, task: str, told) -> None:
+    """Files linked on a task where they are, not copied: only ones in the home folder (the core says so for any other)."""
+    def chosen(paths: list) -> None:
+        if not paths:
+            return
+
+        def run() -> None:
+            added, errors = 0, []
+            for path in paths:
+                status, text = call("POST", f"/entities/{task}/links", json.dumps({"path": path}))
+                if status == 200:
+                    added += 1
+                else:
+                    try:
+                        errors.append(f"{os.path.basename(path)}: {json.loads(text).get('error', '')}")
+                    except ValueError:
+                        errors.append(os.path.basename(path))
+            told(json.dumps({"task": task, "added": added, "linked": True, "error": "; ".join(errors)}))
+        threading.Thread(target=run, daemon=True).start()
+    choose_files(overlay, "Files to link to the task", chosen)

@@ -89,74 +89,20 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .fmt-cards .row { border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); padding: 10px 12px; }
 
 /* A task's status: a round checkbox, or a chip in its color (.tv-status, taskviews.css). */
-.check { width: 16px; height: 16px; flex: none; margin-top: 2px; padding: 0 !important; border-radius: 50% !important; border: 1.5px solid var(--c, var(--muted)) !important;
-         background: transparent; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; color: transparent; }
-.check:hover { background: color-mix(in srgb, var(--c, var(--accent)) 25%, transparent); }
-.check.on { background: var(--c); color: var(--surface); }
 .row .tv-status { flex: none; white-space: nowrap; }
 .nostat { width: 16px; flex: none; }
 
 /* The task's sheet: beside the list, not over everything. */
 #sheet, #psheet { width: 340px; flex: none; border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;
          background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); }
-#sheet[hidden], #psheet[hidden], #rep[hidden], .s-row[hidden], #sheet [hidden], #psheet [hidden] { display: none !important; }
-@media (max-width: 760px) { #sheet, #psheet { position: absolute; right: 0; top: 0; bottom: 0; z-index: 5; background: var(--surface); box-shadow: var(--menu-shadow); } }
+#sheet[hidden], #psheet[hidden], #psheet [hidden] { display: none !important; }
 .s-head { display: flex; align-items: center; gap: 8px; }
 .s-head input { flex: 1; font-size: 14px; padding: 5px 8px; }
-.s-row { display: flex; gap: 8px; align-items: center; }
-.s-row > .lab { width: 70px; color: var(--muted); flex: none; }
-.s-row.top { align-items: flex-start; }
-.s-row.top > .lab { padding-top: 4px; }
-.chips { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
-/* A × that asks before it deletes says so in words: as wide as they are. */
-#s-tag-in { flex: 1; min-width: 80px; font-size: 12px; }
-.sum { flex: 1; color: var(--text); }
-.sum.none { color: var(--muted); }
-#s-files .chip { cursor: pointer; max-width: 220px; }
-#s-files .chip:hover .lbl { color: var(--accent); }
-#s-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
-#s-files-note.err { color: var(--danger); }
-/* Title and notes are the editor (editor.js), so @ works in them: drawn as fields (kit.css .ed-field). */
-#s-title { flex: 1; font-size: 14px; }
-#s-title .cm-content { padding: 4px 6px; }
-#s-notes { width: 100%; min-height: 110px; font-size: 12.5px; }
-#s-notes .cm-content { padding: 6px 8px; min-height: 96px; }
-#s-notes:empty::before, #s-notes .cm-content:only-child:empty::before { content: attr(data-placeholder); color: var(--muted); }
-/* The task's own buttons: a row of their own under a rule, apart from the suggestions above; each on one line, the row wrapping. */
-.s-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
-.s-foot .t-btn { white-space: nowrap; }
-#s-elsewhere { display: contents; }
-.s-foot { justify-content: flex-end; }
-#s-sugg:empty { display: none; }
+@media (max-width: 760px) { #sheet, #psheet { position: absolute; right: 0; top: 0; bottom: 0; z-index: 5; background: var(--surface); box-shadow: var(--menu-shadow); } }
 #p-desc { width: 100%; min-height: 90px; font-size: 12.5px; flex: none; }
 #p-desc .cm-content { padding: 6px 8px; min-height: 76px; }
 #p-sugg:empty { display: none; }
 #p-name:disabled { background: none; border-color: transparent; color: inherit; }
-/* Where a file is (tasks.js): stored on the task only (a paperclip), in this project's folder (a folder), or
-   linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
-.chip .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
-.chip .fic .ic { width: 13px; height: 13px; }
-.chip.at-project .fic, .chip.at-elsewhere .fic { color: var(--accent); }
-.chip.at-project, .chip.at-elsewhere { background: var(--accent-wash); }
-.chip.missing .lbl { text-decoration: line-through; opacity: var(--disabled); }
-.chip .warn-mark { margin-right: 3px; font-weight: 500; color: var(--danger); }
-#s-elsewhere:empty { display: none; }
-.s-foot .spacer { flex: 1; }
-#s-done { color: var(--muted); font-size: 11.5px; }
-.s-row > .pick { flex: 1; font-size: 12.5px; }
-.pick.overdue .lbl { color: var(--danger); }
-.time-in { flex: 0 0 82px; text-align: center; font-size: 12.5px; }
-
-/* Repeat's editor, in the sheet under its line. */
-#rep { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
-#rep .s-row > .lab { width: 62px; }
-#rep .seg button { padding: 2px 9px !important; }
-#r-n, #r-count { width: 46px; text-align: center; font-size: 12.5px; }
-#r-err { color: var(--danger); font-size: 11.5px; }
-#r-err:empty { display: none; }
-.acts { display: flex; gap: 8px; align-items: center; }
-.acts .spacer { flex: 1; }
-
 /* Projects in groups (Tasks' own, talaris:group): a folding heading, its projects under it. */
 #side .item .name { flex: 1; min-width: 0; }
 #side .item .synced { flex: none; color: var(--muted); font-size: 12px; }
@@ -188,6 +134,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .ps-wall-acts { display: flex; gap: 6px; }
 </style>
 <link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="thingcard.css">
 </head>
 <body data-arrives>
 <header>
@@ -200,6 +147,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <button class="t-btn" id="asks" hidden title="Waiting for you to choose"></button>
   <span id="list-actions"></span>
   <button class="t-btn" id="edit-list" hidden>Edit collection</button>
+  <button class="t-btn" id="add-task" title="A new task, opened to name it (n, for the quick line)">+ Task</button>
   <button class="icon-btn" id="grow"></button>
   <button class="icon-btn" id="close"></button>
 </header>
@@ -209,32 +157,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
     <div id="quick-bar"><div id="quick" class="ed-field"></div></div>
     <div id="rows"></div>
   </section>
-  <aside id="sheet" hidden>
-    <div class="s-head">
-      <button class="check" id="s-check">✓</button>
-      <div id="s-title" class="ed-field"></div>
-      <button class="icon-btn" id="s-close" title="Close"></button>
-    </div>
-    <div class="s-row top" id="s-status-row"><span class="lab">Status</span><div class="chips" id="s-status"></div></div>
-    <div class="s-row" id="s-start-row"><span class="lab" id="s-start-l">Available</span><button class="pick" id="s-start"></button><input type="text" class="time-in" id="s-start-t" placeholder="Time" spellcheck="false"></div>
-    <div class="s-row" id="s-end-row"><span class="lab" id="s-end-l">Due</span><button class="pick" id="s-end"></button><input type="text" class="time-in" id="s-end-t" placeholder="Time" spellcheck="false"></div>
-    <div class="s-row"><span class="lab">Repeat</span><span class="sum" id="s-rep"></span><button class="t-btn" id="s-rep-btn">Repeat…</button></div>
-    <div id="rep" hidden>
-      <div class="s-row"><span class="lab">From</span><span class="seg" id="r-anchor"></span></div>
-      <div class="s-row"><span class="lab">Every</span><input type="text" id="r-n" spellcheck="false"><span class="seg" id="r-freq"></span></div>
-      <div class="s-row" id="r-days-row"><span class="lab">On</span><span class="seg" id="r-days"></span></div>
-      <div class="s-row" id="r-short-row"><span class="lab">Short month</span><span class="seg" id="r-short"></span></div>
-      <div class="s-row"><span class="lab">Ends</span><span class="seg" id="r-end"></span><input type="text" id="r-count" spellcheck="false"><button class="pick" id="r-until"></button></div>
-      <div id="r-err"></div>
-      <div class="acts"><button class="t-btn" id="r-none">Don't repeat</button><span class="spacer"></span><button class="t-btn" id="r-cancel">Cancel</button><button class="t-btn primary" id="r-save">Save</button></div>
-    </div>
-    <div class="s-row top" id="s-proj-row"><span class="lab">Projects</span><div class="chips" id="s-proj"></div></div>
-    <div class="s-row top"><span class="lab">Tags</span><div class="chips"><span id="s-tags" style="display:contents"></span><input type="text" id="s-tag-in" placeholder="Add" spellcheck="false"></div></div>
-    <div class="s-row top" id="s-files-row"><span class="lab">Files</span><div class="chips" id="s-files"></div></div>
-    <div id="s-notes" class="ed-field" data-placeholder="Notes"></div>
-    <div id="s-sugg"></div>
-    <div class="s-foot"><span id="s-done"></span><span class="spacer"></span><span id="s-elsewhere"></span><button class="t-btn" id="s-archive">Archive</button></div>
-  </aside>
+  <aside id="sheet" hidden></aside>
   <!-- A project chosen on the left: itself — its description, what it might be connected to, Glance. -->
   <aside id="psheet" hidden>
     <div class="s-head">
@@ -261,6 +184,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 <script src="taskviews.js"></script>
 <script src="peek.js"></script>
 <script src="mentions.js"></script>
+<script src="thingcard.js"></script>
+<script src="taskcard.js"></script>
 <script src="tasks.js"></script>
 </body>
 </html>

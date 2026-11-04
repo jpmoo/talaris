@@ -7,9 +7,8 @@
 // the same. The page says how a thing named on it opens.
 //
 // A person's or an organization's is edited where it is shown, each field by its
-// kind, as the type has it. A task's and an event's are read here, and worked on
-// in their hubs: what changes them does more than change them (completing a task
-// keeps its series in step), so they do not come here until that is theirs to say.
+// kind, as the type has it; a task's the same, by its own part (taskcard.js). An
+// event's is read here, and worked on in Calendar.
 //
 // Asked of the page:
 //   api, say, failed    its door to the core, and where it says things
@@ -20,6 +19,8 @@
 //   hub                 which hub it is drawn in: the way there is not then offered
 //   glance(key)         Glance on it, if not by the bridge
 //   afterFields, end    what the page adds, under the fields and at the foot
+//   attachTask, linkTask(id)  files for a task, from the desktop's chooser
+//   close, openMention(id)    its way to close, and how a mention opens, if the page has its own
 
 "use strict";
 
@@ -108,6 +109,11 @@ window.ThingCard = (() => {
   let editors = [];
   /** Its editors let go of: before it is drawn again, or anything else is put in its place. */
   function putAway() { for (const ed of editors) { try { ed.destroy(); } catch { /* gone */ } } editors = []; }
+  const keepEditor = (ed) => editors.push(ed);
+  /** The editor, made in `host` once the card is on the page: a task later, so whatever draws the card has put it there. */
+  function withEditor(host, make) {
+    import("./editor.js").then((m) => setTimeout(() => { if (host.isConnected) make(m); }, 0)).catch((e) => console.error(e));
+  }
 
   // ---------------------------------------------------------------- what it is connected to
 
@@ -379,8 +385,7 @@ window.ThingCard = (() => {
       const host = el("div", { class: "grow ed-field ed-body" });
       let kept = props()[f.key] || "";
       const mentionOpts = { project: () => "", openPlace: (p) => ctx.open(`${p.kind}:${p.project}/${p.where}`) };
-      import("./editor.js").then((m) => {
-        if (!host.isConnected) return;
+      withEditor(host, (m) => {
         const ed = m.createEditor(host, kept, { live: true, compact: true, mentions: TalarisMentions(api, (x) => ctx.open(`e:${x}`), mentionOpts), onOpenUrl: (u) => bridge && bridge.openUrl(u), placeholder: "@ to link a person, event or task" });
         editors.push(ed);
         host.addEventListener("focusout", (e) => {
@@ -390,7 +395,7 @@ window.ThingCard = (() => {
           kept = v;
           setProps({ [f.key]: v.trim() ? v : null });
         });
-      }).catch(failed);
+      });
       return row(labelOf(f), host, true);
     }
 
@@ -468,15 +473,14 @@ window.ThingCard = (() => {
       } else if (f.kind === "richtext") words = words || String(v);
       else if (f.kind === "attachment") { if (f.many) files.push(...list.map((a) => a && a.filename).filter(Boolean)); }
       else if (f.kind === "datespan") lines.push([label, [v.start, v.end].filter(Boolean).join(" to ")]);
-      else if (f.kind === "datetime") lines.push([label, Kit.stamp(String(v))]);
+      else if (f.kind === "datetime") lines.push([label, Kit.stamp(Kit.fromClock(String(v), p["talaris:timezone"]))]);
       else if (f.kind === "boolean") { if (v === true) lines.push([label, "Yes"]); }
       else if (f.kind === "enum") lines.push([label, (f["talaris:labels"] || {})[v] || String(v)]);
       else if (typeof v !== "object" || Array.isArray(v)) lines.push([label, list.join(", ")]);
     }
     const acts = [];
     const act = (label, fn) => acts.push(el("button", { class: "t-btn small", onclick: fn }, label));
-    if (kinds.includes("task")) act("Open in Tasks", () => bridge.thing("task", id));
-    else if (kinds.includes("event")) {
+    if (kinds.includes("event")) {
       const on = (o["talaris:sources"] || []).find((s) => s.kind === "eds-event");
       if (on) { const cut = on.key.indexOf("/"); act("Open in Calendar", () => bridge.openEvent(on.key.slice(0, cut), on.key.slice(cut + 1), String(p.start || ""))); }
     }
@@ -501,6 +505,7 @@ window.ThingCard = (() => {
   function drawn(got, types, ctx) {
     putAway();
     const kinds = got.kinds || [];
+    if (kinds.includes("task") && ctx.task) return TaskCard.parts(got, ctx.task, ctx, connected);
     return kinds.includes("contact") || kinds.includes("organization") ? edited(got, types, ctx) : read(got, types, ctx);
   }
 
@@ -511,8 +516,11 @@ window.ThingCard = (() => {
       [got, types] = await Promise.all([ctx.api("GET", `/entities/${enc(id)}?shown=1`), ctx.types() || ctx.api("GET", "/entity-types")]);
     } catch (e) { ctx.failed(e); return null; }
     ctx.kept(types);
+    if ((got.kinds || []).includes("task")) {
+      try { ctx = { ...ctx, task: await TaskCard.ask(got.entity.id, ctx.api) }; } catch (e) { ctx.failed(e); return null; }
+    }
     return drawn(got, types, ctx);
   }
 
-  return { draw, drawn, putAway, avatar, forgetPictures: () => pictures.clear() };
+  return { draw, drawn, putAway, keepEditor, withEditor, avatar, forgetPictures: () => pictures.clear() };
 })();

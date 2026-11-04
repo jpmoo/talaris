@@ -23,7 +23,7 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge
-from files import attach_files, choose_files, choose_folder, open_kept_file
+from files import attach_files, attach_to_task, choose_files, choose_folder, link_to_task, open_kept_file
 from views import log
 from overlay import Overlay
 import spawn
@@ -96,6 +96,16 @@ class FilesBridge(Bridge):
     def attach(self, entity: str, field: str) -> None:
         """Files for a field on a thing's card (their files, or their picture), from the desktop's chooser."""
         attach_files(self.owner, entity, field, self.attached.emit)
+
+    @Slot(str)
+    def attachTask(self, task: str) -> None:  # noqa: N802 — called from the page by this name
+        """Files for a task on its card, from the desktop's chooser."""
+        attach_to_task(self.owner, task, self.attached.emit)
+
+    @Slot(str)
+    def linkTask(self, task: str) -> None:  # noqa: N802 — called from the page by this name
+        """Files to link on a task on its card, where they are."""
+        link_to_task(self.owner, task, self.attached.emit)
 
     @Slot(str, str)
     def openFile(self, sha: str, filename: str) -> None:  # noqa: N802 — called from the page by this name
