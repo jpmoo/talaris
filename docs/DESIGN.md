@@ -1377,11 +1377,18 @@ on a task, an event or a person; a note card on a canvas; Morgan's memory.
 
 **Connect, one word.** Whatever ties two things — a field, a link, a page
 about a person, a file on a task — is a connection, and making one is
-connecting: "Connect to Rich Gelson", "Possible connections", "Not
-connected", a person's address-book entry connected or disconnected. A page
-is connected to what it is about (the writing drawer's "Connect to…"), not
-copied there. Only a mention ("Connect “Rich” as a mention") and a merge are
-named for what they do besides.
+connecting: "Connect", "Possible connections", "Not connected", a person's
+address-book entry connected or disconnected. A page is connected to what it
+is about (the writing drawer's "Connect to…"), not copied there. A suggestion
+offers one Connect, whichever it takes: where the name is written, those words
+become the link, the words reading as they did, and otherwise the two are tied
+and the words let be; its tip says which. Only a merge is named for what it
+does besides.
+
+**Undone where it is listed.** Each row of a card's Connected has its ×, asked once:
+whichever of the two holds the connection, it goes, and the pair is not suggested
+again. What something else holds has none, and says so: a mention is its text's, while
+the words are there, and an event's people are the calendar's.
 
 **People, not cards.** An address book's entry is shown as a person, "in your
 address books" — likely the same person, no longer in your address books —
@@ -1551,8 +1558,12 @@ phrase. Each opens its card, and what was being looked through stays.
 
 **A thing's hub shows the same card.** Tasks, People and Calendar stay where a task,
 a person and an event are worked with, and what they show of one is to be this
-card, so a thing looks the same wherever it is seen. (Not done yet: they still draw
-their own.)
+card, so a thing looks the same wherever it is seen. A person's and an organization's
+is one card now, edited where it is shown, in People and in the Library alike
+(`thingcard.js`); People adds to it what is its own: the address books, and making two
+people one or deleting one, which the Library's card reaches by Open in People. A task's
+and an event's are read on the card and worked on in their hubs until they come over:
+what changes them does more than change them.
 
 ### Organizations (2026-11-03)
 

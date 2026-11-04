@@ -1,0 +1,69 @@
+/*
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+A thing's card (thingcard.js), as every page that shows one draws it.
+*/
+/* A person's mark: two letters on a tint from the id (as the canvas's person card), or their picture. */
+.av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;
+      letter-spacing: .5px; color: var(--text); overflow: hidden; background-size: cover; background-position: center; }
+.av.pic { color: transparent; }
+.av.big { width: 72px; height: 72px; font-size: 24px; border: 0; padding: 0; cursor: pointer; }
+.av.big:hover { box-shadow: 0 0 0 1px var(--accent); }
+
+.p-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+/* Their name, and under it where else they live ("Open in Hermes Notes"). */
+.p-head .p-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.p-head .p-elsewhere { display: flex; gap: 6px; flex-wrap: wrap; padding-left: 9px; }
+.p-head .name-in { flex: 1; min-width: 0; font-size: 16px !important; padding: 5px 9px; background: transparent !important; border-color: transparent !important; }
+.p-head .name-in:hover { border-color: var(--line) !important; }
+.p-head .name-in:focus { background: var(--desk) !important; border-color: var(--accent) !important; }
+section.part { margin-top: 18px; }
+.part > h3 { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 500; }
+.part > h3 .spacer { flex: 1; }
+.fields { display: flex; flex-direction: column; gap: 6px; }
+.f-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.f-row.top { align-items: flex-start; }
+.f-row > .lab { width: 96px; flex: none; color: var(--muted); }
+.f-row.top > .lab { padding-top: 6px; }
+.f-row > .grow { flex: 1; min-width: 0; }
+.col { display: flex; flex-direction: column; gap: 4px; }
+input.field { width: 100%; font-size: 12.5px; }
+input.field.day { width: 160px; }
+input.field.bad { border-color: var(--danger) !important; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chips .chip { max-width: 240px; }
+/* A file opens on a press, as a button chip would. */
+.chip.file { cursor: pointer; transition: border-color var(--dur), color var(--dur); }
+.chip.file:hover { border-color: var(--accent); color: var(--accent); }
+.f-row .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
+.f-row .add:hover { color: var(--accent); background: var(--accent-wash) !important; }
+/* The description is the editor (editor.js), so @ works in it: drawn as a field. */
+.ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
+.ed-field:focus-within { border-color: var(--accent); }
+.ed-field .cm-editor { outline: none; }
+.ed-body { min-height: 80px; }
+.ed-body .cm-content { padding: 6px 8px; min-height: 66px; }
+.part .hint { color: var(--muted); font-size: 11.5px; }
+
+/* What it is connected to: grouped by what the other thing is. */
+.c-group { margin-bottom: 10px; }
+.c-label { display: block; margin-bottom: 2px; }
+.c-label .n { margin-left: 6px; letter-spacing: 0; }
+/* Each with its × at the end, there to be seen as it is pointed at, and while it asks. */
+.c-row { display: flex; align-items: center; gap: 2px; }
+.c-row .c-item { flex: 1; min-width: 0; }
+.c-row .x-btn { flex: none; visibility: hidden; }
+.c-row:hover .x-btn, .c-row .x-btn:focus-visible, .c-row .x-btn.armed { visibility: visible; }
+.c-row .x-btn.armed { width: auto; white-space: nowrap; color: var(--danger) !important; }
+.c-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
+.c-item:hover { background: var(--accent-wash); color: var(--accent); }
+.c-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.c-item:hover .c-how { color: inherit; }
+.c-more { display: flex; gap: 6px; margin-top: 4px; }
+.c-more:empty { display: none; }
+
+/* A reference field's small search, in the kit's pop-up. */
+.menu-list { max-height: 260px; overflow: auto; }
+.find { width: 100%; font-size: 12.5px; margin-bottom: 4px; }

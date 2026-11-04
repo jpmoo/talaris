@@ -916,7 +916,7 @@ window.GlanceView = (o) => {
       el("div", { class: "ways" }, s.ways.map((w) => {
         const id = `${s.key}|${w.how}|${w.text || ""}`;
         // A merge is asked first, as everything is asked (kit.js).
-        return el("button", { class: "t-btn small", title: w.how === "merge" ? "Make the two one: what pointed at either points at the one kept" : "",
+        return el("button", { class: "t-btn small", title: w.says,
           onclick: (e) => { if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return; take(s, w); } },
           w.label);
       })));

@@ -170,3 +170,19 @@ def open_project_file(project: str, path: str) -> None:
             return
         _launch(_copy_out(project, path.split("/")[-1], base64.b64decode(got["data"])))
     threading.Thread(target=run, daemon=True).start()
+
+
+def attach_files(overlay, entity: str, field: str, told) -> None:
+    """Files for a field of a person's (their files, or their picture), from the desktop's chooser; `told` the result, as JSON: {id, field, added, error}."""
+    def chosen(paths: list) -> None:
+        if not paths:
+            return
+        # A picture is one: the first chosen.
+        if field == "image":
+            paths = paths[:1]
+
+        def run() -> None:
+            added, errors = send_files(f"/entities/{entity}/files", paths, {"field": field})
+            told(json.dumps({"id": entity, "field": field, "added": added, "error": "; ".join(errors)}))
+        threading.Thread(target=run, daemon=True).start()
+    choose_files(overlay, "A picture" if field == "image" else "Files for them", chosen)

@@ -23,13 +23,14 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge
-from files import choose_files, choose_folder
+from files import attach_files, choose_files, choose_folder, open_kept_file
 from views import log
 from overlay import Overlay
 import spawn
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
-ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+(/place)?(\?shown=1)?$|^/entities/[A-Za-z0-9_.:%-]+/links$")
+# And what a thing's card edits and finds (thingcard.js), as People's page may; of plugins, only their buttons on a person.
+ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words|entities|people|mentionables)(/|$|\?)|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
 HOME = os.path.expanduser("~")
 
 
@@ -47,6 +48,8 @@ def _launch(*args: str) -> None:
 class FilesBridge(Bridge):
     #: Files chosen in the desktop's chooser, to bring in: [path].
     chosen = Signal(str)
+    #: Files kept with a thing whose card is on show, or why not: {id, field, added, error}.
+    attached = Signal(str)
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
@@ -88,6 +91,15 @@ class FilesBridge(Bridge):
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except (OSError, subprocess.SubprocessError):
             _launch("xdg-open", os.path.dirname(full))
+
+    @Slot(str, str)
+    def attach(self, entity: str, field: str) -> None:
+        """Files for a field on a thing's card (their files, or their picture), from the desktop's chooser."""
+        attach_files(self.owner, entity, field, self.attached.emit)
+
+    @Slot(str, str)
+    def openFile(self, sha: str, filename: str) -> None:  # noqa: N802 — called from the page by this name
+        open_kept_file(sha, filename)
 
     @Slot()
     def choose(self) -> None:

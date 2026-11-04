@@ -55,7 +55,7 @@ import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 
 export type How = "mention" | "connect" | "attach" | "merge";
-export interface Way { how: How; label: string; /** For a mention: the words made one. */ text?: string }
+export interface Way { how: How; label: string; /** For a mention: the words made one. */ text?: string; /** What it will do, where its one word does not say. */ says?: string }
 export interface Suggestion {
   /** The other thing's glance key. */
   key: string;
@@ -297,7 +297,7 @@ function bareAt(text: string, words: string): number {
 
 /** The mention way, where a thing's words can be written. */
 function mention(t: Thing, text: string): Way[] {
-  return t.writes ? [{ how: "mention", label: `Connect “${text}” as a mention`, text }] : [];
+  return t.writes ? [{ how: "mention", label: "Connect", text }] : [];
 }
 
 // ------------------------------------------------------------ the same thing twice
@@ -341,17 +341,17 @@ const ATTACHES = (o: Entity) => types().find((x) => x.id === o.type)?.fields.som
 function waysBetween(a: Thing, b: Thing): Way[] {
   const out: Way[] = [];
   if (a.entity && b.entity && a.entity.type === b.entity.type && (MERGEABLE.has(a.kind) || a.kind === "page") && b.kind !== "project") {
-    out.push({ how: "merge", label: `Merge with ${b.title}` });
+    out.push({ how: "merge", label: "Merge", says: `Make it and ${b.title} one thing: what pointed at either points at the one kept` });
   }
   if (a.kind === "file" || b.kind === "file") {
     const [file, other] = a.kind === "file" ? [a, b] : [b, a];
     if (other.kind === "file") return out;
     const canHold = other.entity ? ATTACHES(other.entity) : false;
-    if (canHold && (file.file?.abs || file.file?.sha256)) out.push({ how: "attach", label: `Connect to ${b.title}` });
+    if (canHold && (file.file?.abs || file.file?.sha256)) out.push({ how: "attach", label: "Connect", says: `Put the file on ${other.title}` });
     return out;
   }
   // One word for it everywhere: connect. (Where it goes — a note's people, a task's project — is the core's to choose.)
-  out.push({ how: "connect", label: `Connect to ${b.title}` });
+  out.push({ how: "connect", label: "Connect" });
   return out;
 }
 
@@ -449,7 +449,10 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
     let other: Thing;
     try { other = thing(k, rows); } catch { continue; }
     if (leavesOut(shown) && hidden(other, shown)) continue;
-    const ways = [...f.ways.filter((w) => w.how === "mention"), ...waysBetween(t, other)];
+    // One Connect, whichever it is: where the words are written, they are made the link; otherwise the two are tied, the words let be.
+    const written = f.ways.find((w) => w.how === "mention");
+    const between = waysBetween(t, other);
+    const ways = written ? [{ ...written, says: `“${written.text}” in the words becomes a link to ${other.title}` }, ...between.filter((w) => w.how === "merge")] : between;
     // Merge is offered only where the two look like one thing.
     const looksSame = f.why.some((w) => w.startsWith("The same") || w === "Nearly the same");
     const fitting = ways.filter((w) => w.how !== "merge" || looksSame);

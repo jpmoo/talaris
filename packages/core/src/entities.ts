@@ -589,6 +589,8 @@ export interface Connection {
   by: "field" | "relation";
   name: string;
   via?: string;
+  /** Held by something else, so not to be undone here: the words of its text, or the calendar's event. */
+  fixed?: "text" | "calendar";
   entity: Summary;
 }
 
@@ -602,24 +604,34 @@ export function connections(id: string): { entity: Entity; out: Connection[]; in
   const rec = ix.records.get(id);
   if (!rec) throw new NotFound(`no entity ${id}`);
   const known = (to: string) => ix.records.get(to)?.object;
+  // An event's people, as its profile names them, are the calendar's: read from it again each time it is looked at.
+  const fromCalendar = (o: Entity, field: string): boolean => {
+    if (!((o as Record<string, unknown>)["talaris:sources"] as { kind?: string }[] | undefined)?.some((s) => s.kind === "eds-event")) return false;
+    const p = (o.type ? ix.types.get(o.type) : undefined)?.profiles?.event;
+    return Boolean(p) && (p!.attendees === field || p!.organizer === field);
+  };
+  const byField = (o: Entity, field: string, other: Entity): Connection =>
+    ({ by: "field", name: field, ...(fromCalendar(o, field) ? { fixed: "calendar" as const } : {}), entity: summary(other) });
+  const byRelation = (r: Relation, other: Entity): Connection =>
+    ({ by: "relation", name: r.type, ...(r.via ? { via: r.via } : {}), ...(r.via === "inline" ? { fixed: "text" as const } : {}), entity: summary(other) });
   const out: Connection[] = [];
   for (const { field, to } of referenceTargets(rec.object, ix.types)) {
     const t = known(to);
-    if (t) out.push({ by: "field", name: field, entity: summary(t) });
+    if (t) out.push(byField(rec.object, field, t));
   }
   for (const r of rec.relations) {
     const t = known(r.to);
-    if (t) out.push({ by: "relation", name: r.type, ...(r.via ? { via: r.via } : {}), entity: summary(t) });
+    if (t) out.push(byRelation(r, t));
   }
   const in_: Connection[] = [];
   for (const from of ix.incoming.get(id) ?? []) {
     const f = ix.records.get(from);
     if (!f) continue;
     for (const { field, to } of referenceTargets(f.object, ix.types)) {
-      if (to === id) in_.push({ by: "field", name: field, entity: summary(f.object) });
+      if (to === id) in_.push(byField(f.object, field, f.object));
     }
     for (const r of f.relations) {
-      if (r.to === id) in_.push({ by: "relation", name: r.type, ...(r.via ? { via: r.via } : {}), entity: summary(f.object) });
+      if (r.to === id) in_.push(byRelation(r, f.object));
     }
   }
   return { entity: rec.object, out, in: in_ };
@@ -819,7 +831,7 @@ export function connect(from: string, to: string, edge: { type?: string; via?: s
   return { by: "relation", name: edge.type || "links", via: edge.via ?? "edge", entity: summary(target) };
 }
 
-/** Undo a connection, field or edge, whichever it was. */
+/** Undo a connection, field or edge, whichever it was. What its words make stays: that is theirs, while they say it. */
 export function disconnect(from: string, to: string): void {
   const ix = load();
   const rec = ix.records.get(from);
@@ -833,7 +845,9 @@ export function disconnect(from: string, to: string): void {
     else if (v === to) props[f.key] = null;
   }
   if (Object.keys(props).length) updateEntity(from, { properties: props });
-  unlink({ from, to, type: "" });
+  const after = load().records.get(from)!;
+  const kept = after.relations.filter((x) => x.to !== to || x.via === "inline");
+  if (kept.length !== after.relations.length) put({ object: { ...after.object, updated: now(), version: after.object.version + 1 }, relations: kept });
 }
 
 /**

@@ -913,3 +913,24 @@ test("words a person held before organizations were things are settled into them
   entities.settleOrganizations();
   assert.equal(entities.getEntity(p.id).version, v);
 });
+
+test("a connection undone: a field's or an edge's goes; what the words make stays, and says so; an event's people are the calendar's", () => {
+  const grace = entities.createEntity({ role: "person", properties: { title: "Grace Undone" } });
+  const task = entities.createEntity({ role: "task", properties: { title: "Undo me" } });
+  const note = entities.createEntity({ role: "note", properties: { title: "Words" } });
+  entities.connect(task.id, grace.id, { type: "about" });
+  entities.setInlineRelations(task.id, [{ to: grace.id, field: "notes" }]);
+  const of = () => entities.connections(task.id).out.filter((c) => c.entity.id === grace.id);
+  assert.deepEqual(of().map((c) => c.fixed).sort(), ["text", undefined].sort());
+  entities.disconnect(task.id, grace.id);
+  assert.deepEqual(of().map((c) => c.fixed), ["text"], "the mention stays, as the words still make it");
+  entities.connect(note.id, grace.id);
+  assert.ok(entities.connections(note.id).out.some((c) => c.entity.id === grace.id && c.by === "field" && !c.fixed));
+  entities.disconnect(note.id, grace.id);
+  assert.ok(!entities.connections(note.id).out.some((c) => c.entity.id === grace.id));
+  const ev = entities.createEntity({ role: "event", properties: { title: "Met", attendees: [grace.id], organizer: grace.id } });
+  assert.ok(entities.connections(ev.id).out.every((c) => !c.fixed), "one of Talaris's own is its own to change");
+  const mirrored = entities.mirrorEvent({ source: { kind: "eds-event", key: "work/undone-1" }, title: "Calendar's", start: "2026-11-05T10:00", attendees: [{ email: "grace.undone@example.org" }] });
+  const people = entities.connections(mirrored.id).out.filter((c) => c.name === "attendees");
+  assert.ok(people.length && people.every((c) => c.fixed === "calendar"), "an event's people are the calendar's");
+});

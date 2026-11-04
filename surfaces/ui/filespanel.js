@@ -618,6 +618,7 @@
   // else — a person, an organization, a task, an event — is drawn from what the core says of it.
 
   let cardOf = null;    // the entity whose card is on show: the list's own choosing puts it away
+  let cardDrawn = null; // the one drawn: left as it is, and as typed, until it is asked to be drawn again
   let cardSeq = 0;
   let entityTypes = null;
   let startSeen = 0;    // the last "open on this thing" taken (surface.start.n)
@@ -688,16 +689,22 @@
 
   async function drawCard(id) {
     const seq = ++cardSeq;
-    const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key, true).catch(failed), glance: bridge.glanceAt ? glanceAt : null, bridge, types: () => entityTypes, kept: (t) => { entityTypes = t; } });
+    const again = cardDrawn === id;
+    cardDrawn = id;
+    const top = $("detail").scrollTop;
+    const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key, true).catch(failed), glance: bridge.glanceAt ? glanceAt : null, bridge,
+      types: () => entityTypes, kept: (t) => { entityTypes = t; }, redraw: () => drawCard(id).catch(failed), changed: () => { glanceOld = true; } });
     if (seq !== cardSeq || cardOf !== id) return;
-    if (part) $("detail").replaceChildren(...part);
-    else { cardOf = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
+    if (part) { $("detail").replaceChildren(...part); $("detail").scrollTop = again ? top : 0; }
+    else { cardOf = null; cardDrawn = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
   }
 
   function drawDetail() {
     const r = rowOf(chosen);
     glance.mark(cardOf ? `e:${cardOf}` : r ? glanceKey(r) : "");
-    if (cardOf) { drawCard(cardOf); return; }
+    if (cardOf) { if (cardDrawn !== cardOf) drawCard(cardOf); return; }
+    cardDrawn = null;
+    ThingCard.putAway();
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     if (!r && filters.list) { drawList(); return; }
     if (!r && oneProject()) { drawProject(); return; }
@@ -1466,6 +1473,13 @@
     // Choosing in the list or on the left puts a card away.
     for (const id of ["side", "rows"]) $(id).addEventListener("click", () => { cardOf = null; visiting = null; cardSeq++; }, true);
     // Files chosen are a list; a folder, {folder, paths}: linked where they are, after asking.
+    // Files or a picture kept on the card on show (or why not).
+    b.attached.connect((text) => {
+      const r = JSON.parse(text);
+      if (r.error) say(r.error, true);
+      ThingCard.forgetPictures();
+      if (r.id === cardOf) drawCard(cardOf).catch(failed);
+    });
     b.chosen.connect((text) => {
       const got = JSON.parse(text);
       if (Array.isArray(got)) { bringIn(got); return; }

@@ -17,13 +17,12 @@ from __future__ import annotations
 
 import json
 import re
-import threading
 
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge
-from files import choose_files, open_kept_file, send_files
+from files import attach_files, open_kept_file
 from overlay import Overlay
 
 #: What the page may ask the core for.
@@ -43,7 +42,7 @@ class PeopleBridge(Bridge):
     @Slot(str, str)
     def attach(self, person: str, field: str) -> None:
         """Files for a person's field (their files, or their picture), from the desktop's chooser."""
-        self.owner.attach(person, field)
+        attach_files(self.owner, person, field, self.attached.emit)
 
     @Slot(str, str)
     def openFile(self, sha: str, filename: str) -> None:  # noqa: N802 — called from the page by this name
@@ -60,20 +59,6 @@ class People(Overlay):
         super().__init__(profile, desktop, "talaris-ui://ui/people.html", PeopleBridge(None, None))
         self.bridge.owner = self
         self.bridge.setParent(self)
-
-    def attach(self, person: str, field: str) -> None:
-        def chosen(paths: list) -> None:
-            if not paths:
-                return
-            # A picture is one: the first chosen.
-            if field == "image":
-                paths = paths[:1]
-
-            def run() -> None:
-                added, errors = send_files(f"/entities/{person}/files", paths, {"field": field})
-                self.bridge.attached.emit(json.dumps({"id": person, "field": field, "added": added, "error": "; ".join(errors)}))
-            threading.Thread(target=run, daemon=True).start()
-        choose_files(self, "A picture" if field == "image" else "Files for them", chosen)
 
     def show_person(self, entity: str) -> None:
         """One person's entry: the panel out (or its window forward), on them."""

@@ -668,6 +668,8 @@ route("POST", "/entities/:id/connect", async (req, [id]) => {
 });
 route("DELETE", "/entities/:id/connect/:to", (_r, [id, to]) => {
   entities.disconnect(id!, to!);
+  // Taken apart by hand: not to be suggested again.
+  suggest.dismiss(suggest.keyOfEntity(entities.getEntity(id!)), suggest.keyOfEntity(entities.getEntity(to!)));
   return { ok: true };
 });
 route("POST", "/entities/:id/files", async (req, [id]) => {

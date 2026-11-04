@@ -53,7 +53,6 @@
   let got = null;       // the chosen one, as /entities/:id answers
   let mode = store.get("talaris.people.mode", "org");
   let shut = new Set(store.get("talaris.people.shut", []));
-  let editors = [];     // the editor fields drawn for the chosen one, to be put away
   let reviewing = false; // the right pane is the review of everyone, not one person
 
   // ---------------------------------------------------------------- the core
@@ -95,20 +94,6 @@
   //
   // A date is wall-clock "YYYY-MM-DD"; a datetime adds "THH:MM".
 
-  const pad = (n) => String(n).padStart(2, "0");
-  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-  const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dayLabel = (d) => Kit.day(d, { weekday: false });
-  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  function readIso(v) {
-    const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
-    return m ? { day: new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), time: m[4] ? `T${m[4]}:${m[5]}` : "" } : { day: null, time: "" };
-  }
-  // A birthday is mostly in the past: read as every page reads a day (kit.js), the year kept as typed or this one.
-  const parseDay = (text) => Kit.parseDay(text, { past: true });
-
   // ---------------------------------------------------------------- the one pop at a time
   //
   // No browser pickers — a <select>, a date or a file field opens a window of
@@ -117,54 +102,10 @@
 
   // One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
   // kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
-  const popPlace = (left, top, content, anchor) => Kit.pop({ x: left, y: top, opener: anchor || null }, content);
   const popUnder = (anchor, content) => Kit.pop(anchor, content);
   const popAway = () => Kit.popAway();
   const menuAt = (x, y, items) => Kit.menu({ x, y }, items);
-  const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
-  const timeList = (current, pick) => Kit.timeList(current, pick);
 
-
-  // ---------------------------------------------------------------- marks
-
-  // The small × that takes one thing off a chip.
-  function xBtn(title, onclick) {
-    const b = el("button", { class: "x-btn", title, onclick });
-    b.innerHTML = Icons.close();
-    return b;
-  }
-
-  // As the canvas's person card (EntityCard.tsx): a tint by the id, so a rename does not repaint them.
-  const TINTS = Palette.TINTS;
-  function tint(id) {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-    return `color-mix(in srgb, ${TINTS[Math.abs(h) % TINTS.length]} 45%, var(--surface))`;
-  }
-  function initials(name) {
-    const w = String(name || "").split("@")[0].split(/[\s._-]+/).filter((x) => /[\p{L}\p{N}]/u.test(x));
-    if (!w.length) return "?";
-    const first = [...w[0]];
-    return (w.length > 1 ? first[0] + [...w[w.length - 1]][0] : first.slice(0, 2).join("")).toUpperCase();
-  }
-  // A picture's bytes, once each: a data: URL needs its type, read from the bytes' first few.
-  const pictures = new Map();
-  function picture(sha) {
-    if (!pictures.has(sha)) {
-      pictures.set(sha, api("GET", `/files/${enc(sha)}`).then((f) => {
-        const head = atob(String(f.data || "").slice(0, 24));
-        const type = head.startsWith("\x89PNG") ? "image/png" : head.startsWith("\xFF\xD8") ? "image/jpeg"
-          : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP" ? "image/webp" : head.startsWith("GIF8") ? "image/gif" : null;
-        return type ? `data:${type};base64,${f.data}` : null;
-      }).catch(() => { pictures.delete(sha); return null; }));
-    }
-    return pictures.get(sha);
-  }
-  function avatar(id, name, sha, attrs = {}) {
-    const a = el(attrs.tag || "span", { class: "av" + (attrs.big ? " big" : ""), style: `background-color:${tint(id)}`, title: attrs.title, onclick: attrs.onclick }, initials(name));
-    if (sha) picture(sha).then((url) => { if (url) { a.style.backgroundImage = `url("${url}")`; a.classList.add("pic"); } });
-    return a;
-  }
 
   // ---------------------------------------------------------------- the left
   //
@@ -199,7 +140,7 @@
   function personRow(p) {
     const sub = [p.role, p.email].filter(Boolean).join(" · ");
     return el("div", { class: "prow" + (p.id === chosen ? " on" : ""), "data-id": p.id, onclick: () => { choose(p.id); $("list").focus(); } },
-      avatar(p.id, p.title, p.image),
+      ThingCard.avatar(api, p.id, p.title, p.image),
       el("div", { class: "p-main" }, el("div", { class: "p-name" }, p.title), sub ? el("div", { class: "p-sub" }, sub) : null),
       // Filled, tied to a card in your address books; a hollow ring, not yet; nothing, for one you said not to look for.
       p.ties.length ? el("span", { class: "tie tied", title: "In your address books" })
@@ -341,258 +282,32 @@
 
   // ---------------------------------------------------------------- the right pane
 
-  function putAwayEditors() { for (const ed of editors) { try { ed.destroy(); } catch { /* gone */ } } editors = []; }
+  // A person here is chosen, in the list; anything else is its card, in the Library.
+  function openHere(key) {
+    const id = key.startsWith("e:") ? key.slice(2) : "";
+    if (id && people.some((p) => p.id === id)) { choose(id); return; }
+    if (window.Peek) Peek.openCard(key);
+  }
 
   function drawPerson() {
     if (reviewing) return;
-    putAwayEditors();
+    ThingCard.putAway();
     popAway();
     const host = $("person");
     if (!got || !ptype) { host.replaceChildren(people.length ? "" : Kit.empty("No people yet")); return; }
     const top = host.scrollTop;
     const same = host.dataset.id === chosen;
     host.dataset.id = chosen;
-    host.replaceChildren(...[head(), fieldsPart(), isOrg() ? null : contactsPart(), connectedPart(), foot()].filter(Boolean));
+    // The one card (thingcard.js), as the Library shows it; the address books and the end of a person are People's to add.
+    host.replaceChildren(...ThingCard.drawn(got, allTypes, {
+      api, say, failed, bridge, hub: "people",
+      open: openHere,
+      redraw: () => loadPerson().catch(failed),
+      changed: () => loadPeople().catch(failed),
+      afterFields: isOrg() ? null : contactsPart(),
+      end: foot(),
+    }));
     host.scrollTop = same ? top : 0;
-  }
-
-  function head() {
-    const p = props();
-    const img = imageField();
-    const sha = img && p[img.key] && p[img.key].sha256;
-    const name = el("input", { type: "text", class: "name-in", id: "name-in", value: p[titleKey()] || "", placeholder: isOrg() ? "Its name" : "Their name", spellcheck: "false" });
-    let kept = p[titleKey()] || "";
-    const save = () => {
-      const v = name.value.trim();
-      if (!v) { name.value = kept; return; }
-      if (v === kept) return;
-      kept = v;
-      setProps({ [titleKey()]: v });
-    };
-    name.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); name.blur(); }
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); name.value = kept; name.blur(); }
-    });
-    name.addEventListener("blur", save);
-    const av = avatar(chosen, got.title, sha, { tag: "button", big: true, title: img ? "Picture" : null,
-      onclick: (e) => {
-        if (!img) return;
-        if (Kit.openedBy() === e.currentTarget) { popAway(); return; }
-        const r = e.currentTarget.getBoundingClientRect();
-        menuAt(r.left, r.bottom + 4, [
-          { label: "Choose a picture…", act: () => { say(""); bridge && bridge.attach(chosen, img.key); } },
-          sha ? { label: "Remove picture", act: () => setProps({ [img.key]: null }).then(drawPerson) } : null,
-        ].filter(Boolean), e.currentTarget);
-      } });
-    // Where else they live (a sync's way back to them), under their name.
-    // And what plugins put on a person (Sync now), filled in when the core answers.
-    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small"), isOrg() ? null : Peek.actionButtons("person", got.entity.id, api, "t-btn small"),
-      Peek.glanceButton(`e:${got.entity.id}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null, "t-btn small")].filter(Boolean) : [];
-    return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);
-  }
-
-  // ---- a field, by its kind
-
-  const row = (label, kids, top = false) => el("div", { class: "f-row" + (top ? " top" : "") }, el("span", { class: "lab" }, label), kids);
-
-  /** One line of text: saved on Enter or leaving it. */
-  function lineField(f) {
-    let kept = props()[f.key] == null ? "" : String(props()[f.key]);
-    const input = el("input", { type: "text", class: "field", value: kept, spellcheck: "false" });
-    const save = () => {
-      const v = input.value.trim();
-      if (v === kept.trim()) return;
-      let value = v || null;
-      if (f.kind === "number" && v) {
-        value = Number(v);
-        if (Number.isNaN(value)) { input.classList.add("bad"); say(`${labelOf(f)} isn't a number`, true); return; }
-      }
-      input.classList.remove("bad");
-      kept = v;
-      setProps({ [f.key]: value });
-    };
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
-    input.addEventListener("blur", save);
-    return row(labelOf(f), el("div", { class: "grow" }, input));
-  }
-
-  /**
-   * Several values — addresses, phones, websites — one to a line, since one
-   * of them may hold commas (a postal address does). A new line appears as
-   * the last is filled; leaving the lines saves them all.
-   */
-  function manyField(f) {
-    let kept = asList(props()[f.key]);
-    const box = el("div", { class: "grow col" });
-    const read = () => [...box.querySelectorAll("input")].map((i) => i.value.trim()).filter(Boolean);
-    const draw = (vals) => {
-      const lines = [...vals, ""];
-      box.replaceChildren(...lines.map((val, i) => el("input", { type: "text", class: "field", value: val, spellcheck: "false", placeholder: i ? "Another" : "",
-        oninput: (e) => {
-          // Typing in the last line opens one more under it.
-          if (i === box.children.length - 1 && e.target.value.trim()) box.append(el("input", { type: "text", class: "field", spellcheck: "false", placeholder: "Another",
-            oninput: (ev) => { if (ev.target === box.lastElementChild && ev.target.value.trim()) { const vals2 = [...box.querySelectorAll("input")].map((x) => x.value); draw(vals2.filter((x, j) => x.trim() || j < vals2.length - 1)); box.children[vals2.length - 1].focus(); } } }));
-        },
-        onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); (box.children[i + 1] || e.target).focus(); if (!box.children[i + 1]) e.target.blur(); } } })));
-    };
-    const save = () => {
-      const now = read();
-      if (now.join("\n") === kept.join("\n")) return;
-      kept = now;
-      setProps({ [f.key]: now.length ? now : null });
-    };
-    box.addEventListener("focusout", (e) => { if (!box.contains(e.relatedTarget)) { save(); draw(kept); } });
-    draw(kept);
-    return row(labelOf(f), box, true);
-  }
-
-  /** A day: typed or picked; a datetime keeps the time it had. */
-  function dayField(label, value, put) {
-    const { day, time } = readIso(value);
-    const input = el("input", { type: "text", class: "field day", value: day ? dayLabel(day) : "", placeholder: "10/30/1980", spellcheck: "false" });
-    const save = () => {
-      const t = input.value.trim();
-      if (!t) { input.classList.remove("bad"); if (day) put(null); return; }
-      const d = parseDay(t);
-      if (!d) { input.classList.add("bad"); say(`${label}: that isn't a day I can read`, true); return; }
-      input.classList.remove("bad");
-      input.value = dayLabel(d);
-      if (!sameDay(d, day)) put(isoDay(d) + time);
-    };
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
-    input.addEventListener("change", save);
-    const pick = el("button", { class: "icon-btn", title: "Choose a day", onclick: (e) => {
-      if (Kit.openedBy() === pick) { popAway(); return; }
-      e.stopPropagation();
-      popUnder(pick, monthPicker(parseDay(input.value) || day, (d) => { input.value = dayLabel(d); save(); }, { years: true }));
-    } }, "▾");
-    return [input, pick];
-  }
-
-  function enumField(f) {
-    const now = props()[f.key];
-    const labels = f["talaris:labels"] || {};
-    const host = el("div", { class: "grow chips" });
-    // A press on the one chosen takes it off again.
-    host.append(...(f.options || []).map((o) => el("button", { class: "t-btn tog" + (now === o ? " on" : ""),
-      onclick: () => setProps({ [f.key]: now === o ? null : o }).then(drawPerson) }, labels[o] || words(o))));
-    return row(labelOf(f), host);
-  }
-
-  /** Things it points at, as chips, with a small search for one more. */
-  function refField(f) {
-    const ids = asList(props()[f.key]);
-    const titles = new Map(((got && got.out) || []).filter((c) => c.name === f.key).map((c) => [c.entity.id, c.entity.title]));
-    const put = (next) => setProps({ [f.key]: next.length ? (f.many ? next : next[0]) : null }).then(() => loadPerson());
-    const add = el("button", { class: "add", title: "Add", onclick: () => {
-      if (Kit.openedBy() === add) { popAway(); return; }
-      const find = Kit.searchBox(el("input", { type: "search", class: "find", placeholder: "Find", spellcheck: "false" }));
-      const list = el("div", { class: "menu-list" });
-      let found = [];
-      const target = allTypes.find((t) => t.id === f.targetType);
-      const makes = Boolean(target && target.profiles && target.profiles.organization);
-      const make = async (name) => {
-        popAway();
-        try {
-          const made = await api("POST", "/entities", { type: f.targetType, properties: { [target.profiles.organization.title || "title"]: name } });
-          await put(f.many ? [...ids, made.id] : [made.id]);
-          await loadPeople();
-        } catch (err) { failed(err); }
-      };
-      const search = async () => {
-        const q = find.value.trim();
-        const asked = q;
-        const got2 = ((await api("GET", `/entities?q=${enc(q)}&limit=40`).catch(() => [])) || [])
-          .filter((x) => (!f.targetType || x.type === f.targetType) && !x.stub && !ids.includes(x.id) && x.id !== chosen).slice(0, 12);
-        if (find.value.trim() !== asked) return;
-        found = got2;
-        list.replaceChildren(...found.map((x) => el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); popAway(); put(f.many ? [...ids, x.id] : [x.id]); } }, x.title)));
-        // An organization not here yet is made by naming it: there is nowhere else to make one.
-        if (makes && q && !found.some((x) => String(x.title).toLowerCase() === q.toLowerCase())) {
-          list.append(el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); make(q); } }, `Make “${q}”`));
-        }
-      };
-      find.addEventListener("input", search);
-      find.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        if (found[0]) { popAway(); put(f.many ? [...ids, found[0].id] : [found[0].id]); }
-        else if (makes && find.value.trim()) make(find.value.trim());
-      });
-      popUnder(add, el("div", {}, find, list));
-      search();
-      setTimeout(() => find.focus(), 0);
-    } }, "+");
-    return row(labelOf(f), el("div", { class: "grow chips" },
-      ids.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, titles.get(id) || "Unknown"),
-        xBtn("Remove", () => put(ids.filter((x) => x !== id))))),
-      f.many || !ids.length ? add : null));
-  }
-
-  /** The description, and any long text: the editor, so @ links in it. */
-  function writingField(f) {
-    const host = el("div", { class: "grow ed-field ed-body" });
-    let kept = props()[f.key] || "";
-    import("./editor.js").then((m) => {
-      if (!host.isConnected) return;
-      const ed = m.createEditor(host, kept, { live: true, compact: true, mentions: TalarisMentions(api, openMention, mentionOpts), onOpenUrl: (u) => bridge && bridge.openUrl(u), placeholder: "@ to link a person, event or task" });
-      editors.push(ed);
-      host.addEventListener("focusout", (e) => {
-        if (host.contains(e.relatedTarget)) return;
-        const v = ed.text;
-        if (v === kept) return;
-        kept = v;
-        setProps({ [f.key]: v.trim() ? v : null });
-      });
-    }).catch(failed);
-    return row(labelOf(f), host, true);
-  }
-
-  /** Files kept with them: a press opens one; × takes it off. */
-  function filesRow(f) {
-    const files = Array.isArray(props()[f.key]) ? props()[f.key] : [];
-    return row(labelOf(f), el("div", { class: "grow chips" },
-      files.map((a) => el("span", { class: "chip file", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile(a.sha256, a.filename) },
-        el("span", { class: "lbl" }, a.filename),
-        xBtn("Take off", (e) => {
-          e.stopPropagation();
-          const rest = files.filter((x) => x.sha256 !== a.sha256);
-          setProps({ [f.key]: rest.length ? rest : null }).then(drawPerson);
-        }))),
-      el("button", { class: "t-btn", onclick: () => { say(""); bridge && bridge.attach(chosen, f.key); } }, "Add files…")), true);
-  }
-
-  function fieldRow(f) {
-    const label = labelOf(f);
-    switch (f.kind) {
-      case "text": return f.many ? manyField(f) : lineField(f);
-      case "number": return lineField(f);
-      case "richtext": return writingField(f);
-      case "boolean": {
-        const on = Boolean(props()[f.key]);
-        return row(label, el("button", { class: "switch" + (on ? " on" : ""), title: on ? "Yes" : "No", onclick: () => setProps({ [f.key]: on ? null : true }).then(drawPerson) }));
-      }
-      case "date": case "datetime":
-        return row(label, el("div", { class: "grow chips" }, dayField(label, props()[f.key], (v) => setProps({ [f.key]: v }))));
-      case "datespan": {
-        const span = props()[f.key] || {};
-        const put = (part) => (v) => {
-          const next = { ...(props()[f.key] || {}) };
-          if (v) next[part] = v; else delete next[part];
-          setProps({ [f.key]: next.start || next.end ? next : null });
-        };
-        return [row(f.startLabel || "From", el("div", { class: "grow chips" }, dayField(f.startLabel || "From", span.start, put("start")))),
-          row(f.endLabel || "To", el("div", { class: "grow chips" }, dayField(f.endLabel || "To", span.end, put("end"))))];
-      }
-      case "enum": return enumField(f);
-      case "reference": return refField(f);
-      case "attachment": return f.many ? filesRow(f) : null; // the one-file one is the picture, drawn as the mark
-      default: return null;
-    }
-  }
-
-  function fieldsPart() {
-    const rows = ptype.fields.filter((f) => !f["talaris:auto"] && f.key !== titleKey()).map(fieldRow).flat().filter(Boolean);
-    return el("section", { class: "part fields" }, rows);
   }
 
   // ---------------------------------------------------------------- contact cards
@@ -764,81 +479,6 @@
     });
   }
 
-  // ---------------------------------------------------------------- connected
-  //
-  // Everything they touch, either way, once each — grouped by what it is,
-  // newest first, each saying how it is linked, in peek.js's words.
-
-  const BACK = { organization: "member", parent: "includes", mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
-  const OUT = { organization: "at", parent: "part of", mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
-  const GROUP = { contact: "People", organization: "Organizations", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
-  const lower = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-  const FIRST = 20;
-  const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
-  const mentionOpts = { project: () => "", openPlace };
-  // A person among the links is chosen here, in the list; anything else is its card.
-  const peek = (id) => window.Peek && Peek.show(id, api, { openPlace, openPerson: (pid) => window.People.show(pid),
-    openTask: (tid) => bridge && bridge.openTask(tid), openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u) });
-  // A mention in the description: one of these people is chosen here; anything else peeks.
-  function openMention(id) {
-    if (people.some((p) => p.id === id)) { choose(id); return; }
-    peek(id);
-  }
-
-  const ARCHIVED = "In archived projects";
-  function linkGroup(name, rows) {
-    // What lives in an archived project starts folded: its label opens it.
-    let count = name === ARCHIVED ? 0 : FIRST;
-    const list = el("div", {});
-    const more = el("div", { class: "c-more" });
-    const draw = () => {
-      list.replaceChildren(...rows.slice(0, count).map(({ e, how }) => el("button", { class: "c-item", onclick: () => peek(e.id) },
-        el("span", { class: "c-t" }, e.title), el("span", { class: "c-how" }, how.join(", ")))));
-      const left = rows.length - count;
-      more.replaceChildren(...(left > 0 ? [
-        el("button", { class: "t-btn small", onclick: () => { count += FIRST; draw(); } }, `${Math.min(FIRST, left)} more`),
-        left > FIRST ? el("button", { class: "t-btn small", onclick: () => { count = rows.length; draw(); } }, `All ${rows.length}`) : null,
-      ] : []).filter(Boolean));
-    };
-    draw();
-    const label = el("div", { class: "label c-label", style: name === ARCHIVED ? "cursor:pointer" : null }, name, el("span", { class: "n" }, String(rows.length)));
-    if (name === ARCHIVED) label.addEventListener("click", () => { count = count ? 0 : FIRST; draw(); });
-    return el("div", { class: "c-group" }, label, list, more);
-  }
-
-  function connectedPart() {
-    // The person's own reference fields are drawn above; what they point at still counts as connected.
-    const byId = new Map();
-    const touch = (e, how) => {
-      if (!e || e.id === chosen) return;
-      const had = byId.get(e.id);
-      if (had) { if (!had.how.includes(how)) had.how.push(how); return; }
-      byId.set(e.id, { e, how: [how] });
-    };
-    // Less what Settings leaves out of connections (complete, archived, too old): said how many.
-    const hide = new Set(got.hidden || []);
-    for (const c of got.out || []) if (!hide.has(c.entity.id)) touch(c.entity, OUT[c.name] || lower(c.name));
-    for (const c of got.in || []) if (!hide.has(c.entity.id)) touch(c.entity, BACK[c.name] || `${lower(c.name)} of`);
-    const groups = new Map();
-    for (const r of byId.values()) {
-      const g = r.e.archived ? ARCHIVED : GROUP[(r.e.kinds || []).find((k) => GROUP[k])] || "Other";
-      groups.set(g, [...(groups.get(g) || []), r]);
-    }
-    for (const rows of groups.values()) rows.sort((a, b) => String(b.e.updated || "").localeCompare(String(a.e.updated || "")));
-    const order = [...Object.values(GROUP), "Other", ARCHIVED].filter((g) => groups.has(g));
-    // And what they might be tied to and are not (suggest.ts): a tie made, the person drawn again.
-    const sugg = window.Peek ? Peek.suggestions(`e:${chosen}`, api, {
-      open: (id) => peek(id),
-      openPlace,
-      changed: (r) => { say(r.said || "Done"); drawPerson(); },
-    }) : null;
-    return el("section", { class: "part" },
-      el("h3", {}, el("span", {}, "Connected")),
-      order.length ? order.map((g) => linkGroup(g, groups.get(g))) : el("div", { class: "hint" }, hide.size ? "Nothing connected shown" : "Nothing connected yet"),
-      hide.size > 0 && window.Peek ? el("div", { class: "hint" }, Peek.hiddenSaid(hide.size)) : null,
-      sugg);
-  }
-
   // Someone already here, picked by name or address: for "Both are…" and "Same person as…".
   function pickPerson(anchor, leaveOut, picked) {
     const box = el("input", { type: "search", class: "find", placeholder: "Who are they?", spellcheck: "false" });
@@ -875,7 +515,7 @@
     reviewing = true;
     $("review").classList.add("on");
     $("twice").hidden = true;
-    putAwayEditors();
+    ThingCard.putAway();
     popAway();
     for (const r of document.querySelectorAll(".prow.on")) r.classList.remove("on");
     const host = $("person");
@@ -1200,7 +840,7 @@
     b.attached.connect((text) => {
       const r = JSON.parse(text);
       if (r.error) say(r.error, true);
-      if (r.field === (imageField() || {}).key) pictures.clear();
+      if (r.field === (imageField() || {}).key) ThingCard.forgetPictures();
       if (r.id === chosen) loadPerson().catch(failed);
       loadPeople().catch(failed);
     });

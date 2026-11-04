@@ -279,7 +279,7 @@ window.Peek = (() => {
         el("div", { class: "peek-ways" }, s.ways.map((w) => {
           const id = `${s.key}|${w.how}|${w.text || ""}`;
           // A merge is asked first, as everything is asked (kit.js).
-          return el("button", { class: "t-btn small", onclick: (e) => {
+          return el("button", { class: "t-btn small", title: w.says, onclick: (e) => {
             if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
             api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
           } }, w.label);
