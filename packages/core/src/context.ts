@@ -19,7 +19,7 @@ import { placeOf, placeSource } from "./mentionables.js";
 import { currentId, homeId, threads } from "./threads.js";
 import { isComplete, shapeOf, spanOf } from "./tasks.js";
 
-export type Kind = "person" | "task" | "note" | "event" | "project" | "conversation" | "thing";
+export type Kind = "person" | "task" | "note" | "event" | "project" | "organization" | "conversation" | "thing";
 
 export interface Item {
   id: string;
@@ -51,7 +51,7 @@ export interface Context {
 }
 
 // Who is asked about first: a person or project named is more often the point than a task with the name in it.
-const ORDER: Kind[] = ["person", "project", "event", "note", "task", "conversation", "thing"];
+const ORDER: Kind[] = ["person", "project", "organization", "event", "note", "task", "conversation", "thing"];
 const FOCUSES = 4;
 const RELATED = 15;
 

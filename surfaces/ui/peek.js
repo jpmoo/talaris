@@ -22,9 +22,9 @@ window.Peek = (() => {
   // What an entity standing for a place is: a canvas, or one of Morgan's threads (a page is a Page already).
   const PLACE = { canvas: "Canvas", thread: "Conversation" };
   // A link read from the far end, in words: a person is invited to the event that lists them.
-  const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
+  const BACK = { organization: "member", parent: "includes", mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
   // A link read from this end: an event's attendees are invited; what a page mentions is mentioned.
-  const OUT = { mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
+  const OUT = { organization: "at", parent: "part of", mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
   let card = null;
 
   function el(tag, attrs = {}, ...kids) {
@@ -127,7 +127,7 @@ window.Peek = (() => {
     return go ? el("button", { class: cls, title: "Its connections, and possible ones", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
   }
   // What a card's links are grouped by: what the other thing is.
-  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
+  const GROUP = { contact: "People", organization: "Organizations", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   const FIRST = 20;
   const ARCHIVED = "In archived projects";
@@ -181,7 +181,7 @@ window.Peek = (() => {
       setTimeout(() => addEventListener("pointerdown", outside, true), 0);
     }
     // A person is not a card here but their entry in People, where the page can open it.
-    if (opts.openPerson && (got.kinds || []).includes("contact")) {
+    if (opts.openPerson && (got.kinds || []).some((k) => k === "contact" || k === "organization")) {
       close();
       opts.openPerson(id);
       return;

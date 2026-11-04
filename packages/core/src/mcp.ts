@@ -50,7 +50,7 @@ interface ContextItem { id: string; title: string; kind: string; due?: string; d
 interface Context { query: string; hits: ContextItem[]; about: { focus: ContextItem; related: (ContextItem & { how: string; incoming: boolean })[]; more: number }[] }
 interface Read { entity: Record<string, unknown> & { properties: Record<string, unknown> }; title: string; kinds: string[]; out: Connection[]; in: Connection[] }
 
-const KINDS = ["contact", "event", "note", "task", "project"];
+const KINDS = ["contact", "organization", "event", "note", "task", "project"];
 const ROLE: Record<string, string> = { contact: "person", person: "person", event: "event", note: "note", task: "task", project: "project" };
 const kindWord = (kinds: string[]) => (kinds.includes("contact") ? "person" : kinds.find((k) => KINDS.includes(k)) ?? "thing");
 const line = (s: Summary) => `- ${s.title} (${kindWord(s.kinds)}${s.stub ? ", only a name so far" : ""}) [${s.id}]`;

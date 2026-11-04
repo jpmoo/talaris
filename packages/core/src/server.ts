@@ -524,6 +524,7 @@ route("PUT", "/projects/:id/page/tags", async (req, [id], q) => tagsM.setPageTag
 // set whole — the one it lives in taken off moves it to the first left, or among Home's Pages. Answers where it is now.
 route("GET", "/projects/:id/page/projects", (_r, [id], q) => notesM.pageProjects(id!, need(q, "path")));
 route("PUT", "/projects/:id/page/projects", async (req, [id], q) => notesM.setPageProjects(id!, need(q, "path"), (await json<{ projects?: string[] }>(req)).projects ?? []));
+route("GET", "/people/organizations", () => entities.listOrganizations());
 route("PUT", "/people/my-organizations", async (req) => entities.setMyOrganizations((await json<{ names?: string[] }>(req)).names ?? []));
 // Address-book cards as people (People: everyone in your address books).
 route("POST", "/people/from-cards", async (req) => {

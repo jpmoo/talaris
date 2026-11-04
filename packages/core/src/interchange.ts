@@ -61,7 +61,7 @@ export const MANIFEST = {
   consume: 1,
   operate: 0,
   bindings: ["file"],
-  profiles: ["contact", "event", "note", "task", "project"],
+  profiles: ["contact", "event", "note", "task", "project", "organization"],
   features: ["relations", "attachments"],
   unsupported: ["hierarchy"],
 };

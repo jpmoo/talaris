@@ -34,7 +34,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  allRecords, bodyOf, bySource, connect, connections, getEntity, kindOfEntity, onChange, profilesOf, titleOf, types, updateEntity, type Entity,
+  allRecords, bodyOf, bySource, connect, connections, getEntity, kindOfEntity, onChange, organizationsOf, profilesOf, titleOf, types, updateEntity, type Entity,
 } from "./entities.js";
 import { filedUnder, projectEntity, projectIdOf } from "./filing.js";
 import { listFiles, type FileRow } from "./files.js";
@@ -204,11 +204,11 @@ function tiedTo(t: Thing): Set<string> {
 
 // ------------------------------------------------------------ names
 
-interface Name { key: string; id: string; title: string; kind: "person" | "project"; full: string; first?: string }
+interface Name { key: string; id: string; title: string; kind: "person" | "project" | "organization"; full: string; first?: string }
 
 let names: { at: number; list: Name[] } | null = null;
 // A person or project made, renamed or gone: the names read again (deletions run no hook, so they age out too).
-onChange((_b, after) => { if (names && profilesOf(after).some((k) => k === "contact" || k === "project")) names = null; });
+onChange((_b, after) => { if (names && profilesOf(after).some((k) => k === "contact" || k === "project" || k === "organization")) names = null; });
 /**
  * A person's name as it is said: "Groninger, Margaret" — as an address book
  * files it — is Margaret Groninger. Only a name of two parts with one comma
@@ -225,7 +225,7 @@ function nameList(): Name[] {
   for (const { object: o } of allRecords()) {
     if (o.archived || o.stub) continue;
     const k = profilesOf(o);
-    const kind = k.includes("contact") ? "person" : k.includes("project") ? "project" : null;
+    const kind = k.includes("contact") ? "person" : k.includes("project") ? "project" : k.includes("organization") ? "organization" : null;
     if (!kind) continue;
     const title = titleOf(o).trim();
     if (title.length < 3 || title.includes("@")) continue;
@@ -248,7 +248,7 @@ const bare = (text: string) => text.replace(/\[[^\]\n]*\]\([^)\s]*\)/g, " ").rep
 function byName(t: Thing, add: (key: string, why: string, score: number, ways: Way[]) => void): void {
   // A person's or a project's own name is not a mention of anyone: "Rich Gelson" does not name Rich Wiener.
   const own0 = t.title.trim();
-  const text = bare(t.kind === "person" || t.kind === "project" ? t.text.replace(own0, " ") : t.text);
+  const text = bare(t.kind === "person" || t.kind === "project" || t.kind === "organization" ? t.text.replace(own0, " ") : t.text);
   // A person: the notes called by their name are likely about them (the other way round from a note's own).
   if (t.kind === "person" && t.entity) {
     const first = spokenName(own0).split(/\s+/)[0] ?? "";
@@ -270,8 +270,8 @@ function byName(t: Thing, add: (key: string, why: string, score: number, ways: W
       if (own.toLowerCase() === n.full.toLowerCase()) { add(n.key, `Named ${n.title}`, 0.85, []); continue; }
       if (n.first && own === n.first) { add(n.key, `Named ${n.first}`, (firsts.get(n.first)?.length ?? 0) > 1 ? 0.6 : 0.75, []); continue; }
     }
-    const full = (n.kind === "project" ? n.full.length >= 4 : n.full.includes(" ")) ? wordIn(text, n.full, false) : null;
-    if (full) { add(n.key, `Names ${n.title}`, n.kind === "project" ? 0.8 : 0.85, mention(t, full[0]!.trim())); continue; }
+    const full = (n.kind !== "person" ? n.full.length >= 4 : n.full.includes(" ")) ? wordIn(text, n.full, false) : null;
+    if (full) { add(n.key, `Names ${n.title}`, n.kind !== "person" ? 0.8 : 0.85, mention(t, full[0]!.trim())); continue; }
     if (n.first) {
       const m = wordIn(text, n.first, true);
       if (m && own !== n.first) {
@@ -303,7 +303,7 @@ function mention(t: Thing, text: string): Way[] {
 // ------------------------------------------------------------ the same thing twice
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-const MERGEABLE = new Set(["person", "task", "note"]);
+const MERGEABLE = new Set(["person", "organization", "task", "note"]);
 
 function twice(t: Thing, add: (key: string, why: string, score: number, ways: Way[]) => void): void {
   if (!t.entity || !MERGEABLE.has(t.kind) && t.kind !== "page") return;
@@ -492,7 +492,7 @@ const declares = (from: Entity, to: Entity) =>
   types().find((x) => x.id === from.type)?.fields.some((f) => f.kind === "reference" && f.targetType === to.type) ?? false;
 // Which end a plain link starts from: the thing that is about the other.
 // A thing of no kind the format names (a file's entity, a type of one's own) ranks where a note does.
-const RANK = ["conversation", "page", "canvas", "note", "thing", "task", "file", "event", "person", "project"];
+const RANK = ["conversation", "page", "canvas", "note", "thing", "task", "file", "event", "person", "organization", "project"];
 
 // ------------------------------------------------------------ everyone at once: the same person twice (People, Review)
 
@@ -512,11 +512,11 @@ export function peopleReview(): {
   const named = new Map<string, string>();
   for (const { object: o } of allRecords()) {
     if (o.type !== personType || o.stub || o.archived) continue;
-    const org = o.properties.organization;
+    const org = organizationsOf(o)[0]?.title;
     // Their name as given, not the stand-in a nameless one is shown by ("Untitled"): two without names are not one name.
     const given = o.properties[typeof nameKey === "string" ? nameKey : "title"];
     if (typeof given === "string" && given.trim()) named.set(o.id, given);
-    people.push({ id: o.id, title: titleOf(o), emails: [...new Set(emailsOf(o))], cards: [...new Set(cardsOf(o))], ...(typeof org === "string" && org.trim() ? { organization: org.trim() } : {}) });
+    people.push({ id: o.id, title: titleOf(o), emails: [...new Set(emailsOf(o))], cards: [...new Set(cardsOf(o))], ...(org ? { organization: org.trim() } : {}) });
   }
   // Grouped by each thing that would make two one: a pair is found once, whatever it shares.
   const why = new Map<string, { a: ReviewPerson; b: ReviewPerson; why: Set<string> }>();

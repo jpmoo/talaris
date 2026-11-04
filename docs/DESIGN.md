@@ -1516,6 +1516,30 @@ belong there beside it: Glance built in. The Glance window stays, sharing that
 code, because it also opens on a single thing, which is not a project's view.
 All projects and No project stay the catalog they are.
 
+### Organizations (2026-11-03)
+
+An organization is a thing, with no surface or bar button of its own. Its home
+is People: a group's heading names it, and pressed, it opens on the right as a
+person does: its name, what it is about, what it is part of, its files, who is
+at it, and Glance. A person may be at several, and is listed under each; one with
+nobody yet still has its heading, and is found by its name.
+
+**Words become things in one place.** An address book, a form or an older record
+says a name; held in a person's organization field, it is the organization of
+that name, found or made, without regard to case (`keptOrganizations`). What
+people held as words before is settled so at each start, as are the names marked
+as one's own, which are a mark on the organization now.
+
+They are a kind everywhere things have kinds: Glance, @, the launcher (under
+People), suggestions by name and by meaning, and offered to be merged when two
+are one. A file on one is in the Library. They reach a project through their
+people; no Project field on an organization until someone needs one.
+
+A sync carries them as a kind of their own, before people. It started before they
+did, so one name on each side is one organization, once; a name two share on a
+side stays apart. Keeping to the people Hermes Notes has, only the organizations
+those people are at go across.
+
 ### A project described by its tasks (2026-10-27)
 
 A project with no description is given one by Morgan

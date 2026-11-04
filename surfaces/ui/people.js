@@ -44,7 +44,10 @@
   const WINDOW = new URLSearchParams(location.search).has("window");
   if (WINDOW) document.documentElement.dataset.window = "1";
 
-  let ptype = null;     // the person type
+  let ptype = null;     // the type of the one on show: a person's, or an organization's
+  let personType = null, orgType = null;
+  let allTypes = [];
+  let orgs = [];        // every organization, people or none (/people/organizations)
   let people = [];      // /people's rows
   let chosen = store.get("talaris.people.chosen", null);
   let got = null;       // the chosen one, as /entities/:id answers
@@ -72,7 +75,8 @@
   const words = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
   const labelOf = (f) => f["talaris:label"] || f.label || words(f.key);
   const field = (key) => (ptype && key ? ptype.fields.find((f) => f.key === key) : null) || null;
-  const contact = () => ((ptype && ptype.profiles) || {}).contact || {};
+  const isOrg = () => Boolean(orgType && ptype === orgType);
+  const contact = () => ((ptype && ptype.profiles) || {}).contact || ((ptype && ptype.profiles) || {}).organization || {};
   const titleKey = () => (typeof contact().title === "string" ? contact().title : "title");
   const emailKey = () => (typeof contact().email === "string" ? contact().email : null);
   const phoneKey = () => (typeof contact().phone === "string" ? contact().phone : null);
@@ -171,7 +175,7 @@
   function matches(p, q) {
     if (!q) return true;
     // Found as everything is found (kit.js): every word typed, accents aside.
-    return Kit.matches(q, p.title, p.organization, p.role, p.email);
+    return Kit.matches(q, p.title, ...(p.organizations || []).map((o) => o.title), p.role, p.email);
   }
   // Known by a name, or only by an address (a name is what the person has unless it is just their address).
   const unnamed = (p) => /^[^\s@]+@[^\s@]+$/.test(String(p.title || "").trim()) || !String(p.title || "").trim();
@@ -180,16 +184,16 @@
   // apart from how the list is grouped and the other filters. None chosen: everyone.
   let orgd = store.get("talaris.people.orgd", "all");
   let myOrgs = [];
-  const hasOrg = (p) => Boolean(String(p.organization || "").trim());
+  const hasOrg = (p) => Boolean((p.organizations || []).length);
   const isMine = (org) => myOrgs.some((m) => m.toLowerCase() === String(org || "").trim().toLowerCase());
-  const ORGD = { all: () => true, has: hasOrg, mine: (p) => isMine(p.organization), none: (p) => !hasOrg(p) };
+  const ORGD = { all: () => true, has: hasOrg, mine: (p) => (p.organizations || []).some((o) => isMine(o.title)), none: (p) => !hasOrg(p) };
   function shown() {
     const q = $("q").value.trim().toLowerCase();
     return people.filter((p) => matches(p, q) && (named === "all" || (named === "named") !== unnamed(p)) && (ORGD[orgd] || ORGD.all)(p));
   }
   function markMine(org, on) {
     const next = on ? [...myOrgs, org] : myOrgs.filter((m) => m.toLowerCase() !== org.toLowerCase());
-    api("PUT", "/people/my-organizations", { names: next }).then((kept) => { myOrgs = kept || []; drawList(); }).catch((e) => say(e.message, true));
+    api("PUT", "/people/my-organizations", { names: next }).then((kept) => { myOrgs = kept || []; const low = new Set(myOrgs.map((m) => m.toLowerCase())); for (const o of orgs) o.mine = low.has(o.title.toLowerCase()); drawList(); }).catch((e) => say(e.message, true));
   }
 
   function personRow(p) {
@@ -212,11 +216,16 @@
     const rows = shown();
     $("count").textContent = rows.length === people.length ? String(people.length) : `${rows.length} of ${people.length}`;
     const out = [];
-    if (!people.length) out.push(Kit.empty("No people yet"));
-    else if (!rows.length) out.push(Kit.empty("Nothing matches"));
+    // An organization with nobody yet still has its heading: it is here, and found by its name.
+    const typed = $("q").value.trim();
+    const bare = mode === "org" && orgd !== "none" ? orgs.filter((o) => (orgd !== "mine" || o.mine) && (!typed || Kit.matches(typed.toLowerCase(), o.title))) : [];
+    if (!people.length && !bare.length) out.push(Kit.empty("No people yet"));
+    else if (!rows.length && !bare.length) out.push(Kit.empty("Nothing matches"));
     else if (mode === "org") {
-      const groups = new Map();
-      for (const p of rows) { const g = p.organization || NO_ORG; groups.set(g, [...(groups.get(g) || []), p]); }
+      const groups = new Map(bare.map((o) => [o.title, []]));
+      const idOf = new Map(orgs.map((o) => [o.title, o.id]));
+      // Someone at several is under each.
+      for (const p of rows) for (const g of (p.organizations || []).length ? p.organizations.map((o) => o.title) : [NO_ORG]) groups.set(g, [...(groups.get(g) || []), p]);
       const names = [...groups.keys()].filter((g) => g !== NO_ORG).sort(byName);
       if (groups.has(NO_ORG)) names.push(NO_ORG);
       // Searching opens every group: what was found is shown. A shut group still shows the one chosen.
@@ -225,13 +234,14 @@
         const mine = groups.get(g);
         const folded = !searching && shut.has(g);
         const own = g !== NO_ORG && isMine(g);
-        out.push(el("div", { class: "ghead" + (folded ? " folded" : "") + (own ? " own" : ""), title: own ? `${g} — one of my organizations` : g, onclick: () => toggleGroup(g),
+        const orgId = g !== NO_ORG ? idOf.get(g) : null;
+        out.push(el("div", { class: "ghead" + (folded ? " folded" : "") + (own ? " own" : "") + (orgId && orgId === chosen ? " on" : ""), title: own ? `${g} — one of my organizations` : g, onclick: () => toggleGroup(g),
           oncontextmenu: (e) => {
             if (g === NO_ORG) return;
             e.preventDefault();
             menuAt(e.clientX, e.clientY, [{ label: own ? "Not one of my organizations" : "One of my organizations", act: () => markMine(g, !own) }]);
           } },
-          Kit.caret(!folded), el("span", { class: "name" }, g), own ? el("span", { class: "own-mark" }, "Mine") : null, el("span", { class: "n" }, String(mine.length))));
+          Kit.caret(!folded), el("span", { class: "name", title: orgId ? `Open ${g}` : null, onclick: orgId ? (e) => { e.stopPropagation(); choose(orgId); drawList(); } : null }, g), own ? el("span", { class: "own-mark" }, "Mine") : null, el("span", { class: "n" }, String(mine.length))));
         out.push(...mine.filter((p) => !folded || p.id === chosen).map(personRow));
       }
     } else {
@@ -258,7 +268,9 @@
   }
 
   async function loadPeople() {
-    [people, myOrgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/my-organizations").catch(() => [])]);
+    [people, orgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/organizations").catch(() => [])]);
+    orgs = orgs || [];
+    myOrgs = orgs.filter((o) => o.mine).map((o) => o.title);
     drawList();
     warnTwice();
   }
@@ -310,6 +322,7 @@
     }
     if (want !== loadSeq) return;
     got = g;
+    ptype = orgType && g.entity && g.entity.type === orgType.id ? orgType : personType;
     drawPerson();
   }
   // What /people lists has changed with them; the row is drawn again, the right pane left as typed.
@@ -339,7 +352,7 @@
     const top = host.scrollTop;
     const same = host.dataset.id === chosen;
     host.dataset.id = chosen;
-    host.replaceChildren(head(), fieldsPart(), contactsPart(), connectedPart(), foot());
+    host.replaceChildren(...[head(), fieldsPart(), isOrg() ? null : contactsPart(), connectedPart(), foot()].filter(Boolean));
     host.scrollTop = same ? top : 0;
   }
 
@@ -347,7 +360,7 @@
     const p = props();
     const img = imageField();
     const sha = img && p[img.key] && p[img.key].sha256;
-    const name = el("input", { type: "text", class: "name-in", id: "name-in", value: p[titleKey()] || "", placeholder: "Their name", spellcheck: "false" });
+    const name = el("input", { type: "text", class: "name-in", id: "name-in", value: p[titleKey()] || "", placeholder: isOrg() ? "Its name" : "Their name", spellcheck: "false" });
     let kept = p[titleKey()] || "";
     const save = () => {
       const v = name.value.trim();
@@ -373,7 +386,7 @@
       } });
     // Where else they live (a sync's way back to them), under their name.
     // And what plugins put on a person (Sync now), filled in when the core answers.
-    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small"), Peek.actionButtons("person", got.entity.id, api, "t-btn small"),
+    const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small"), isOrg() ? null : Peek.actionButtons("person", got.entity.id, api, "t-btn small"),
       Peek.glanceButton(`e:${got.entity.id}`, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null, "t-btn small")].filter(Boolean) : [];
     return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);
   }
@@ -476,6 +489,16 @@
       const find = Kit.searchBox(el("input", { type: "search", class: "find", placeholder: "Find", spellcheck: "false" }));
       const list = el("div", { class: "menu-list" });
       let found = [];
+      const target = allTypes.find((t) => t.id === f.targetType);
+      const makes = Boolean(target && target.profiles && target.profiles.organization);
+      const make = async (name) => {
+        popAway();
+        try {
+          const made = await api("POST", "/entities", { type: f.targetType, properties: { [target.profiles.organization.title || "title"]: name } });
+          await put(f.many ? [...ids, made.id] : [made.id]);
+          await loadPeople();
+        } catch (err) { failed(err); }
+      };
       const search = async () => {
         const q = find.value.trim();
         const asked = q;
@@ -484,9 +507,17 @@
         if (find.value.trim() !== asked) return;
         found = got2;
         list.replaceChildren(...found.map((x) => el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); popAway(); put(f.many ? [...ids, x.id] : [x.id]); } }, x.title)));
+        // An organization not here yet is made by naming it: there is nowhere else to make one.
+        if (makes && q && !found.some((x) => String(x.title).toLowerCase() === q.toLowerCase())) {
+          list.append(el("button", { class: "menu-item", onclick: (e) => { e.stopPropagation(); make(q); } }, `Make “${q}”`));
+        }
       };
       find.addEventListener("input", search);
-      find.addEventListener("keydown", (e) => { if (e.key === "Enter" && found[0]) { popAway(); put(f.many ? [...ids, found[0].id] : [found[0].id]); } });
+      find.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        if (found[0]) { popAway(); put(f.many ? [...ids, found[0].id] : [found[0].id]); }
+        else if (makes && find.value.trim()) make(find.value.trim());
+      });
       popUnder(add, el("div", {}, find, list));
       search();
       setTimeout(() => find.focus(), 0);
@@ -738,9 +769,9 @@
   // Everything they touch, either way, once each — grouped by what it is,
   // newest first, each saying how it is linked, in peek.js's words.
 
-  const BACK = { mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
-  const OUT = { mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
-  const GROUP = { contact: "People", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
+  const BACK = { organization: "member", parent: "includes", mentions: "mentioned in", attendees: "invited to", organizer: "organizer of", invitees: "invited to", assignee: "assigned", project: "filed here" };
+  const OUT = { organization: "at", parent: "part of", mentions: "mentioned", attendees: "invited", organizer: "organizer", invitees: "invited", project: "project" };
+  const GROUP = { contact: "People", organization: "Organizations", event: "Events", task: "Tasks", note: "Pages", project: "Projects" };
   const lower = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   const FIRST = 20;
   const openPlace = (p) => bridge && bridge.openPlace(p.kind, p.project, p.where);
@@ -987,6 +1018,8 @@
   // ---------------------------------------------------------------- making and removing
 
   function foot() {
+    if (isOrg()) return el("div", { class: "p-foot" }, el("span", { class: "spacer" }),
+      Kit.twice(el("button", { class: "t-btn danger" }, "Delete organization"), { key: `del-org:${chosen}`, ask: "Delete for good?", act: remove }));
     return el("div", { class: "p-foot" },
       // Someone already here they really are (the same person entered twice, under another name or none):
       // made one with them, who is kept, and shown.
@@ -1045,10 +1078,12 @@
   async function start() {
     try {
       const types = (await api("GET", "/entity-types")) || [];
-      ptype = types.find((t) => t["talaris:role"] === "person") || null;
+      allTypes = types;
+      personType = ptype = types.find((t) => t["talaris:role"] === "person") || null;
+      orgType = types.find((t) => t.profiles && t.profiles.organization) || null;
       if (!ptype) say("There is no person type", true);
       await loadPeople();
-      if (!chosen || !people.some((p) => p.id === chosen)) chosen = people.length ? people[0].id : null;
+      if (!chosen || !(people.some((p) => p.id === chosen) || orgs.some((o) => o.id === chosen))) chosen = people.length ? people[0].id : null;
       got = null;
       const id = chosen;
       chosen = null;

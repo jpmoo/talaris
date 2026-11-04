@@ -108,7 +108,7 @@ function score(q, text) {
 
 // The buttons under the box: one kind of thing at a time, again for all of them. Each opening starts on all.
 const FILTERS = [["app", "Apps", ["app", "window"]], ["task", "Tasks", ["task"]], ["event", "Events", ["event"]], ["page", "Pages", ["page", "note"]],
-  ["canvas", "Canvases", ["canvas"]], ["person", "People", ["person"]], ["file", "Files", ["file"]], ["project", "Projects", ["project"]], ["conversation", "Conversations", ["conversation"]]];
+  ["canvas", "Canvases", ["canvas"]], ["person", "People", ["person", "organization"]], ["file", "Files", ["file"]], ["project", "Projects", ["project"]], ["conversation", "Conversations", ["conversation"]]];
 let only = "";
 const filterOn = () => (only && state.mode !== "ask" ? FILTERS.find(([k]) => k === only)[2] : null);
 /** What a row is, by what it opens: found by meaning, a task is a row of the same look as a page. */
@@ -270,7 +270,7 @@ function draw() {
         act: { kind: "fill", text: `#${x.tag}` } }));
     } else {
       if (!tagCache.has(t)) bridge.tagged(t, (text) => { tagCache.set(t, JSON.parse(text || "[]")); draw(); });
-      const AS = { task: "task", contact: "person", event: "event" };
+      const AS = { task: "task", contact: "person", organization: "person", event: "event" };
       shown = (tagCache.get(t) || []).map((x) => x.page
         ? { kind: "page", key: `tagged:${x.id}`, title: x.title, sub: `#${t} · ${x.page.path.startsWith("Pages/") ? "Page in Home" : x.page.path.includes("/") ? x.page.path.slice(0, x.page.path.lastIndexOf("/")) : "Page"}`,
           act: { kind: "page", project: x.page.project, path: x.page.path } }
@@ -330,7 +330,7 @@ function draw() {
   if (query.trim() && !tagAsked && meant.query === query.trim().replace(/\s+/g, " ")) {
     const have = new Set(shown.map((x) => `${x.kind}:${x.title}`.toLowerCase()));
     for (const x of shown) if (["task", "person", "note"].includes(x.kind)) { have.add(`page:${x.title}`.toLowerCase()); have.add(`entity:${x.title}`.toLowerCase()); }
-    const AS = { task: "task", person: "person" };
+    const AS = { task: "task", person: "person", organization: "person" };
     for (const r of meant.results) {
       if (r.kind === "project") continue;
       if (have.has(`page:${r.title}`.toLowerCase()) || have.has(`entity:${r.title}`.toLowerCase())) continue;

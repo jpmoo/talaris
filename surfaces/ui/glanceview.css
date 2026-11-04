@@ -17,7 +17,7 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
    out before, fixed muted hues of their own, a shade darker on a light ground
    so they hold against it. The canvas reads them resolved (glanceview.js, palette). */
 :root {
-  --k-page: var(--accent); --k-canvas: var(--tint-1); --k-task: var(--tint-2); --k-file: var(--tint-4); --k-contact: var(--tint-3);
+  --k-page: var(--accent); --k-canvas: var(--tint-1); --k-task: var(--tint-2); --k-file: var(--tint-4); --k-contact: var(--tint-3); --k-organization: var(--tint-6);
   --k-event: var(--tint-5); --k-note: var(--tint-6); --k-project: var(--tint-7); --k-conversation: var(--tint-8); --k-other: var(--muted);
 }
 

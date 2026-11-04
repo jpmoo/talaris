@@ -47,7 +47,7 @@ export const PLUGINS_DIR = () => process.env.TALARIS_PLUGINS ?? join(xdgData(), 
 const STATE = () => join(CONFIG_DIR, "plugins.json");
 
 /** The kinds a plugin may name, as the format's profiles; "person" is a contact. */
-const KINDS = ["task", "project", "event", "contact", "note"];
+const KINDS = ["task", "project", "event", "contact", "note", "organization"];
 const kindOf = (k: string) => (k === "person" ? "contact" : k);
 /** The lists an action may be on as a whole: People's, and Tasks' (its tasks and projects). */
 // Places with no one thing in them: a list's top, or the plugin's own part of Settings.

@@ -106,10 +106,10 @@ window.GlanceView = (o) => {
 
   // The header's order for the chips; the list's own order differs (LIST_ORDER), as asked.
   const GROUPS = [
-    ["page", "Pages"], ["canvas", "Canvases"], ["task", "Tasks"], ["file", "Files"], ["contact", "People"],
+    ["page", "Pages"], ["canvas", "Canvases"], ["task", "Tasks"], ["file", "Files"], ["contact", "People"], ["organization", "Organizations"],
     ["event", "Events"], ["conversation", "Conversations"], ["project", "Projects"], ["other", "Other"],
   ];
-  const LIST_ORDER = ["page", "canvas", "task", "file", "event", "contact", "conversation", "project", "other"];
+  const LIST_ORDER = ["page", "canvas", "task", "file", "event", "contact", "organization", "conversation", "project", "other"];
   const NAME = Object.fromEntries(GROUPS);
   const KNOWN = new Set(GROUPS.map(([k]) => k));
   // A note is a page, wherever it is written: one group, one name.
@@ -126,6 +126,7 @@ window.GlanceView = (o) => {
     task: ic('<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 8.2 7.3 10l3.4-4"/>'),
     file: ic('<path d="M11 6.5 7 10.5a1.4 1.4 0 0 1-2-2l4.6-4.6a2.6 2.6 0 0 1 3.7 3.7L8.6 12.3a3.9 3.9 0 0 1-5.5-5.5L6.5 3.4"/>'),
     contact: ic('<circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>'),
+    organization: ic('<path d="M3 14V3h6v11M9 7h4v7M2 14h12M5.2 5.5h1.6M5.2 8h1.6M5.2 10.5h1.6"/>'),
     event: ic('<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/>'),
     note: ic('<path d="M3 3h10v7l-3 3H3z"/><path d="M13 10h-3v3"/>'),
     project: ic('<path d="M2 4h4l1.5 1.5H14v7.5H2z"/>'),
@@ -631,8 +632,8 @@ window.GlanceView = (o) => {
     }
 
     // "3 people, 1 task further": what the spikes stand for, in words.
-    const ONE = { page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", event: "event", note: "note", conversation: "conversation", project: "project", other: "other" };
-    const MANY = { page: "pages", canvas: "canvases", task: "tasks", file: "files", contact: "people", event: "events", note: "notes", conversation: "conversations", project: "projects", other: "others" };
+    const ONE = { page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", organization: "organization", event: "event", note: "note", conversation: "conversation", project: "project", other: "other" };
+    const MANY = { page: "pages", canvas: "canvases", task: "tasks", file: "files", contact: "people", organization: "organizations", event: "events", note: "notes", conversation: "conversations", project: "projects", other: "others" };
     const further = (b) => Object.entries(b).map(([k, c]) => `${c} ${(c === 1 ? ONE : MANY)[KNOWN.has(k) ? k : "other"]}`).join(", ") + " further";
 
     function placeTip() {
@@ -809,7 +810,7 @@ window.GlanceView = (o) => {
   // ---------------------------------------------------------------- suggested ties
 
   // The core's kinds for a suggestion, as the glance's.
-  const SUG_KIND = { person: "contact", page: "page", note: "page", task: "task", event: "event", file: "file", project: "project", canvas: "canvas", conversation: "conversation" };
+  const SUG_KIND = { person: "contact", organization: "organization", page: "page", note: "page", task: "task", event: "event", file: "file", project: "project", canvas: "canvas", conversation: "conversation" };
   /** A node for a key not in the glance: enough to walk to it and open it. */
   function nodeFor(s) {
     const body = s.key.slice(s.key.indexOf(":") + 1);

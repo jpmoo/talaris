@@ -21,6 +21,7 @@ import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
 import { startSchedule } from "./backup.js";
 import { startWatching } from "./files.js";
+import { settleOrganizations } from "./entities.js";
 import { startMeaning } from "./meaning.js";
 import { startThreads } from "./threads.js";
 import { movePagesIntoHome } from "./pages-home.js";
@@ -57,6 +58,7 @@ function keepPrivate(): void {
 async function main(): Promise<void> {
   keepPrivate();
   const home = ensureHome();
+  settleOrganizations();
   // The pages of no other project, once a place of their own, moved into Home's Pages (pages-home.ts); and that folder there.
   try { movePagesIntoHome(); } catch (e) { console.log(`talaris-core: the pages of no project not moved into Home: ${(e as Error).stack}`); }
   ensurePagesFolder();

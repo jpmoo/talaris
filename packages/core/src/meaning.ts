@@ -73,7 +73,7 @@ export function meaningSettings(): MeaningSettings {
 /** One thing that can be found: a page or an entity, and how it opens. */
 export interface Doc {
   key: string;
-  kind: "page" | "task" | "person" | "project" | "event" | "file" | "canvas" | "thread";
+  kind: "page" | "task" | "person" | "project" | "organization" | "event" | "file" | "canvas" | "thread";
   title: string;
   /** For a page: its project and path; for a canvas, its project and id (as `path`); for a thread, Home and its id. For an entity: its id. */
   project?: string;
@@ -182,7 +182,7 @@ function canvasText(d: Doc): string {
   return doc ? canvasWords(doc, false) : "";
 }
 
-const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project", event: "event" };
+const KIND: Record<string, Doc["kind"]> = { task: "task", contact: "person", project: "project", organization: "organization", event: "event" };
 function entityDocs(): Doc[] {
   const out: Doc[] = [];
   for (const { object: o } of allRecords()) {

@@ -23,7 +23,7 @@ import { LIVE_MANIFEST, applyPatch, createRule, fileRule, follow, type WritePatc
 type Type = ProfiledType;
 type Obj = ProfiledObject;
 
-const V0 = ["task", "event", "contact", "note", "journal", "project"];
+const V0 = ["task", "event", "contact", "note", "journal", "project", "organization"];
 // The profile reads are the store's own (profile.ts): what is measured is what Talaris runs.
 const read = (type: Type, object: Obj, key: string, profile = "task") => readSlot(type, object, key, profile);
 

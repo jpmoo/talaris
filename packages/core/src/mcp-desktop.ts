@@ -264,7 +264,7 @@ export function desktopTools(core: Core): DesktopTool[] {
           if (place) { await surfaces({ do: "open", ...place }); return "Opened."; }
           const r = await core<{ kinds: string[]; title: string; when?: { start?: string }; entity: Record<string, unknown> & { properties: Record<string, unknown> } }>("GET", `/entities/${eid}`);
           if (r.kinds.includes("task")) await surfaces({ do: "open", kind: "task", id: str(a.id) });
-          else if (r.kinds.includes("contact")) await surfaces({ do: "open", kind: "person", id: str(a.id) });
+          else if (r.kinds.includes("contact") || r.kinds.includes("organization")) await surfaces({ do: "open", kind: "person", id: str(a.id) });
           else if (r.kinds.includes("event")) {
             const src = ((r.entity["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).find((s) => s.kind === "eds-event");
             if (!src) throw new Error(`${r.title} is not on a calendar; read it with talaris_read instead`);

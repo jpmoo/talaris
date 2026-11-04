@@ -53,6 +53,8 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 /* The left: everyone, in groups or by letter. */
 #list { width: 300px; flex: none; border-right: 1px solid var(--line); overflow: auto; outline: none; padding-bottom: 8px; }
 .ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+.ghead.on .name { color: var(--accent); }
+.ghead .name:hover { color: var(--accent); }
 .ghead:hover { color: var(--text); }
 /* One of my organizations: said on its heading. */
 .ghead .own-mark { color: var(--accent); letter-spacing: 1px; }

@@ -87,8 +87,8 @@ export interface Attachment {
 }
 
 /** The roles Talaris itself needs a type for, each found by what the type declares. */
-export type Role = "person" | "event" | "task" | "note" | "project" | "file" | "daily";
-const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null, file: null, daily: "journal" };
+export type Role = "person" | "event" | "task" | "note" | "project" | "organization" | "file" | "daily";
+const PROFILE_OF: Record<Role, string | null> = { person: "contact", event: "event", task: "task", note: "note", project: null, organization: "organization", file: null, daily: "journal" };
 
 /**
  * The types Talaris starts with. Their names are only names — the user's to
@@ -112,13 +112,14 @@ export const BUILT_IN: EntityType[] = [
     // and the rest; `notes` is shown as the description. Version 3: the
     // `contact` profile's slots, as the format now names them. Version 4: the
     // projects a person is part of (pkm-interchange: contact.project). Version 5:
-    // called Projects, as a person may be in several.
-    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 5,
+    // called Projects, as a person may be in several. Version 6: organizations
+    // are things (settleOrganizations), and a person may be at several.
+    id: "t_person", name: "Person", "talaris:role": "person", "talaris:version": 6,
     fields: [
       { key: "title", kind: "text", required: true, "talaris:label": "Name" },
       { key: "emails", kind: "text", many: true },
       { key: "phones", kind: "text", many: true },
-      { key: "organization", kind: "text" },
+      { key: "organization", kind: "reference", targetType: "t_organization", many: true, "talaris:label": "Organizations" },
       { key: "role", kind: "text" },
       { key: "pronouns", kind: "text" },
       { key: "project", kind: "reference", targetType: "t_project", many: true, "talaris:label": "Projects" },
@@ -205,6 +206,17 @@ export const BUILT_IN: EntityType[] = [
       { key: "description", kind: "richtext" },
     ],
     profiles: { project: { title: "title", body: "description" } },
+  },
+  {
+    // An organization: a thing people are at, with no surface of its own. Its home is People (the format's `organization`).
+    id: "t_organization", name: "Organization", "talaris:role": "organization", "talaris:version": 1,
+    fields: [
+      { key: "title", kind: "text", required: true, "talaris:label": "Name" },
+      { key: "description", kind: "richtext", "talaris:label": "About" },
+      { key: "parent", kind: "reference", targetType: "t_organization", many: true, "talaris:label": "Part of" },
+      { key: "files", kind: "attachment", many: true },
+    ],
+    profiles: { organization: { title: "title", body: "description", parent: "parent" } },
   },
   {
     // A daily note (pages.ts, Home's `Daily/<date>`), as the live binding hands
@@ -457,7 +469,7 @@ export function profilesOf(o: Entity): string[] {
   return out;
 }
 
-export type EntityKind = "person" | "task" | "event" | "project" | "note" | "thing";
+export type EntityKind = "person" | "task" | "event" | "project" | "organization" | "note" | "thing";
 
 /**
  * What kind of thing it is, in a word, read from its profiles: a person, a
@@ -468,7 +480,7 @@ export type EntityKind = "person" | "task" | "event" | "project" | "note" | "thi
 export function kindOfEntity(o: Entity): EntityKind {
   const k = profilesOf(o);
   return k.includes("contact") ? "person" : k.includes("task") ? "task" : k.includes("event") ? "event"
-    : k.includes("project") ? "project" : k.includes("note") ? "note" : "thing";
+    : k.includes("project") ? "project" : k.includes("organization") ? "organization" : k.includes("note") ? "note" : "thing";
 }
 
 /** Its title, read through its type's profiles; else the property called title; else its first line. */
@@ -686,7 +698,7 @@ export function createEntity(input: NewEntity): Entity {
     id: id ?? newId("e"),
     ...(type ? { type } : {}),
     ...rest,
-    properties: { ...(properties ?? {}) },
+    properties: keptOrganizations(type, properties ?? {}),
     created: now(),
     updated: now(),
     version: 1,
@@ -722,7 +734,8 @@ export function updateEntity(id: string, patch: Patch): Entity {
     throw new Conflict(`entity ${id} has changed since version ${patch.version}`);
   }
   const { properties: given, content, sources, version: _v, ...rest } = patch;
-  const properties = withoutNewLinks(given, o.properties);
+  const kept = withoutNewLinks(given, o.properties);
+  const properties = kept && keptOrganizations(patch.type ?? o.type, kept);
   const next: Entity = { ...o, ...rest, properties: { ...o.properties }, updated: now(), version: o.version + 1 };
   if (patch.type !== undefined && !ix.types.has(patch.type)) throw new Conflict(`no type ${patch.type}`);
   for (const [k, v] of Object.entries(properties ?? {})) {
@@ -1038,7 +1051,9 @@ export function forgetNonPeople(): number {
 export interface PersonRow {
   id: string;
   title: string;
+  /** The first of their organizations by name, and all of them as things. */
   organization?: string;
+  organizations?: { id: string; title: string }[];
   role?: string;
   email?: string;
   /** Their picture, a kept file by hash (`GET /files/:sha`). */
@@ -1050,20 +1065,100 @@ export interface PersonRow {
   noContact?: boolean;
 }
 
-/** Every person, as People lists them: enough to group, sort and show a row. */
+// ------------------------------------------------------------ organizations
+
+const isOrganization = (o: Entity) => Boolean(o.type && load().types.get(o.type)?.profiles?.organization);
+
+/** The organization of this name, without regard to case; made if there is none. */
+function organizationNamed(name: string): Entity {
+  const low = name.trim().toLowerCase();
+  for (const { object: o } of load().records.values()) {
+    if (isOrganization(o) && !o.archived && !o.stub && titleOf(o).trim().toLowerCase() === low) return o;
+  }
+  return createEntity({ role: "organization", properties: { [String(typeFor("organization").profiles?.organization?.title ?? "title")]: name.trim() } });
+}
+
+/**
+ * A person's organizations as things, whatever said them. An address book, a
+ * form or an older record says a name; held in a reference to an organization,
+ * that name is the thing of that name, found or made, so there is one place
+ * that turns words into one.
+ */
+function keptOrganizations(typeId: string | undefined, props: Record<string, unknown>): Record<string, unknown> {
+  const ix = load();
+  const type = typeId ? ix.types.get(typeId) : undefined;
+  const key = type?.profiles?.contact?.organization;
+  if (typeof key !== "string" || !(key in props)) return props;
+  const f = type!.fields.find((x) => x.key === key);
+  if (f?.kind !== "reference" || !(f.targetType && ix.types.get(f.targetType)?.profiles?.organization)) return props;
+  const v = props[key];
+  const said = (Array.isArray(v) ? v : v === null || v === undefined ? [] : [v]).filter((x): x is string => typeof x === "string" && Boolean(x.trim()));
+  const ids = [...new Set(said.map((x) => (ix.records.has(x) ? x : organizationNamed(x).id)))];
+  return { ...props, [key]: ids.length ? (f.many === false ? ids[0] : ids) : null };
+}
+
+/** The organizations a person is at: the things their field points at. */
+export function organizationsOf(o: Entity): { id: string; title: string }[] {
+  const ix = load();
+  const key = (o.type ? ix.types.get(o.type) : undefined)?.profiles?.contact?.organization;
+  const v = typeof key === "string" ? o.properties[key] : undefined;
+  const out: { id: string; title: string }[] = [];
+  for (const id of Array.isArray(v) ? v : v ? [v] : []) {
+    const org = typeof id === "string" ? ix.records.get(id)?.object : undefined;
+    if (org) out.push({ id: org.id, title: titleOf(org) });
+  }
+  return out;
+}
+
+export interface OrganizationRow { id: string; title: string; mine?: boolean }
+
+/** Every organization, people or none: what People groups under, and shows when it has nobody yet. */
+export function listOrganizations(): OrganizationRow[] {
+  const out: OrganizationRow[] = [];
+  for (const { object: o } of load().records.values()) {
+    if (isOrganization(o) && !o.archived && !o.stub) out.push({ id: o.id, title: titleOf(o), ...(o["talaris:mine"] ? { mine: true } : {}) });
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title));
+}
+
 /**
  * The organizations that are the person's own — work, a board they sit on —
- * marked in People, for its "My organizations" filter. Names, as people's
- * organization fields have them; matched without regard to case.
+ * marked in People, for its "My organizations" filter: each one marked, by
+ * name here, as the page has them.
  */
 export function myOrganizations(): string[] {
-  return sealedList<{ id?: string; names?: string[] }>("people-prefs").find((x) => x.id === "mine")?.names ?? [];
+  return listOrganizations().filter((o) => o.mine).map((o) => o.title);
 }
 export function setMyOrganizations(names: string[]): string[] {
-  const kept = [...new Set(names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim()))];
-  sealedPut("people-prefs", "mine", { id: "mine", names: kept });
-  return kept;
+  const low = new Set(names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim().toLowerCase()));
+  for (const o of listOrganizations()) {
+    const on = low.has(o.title.trim().toLowerCase());
+    if (on !== Boolean(o.mine)) updateEntity(o.id, { "talaris:mine": on ? true : undefined });
+  }
+  return myOrganizations();
 }
+
+/**
+ * What came before organizations were things, made so: a person's words become
+ * the organization of that name, and the names once marked as one's own mark
+ * those. Run at each start, and does nothing once there is nothing to do.
+ */
+export function settleOrganizations(): void {
+  const ix = load();
+  for (const { object: o } of [...ix.records.values()]) {
+    const key = (o.type ? ix.types.get(o.type) : undefined)?.profiles?.contact?.organization;
+    if (typeof key !== "string") continue;
+    const v = o.properties[key];
+    if ((typeof v === "string" && !ix.records.has(v)) || (Array.isArray(v) && v.some((x) => typeof x === "string" && !ix.records.has(x)))) updateEntity(o.id, { properties: { [key]: v } });
+  }
+  const prefs = sealedList<{ id?: string; names?: string[] }>("people-prefs").find((x) => x.id === "mine");
+  if (prefs?.names?.length) {
+    for (const name of prefs.names) updateEntity(organizationNamed(name).id, { "talaris:mine": true });
+    sealedPut("people-prefs", "mine", { id: "mine", names: [] });
+  }
+}
+
+/** Every person, as People lists them: enough to group, sort and show a row. */
 
 export function listPeople(): PersonRow[] {
   const type = typeFor("person");
@@ -1076,9 +1171,10 @@ export function listPeople(): PersonRow[] {
     const emails = Array.isArray(p[emailKey]) ? (p[emailKey] as unknown[]).map(String) : [];
     const image = p.image as { sha256?: string } | undefined;
     const ties = ((o["talaris:sources"] as Source[] | undefined) ?? []).filter((s) => s.kind === "eds-contact").map((s) => s.key);
+    const orgs = organizationsOf(o);
     out.push({
       id: o.id, title: String(p[titleKey] ?? "") || emails[0] || "Unnamed", updated: o.updated, ties,
-      ...(typeof p.organization === "string" && p.organization.trim() ? { organization: p.organization.trim() } : {}),
+      ...(orgs.length ? { organization: orgs[0]!.title, organizations: orgs } : {}),
       ...(typeof p.role === "string" && p.role.trim() ? { role: p.role.trim() } : {}),
       ...(emails[0] ? { email: emails[0] } : {}),
       ...(image?.sha256 ? { image: image.sha256 } : {}),

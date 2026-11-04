@@ -696,7 +696,7 @@
       el("div", { class: "d-status" }, ...said.flatMap((x, i) => (i ? [" ", x] : [x]))),
       ...lines.map(([k, v]) => el("div", { class: "d-line" }, el("span", { class: "k" }, k), el("span", { class: "v" }, v))),
       r.on.length ? el("div", { class: "d-sub" }, "On") : null,
-      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => bridge.thing(o.kind === "contact" ? "person" : o.kind, o.id) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
+      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => bridge.thing(o.kind === "contact" || o.kind === "organization" ? "person" : o.kind, o.id) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
       taggable ? el("div", { class: "d-sub" }, "Tags") : null,
       taggable ? tagEditor(r) : null,
       inLists,

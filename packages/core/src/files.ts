@@ -288,7 +288,7 @@ function projectsByEntity(): { of: (o: Entity) => string; home: string } {
   return { home: ensureHome().id, of: folderProjectOf };
 }
 
-const kindOf = (o: Entity) => ["task", "contact", "event", "note", "project"].find((k) => profilesOf(o).includes(k)) ?? "thing";
+const kindOf = (o: Entity) => ["task", "contact", "organization", "event", "note", "project"].find((k) => profilesOf(o).includes(k)) ?? "thing";
 
 /** Every row, before filtering: the folders, then what the entities hold. */
 /** Whether each file is sealed, kept until its size or time changes: asked of every listed file, on every list. */

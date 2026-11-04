@@ -288,21 +288,22 @@ test("people listed with their organization; tied to a card and untied, nothing 
   assert.equal(entities.bySource({ kind: "eds-contact", key: "book-1/card-9" })?.id, p.id, "found by the card");
   entities.tieContact(p.id, "book-1/card-9", false);
   assert.deepEqual(entities.listPeople().find((r) => r.id === p.id)!.ties, []);
-  assert.equal(entities.getEntity(p.id).properties.organization, "Nine-Nine");
+  assert.deepEqual(entities.organizationsOf(entities.getEntity(p.id)).map((o) => o.title), ["Nine-Nine"]);
   assert.throws(() => entities.tieContact(p.id, "nobook", true), /book and its id/);
 });
 
 test("a contact card becomes a person, or ties the one with its address; filled only where empty; a deleted one stays gone", () => {
   const made = entities.personFromCard({ key: "book/u1", name: "Gina Linetti", emails: ["gina@nine-nine.example"], phones: ["555-0199"], org: "Nine-Nine", role: "Administrator" })!;
   assert.equal(entities.titleOf(made), "Gina Linetti");
-  assert.deepEqual([made.properties.phones, made.properties.organization, made.properties.role], [["555-0199"], "Nine-Nine", "Administrator"]);
+  assert.deepEqual([made.properties.phones, entities.organizationsOf(made)[0]?.title, made.properties.role], [["555-0199"], "Nine-Nine", "Administrator"]);
   assert.equal(entities.personFromCard({ key: "book/u1", name: "Gina L." })!.id, made.id, "the same card, the same person, unchanged");
   assert.equal(entities.titleOf(entities.getEntity(made.id)), "Gina Linetti");
   // Someone already here by address: tied, their own words kept, the card's only where empty.
   const terry = entities.createEntity({ role: "person", properties: { title: "terry@nine-nine.example", emails: ["terry@nine-nine.example"], role: "Sergeant" } });
   const tied = entities.personFromCard({ key: "book/u2", name: "Terry Jeffords", emails: ["Terry@nine-nine.example"], role: "Lieutenant", org: "Nine-Nine" })!;
   assert.equal(tied.id, terry.id);
-  assert.deepEqual([entities.titleOf(tied), tied.properties.role, tied.properties.organization], ["Terry Jeffords", "Sergeant", "Nine-Nine"]);
+  assert.deepEqual([entities.titleOf(tied), tied.properties.role, entities.organizationsOf(tied)[0]?.title], ["Terry Jeffords", "Sergeant", "Nine-Nine"]);
+  assert.equal(entities.organizationsOf(tied)[0]?.id, entities.organizationsOf(made)[0]?.id, "one name, one organization");
   // One who wants no contact is left alone; one deleted is not made again.
   const hitch = entities.createEntity({ role: "person", properties: { title: "Hitchcock", emails: ["hitch@nine-nine.example"] }, "talaris:noContact": true });
   assert.equal(entities.personFromCard({ key: "book/u3", emails: ["hitch@nine-nine.example"] }), null);
@@ -881,4 +882,34 @@ test("a person and an event can be in a project: a mirror leaves it alone, and a
   assert.ok(!entities.getEntity(person.id).archived, "a person outlives their project");
   assert.ok(!entities.getEntity(event.id).archived, "a meeting stays on the calendar");
   assert.deepEqual(filingModule.filedUnder(entities.getEntity(event.id)), [project.id], "and it still says what it was for");
+});
+
+test("an organization is a thing: words become it, one name is one, and a person may be at several", () => {
+  const a = entities.createEntity({ role: "person", properties: { title: "Ana Ruiz", organization: "Newsela" } });
+  const b = entities.createEntity({ role: "person", properties: { title: "Ben Ito", organization: ["newsela ", "School Ahead"] } });
+  const [newsela] = entities.organizationsOf(a);
+  assert.equal(newsela!.title, "Newsela");
+  assert.deepEqual(entities.organizationsOf(b).map((o) => o.title), ["Newsela", "School Ahead"], "one name is one, whatever its case");
+  assert.deepEqual(entities.organizationsOf(b)[0]!.id, newsela!.id);
+  const row = entities.listPeople().find((p) => p.id === b.id)!;
+  assert.equal(row.organization, "Newsela");
+  assert.equal(row.organizations!.length, 2);
+  assert.equal(entities.kindOfEntity(entities.getEntity(newsela!.id)), "organization");
+  const nobody = entities.createEntity({ role: "organization", properties: { title: "Nobody Yet" } });
+  assert.ok(entities.listOrganizations().some((o) => o.id === nobody.id), "listed with no people");
+  entities.setMyOrganizations(["NEWSELA"]);
+  assert.deepEqual(entities.myOrganizations(), ["Newsela"]);
+  entities.setMyOrganizations([]);
+  assert.deepEqual(entities.myOrganizations(), []);
+});
+
+test("words a person held before organizations were things are settled into them, and a second run changes nothing", () => {
+  const p = entities.createEntity({ role: "person", properties: { title: "Old Style" } });
+  // As an older record holds it: in the store, past what turns words into a thing.
+  entities.getEntity(p.id).properties.organization = "Old Firm";
+  entities.settleOrganizations();
+  assert.deepEqual(entities.organizationsOf(entities.getEntity(p.id)).map((o) => o.title), ["Old Firm"]);
+  const v = entities.getEntity(p.id).version;
+  entities.settleOrganizations();
+  assert.equal(entities.getEntity(p.id).version, v);
 });
