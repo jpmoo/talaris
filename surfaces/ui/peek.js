@@ -253,8 +253,10 @@ window.Peek = (() => {
    * What a thing might be tied to and is not (the core's suggest.ts), for a
    * person's or a task's own view: each with why, and the ways that fit —
    * taken, or turned down (×). `key` is its glance key (`e:<id>`); `opts.open`
-   * opens one chosen (its id), `opts.changed` redraws after a tie is made.
-   * Nothing at all is drawn when there is nothing to suggest.
+   * opens one chosen (its id), `opts.openKey` any chosen, by its key; `opts.changed` redraws after a tie is made.
+   * Nothing at all is drawn when there is nothing to suggest. `opts.bare`: no heading (its page has one of its own);
+   * `opts.loaded(list, quiet)`: told what there is, each time it is asked. The element's `ready` is the first asking,
+   * `again` asks once more.
    */
   /** How many connections a list leaves out, as Settings says (Panels, What is shown). */
   const hiddenSaid = (n) => `${n} more not shown — finished, archived or older, as Settings says`;
@@ -266,10 +268,11 @@ window.Peek = (() => {
     const reset = () => (dismissed ? el("button", { class: "t-btn small peek-reset", title: `Suggest the ${dismissed} turned down for this again`,
       onclick: () => api("POST", "/suggestions/reset", { key }).then(load) }, `Reset dismissed (${dismissed})`) : null);
     const draw = (list) => {
+      if (!list.length && opts.bare) { host.replaceChildren(); return; }
       if (!list.length) { host.replaceChildren(...(dismissed ? [el("div", { class: "label peek-label peek-shead" }, "Possible connections", reset())] : [])); return; }
-      host.replaceChildren(el("div", { class: "label peek-label peek-shead" }, "Possible connections", el("span", { class: "peek-n" }, String(list.length)), reset()), ...list.map((s) => el("div", { class: "peek-srow" },
+      host.replaceChildren(opts.bare ? "" : el("div", { class: "label peek-label peek-shead" }, "Possible connections", el("span", { class: "peek-n" }, String(list.length)), reset()), ...list.map((s) => el("div", { class: "peek-srow" },
         el("div", { class: "peek-stop" },
-          el("button", { class: "peek-item", title: "Open it", onclick: () => (s.id ? opts.open && opts.open(s.id, s) : placeOfKey(s.key) && opts.openPlace && opts.openPlace(placeOfKey(s.key))) },
+          el("button", { class: "peek-item", title: "Open it", onclick: () => (opts.openKey ? opts.openKey(s.key) : s.id ? opts.open && opts.open(s.id, s) : placeOfKey(s.key) && opts.openPlace && opts.openPlace(placeOfKey(s.key))) },
             el("span", { class: "peek-t" }, s.title)),
           marked(el("button", { class: "x-btn danger", title: "Not connected — don't suggest it again", onclick: () => api("POST", "/suggestions/dismiss", { key, other: s.key }).then(load) }), "close")),
         el("div", { class: "peek-why" }, s.why.join(" · ")),
@@ -282,8 +285,10 @@ window.Peek = (() => {
           } }, w.label);
         })))));
     };
-    const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => { dismissed = (r && r.dismissed) || 0; draw((r && r.suggestions) || []); }).catch(() => draw([]));
-    load();
+    const told = (list, quiet) => { draw(list); if (opts.loaded) opts.loaded(list, quiet); };
+    const load = () => api("GET", `/suggestions?key=${encodeURIComponent(key)}&limit=8`).then((r) => { dismissed = (r && r.dismissed) || 0; told((r && r.suggestions) || [], Boolean(r && r.quiet)); }).catch(() => told([], false));
+    host.ready = load();
+    host.again = load;
     return host;
   }
 

@@ -1535,6 +1535,13 @@ narrowing to some (a list, a type, a tag, a date) shows those; what suggests
 connections is the card's to say, so the glance's own column is not shown. Glance's
 window stays, for where there is no Library up.
 
+**Everything suggested in a project, in one place.** Beside Everything and Files,
+Suggestions: the project and each of its own things that have any, with what is
+suggested, taken or turned down there, and each thing told to stop or to start
+again. It is asked of the core thing by thing, each when the last is answered, and
+shown as it comes, so a project of hundreds never holds the core up; put away, it
+stops. Find narrows it, by the names in it.
+
 **Find is one box.** Over a project shown as a whole it narrows the glance by title; over
 files, the files by name. Either way, above them, **where the words are written**:
 as typed together, case and accents aside, in pages, canvases, conversations, a

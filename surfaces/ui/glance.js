@@ -30,6 +30,7 @@
     // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
     say: (text, error = false) => Kit.say($("msg"), text, error, 0),
     project: () => surface.project,
+    still: () => (surface.motion || {}).motion === "none",
     drawnProject: (p) => $("proj").replaceChildren(...[p.name || "", p.code ? el("span", "code", p.code) : null].filter((x) => x !== null)),
     opener: {
       card: (key) => bridge && bridge.libraryAt(key),

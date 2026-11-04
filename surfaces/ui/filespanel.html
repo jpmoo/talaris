@@ -48,7 +48,20 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 
 /* A project as a whole, in the list's place (glanceview.js); what it might be tied to is the card's to say, on the right. */
 #middle { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-#rows[hidden], #glance[hidden], #said[hidden] { display: none; }
+#rows[hidden], #glance[hidden], #said[hidden], #review[hidden] { display: none; }
+/* Everything suggested in a project: thing by thing, each with its own. */
+#review { flex: 1; min-height: 0; overflow: auto; padding: 8px 14px 14px; font-size: 12.5px; }
+#review .r-status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 6px; min-height: 24px; }
+#review .r-status .sp { flex: 1; }
+#review .r-thing { border-top: 1px solid var(--line); padding: 8px 0 6px; }
+#review .r-thing[hidden] { display: none; }
+#review .r-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+#review .r-head .d-proj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+#review .r-head .k { color: var(--muted); font-size: 11px; flex: none; }
+#review .r-head .sp { flex: 1; }
+#review .r-head .t-btn { flex: none; }
+#review .peek-sugg:not(:empty) { margin-top: 2px; }
+#review .peek-srow:first-child { border-top: 0; }
 #glance { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* Where Find's words are written: above whatever is shown. */
 #said { flex: none; max-height: 40%; overflow: auto; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -213,6 +226,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
   <div id="middle">
     <section id="said" hidden></section>
     <section id="glance" hidden></section>
+    <section id="review" hidden></section>
     <section id="rows" tabindex="0"></section>
   </div>
   <section id="detail"></section>

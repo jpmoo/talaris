@@ -43,7 +43,7 @@
   let view = store.get("talaris.files.view", "tree");
   if (view === "folders") view = "tree";
   let project = null;
-  // A project is shown as a whole, everything it holds or touches (its glance), or as the files of it.
+  // A project is shown as a whole, everything it holds or touches (its glance); or everything suggested in it; or the files of it.
   let shape = store.get("talaris.files.shape", "whole");
   let filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
   // The chosen project's lists (the core's filelists.ts), as a tree; and the lists of each project asked for, by id.
@@ -81,8 +81,8 @@
 
   // ---------------------------------------------------------------- words
 
-  const STATUS = { folder: "In the folder", page: "A writing page", canvas: "A canvas", conversation: "A conversation with Morgan", shortcut: "Shortcut", linked: "Linked on a task",
-    snapshot: "Stored on a task", missing: "Missing from its folder" };
+  // Where a thing really is; what kind of thing it is, is Type's.
+  const STATUS = { folder: "In the folder", shortcut: "Shortcut", linked: "Linked on a task", snapshot: "Stored on a task", missing: "Missing from its folder" };
   // A row says only where its file really is, when that is not simply the project's folder: a shortcut, a link, a copy
   // stored on a task, gone missing. A page is plain from its group (Writing) and Open; what it is on, and whether it is
   // read, are the details' to say, not the list's.
@@ -104,7 +104,9 @@
   /** One project chosen: not all of them, nor what is in none. */
   const oneProject = () => Boolean(project) && project !== NONE;
   /** A project on show as a whole: narrowing it to some of its files shows those, and taking that off comes back. */
-  const whole = () => oneProject() && shape === "whole" && !(filters.status || filters.type || filters.days || filters.tags.length || filters.list);
+  const asProject = () => oneProject() && shape !== "files" && !(filters.status || filters.type || filters.days || filters.tags.length || filters.list);
+  const whole = () => asProject() && shape === "whole";
+  const reviewing = () => asProject() && shape === "review";
   const rowOf = (key) => rows.find((x) => x.key === key) || (visiting && visiting.key === key ? visiting : null);
   // The small × that takes one thing off; a span where it stands inside a button.
   function xBtn(title, onclick, tag = "button") {
@@ -154,7 +156,7 @@
   /** The one Find, on what is shown: the glance's words, or the files'. */
   function placeFind() {
     const words = $("q").value.trim();
-    filters.q = whole() ? "" : words;
+    filters.q = asProject() ? "" : words;
     const into = whole() ? words : "";
     if (glance.q.value !== into) { glance.q.value = into; glance.q.dispatchEvent(new Event("input")); }
   }
@@ -200,7 +202,7 @@
     readAbout = got.about || {};
     reading = got.reading || reading;
     // Read or not (the book's colour): lit, or grey and red — told here, from what the core says of each.
-    const readOk = (r) => whole() || readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
+    const readOk = (r) => asProject() || readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
     rows = got.rows.filter(readOk);
     total = readFilter === "all" ? got.total : rows.length;
     for (const k of [...picked]) if (!rows.some((r) => r.key === k)) picked.delete(k);
@@ -228,15 +230,18 @@
 
   function draw() {
     const asWhole = whole();
+    const others = asProject();
     $("glance").hidden = !asWhole;
-    $("rows").hidden = asWhole;
+    $("review").hidden = !reviewing();
+    $("rows").hidden = others;
     drawControls();
     drawSide();
     drawRows();
     drawDetail();
     if (asWhole && (glanceOld || glance.loadedFor() !== project)) { glanceOld = false; glance.load(); }
-    // The glance counts its own, kind by kind.
-    if (asWhole) { $("count").textContent = ""; return; }
+    if (reviewing()) review();
+    // Each counts its own.
+    if (others) { $("count").textContent = ""; return; }
     $("count").textContent = total > rows.length ? `${rows.length} of ${total}` : String(total);
     // Still to be read, across what is listed: said beside the count.
     const waiting = rows.filter((r) => readState[r.key] === "waiting").length;
@@ -296,7 +301,7 @@
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
         reload();
       }, null, c.tags[t] ?? 0))) : []),
-      ...section("status", "What it is", Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0))),
+      ...section("status", "Where it is", Object.entries(STATUS).map(([k, label]) => item(label, filters.status === k, () => { filters.status = filters.status === k ? "" : k; reload(); }, null, c.status[k] ?? 0))),
       ...section("type", "Type", TYPES.map(([k, label]) => item(label, filters.type === k, () => { filters.type = filters.type === k ? "" : k; reload(); }, null, c.type[k] ?? 0))),
       ...section("kept", "Kept views", [
         ...kept.map((k, i) => item(k.name, false, () => useKept(k), xBtn("Forget it", (e) => {
@@ -358,7 +363,7 @@
   }
 
   // Drawn again where it was scrolled to (kit.js), as every list is.
-  function drawRows() { if (!whole()) Kit.keepScroll($("rows"), drawRowsNow); }
+  function drawRows() { if (!asProject()) Kit.keepScroll($("rows"), drawRowsNow); }
   function drawRowsNow() {
     if (!rows.length) {
       $("rows").replaceChildren(Kit.empty(filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
@@ -664,7 +669,7 @@
     }
     cardOf = null;
     visiting = null;
-    if (stay === "said" || (stay && whole())) {
+    if (stay === "said" || (stay && asProject())) {
       if (kind === "project" && body === project) { chosen = null; drawDetail(); return; }
       const rowKey = rowKeyOf(kind, body, inProject, rest);
       if (rowKey && !rows.some((r) => r.key === rowKey)) {
@@ -1239,6 +1244,8 @@
     project = k.project;
     view = k.view;
     filters = { ...k.filters, tags: [...k.filters.tags] };
+    // Kept when these were here too: a page, a canvas or a conversation is a Type now.
+    if (filters.status && !STATUS[filters.status]) { filters.type = filters.status; filters.status = ""; }
     $("q").value = filters.q;
     drawControls();
     reload();
@@ -1247,14 +1254,14 @@
   function drawControls() {
     const asWhole = whole();
     $("shape").hidden = !oneProject();
-    seg("shape", [["whole", "Everything"], ["files", "Files"]], asWhole ? "whole" : "files", (v) => {
+    seg("shape", [["whole", "Everything"], ["review", "Suggestions"], ["files", "Files"]], asProject() ? shape : "files", (v) => {
       shape = v;
       store.set("talaris.files.shape", v);
-      if (v === "whole") filters = { ...filters, status: "", type: "", days: 0, tags: [], list: "" };
+      if (v !== "files") filters = { ...filters, status: "", type: "", days: 0, tags: [], list: "" };
       chosen = null; cardOf = null; visiting = null; picked.clear();
       reload();
     });
-    for (const id of ["view", "days", "readf"]) $(id).hidden = asWhole;
+    for (const id of ["view", "days", "readf"]) $(id).hidden = asProject();
     seg("view", [["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
     seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Unread"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
@@ -1263,7 +1270,7 @@
   let typing = 0;
   // Escape clears it first, as every box that narrows a list does (kit.js).
   Kit.searchBox($("q"));
-  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { drawSaid(); if (whole()) placeFind(); else reload(); }, Kit.SEARCH_MS); });
+  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { drawSaid(); if (asProject()) { placeFind(); reviewFound(); } else reload(); }, Kit.SEARCH_MS); });
   // Files, or a whole folder (every file in it and its folders): asked which first.
   $("bring").addEventListener("click", () => {
     if (!bridge) return;
@@ -1295,7 +1302,7 @@
     const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "");
     if (e.key === "/" && !inField) { e.preventDefault(); $("q").focus(); $("q").select(); return; }
     if (inField) return;
-    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !whole()) {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !asProject()) {
       e.preventDefault();
       const order = [...document.querySelectorAll("#rows .row[data-key]")].map((x) => x.dataset.key);
       const at = order.indexOf(chosen);
@@ -1327,9 +1334,96 @@
     api,
     say,
     project: () => ({ id: project, name: projectName(project) }),
+    still: () => (surface.motion || {}).motion === "none",
     opener: { card: (key) => showCard(key, true).catch(failed) },
   });
   $("glance").append(el("div", { class: "g-bar" }, glance.view, glance.mine, glance.steps, glance.refresh), glance.kinds, glance.trail, glance.main);
+
+  // ---------------------------------------------------------------- everything suggested in a project
+
+  // Asked of the core thing by thing, each when the last is answered, and shown as they come: the core is never held up
+  // for a project of hundreds. Kept while it is the same project and this opening; the arrow reads it all again.
+  const REVIEW_KIND = { project: "project", note: "page", page: "page", canvas: "canvas", task: "task", file: "file", contact: "person", organization: "organization", event: "event", conversation: "conversation" };
+  let reviewOf = null;     // the project it was read for
+  let reviewSeq = 0;       // a newer reading stops an older one
+  let reviewBusy = false;
+  const REVIEW_STOP = "No more suggestions for this";
+
+  function reviewFound() {
+    const words = $("q").value.trim();
+    for (const g of $("review").querySelectorAll(".r-thing[data-any]")) g.hidden = Boolean(words) && !Kit.matches(words, g.textContent);
+  }
+
+  /** One thing's: its name to open its card, what is suggested, and turning it down whole. */
+  function reviewThing(n, counted) {
+    const name = el("button", { class: "d-proj", title: "See its card", onclick: () => showCard(n.key, "said").catch(failed) }, n.title || "Untitled");
+    const acts = el("span", { class: "acts" });
+    const head = el("div", { class: "r-head" }, name, el("span", { class: "k" }, REVIEW_KIND[n.kind] || ""), el("span", { class: "sp" }), acts);
+    const group = el("div", { class: "r-thing", hidden: "" }, head);
+    const quiet = (on) => api("PUT", "/suggestions/quiet", { key: n.key, quiet: on }).then(() => list.again()).catch(failed);
+    const list = Peek.suggestions(n.key, api, {
+      bare: true,
+      openKey: (key) => showCard(key, "said").catch(failed),
+      changed: (res) => { say(res.said || "Done"); glanceOld = true; list.again(); },
+      loaded: (found, stopped) => {
+        const any = found.length > 0 || stopped;
+        if (any) group.dataset.any = "1"; else delete group.dataset.any;
+        group.hidden = !any;
+        counted(n.key, found.length);
+        acts.replaceChildren(stopped ? el("button", { class: "t-btn small", onclick: () => quiet(false) }, "Suggest again")
+          : el("button", { class: "t-btn small", title: REVIEW_STOP, onclick: () => quiet(true) }, "Stop"));
+        if (stopped) acts.prepend(el("span", { class: "k" }, "Not suggesting"));
+        reviewFound();
+      },
+    });
+    group.append(list);
+    return { group, ready: list.ready };
+  }
+
+  async function review(again = false) {
+    if (!again && (reviewOf === project)) return;
+    const id = project;
+    reviewOf = id;
+    const seq = ++reviewSeq;
+    reviewBusy = true;
+    const counts = new Map();
+    const status = el("span", {});
+    const host = $("review");
+    const things = el("div", {});
+    const refresh = el("button", { class: "icon-btn gv-refresh", title: "Read it again", onclick: () => review(true) });
+    refresh.innerHTML = glance.refresh.innerHTML;
+    host.replaceChildren(el("div", { class: "r-status" }, status, el("span", { class: "sp" }), refresh), things);
+    let of = 0, done = 0;
+    const words = () => {
+      const hits = [...counts.values()].reduce((a, b) => a + b, 0), holding = [...counts.values()].filter(Boolean).length;
+      const found = hits ? `${hits} suggested, on ${holding} of ${of}` : reviewBusy ? "" : `Nothing suggested, on any of ${of}`;
+      status.textContent = reviewBusy ? `Looking through ${done} of ${of}${found ? ` · ${found}` : ""}` : found;
+    };
+    const counted = (key, n) => { counts.set(key, n); words(); };
+    words();
+    try {
+      const g = await api("GET", `/projects/${enc(id)}/glance?steps=1`);
+      if (seq !== reviewSeq) return;
+      // The project first, then its own things, the newest first.
+      const own = g.nodes.filter((n) => n.own && !n.sugOnly && n.key !== g.root).sort((a, b) => String(b.updated || "").localeCompare(String(a.updated || "")));
+      const root = g.nodes.find((n) => n.key === g.root);
+      const list = [...(root ? [root] : []), ...own];
+      of = list.length;
+      words();
+      for (const n of list) {
+        // Put away, or looking at something else: it stops there, and is read again when next looked at.
+        if (seq !== reviewSeq) return;
+        if (!(surface.up || WINDOW) || !reviewing() || project !== id) { reviewOf = null; reviewBusy = false; return; }
+        const t = reviewThing(n, counted);
+        things.append(t.group);
+        await t.ready;
+        done++;
+        words();
+      }
+      reviewBusy = false;
+      words();
+    } catch (e) { if (seq === reviewSeq) { reviewBusy = false; failed(e); } }
+  }
 
   // ---------------------------------------------------------------- coming and going
 
@@ -1357,6 +1451,7 @@
       // Each opening shows everything, and what has changed anywhere since.
       glance.fresh();
       glanceOld = true;
+      reviewOf = null;
       Motion.arrive(document.body, how());
       if (bridge) loadProjects().then(() => (asked ? showCard(asked) : load())).catch(failed);
     } else if (asked && s.up && bridge) showCard(asked).catch(failed);

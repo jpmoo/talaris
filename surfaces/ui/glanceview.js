@@ -27,11 +27,13 @@
  * @param o.project  () the project it is a glance of: { id, name, code }
  * @param o.opener   how a thing opens: card (its Library card, by its key), or else goProject, openFile, openPlace, openProjectFile, openTask, peek
  * @param o.drawnProject  (project) told who it is drawing, for a page that names it
+ * @param o.still    () whether things are set not to move
  */
 window.GlanceView = (o) => {
   const { api, say, project, opener } = o;
   const enc = encodeURIComponent;
   const failed = (e) => say(e.message, true);
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || Boolean(o.still && o.still());
   function el(tag, attrs = {}, ...kids) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -62,7 +64,7 @@ window.GlanceView = (o) => {
   const ui = {
     view: part("span", "seg gv-view"),
     q: part("input", "gv-q", { type: "search", placeholder: "Find", spellcheck: "false" }),
-    mine: el("button", { class: "t-btn gv-mine", title: "Only the project's own things, not what they touch" }, "Mine only"),
+    mine: el("button", { class: "t-btn gv-mine", title: "Only the project's own things, not what they touch" }, "This project only"),
     steps: part("span", "seg gv-steps"),
     refresh: part("button", "icon-btn gv-refresh", { title: "Read it again" }),
     kinds: part("div", "gv-kinds"),
@@ -167,20 +169,39 @@ window.GlanceView = (o) => {
     const here = data.nodes.find(isRoot);
     // The project walked to again is the start again, not a step.
     if (n.key === `project:${data.project.id}`) { reset(); return; }
+    stepping++;
+    slide = 1;
     trail = [...trail, ...(here && from ? [{ key: from, title: here.title }] : [])];
     from = n.key;
     load();
   }
-  // The i-th crumb: 0 is the project; the rest are trail[i - 1].
-  function walkBack(i) {
-    if (i === 0) { from = ""; trail = []; } else { from = trail[i - 1].key; trail = trail.slice(0, i - 1); }
-    load();
+  // The i-th crumb: 0 is the project; the rest are trail[i - 1]. Gone back to as it was walked: in the graph
+  // one step at a time, each thing at the middle in its turn; in the list, or set not to move, straight there.
+  const STEP_MS = 420;
+  let stepping = 0;       // a newer walk stops an older one where it is
+  let slide = 0;          // which way the list comes in, after a step: 1 on, -1 back
+  async function walkBack(i) {
+    const seq = ++stepping;
+    const backOne = () => { if (trail.length) { from = trail[trail.length - 1].key; trail = trail.slice(0, -1); } else from = ""; };
+    let left = trail.length + 1 - i;
+    if (view !== "graph" || still()) {
+      while (left-- > 0) backOne();
+      slide = -1;
+      load();
+      return;
+    }
+    while (left-- > 0) {
+      backOne();
+      await load();
+      if (seq !== stepping) return;
+      if (left) await new Promise((r) => setTimeout(r, STEP_MS));
+      if (seq !== stepping) return;
+    }
   }
   /** Back to the start: the project this desktop is. */
   function reset() {
     if (!from && !trail.length) { Graph.fit(); return; }
-    from = ""; trail = [];
-    load();
+    walkBack(0);
   }
 
   function drawKinds() {
@@ -341,11 +362,22 @@ window.GlanceView = (o) => {
       chosen = null;
       ui.gtip.hidden = true;
       // Mostly kept, it only needs stirring; mostly new, the whole warm-up.
+      // Walked, it moves there to be seen, however much is new, unless things are set not to move.
       const kept = nodes.filter((n) => !n.fresh).length;
-      const stir = laid && kept >= nodes.length / 2;
+      const most = kept >= nodes.length / 2;
+      const stir = laid && (most || !still());
       laid = stir;
       pick();
-      if (!ui.graph.hidden) { show(); if (stir) { heat(0.6); glideHome(); } }
+      clearTimeout(settling);
+      if (!ui.graph.hidden) {
+        show();
+        if (stir) {
+          heat(most ? 0.6 : 1);
+          glideHome();
+          // Much of it new: all of it in view, once it has spread.
+          if (kept < nodes.length * 0.8) settling = setTimeout(() => glideTo(fitScale()), 700);
+        }
+      }
     }
 
     // Seeded by kind around the middle, its own nearer than what is one step out, so it settles fast.
@@ -455,14 +487,15 @@ window.GlanceView = (o) => {
     new ResizeObserver(resize).observe(ui.graph);
 
     // The camera glided so the middle sits at the centre, at the zoom it is at.
-    let lastClick = { node: null, at: 0, x: 0, y: 0 }, glide = 0;
-    function glideHome() {
-      const from = { ...cam }, to = { s: cam.s, x: W / 2, y: H / 2 };
+    let lastClick = { node: null, at: 0, x: 0, y: 0 }, glide = 0, settling = 0;
+    const glideHome = () => glideTo(cam.s);
+    function glideTo(s) {
+      const from = { ...cam }, to = { s, x: W / 2, y: H / 2 };
       const t0 = performance.now(), seq = ++glide;
       const step = (t) => {
         if (seq !== glide) return;
         const k = Math.min(1, (t - t0) / 260), e = 1 - Math.pow(1 - k, 3);
-        cam = { s: from.s, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
+        cam = { s: from.s + (to.s - from.s) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
         need();
         if (k < 1) requestAnimationFrame(step);
       };
@@ -472,15 +505,17 @@ window.GlanceView = (o) => {
     /** Everything in view, with the middle — the project, or the thing walked to — at the centre. */
     function fit() {
       if (!W || !H) return;
+      glide++;
+      cam = { s: fitScale(), x: W / 2, y: H / 2 };
+      need();
+    }
+    // The middle is the world's origin: what is furthest from it, either way, sets the zoom.
+    function fitScale() {
       const list = vis.length ? vis : nodes;
-      if (!list.length) { cam = { s: 1, x: W / 2, y: H / 2 }; return; }
-      // The middle is the world's origin: what is furthest from it, either way, sets the zoom.
       let rx = 1, ry = 1;
       for (const n of list) { rx = Math.max(rx, Math.abs(n.x)); ry = Math.max(ry, Math.abs(n.y)); }
       const pad = 48;
-      const s = Math.max(0.2, Math.min(2, Math.min((W / 2 - pad) / rx, (H / 2 - pad) / ry)));
-      cam = { s, x: W / 2, y: H / 2 };
-      need();
+      return Math.max(0.2, Math.min(2, Math.min((W / 2 - pad) / rx, (H / 2 - pad) / ry)));
     }
     const toWorld = (sx, sy) => [(sx - cam.x) / cam.s, (sy - cam.y) / cam.s];
 
@@ -804,6 +839,8 @@ window.GlanceView = (o) => {
       if (sugg.key === data.root) withSuggested();
       Graph.load(data);
       drawAll();
+      if (slide && view === "list" && !still()) ui.list.animate([{ opacity: 0, transform: `translateX(${slide * 24}px)` }, { opacity: 1, transform: "none" }], { duration: 200, easing: "ease-out" });
+      slide = 0;
       loadSuggestions(seq);
     } catch (e) { if (seq === loadSeq) failed(e); }
   }
@@ -947,7 +984,7 @@ window.GlanceView = (o) => {
     /** Every kind on and everything shown, as each opening starts. */
     fresh() { off = new Set(); mine = false; },
     /** The thing to have at the middle: from wherever the walk was, and kept if the project is new too. */
-    startAt(key) { from = key; trail = []; keepStart = true; },
+    startAt(key) { stepping++; from = key; trail = []; keepStart = true; },
     /** Back to the project at the middle. */
     home: reset,
     /** The thing its page has on show, lit in the list. */
