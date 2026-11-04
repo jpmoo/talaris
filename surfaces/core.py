@@ -299,6 +299,16 @@ class Bridge(QObject):
         desktop.glance.open_on(key)
 
     @Slot(str)
+    def libraryAt(self, key: str) -> None:  # noqa: N802 — called from the page by this name
+        """A thing's card in the Library, by its key: what everything opens to. Asked from another panel, that one goes."""
+        desktop = getattr(self.owner, "desktop", None)
+        if not desktop or not key:
+            return
+        if getattr(self.owner, "NAME", "") != "files" and hasattr(self.owner, "file_away"):
+            self.owner.file_away()
+        desktop.files_panel.open_on(key)
+
+    @Slot(str)
     def openPerson(self, entity: str) -> None:  # noqa: N802 — called from the page by this name
         """A person clicked anywhere: their entry in People. Asked from another panel, that one goes."""
         desktop = getattr(self.owner, "desktop", None)

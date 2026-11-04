@@ -32,6 +32,7 @@
     project: () => surface.project,
     drawnProject: (p) => $("proj").replaceChildren(...[p.name || "", p.code ? el("span", "code", p.code) : null].filter((x) => x !== null)),
     opener: {
+      card: (key) => bridge && bridge.libraryAt(key),
       goProject: (id) => bridge && bridge.goProject(id),
       openFile: (abs, sha, name) => bridge && bridge.openFile(abs, sha, name),
       openPlace: (kind, project, where) => bridge && bridge.openPlace(kind, project, where),

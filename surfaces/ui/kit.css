@@ -85,3 +85,7 @@ body.kit-drag-on, body.kit-drag-on * { cursor: grabbing !important; user-select:
 .ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
 .ed-field:focus-within { border-color: var(--accent); }
 .ed-field .cm-editor { outline: none; }
+
+/* A name that opens its card in the Library. */
+.to-card { cursor: pointer; }
+.to-card:hover { color: var(--accent); }

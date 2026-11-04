@@ -497,6 +497,7 @@
         (about) => api("PUT", `/projects/${enc(id)}/about`, { about })));
     }).catch(() => {});
     const acts = [];
+    if (!p.home && id !== surface.project) acts.push(el("button", { class: "t-btn small", onclick: () => bridge.goProject(id) }, "Go to this project"));
     if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k), "t-btn small"));
     const linkedHost = el("div", { class: "d-linked" });
     drawLinked(id, linkedHost);
@@ -563,7 +564,65 @@
     return el("span", {}, ...ids.flatMap((id, i) => [i ? ", " : null, go(id)]).filter((x) => x !== null));
   }
 
+  // ---------------------------------------------------------------- a thing's card
+  //
+  // Everything has a card here, and that is what everything opens to (peek.js, openCard). A file, a page, a canvas, a
+  // conversation or a project has its place in the list, and its card is what the list already shows of it; anything
+  // else — a person, an organization, a task, an event — is drawn from what the core says of it.
+
+  let cardOf = null;    // the entity whose card is on show: the list's own choosing puts it away
+  let cardSeq = 0;
+  let entityTypes = null;
+  let startSeen = 0;    // the last "open on this thing" taken (surface.start.n)
+
+  /** Whatever narrows the list, off: what was asked for is to be found in it. */
+  function clearFilters() {
+    filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
+    readFilter = "all";
+    if ($("q")) $("q").value = "";
+    picked.clear();
+    drawControls();
+  }
+  /** A thing's card, by the key Glance and suggestions know it by. */
+  async function showCard(key) {
+    const at = key.indexOf(":");
+    const kind = key.slice(0, at), body = key.slice(at + 1);
+    const slash = body.indexOf("/");
+    const inProject = slash > 0 ? body.slice(0, slash) : "", rest = slash > 0 ? body.slice(slash + 1) : "";
+    if (kind === "e") {
+      // One standing for a place or a project is shown as that; the rest have a card of their own.
+      const place = await api("GET", `/entities/${enc(body)}/place`).catch(() => null);
+      if (place && place.kind) { await showCard(`${place.kind}:${place.project}/${place.where}`); return; }
+      const got = await api("GET", `/entities/${enc(body)}`);
+      const standsFor = ((got.entity && got.entity["talaris:sources"]) || []).find((s) => s.kind === "talaris-project");
+      if (standsFor) { await showCard(`project:${standsFor.key}`); return; }
+      cardOf = body;
+      chosen = null;
+      drawDetail();
+      return;
+    }
+    cardOf = null;
+    clearFilters();
+    if (kind === "project") { project = body; chosen = null; }
+    else if (kind === "page") { project = inProject; chosen = `p:${inProject}/Writing/${rest}.md`; }
+    else if (kind === "canvas") { project = inProject; chosen = `v:${inProject}/${rest}`; }
+    else if (kind === "thread") { project = inProject; chosen = `t:${rest}`; }
+    else if (kind === "file") { project = inProject; chosen = `p:${inProject}/${rest}`; }
+    else if (kind === "att") { project = ""; chosen = body; }
+    await load();
+    if (chosen) { const row = document.querySelector(`[data-key="${CSS.escape(chosen)}"]`); if (row) row.scrollIntoView({ block: "nearest" }); }
+  }
+
+  async function drawCard(id) {
+    const seq = ++cardSeq;
+    const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key).catch(failed), bridge, types: () => entityTypes, kept: (t) => { entityTypes = t; } });
+    if (seq !== cardSeq || cardOf !== id) return;
+    if (part) $("detail").replaceChildren(...part);
+    else { cardOf = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
+  }
+
   function drawDetail() {
+    if (cardOf) { drawCard(cardOf); return; }
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
     const r = rows.find((x) => x.key === chosen);
     if (!r && filters.list) { drawList(); return; }
@@ -696,7 +755,7 @@
       el("div", { class: "d-status" }, ...said.flatMap((x, i) => (i ? [" ", x] : [x]))),
       ...lines.map(([k, v]) => el("div", { class: "d-line" }, el("span", { class: "k" }, k), el("span", { class: "v" }, v))),
       r.on.length ? el("div", { class: "d-sub" }, "On") : null,
-      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => bridge.thing(o.kind === "contact" || o.kind === "organization" ? "person" : o.kind, o.id) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
+      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => showCard(`e:${o.id}`).catch(failed) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
       taggable ? el("div", { class: "d-sub" }, "Tags") : null,
       taggable ? tagEditor(r) : null,
       inLists,
@@ -1193,18 +1252,28 @@
     surface = s;
     // Opened on the project you are in, each time; All projects is a press away.
     if (project === null) project = s.project || "";
-    if (WINDOW) return;
-    if (s.up && !was.up) {
-      if (s.project) { project = s.project; chosen = null; }
-      Motion.arrive(document.body, how());
-      if (bridge) loadProjects().then(load).catch(failed);
+    // Opened on a thing: its card, from wherever the list was.
+    const asked = s.start && s.start.n && s.start.n !== startSeen ? s.start.key : "";
+    if (asked) startSeen = s.start.n;
+    if (WINDOW) {
+      if (asked && bridge) loadProjects().then(() => showCard(asked)).catch(failed);
+      return;
     }
+    if (s.up && !was.up) {
+      if (s.project) { project = s.project; chosen = null; cardOf = null; }
+      Motion.arrive(document.body, how());
+      if (bridge) loadProjects().then(() => (asked ? showCard(asked) : load())).catch(failed);
+    } else if (asked && s.up && bridge) showCard(asked).catch(failed);
   }
 
   drawControls();
   Surface.connect({ onState }).then((b) => {
     bridge = b;
     b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
+    // Here, a card is drawn on this page, not asked for.
+    if (window.Peek) Peek.cardThrough((key) => showCard(key).catch(failed));
+    // Choosing in the list or on the left puts a card away.
+    for (const id of ["side", "rows"]) $(id).addEventListener("click", () => { cardOf = null; cardSeq++; }, true);
     // Files chosen are a list; a folder, {folder, paths}: linked where they are, after asking.
     b.chosen.connect((text) => {
       const got = JSON.parse(text);

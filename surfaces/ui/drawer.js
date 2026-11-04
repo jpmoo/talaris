@@ -1222,6 +1222,14 @@ function touched() {
   lastTouch = now;
   bridge.activity();
 }
+// Find in the page open, wherever the focus is (the editor hears it first when it has it).
+addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f" && !e.defaultPrevented) {
+    const frame = document.querySelector(".canvas-frame");
+    if (frame && frame.contentWindow) { e.preventDefault(); frame.contentWindow.focus(); frame.contentWindow.postMessage({ talarisFind: true }, "*"); }
+    else if (editor && document.querySelector(".editor .cm-editor")) { e.preventDefault(); editor.find(); }
+  }
+});
 for (const type of ["pointerdown", "keydown", "wheel", "pointermove"]) addEventListener(type, touched, { passive: true, capture: true });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || state.mode !== "pulled") return;
@@ -1342,6 +1350,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
   if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
+  if (window.Peek && bridge.libraryAt) Peek.cardThrough((key) => bridge.libraryAt(key));
   bridge.replied.connect(onReply);
   bridge.state.connect((json) => update(JSON.parse(json)));
   bridge.leave.connect(leave);

@@ -29,7 +29,7 @@ from overlay import Overlay
 import spawn
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
-ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+(/place)?$|^/entities/[A-Za-z0-9_.:%-]+/links$")
+ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions)(/|$|\?)|^/entities/[A-Za-z0-9_.:%-]+(/place)?(\?shown=1)?$|^/entities/[A-Za-z0-9_.:%-]+/links$")
 HOME = os.path.expanduser("~")
 
 
@@ -113,6 +113,12 @@ class FilesBridge(Bridge):
         self.owner.file_away()
         self.owner.desktop.open_place("page", project, where)
 
+    @Slot(str)
+    def goProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+        """A project's card, gone from to the project: its desktop, and it the current project."""
+        self.owner.file_away()
+        self.owner.desktop.go_to_project(project, announce=True)
+
     @Slot(str, str)
     def thing(self, kind: str, entity: str) -> None:
         """What a file is on — a task, a person — opened where it lives."""
@@ -134,9 +140,19 @@ class FilesPanel(Overlay):
         self.bridge.owner = self
         self.bridge.setParent(self)
 
+    #: A thing to open on, and a count that tells the page it is asked anew.
+    start: dict = {}
+
     def describe(self) -> dict:
         # The project you are in: what the list starts on, and where a file dropped goes.
-        return {**super().describe(), "project": self.desktop.project.get("id", "")}
+        return {**super().describe(), "project": self.desktop.project.get("id", ""), "start": self.start}
+
+    def open_on(self, key: str) -> None:
+        """Out, with this thing's card on show."""
+        self.start = {"key": key, "n": int(self.start.get("n", 0)) + 1}
+        if self.up or self.windowed:
+            self.bridge.state.emit(json.dumps(self.describe()))
+        self.open()
 
     def choose(self) -> None:
         choose_files(self, "Files to bring in", lambda paths: self.bridge.chosen.emit(json.dumps(paths)))

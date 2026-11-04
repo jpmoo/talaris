@@ -25,7 +25,7 @@
  * @param o.api      the page's call to the core
  * @param o.say      (text, error) a line for the page to show
  * @param o.project  () the project it is a glance of: { id, name, code }
- * @param o.opener   how a thing opens: goProject, openFile, openPlace, openProjectFile, openTask, peek
+ * @param o.opener   how a thing opens: card (its Library card, by its key), or else goProject, openFile, openPlace, openProjectFile, openTask, peek
  * @param o.drawnProject  (project) told who it is drawing, for a page that names it
  */
 window.GlanceView = (o) => {
@@ -217,6 +217,8 @@ window.GlanceView = (o) => {
 
   function open(n) {
     if (!n) return;
+    // Everything has a card in the Library, and that is what opens, where a page can get there.
+    if (opener.card && n.key) { opener.card(n.key); return; }
     // A project — this one or another tied to it — is gone to: its desktop.
     if (n.kind === "project") { if (n.projectId) opener.goProject(n.projectId); return; }
     if (n.key && n.key.startsWith("att:")) { opener.openFile(n.abs || "", n.sha256 || "", n.title || ""); return; }

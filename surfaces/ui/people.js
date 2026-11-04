@@ -523,7 +523,7 @@
       setTimeout(() => find.focus(), 0);
     } }, "+");
     return row(labelOf(f), el("div", { class: "grow chips" },
-      ids.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, titles.get(id) || "Unknown"),
+      ids.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, titles.get(id) || "Unknown"),
         xBtn("Remove", () => put(ids.filter((x) => x !== id))))),
       f.many || !ids.length ? add : null));
   }

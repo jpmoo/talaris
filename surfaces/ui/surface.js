@@ -47,6 +47,7 @@ const Surface = (() => {
         }
         bridge.current(state);
         if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
+        if (window.Peek && bridge.libraryAt) Peek.cardThrough((key) => bridge.libraryAt(key));
         ok(bridge);
       });
     });

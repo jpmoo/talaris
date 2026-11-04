@@ -123,6 +123,10 @@ window.Peek = (() => {
   // How this page opens Glance, once it has its bridge: what a card's own button uses, wherever the card was asked for.
   let glanceVia = null;
   const glanceThrough = (go) => { glanceVia = go; };
+  // How this page opens a thing's card in the Library, by its key: what every thing named or listed opens to.
+  let cardVia = null;
+  const cardThrough = (go) => { cardVia = go; };
+  const openCard = (key) => { if (cardVia) { close(); cardVia(key); } };
   function glanceButton(key, go, cls = "t-btn") {
     return go ? el("button", { class: cls, title: "Its connections, and possible ones", onclick: (e) => { e.stopPropagation(); go(key); } }, "Glance") : null;
   }
@@ -172,6 +176,8 @@ window.Peek = (() => {
   }
 
   async function show(id, api, opts = {}) {
+    // Everything has a card in the Library, and that is what opens; this card only where there is no way there.
+    if (cardVia) { openCard(`e:${id}`); return; }
     let got;
     try { got = await api("GET", `/entities/${encodeURIComponent(id)}?shown=1`); } catch { return; }
     if (!card) {
@@ -314,5 +320,5 @@ window.Peek = (() => {
   `;
   document.head.append(style);
 
-  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, glanceThrough, suggestions, hiddenSaid };
+  return { show, close, elsewhere, elsewhereButtons, actionButtons, glanceButton, glanceThrough, cardThrough, openCard, suggestions, hiddenSaid };
 })();

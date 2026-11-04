@@ -656,7 +656,7 @@ function paintProjects() {
   $("e-projects").replaceChildren(...editing.projects.map((id) => {
     const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); setProjects(editing.projects.filter((p) => p !== id)); } });
     x.innerHTML = Icons.close();
-    return el("span", { class: "chip" }, el("span", { class: "lbl" }, names.get(id) || "Project"), x);
+    return el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (ev) => { ev.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, names.get(id) || "Project"), x);
   }));
 }
 /** The event's entity: the one it has, or made now, as the calendar's mirror would make it later (calendar_panel.py). */

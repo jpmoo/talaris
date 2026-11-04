@@ -928,7 +928,7 @@
     $("s-proj-row").hidden = !field(pk);
     const mine = Array.isArray(p[pk]) ? p[pk] : p[pk] ? [p[pk]] : [];
     const titleOf = (id) => (projects.find((x) => x.id === id) || {}).title || "Unknown";
-    $("s-proj").replaceChildren(...mine.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl" }, titleOf(id)),
+    $("s-proj").replaceChildren(...mine.map((id) => el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, titleOf(id)),
       xBtn("Remove", () => setProjects(mine.filter((x) => x !== id))))),
     el("button", { class: "add", id: "s-proj-add", title: "Add to a project", onclick: (e) => pickProject(e.currentTarget, mine) }, "+"));
 
