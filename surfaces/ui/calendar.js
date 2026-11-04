@@ -794,7 +794,13 @@ function send(msg, after) {
 function saveEntity() {
   const event = collected();
   const pad = (n) => String(n).padStart(2, "0");
-  const stamp = (ms) => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; };
+  // On the clock it says it is on, where it says (the times it came with are kept as that clock reads them).
+  const stamp = (ms) => {
+    const on = editing.timezone ? Kit.onClock(ms, editing.timezone) : null;
+    if (on) return `${on}:00`;
+    const d = new Date(ms);
+    return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  };
   const properties = { title: event.title, location: event.location || null, notes: event.notes || null,
     start: event.allDay ? iso(new Date(event.start)) : stamp(event.start),
     end: event.allDay ? iso(new Date(event.end - DAY_MS)) : stamp(event.end) };
@@ -841,7 +847,8 @@ document.addEventListener("keydown", (e) => {
   // What has heard Escape already (a field of its own, a box cleared) keeps it: the innermost first, then the panel.
   if (e.key === "Escape" && e.defaultPrevented) return;
   if (e.key === "Escape") { if (Kit.isOpen()) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
-  if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA") $("e-save").click();
+  // Enter saves, but in what is written in (the description is the editor): there it is the next line.
+  if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA" && !e.target.isContentEditable) $("e-save").click();
 });
 
 // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.

@@ -383,6 +383,27 @@ const Kit = (() => {
   /** Asking no more (a menu shown afresh): the button says what it said. */
   function unask(button, key) { const k = key || button; armed.delete(k); if (button && labels.has(button)) { button.classList.remove("armed"); button.innerHTML = labels.get(button); } }
 
+  // ------------------------------------------------------------ another clock
+
+  /** An instant as it reads on `zone`: "YYYY-MM-DDTHH:MM"; null if `zone` is no zone. */
+  function onClock(ms, zone) {
+    try {
+      const p = {};
+      for (const x of new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(ms))) p[x.type] = x.value;
+      return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+    } catch { return null; }
+  }
+  /** A time written on `zone`, as an ISO instant to show here; as written, with no zone or none it can read. */
+  function fromClock(wall, zone) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(wall));
+    if (!zone || !m) return wall;
+    const utc = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]);
+    const off = (at) => { const c = onClock(at, zone); return c ? Date.parse(`${c}:00Z`) - Math.floor(at / 60000) * 60000 : null; };
+    const first = off(utc);
+    if (first === null) return wall;
+    return new Date(utc - off(utc - first)).toISOString();
+  }
+
   // ------------------------------------------------------------ finding by typing
 
   /** Lower case, accents gone: "Käufer" finds "kaufer". */
@@ -595,6 +616,6 @@ const Kit = (() => {
   return {
     el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
+    onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };
 })();

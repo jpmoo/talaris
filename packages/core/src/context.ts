@@ -15,6 +15,7 @@
 
 import { bySource, connections, findEntities, getEntity, kindOfEntity, titleOf, types, type Entity } from "./entities.js";
 import { readSlot } from "./profile.js";
+import { hereFrom, TIMEZONE } from "./zoned.js";
 import { placeOf, placeSource } from "./mentionables.js";
 import { currentId, homeId, threads } from "./threads.js";
 import { isComplete, shapeOf, spanOf } from "./tasks.js";
@@ -65,7 +66,7 @@ export function eventTimes(o: Entity): { start?: string; allDay?: boolean } {
   const start = readSlot(type, o, "start", "event");
   const flags = type?.fields.filter((f) => f.kind === "boolean") ?? [];
   const allDay = flags.length === 1 && o.properties[flags[0]!.key] === true;
-  return { ...(typeof start === "string" ? { start } : {}), ...(allDay ? { allDay } : {}) };
+  return { ...(typeof start === "string" ? { start: hereFrom(start, o.properties[TIMEZONE]) } : {}), ...(allDay ? { allDay } : {}) };
 }
 
 export function item(o: Entity): Item {

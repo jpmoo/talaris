@@ -934,3 +934,16 @@ test("a connection undone: a field's or an edge's goes; what the words make stay
   const people = entities.connections(mirrored.id).out.filter((c) => c.name === "attendees");
   assert.ok(people.length && people.every((c) => c.fixed === "calendar"), "an event's people are the calendar's");
 });
+
+test("a time on another clock: read as that clock has it, here as it reads here, whichever side of a change of clocks", async () => {
+  const { instantOn, hereFrom } = await import("../src/zoned.js");
+  assert.equal(new Date(instantOn("2026-11-09T14:00:00", "America/New_York")).toISOString(), "2026-11-09T19:00:00.000Z", "winter, five behind");
+  assert.equal(new Date(instantOn("2026-07-09T14:00", "America/New_York")).toISOString(), "2026-07-09T18:00:00.000Z", "summer, four behind");
+  assert.equal(new Date(instantOn("2026-11-09T14:00:00", "Asia/Tokyo")).toISOString(), "2026-11-09T05:00:00.000Z", "ahead of UTC");
+  assert.ok(Number.isNaN(instantOn("2026-11-09", "America/New_York")), "a day has no clock");
+  assert.ok(Number.isNaN(instantOn("2026-11-09T14:00", "Not/AZone")), "nor does a zone that is none");
+  assert.equal(hereFrom("2026-11-09T14:00:00", undefined), "2026-11-09T14:00:00", "saying nothing, as written");
+  assert.equal(hereFrom("2026-11-09", "America/New_York"), "2026-11-09", "a day stays a day");
+  const here = new Date(Date.UTC(2026, 10, 9, 19, 0));
+  assert.equal(hereFrom("2026-11-09T14:00:00", "America/New_York"), `2026-11-09T${String(here.getHours()).padStart(2, "0")}:00`);
+});
