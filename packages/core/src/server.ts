@@ -383,6 +383,8 @@ route("POST", "/files/open-copy", async (req) => ({ path: files.openableCopy(awa
 route("GET", "/meaning", async (_r, _p, q) => meaning.searchMeaning(q.get("q") ?? "", { limit: Number(q.get("limit") ?? 20),
   ...(q.get("kind") ? { kind: q.get("kind")! } : {}), ...(q.get("project") ? { project: q.get("project")! } : {}), ...(q.get("floor") ? { floor: Number(q.get("floor")) } : {}) }));
 route("GET", "/meaning/status", () => meaning.meaningStatus());
+// Where the words themselves are written: no model server needed.
+route("GET", "/meaning/words", (_r, _p, q) => meaning.findWords(q.get("q") ?? "", { ...(q.get("first") ? { first: q.get("first")! } : {}) }));
 // Files looked at for anything new or changed, now (Settings, Data, Scan now).
 route("POST", "/meaning/scan", async () => meaning.scanFiles());
 // The files that gave no words when read; some (or all) read again, now.

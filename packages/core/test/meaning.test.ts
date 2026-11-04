@@ -132,3 +132,19 @@ test("a file that gave no words: listed, and read again when asked", async () =>
   await meaning.reindex();
   assert.ok(!meaning.filesWithNoWords().some((f) => f.key === blank.key));
 });
+
+test("the words themselves are found, as typed together, case and accents aside, with no model server", () => {
+  settings({});
+  const other = projects.createProject("Words elsewhere");
+  pages.writePage(other.id, "Far", "Nothing here but the Café Müller minutes.");
+  pages.writePage(school.id, "Near", "We met at the cafe muller again, about [@Lab](talaris:abc123) funding.");
+  const near = meaning.findWords("CAFE MULLER", { first: school.id });
+  assert.deepEqual(near.found.map((f) => f.title), ["Near", "Far"]);
+  assert.equal(near.found[0]!.hit, "cafe muller");
+  assert.equal(near.found[1]!.hit, "Café Müller");
+  assert.equal(near.found[0]!.open, `page:${school.id}/Near`);
+  assert.ok(near.found[0]!.after.includes("Lab funding"), "a link's words, not where it goes");
+  assert.deepEqual(meaning.findWords("muller cafe").found, [], "the words as typed together");
+  assert.deepEqual(meaning.findWords("ca").found, [], "too little to go on");
+  assert.deepEqual(meaning.findWords("abc123").found, [], "where a link goes is not what is written");
+});

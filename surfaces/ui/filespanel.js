@@ -43,6 +43,8 @@
   let view = store.get("talaris.files.view", "tree");
   if (view === "folders") view = "tree";
   let project = null;
+  // A project is shown as a whole, everything it holds or touches (its glance), or as the files of it.
+  let shape = store.get("talaris.files.shape", "whole");
   let filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
   // The chosen project's lists (the core's filelists.ts), as a tree; and the lists of each project asked for, by id.
   let lists = [];
@@ -63,7 +65,9 @@
   let reading = { on: false, pending: 0, indexing: false };
   let total = 0;
   let chosen = null;
+  let visiting = null;   // the chosen row when it is another project's: its card, with this project still on show
   let version = -1;
+  let glanceOld = true;  // something changed since the glance was read
 
   // ---------------------------------------------------------------- the core
 
@@ -99,6 +103,9 @@
   const projectName = (id) => (id === NONE ? "No project" : (projects.find((p) => p.id === id) || {}).name || "a project");
   /** One project chosen: not all of them, nor what is in none. */
   const oneProject = () => Boolean(project) && project !== NONE;
+  /** A project on show as a whole: narrowing it to some of its files shows those, and taking that off comes back. */
+  const whole = () => oneProject() && shape === "whole" && !(filters.status || filters.type || filters.days || filters.tags.length || filters.list);
+  const rowOf = (key) => rows.find((x) => x.key === key) || (visiting && visiting.key === key ? visiting : null);
   // The small × that takes one thing off; a span where it stands inside a button.
   function xBtn(title, onclick, tag = "button") {
     const b = el(tag, { class: "x-btn", title, onclick });
@@ -144,7 +151,33 @@
     projects = await api("GET", "/projects");
   }
 
+  /** The one Find, on what is shown: the glance's words, or the files'. */
+  function placeFind() {
+    const words = $("q").value.trim();
+    filters.q = whole() ? "" : words;
+    const into = whole() ? words : "";
+    if (glance.q.value !== into) { glance.q.value = into; glance.q.dispatchEvent(new Event("input")); }
+  }
+
+  /** Where the words typed are written, wherever: above whatever is shown, each opening its card. */
+  const SAID_KIND = { page: "page", canvas: "canvas", thread: "conversation", task: "task", person: "person", organization: "organization", project: "project", event: "event", file: "file" };
+  let saidSeq = 0;
+  async function drawSaid() {
+    const words = $("q").value.trim();
+    const seq = ++saidSeq;
+    const got = words.length < 3 ? { found: [], more: false }
+      : await api("GET", `/meaning/words?q=${enc(words)}${oneProject() ? `&first=${enc(project)}` : ""}`).catch(() => ({ found: [], more: false }));
+    if (seq !== saidSeq) return;
+    const host = $("said");
+    host.hidden = !got.found.length;
+    host.replaceChildren(el("div", { class: "s-head" }, `Written in ${got.more ? `the first ${got.found.length}` : got.found.length}`),
+      ...got.found.map((f) => el("button", { class: "said-row", onclick: () => showCard(f.open, "said").catch(failed) },
+        f.title, el("span", { class: "w" }, [SAID_KIND[f.kind], f.project && f.project !== project ? projectName(f.project) : ""].filter(Boolean).join(" · ")),
+        el("span", { class: "line" }, f.before, el("mark", {}, f.hit), f.after))));
+  }
+
   async function load() {
+    placeFind();
     const q = new URLSearchParams();
     if (project) q.set("project", project);
     if (filters.q) q.set("q", filters.q);
@@ -167,12 +200,13 @@
     readAbout = got.about || {};
     reading = got.reading || reading;
     // Read or not (the book's colour): lit, or grey and red — told here, from what the core says of each.
-    const readOk = (r) => readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
+    const readOk = (r) => whole() || readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
     rows = got.rows.filter(readOk);
     total = readFilter === "all" ? got.total : rows.length;
     for (const k of [...picked]) if (!rows.some((r) => r.key === k)) picked.delete(k);
+    if (got.version !== version) glanceOld = true;
     version = got.version;
-    if (chosen && !rows.some((r) => r.key === chosen)) chosen = null;
+    if (chosen && !rowOf(chosen)) chosen = null;
     draw();
     if (got.unwatched.length) say(`Too large to watch, read when asked: ${got.unwatched.map(projectName).join(", ")}`);
   }
@@ -193,9 +227,16 @@
   // ---------------------------------------------------------------- drawing
 
   function draw() {
+    const asWhole = whole();
+    $("glance").hidden = !asWhole;
+    $("rows").hidden = asWhole;
+    drawControls();
     drawSide();
     drawRows();
     drawDetail();
+    if (asWhole && (glanceOld || glance.loadedFor() !== project)) { glanceOld = false; glance.load(); }
+    // The glance counts its own, kind by kind.
+    if (asWhole) { $("count").textContent = ""; return; }
     $("count").textContent = total > rows.length ? `${rows.length} of ${total}` : String(total);
     // Still to be read, across what is listed: said beside the count.
     const waiting = rows.filter((r) => readState[r.key] === "waiting").length;
@@ -317,7 +358,7 @@
   }
 
   // Drawn again where it was scrolled to (kit.js), as every list is.
-  function drawRows() { return Kit.keepScroll($("rows"), drawRowsNow); }
+  function drawRows() { if (!whole()) Kit.keepScroll($("rows"), drawRowsNow); }
   function drawRowsNow() {
     if (!rows.length) {
       $("rows").replaceChildren(Kit.empty(filters.list && !(filters.q || filters.status || filters.type || filters.days || filters.tags.length)
@@ -498,7 +539,8 @@
     }).catch(() => {});
     const acts = [];
     if (!p.home && id !== surface.project) acts.push(el("button", { class: "t-btn small", onclick: () => bridge.goProject(id) }, "Go to this project"));
-    if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(key, (k) => bridge.glanceAt(k), "t-btn small"));
+    // Shown as a whole, its glance is here already.
+    if (window.Peek && bridge.glanceAt && !whole()) acts.push(Peek.glanceButton(key, glanceAt, "t-btn small"));
     const linkedHost = el("div", { class: "d-linked" });
     drawLinked(id, linkedHost);
     const sugg = window.Peek ? Peek.suggestions(key, api, {
@@ -509,7 +551,7 @@
     }) : null;
     $("detail").replaceChildren(...[
       el("h2", {}, p.name || "A project"),
-      el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
+      el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), whole() ? "" : (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
       aboutHost,
       linkedHost,
       acts.length ? el("div", { class: "d-sub" }, "Do") : null,
@@ -580,11 +622,29 @@
     filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
     readFilter = "all";
     if ($("q")) $("q").value = "";
+    saidSeq++;
+    $("said").hidden = true;
     picked.clear();
     drawControls();
   }
-  /** A thing's card, by the key Glance and suggestions know it by. */
-  async function showCard(key) {
+  /** The row a key is shown by, for a thing in the list. */
+  function rowKeyOf(kind, body, inProject, rest) {
+    if (kind === "page") return `p:${inProject}/Writing/${rest}.md`;
+    if (kind === "canvas") return `v:${inProject}/${rest}`;
+    if (kind === "thread") return `t:${rest}`;
+    if (kind === "file") return `p:${inProject}/${rest}`;
+    return kind === "att" ? body : "";
+  }
+  /** Glance on a thing: here, in the project on show as a whole; or in its own window. */
+  function glanceAt(key) {
+    if (whole()) { glance.startAt(key); glance.load(); } else bridge.glanceAt(key);
+  }
+  /**
+   * A thing's card, by the key Glance and suggestions know it by. `stay`: asked from within, where a project shown as a
+   * whole stays on show, whoever's the thing is, until a project is what was asked for. "said": found by its words,
+   * and what was being looked through stays, however it is shown.
+   */
+  async function showCard(key, stay = false) {
     const at = key.indexOf(":");
     const kind = key.slice(0, at), body = key.slice(at + 1);
     const slash = body.indexOf("/");
@@ -592,39 +652,48 @@
     if (kind === "e") {
       // One standing for a place or a project is shown as that; the rest have a card of their own.
       const place = await api("GET", `/entities/${enc(body)}/place`).catch(() => null);
-      if (place && place.kind) { await showCard(`${place.kind}:${place.project}/${place.where}`); return; }
+      if (place && place.kind) { await showCard(`${place.kind}:${place.project}/${place.where}`, stay); return; }
       const got = await api("GET", `/entities/${enc(body)}`);
       const standsFor = ((got.entity && got.entity["talaris:sources"]) || []).find((s) => s.kind === "talaris-project");
-      if (standsFor) { await showCard(`project:${standsFor.key}`); return; }
+      if (standsFor) { await showCard(`project:${standsFor.key}`, stay); return; }
       cardOf = body;
       chosen = null;
+      visiting = null;
       drawDetail();
       return;
     }
     cardOf = null;
+    visiting = null;
+    if (stay === "said" || (stay && whole())) {
+      if (kind === "project" && body === project) { chosen = null; drawDetail(); return; }
+      const rowKey = rowKeyOf(kind, body, inProject, rest);
+      if (rowKey && !rows.some((r) => r.key === rowKey)) {
+        const there = await api("GET", `/files${inProject && kind !== "att" ? `?project=${enc(inProject)}` : ""}`);
+        visiting = there.rows.find((r) => r.key === rowKey) || null;
+      }
+      if (rowKey && rowOf(rowKey)) { chosen = rowKey; drawDetail(); return; }
+    }
     clearFilters();
     if (kind === "project") { project = body; chosen = null; }
-    else if (kind === "page") { project = inProject; chosen = `p:${inProject}/Writing/${rest}.md`; }
-    else if (kind === "canvas") { project = inProject; chosen = `v:${inProject}/${rest}`; }
-    else if (kind === "thread") { project = inProject; chosen = `t:${rest}`; }
-    else if (kind === "file") { project = inProject; chosen = `p:${inProject}/${rest}`; }
     else if (kind === "att") { project = ""; chosen = body; }
+    else { project = inProject; chosen = rowKeyOf(kind, body, inProject, rest); }
     await load();
     if (chosen) { const row = document.querySelector(`[data-key="${CSS.escape(chosen)}"]`); if (row) row.scrollIntoView({ block: "nearest" }); }
   }
 
   async function drawCard(id) {
     const seq = ++cardSeq;
-    const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key).catch(failed), bridge, types: () => entityTypes, kept: (t) => { entityTypes = t; } });
+    const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key, true).catch(failed), glance: bridge.glanceAt ? glanceAt : null, bridge, types: () => entityTypes, kept: (t) => { entityTypes = t; } });
     if (seq !== cardSeq || cardOf !== id) return;
     if (part) $("detail").replaceChildren(...part);
     else { cardOf = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
   }
 
   function drawDetail() {
+    const r = rowOf(chosen);
+    glance.mark(cardOf ? `e:${cardOf}` : r ? glanceKey(r) : "");
     if (cardOf) { drawCard(cardOf); return; }
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
-    const r = rows.find((x) => x.key === chosen);
     if (!r && filters.list) { drawList(); return; }
     if (!r && oneProject()) { drawProject(); return; }
     if (!r) { $("detail").replaceChildren(Kit.empty("Choose a file to see what it is and what can be done with it")); return; }
@@ -693,7 +762,7 @@
 
     // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
     const gkey = glanceKey(r);
-    if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, (k) => bridge.glanceAt(k), "t-btn small"));
+    if (gkey && window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(gkey, glanceAt, "t-btn small"));
     // What takes something away, last: delete, the trash, a shortcut removed.
     acts.sort((a, b) => Number(a.classList.contains("danger")) - Number(b.classList.contains("danger")));
     const sugg = gkey && window.Peek ? Peek.suggestions(gkey, api, {
@@ -755,7 +824,7 @@
       el("div", { class: "d-status" }, ...said.flatMap((x, i) => (i ? [" ", x] : [x]))),
       ...lines.map(([k, v]) => el("div", { class: "d-line" }, el("span", { class: "k" }, k), el("span", { class: "v" }, v))),
       r.on.length ? el("div", { class: "d-sub" }, "On") : null,
-      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => showCard(`e:${o.id}`).catch(failed) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
+      ...r.on.map((o) => el("button", { class: "on-item", onclick: () => showCard(`e:${o.id}`, true).catch(failed) }, o.title, el("span", { class: "kind" }, ON_KIND[o.kind] || o.kind))),
       taggable ? el("div", { class: "d-sub" }, "Tags") : null,
       taggable ? tagEditor(r) : null,
       inLists,
@@ -1151,6 +1220,8 @@
   // ---------------------------------------------------------------- what is shown
 
   function setProject(id) {
+    // The one on show, chosen again: back to it, from wherever the walk was.
+    if (id === project && whole()) glance.home();
     project = id;
     chosen = null;
     // A list is one project's: another project, no list.
@@ -1174,6 +1245,16 @@
   }
 
   function drawControls() {
+    const asWhole = whole();
+    $("shape").hidden = !oneProject();
+    seg("shape", [["whole", "Everything"], ["files", "Files"]], asWhole ? "whole" : "files", (v) => {
+      shape = v;
+      store.set("talaris.files.shape", v);
+      if (v === "whole") filters = { ...filters, status: "", type: "", days: 0, tags: [], list: "" };
+      chosen = null; cardOf = null; visiting = null; picked.clear();
+      reload();
+    });
+    for (const id of ["view", "days", "readf"]) $(id).hidden = asWhole;
     seg("view", [["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
     seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Unread"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
@@ -1182,7 +1263,7 @@
   let typing = 0;
   // Escape clears it first, as every box that narrows a list does (kit.js).
   Kit.searchBox($("q"));
-  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { filters.q = $("q").value.trim(); reload(); }, Kit.SEARCH_MS); });
+  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { drawSaid(); if (whole()) placeFind(); else reload(); }, Kit.SEARCH_MS); });
   // Files, or a whole folder (every file in it and its folders): asked which first.
   $("bring").addEventListener("click", () => {
     if (!bridge) return;
@@ -1214,7 +1295,7 @@
     const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "");
     if (e.key === "/" && !inField) { e.preventDefault(); $("q").focus(); $("q").select(); return; }
     if (inField) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !whole()) {
       e.preventDefault();
       const order = [...document.querySelectorAll("#rows .row[data-key]")].map((x) => x.dataset.key);
       const at = order.indexOf(chosen);
@@ -1222,7 +1303,7 @@
       drawRows(); drawDetail();
       document.querySelector("#rows .row.on")?.scrollIntoView({ block: "nearest" });
     } else if (e.key === "Enter") {
-      const r = rows.find((x) => x.key === chosen);
+      const r = rowOf(chosen);
       if (r) open(r);
     }
   });
@@ -1239,6 +1320,17 @@
   window.pressedAt = (x, y) => { if (!WINDOW && bridge && surface.up && document.elementFromPoint(x, y) === document.documentElement) bridge.file(); };
   for (const t of ["pointerdown", "keydown", "wheel"]) addEventListener(t, () => bridge && bridge.activity(), { capture: true, passive: true });
 
+  // ---------------------------------------------------------------- a project as a whole
+
+  // Everything it holds or touches, by the one piece Glance's window is also made of; what is chosen in it, its card on the right.
+  const glance = GlanceView({
+    api,
+    say,
+    project: () => ({ id: project, name: projectName(project) }),
+    opener: { card: (key) => showCard(key, true).catch(failed) },
+  });
+  $("glance").append(el("div", { class: "g-bar" }, glance.view, glance.mine, glance.steps, glance.refresh), glance.kinds, glance.trail, glance.main);
+
   // ---------------------------------------------------------------- coming and going
 
   function how() {
@@ -1250,6 +1342,7 @@
   function onState(s) {
     const was = surface;
     surface = s;
+    glance.palette();
     // Opened on the project you are in, each time; All projects is a press away.
     if (project === null) project = s.project || "";
     // Opened on a thing: its card, from wherever the list was.
@@ -1260,7 +1353,10 @@
       return;
     }
     if (s.up && !was.up) {
-      if (s.project) { project = s.project; chosen = null; cardOf = null; }
+      if (s.project) { project = s.project; chosen = null; cardOf = null; visiting = null; }
+      // Each opening shows everything, and what has changed anywhere since.
+      glance.fresh();
+      glanceOld = true;
       Motion.arrive(document.body, how());
       if (bridge) loadProjects().then(() => (asked ? showCard(asked) : load())).catch(failed);
     } else if (asked && s.up && bridge) showCard(asked).catch(failed);
@@ -1271,9 +1367,9 @@
     bridge = b;
     b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
     // Here, a card is drawn on this page, not asked for.
-    if (window.Peek) Peek.cardThrough((key) => showCard(key).catch(failed));
+    if (window.Peek) Peek.cardThrough((key) => showCard(key, true).catch(failed));
     // Choosing in the list or on the left puts a card away.
-    for (const id of ["side", "rows"]) $(id).addEventListener("click", () => { cardOf = null; cardSeq++; }, true);
+    for (const id of ["side", "rows"]) $(id).addEventListener("click", () => { cardOf = null; visiting = null; cardSeq++; }, true);
     // Files chosen are a list; a folder, {folder, paths}: linked where they are, after asking.
     b.chosen.connect((text) => {
       const got = JSON.parse(text);

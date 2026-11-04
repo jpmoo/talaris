@@ -29,7 +29,7 @@ window.ThingCard = (() => {
   const fieldWords = (key) => String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
   const bareWords = (t) => String(t).replace(/\[@?([^\]]*)\]\(talaris:[^)]*\)/g, "$1");
 
-  async function draw(id, { api, failed, say, open, bridge, types, kept, redraw }) {
+  async function draw(id, { api, failed, say, open, bridge, glance, types, kept, redraw }) {
     let got, entityTypes;
     try {
       [got, entityTypes] = await Promise.all([api("GET", `/entities/${enc(id)}?shown=1`), types() || api("GET", "/entity-types")]);
@@ -78,7 +78,7 @@ window.ThingCard = (() => {
       const on = (o["talaris:sources"] || []).find((s) => s.kind === "eds-event");
       if (on) { const cut = on.key.indexOf("/"); act("Open in Calendar", () => bridge.openEvent(on.key.slice(0, cut), on.key.slice(cut + 1), String(p.start || ""))); }
     }
-    if (window.Peek && bridge.glanceAt) acts.push(Peek.glanceButton(`e:${id}`, (k) => bridge.glanceAt(k), "t-btn small"));
+    if (window.Peek && (glance || bridge.glanceAt)) acts.push(Peek.glanceButton(`e:${id}`, glance || ((k) => bridge.glanceAt(k)), "t-btn small"));
     const sugg = window.Peek ? Peek.suggestions(`e:${id}`, api, {
       open: (eid) => open(`e:${eid}`),
       openPlace: (x) => open(`${x.kind}:${x.project}/${x.where}`),

@@ -71,7 +71,7 @@ window.GlanceView = (o) => {
     graph: part("section", "gv-graph", { hidden: "" }),
     cv: part("canvas", "gv-cv"),
     displayBtn: el("button", { class: "t-btn small", title: "Size, distance, repulsion, gravity, labels" }, "Display"),
-    reset: el("button", { class: "t-btn small", title: "Back to the project this desktop is" }, "Reset"),
+    reset: el("button", { class: "t-btn small", title: "Back to the project" }, "Reset"),
     fit: el("button", { class: "t-btn small", title: "Everything in view, the one in the middle centred" }, "Fit"),
     display: part("div", "gv-display", { hidden: "" }),
     legend: part("div", "gv-legend"),
@@ -101,6 +101,7 @@ window.GlanceView = (o) => {
   let sugg = { key: "", quiet: false, list: [] };
   let suggFold = store.get("talaris.glance.suggFold", false);
   let loadSeq = 0;        // answers to an older asking are dropped
+  let marked = "";        // the thing a page has on show beside it: lit in the list
 
   // ---------------------------------------------------------------- kinds
 
@@ -267,7 +268,7 @@ window.GlanceView = (o) => {
   function row(n) {
     const ki = el("span", { class: "ki" });
     ki.innerHTML = KIND_ICON[groupOf(n)];
-    return el("button", { class: "grow-row" + (n.own ? " own" : ""), onclick: () => open(n) },
+    return el("button", { class: "grow-row" + (n.own ? " own" : "") + (n.key === marked ? " on" : ""), onclick: () => open(n) },
       ki, el("span", { class: "mine" }), el("span", { class: "t" }, n.title || "Untitled"), n.how ? el("span", { class: "how" }, n.how) : null);
   }
 
@@ -947,6 +948,10 @@ window.GlanceView = (o) => {
     fresh() { off = new Set(); mine = false; },
     /** The thing to have at the middle: from wherever the walk was, and kept if the project is new too. */
     startAt(key) { from = key; trail = []; keepStart = true; },
+    /** Back to the project at the middle. */
+    home: reset,
+    /** The thing its page has on show, lit in the list. */
+    mark(key) { if (key === marked) return; marked = key; if (view === "list") drawList(); },
     /** The theme may have changed under it: the graph's colors read again. */
     palette: () => Graph.palette(),
     drawProject,

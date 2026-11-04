@@ -1526,6 +1526,22 @@ conversation or a project has its place in the list, and its card is what the li
 shows of it; anything else is drawn from what the core says of it (`thingcard.js`).
 The small card over a page remains only where there is no way to the Library.
 
+**A project is shown as a whole.** One project chosen, the middle of the Library is
+its glance, the one piece Glance's window is also made of (`GlanceView`): everything
+it holds or touches, list or graph, its card on the right and each thing's card there
+when pressed, without leaving the project, whoever's the thing is. Glance on a card
+puts that thing at the middle here. Files shows the same project as its files, and
+narrowing to some (a list, a type, a tag, a date) shows those; what suggests
+connections is the card's to say, so the glance's own column is not shown. Glance's
+window stays, for where there is no Library up.
+
+**Find is one box.** Over a project shown as a whole it narrows the glance by title; over
+files, the files by name. Either way, above them, **where the words are written**:
+as typed together, case and accents aside, in pages, canvases, conversations, a
+thing's written words and files already read, that project's first (`/meaning/words`).
+It needs no model server, so it finds what meaning would not: a name, a number, a
+phrase. Each opens its card, and what was being looked through stays.
+
 **A thing's hub shows the same card.** Tasks, People and Calendar stay where a task,
 a person and an event are worked with, and what they show of one is to be this
 card, so a thing looks the same wherever it is seen. (Not done yet: they still draw

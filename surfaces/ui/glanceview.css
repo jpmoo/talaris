@@ -38,6 +38,7 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
             padding: 4px 14px; color: color-mix(in srgb, var(--text) 72%, var(--muted)); cursor: pointer; font: inherit; font-size: 13px; }
 .gv-main .grow-row.own { color: var(--text); }
 .gv-main .grow-row:hover { background: var(--accent-hover); }
+.gv-main .grow-row.on { background: var(--accent-wash); }
 .gv-main .grow-row .ki { flex: none; width: 14px; height: 14px; color: var(--muted); display: inline-flex; }
 .gv-main .grow-row .ki svg { width: 14px; height: 14px; display: block; }
 /* Its own, by a dot; one step out, by its absence and a quieter line. */

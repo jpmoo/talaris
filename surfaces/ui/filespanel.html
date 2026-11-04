@@ -43,7 +43,25 @@ header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
 #msg.err { color: var(--danger); }
 #q { width: 180px; flex: 0 1 180px; min-width: 90px; font-size: 12.5px; }
 
+header .seg[hidden] { display: none; }
 main { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* A project as a whole, in the list's place (glanceview.js); what it might be tied to is the card's to say, on the right. */
+#middle { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#rows[hidden], #glance[hidden], #said[hidden] { display: none; }
+#glance { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* Where Find's words are written: above whatever is shown. */
+#said { flex: none; max-height: 40%; overflow: auto; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+#said .said-row { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 14px; color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+#said .said-row:hover { background: var(--accent-hover); }
+#said .said-row .w { color: var(--muted); font-size: 11px; margin-left: 6px; }
+#said .said-row .line { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#said mark { background: var(--accent-wash); color: var(--accent); }
+#glance .g-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 14px 6px; flex: none; }
+#glance .gv-kinds { padding: 0 14px 6px; flex: none; }
+#glance .gv-trail { padding: 0 14px 6px; flex: none; }
+#glance .gv-trail[hidden] { display: none; }
+#glance .gv-sugg { display: none !important; }
 
 /* The left: projects, tags, kept views. */
 #side { width: 200px; flex: none; border-right: 1px solid var(--line); overflow: auto; padding: 6px 0 10px; }
@@ -72,7 +90,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .s-keep { margin: 6px 14px 0; }
 
 /* The middle: the files, in groups. */
-#rows { flex: 1; min-width: 0; overflow: auto; outline: none; padding-bottom: 12px; }
+#rows { flex: 1; min-width: 0; min-height: 0; overflow: auto; outline: none; padding-bottom: 12px; }
 .g-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; gap: 6px; align-items: baseline; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .g-head .n { letter-spacing: 0; }
 .row { user-select: none; display: grid; grid-template-columns: 18px minmax(12ch, 1fr) auto 18px 92px 110px 64px; gap: 10px; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12.5px; }
@@ -170,6 +188,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
 @media (max-width: 860px) { #detail { width: 240px; } #side { width: 160px; } #q { width: 120px; flex-basis: 120px; } .row { grid-template-columns: 18px minmax(0, 1fr) auto 18px 90px; } .row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) auto 18px 90px; } .row .type { display: none; } .row .size { display: none; } }
 </style>
 <link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="glanceview.css">
 </head>
 <body data-arrives>
 <header>
@@ -177,6 +196,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
   <h1>Library</h1>
   <span id="count"></span>
   <input type="search" id="q" placeholder="Find" spellcheck="false">
+  <span class="seg" id="shape"></span>
   <span class="seg" id="view"></span>
   <span class="seg" id="days" title="When it changed"></span>
   <span class="seg" id="readf" title="Whether it is read for search: lit, or grey and red"></span>
@@ -190,7 +210,11 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
 </header>
 <main>
   <aside id="side"></aside>
-  <section id="rows" tabindex="0"></section>
+  <div id="middle">
+    <section id="said" hidden></section>
+    <section id="glance" hidden></section>
+    <section id="rows" tabindex="0"></section>
+  </div>
   <section id="detail"></section>
 </main>
 <div id="sheet" hidden></div>
@@ -201,6 +225,7 @@ body.dropping::after { content: "Drop to add them here"; position: absolute; ins
 <script src="kit.js"></script>
 <script src="motion.js"></script>
 <script src="peek.js"></script>
+<script src="glanceview.js"></script>
 <script src="thingcard.js"></script>
 <script src="filespanel.js"></script>
 </body>

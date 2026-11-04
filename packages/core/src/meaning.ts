@@ -704,6 +704,58 @@ export async function searchMeaning(q: string, options: { limit?: number; kind?:
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, options.limit ?? 20);
 }
 
+export interface Said { open: string; kind: Doc["kind"]; title: string; project?: string; before: string; hit: string; after: string }
+/** Case and accents aside, one letter at a time: and where in the words each came from. */
+function folded(words: string): { text: string; from: number[] } {
+  let text = "";
+  const from: number[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const f = words[i]!.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+    text += f;
+    for (let n = 0; n < f.length; n++) from.push(i);
+  }
+  return { text, from };
+}
+/**
+ * Where the words asked are written, as typed together, case and accents aside: in a page, a canvas, a
+ * conversation, a thing's written words, or a file already read (nothing is read for this). `first`'s come first.
+ * Needs no model server, and finds what meaning would not: a name, a number, a phrase.
+ */
+export function findWords(q: string, options: { first?: string; limit?: number } = {}): { found: Said[]; more: boolean } {
+  const asked = folded(q.trim()).text;
+  if (asked.length < 3) return { found: [], more: false };
+  const byId = new Map(allRecords().map((r) => [r.object.id, r.object]));
+  const wordsOf = (d: Doc): string => {
+    try {
+      if (d.kind === "page") return readPage(d.project!, d.path!);
+      if (d.kind === "canvas") return canvasText(d);
+      if (d.kind === "thread") return threadById(d.path!)?.summary ?? "";
+      if (d.kind === "file") return keptText(d.key) ?? "";
+      const o = byId.get(d.id!);
+      return o ? entityText(o) : "";
+    } catch { return ""; }
+  };
+  const docs = [...pageDocs(), ...canvasDocs(), ...threadDocs(), ...entityDocs(), ...fileDocs()];
+  const found: (Said & { rank: number })[] = [];
+  for (const d of docs) {
+    // A link's words are what is written; where it goes is not.
+    const words = `${d.title}\n${wordsOf(d)}`.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/<[^>]+>/g, " ");
+    // Most have none of it, and asked of whole they are told fast: letter by letter only for where it is.
+    if (!words.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().includes(asked)) continue;
+    const { text, from } = folded(words);
+    const at = text.indexOf(asked);
+    if (at < 0) continue;
+    const start = from[at]!, end = from[at + asked.length - 1]! + 1;
+    const line = (s: string) => s.replace(/\s+/g, " ");
+    found.push({ open: d.kind === "file" ? `att:${d.key.slice(5)}` : d.key, kind: d.kind, title: d.title, ...(d.project ? { project: d.project } : {}),
+      before: line(words.slice(Math.max(0, start - 60), start)).trimStart(), hit: line(words.slice(start, end)), after: line(words.slice(end, end + 120)).trimEnd(),
+      rank: d.project && d.project === options.first ? 0 : 1 });
+  }
+  found.sort((a, b) => a.rank - b.rank);
+  const limit = options.limit ?? 40;
+  return { found: found.slice(0, limit).map(({ rank: _, ...s }) => s), more: found.length > limit };
+}
+
 /** A passage as a line to show: its title taken off, its first words. */
 function snippet(text: string, title: string): string {
   const t = text.startsWith(title) ? text.slice(title.length) : text;
