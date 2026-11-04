@@ -1516,6 +1516,21 @@ belong there beside it: Glance built in. The Glance window stays, sharing that
 code, because it also opens on a single thing, which is not a project's view.
 All projects and No project stay the catalog they are.
 
+### The Library, what everything opens to (2026-11-03)
+
+**Everything has a card in the Library, and that is what opens.** Anything named
+or listed — a project on a person, an organization, a row in Glance, a connection,
+a suggestion — opens its card, by the key Glance and suggestions already know it
+by (`Peek.openCard`, the bridge's `libraryAt`). A file, a page, a canvas, a
+conversation or a project has its place in the list, and its card is what the list
+shows of it; anything else is drawn from what the core says of it (`thingcard.js`).
+The small card over a page remains only where there is no way to the Library.
+
+**A thing's hub shows the same card.** Tasks, People and Calendar stay where a task,
+a person and an event are worked with, and what they show of one is to be this
+card, so a thing looks the same wherever it is seen. (Not done yet: they still draw
+their own.)
+
 ### Organizations (2026-11-03)
 
 An organization is a thing, with no surface or bar button of its own. Its home
@@ -1591,6 +1606,20 @@ project: something from elsewhere comes in by a shortcut first. Kept in the
 project's folder (`.talaris/file-lists.json`, sealed with the project), so the
 lists go with it. A file or page moved or renamed keeps its places in lists.
 Lists are not Hermes' collections, which belong to no project.
+
+### Find (2026-11-03)
+
+**Ctrl+F finds in what is open.** In any text of more than one line (a page, a
+task's or an event's notes) a box above the text marks every match and says which
+of how many; Enter and Shift+Enter, or Ctrl+G, go between them, and Escape returns
+to the text with that match selected. On a canvas it goes through every note, card
+and region in reading order, centring and selecting each; inside a note being
+edited, it is that note's. Case and accents aside, the words as typed together.
+Finding across everything remains the launcher's, by meaning.
+
+**A canvas is found by its title from anywhere.** The launcher lists every project's
+canvases, each saying whose, as it does the current project's; one with nothing on
+it is not a thing, there as everywhere.
 
 ### Demo
 

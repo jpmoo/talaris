@@ -76,7 +76,7 @@ function build(c) {
       current: p.id === (c.project || {}).id })),
     ...c.windows.map((w) => ({ kind: "window", key: `window:${w.address}`, title: w.title, sub: `${w.app} · ${w.where}`, img: icon(w.icon),
       recent: w.recent, act: { kind: "window", address: w.address } })),
-    ...c.canvases.map((x) => ({ kind: "canvas", key: `canvas:${x.id}`, title: x.title, sub: x.where, act: { kind: "canvas", id: x.id } })),
+    ...c.canvases.map((x) => ({ kind: "canvas", key: `canvas:${x.id}`, title: x.title, sub: x.where, act: { kind: "canvas", id: x.id, ...(x.project ? { project: x.project } : {}) } })),
     ...c.pages.map((x) => ({ kind: "page", key: `page:${x.path}`, title: x.title, sub: x.where, act: { kind: "page", path: x.path } })),
     ...c.apps.map((a) => ({ kind: "app", key: `app:${a.id}`, title: a.name, also: a.also, img: icon(a.icon), act: { kind: "app", id: a.id },
       sub: a.away ? `Open in ${a.away}` : "", presses: a.away ? a.presses : null })),
@@ -529,6 +529,7 @@ function glanceKey(x) {
   const a = x.act || {};
   if (a.kind === "entity" && a.id) return `e:${a.id}`;
   if (a.kind === "page" && a.path) return `page:${a.project || here}/${a.path}`;
+  if (a.kind === "canvas" && a.id) return `canvas:${a.project || here}/${a.id}`;
   if (a.kind === "file" && a.path) return `file:${a.project || here}/${a.path}`;
   if (a.kind === "project" && a.id) return `project:${a.id}`;
   if (a.kind === "glance") return a.key;

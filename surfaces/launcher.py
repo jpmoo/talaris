@@ -57,7 +57,7 @@ def _flatten(nodes: list, key: str, trail: str = "") -> list[dict]:
     out = []
     for n in nodes:
         where = f"{trail} › {n['title']}" if trail else n["title"]
-        out.append({key: n[key], "title": n["title"], "where": trail})
+        out.append({key: n[key], "title": n["title"], "where": trail, **({"empty": True} if n.get("empty") else {})})
         out.extend(_flatten(n.get("children", []), key, where))
     return out
 
@@ -281,6 +281,19 @@ class Launcher(Overlay):
 
     # ------------------------------------------------------------------ what there is
 
+    @staticmethod
+    def _other_canvases(projects: list, here: str) -> list[dict]:
+        """Every other project's canvases, by their titles, each saying whose. One with nothing on it is not a thing, as everywhere."""
+        out: list[dict] = []
+        for p in projects:
+            if p.get("id") == here or p.get("archived"):
+                continue
+            for c in _flatten([get_json(f"/projects/{p['id']}/canvases", {"id": "", "title": "", "children": []})], "id"):
+                if c["id"] and not c.get("empty"):
+                    out.append({"id": c["id"], "project": p["id"], "title": c["title"] if c["where"] else f"{p['name']} canvas",
+                                "where": f"{p['name']} › {c['where']}" if c["where"] else p["name"]})
+        return out
+
     def catalog(self) -> dict:
         project = self.desktop.project
         pid = project.get("id", "")
@@ -326,7 +339,7 @@ class Launcher(Overlay):
             "project": project,
             "projects": [{"id": p["id"], "title": p["name"], "code": p["code"]} for p in projects],
             # The top canvas is the drawer itself; it is called Canvas there too.
-            "canvases": [dict(c, title=c["title"] if c["where"] else "Canvas") for c in canvases if c["id"]],
+            "canvases": [dict(c, title=c["title"] if c["where"] else "Canvas") for c in canvases if c["id"]] + self._other_canvases(projects, pid),
             "pages": pages,
             "files": _files(here["folder"]) if here else [],
             "windows": windows,

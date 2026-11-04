@@ -28,6 +28,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@codemirror/language";
 import type { StateCommand } from "@codemirror/state";
+import { findInText, openFind } from "./find.ts";
 import { listItemAt, moveListItem } from "./lists.ts";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { COLOR_SPAN, colored, liveSpecs, type Spec } from "./live.ts";
@@ -389,6 +390,8 @@ export interface Editor {
   focus(): void;
   /** Words put in at the cursor, replacing what is selected (files chosen elsewhere, linked). */
   insert(text: string): void;
+  /** The find box out (find.ts), for a page asked with the focus elsewhere. */
+  find(): void;
   destroy(): void;
 }
 
@@ -432,7 +435,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         ]),
         options.mentions ? mentionPicker(options.mentions) : [],
         options.placeholder ? placeholder(options.placeholder) : [],
-        options.singleLine ? Prec.highest(keymap.of([{ key: "Enter", run: () => { options.onEnter?.(); return true; } }])) : [],
+        options.singleLine ? Prec.highest(keymap.of([{ key: "Enter", run: () => { options.onEnter?.(); return true; } }])) : findInText(),
         listFolding,
         codeFolding({ placeholderText: "…" }),
         options.compact ? [] : [foldGutter({ markerDOM: chevron }), listDrag],
@@ -519,6 +522,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
       view.dispatch({ changes: { from: r.from, to: r.to, insert: text }, selection: EditorSelection.cursor(r.from + text.length) });
       view.focus();
     },
+    find() { if (!options.singleLine) openFind(view); },
     destroy() { view.destroy(); },
   };
 }

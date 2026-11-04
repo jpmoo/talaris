@@ -1681,6 +1681,65 @@ export function CanvasView({
       return { z, x: px - ((px - v.x) / v.z) * z, y: py - ((py - v.y) / v.z) * z };
     });
   };
+  /*
+   * Find on the canvas: Ctrl+F, every note, card and region whose words hold what
+   * is typed (case and accents aside), in reading order, each centred and chosen
+   * in turn; Enter the next, Shift+Enter the one before. Inside a note being
+   * edited the editor's own find answers (the editor's find.ts), for that note.
+   */
+  const [finding, setFinding] = useState(false);
+  const [findWords, setFindWords] = useState("");
+  const [findOn, setFindOn] = useState(0);
+  const findBox = useRef<HTMLInputElement>(null);
+  const foldWords = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const findable = useMemo(() => {
+    const said: { id: string; rect: Rect | null; words: string }[] = [
+      ...notes.map((n) => ({ id: n.id, rect: n as Rect, words: String(n.text ?? "").replace(/<[^>]+>/g, " ") })),
+      ...members.map((m) => ({ id: m.id, rect: local[m.id] ?? ctxOf(m), words: String((m as unknown as { title?: string }).title ?? "") })),
+      ...regions.map((r) => ({ id: r.id, rect: regionRect(r), words: r.title ?? "" })),
+    ];
+    return said.filter((x): x is { id: string; rect: Rect; words: string } => Boolean(x.rect && x.words.trim()))
+      .sort((a, b) => (Math.abs(a.rect.y - b.rect.y) < 40 ? a.rect.x - b.rect.x : a.rect.y - b.rect.y));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, members, regions, local]);
+  const findHits = useMemo(() => {
+    const q = foldWords(findWords.trim());
+    return q ? findable.filter((x) => foldWords(x.words).includes(q)) : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findable, findWords]);
+  const showHit = (i: number) => {
+    const hit = findHits[i];
+    setFindOn(i);
+    if (!hit) return;
+    const box = wrapRef.current!.getBoundingClientRect();
+    setView((v) => {
+      // Near enough to read: never further out than this for a thing found, and never pulled further in.
+      const z = Math.max(v.z, 0.7);
+      return { z, x: box.width / 2 - (hit.rect.x + hit.rect.w / 2) * z, y: box.height / 2 - (hit.rect.y + hit.rect.h / 2) * z };
+    });
+    if (!regions.some((r) => r.id === hit.id)) setSelected([hit.id]);
+  };
+  const stepHit = (by: number) => { if (findHits.length) showHit((findOn + by + findHits.length) % findHits.length); };
+  useEffect(() => {
+    if (finding && findHits.length) showHit(0); else setFindOn(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findWords]);
+  const openFind = () => { setFinding(true); requestAnimationFrame(() => { findBox.current?.focus(); findBox.current?.select(); }); };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
+      // A note being edited has its own.
+      if ((e.target as HTMLElement).closest?.(".cm-editor")) return;
+      e.preventDefault();
+      openFind();
+    };
+    // The drawer round the canvas asks when the focus is out there.
+    const onAsked = (e: MessageEvent) => { if (e.data && e.data.talarisFind === true) openFind(); };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("message", onAsked);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("message", onAsked); };
+  }, []);
+
   const zoomTo = (nz: number, sx: number, sy: number) => {
     const rect = wrapRef.current!.getBoundingClientRect();
     const px = sx - rect.left;
@@ -4236,6 +4295,26 @@ export function CanvasView({
 
       {toast && <div className="cv-toast">{toast}</div>}
 
+      {finding && (
+        <div className="cv-find" onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
+          <input
+            ref={findBox}
+            type="search"
+            placeholder="Find"
+            spellCheck={false}
+            value={findWords}
+            onChange={(e) => setFindWords(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); stepHit(e.shiftKey ? -1 : 1); }
+              else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setFinding(false); }
+            }}
+          />
+          <span className="cv-find-n">{!findWords.trim() ? "" : findHits.length ? `${findOn + 1} of ${findHits.length}` : "None"}</span>
+          <button type="button" title="Previous" aria-label="Previous" onClick={() => stepHit(-1)}>↑</button>
+          <button type="button" title="Next" aria-label="Next" onClick={() => stepHit(1)}>↓</button>
+          <button type="button" title="Close" aria-label="Close" onClick={() => setFinding(false)}>×</button>
+        </div>
+      )}
       <ConfirmDialog
         open={confirmRemove !== null}
         title={removalTitle(confirmRemove ?? [])}
