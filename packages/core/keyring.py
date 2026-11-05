@@ -9,6 +9,7 @@ its own). One line out, or a reason on stderr and a non-zero exit.
     keyring.py make <name>           a new 32-byte key, only if the open keyring has none
     keyring.py set <name>            store the line read from stdin (a key put back)
     keyring.py forget <name>         remove it
+    keyring.py open <name>           exit 0 if the keyring is open, 2 if not; asks nobody for a password
 
 A keyring that is locked, or not running yet (the core can start before it at
 login), exits 2: a failure to try again later, never "no key". A new key made
@@ -55,6 +56,16 @@ def stored(name):
     return None
 
 
+def is_open():
+    """Whether the login keyring is open now, without bringing up a prompt: to look often, as `get` must not."""
+    try:
+        service = Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION | Secret.ServiceFlags.LOAD_COLLECTIONS, None)
+        default = Secret.Collection.for_alias_sync(service, Secret.COLLECTION_DEFAULT, Secret.CollectionFlags.NONE, None)
+    except GLib.Error:
+        return False
+    return default is not None and not default.get_locked()
+
+
 def store(name, value):
     Secret.password_store_sync(SCHEMA, attributes(name), Secret.COLLECTION_DEFAULT, f"Talaris {name}", value, None)
 
@@ -77,6 +88,8 @@ elif verb == "make":
     print(key)
 elif verb == "set":
     store(name, sys.stdin.readline().strip())
+elif verb == "open":
+    sys.exit(0 if is_open() else 2)
 elif verb == "forget":
     Secret.password_clear_sync(SCHEMA, attributes(name), None)
 else:

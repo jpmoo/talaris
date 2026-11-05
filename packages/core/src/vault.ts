@@ -38,6 +38,8 @@ const PENDING = "recovery-pending";
 const CHECK = "talaris";
 
 export class Locked extends Error {}
+/** Locked only until the keyring is opened: at login it often is not yet, and logging in by fingerprint leaves it to be asked. */
+export class KeyringClosed extends Locked {}
 
 interface Vault {
   created: string;
@@ -89,7 +91,7 @@ function create(): Buffer {
     const made = keyring("make", STORE_KEY);
     if (made.code === 0) k = Buffer.from(made.out, "base64");
     else if (made.code === 3) k = Buffer.from(keyring("get", STORE_KEY).out, "base64"); // kept from a store since removed
-    else throw new Locked(made.err || "the login keyring is not available yet");
+    else throw new KeyringClosed(made.err || "the login keyring is not available yet");
   }
   const { recoveryKey, publicKey } = newRecovery();
   const vault: Vault = {
@@ -115,11 +117,38 @@ export function storeKey(): Buffer {
   } else {
     const got = keyring("get", STORE_KEY);
     if (got.code === 1) throw new Locked("the keyring has no key for this store: open it with the recovery key");
-    if (got.code !== 0) throw new Locked(got.err || "the login keyring is not available yet");
+    if (got.code !== 0) throw new KeyringClosed(got.err || "the login keyring is not available yet");
     k = Buffer.from(got.out, "base64");
   }
   if (!checks(k, vault)) throw new Locked("the keyring's key does not open this store: open it with the recovery key");
   return (key = k);
+}
+
+/**
+ * Until the store's key can be had: a keyring not open yet is waited for, rather than given up on. Each try at the key
+ * may bring up the keyring's prompt, so it is tried again only when the keyring is seen to be open, and once more
+ * after `askAgainMs` (a prompt asked for in the first moments of a login may have had nowhere to show), never over and
+ * over at someone who has said no. Anything else that locks the store (a key that is wrong or gone) is not waited for.
+ */
+export async function untilStoreOpens(ways: { tryKey?: () => unknown; isOpen?: () => boolean; pause?: (ms: number) => Promise<unknown>; say?: (text: string) => void; everyMs?: number; askAgainMs?: number } = {}): Promise<void> {
+  const tryKey = ways.tryKey ?? storeKey;
+  const isOpen = ways.isOpen ?? (() => keyring("open", STORE_KEY).code === 0);
+  const pause = ways.pause ?? ((ms: number) => new Promise((ok) => setTimeout(ok, ms)));
+  const every = ways.everyMs ?? 3000;
+  let askIn = ways.askAgainMs ?? 30000;
+  let said = false;
+  for (;;) {
+    try { tryKey(); return; } catch (e) {
+      if (!(e instanceof KeyringClosed)) throw e;
+      if (!said) { said = true; (ways.say ?? console.log)(`talaris-core: waiting for the login keyring to be opened (${e.message})`); }
+    }
+    for (;;) {
+      await pause(every);
+      askIn -= every;
+      if (isOpen()) break;
+      if (askIn <= 0 && askIn > -every) break;
+    }
+  }
 }
 
 export function vaultPublicKey(): string {

@@ -15,7 +15,7 @@ import { inDemo } from "./demo.js";
 import { chmodSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR, SOCKET, STATE_DIR, projectsRoot } from "./paths.js";
-import { DATA_DIR } from "./vault.js";
+import { DATA_DIR, untilStoreOpens } from "./vault.js";
 import { ensureHome } from "./projects.js";
 import { listen, VERSION } from "./server.js";
 import { startSealing } from "./sealed-projects.js";
@@ -57,6 +57,8 @@ function keepPrivate(): void {
 
 async function main(): Promise<void> {
   keepPrivate();
+  // Nothing can be read until the key can: at login the keyring may not be open yet, and it is waited for.
+  await untilStoreOpens();
   const home = ensureHome();
   settleOrganizations();
   // The pages of no other project, once a place of their own, moved into Home's Pages (pages-home.ts); and that folder there.
