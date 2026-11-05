@@ -21,6 +21,8 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { allRecords, titleOf, types, updateEntity, type Entity } from "./entities.js";
 import { filedUnder, projectEntity as entityFor } from "./filing.js";
+import { indexed } from "./meaning.js";
+import { profileOf } from "./project-profile.js";
 import { morganDescribeProject } from "./morgan-describe.js";
 import { STATE_DIR } from "./paths.js";
 import { listProjects } from "./projects.js";
@@ -28,6 +30,10 @@ import { readJson, writeJson } from "./store.js";
 import { isComplete, notesOf, shapeOf } from "./tasks.js";
 
 export const BY_MORGAN = "talaris:describedByMorgan";
+/** What Morgan finds a project to be about, kept for Talaris's own use, written over as the project changes; what it was read from, and when. */
+export const SUMMARY = "talaris:summary";
+const SUMMARY_OF = "talaris:summaryOf", SUMMARY_AT = "talaris:summaryAt";
+const SUMMARY_EVERY_MS = 24 * 60 * 60 * 1000;
 const NOTHING_SAID = () => join(STATE_DIR, "project-descriptions.json");
 
 /** Where a project's type keeps its description: its `project` profile's body. */
@@ -71,6 +77,47 @@ export async function describeProjects(): Promise<{ described: number; morganAwa
     described++;
   }
   return { described };
+}
+
+/** What a project holds, as Morgan is told it: its tasks, then what else is in it, by name, and its telling words. */
+function projectMaterial(projectId: string, e: Entity): string {
+  const profile = profileOf(projectId);
+  const names: string[] = [];
+  for (const key of profile?.members ?? []) {
+    const doc = indexed(key);
+    if (doc && doc.kind !== "task" && doc.title) names.push(`- ${doc.title} (${doc.kind})`);
+  }
+  return [projectTasksText(e.id), names.length ? `Also in it:\n${names.slice(0, 80).join("\n")}` : "", profile?.keywords.length ? `Words it often uses: ${profile.keywords.join(", ")}` : ""].filter(Boolean).join("\n\n");
+}
+
+/**
+ * Each project's summary, for Talaris's own use and never shown as its description: written by Morgan
+ * from all it holds, and again when that has changed, at most once a day. Answers how many; stops when Morgan cannot be asked.
+ */
+export async function summarizeProjects(): Promise<{ summarized: number; morganAway?: boolean }> {
+  let summarized = 0;
+  for (const p of listProjects()) {
+    if (p.home) continue;
+    const e = entityFor(p.id);
+    if (!e) continue;
+    const text = projectMaterial(p.id, e);
+    if (!text) continue;
+    const hash = createHash("sha256").update(text).digest("hex").slice(0, 16);
+    if (e[SUMMARY_OF] === hash) continue;
+    if (e[SUMMARY] && Date.now() - Date.parse(String(e[SUMMARY_AT] ?? 0)) < SUMMARY_EVERY_MS) continue;
+    const about = await morganDescribeProject(text, p.name);
+    if (about === null) return { summarized, morganAway: true };
+    updateEntity(e.id, { [SUMMARY]: about, [SUMMARY_OF]: hash, [SUMMARY_AT]: new Date().toISOString() });
+    summarized++;
+  }
+  return { summarized };
+}
+
+/** What Talaris has come to know of a project, for its card. */
+export function projectProfile(projectId: string): { keywords: string[]; summary: string; things: number } {
+  const profile = profileOf(projectId);
+  const e = entityFor(projectId);
+  return { keywords: profile?.keywords ?? [], summary: e && typeof e[SUMMARY] === "string" ? e[SUMMARY] as string : "", things: profile?.members.size ?? 0 };
 }
 
 /** A project's description as the Library shows it: whose it is, and whether it can be written at all (Home has none). */

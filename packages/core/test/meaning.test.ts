@@ -161,3 +161,25 @@ test("the words themselves are found, as typed together, case and accents aside,
   assert.deepEqual(only.kinds, all.kinds, "how many of each stays as it was, to choose another");
   assert.deepEqual(meaning.findWords("abc123").found, [], "where a link goes is not what is written");
 });
+
+test("a project comes to be known by what is in it, and says what might belong and where a thing might", async () => {
+  settings({ on: true, url: "http://model", model: "fake" });
+  const profile = await import("../src/project-profile.js");
+  const garden = projects.createProject("Garden club");
+  const words = "tomato seedlings compost raised beds mulch tomato seedlings compost";
+  pages.writePage(garden.id, "Beds", `Notes on ${words}.`);
+  pages.writePage(garden.id, "Spring", `Spring plan: ${words} and more.`);
+  pages.writePage(garden.id, "Tools", `Tools for ${words} on Saturdays.`);
+  pages.writePage(home.id, "Allotment", `My allotment: ${words}, for later.`);
+  pages.writePage(home.id, "Taxes", "Forms for the accountant about quarterly filings.");
+  await meaning.reindex();
+  const known = profile.profileOf(garden.id)!;
+  assert.ok(known.keywords.includes("seedlings"), "its telling words");
+  assert.ok(known.centre, "and the middle of what it says");
+  const near = profile.nearProject(garden.id).map((n) => n.key);
+  assert.ok(near.includes(`page:${home.id}/Allotment`), "what might belong");
+  assert.ok(!near.includes(`page:${home.id}/Taxes`), "and not what does not");
+  assert.ok(!near.includes(`page:${garden.id}/Beds`), "and not what is in it");
+  assert.deepEqual(profile.projectsNear(`page:${home.id}/Allotment`).map((p) => p.project), [garden.id], "where a thing might go");
+  assert.equal(profile.profileOf(home.id), null, "Home has none");
+});

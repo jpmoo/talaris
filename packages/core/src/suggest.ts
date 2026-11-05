@@ -37,24 +37,25 @@ import {
   allRecords, bodyOf, bySource, connect, connections, getEntity, kindOfEntity, onChange, organizationsOf, profilesOf, titleOf, types, updateEntity, type Entity,
 } from "./entities.js";
 import { filedUnder, projectEntity, projectIdOf } from "./filing.js";
-import { listFiles, type FileRow } from "./files.js";
+import { listFiles, makeShortcut, makeThingShortcut, type FileRow } from "./files.js";
 import { keptText, plainText } from "./filetext.js";
 import { linkFile } from "./links.js";
 import { mergeEntities, mergedInto, syncedBy } from "./merge.js";
 import { nameFamilies } from "./nicknames.js";
 import { indexed, nearTo } from "./meaning.js";
+import { nearProject, profileOf, projectsNear } from "./project-profile.js";
 import { mentionsIn } from "./mentions.js";
 import { placeEntity, placeOf, placeSource } from "./mentionables.js";
 import { canvasName, canvasWords, projectCanvases } from "./canvases.js";
 import { threadById, threadEntity, threadWordsForNames } from "./threads.js";
 import { pageModified, readPage, writePage } from "./pages.js";
 import { leavesOut, leftOut, shownSettings, tooOld, type Shown } from "./shown.js";
-import { Conflict, NotFound, findProject } from "./projects.js";
+import { Conflict, NotFound, ensureHome, findProject } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 
-export type How = "mention" | "connect" | "attach" | "merge";
+export type How = "mention" | "connect" | "attach" | "merge" | "shortcut";
 export interface Way { how: How; label: string; /** For a mention: the words made one. */ text?: string; /** What it will do, where its one word does not say. */ says?: string }
 export interface Suggestion {
   /** The other thing's glance key. */
@@ -106,6 +107,8 @@ function glanceKey(meaningKey: string): string | null {
   if (meaningKey.startsWith("file:")) return `att:${meaningKey.slice(5)}`;
   return null;
 }
+
+const homeOf = () => ensureHome().id;
 
 const splitKey = (key: string): [string, string] => {
   const body = key.slice(key.indexOf(":") + 1);
@@ -340,6 +343,12 @@ const ATTACHES = (o: Entity) => types().find((x) => x.id === o.type)?.fields.som
 
 function waysBetween(a: Thing, b: Thing): Way[] {
   const out: Way[] = [];
+  // Into a project, a file, a canvas or a conversation goes by a shortcut: it stays where it lives, and is in that one too.
+  const project = a.kind === "project" ? a : b.kind === "project" ? b : null;
+  const other = project === a ? b : a;
+  if (project && (other.kind === "file" ? other.file?.abs : other.kind === "canvas" || other.kind === "conversation")) {
+    return [{ how: "shortcut", label: "Connect", says: `Put a shortcut to it in ${project.title}; it stays where it is` }];
+  }
   if (a.entity && b.entity && a.entity.type === b.entity.type && (MERGEABLE.has(a.kind) || a.kind === "page") && b.kind !== "project") {
     out.push({ how: "merge", label: "Merge", says: `Make it and ${b.title} one thing: what pointed at either points at the one kept` });
   }
@@ -437,12 +446,15 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
     for (const f of nearTo(t.meaning, { limit: 8, floor })) {
       const k = glanceKey(f.key);
       if (!k) continue;
+      // Two projects alike is no suggestion: what is in each says what belongs (byProfile).
+      if (t.kind === "project" && k.startsWith("project:")) continue;
       const line = said(f.passage);
       add(k, line ? `Close in meaning — “${line.slice(0, 90)}${line.length > 90 ? "…" : ""}”` : "Close in meaning", 0.3 + ((f.score - floor) / (1 - floor)) * 0.5, []);
       // Of one kind and nearly the same: perhaps one thing twice.
       if (f.score >= 0.93) add(k, "Nearly the same", 0.7, []);
     }
   }
+  byProfile(t, add, tied);
   const out: Suggestion[] = [];
   const shown = shownSettings();
   for (const [k, f] of found) {
@@ -462,6 +474,37 @@ export function suggestionsFor(key: string, options: { limit?: number } = {}): {
   }
   // Surest first; of two as sure, the one with more reasons, then by name — so the order never shuffles.
   return { quiet: false, dismissed: dismissedFor(key), suggestions: out.sort((a, b) => b.score - a.score || b.why.length - a.why.length || a.title.localeCompare(b.title)).slice(0, options.limit ?? 12) };
+}
+
+/**
+ * By what a project is found to be about (project-profile.ts): for a project, what is not in it and might belong; for a
+ * thing in no project, which it might belong in. Worded for what was found, and held to fewer of the weakest.
+ */
+function byProfile(t: Thing, add: (key: string, why: string, score: number, ways: Way[]) => void, tied: Set<string>): void {
+  const wordsSaid = (shared: string[]) => `Uses the same words: ${shared.slice(0, 4).join(", ")}`;
+  if (t.kind === "project") {
+    const id = t.key.slice(8);
+    const profile = profileOf(id);
+    for (const m of profile?.members ?? []) { const k = glanceKey(m); if (k) tied.add(k); }
+    for (const n of nearProject(id, { limit: 16 })) {
+      const k = glanceKey(n.key);
+      if (!k) continue;
+      if (n.ties >= 2) add(k, `Connected to ${n.ties} things in it`, Math.min(0.85, 0.5 + n.ties * 0.05), []);
+      if (n.shared.length >= 3) add(k, wordsSaid(n.shared), Math.min(0.7, 0.3 + n.shared.length * 0.05), []);
+      if (n.score > 0) add(k, "Close to what the project is about", 0.3 + (n.score - 0.72), []);
+    }
+    return;
+  }
+  // Already somewhere: not asked where it might go. What is only in Home is in no project.
+  if (t.entity && filedUnder(t.entity).length) return;
+  if (!t.meaning) return;
+  const doc = indexed(t.meaning);
+  if (t.kind !== "person" && t.kind !== "event" && t.kind !== "organization" && t.kind !== "task" && doc?.project && doc.project !== homeOf()) return;
+  for (const p of projectsNear(t.meaning)) {
+    const k = `project:${p.project}`;
+    if (p.shared.length >= 3) add(k, wordsSaid(p.shared), Math.min(0.65, 0.3 + p.shared.length * 0.05), []);
+    if (p.score > 0) add(k, `Close to what ${p.name} is about`, 0.3 + (p.score - 0.72), []);
+  }
 }
 
 /** Left out as Settings says (shown.ts): an entity as it is; a page, a file or a conversation by when it last changed. */
@@ -651,6 +694,12 @@ function tie(key: string, other: string, way: Way): string | { said: string; kep
       else throw new Conflict(`“${words}” is not in ${a.title} now`);
     }
     return `“${words}” is a mention of ${b.title} now.`;
+  }
+  if (way.how === "shortcut") {
+    const [project, what] = a.kind === "project" ? [a, b] : [b, a];
+    if (what.file) makeShortcut(project.key.slice(8), what.file.abs!);
+    else makeThingShortcut(project.key.slice(8), what.key);
+    return `${what.title} is in ${project.title} too now.`;
   }
   if (way.how === "attach") {
     const [file, holder] = a.kind === "file" ? [a, b] : [b, a];

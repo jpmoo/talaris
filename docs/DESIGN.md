@@ -1650,6 +1650,23 @@ project's folder (`.talaris/file-lists.json`, sealed with the project), so the
 lists go with it. A file or page moved or renamed keeps its places in lists.
 Lists are not Hermes' collections, which belong to no project.
 
+### A project's profile (2026-11-04)
+
+A project comes to be known by what is in it, read again as that changes
+(`project-profile.ts`): its most telling words, those rare elsewhere and in more than
+one of its things; the middle of what it says, its things' vectors averaged; and what
+its things are tied to. Nothing is written for this: it is worked out from the meaning
+index, which is sealed. Beside it, kept on the project for Talaris's own use and never as
+its description, `talaris:summary`: what Morgan finds it to be about from all it holds,
+written again when that changes, at most daily, and embedded with it.
+
+It suggests, in two directions. For a project, what is not in it and might be, saying
+why: connected to several of its things, using its words, or close in meaning; a file, a
+canvas or a conversation elsewhere comes by a shortcut, staying where it lives. For a
+thing in no project, a person, an event, a task, or a page or file only in Home, which
+project it might belong in. Home has no profile: it holds what is in no project. With no
+model server there is no index, and so no profile; suggestions by name go on as they do.
+
 ### A keyring not open yet (2026-11-04)
 
 The store's key is in the login keyring, and at login that may not be open: logging in by

@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
 import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
 import { morganDescribe, morganDescribeText, morganInstalled } from "./morgan-describe.js";
-import { describeProjects } from "./project-describe.js";
+import { describeProjects, SUMMARY, summarizeProjects } from "./project-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { localDate } from "./localtime.js";
@@ -118,7 +118,18 @@ function load(model: string): Index {
   return index;
 }
 
+// Moved on each time the index is written: what is worked out from it knows to look again.
+let indexGen = 0;
+export type IndexEntry = Entry;
+/** The index as it stands, to work out from; null with no model server set. */
+export function meaningIndex(): { gen: number; entries: Iterable<Entry> } | null {
+  const s = meaningSettings();
+  if (!ready(s)) return null;
+  return { gen: indexGen, entries: load(s.model).entries.values() };
+}
+
 function save(ix: Index): void {
+  indexGen++;
   const raw = { model: ix.model, entries: [...ix.entries.values()].map((e) => ({ doc: e.doc, chunks: e.chunks.map((c) => ({ text: c.text, vec: Buffer.from(c.vec.buffer, c.vec.byteOffset, c.vec.byteLength).toString("base64") })) })) };
   writeAtomic(FILE(), seal(storeKey(), JSON.stringify(raw)));
 }
@@ -401,6 +412,8 @@ function entityText(o: Entity): string {
     else if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && x.includes(" ")) bits.push(x);
   }
   if (typeof o.content === "string" && o.content.trim()) bits.push(o.content.trim());
+  // What a project is found to be about (project-describe.ts): how it is near what belongs in it.
+  if (typeof o[SUMMARY] === "string" && o[SUMMARY]) bits.push(o[SUMMARY] as string);
   if (o.tags?.length) bits.push(o.tags.map((t) => `#${t}`).join(" "));
   return bits.join("\n").slice(0, 4000);
 }
@@ -623,7 +636,7 @@ export async function scanFiles(): Promise<{ read: number; changed: number }> {
     }
     if (meaningSettings().describe !== false && await describeFiles()) read += await reindex(400, { files: true });
     // A project with no description, given one from its tasks (project-describe.ts).
-    if (meaningSettings().describe !== false) await describeProjects().catch(() => {});
+    if (meaningSettings().describe !== false) { await describeProjects().catch(() => {}); await summarizeProjects().catch(() => {}); }
     writeJson(SCANNED(), { at: new Date().toISOString(), day: today() });
     return { read, changed };
   } finally {

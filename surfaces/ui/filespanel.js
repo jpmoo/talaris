@@ -574,6 +574,14 @@
     if (window.Peek && bridge.glanceAt && !whole()) acts.push(Peek.glanceButton(key, glanceAt, "t-btn small"));
     const linkedHost = el("div", { class: "d-linked" });
     drawLinked(id, linkedHost);
+    // What Talaris has come to know of it: read from what is in it, as that changes (project-profile.ts).
+    const knownHost = el("div", {});
+    api("GET", `/projects/${enc(id)}/profile`).then((pf) => {
+      if (project !== id || chosen || (!pf.keywords.length && !pf.summary)) return;
+      knownHost.replaceChildren(...[el("div", { class: "d-sub", title: "Worked out from what is in the project, and kept up as that changes" }, "What it seems to be about"),
+        pf.summary ? el("div", { class: "d-said" }, pf.summary) : null,
+        pf.keywords.length ? el("div", { class: "chips d-known" }, pf.keywords.map((w) => el("span", { class: "chip" }, el("span", { class: "lbl" }, w)))) : null].filter(Boolean));
+    }).catch(() => {});
     const sugg = window.Peek ? Peek.suggestions(key, api, {
       open: (eid) => Peek.show(eid, api, { openTask: (t) => bridge.openTask(t), openPerson: (x) => bridge.openPerson(x),
         openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where), openEvent: (cal, u, st) => bridge.openEvent(cal, u, st), openUrl: (u) => bridge.openUrl(u) }),
@@ -584,6 +592,7 @@
       el("h2", {}, p.name || "A project"),
       el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), whole() ? "" : (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
       aboutHost,
+      knownHost,
       linkedHost,
       acts.length ? el("div", { class: "d-sub" }, "Do") : null,
       acts.length ? el("div", { class: "d-acts" }, ...acts) : null,
