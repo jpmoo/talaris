@@ -134,35 +134,18 @@ main { flex: 1; min-height: 0; display: flex; }
 #editor { position: absolute; inset: 0; display: none; place-items: center; background: var(--scrim); z-index: var(--z-sheet); }
 #editor.open { display: grid; }
 #editor .box { width: min(460px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--frame); border-radius: var(--radius-panel); box-shadow: var(--menu-shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
-#editor .row { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
-#editor .row > span:first-child { width: 74px; color: var(--muted); flex: none; }
-#editor input[type=text], #editor textarea { flex: 1; }
 #editor .box { position: relative; max-height: calc(100% - 24px); overflow: auto; }
-/* Rows that are not wanted are gone: the row's own display would otherwise show them. */
-#editor .row[hidden], #editor .pick[hidden], #editor input[hidden] { display: none; }
-.seg.off { opacity: var(--disabled); pointer-events: none; }
-.note-row small, #e-org { color: var(--muted); font-size: 11.5px; }
-.who { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 3px 6px; }
-.who input { flex: 1; min-width: 120px; border: 0 !important; background: none !important; padding: 2px !important; }
-.chip .st { color: var(--muted); margin-left: 4px; }
-#e-chips { display: contents; }
 /* Still to come and waiting on my answer: a dashed edge, until I say. (Past
    ones are not marked: an invitation never answered, Google keeps as such.) */
 .ev-chip.waiting, .ev.waiting { border-left-style: dashed; }
 .ev-chip.declined, .ev.declined { opacity: .5; text-decoration: line-through; }
-/* The pickers (controls.css .pick): as wide as the row lets them. */
-#editor .pick { flex: 1; font-size: 12.5px; }
-#editor input.time-in { flex: 0 0 96px; text-align: center; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-#e-notes { flex: 1; min-height: 70px; max-height: 30vh; overflow: auto; font-size: 13px; }
-#e-notes .cm-content { padding: 4px 8px; min-height: 62px; }
-#editor .acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
-#editor .acts .spacer { flex: 1; }
 #msg { font-size: 12px; color: var(--muted); }
 #msg.err { color: var(--danger); }
 body { position: relative; }
 </style>
 <link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="thingcard.css">
 </head>
 <body data-arrives>
 <header>
@@ -183,24 +166,7 @@ body { position: relative; }
   <aside id="side"></aside>
   <section id="view"></section>
 </main>
-<div id="editor"><div class="box">
-  <div class="row"><span>Title</span><input type="text" class="field" id="e-title"></div>
-  <div class="row"><span>Calendar</span><button class="pick" id="e-cal"></button></div>
-  <div class="row"><span>All day</span><button class="switch" id="e-allday"></button></div>
-  <div class="row"><span>Starts</span><button class="pick" id="e-sd"></button><input type="text" class="time-in" id="e-st" spellcheck="false"></div>
-  <div class="row"><span>Ends</span><button class="pick" id="e-ed"></button><input type="text" class="time-in" id="e-et" spellcheck="false"></div>
-  <div class="row"><span>Where</span><input type="text" class="field" id="e-where"></div>
-  <div class="row"><span>Projects</span><div class="who"><span id="e-projects"></span><button class="pick" id="e-project-add" data-pops="1"><span class="lbl">Add</span></button></div></div>
-  <div class="row"><span>Notes</span><div class="ed-field" id="e-notes" data-placeholder="@ to link a person, event or task"></div></div>
-  <div class="row"><span>Repeats</span><span class="seg" id="e-freq"></span></div>
-  <div class="row" id="e-days-row"><span></span><span class="seg" id="e-days"></span></div>
-  <div class="row" id="e-ends-row"><span>Ends</span><span class="seg" id="e-ends"></span><button class="pick" id="e-until"></button><input type="text" class="time-in" id="e-count" spellcheck="false"></div>
-  <div class="row" id="e-who-row"><span>Invite</span><div class="who"><span id="e-chips"></span><input type="text" id="e-who" placeholder="Name or address" spellcheck="false"></div></div>
-  <div class="row note-row" id="e-who-note"><span></span><small id="e-who-why"></small></div>
-  <div class="row" id="e-answer-row"><span>Going?</span><span class="seg" id="e-answer"></span><small id="e-org"></small></div>
-  <div class="row" id="e-which-row"><span>Change</span><span class="seg" id="e-which"></span></div>
-  <div class="acts"><button class="t-btn danger" id="e-delete">Delete</button><button class="t-btn" id="e-archive">Archive</button><button class="t-btn" id="e-glance" title="Its connections, and possible ones">Glance</button><span class="spacer"></span><button class="t-btn" id="e-cancel">Cancel</button><button class="t-btn primary" id="e-save">Save</button></div>
-</div></div>
+<div id="editor"><div class="box" id="editor-box"></div></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="pagetips.js"></script>
 <script src="surface.js"></script>
@@ -209,6 +175,8 @@ body { position: relative; }
 <script src="icons.js"></script>
 <script src="mentions.js"></script>
 <script src="peek.js"></script>
+<script src="thingcard.js"></script>
+<script src="eventcard.js"></script>
 <script src="calendar.js"></script>
 </body>
 </html>

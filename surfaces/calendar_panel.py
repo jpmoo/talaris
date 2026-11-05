@@ -123,6 +123,8 @@ class CalendarService(QObject):
     _ask = Signal(str)
     #: An event New asked for, written or not: {req, error, uid}.
     made = Signal(str)
+    #: An event's card in the Library, answered: {req, error, uid}.
+    asked = Signal(str)
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
@@ -226,8 +228,9 @@ class CalendarService(QObject):
                 else:
                     self.events.emit(json.dumps(msg["events"]))
             elif "done" in msg:
-                # New's own, numbered from where the calendar page's never reach.
-                (self.made if msg["done"].get("req", 0) > 3 * MIRROR_REQ else self.done).emit(json.dumps(msg["done"]))
+                # New's own, and an event's card's in the Library, numbered from where the calendar page's never reach.
+                req = msg["done"].get("req", 0)
+                (self.asked if req > 4 * MIRROR_REQ else self.made if req > 3 * MIRROR_REQ else self.done).emit(json.dumps(msg["done"]))
             elif "cards" in msg:
                 waiting = self._finding.get(msg["cards"].get("req"))
                 if waiting:
@@ -389,7 +392,9 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
                          # The calendars plugins bring, and what is on them.
                          r"|^/plugins/calendars(/events\?from=\d+&to=\d+)?$"
                          # An event's projects: the event's entity, made if the mirror has not reached it, and what it is filed under.
-                         r"|^/tasks/projects$|^/entities/by-source\?kind=[a-z-]+&key=[^&]*$|^/entities/mirror/events$|^/entities/[A-Za-z0-9_.:-]+/projects$")
+                         r"|^/tasks/projects$|^/entities/by-source\?kind=[a-z-]+&key=[^&]*$|^/entities/mirror/events$|^/entities/[A-Za-z0-9_.:-]+/projects$"
+                         # And its card: what it is connected to, taken apart, and what it might be.
+                         r"|^/entities/[A-Za-z0-9_.:-]+/connect/[A-Za-z0-9_.:-]+$|^/suggestions(/|\?)|^/entity-types$")
 
 
 class CalendarBridge(Bridge):

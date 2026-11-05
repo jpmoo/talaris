@@ -460,395 +460,54 @@ function drawDays(view, cols) {
 }
 
 // ---------------------------------------------------------------- making and changing
-//
-// No browser pickers here — a <select>, a date or a time field opens a window
-// of the engine's own, which a layer surface cannot hold — so the calendar,
-// the dates and the times are chosen from small lists drawn in the page.
 
 let editing = null;
-const MIN = 60000;
-const dayLabel = (d) => Kit.day(d);
-const timeLabel = (m) => Kit.minutes(m);
-/** "9", "9:30", "930", "9:30 pm", "21:30" — minutes after midnight, or null. */
-// What is typed, read as every page reads it (kit.js): a bare "3" is the afternoon.
-const parseTime = (text) => Kit.parseTime(text);
-
 // One pop-up at a time, the kit's (kit.js): placed under what opened it (or above, with more room there),
 // kept on screen, scrolling when long, put away by a press elsewhere or Escape — the same on every page.
-const popUnder = (anchor, content) => Kit.pop(anchor, content);
 const popAway = () => Kit.popAway();
-const monthPicker = (chosen, pick, opts) => Kit.monthPicker(chosen, pick, opts);
-const timeList = (current, pick) => Kit.timeList(current, pick);
 
 
-// ---- repeating: the few rules people make, read from and written to RRULE.
-// One this editor cannot say (an interval of 3, the second Tuesday) is kept as
-// it is unless changed here.
-const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-function parseRule(text) {
-  const r = { freq: "", days: [], ends: "never", until: null, count: 10, other: "", raw: text };
-  if (!text) return r;
-  const parts = Object.fromEntries(text.split(";").map((p) => p.split("=")));
-  r.freq = (parts.FREQ || "").toLowerCase();
-  r.days = (parts.BYDAY || "").split(",").filter((d) => DAYS.includes(d));
-  if (parts.COUNT) { r.ends = "after"; r.count = Number(parts.COUNT); }
-  if (parts.UNTIL) { r.ends = "on"; const u = parts.UNTIL; r.until = new Date(Number(u.slice(0, 4)), Number(u.slice(4, 6)) - 1, Number(u.slice(6, 8))); }
-  r.other = Object.keys(parts).filter((k) => !["FREQ", "BYDAY", "COUNT", "UNTIL", "WKST"].includes(k)).join(",");
-  return r;
+// The one card (thingcard.js, eventcard.js), as the Library shows it, over the calendar.
+const pending = new Map();
+function send(msg) {
+  return new Promise((ok, no) => {
+    msg.req = ++req;
+    pending.set(msg.req, { ok, no });
+    bridge.ask(JSON.stringify(msg));
+  });
 }
-function ruleText(r, start) {
-  if (!r.freq) return "";
-  if (r.other && r.raw && !r.changed) return r.raw;
-  let t = `FREQ=${r.freq.toUpperCase()}`;
-  if (r.freq === "weekly") t += `;BYDAY=${(r.days.length ? r.days : [DAYS[start.getDay()]]).join(",")}`;
-  if (r.ends === "after") t += `;COUNT=${Math.max(1, Math.min(999, r.count || 1))}`;
-  if (r.ends === "on" && r.until) { const u = r.until; t += `;UNTIL=${u.getFullYear()}${pad(u.getMonth() + 1)}${pad(u.getDate())}T235959Z`; }
-  return t;
-}
-const pad = (n) => String(n).padStart(2, "0");
-const calOf = (id) => calendars.find((c) => c.id === id) || {};
-const ANSWER_WORD = { accepted: "going", declined: "not going", maybe: "maybe", waiting: "no answer yet", delegated: "delegated" };
-
-function paintRepeats() {
-  const v = editing.v, r = v.rule;
-  const changed = (f) => (x) => { f(x); r.changed = true; paintRepeats(); };
-  seg("e-freq", [["", "Never"], ["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["yearly", "Yearly"]], r.freq, changed((f) => { r.freq = f; }));
-  $("e-days-row").hidden = r.freq !== "weekly";
-  const on = r.days.length ? r.days : [DAYS[v.sd.getDay()]];
-  $("e-days").replaceChildren(...DAYS.map((d, i) => el("button", { class: on.includes(d) ? "on" : "", onclick: () => {
-    const now = new Set(on); if (now.has(d) && now.size > 1) now.delete(d); else now.add(d);
-    r.days = DAYS.filter((x) => now.has(x)); r.changed = true; paintRepeats();
-  } }, "SMTWTFS"[i])));
-  $("e-ends-row").hidden = !r.freq;
-  seg("e-ends", [["never", "Never"], ["on", "On"], ["after", "After"]], r.ends, changed((x) => { r.ends = x; if (x === "on" && !r.until) r.until = addDays(v.sd, 30); }));
-  $("e-until").hidden = r.ends !== "on";
-  $("e-until").replaceChildren(el("span", { class: "lbl" }, r.until ? dayLabel(r.until) : ""));
-  $("e-count").hidden = r.ends !== "after";
-  if (document.activeElement !== $("e-count")) $("e-count").value = `${r.count} times`;
-  // One occurrence of a series is changed on its own: how it repeats is the series'.
-  const one = !editing.isNew && editing.recurring && editing.which === "this";
-  for (const id of ["e-freq", "e-days", "e-ends", "e-until", "e-count"]) $(id).classList.toggle("off", one);
-  $("e-freq").title = one ? "Choose Every one below to change how it repeats" : "";
-}
-
-function paintPeople() {
-  const v = editing.v, cal = calOf(v.calendar);
-  const mineOnly = !editing.isNew && editing.attendees && editing.attendees.length && !editing.organizing;
-  // Invited to it by someone else: the list is theirs; my part is my answer.
-  $("e-who-row").hidden = !cal.invites || mineOnly;
-  $("e-who-note").hidden = cal.invites || mineOnly || editing.readOnly || !!editing.entity;
-  $("e-who-why").textContent = cal.invites ? "" : "This calendar cannot send invitations; choose an account's calendar to invite people.";
-  $("e-chips").replaceChildren(...v.people.map((p, i) => {
-    const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); v.people.splice(i, 1); paintPeople(); } });
-    x.innerHTML = Icons.close();
-    return el("span", { class: "chip", title: p.email }, el("span", { class: "lbl" }, p.name || p.email),
-      p.answer ? el("span", { class: "st" }, `· ${ANSWER_WORD[p.answer] || p.answer}`) : "", x);
-  }));
-  $("e-answer-row").hidden = !mineOnly || !editing.mine;
-  if (mineOnly) {
-    seg("e-answer", [["accepted", "Yes"], ["maybe", "Maybe"], ["declined", "No"]], editing.mine, (a) => {
-      send({ do: "respond", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, answer: a }, () => { editing && (editing.mine = a); closeEditor(); });
-    });
-    $("e-org").textContent = editing.organizer ? `from ${editing.organizer}` : "";
-  }
-}
-
-// Adding someone: typed, with suggestions from the address books as you type.
-let peopleReq = 0;
-function addPerson(p) {
-  const v = editing.v;
-  if (!v.people.some((x) => x.email === p.email)) v.people.push({ email: p.email, name: p.name || "" });
-  $("e-who").value = ""; popAway(); paintPeople(); $("e-who").focus();
-}
-$("e-who").addEventListener("input", () => {
-  const q = $("e-who").value.trim();
-  if (q.length < 2) { popAway(); return; }
-  peopleReq = ++req;
-  bridge.ask(JSON.stringify({ do: "people", req: peopleReq, q }));
-});
-$("e-who").addEventListener("keydown", (e) => {
-  const q = $("e-who").value.trim().replace(/[,;]$/, "");
-  if ((e.key === "Enter" || e.key === "," || e.key === ";") && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) { e.preventDefault(); e.stopPropagation(); addPerson({ email: q.toLowerCase() }); }
-  if (e.key === "Backspace" && !$("e-who").value && editing.v.people.length) { editing.v.people.pop(); paintPeople(); }
-});
-function showPeople(found) {
-  if (found.req !== peopleReq || !editing) return;
-  if (!found.items.length) { popAway(); return; }
-  popUnder($("e-who"), el("div", { class: "menu-list" }, ...found.items.map((p) =>
-    el("button", { class: "menu-item", onclick: (ev) => { ev.stopPropagation(); addPerson(p); } }, p.name ? `${p.name} · ${p.email}` : p.email))));
-}
-$("e-until").addEventListener("click", (ev) => {
-  ev.stopPropagation();
-  if (!editing || (Kit.openedBy() || {}).id === "e-until") { popAway(); return; }
-  popUnder($("e-until"), monthPicker(editing.v.rule.until || editing.v.sd, (d) => { editing.v.rule.until = d; editing.v.rule.changed = true; paintRepeats(); }));
-});
-$("e-count").addEventListener("change", () => { const n = parseInt($("e-count").value, 10); if (n > 0) { editing.v.rule.count = n; editing.v.rule.changed = true; } paintRepeats(); });
-
-// What the editor holds: the calendar, the days, the minutes after midnight.
-function paintEditor() {
-  paintRepeats();
-  paintPeople();
-  const v = editing.v;
-  const cal = calendars.find((c) => c.id === v.calendar);
-  $("e-cal").replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), el("span", { class: "lbl" }, cal ? `${cal.name} · ${cal.account}` : "Choose a calendar"));
-  $("e-allday").classList.toggle("on", v.allDay);
-  $("e-sd").replaceChildren(el("span", { class: "lbl" }, dayLabel(v.sd)));
-  $("e-ed").replaceChildren(el("span", { class: "lbl" }, dayLabel(v.ed)));
-  if (document.activeElement !== $("e-st")) $("e-st").value = timeLabel(v.st);
-  if (document.activeElement !== $("e-et")) $("e-et").value = timeLabel(v.et);
-  $("e-st").hidden = $("e-et").hidden = v.allDay;
-}
-
+const cardCtx = () => ({ api: core, say, failed: (x) => say(x.message || "It did not work", true), bridge, hub: "calendar",
+  calendars: () => calendars.map((c) => ({ ...c, hidden: hidden.has(c.id) })), send,
+  // Anything named on it is its card, in the Library; a task or a person, where it lives.
+  open: (key) => { if (window.Peek) Peek.openCard(key); },
+  openMention: null,
+  redraw: () => {}, close: closeEditor, saved: () => { fetchPlugins(); fetchRange(); } });
 function open(e, isNew) {
-  const writable = showing().filter((c) => c.writable);
-  const s = new Date(e.start);
-  const end = new Date(e.allDay ? e.end - DAY_MS : e.end);
-  editing = { ...e, isNew, v: {
-    calendar: e.calendar || (writable[0] || {}).id || "", allDay: !!e.allDay,
-    sd: startOfDay(s), st: s.getHours() * 60 + s.getMinutes(), ed: startOfDay(end), et: end.getHours() * 60 + end.getMinutes(),
-    rule: parseRule(e.rrule || ""), people: (e.attendees || []).filter((a) => a.email !== (calOf(e.calendar).email || "")).map((a) => ({ ...a })),
-  } };
-  $("e-title").value = e.title || "";
-  $("e-where").value = e.location || "";
-  showNotes(e.notes || "");
-  $("e-which-row").hidden = isNew || !e.recurring;
-  $("e-freq").closest(".row").hidden = !!e.entity;
-  // A repeating event: this one alone, or every one of them.
-  const which = (w) => { editing.which = w; seg("e-which", [["this", "This one"], ["all", "Every one"]], w, which); if (editing.v) paintRepeats(); };
-  which("this");
-  // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; archived, not deleted.
-  $("e-delete").hidden = isNew || !!e.entity;
-  $("e-archive").hidden = !e.entity;
-  $("e-glance").hidden = isNew;
-  loadProjects();
-  editing.readOnly = !isNew && !e.entity && !(calendars.find((c) => c.id === e.calendar) || {}).writable;
-  for (const id of ["e-title", "e-cal", "e-allday", "e-sd", "e-st", "e-ed", "e-et", "e-where", "e-save", "e-delete"]) $(id).disabled = editing.readOnly;
-  $("e-cal").disabled = editing.readOnly || !isNew;
   popAway();
-  paintEditor();
+  ThingCard.putAway();
+  const [card] = EventCard.parts(e, isNew, cardCtx(), ThingCard.connected);
+  editing = card;
+  $("editor-box").replaceChildren(card);
   $("editor").classList.add("open");
-  setTimeout(() => $("e-title").focus(), 30);
+  setTimeout(() => { if (editing === card) card.focusTitle(); }, 30);
 }
 function edit(e) { open(e, false); }
-
-// ---------------------------------------------------------------- an event's projects
-//
-// Kept on the event's entity, never on its calendar, so a read-only calendar's event can have them and an account never
-// hears of them. Saved as they are chosen, as a person's are. A new event has no entity yet: held until the calendar has it.
-let projectChoices = [];
-const eventSources = (calendar, uid) => ({ source: { kind: "eds-event", key: `${calendar}/${uid}` }, also: [{ kind: "ical-uid", key: uid }] });
-function loadProjects() {
-  const was = editing;
-  was.projects = [];
-  paintProjects();
-  core("GET", "/tasks/projects").then((all) => { projectChoices = (all || []).filter((p) => !p.archived); if (editing === was) paintProjects(); }).catch(() => {});
-  if (was.isNew) return;
-  const found = was.entity ? Promise.resolve(was.entity)
-    : core("GET", `/entities/by-source?kind=eds-event&key=${encodeURIComponent(`${was.calendar}/${was.uid}`)}`).then((o) => (o && o.id) || "");
-  found.then((id) => {
-    if (editing !== was || !id) return null;
-    was.entityId = id;
-    return core("GET", `/entities/${encodeURIComponent(id)}/projects`).then((r) => { if (editing === was) { was.projects = r.projects || []; paintProjects(); } });
-  }).catch(() => {});
-}
-function paintProjects() {
-  const names = new Map(projectChoices.map((p) => [p.id, p.title]));
-  $("e-projects").replaceChildren(...editing.projects.map((id) => {
-    const x = el("button", { class: "x-btn", title: "Remove", onclick: (ev) => { ev.stopPropagation(); setProjects(editing.projects.filter((p) => p !== id)); } });
-    x.innerHTML = Icons.close();
-    return el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: "Open its card", onclick: (ev) => { ev.stopPropagation(); if (window.Peek) Peek.openCard(`e:${id}`); } }, names.get(id) || "Project"), x);
-  }));
-}
-/** The event's entity: the one it has, or made now, as the calendar's mirror would make it later (calendar_panel.py). */
-async function eventEntity(e) {
-  if (e.entity) return e.entity;
-  if (e.entityId) return e.entityId;
-  const pad = (n) => String(n).padStart(2, "0");
-  const local = (ms) => { const d = new Date(ms); return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const m = await core("POST", "/entities/mirror/events", { events: [{ ...eventSources(e.calendar, e.uid), title: e.title || "", start: local(e.start), end: local(e.end), allDay: !!e.allDay, location: e.location || "" }] });
-  return (e.entityId = ((m && m.ids) || [])[0] || "");
-}
-function setProjects(next) {
-  const e = editing;
-  e.projects = next;
-  paintProjects();
-  if (e.isNew) return;
-  eventEntity(e).then((id) => core("PUT", `/entities/${encodeURIComponent(id)}/projects`, { projects: next }))
-    .catch((x) => say(x.message || "The project was not saved", true));
-}
-$("e-project-add").addEventListener("click", (ev) => {
-  ev.stopPropagation();
-  if (!editing || (Kit.openedBy() || {}).id === "e-project-add") { popAway(); return; }
-  Kit.menu($("e-project-add"), projectChoices.filter((p) => !editing.projects.includes(p.id)).map((p) => ({ label: p.title, act: () => setProjects([...editing.projects, p.id]) })));
-});
 function create(at, allDay) {
   if (!showing().some((c) => c.writable)) { say("No calendar on show can be written to", true); return; }
   const start = allDay ? startOfDay(at) : at;
   open({ start: start.getTime(), end: allDay ? start.getTime() + DAY_MS : start.getTime() + 3600000, allDay }, true);
 }
-function closeEditor() { popAway(); $("editor").classList.remove("open"); editing = null; }
+function closeEditor() { popAway(); ThingCard.putAway(); $("editor").classList.remove("open"); $("editor-box").replaceChildren(); editing = null; }
 
-$("e-cal").addEventListener("click", (ev) => {
-  ev.stopPropagation();
-  if (!editing || (Kit.openedBy() || {}).id === "e-cal") { popAway(); return; }
-  Kit.menu($("e-cal"), showing().filter((c) => c.writable).map((c) => ({ label: `${c.name} · ${c.account}`, color: c.color || "var(--accent)", on: c.id === editing.v.calendar,
-    act: () => { editing.v.calendar = c.id; paintEditor(); } })));
-});
-$("e-allday").addEventListener("click", () => { if (!editing) return; editing.v.allDay = !editing.v.allDay; paintEditor(); });
-for (const [id, key] of [["e-sd", "sd"], ["e-ed", "ed"]]) {
-  $(id).addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    if (!editing || (Kit.openedBy() || {}).id === id) { popAway(); return; }
-    popUnder($(id), monthPicker(editing.v[key], (d) => {
-      // Moving the start moves the end with it, keeping the length.
-      if (key === "sd") { const len = editing.v.ed - editing.v.sd; editing.v.sd = d; editing.v.ed = new Date(d.getTime() + Math.max(0, len)); }
-      else editing.v.ed = d < editing.v.sd ? editing.v.sd : d;
-      paintEditor();
-    }));
-  });
-}
-for (const [id, key] of [["e-st", "st"], ["e-et", "et"]]) {
-  $(id).addEventListener("focus", () => {
-    if (!editing) return;
-    popUnder($(id), timeList(editing.v[key], (m) => {
-      if (key === "st") { const len = editing.v.et - editing.v.st; editing.v.st = m; if (sameDay(editing.v.sd, editing.v.ed)) editing.v.et = Math.min(24 * 60 - 1, m + Math.max(15, len)); }
-      else editing.v.et = m;
-      $(id).blur(); paintEditor();
-    }));
-  });
-  $(id).addEventListener("change", () => {
-    const m = parseTime($(id).value);
-    if (m != null && editing) {
-      if (key === "st") { const len = editing.v.et - editing.v.st; editing.v.st = m; if (sameDay(editing.v.sd, editing.v.ed)) editing.v.et = Math.min(24 * 60 - 1, m + Math.max(15, len)); }
-      else editing.v.et = m;
-    }
-    paintEditor();
-  });
-}
-// A press elsewhere in the editor puts a list away.
-$("editor").addEventListener("click", (e) => { if (!e.target.closest(".kit-pop") && !["e-st", "e-et"].includes(e.target.id)) popAway(); });
-
-// ---------------------------------------------------------------- notes
-// The editor every description is (editor.js): Markdown drawn as it is
-// written, links that open, @ to name a person, task or event. Notes that came
-// as HTML (Google writes its invitations so) are shown as Markdown, and sent
-// back as they came unless they were changed here.
-let notesEd = null, notesShown = "";
-const notesReady = import("./editor.js").then((m) => {
-  notesEd = m.createEditor($("e-notes"), notesShown, {
-    live: true, compact: true, placeholder: $("e-notes").dataset.placeholder,
-    onOpenUrl: (u) => bridge && bridge.openUrl(u),
-    mentions: TalarisMentions(core, null, {
-      openPlace: (p) => bridge && bridge.openPlace(p.kind, p.project, p.where), openPerson: (id) => bridge && bridge.openPerson(id),
-      openTask: (id) => bridge && bridge.openTask(id), openEvent: (c, u, s) => bridge && bridge.openEvent(c, u, s), openUrl: (u) => bridge && bridge.openUrl(u),
-    }),
-  });
-  return notesEd;
-}).catch(() => null);
-function showNotes(raw) {
-  notesShown = /<\/?[a-z][^>]*>/i.test(raw) ? htmlToMarkdown(raw) : raw;
-  if (notesEd) notesEd.set(notesShown); else notesReady.then((ed) => ed && ed.set(notesShown));
-}
-/** What is sent: the notes as written here, or as they came if nothing was changed. */
-function notesNow() {
-  const text = notesEd ? notesEd.text : notesShown;
-  return text === notesShown && editing && !editing.isNew ? (editing.notes || "") : text;
-}
-/** HTML (an invitation's) as Markdown: links, breaks, paragraphs, lists, bold and italic; parsed inert, never run. */
-function htmlToMarkdown(html) {
-  const doc = new DOMParser().parseFromString(String(html), "text/html");
-  const walk = (n) => {
-    if (n.nodeType === 3) return n.textContent.replace(/\s+/g, " ");
-    if (n.nodeType !== 1) return "";
-    const tag = n.tagName.toLowerCase(), inner = [...n.childNodes].map(walk).join("");
-    if (tag === "br") return "\n";
-    if (tag === "a") { const href = n.getAttribute("href") || ""; const t = inner.trim(); return /^https?:/i.test(href) ? (t && t !== href ? `[${t}](${href})` : href) : t; }
-    if (tag === "b" || tag === "strong") return inner.trim() ? `**${inner.trim()}**` : "";
-    if (tag === "i" || tag === "em") return inner.trim() ? `_${inner.trim()}_` : "";
-    if (tag === "li") return `\n- ${inner.trim()}`;
-    if (["p", "div", "ul", "ol", "h1", "h2", "h3", "h4", "tr", "table"].includes(tag)) return `\n${inner}\n`;
-    return inner;
-  };
-  return walk(doc.body).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-function collected() {
-  const v = editing.v;
-  let start = new Date(v.sd.getTime() + (v.allDay ? 0 : v.st * MIN));
-  let end = v.allDay ? addDays(v.ed, 1) : new Date(v.ed.getTime() + v.et * MIN);
-  if (end <= start) end = new Date(start.getTime() + (v.allDay ? DAY_MS : 3600000));
-  const event = { title: $("e-title").value.trim(), allDay: v.allDay, start: start.getTime(), end: end.getTime(), location: $("e-where").value, notes: notesNow(),
-    rrule: ruleText(v.rule, v.sd), origStart: editing.start };
-  // The invitees, if this calendar can invite and the event is mine to invite to.
-  if (calOf(v.calendar).invites && (editing.isNew || editing.organizing || !(editing.attendees || []).length)) event.attendees = v.people;
-  return event;
-}
-const pending = new Map();
-function send(msg, after) {
-  msg.req = ++req;
-  pending.set(msg.req, after);
-  say("Saving…");
-  bridge.ask(JSON.stringify(msg));
-}
-/** A plugin's event saved as it holds its times: a day alone, or the time where you are; a day's end is that day. */
-function saveEntity() {
-  const event = collected();
-  const pad = (n) => String(n).padStart(2, "0");
-  // On the clock it says it is on, where it says (the times it came with are kept as that clock reads them).
-  const stamp = (ms) => {
-    const on = editing.timezone ? Kit.onClock(ms, editing.timezone) : null;
-    if (on) return `${on}:00`;
-    const d = new Date(ms);
-    return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-  };
-  const properties = { title: event.title, location: event.location || null, notes: event.notes || null,
-    start: event.allDay ? iso(new Date(event.start)) : stamp(event.start),
-    end: event.allDay ? iso(new Date(event.end - DAY_MS)) : stamp(event.end) };
-  say("Saving…");
-  core("PATCH", `/entities/${encodeURIComponent(editing.entity)}`, { properties })
-    .then(() => { say(""); closeEditor(); fetchPlugins(); }, (x) => say(x.message || "It was not saved", true));
-}
-$("e-save").addEventListener("click", () => {
-  if (!editing) return;
-  if (editing.entity) { saveEntity(); return; }
-  const event = collected();
-  if (editing.isNew) {
-    const made = editing;
-    send({ do: "create", calendar: made.v.calendar, event }, (d) => {
-      // The projects chosen while it had no entity: it has somewhere to keep them now.
-      if (made.projects.length && d && d.uid) eventEntity({ ...event, calendar: made.v.calendar, uid: d.uid })
-        .then((id) => core("PUT", `/entities/${encodeURIComponent(id)}/projects`, { projects: made.projects }))
-        .catch((x) => say(x.message || "The project was not saved", true));
-      closeEditor();
-    });
-  }
-  else send({ do: "update", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which, event }, closeEditor);
-});
-$("e-delete").addEventListener("click", () => {
-  if (!editing) return;
-  const b = $("e-delete");
-  if (!Kit.ask(b, { ask: "Delete it?" })) return;
-  send({ do: "delete", calendar: editing.calendar, uid: editing.uid, rid: editing.rid, which: editing.which }, closeEditor);
-});
-$("e-archive").addEventListener("click", () => {
-  if (!editing || !editing.entity) return;
-  if (!Kit.ask($("e-archive"), { ask: "Archive it?" })) return;
-  core("PATCH", `/entities/${encodeURIComponent(editing.entity)}`, { archived: true })
-    .then(() => { closeEditor(); fetchPlugins(); }, (x) => say(x.message || "It was not archived", true));
-});
-// Glance on it, by its entity: made now if the mirror has not reached it.
-$("e-glance").addEventListener("click", () => {
-  if (!editing || !bridge) return;
-  eventEntity(editing).then((id) => { if (id) bridge.glanceAt(`e:${id}`); }).catch((x) => say(x.message || "It could not be opened", true));
-});
-$("e-cancel").addEventListener("click", closeEditor);
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
+// A press elsewhere in it puts a list away.
+$("editor").addEventListener("click", (e) => { if (!e.target.closest(".kit-pop") && !e.target.classList.contains("time-in")) popAway(); });
 document.addEventListener("keydown", (e) => {
   // What has heard Escape already (a field of its own, a box cleared) keeps it: the innermost first, then the panel.
   if (e.key === "Escape" && e.defaultPrevented) return;
   if (e.key === "Escape") { if (Kit.isOpen()) popAway(); else if (editing) closeEditor(); else if (bridge) bridge.file(); }
-  // Enter saves, but in what is written in (the description is the editor): there it is the next line.
-  if (e.key === "Enter" && editing && e.target.tagName !== "TEXTAREA" && !e.target.isContentEditable) $("e-save").click();
+  // Enter saves, but in what is written in (the description is the editor): there it is the next line. On a button it presses that.
+  if (e.key === "Enter" && editing && !e.defaultPrevented && e.target.tagName !== "TEXTAREA" && e.target.tagName !== "BUTTON" && !e.target.isContentEditable) editing.save();
 });
 
 // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
@@ -979,16 +638,14 @@ Surface.connect({ onState }).then((b) => {
   if (b.coreReply) b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
   // Tasks change elsewhere (Tasks, a sync): read again now and then while on show.
   setInterval(() => { if ((surface.up || WINDOW) && !document.hidden) { fetchTasks(); fetchPlugins(); } }, 60000);
-  b.people.connect((text) => showPeople(JSON.parse(text)));
   if (b.weather) { b.weather.connect(gotWeather); readWeather(); }
   b.done.connect((text) => {
     const d = JSON.parse(text);
-    const after = pending.get(d.req);
+    const wait = pending.get(d.req);
     pending.delete(d.req);
-    if (d.error) { say(d.error, true); return; }
-    say("");
-    if (after) after(d);
-    fetchRange();
+    if (wait) { if (d.error) wait.no(new Error(d.error)); else wait.ok(d); }
+    else if (d.error) say(d.error, true);
+    if (!d.error) fetchRange();
   });
   b.leave.connect(() => {
     // The panel's leaving; a window is not going anywhere.
