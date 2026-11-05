@@ -266,6 +266,11 @@ test("the Library deletes a conversation through Morgan: asked first, then done,
   }
 });
 
+test("the list says the same version as /files/version, threads changing it too, or the Library loads again forever", () => {
+  threads.setThreads([thread(0, "Versioned", "Changes the count.", [T + 150_000])]);
+  assert.equal(files.listFiles().version, files.filesVersion());
+});
+
 test("a thread Morgan deleted is let go of: its entity, its shortcuts and its place in lists; a list merely shorter proves nothing", () => {
   const keep = thread(0, "Staying", "Stays.", [T + 70_000]);
   const doomed = thread(1, "Doomed talk", "Should not outlive being deleted.", [T + 80_000]);

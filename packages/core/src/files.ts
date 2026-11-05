@@ -491,7 +491,7 @@ export function listFiles(query: Query = {}): { rows: FileRow[]; total: number; 
     ? rows.sort((a, b) => (b.mtime ?? "").localeCompare(a.mtime ?? ""))
     : rows.sort((a, b) => (a.path ?? a.name).localeCompare(b.path ?? b.name, undefined, { sensitivity: "base", numeric: true }));
   const total = rows.length;
-  return { rows: rows.slice(0, query.limit ?? 2000), total, version, unwatched: [...indexes.values()].filter((ix) => !ix.watched).map((ix) => ix.id) };
+  return { rows: rows.slice(0, query.limit ?? 2000), total, version: filesVersion(), unwatched: [...indexes.values()].filter((ix) => !ix.watched).map((ix) => ix.id) };
 }
 
 /**
