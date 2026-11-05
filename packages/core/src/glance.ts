@@ -5,7 +5,7 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import type { CanvasNode, PageNode } from "@talaris/model";
 import { canvasIsEmpty, canvasTree, projectCanvases } from "./canvases.js";
-import { currentId, homeId, threadById, threads } from "./threads.js";
+import { currentId, homeId, threadById, threads, unfiledThreads } from "./threads.js";
 import { allRecords, bySource, connections, getEntity, profilesOf, titleOf, type Entity } from "./entities.js";
 import { placeOf, placeSource, type PlaceKind } from "./mentionables.js";
 import { mentionsIn } from "./mentions.js";
@@ -305,7 +305,7 @@ class Walk {
       }
       for (const rel of this.folder(id)) out.push({ key: `file:${id}/${rel}`, how: "in the folder" });
       // Home: Morgan's threads live there.
-      if (id === homeId()) for (const t of threads()) out.push({ key: `thread:${id}/${t.id}`, how: "in the project" });
+      if (id === homeId()) for (const t of [...threads(), ...unfiledThreads()]) out.push({ key: `thread:${id}/${t.id}`, how: "in the project" });
     } else if (key.startsWith("page:")) {
       const [project, path] = split(key);
       out.push({ key: `project:${project}`, how: "in the project", back: true });

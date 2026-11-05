@@ -214,3 +214,36 @@ test("two people tied to one address-book card are one person, offered to be mad
   assert.ok(s.why.includes("The same contact card"));
   assert.ok(s.ways.some((w) => w.how === "merge"));
 });
+
+test("a conversation with no thread yet is listed in Home, kept from search, and what is tied to it follows it into its thread", () => {
+  const talk = { ...thread(0, "So what should I plant", "", [T + 100_000, T + 101_000]), id: `u${T + 100_000}` };
+  threads.setThreads([], undefined, [], [talk]);
+  assert.ok(files.listFiles({ project: home.id }).rows.some((r) => r.key === `t:${talk.id}` && r.type === "conversation"));
+  assert.ok(!threads.threads().some((t) => t.id === talk.id));
+  assert.equal(threads.threadById(talk.id)?.title, "So what should I plant");
+  const was = threads.threadEntity(talk.id);
+  const planter = entities.createEntity({ role: "person", properties: { title: "A Planter" } });
+  entities.link({ from: planter.id, to: was.id, type: "related" });
+  const filed = { ...thread(0, "Planting", "What to plant, and when.", [T + 100_000, T + 101_000]), id: `${T + 100_000}-0` };
+  threads.setThreads([filed]);
+  assert.equal(threads.currentId(talk.id), filed.id);
+  assert.ok(!files.listFiles({ project: home.id }).rows.some((r) => r.key === `t:${talk.id}`));
+  assert.ok(entities.connections(threads.threadEntity(filed.id).id).in.some((c) => c.entity.id === planter.id));
+});
+
+test("a thread Morgan deleted is let go of: its entity, its shortcuts and its place in lists; a list merely shorter proves nothing", () => {
+  const keep = thread(0, "Staying", "Stays.", [T + 70_000]);
+  const doomed = thread(1, "Doomed talk", "Should not outlive being deleted.", [T + 80_000]);
+  const unsaid = thread(2, "Not mentioned", "Left out of the list, and not said to be deleted.", [T + 90_000]);
+  threads.setThreads([keep, doomed, unsaid]);
+  const was = threads.threadEntity(doomed.id);
+  const kept = threads.threadEntity(unsaid.id);
+  const sc = files.makeThingShortcut(garden.id, `thread:${home.id}/${doomed.id}`);
+  threads.setThreads([keep], undefined, [doomed.id]);
+  assert.throws(() => entities.getEntity(was.id));
+  assert.throws(() => entities.getEntity(sc.entity!));
+  assert.ok(!files.listFiles().rows.some((r) => r.name === "Doomed talk"));
+  assert.equal(threads.threadById(doomed.id), null);
+  // Only gone from the list: what is tied to it is not thrown away on a guess.
+  assert.ok(entities.getEntity(kept.id));
+});

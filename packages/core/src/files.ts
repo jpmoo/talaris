@@ -40,7 +40,7 @@ import { folderProjectOf } from "./filing.js";
 import { isSealedFile, readBytes, writeAtomic } from "./store.js";
 import { cleanTags } from "./tags.js";
 import { canvasTree } from "./canvases.js";
-import { homeId, threadById, threads, threadsVersion } from "./threads.js";
+import { homeId, threadById, threads, threadsVersion, unfiledThreads } from "./threads.js";
 import { placeSource } from "./mentionables.js";
 import { members, membersMoved } from "./filelists.js";
 import type { CanvasNode } from "@talaris/model";
@@ -439,7 +439,7 @@ function thingRows(rows: Map<string, FileRow>, only?: string): void {
     walk(top);
   }
   if (only && only !== homeId()) return;
-  for (const t of threads()) { const r = threadRow(t); rows.set(r.key, r); }
+  for (const t of [...threads(), ...unfiledThreads()]) { const r = threadRow(t); rows.set(r.key, r); }
 }
 
 /** A canvas or a thread brought into another project: a shortcut to it there. */

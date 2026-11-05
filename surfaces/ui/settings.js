@@ -1029,6 +1029,13 @@ async function mgVoice() {
 
 const mgOpen = new Set(); // topics shown open, kept across readings
 let mgFilter = "";
+let mgByDate = false; // every note newest first, whatever its topic, rather than topic by topic
+const mgTopicsOff = new Set(); // the topics left out, by name
+
+// Morgan puts the day a note was made at its end: "(2026-11-05)". A note typed in Settings has none.
+const NOTE_DATE = /\s*\((\d{4}-\d{2}-\d{2})\)\s*$/;
+// A topic's color: by its name, so that it keeps it when others come and go.
+const topicTint = (name) => `var(--tint-${[...String(name)].reduce((sum, ch) => (sum * 31 + ch.codePointAt(0)) % 8, 0) + 1})`;
 
 async function mgMemory() {
   const [mem, garden] = await Promise.all([ask("memory.list"), ask("memory.garden.report")]);
@@ -1040,45 +1047,55 @@ async function mgMemory() {
   const again = () => loadMorgan(true);
   const noteChange = async (topic, op, args, said) => {
     busy.add(topic);
-    drawTopics();
+    drawNotes();
     await change(op, { topic, ...args }, said);
     again();
   };
 
   const filter = Kit.searchBox(el("input", { type: "text", spellcheck: "false", placeholder: "Find topics and notes" }));
   filter.value = mgFilter;
-  filter.addEventListener("input", () => { mgFilter = filter.value; drawTopics(); });
+  filter.addEventListener("input", () => { mgFilter = filter.value; drawNotes(); });
   const list = el("div", { class: "mg-scroll mg-topics" });
+  const picker = el("div", { class: "mg-picker" });
+  const views = el("span");
+
+  // One note, to change where it stands. By date its day is said beside it, so it is not in the words
+  // being changed, and goes back on the end of them.
+  const noteRow = (t, { text, index }, dated = false) => {
+    const locked = busy.has(t.name);
+    const others = topics.filter((o) => o.name !== t.name);
+    const day = dated ? text.match(NOTE_DATE)?.[1] : null;
+    const words = day ? text.replace(NOTE_DATE, "") : text;
+    const body = el("div", { class: "mg-note-text", ...(locked ? {} : { contenteditable: "plaintext-only" }), spellcheck: "false" }, words);
+    const done = () => {
+      const now = body.textContent.replace(/\s+/g, " ").trim();
+      if (busy.has(t.name) || now === words) return;
+      if (!now) { body.textContent = words; say("An empty note is deleted with ×", true); return; }
+      noteChange(t.name, "memory.note.set", { index, text: day ? `${now} (${day})` : now }, "Note changed");
+    };
+    body.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); body.blur(); }
+      if (e.key === "Escape") { e.stopImmediatePropagation(); body.textContent = words; body.blur(); }
+    });
+    body.addEventListener("blur", done);
+    // Where it may go, in the kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
+    const moveBtn = el("button", { class: "t-btn small", onclick: (e) => {
+      if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
+      Kit.menu(e.currentTarget, others.map((o) => ({ label: o.name, act: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) })));
+    } }, "Move to…");
+    return el("div", { class: "mg-note" + (locked ? " locked" : "") },
+      ...(dated ? [el("div", { class: "mg-note-of" }, el("span", { class: "dot", style: `background: ${topicTint(t.name)}` }), t.name)] : []),
+      el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
+        ...(locked ? [] : [Kit.twice(xBtn("Delete it"), { ask: "Delete it?", act: () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted") })])));
+  };
 
   const topicBlock = (t, notesShown, open) => {
-    const head = el("button", { class: "mg-topic-head" + (open ? " open" : ""), onclick: () => { if (mgOpen.has(t.name)) mgOpen.delete(t.name); else mgOpen.add(t.name); drawTopics(); } },
+    const head = el("button", { class: "mg-topic-head" + (open ? " open" : ""), onclick: () => { if (mgOpen.has(t.name)) mgOpen.delete(t.name); else mgOpen.add(t.name); drawNotes(); } },
       Kit.caret(open), el("b", {}, t.name), el("small", {}, `${t.notes.length} · ${t.description || "no description"}`));
     const block = el("div", { class: "mg-topic" }, head);
     if (!open) return block;
     const locked = busy.has(t.name);
-    const others = topics.filter((o) => o.name !== t.name);
-    const notes = notesShown.map(({ text, index }) => {
-      const body = el("div", { class: "mg-note-text", ...(locked ? {} : { contenteditable: "plaintext-only" }), spellcheck: "false" }, text);
-      const done = () => {
-        const now = body.textContent.replace(/\s+/g, " ").trim();
-        if (busy.has(t.name) || now === text) return;
-        if (!now) { body.textContent = text; say("An empty note is deleted with ×", true); return; }
-        noteChange(t.name, "memory.note.set", { index, text: now }, "Note changed");
-      };
-      body.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); body.blur(); }
-        if (e.key === "Escape") { e.stopImmediatePropagation(); body.textContent = text; body.blur(); }
-      });
-      body.addEventListener("blur", done);
-      // Where it may go, in the kit's menu (kit.js): put away by a press elsewhere or Escape, as every menu is.
-      const moveBtn = el("button", { class: "t-btn small", onclick: (e) => {
-        if (Kit.openedBy() === e.currentTarget) { Kit.popAway(); return; }
-        Kit.menu(e.currentTarget, others.map((o) => ({ label: o.name, act: () => noteChange(t.name, "memory.note.move", { index, to: o.name }, `Moved to ${o.name}`) })));
-      } }, "Move to…");
-      return el("div", { class: "mg-note" + (locked ? " locked" : "") },
-        el("div", { class: "mg-note-row" }, body, ...(others.length && !locked ? [moveBtn] : []),
-          ...(locked ? [] : [Kit.twice(xBtn("Delete it"), { ask: "Delete it?", act: () => noteChange(t.name, "memory.note.delete", { index }, "Note deleted") })])));
-    });
+    const notes = notesShown.map((note) => noteRow(t, note));
     if (!t.notes.length) notes.push(Kit.empty("Nothing here yet"));
     else if (!notesShown.length) notes.push(Kit.empty("Nothing matches"));
 
@@ -1109,11 +1126,48 @@ async function mgMemory() {
     return block;
   };
 
-  function drawTopics() {
+  // As Library's Find: the topics in their colors, each with how many, pressed to leave it out.
+  function drawPicker(counts) {
+    picker.replaceChildren(el("div", { class: "gv-kinds" }, ...topics.map((t) =>
+      el("button", { class: `chip kchip${mgTopicsOff.has(t.name) ? "" : " on"}${counts.get(t.name) ? "" : " none"}`, title: `${mgTopicsOff.has(t.name) ? "Show" : "Hide"} ${t.name}`,
+        onclick: () => { if (mgTopicsOff.has(t.name)) mgTopicsOff.delete(t.name); else mgTopicsOff.add(t.name); drawNotes(); } },
+        el("span", { class: "dot", style: `background: ${topicTint(t.name)}` }), t.name, el("span", { class: "n" }, String(counts.get(t.name) || 0)))),
+      el("button", { class: "t-btn small kall", title: mgTopicsOff.size ? "Show every topic" : "Hide every topic", onclick: () => {
+        if (mgTopicsOff.size) mgTopicsOff.clear(); else for (const t of topics) mgTopicsOff.add(t.name);
+        drawNotes();
+      } }, mgTopicsOff.size ? "All" : "None")));
+  }
+
+  function drawNotes() {
+    views.replaceChildren(segOf([["topic", "By topic"], ["date", "By date"]], mgByDate ? "date" : "topic", (v) => { mgByDate = v === "date"; drawNotes(); }));
     const q = mgFilter.trim().toLowerCase();
     const has = (s) => Kit.matches(q, s);
+    const found = (t) => t.notes.map((text, index) => ({ text, index })).filter((n) => !q || has(n.text) || has(t.name) || has(t.description));
+    drawPicker(new Map(topics.map((t) => [t.name, found(t).length])));
+    if (mgByDate) return drawByDate(found);
+    drawTopics(q, has);
+  }
+
+  // Newest first, under the day; those with no day, after them all.
+  function drawByDate(found) {
+    const rows = topics.filter((t) => !mgTopicsOff.has(t.name)).flatMap((t) => found(t).map((note) => ({ t, note, day: note.text.match(NOTE_DATE)?.[1] ?? "" })));
+    rows.sort((a, b) => b.day.localeCompare(a.day));
+    const out = [];
+    let day = null;
+    for (const row of rows) {
+      if (row.day !== day) {
+        day = row.day;
+        out.push(el("div", { class: "mg-day" }, day ? new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "No date"));
+      }
+      out.push(noteRow(row.t, row.note, true));
+    }
+    list.replaceChildren(...(out.length ? out : [Kit.empty(mgFilter.trim() ? "Nothing matches" : "Nothing to show")]));
+  }
+
+  function drawTopics(q, has) {
     const blocks = [];
     for (const t of topics) {
+      if (mgTopicsOff.has(t.name)) continue;
       const all = t.notes.map((text, index) => ({ text, index }));
       if (!q) { blocks.push(topicBlock(t, all, mgOpen.has(t.name))); continue; }
       const byName = has(t.name) || has(t.description);
@@ -1122,9 +1176,9 @@ async function mgMemory() {
       // A topic found by its notes opens on them; found by its name, on all of them.
       blocks.push(topicBlock(t, byName ? all : matching, mgOpen.has(t.name) || (!byName && matching.length > 0)));
     }
-    list.replaceChildren(...(blocks.length ? blocks : [Kit.empty(q ? "Nothing matches" : "No topics yet")]));
+    list.replaceChildren(...(blocks.length ? blocks : [Kit.empty(q ? "Nothing matches" : topics.length ? "Nothing to show" : "No topics yet")]));
   }
-  drawTopics();
+  drawNotes();
 
   const newName = el("input", { type: "text", spellcheck: "false", placeholder: "Its name" });
   const newWhat = el("input", { type: "text", spellcheck: "false", placeholder: "What belongs here" });
@@ -1143,7 +1197,8 @@ async function mgMemory() {
     el("b", {}, p.label), el("small", {}, p.note || mgWhen(p.t))));
 
   mgBody(
-    el("div", { class: "row" }, el("span", { class: "name" }, "Topics", el("small", {}, `${topics.length}`)), el("span", { class: "what" }, filter)),
+    el("div", { class: "row" }, el("span", { class: "name" }, "Topics", el("small", {}, `${topics.length}`)), el("span", { class: "what" }, views, filter)),
+    picker,
     list,
     mgRow("+ Topic", "", newName, newWhat, el("button", { class: "t-btn", onclick: addTopic }, "Add")),
     el("h3", {}, "Documents kept in full"),

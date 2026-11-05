@@ -22,13 +22,24 @@
  * again, `moved` remembers where it went, and its entity is merged into the
  * kept one's (merge.ts) — what was tied to it is tied to that.
  *
+ * **A conversation not yet cut into threads** is listed too (protocol 1.13,
+ * `unfiled`), so that Files shows every conversation, the one in hand included.
+ * It has no summary, only its first words, so it is kept apart from `threads()`:
+ * not embedded, suggested or offered to @ until it is a thread. Its id leads to
+ * the thread holding its first exchange once there is one (`take`).
+ *
+ * **A thread can be deleted** (protocol 1.13). Morgan names what is gone for good
+ * in `deleted`, and only that is let go of here: its entity, with what was tied
+ * to it, and its place in lists. A list that merely came back shorter proves
+ * nothing, and connections are not thrown away on a guess.
+ *
  * In demo nothing is asked of Morgan: the person's conversations are not
  * shown to whoever is watching. The demo's threads are made up (demo-seed.ts).
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { bySource, type Entity } from "./entities.js";
+import { allRecords, bySource, deleteEntity, type Entity } from "./entities.js";
 import { inDemo } from "./demo.js";
 import { membersMoved } from "./filelists.js";
 import { mergeEntities } from "./merge.js";
@@ -49,8 +60,10 @@ export interface Thread {
   ts: number[];
 }
 
-interface Kept { threads: Thread[]; moved: Record<string, string>; at: string; error?: string; /** What Morgan calls the person (its `userName`): in every summary, and no one else. */ user?: string }
+interface Kept { threads: Thread[]; unfiled?: Thread[]; moved: Record<string, string>; at: string; error?: string; /** What Morgan calls the person (its `userName`): in every summary, and no one else. */ user?: string }
 const FILE = () => join(DATA_DIR, "threads.sealed");
+/** files.ts's SHORTCUT_TO: that file imports this one. */
+const SHORTCUT_TO = "talaris:shortcutTo";
 let kept: Kept | null = null;
 let version = 0;
 /** Goes up whenever the threads change: Files and the index look again. */
@@ -84,7 +97,12 @@ export function currentId(id: string): string {
 
 export function threadById(id: string): Thread | null {
   const now = currentId(id);
-  return state().threads.find((t) => t.id === now) ?? null;
+  return state().threads.find((t) => t.id === now) ?? unfiledThreads().find((t) => t.id === now) ?? null;
+}
+
+/** Conversations Morgan has not yet cut into threads, newest first. */
+export function unfiledThreads(): Thread[] {
+  return [...(state().unfiled ?? [])].sort((a, b) => b.t1 - a.t1);
 }
 
 /** What Morgan calls the person, as last asked: "" if it was not said. */
@@ -114,9 +132,30 @@ export function threadEntity(id: string): Entity {
 export const threadsStatus = () => ({ count: state().threads.length, at: state().at, error: state().error ?? "" });
 
 /** For tests and the demo: the list as given, as though Morgan had said it. */
-export function setThreads(list: Thread[], user?: string): { moved: number } {
+export function setThreads(list: Thread[], user?: string, deleted: string[] = [], unfiled: Thread[] = []): { moved: number } {
   if (user !== undefined) state().user = user;
-  return take(list);
+  const out = take(list, unfiled);
+  letGo(deleted);
+  return out;
+}
+
+/** Threads Morgan says it has deleted: nothing of them is kept here. */
+function letGo(deleted: string[]): void {
+  const home = homeId();
+  const k = state();
+  let changed = false;
+  for (const id of deleted) {
+    const was = bySource(placeSource("thread", home, id));
+    if (was) { try { deleteEntity(was.id); } catch { /* already gone */ } }
+    // A shortcut to it, in another project, holds its title.
+    const shortcuts = allRecords().filter(({ object: o }) => o[SHORTCUT_TO] === `thread:${home}/${id}`);
+    for (const { object: o } of shortcuts) { try { deleteEntity(o.id); } catch { /* already gone */ } }
+    if (!was && !shortcuts.length && !(id in k.moved)) continue;
+    membersMoved((key) => (key === `t:${id}` ? "" : null));
+    delete k.moved[id];
+    changed = true;
+  }
+  if (changed) { version++; save(); }
 }
 
 /** Morgan asked for its threads, and the copy brought into step. */
@@ -129,9 +168,11 @@ export async function syncThreads(): Promise<{ ok: boolean; count: number; moved
   const list = (r.threads as Partial<Thread>[] | undefined) ?? [];
   // Before protocol 1.8 a thread came without its id: nothing to hold it by.
   if (list.length && !list[0]!.id) return fail("Morgan is too old to say which thread is which: it needs updating");
-  const { moved } = take(list.map((t) => ({ id: String(t.id), t0: Number(t.t0), t1: Number(t.t1 ?? t.t0), title: String(t.title ?? ""),
-    summary: String(t.summary ?? ""), exchanges: Number(t.exchanges ?? (t.ts ?? []).length), ts: (t.ts ?? []).map(Number) })));
+  const given = (t: Partial<Thread>): Thread => ({ id: String(t.id), t0: Number(t.t0), t1: Number(t.t1 ?? t.t0), title: String(t.title ?? ""),
+    summary: String(t.summary ?? ""), exchanges: Number(t.exchanges ?? (t.ts ?? []).length), ts: (t.ts ?? []).map(Number) });
+  const { moved } = take(list.map(given), ((r.unfiled as Partial<Thread>[] | undefined) ?? []).map(given));
   delete state().error;
+  letGo(((r as { deleted?: unknown[] }).deleted ?? []).map(String));
   // What Morgan calls the person, for leaving their name out of what a summary is taken to name.
   const cfg = await morganCommand(`admin ${JSON.stringify({ op: "config.get", args: {} })}`, 20_000);
   const user = cfg?.ok ? String((cfg as { userName?: unknown }).userName ?? (cfg as { config?: { userName?: unknown } }).config?.userName ?? "") : null;
@@ -139,15 +180,15 @@ export async function syncThreads(): Promise<{ ok: boolean; count: number; moved
   return { ok: true, count: state().threads.length, moved };
 }
 
-function take(list: Thread[]): { moved: number } {
+function take(list: Thread[], unfiled: Thread[] = []): { moved: number } {
   const k = state();
-  const now = new Set(list.map((t) => t.id));
+  const now = new Set([...list, ...unfiled].map((t) => t.id));
   const home = homeId();
   let moved = 0;
-  for (const old of k.threads) {
+  for (const old of [...k.threads, ...(k.unfiled ?? [])]) {
     if (now.has(old.id)) continue;
     // Gone: merged into the thread now holding its first exchange, or gone for good (struck out, say).
-    const first = Number(old.id.split("-")[0]);
+    const first = Number(old.id.replace(/^u/, "").split("-")[0]);
     const into = list.find((t) => t.ts.includes(first));
     if (!into) continue;
     k.moved[old.id] = into.id;
@@ -159,8 +200,9 @@ function take(list: Thread[]): { moved: number } {
       try { mergeEntities(was.id, to.id); } catch { /* one kept in step elsewhere: left as it is */ }
     }
   }
-  const changed = JSON.stringify(k.threads) !== JSON.stringify(list);
+  const changed = JSON.stringify([k.threads, k.unfiled ?? []]) !== JSON.stringify([list, unfiled]);
   k.threads = list;
+  k.unfiled = unfiled;
   k.at = new Date().toISOString();
   if (changed) version++;
   save();
