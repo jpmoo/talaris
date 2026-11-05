@@ -819,6 +819,18 @@
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Connect to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
     if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
+    if (s.includes("conversation") && !s.includes("shortcut")) act("Delete…", (e) => {
+      // Asked as everything is asked (kit.js). For good, and Morgan's to do; notes that may have come from it are kept, and said.
+      if (!Kit.ask(e.currentTarget, { key: `talk:${r.key}`, ask: "Delete it for good?" })) return;
+      const id = enc(r.thing.split("/").pop());
+      api("GET", `/files/conversation/${id}/deleting`)
+        .then((p) => api("DELETE", `/files/conversation/${id}`).then((x) => {
+          const notes = p.notes.length ? `; ${p.notes.length === 1 ? "1 note" : `${p.notes.length} notes`} in Morgan's memory that may have come from it ${p.notes.length === 1 ? "is" : "are"} kept (Settings → Morgan → Memory)` : "";
+          say(`Deleted: ${x.exchanges === 1 ? "1 exchange" : `${x.exchanges} exchanges`}${notes}`);
+          chosen = null;
+          return load();
+        })).catch(failed);
+    }, "danger");
     if (s.includes("shortcut")) act("Remove the shortcut", (e) => {
       // Asked as everything is asked (kit.js).
       if (!Kit.ask(e.currentTarget, { key: `sc:${r.key}`, ask: "Take the shortcut away?" })) return;

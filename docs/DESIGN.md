@@ -1625,7 +1625,7 @@ an @ or search — though the drawer still opens it. A project's top canvas is c
 
 **Every conversation is listed (2026-11-05).** One not yet cut into threads, the one in hand included, is in Files and the Overview under its first words (protocol 1.13, `unfiled`). It has no summary yet, so it is not embedded, suggested or offered to @ until it is a thread; what was tied to it follows it into the thread holding its first exchange.
 
-**A thread Morgan deleted is let go of (2026-11-05).** Morgan names what it has deleted for good (protocol 1.13, `deleted` in `threads`), and on the next asking Talaris drops the thread's entity, its shortcuts and its place in lists. Only what is named: a list that merely came back shorter proves nothing, and connections are not thrown away on a guess. An incognito conversation never becomes a thread, so nothing of it reaches here.
+**A thread Morgan deleted is let go of (2026-11-05).** The Library's card of a conversation can ask for it (`DELETE /files/conversation/:id`), and the delete is Morgan's to do, there being no record here to delete. Morgan names what it has deleted for good (protocol 1.13, `deleted` in `threads`), and on the next asking Talaris drops the thread's entity, its shortcuts and its place in lists. Only what is named: a list that merely came back shorter proves nothing, and connections are not thrown away on a guess. An incognito conversation never becomes a thread, so nothing of it reaches here.
 
 **Morgan's threads are things that live in Home.** Morgan cuts each ended
 conversation into threads — the exchanges about one thing, titled and summed

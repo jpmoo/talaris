@@ -907,9 +907,10 @@ let monthDays = {};
 function calendar(open) {
   $("calendar").hidden = !open;
   $("history").classList.toggle("on", open);
-  if (open) { shownMonth = new Date(); shownMonth.setDate(1); month(); }
+  if (open) { openDay = null; shownMonth = new Date(); shownMonth.setDate(1); month(); }
 }
 
+let openDay = null; // the day whose list is showing
 function month() {
   const year = shownMonth.getFullYear(), index = shownMonth.getMonth();
   $("monthname").textContent = Kit.month(shownMonth);
@@ -938,11 +939,18 @@ function month() {
         cell.title = held.length === 1 ? held[0].title : `${held.length} conversations`;
         cell.onclick = () => {
           for (const other of grid.querySelectorAll(".picked")) other.classList.remove("picked");
+          openDay = iso;
           cell.classList.add("picked");
           pick(date, held);
         };
       }
+      cell.dataset.day = iso;
       grid.append(cell);
+    }
+    // Drawn again, after a delete: the day that was open stays open, as long as anything is left on it.
+    if (monthDays[openDay]?.length) {
+      grid.querySelector(`[data-day="${openDay}"]`)?.classList.add("picked");
+      pick(new Date(`${openDay}T12:00:00`), monthDays[openDay]);
     }
   });
 }
@@ -1010,7 +1018,8 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape" && 
 // Not when the composer took it, closing the @ picker.
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !event.defaultPrevented && state === "idle" && bridge) bridge.file(); });
 for (const type of ["pointerdown", "keydown", "wheel"]) document.addEventListener(type, () => bridge && bridge.activity(), { capture: true, passive: true });
-document.addEventListener("mousedown", (event) => { if (!$("calendar").hidden && !$("calendar").contains(event.target) && !$("history").contains(event.target)) calendar(false); });
+// The card asking about a delete is the calendar's own: a press on it is not a press away.
+document.addEventListener("mousedown", (event) => { if (!$("calendar").hidden && !$("calendar").contains(event.target) && !$("history").contains(event.target) && !$("deleting").contains(event.target)) calendar(false); });
 
 function start() {
   // The conversation so far, and earlier ones, to scroll back through.

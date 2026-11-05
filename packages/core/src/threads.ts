@@ -45,7 +45,7 @@ import { membersMoved } from "./filelists.js";
 import { mergeEntities } from "./merge.js";
 import { placeEntity, placeSource } from "./mentionables.js";
 import { morganCommand } from "./morgan-describe.js";
-import { ensureHome } from "./projects.js";
+import { Conflict, ensureHome, NotFound } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
@@ -178,6 +178,32 @@ export async function syncThreads(): Promise<{ ok: boolean; count: number; moved
   const user = cfg?.ok ? String((cfg as { userName?: unknown }).userName ?? (cfg as { config?: { userName?: unknown } }).config?.userName ?? "") : null;
   if (user !== null && user !== (state().user ?? "")) { state().user = user; save(); }
   return { ok: true, count: state().threads.length, moved };
+}
+
+export interface Deleting { exchanges: number; notes: { topic: string; note: string }[] }
+
+/** A delete put to Morgan, whose record it is. Its id is a time and perhaps a number, and nothing else goes on the line. */
+async function askToDelete(id: string, flags: string): Promise<Record<string, unknown>> {
+  if (inDemo) throw new Conflict("Not in the demo: these conversations are made up");
+  const now = currentId(id);
+  if (!/^u?\d+(-\d+)?$/.test(now) || !threadById(now)) throw new NotFound(`no thread ${id}`);
+  const r = await morganCommand(`delete conversation ${now}${flags}`, 30_000);
+  if (!r) throw new Conflict("Morgan could not be asked");
+  if (!r.ok) throw new Conflict(String(r.error ?? "Morgan did not say"));
+  return r;
+}
+
+/** What deleting a conversation would take, and the notes in memory that may have come from it. Nothing is deleted. */
+export async function deletingThread(id: string): Promise<Deleting> {
+  const r = await askToDelete(id, " --preview");
+  return { exchanges: Number(r.exchanges ?? 0), notes: (r.notes as Deleting["notes"] | undefined) ?? [] };
+}
+
+/** A conversation deleted for good, and this copy brought into step at once rather than at the next asking. */
+export async function deleteThread(id: string, withNotes: boolean): Promise<{ exchanges: number }> {
+  const r = await askToDelete(id, withNotes ? " --notes" : "");
+  await syncThreads();
+  return { exchanges: Number(r.exchanges ?? 0) };
 }
 
 function take(list: Thread[], unfiled: Thread[] = []): { moved: number } {

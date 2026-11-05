@@ -278,6 +278,9 @@ route("GET", "/threads/:id", (_r, [id]) => {
   const { ts: _ts, ...rest } = t;
   return rest;
 });
+// A conversation deleted from the Library: Morgan's to do, and for good. Under /files, where the Library may go.
+route("GET", "/files/conversation/:id/deleting", (_r, [id]) => threads.deletingThread(id!));
+route("DELETE", "/files/conversation/:id", (_r, [id], q) => threads.deleteThread(id!, q.get("notes") === "1"));
 route("GET", "/threads", () => ({ ...threads.threadsStatus(), threads: threads.threads().map(({ ts: _ts, ...t }) => t) }));
 // Lists (filelists.ts): a project's, as a tree with counts; made, renamed, moved, deleted; things put in and taken out, and ordered.
 route("GET", "/files/lists", (_r, _p, q) => filelists.listTree(need(q, "project")));

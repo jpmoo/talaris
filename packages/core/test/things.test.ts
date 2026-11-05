@@ -6,6 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
@@ -229,6 +230,40 @@ test("a conversation with no thread yet is listed in Home, kept from search, and
   assert.equal(threads.currentId(talk.id), filed.id);
   assert.ok(!files.listFiles({ project: home.id }).rows.some((r) => r.key === `t:${talk.id}`));
   assert.ok(entities.connections(threads.threadEntity(filed.id).id).in.some((c) => c.entity.id === planter.id));
+});
+
+test("the Library deletes a conversation through Morgan: asked first, then done, and let go of at once", async () => {
+  const doomed = thread(1, "Deleted from the Library", "Gone soon.", [T + 120_000]);
+  threads.setThreads([doomed]);
+  const was = threads.threadEntity(doomed.id);
+  const heard: string[] = [];
+  const dir = mkdtempSync(join(tmpdir(), "talaris-morgan-"));
+  const socket = join(dir, "s");
+  const server = createServer((c) => c.on("data", (b) => {
+    const line = b.toString().trim();
+    heard.push(line);
+    const answer = line.endsWith("--preview") ? { ok: true, exchanges: 1, notes: [{ topic: "Work", note: "A note." }] }
+      : line.startsWith("delete") ? { ok: true, exchanges: 1, threads: 1, notes: 0 }
+        : line === "threads" ? { ok: true, threads: [], unfiled: [], deleted: [doomed.id] } : { ok: true };
+    c.end(JSON.stringify(answer) + "\n");
+  }));
+  await new Promise<void>((ok) => server.listen(socket, ok));
+  const before = process.env.HEYMORGAN_SOCKET;
+  process.env.HEYMORGAN_SOCKET = socket;
+  try {
+    assert.deepEqual(await threads.deletingThread(doomed.id), { exchanges: 1, notes: [{ topic: "Work", note: "A note." }] });
+    assert.ok(threads.threadById(doomed.id), "asking deletes nothing");
+    await threads.deleteThread(doomed.id, true);
+    assert.ok(heard.includes(`delete conversation ${doomed.id} --notes`), heard.join(" | "));
+    assert.equal(threads.threadById(doomed.id), null);
+    assert.throws(() => entities.getEntity(was.id));
+    await assert.rejects(threads.deleteThread("1; all", false));
+    assert.ok(!heard.some((line) => line.includes("all")), "nothing but an id goes on the line");
+  } finally {
+    if (before === undefined) delete process.env.HEYMORGAN_SOCKET; else process.env.HEYMORGAN_SOCKET = before;
+    await new Promise((ok) => server.close(ok));
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a thread Morgan deleted is let go of: its entity, its shortcuts and its place in lists; a list merely shorter proves nothing", () => {
