@@ -224,7 +224,7 @@ window.GlanceView = (o) => {
   }
 
   function drawView() {
-    seg(ui.view, [["list", "List"], ["graph", "Graph"]], view, (v) => {
+    seg(ui.view, [["list", "List"], ["graph", "Glance"]], view, (v) => {
       view = v; store.set("talaris.glance.view", v); drawView(); drawBody();
     });
     ui.list.hidden = view !== "list";
@@ -808,12 +808,16 @@ window.GlanceView = (o) => {
           r.addEventListener("input", () => { setDisplay(key, Number(r.value)); n.textContent = show(gs[key]); lit(); });
           return el("label", { class: "drow" }, el("span", { class: "dl" }, label), r, n);
         }),
+        el("div", { class: "drow" }, el("span", { class: "dl" }, "Suggestions"),
+          el("span", { class: "seg dseg" }, ...[[true, "Show"], [false, "Hide"]].map(([k, l]) =>
+            el("button", { class: showSuggested === k ? "on" : "", title: k ? "Suggested connections drawn in, dashed" : "Only what is connected",
+              onclick: () => { suggestedShown(k); drawDisplay(); } }, l)))),
         el("div", { class: "drow" }, el("span", { class: "dl" }, "Labels"),
           el("span", { class: "seg dseg" }, ...[["all", "All"], ["hubs", "Main"], ["hover", "Hover"]].map(([k, l]) =>
             el("button", { class: gs.labels === k ? "on" : "", onclick: () => { setDisplay("labels", k); drawDisplay(); } }, l)))),
         el("div", { class: "drow dacts" },
           el("button", { class: "t-btn", title: "Lay it all out again from the start", onclick: () => { for (const p of nodes) if (!isRoot(p)) { p.x = (Math.random() - 0.5) * 300; p.y = (Math.random() - 0.5) * 300; } heat(1); } }, "Lay out again"),
-          el("button", { class: "t-btn", title: "Back to how it came", onclick: () => { gs = { ...DISPLAY }; store.set("talaris.glance.display", gs); heat(0.35); drawDisplay(); need(); } }, "Reset")));
+          el("button", { class: "t-btn", title: "Back to how it came", onclick: () => { gs = { ...DISPLAY }; store.set("talaris.glance.display", gs); suggestedShown(true); heat(0.35); drawDisplay(); need(); } }, "Reset")));
     }
     ui.displayBtn.addEventListener("click", () => {
       const box = ui.display;
@@ -854,6 +858,7 @@ window.GlanceView = (o) => {
   function drawAll() { drawProject(); drawKinds(); drawView(); drawBody(); drawSugg(); }
 
 
+  let showSuggested = store.get("talaris.glance.suggested", true) !== false;
   // ---------------------------------------------------------------- suggested ties
 
   // The core's kinds for a suggestion, as the glance's.
@@ -873,11 +878,23 @@ window.GlanceView = (o) => {
     if (!data) return;
     data.nodes = data.nodes.filter((n) => !n.sugOnly);
     data.edges = data.edges.filter((e) => !e.suggested);
+    // Switched off in Display: not drawn in. They are still listed beside it, to take or turn down.
+    if (!showSuggested) return;
     const have = new Set(data.nodes.map((n) => n.key));
     for (const s of sugg.list) {
       if (!have.has(s.key)) data.nodes.push(nodeFor(s));
       data.edges.push({ from: data.root, to: s.key, how: s.why[0] || "possible connection", suggested: true });
     }
+  }
+  /** Whether suggestions are drawn into the glance, kept as Display's other settings are. */
+  function suggestedShown(on) {
+    if (showSuggested === on) return;
+    showSuggested = on;
+    store.set("talaris.glance.suggested", on);
+    if (!data) return;
+    withSuggested();
+    Graph.load(data);
+    drawAll();
   }
   async function loadSuggestions(seq) {
     const key = data && data.root;
