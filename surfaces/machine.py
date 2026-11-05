@@ -35,6 +35,8 @@ import spawn
 
 #: How often the bar's readings are refreshed while one of its popups is open (Wi-Fi, sound, battery…)…
 POLL_MS = 3000
+#: How often plugging in is looked for: reading a few small files, so cheap, and soon enough to be heard as the plug goes in.
+PLUG_MS = 1500
 #: …and while none is: each reading starts several small programs, and the bar's icons can be a few seconds behind.
 IDLE_S = 15
 
@@ -455,7 +457,22 @@ class Machine(QObject):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(POLL_MS)
+        # Plugging in, heard: looked at on its own, since the readings above grow sparse when nothing shows them.
+        self._plugged = on_mains()
+        self._plug_timer = QTimer(self)
+        self._plug_timer.timeout.connect(self._plug_check)
+        self._plug_timer.start(PLUG_MS)
         self.refresh()
+
+    def _plug_check(self) -> None:
+        now = on_mains()
+        if now == self._plugged:
+            return
+        self._plugged = now
+        self.refresh()
+        if now:
+            # The sound theme's own, at the system's volume: silent if that is muted or the theme has none.
+            threading.Thread(target=_run, args=("canberra-gtk-play", "-i", "power-plug"), daemon=True).start()
 
     def _tick(self) -> None:
         if self.watched() or time.monotonic() - self._read_at >= IDLE_S:
