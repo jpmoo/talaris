@@ -204,6 +204,13 @@ window.GlanceView = (o) => {
     walkBack(0);
   }
 
+  /** Beside the chips: every one on, it turns them all off; otherwise, all on. */
+  function allOrNone(set, keys, then) {
+    const every = !set.size;
+    return el("button", { class: "t-btn small kall", title: every ? "Hide every kind" : "Show every kind",
+      onclick: () => { set.clear(); if (every) for (const k of keys) set.add(k); then(); } }, every ? "None" : "All");
+  }
+
   function drawKinds() {
     const counts = new Map();
     for (const n of things()) if (!mine || n.own) counts.set(groupOf(n), (counts.get(groupOf(n)) || 0) + 1);
@@ -212,7 +219,7 @@ window.GlanceView = (o) => {
       return el("button", { class: "chip kchip" + (off.has(k) ? "" : " on") + (n ? "" : " none"), title: off.has(k) ? `Show ${name.toLowerCase()}` : `Hide ${name.toLowerCase()}`,
         onclick: () => { if (off.has(k)) off.delete(k); else off.add(k); filtered(); } },
         el("span", { class: "dot", style: `background: var(--k-${k})` }), name, el("span", { class: "n" }, String(n)));
-    }));
+    }), allOrNone(off, GROUPS.map(([k]) => k), filtered));
     ui.mine.classList.toggle("on", mine);
   }
 

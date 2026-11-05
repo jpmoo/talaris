@@ -39,6 +39,9 @@ import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { localDate } from "./localtime.js";
 import { listProjects } from "./projects.js";
+import { filedUnder, projectIdOf } from "./filing.js";
+import { eventTimes } from "./context.js";
+import { isComplete, shapeOf, spanOf } from "./tasks.js";
 import { pageTree, readPage } from "./pages.js";
 import { canvasName, canvasTree, canvasWords, projectCanvases } from "./canvases.js";
 import { homeId, threadById, threadText, threads } from "./threads.js";
@@ -704,7 +707,9 @@ export async function searchMeaning(q: string, options: { limit?: number; kind?:
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, options.limit ?? 20);
 }
 
-export interface Said { open: string; kind: Doc["kind"]; title: string; project?: string; before: string; hit: string; after: string }
+export interface Said { open: string; kind: Doc["kind"]; title: string; project?: string; here: boolean; before: string; hit: string; after: string;
+  /** When it is, as it reads here: an event's start, a task's due or else available; `word` says which. A day alone has no time. */
+  when?: { at: string; word?: "due" | "available" }; done?: boolean }
 /** Case and accents aside, one letter at a time: and where in the words each came from. */
 function folded(words: string): { text: string; from: number[] } {
   let text = "";
@@ -717,13 +722,14 @@ function folded(words: string): { text: string; from: number[] } {
   return { text, from };
 }
 /**
- * Where the words asked are written, as typed together, case and accents aside: in a page, a canvas, a
- * conversation, a thing's written words, or a file already read (nothing is read for this). `first`'s come first.
+ * Find, as the Library has it: what is called the words asked, or has them written in it, as typed together, case and
+ * accents aside. Any file by its name, and one already read by what it says (nothing is read for this); a page, a
+ * canvas, a conversation, a thing's written words. `first`'s come first, those called it first among them.
  * Needs no model server, and finds what meaning would not: a name, a number, a phrase.
  */
-export function findWords(q: string, options: { first?: string; limit?: number } = {}): { found: Said[]; more: boolean } {
+export function findWords(q: string, options: { first?: string; limit?: number; off?: string[] } = {}): { found: Said[]; more: boolean; total: number; kinds: Record<string, number> } {
   const asked = folded(q.trim()).text;
-  if (asked.length < 3) return { found: [], more: false };
+  if (asked.length < 2) return { found: [], more: false, total: 0, kinds: {} };
   const byId = new Map(allRecords().map((r) => [r.object.id, r.object]));
   const wordsOf = (d: Doc): string => {
     try {
@@ -736,6 +742,32 @@ export function findWords(q: string, options: { first?: string; limit?: number }
     } catch { return ""; }
   };
   const docs = [...pageDocs(), ...canvasDocs(), ...threadDocs(), ...entityDocs(), ...fileDocs()];
+  // Files with no words to read are still found by their names.
+  const rows = listFiles().rows;
+  const fileKeys = new Set(docs.filter((d) => d.kind === "file").map((d) => d.key));
+  for (const r of rows) {
+    if (r.status.includes("page") || r.status.includes("missing") || r.thing || fileKeys.has(`file:${r.key}`)) continue;
+    docs.push({ key: `file:${r.key}`, kind: "file", title: r.name, project: r.project, stamp: "" });
+  }
+  const alsoIn = new Map(rows.map((r) => [`file:${r.key}`, r.alsoIn ?? []]));
+  /** The projects it is in: where it lives and any shortcut to it; a thing, those it is filed under. */
+  const projectsOf = (d: Doc): string[] => {
+    if (d.kind === "file") return [...(d.project ? [d.project] : []), ...(alsoIn.get(d.key) ?? [])];
+    if (d.project) return [d.project];
+    const o = d.id ? byId.get(d.id) : undefined;
+    if (!o) return [];
+    if (d.kind === "project") { const own = projectIdOf(o); return own ? [own] : []; }
+    return filedUnder(o).flatMap((p) => { const own = byId.get(p) ? projectIdOf(byId.get(p)!) : undefined; return own ? [own] : []; });
+  };
+  const whenOf = (d: Doc): Pick<Said, "when" | "done"> => {
+    const o = d.id ? byId.get(d.id) : undefined;
+    if (!o) return {};
+    if (d.kind === "event") { const at = eventTimes(o).start; return at ? { when: { at } } : {}; }
+    if (d.kind !== "task") return {};
+    const shape = shapeOf(o);
+    const span = spanOf(o, shape);
+    return { ...(span.due ? { when: { at: span.due, word: "due" as const } } : span.start ? { when: { at: span.start, word: "available" as const } } : {}), ...(isComplete(o, shape) ? { done: true } : {}) };
+  };
   const found: (Said & { rank: number })[] = [];
   for (const d of docs) {
     // A link's words are what is written; where it goes is not.
@@ -747,13 +779,20 @@ export function findWords(q: string, options: { first?: string; limit?: number }
     if (at < 0) continue;
     const start = from[at]!, end = from[at + asked.length - 1]! + 1;
     const line = (s: string) => s.replace(/\s+/g, " ");
-    found.push({ open: d.kind === "file" ? `att:${d.key.slice(5)}` : d.key, kind: d.kind, title: d.title, ...(d.project ? { project: d.project } : {}),
+    const isIn = projectsOf(d);
+    const here = Boolean(options.first) && isIn.includes(options.first!);
+    const called = at < folded(d.title).text.length;
+    found.push({ open: d.kind === "file" ? `att:${d.key.slice(5)}` : d.key, kind: d.kind, title: d.title, ...(isIn[0] ? { project: here ? options.first! : isIn[0] } : {}), here, ...whenOf(d),
       before: line(words.slice(Math.max(0, start - 60), start)).trimStart(), hit: line(words.slice(start, end)), after: line(words.slice(end, end + 120)).trimEnd(),
-      rank: d.project && d.project === options.first ? 0 : 1 });
+      rank: (here ? 0 : 2) + (called ? 0 : 1) });
   }
   found.sort((a, b) => a.rank - b.rank);
   const limit = options.limit ?? 40;
-  return { found: found.slice(0, limit).map(({ rank: _, ...s }) => s), more: found.length > limit };
+  // How many of each, whichever are left out: what the choice of them is made from.
+  const kinds: Record<string, number> = {};
+  for (const f of found) kinds[f.kind] = (kinds[f.kind] ?? 0) + 1;
+  const asked2 = options.off?.length ? found.filter((f) => !options.off!.includes(f.kind)) : found;
+  return { found: asked2.slice(0, limit).map(({ rank: _, ...s }) => s), more: asked2.length > limit, total: asked2.length, kinds };
 }
 
 /** A passage as a line to show: its title taken off, its first words. */

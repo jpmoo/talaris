@@ -1434,14 +1434,14 @@ from elsewhere, or kept as a copy).
   or merges only when told (`talaris_tie`, `talaris_merge`); it reads a file's
   words with `talaris_file_read`.
 
-### The Library, and No project (2026-10-27)
+### The Library (2026-10-27)
 
 Files is called the **Library** now (the bar's button, the pane's title,
 Morgan's tools): it holds pages, canvases and Morgan's conversations as well
-as files. Code and keys still say `files`. Under All projects, **No project**
-lists what is only in Home — Home's pages, its dailies, Morgan's
-conversations, what is on a thing of no project — and in no other project by
-a shortcut. The inspector's **Projects** line names every project a thing is
+as files. Code and keys still say `files`. What is in no other project is
+Home's: its pages, its dailies, Morgan's conversations, what is on a thing of
+no project. (A **No project** beside it, for what was in Home alone, was
+retired on 2026-11-04: nearly the same list under a second name.) The inspector's **Projects** line names every project a thing is
 in, where it lives first, each a press away; a canvas or conversation brought
 into another project by a shortcut is in that one too.
 
@@ -1517,11 +1517,10 @@ calendar has it. A Hermes Notes event's go back to Hermes Notes with the sync.
 person outlives their project, and a meeting that happened stays on the
 calendar. Its tasks, notes and pages go quiet with it, as before.
 
-**Where this is going (not built):** a project chosen in the Library is shown
-as one view of everything in it, by kind, as a list or a graph, with what might
-belong there beside it: Glance built in. The Glance window stays, sharing that
+A project chosen in the Library is shown as one view of everything in it, by kind,
+as a list or a graph: Glance built in. The Glance window stays, sharing that
 code, because it also opens on a single thing, which is not a project's view.
-All projects and No project stay the catalog they are.
+All projects stays the catalog it is.
 
 ### The Library, what everything opens to (2026-11-03)
 
@@ -1542,19 +1541,24 @@ narrowing to some (a list, a type, a tag, a date) shows those; what suggests
 connections is the card's to say, so the glance's own column is not shown. Glance's
 window stays, for where there is no Library up.
 
-**Everything suggested in a project, in one place.** Beside Everything and Files,
+**Everything suggested in a project, in one place.** Beside Overview and Files,
 Suggestions: the project and each of its own things that have any, with what is
 suggested, taken or turned down there, and each thing told to stop or to start
 again. It is asked of the core thing by thing, each when the last is answered, and
 shown as it comes, so a project of hundreds never holds the core up; put away, it
-stops. Find narrows it, by the names in it.
+stops.
 
-**Find is one box.** Over a project shown as a whole it narrows the glance by title; over
-files, the files by name. Either way, above them, **where the words are written**:
-as typed together, case and accents aside, in pages, canvases, conversations, a
-thing's written words and files already read, that project's first (`/meaning/words`).
-It needs no model server, so it finds what meaning would not: a name, a number, a
-phrase. Each opens its card, and what was being looked through stays.
+**Find is one search.** While there is something in the box, what it found is the
+whole of the middle, and the buttons about the project are put away: what is called
+the words, or has them written in it, as typed together, case and accents aside, in
+pages, canvases, conversations, a thing's written words, any file by its name and one
+already read by what it says (`/meaning/words`). The project chosen comes first, under
+its name, those called it first; then Elsewhere. It needs no model server, so it finds
+what meaning would not: a name, a number, a phrase. Each opens its card, and what was
+found stays. An event says when it is, and a task when it is due. Every type has its chip
+with how many of each, the same set as a glance's: pressed, that kind is left out; and
+beside them All or None, to turn them on or off together.
+Emptying the box, or choosing on the left, brings the project back.
 
 **A thing's hub shows the same card.** Tasks, People and Calendar stay where a task,
 a person and an event are worked with, and what they show of one is to be this
@@ -1564,8 +1568,11 @@ is one card now, edited where it is shown, in People and in the Library alike
 people one or deleting one, which the Library's card reaches by Open in People. A task's
 is one card too (`taskcard.js`), with its status, dates, repeat, projects, tags, files and
 notes: each change is the core's to carry out, as ever, so completing one from anywhere
-stamps it and brings the next of its series. An event's is read on the card and worked
-on in Calendar until it comes over.
+stamps it and brings the next of its series. An event's is one card as well
+(`eventcard.js`), over the calendar in Calendar and on the right in the Library. It alone
+is saved all at once, with Save: it belongs to a calendar or to the plugin that brought
+it, and saving it may send invitations. Its projects, which Talaris alone holds, are kept
+as they are chosen. One whose calendar cannot be asked just now is read on the card.
 
 ### Organizations (2026-11-03)
 
@@ -1642,6 +1649,15 @@ project: something from elsewhere comes in by a shortcut first. Kept in the
 project's folder (`.talaris/file-lists.json`, sealed with the project), so the
 lists go with it. A file or page moved or renamed keeps its places in lists.
 Lists are not Hermes' collections, which belong to no project.
+
+### A keyring not open yet (2026-11-04)
+
+The store's key is in the login keyring, and at login that may not be open: logging in by
+fingerprint gives it no password, so it waits to be asked. The core used to give up on
+that and stay down. It waits now (`untilStoreOpens`): tried once, which may bring up the
+keyring's prompt, once more half a minute on when a prompt has somewhere to show, and
+otherwise looked at quietly, so nobody who said no is asked over and over. Anything else
+that locks the store, a key that is wrong or gone, stays as it was.
 
 ### Times on another clock (2026-11-04)
 

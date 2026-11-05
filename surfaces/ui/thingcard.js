@@ -7,8 +7,9 @@
 // the same. The page says how a thing named on it opens.
 //
 // A person's or an organization's is edited where it is shown, each field by its
-// kind, as the type has it; a task's the same, by its own part (taskcard.js). An
-// event's is read here, and worked on in Calendar.
+// kind, as the type has it; a task's the same, by its own part (taskcard.js); an
+// event's by its own (eventcard.js), saved all at once. One whose calendar cannot be
+// asked just now is read here.
 //
 // Asked of the page:
 //   api, say, failed    its door to the core, and where it says things
@@ -443,7 +444,8 @@ window.ThingCard = (() => {
     }
 
     const rows = type.fields.filter((f) => !f["talaris:auto"] && f.key !== titleKey).map(fieldRow).flat().filter(Boolean);
-    return [head(), el("section", { class: "part fields" }, rows), ctx.afterFields, connected(got, ctx), ctx.end].filter(Boolean);
+    // What the page adds, with what it acts on; what it is connected to, and might be, after them.
+    return [head(), el("section", { class: "part fields" }, rows), ctx.afterFields, ctx.end, connected(got, ctx)].filter(Boolean);
   }
 
   // ---------------------------------------------------------------- one read
@@ -482,7 +484,7 @@ window.ThingCard = (() => {
     const act = (label, fn) => acts.push(el("button", { class: "t-btn small", onclick: fn }, label));
     if (kinds.includes("event")) {
       const on = (o["talaris:sources"] || []).find((s) => s.kind === "eds-event");
-      if (on) { const cut = on.key.indexOf("/"); act("Open in Calendar", () => bridge.openEvent(on.key.slice(0, cut), on.key.slice(cut + 1), String(p.start || ""))); }
+      if (on && bridge.openEvent) { const cut = on.key.indexOf("/"); act("Open in Calendar", () => bridge.openEvent(on.key.slice(0, cut), on.key.slice(cut + 1), String(p.start || ""))); }
     }
     const glance = ctx.glance || (bridge.glanceAt ? (k) => bridge.glanceAt(k) : null);
     if (window.Peek && glance) acts.push(Peek.glanceButton(`e:${id}`, glance, "t-btn small"));
@@ -519,8 +521,12 @@ window.ThingCard = (() => {
     if ((got.kinds || []).includes("task")) {
       try { ctx = { ...ctx, task: await TaskCard.ask(got.entity.id, ctx.api) }; } catch (e) { ctx.failed(e); return null; }
     }
+    if ((got.kinds || []).includes("event") && window.EventCard && ctx.send) {
+      const event = await EventCard.ask(got, ctx);
+      if (event) { putAway(); return EventCard.parts(event, false, ctx, connected, got); }
+    }
     return drawn(got, types, ctx);
   }
 
-  return { draw, drawn, putAway, keepEditor, withEditor, avatar, forgetPictures: () => pictures.clear() };
+  return { draw, drawn, connected, putAway, keepEditor, withEditor, avatar, forgetPictures: () => pictures.clear() };
 })();

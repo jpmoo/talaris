@@ -947,3 +947,23 @@ test("a time on another clock: read as that clock has it, here as it reads here,
   const here = new Date(Date.UTC(2026, 10, 9, 19, 0));
   assert.equal(hereFrom("2026-11-09T14:00:00", "America/New_York"), `2026-11-09T${String(here.getHours()).padStart(2, "0")}:00`);
 });
+
+test("a keyring not open yet is waited for: looked at quietly, asked once more, and a wrong key is not waited for", async () => {
+  const { untilStoreOpens, KeyringClosed, Locked } = vault;
+  const tries: string[] = [];
+  let open = false, looks = 0, ready = false;
+  const said: string[] = [];
+  const ways = {
+    tryKey: () => { tries.push("try"); if (!ready) throw new KeyringClosed("the login keyring is locked"); },
+    isOpen: () => { looks++; if (looks === 40) { open = true; ready = true; } return open; },
+    pause: async () => {},
+    say: (t: string) => said.push(t),
+    everyMs: 3000,
+    askAgainMs: 30000,
+  };
+  await untilStoreOpens(ways);
+  assert.equal(looks, 40, "looked at until it was open");
+  assert.equal(tries.length, 3, "tried at the start, asked once more, then when open: never over and over");
+  assert.equal(said.length, 1, "said once");
+  await assert.rejects(untilStoreOpens({ ...ways, tryKey: () => { throw new Locked("the keyring's key does not open this store"); } }), /does not open/);
+});

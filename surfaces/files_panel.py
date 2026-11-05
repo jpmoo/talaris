@@ -30,7 +30,7 @@ import spawn
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
 # And what a thing's card edits and finds (thingcard.js), as People's page may; of plugins, only their buttons on a person.
-ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words|entities|people|mentionables)(/|$|\?)|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
+ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words|entities|people|mentionables)(/|$|\?)|^/plugins/calendars(/events\?from=\d+&to=\d+)?$|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
 HOME = os.path.expanduser("~")
 
 
@@ -50,6 +50,31 @@ class FilesBridge(Bridge):
     chosen = Signal(str)
     #: Files kept with a thing whose card is on show, or why not: {id, field, added, error}.
     attached = Signal(str)
+    #: The calendar's process answering what an event's card asked it: {req, items} or {req, error, uid}.
+    calendarAnswer = Signal(str)
+
+    def _calendar(self):
+        """The calendar's process, its answers heard once it is first asked for."""
+        service = getattr(self.owner.desktop, "calendar_service", None)
+        if service is not None and not getattr(self, "_heard", False):
+            self._heard = True
+            service.events.connect(self.calendarAnswer.emit)
+            service.asked.connect(self.calendarAnswer.emit)
+        return service
+
+    @Slot(str)
+    def calendarAsk(self, request: str) -> None:  # noqa: N802 — called from the page by this name
+        """What an event's card asks of its calendar: what Calendar's page may ask of it, no more."""
+        msg = json.loads(request)
+        service = self._calendar()
+        if service is not None and msg.get("do") in ("range", "create", "update", "delete", "respond"):
+            service.send(msg)
+
+    @Slot(result=str)
+    def calendarList(self) -> str:  # noqa: N802 — called from the page by this name
+        """The calendars there are, as their process last said."""
+        service = self._calendar()
+        return service.last_calendars if service is not None else "[]"
 
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:

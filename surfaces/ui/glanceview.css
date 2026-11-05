@@ -28,6 +28,7 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
 .gv-kinds .kchip .n { font-variant-numeric: tabular-nums; opacity: .8; }
 .gv-kinds .kchip:not(.on) .dot { opacity: .35; }
 .gv-kinds .kchip.none { opacity: var(--disabled); }
+.gv-kinds .kall { margin-left: 4px; }
 
 /* The list: grouped by kind. */
 .gv-list { flex: 1; overflow: auto; padding-bottom: 10px; }

@@ -413,7 +413,8 @@ window.TaskCard = (() => {
       window.Peek ? [...Peek.elsewhereButtons(entity(), (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", id, api, "t-btn", () => ctx.redraw()), Peek.glanceButton(`e:${id}`, glance)].filter(Boolean) : [],
       el("button", { class: "t-btn", onclick: () => update({ archived: !entity().archived }) }, entity().archived ? "Unarchive" : "Archive"));
 
-    return [el("div", { class: "t-card" }, head, statusRow, dates, repRow, repHost, projRow, tagRow, filesRow, notesHost, connected(got, ctx, new Set(mine)), foot)];
+    // Its own buttons with what they act on; what it is connected to, and might be, after them.
+    return [el("div", { class: "t-card" }, head, statusRow, dates, repRow, repHost, projRow, tagRow, filesRow, notesHost, foot, connected(got, ctx, new Set(mine)))];
   }
 
   return { ask, parts, filesSaid };

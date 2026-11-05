@@ -98,11 +98,9 @@
   const TYPE_COLOR = { document: "var(--tint-1)", spreadsheet: "var(--tint-2)", presentation: "var(--accent)", pdf: "var(--danger)", image: "var(--tint-3)", audio: "var(--tint-1)",
     video: "var(--muted)", code: "var(--muted)", archive: "var(--tint-4)", other: "var(--muted)", canvas: "var(--tint-3)", conversation: "var(--tint-2)" };
   const ON_KIND = { task: "task", contact: "person", event: "event", note: "note", project: "project", thing: "thing" };
-  // What is only in Home, in no other project: chosen as a project is, below All projects (files.ts, NO_PROJECT).
-  const NONE = "~none";
-  const projectName = (id) => (id === NONE ? "No project" : (projects.find((p) => p.id === id) || {}).name || "a project");
-  /** One project chosen: not all of them, nor what is in none. */
-  const oneProject = () => Boolean(project) && project !== NONE;
+  const projectName = (id) => (projects.find((p) => p.id === id) || {}).name || "a project";
+  /** One project chosen, not all of them. What is in no other project is Home's. */
+  const oneProject = () => Boolean(project);
   /** A project on show as a whole: narrowing it to some of its files shows those, and taking that off comes back. */
   const asProject = () => oneProject() && shape !== "files" && !(filters.status || filters.type || filters.days || filters.tags.length || filters.list);
   const whole = () => asProject() && shape === "whole";
@@ -153,33 +151,65 @@
     projects = await api("GET", "/projects");
   }
 
-  /** The one Find, on what is shown: the glance's words, or the files'. */
-  function placeFind() {
-    const words = $("q").value.trim();
-    filters.q = asProject() ? "" : words;
-    const into = whole() ? words : "";
-    if (glance.q.value !== into) { glance.q.value = into; glance.q.dispatchEvent(new Event("input")); }
-  }
-
-  /** Where the words typed are written, wherever: above whatever is shown, each opening its card. */
+  /** Find: while there is something in the box, what it found is the whole of the middle, each opening its card. */
+  const finding = () => Boolean($("q").value.trim());
   const SAID_KIND = { page: "page", canvas: "canvas", thread: "conversation", task: "task", person: "person", organization: "organization", project: "project", event: "event", file: "file" };
+  // As the glance's chips are (glanceview.css): the same set, in its order, each in its color with how many, pressed to leave it out.
+  const SAID_TYPES = [["page", "Pages", "page"], ["canvas", "Canvases", "canvas"], ["task", "Tasks", "task"], ["file", "Files", "file"], ["person", "People", "contact"], ["organization", "Organizations", "organization"], ["event", "Events", "event"], ["thread", "Conversations", "conversation"], ["project", "Projects", "project"], ["other", "Other", "other"]];
+  const saidOff = new Set();   // the types Find leaves out: for as long as there is something in the box
+  /** When an event or a task is, with the year where it is not this one's, and a time where it has one. */
+  function saidWhen(f) {
+    if (!f.when) return f.done ? "done" : "";
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(f.when.at);
+    if (!m) return f.done ? "done" : "";
+    const d = new Date(+m[1], m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0));
+    const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }) });
+    const said = [f.when.word, day, m[4] ? Kit.clock(d) : ""].filter(Boolean).join(" ");
+    return f.done ? `${said}, done` : said;
+  }
   let saidSeq = 0;
   async function drawSaid() {
     const words = $("q").value.trim();
     const seq = ++saidSeq;
-    const got = words.length < 3 ? { found: [], more: false }
-      : await api("GET", `/meaning/words?q=${enc(words)}${oneProject() ? `&first=${enc(project)}` : ""}`).catch(() => ({ found: [], more: false }));
-    if (seq !== saidSeq) return;
+    showFinding();
+    if (!words) { saidOff.clear(); return; }
     const host = $("said");
-    host.hidden = !got.found.length;
-    host.replaceChildren(el("div", { class: "s-head" }, `Written in ${got.more ? `the first ${got.found.length}` : got.found.length}`),
-      ...got.found.map((f) => el("button", { class: "said-row", onclick: () => showCard(f.open, "said").catch(failed) },
-        f.title, el("span", { class: "w" }, [SAID_KIND[f.kind], f.project && f.project !== project ? projectName(f.project) : ""].filter(Boolean).join(" · ")),
-        el("span", { class: "line" }, f.before, el("mark", {}, f.hit), f.after))));
+    if (words.length < 2) { host.replaceChildren(Kit.empty("Keep typing")); return; }
+    const ask = () => api("GET", `/meaning/words?q=${enc(words)}${oneProject() ? `&first=${enc(project)}` : ""}${saidOff.size ? `&off=${[...saidOff].join(",")}` : ""}`).catch(() => ({ found: [], more: false, total: 0, kinds: {} }));
+    const got = await ask();
+    if (seq !== saidSeq) return;
+    const everyKind = Object.values(got.kinds || {}).reduce((a, b) => a + b, 0);
+    if (!everyKind) { host.replaceChildren(Kit.empty(`Nothing found for “${words}”`)); return; }
+    const row = (f) => el("button", { class: "said-row", onclick: () => showCard(f.open, "said").catch(failed) },
+      f.title, el("span", { class: "w" }, [SAID_KIND[f.kind], saidWhen(f), f.project && !f.here ? projectName(f.project) : ""].filter(Boolean).join(" · ")),
+      el("span", { class: "line" }, f.before, el("mark", {}, f.hit), f.after));
+    const here = got.found.filter((f) => f.here), rest = got.found.filter((f) => !f.here);
+    const part = (name, list) => (list.length ? [el("div", { class: "s-head" }, name), ...list.map(row)] : []);
+    const types = el("div", { class: "gv-kinds" }, SAID_TYPES.map(([k, name, color]) =>
+      el("button", { class: `chip kchip${saidOff.has(k) ? "" : " on"}${got.kinds[k] ? "" : " none"}`, title: `${saidOff.has(k) ? "Show" : "Hide"} ${name.toLowerCase()}`,
+        onclick: () => { if (saidOff.has(k)) saidOff.delete(k); else saidOff.add(k); drawSaid(); } },
+        el("span", { class: "dot", style: `background: var(--k-${color})` }), name, el("span", { class: "n" }, String(got.kinds[k] || 0)))),
+      // Beside the chips, as a glance's: every one on, it turns them all off; otherwise, all on.
+      el("button", { class: "t-btn small kall", title: saidOff.size ? "Show every kind" : "Hide every kind", onclick: () => {
+        if (saidOff.size) saidOff.clear(); else for (const [k] of SAID_TYPES) saidOff.add(k);
+        drawSaid();
+      } }, saidOff.size ? "All" : "None"));
+    if (!got.found.length) { host.replaceChildren(el("div", { class: "said-head" }, `No results of those kinds for “${words}”`), types); return; }
+    host.replaceChildren(el("div", { class: "said-head" }, `${got.total} result${got.total === 1 ? "" : "s"} for “${words}”${got.more ? `, the first ${got.found.length} shown` : ""}`), types,
+      ...(oneProject() ? [...part(`In ${projectName(project)}`, here), ...part(here.length ? "Elsewhere" : `Elsewhere, none in ${projectName(project)}`, rest)] : got.found.map(row)));
+  }
+  /** What the middle shows, and the buttons that are about it: none of them while finding. */
+  function showFinding() {
+    const on = finding(), others = asProject();
+    $("said").hidden = !on;
+    $("glance").hidden = on || !whole();
+    $("review").hidden = on || !reviewing();
+    $("rows").hidden = on || others;
+    drawControls();
+    if (on) $("count").textContent = "";
   }
 
   async function load() {
-    placeFind();
     const q = new URLSearchParams();
     if (project) q.set("project", project);
     if (filters.q) q.set("q", filters.q);
@@ -231,17 +261,14 @@
   function draw() {
     const asWhole = whole();
     const others = asProject();
-    $("glance").hidden = !asWhole;
-    $("review").hidden = !reviewing();
-    $("rows").hidden = others;
-    drawControls();
+    showFinding();
     drawSide();
     drawRows();
     drawDetail();
-    if (asWhole && (glanceOld || glance.loadedFor() !== project)) { glanceOld = false; glance.load(); }
-    if (reviewing()) review();
+    if (asWhole && !finding() && (glanceOld || glance.loadedFor() !== project)) { glanceOld = false; glance.load(); }
+    if (reviewing() && !finding()) review();
     // Each counts its own.
-    if (others) { $("count").textContent = ""; return; }
+    if (others || finding()) { $("count").textContent = ""; return; }
     $("count").textContent = total > rows.length ? `${rows.length} of ${total}` : String(total);
     // Still to be read, across what is listed: said beside the count.
     const waiting = rows.filter((r) => readState[r.key] === "waiting").length;
@@ -292,7 +319,6 @@
     $("side").replaceChildren(...[
       ...section("projects", "Projects", [
         item("All projects", project === "", () => setProject(""), null, c.all),
-        item("No project", project === NONE, () => setProject(NONE), null, c.none ?? 0),
         ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
       ...(oneProject() ? section("lists", "Lists", listRows,
@@ -629,7 +655,6 @@
     readFilter = "all";
     if ($("q")) $("q").value = "";
     saidSeq++;
-    $("said").hidden = true;
     picked.clear();
     drawControls();
   }
@@ -687,14 +712,37 @@
     if (chosen) { const row = document.querySelector(`[data-key="${CSS.escape(chosen)}"]`); if (row) row.scrollIntoView({ block: "nearest" }); }
   }
 
+  // The calendar's process, for an event's card (eventcard.js): every calendar there is, and what is asked of it.
+  let calendarLists = [];
+  const calendarList = () => calendarLists;
+  let calendarReq = 0;
+  const calendarWaits = new Map();
+  function calendarSend(msg) {
+    return new Promise((ok, no) => {
+      // Numbered from where neither Calendar's page nor New's reach.
+      const req = 4_000_000_000 + ++calendarReq;
+      calendarWaits.set(req, { ok, no });
+      bridge.calendarAsk(JSON.stringify({ ...msg, req }));
+      setTimeout(() => { if (calendarWaits.delete(req)) no(new Error("The calendar did not answer")); }, 8000);
+    });
+  }
+  async function calendarsRead() {
+    const [real, brought] = await Promise.all([new Promise((ok) => bridge.calendarList((t) => ok(JSON.parse(t || "[]")))), api("GET", "/plugins/calendars").catch(() => [])]);
+    calendarLists = [...real, ...(brought || [])];
+  }
+
   async function drawCard(id) {
+    await calendarsRead().catch(() => {});
     const seq = ++cardSeq;
     const again = cardDrawn === id;
     cardDrawn = id;
     const top = $("detail").scrollTop;
     const part = await ThingCard.draw(id, { api, say, failed, open: (key) => showCard(key, true).catch(failed), glance: bridge.glanceAt ? glanceAt : null, bridge,
       types: () => entityTypes, kept: (t) => { entityTypes = t; }, redraw: () => drawCard(id).catch(failed), changed: () => { glanceOld = true; },
-      attachTask: (t) => bridge.attachTask(t), linkTask: (t) => bridge.linkTask(t) });
+      attachTask: (t) => bridge.attachTask(t), linkTask: (t) => bridge.linkTask(t),
+      calendars: calendarList, send: calendarSend,
+      saved: () => { glanceOld = true; },
+      gone: () => { cardOf = null; cardDrawn = null; ThingCard.putAway(); glanceOld = true; reload(); } });
     if (seq !== cardSeq || cardOf !== id) return;
     if (part) { $("detail").replaceChildren(...part); $("detail").scrollTop = again ? top : 0; }
     else { cardOf = null; cardDrawn = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
@@ -1249,27 +1297,29 @@
     drawSide();
   }
   function useKept(k) {
-    project = k.project;
+    // Kept when No project was a place of its own: what it held is Home's.
+    project = k.project === "~none" ? (projects.find((p) => p.home) || {}).id || "" : k.project;
     view = k.view;
     filters = { ...k.filters, tags: [...k.filters.tags] };
     // Kept when these were here too: a page, a canvas or a conversation is a Type now.
     if (filters.status && !STATUS[filters.status]) { filters.type = filters.status; filters.status = ""; }
     $("q").value = filters.q;
-    drawControls();
+    filters.q = "";
+    if (finding()) drawSaid();
     reload();
   }
 
   function drawControls() {
-    const asWhole = whole();
-    $("shape").hidden = !oneProject();
-    seg("shape", [["whole", "Everything"], ["review", "Suggestions"], ["files", "Files"]], asProject() ? shape : "files", (v) => {
+    const asWhole = whole(), looking = finding();
+    $("shape").hidden = !oneProject() || looking;
+    seg("shape", [["whole", "Overview"], ["review", "Suggestions"], ["files", "Files"]], asProject() ? shape : "files", (v) => {
       shape = v;
       store.set("talaris.files.shape", v);
       if (v !== "files") filters = { ...filters, status: "", type: "", days: 0, tags: [], list: "" };
       chosen = null; cardOf = null; visiting = null; picked.clear();
       reload();
     });
-    for (const id of ["view", "days", "readf"]) $(id).hidden = asProject();
+    for (const id of ["view", "days", "readf"]) $(id).hidden = asProject() || looking;
     seg("view", [["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
     seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Unread"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
@@ -1278,7 +1328,11 @@
   let typing = 0;
   // Escape clears it first, as every box that narrows a list does (kit.js).
   Kit.searchBox($("q"));
-  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => { drawSaid(); if (asProject()) { placeFind(); reviewFound(); } else reload(); }, Kit.SEARCH_MS); });
+  $("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(() => {
+    drawSaid();
+    // Out of it again: what the middle shows, brought up to date.
+    if (!finding()) draw();
+  }, Kit.SEARCH_MS); });
   // Files, or a whole folder (every file in it and its folders): asked which first.
   $("bring").addEventListener("click", () => {
     if (!bridge) return;
@@ -1357,11 +1411,6 @@
   let reviewBusy = false;
   const REVIEW_STOP = "No more suggestions for this";
 
-  function reviewFound() {
-    const words = $("q").value.trim();
-    for (const g of $("review").querySelectorAll(".r-thing[data-any]")) g.hidden = Boolean(words) && !Kit.matches(words, g.textContent);
-  }
-
   /** One thing's: its name to open its card, what is suggested, and turning it down whole. */
   function reviewThing(n, counted) {
     const name = el("button", { class: "d-proj", title: "See its card", onclick: () => showCard(n.key, "said").catch(failed) }, n.title || "Untitled");
@@ -1381,7 +1430,6 @@
         acts.replaceChildren(stopped ? el("button", { class: "t-btn small", onclick: () => quiet(false) }, "Suggest again")
           : el("button", { class: "t-btn small", title: REVIEW_STOP, onclick: () => quiet(true) }, "Stop"));
         if (stopped) acts.prepend(el("span", { class: "k" }, "Not suggesting"));
-        reviewFound();
       },
     });
     group.append(list);
@@ -1473,7 +1521,16 @@
     if (window.Peek) Peek.cardThrough((key) => showCard(key, true).catch(failed));
     // Choosing in the list or on the left puts a card away.
     for (const id of ["side", "rows"]) $(id).addEventListener("click", () => { cardOf = null; visiting = null; cardSeq++; }, true);
+    // Choosing on the left is looking somewhere else: Find is done with.
+    $("side").addEventListener("click", () => { if (finding()) { $("q").value = ""; saidSeq++; } }, true);
     // Files chosen are a list; a folder, {folder, paths}: linked where they are, after asking.
+    b.calendarAnswer.connect((text) => {
+      const d = JSON.parse(text);
+      const wait = calendarWaits.get(d.req);
+      if (!wait) return;
+      calendarWaits.delete(d.req);
+      if (d.error) wait.no(new Error(d.error)); else wait.ok(d);
+    });
     // Files or a picture kept on the card on show (or why not).
     b.attached.connect((text) => {
       const r = JSON.parse(text);
