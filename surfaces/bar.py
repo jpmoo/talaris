@@ -234,7 +234,9 @@ class BarBridge(Bridge):
 
     @Slot()
     def clearNotices(self) -> None:  # noqa: N802 — called from the page by this name
+        """Every notification gone: nothing left to look at, so the panel goes with them."""
         self.owner.desktop.notifications.clear()
+        self.owner.desktop.bar.close_popup()
 
     @Slot(int)
     def openNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
