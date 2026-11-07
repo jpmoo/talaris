@@ -7,6 +7,14 @@
 "use strict";
 
 let bridge = null;
+// Ctrl-click on the dock, off its items (whose Ctrl-click is Settings' to say): tucked away for now,
+// back when the pointer touches its edge (surfaces.py, tuck).
+document.addEventListener("click", (e) => {
+  if (!e.ctrlKey || !bridge || !bridge.tuck || e.target.closest(".bar-item")) return;
+  e.preventDefault();
+  e.stopPropagation();
+  bridge.tuck();
+}, true);
 
 let leaving = null; // the slide back into hiding, held until the dock is taken away
 let listing = { pinned: [], open: [] };

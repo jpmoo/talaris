@@ -123,6 +123,11 @@ class DockBridge(Bridge):
     def press(self, key: str) -> None:
         self.owner.press(key)
 
+    @Slot()
+    def tuck(self) -> None:
+        """Ctrl-clicked off its items: the dock away for now, until the pointer touches its edge."""
+        self.owner.desktop.tuck("dock", True)
+
     @Slot(str, str)
     def pressWith(self, key: str, mod: str) -> None:  # noqa: N802 — called from the page by this name
         """A press with Shift or Ctrl held: what that does for it (`clicks`)."""
@@ -288,7 +293,7 @@ class DockMenu(QObject):
         bottom = self.dock.edge == "bottom"
         # Clear of the dock: its reserved space does that, unless it is hiding
         # and so reserves none, when the menu stands off by the dock's height.
-        off = self.dock.thickness() if self.desktop.config["dock"].get("autohide") else 0
+        off = self.dock.thickness() if self.desktop.hides("dock") else 0
         anchor = (ANCHOR_BOTTOM if bottom else ANCHOR_TOP) | ANCHOR_LEFT
         margins = (left, 0 if bottom else off, 0, off if bottom else 0)
         self.surface.placement = None
@@ -490,7 +495,7 @@ class Dock(QObject):
         self.surface = LayerSurface(self.view, "talaris-dock")
         self.hider = Autohide(profile, "dock", self.view, self._show, self._hide, slide_out=self._slide_out,
                               busy=lambda: bool(self.menu.key or self.preview.key), parent=self,
-                              on_it=lambda: away.over("talaris-dock", self._reach()))
+                              on_it=lambda: away.over("talaris-dock", self._reach()), come_back=lambda: self.desktop.tuck("dock", False))
         self.menu = DockMenu(profile, self)
         self.preview = DockPreview(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
@@ -514,7 +519,7 @@ class Dock(QObject):
             self.hider.set(True, self.edge, OVERLAY)
             self.refresh()
             return
-        hide = bool(self.desktop.config["dock"].get("autohide"))
+        hide = self.desktop.hides("dock")
         self.hider.set(hide, self.edge)
         if not hide:
             self._show()
@@ -531,7 +536,7 @@ class Dock(QObject):
         # and of an icon magnified under the pointer.
         look = self.desktop.config["dock"]
         swell = round((int(look.get("iconSize", 24)) + 12) * (int(look.get("magnify", 100)) - 100) / 100)
-        off = (self.thickness() if look.get("autohide") else 0) + max(0, swell)
+        off = (self.thickness() if self.desktop.hides("dock") else 0) + max(0, swell)
         self.desktop.tip.show(text, x * self.view.zoomFactor(), self.edge, off, area="dock")
 
     def thickness(self) -> int:
@@ -541,7 +546,7 @@ class Dock(QObject):
     def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_TOP if self.edge == "top" else ANCHOR_BOTTOM
-        hide = bool(self.desktop.config["dock"].get("autohide")) or self.covered
+        hide = self.desktop.hides("dock") or self.covered
         # Room beyond the space reserved, clear: for a shadow to fall into, and
         # for icons to swell into when magnified (a 36px item at its largest).
         look = self.desktop.config["dock"]

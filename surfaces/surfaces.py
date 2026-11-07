@@ -250,6 +250,8 @@ class Desktop(QObject):
         # A timer or reminder of Morgan's come due: on screen too, not only said.
         self.morgan_link.event.connect(self._morgan_reminder)
         # The bar first: its reserved space is what the drawers keep clear of.
+        #: Tucked away for now by a Ctrl-click, until the pointer touches the edge (`tuck`).
+        self.tucked = {"bar": False, "dock": False}
         self.bar = Bar(self.config["bar"], profile, self)
         self.bar.place()
         # The dim behind every panel, the launcher and Settings: one, the same for all (dim.py).
@@ -435,6 +437,27 @@ class Desktop(QObject):
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
 
+    def hides(self, which: str) -> bool:
+        """Whether the bar or the dock is away until its edge is touched: set to by Settings, or tucked for now."""
+        return bool(self.config[which].get("autohide")) or self.tucked[which]
+
+    def tuck(self, which: str, on: bool) -> bool:
+        """
+        The bar or the dock tucked away for now (a Ctrl-click on it), or back
+        (its edge touched): away as if set to hide, until then. Settings is not
+        changed, and a restart brings it back. Says whether anything changed.
+        """
+        if on == self.tucked[which] or (on and self.config[which].get("autohide")):
+            return False
+        self.tucked[which] = on
+        it = self.bar if which == "bar" else self.dock
+        it.place()
+        # Pressed at the edge, the pointer is on it already: the edge brings it back only once the pointer has left.
+        if on:
+            it.hider.sensor.disarm_if_under_pointer()
+        self.style_compositor()
+        return True
+
     def style_compositor(self) -> None:
         """
         What Hyprland draws round the windows, made to match Talaris: the
@@ -458,11 +481,11 @@ class Desktop(QObject):
         # A floating bar's margin on the side away from its edge is the space
         # between it and the windows: the window gap on that side.
         bar = self.config["bar"]
-        if bar.get("shape") == "floating" and not bar.get("autohide"):
+        if bar.get("shape") == "floating" and not self.hides("bar"):
             sides[self.bar.edge] = zoom(bar_margins(bar)["bottom" if self.bar.edge == "top" else "top"], "bar")
         # Only a dock that reserves its edge stops short of it.
         dock = self.config["dock"]
-        if dock.get("enabled", True) and not dock.get("autohide"):
+        if dock.get("enabled", True) and not self.hides("dock"):
             sides[self.dock.edge] = max(0, gap - to_compositor(self.DOCK_SHORT))
         # Commas: at runtime Hyprland reads "10 10 7 10" as one number and the
         # rest is lost; written with commas it takes all four sides.

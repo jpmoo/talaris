@@ -80,6 +80,11 @@ def margins(look: dict) -> dict:
 class BarBridge(Bridge):
     """The drawer's bridge, plus what the bar and its popup may ask."""
 
+    @Slot()
+    def tuck(self) -> None:
+        """Ctrl-clicked: the bar away for now, until the pointer touches its edge."""
+        self.owner.desktop.tuck("bar", True)
+
     #: Pushed to the page: a new reading of the machine.
     machine = Signal(str)
     #: Pushed to the popup: a Wi-Fi or Bluetooth panel's state, `{kind, state, error}`.
@@ -327,7 +332,7 @@ class BarBridge(Bridge):
         """A tooltip under the button at `x` (its page's pixels); empty text puts it away."""
         bar = self.owner.desktop.bar
         # A bar that hides reserves no space; the tip stands off by its height instead.
-        off = bar.view.height() if bar.desktop.config["bar"].get("autohide") else 0
+        off = bar.view.height() if bar.desktop.hides("bar") else 0
         self.owner.desktop.tip.show(text, x * zoom_of("bar"), bar.edge, off, area="bar")
 
     @Slot(str)
@@ -527,7 +532,7 @@ class Bar(QObject):
         #: A fullscreen window covers the top layer: the bar hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
         self.hider = Autohide(profile, "bar", self.view, self._show, self._hide, slide_out=self._slide_out,
-                              busy=lambda: bool(self.popup.kind), parent=self)
+                              busy=lambda: bool(self.popup.kind), parent=self, come_back=lambda: self.desktop.tuck("bar", False))
         desktop.machine.changed.connect(self._reading)
         # Read every few seconds while a popup shows the readings; every so often otherwise (machine.py).
         desktop.machine.watched = lambda: bool(self.popup.kind)
@@ -559,7 +564,7 @@ class Bar(QObject):
         if self.covered:
             self.hider.set(True, self.edge, OVERLAY)
             return
-        hide = bool(self.desktop.config["bar"].get("autohide"))
+        hide = self.desktop.hides("bar")
         self.hider.set(hide, self.edge)
         if not hide:
             self._show()
@@ -573,7 +578,7 @@ class Bar(QObject):
     def _show(self) -> None:
         screen = QApplication.primaryScreen().geometry()
         edge = ANCHOR_BOTTOM if self.edge == "bottom" else ANCHOR_TOP
-        hide = bool(self.desktop.config["bar"].get("autohide")) or self.covered
+        hide = self.desktop.hides("bar") or self.covered
         # A hiding bar reserves nothing: the windows keep the space, and it
         # comes out over them.
         look = self.desktop.config["bar"]
@@ -595,7 +600,7 @@ class Bar(QObject):
         self.room = room
         self.surface.placement = None
         self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
-                                     KEYBOARD_NONE, exclusive=0 if hide else tall))
+                                     KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:

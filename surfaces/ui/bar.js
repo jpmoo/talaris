@@ -8,6 +8,14 @@
 
 const $ = (id) => document.getElementById(id);
 let bridge = null;
+// Ctrl-click anywhere on the bar: tucked away for now, back when the pointer touches its edge (surfaces.py, tuck).
+// Before anything under it hears the press.
+document.addEventListener("click", (e) => {
+  if (!e.ctrlKey || !bridge || !bridge.tuck) return;
+  e.preventDefault();
+  e.stopPropagation();
+  bridge.tuck();
+}, true);
 let barLeaving = null; // the slide back into hiding, held until the bar is taken away
 let state = { popup: "" };
 

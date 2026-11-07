@@ -305,7 +305,8 @@ class Autohide(QObject):
     def __init__(self, profile: QWebEngineProfile, name: str, view: QWidget,
                  reveal: Callable[[], None], conceal: Callable[[], None],
                  busy: Callable[[], bool] = lambda: False, parent: QObject | None = None,
-                 slide_out: Callable[[], int] = lambda: 0, on_it: Callable[[], bool | None] | None = None) -> None:
+                 slide_out: Callable[[], int] = lambda: 0, on_it: Callable[[], bool | None] | None = None,
+                 come_back: Callable[[], bool] = lambda: False) -> None:
         super().__init__(parent)
         #: Whether the pointer is on it now, where a press would reach it: by default anywhere on its surface.
         self._on_it = on_it or (lambda: away.over(f"talaris-{name}"))
@@ -313,6 +314,8 @@ class Autohide(QObject):
         self.out = False
         self.name = name
         self._reveal, self._conceal, self._busy, self._slide_out = reveal, conceal, busy, slide_out
+        #: Tucked away for now (a Ctrl-click): its edge touched brings it back for good, not out for a moment.
+        self._come_back = come_back
         # Slid back to its edge by its page first (`slide_out`, how long it takes), then taken away: it came
         # out sliding, and went by Hyprland's fade.
         self._leaving = QTimer(self)
@@ -343,6 +346,8 @@ class Autohide(QObject):
             self._away.start(ms)
 
     def touched(self) -> None:
+        if self._come_back():
+            return
         if self.on and not self.out:
             self._out(True)
             self._reveal()
