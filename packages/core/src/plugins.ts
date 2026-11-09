@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jeff Moore
 
 import { instantOn, TIMEZONE } from "./zoned.js";
-import { spawn, execFile, execFileSync, type ChildProcess } from "node:child_process";
+import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -11,6 +11,7 @@ import { allRecords, getEntity, profilesOf, titleOf, typeFor, types } from "./en
 import { onRecord } from "./feed.js";
 import { restoreLinks, unbacked } from "./links.js";
 import { createObject, defineCollection, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
+import { notifyDesktop } from "./desktop-notify.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
 import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
@@ -805,11 +806,6 @@ function interchangeFor(m: Manifest, p: Record<string, unknown>): unknown {
   throw new Error(`not a route of the binding: ${verb} ${path}`);
 }
 
-/** A desktop notification, as the plugin: through the notification server Talaris runs (notifyd.py). */
-function notifyDesktop(app: string, title: string, body: string): void {
-  execFile("gdbus", ["call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications",
-    "--method", "org.freedesktop.Notifications.Notify", app, "0", "", title, body, "[]", "{}", "-1"], { timeout: 5000 }, () => undefined);
-}
 
 // ------------------------------------------------------------ for the routes and Morgan
 

@@ -26,6 +26,7 @@
  * the index again.
  */
 
+import { notifyDesktop } from "./desktop-notify.js";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -427,10 +428,40 @@ function framed(model: string, texts: string[], as: "document" | "query"): strin
   return texts;
 }
 
+/**
+ * The model server out of reach (a network that blocks the way to it, say): not
+ * tried again for a while, so that each thing wanting a meaning is answered at
+ * once without one instead of after a ten-second wait to connect.
+ */
+const UNREACHED_FOR_MS = 120_000;
+let unreachedUntil = 0;
+/** Said in the notification area once an outage, and again when it is over: not at each try. */
+let awaySaid = false;
+/** Whether the model server could not be reached lately. */
+export const modelServerAway = () => Date.now() < unreachedUntil;
+
 /** Vectors for texts, from the model server: Ollama's `/api/embed`, else the OpenAI-style `/v1/embeddings`. Each made unit length. */
 export let embedder = async (s: Required<Pick<MeaningSettings, "url" | "model">>, texts: string[]): Promise<Float32Array[]> => {
   const base = s.url.replace(/\/+$/, "");
-  let res = await fetch(`${base}/api/embed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: s.model, input: texts }), signal: AbortSignal.timeout(120_000) });
+  if (modelServerAway()) throw new Error("the model server could not be reached a moment ago");
+  let res: Response;
+  try {
+    res = await fetch(`${base}/api/embed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: s.model, input: texts }), signal: AbortSignal.timeout(120_000) });
+  } catch (e) {
+    // Not an answer but no way through: left alone for a while.
+    unreachedUntil = Date.now() + UNREACHED_FOR_MS;
+    if (!awaySaid) {
+      awaySaid = true;
+      let host = s.url;
+      try { host = new URL(s.url).hostname; } catch { /* as written */ }
+      notifyDesktop("Talaris", "Can't reach the AI server", `${host} isn't answering, so search by meaning and suggestions are paused. Anything new waits, and is read once it's back.`);
+    }
+    throw e;
+  }
+  if (awaySaid) {
+    awaySaid = false;
+    notifyDesktop("Talaris", "The AI server is back", "Search by meaning and suggestions are back, and what waited is being read now.");
+  }
   let vecs: number[][] | undefined;
   if (res.ok) vecs = ((await res.json()) as { embeddings?: number[][] }).embeddings;
   else {
@@ -457,6 +488,9 @@ function unit(v: number[] | Float32Array): Float32Array {
 
 const ready = (s: MeaningSettings): s is Required<Pick<MeaningSettings, "url" | "model">> & MeaningSettings => Boolean(s.on && s.url && s.model);
 
+/** What a pass in progress has done so far, written down (`reindex`). */
+let keepDone: () => void = () => undefined;
+
 /** One pass: what changed, embedded again; what is gone, forgotten. Answers how many were embedded. */
 export async function reindex(most = 400, options: { files?: boolean } = {}): Promise<number> {
   const s = meaningSettings();
@@ -470,6 +504,8 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
     keepOnly(new Set(docs.filter((d) => d.kind === "file").map((d) => d.key)));
     const live = new Set(docs.map((d) => d.key));
     let dirty = false;
+    // A pass stopped part way (the model server gone, say) keeps what it had done: not read again after a restart.
+    keepDone = () => { if (dirty) save(ix); };
     for (const k of [...ix.entries.keys()]) if (!live.has(k)) { ix.entries.delete(k); dirty = true; }
     // Files only when it is their time (`scan`): kept as they are meanwhile, neither read again nor forgotten.
     const stale = docs.filter((d) => ix.entries.get(d.key)?.doc.stamp !== d.stamp && (options.files !== false || d.kind !== "file"));
@@ -535,8 +571,10 @@ export async function reindex(most = 400, options: { files?: boolean } = {}): Pr
     return done;
   } catch (e) {
     status.error = (e as Error).message;
+    try { keepDone(); } catch { /* kept at the next pass */ }
     return 0;
   } finally {
+    keepDone = () => undefined;
     status.indexing = false;
     status.doing = "";
     status.doingKind = "";
@@ -702,7 +740,9 @@ export async function searchMeaning(q: string, options: { limit?: number; kind?:
   if (!ready(s) || !q.trim()) return [];
   const ix = load(s.model);
   if (!ix.entries.size) return [];
-  const [qv] = await embedder(s, framed(s.model, [q.trim()], "query"));
+  // The model server out of reach: nothing found by meaning, said at once rather than as a failure.
+  let qv: Float32Array | undefined;
+  try { [qv] = await embedder(s, framed(s.model, [q.trim()], "query")); } catch { return []; }
   const floor = options.floor ?? 0.5;
   const best = new Map<string, Found>();
   for (const e of ix.entries.values()) {

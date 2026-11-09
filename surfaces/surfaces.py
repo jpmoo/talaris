@@ -224,6 +224,14 @@ class Desktop(QObject):
         if hypr.option("input:follow_mouse") == 2:
             hypr.keyword("input:follow_mouse", "1")
         self.project = self._home()
+        # Started before the core had opened its store (it waits for the keyring), Home was asked for
+        # and not answered, and stayed a Home with no id: every drawer then said "Core not answering"
+        # until another project was gone to. So it is asked again until it is known (`_learn_home`).
+        self._home_asked = QTimer(self)
+        self._home_asked.setInterval(2000)
+        self._home_asked.timeout.connect(self._learn_home)
+        if not self.project.get("id"):
+            self._home_asked.start()
         profile = QWebEngineProfile("talaris", self)
         profile.setPersistentStoragePath(
             os.path.join((os.environ.get("XDG_DATA_HOME") or "").strip() or os.path.expanduser("~/.local/share"),
@@ -355,6 +363,23 @@ class Desktop(QObject):
     def _home(self) -> dict:
         home = next((p for p in core.projects() if p.get("home")), None)
         return home or {"id": "", "code": "", "name": "Home"}
+
+    def _learn_home(self) -> None:
+        """Home, once the core can say which it is, for a desktop still on the Home it could not name; and said to what is out."""
+        if self.project.get("id"):
+            self._home_asked.stop()
+            return
+        home = self._home()
+        if not home.get("id"):
+            return
+        self._home_asked.stop()
+        self.project = home
+        for w in getattr(self, "workspaces", {}).values():
+            w.bridge.state.emit(json.dumps(w.describe()))
+        self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
+        self.dock.refresh()
+        self.desk.changed()
+        log(f"project: {home.get('name', 'Home')}, once the core could say")
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
