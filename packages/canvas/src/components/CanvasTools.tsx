@@ -18,10 +18,11 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Calendar, CheckSquare, FileText, Hash, Image as ImageIcon, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
+import { Calendar, CheckSquare, FileText, Hash, Image as ImageIcon, Network, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
+import { newMap } from "../mindmap.ts";
 import { createPortal } from "react-dom";
 import { BringIn, type BringKind } from "./BringIn.tsx";
 import { TagPicker } from "./TagPicker.tsx";
@@ -198,6 +199,15 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
     const kind = cardKind(s.kinds ?? []);
     const h = kind === "task" ? 72 : kind === "event" ? 96 : kind === "contact" ? 76 : 110;
     void place({ id: id(), kind: "card", entity: s.id, x: at.x, y: at.y, w: 240, h, seen: { title: s.title, kind } });
+  }
+
+  /** The root of a mind map (mindmap.ts), in a map's own look, to be written in at once. */
+  function dropMind(clientX: number, clientY: number) {
+    const at = atPoint(clientX, clientY);
+    const root = newMap(at.x, at.y);
+    void place(root).then(() => {
+      window.document.dispatchEvent(new CustomEvent("talaris-edit-node", { detail: { id: root.id } }));
+    });
   }
 
   function dropText(clientX: number, clientY: number) {
@@ -422,6 +432,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
   const DROPS: Record<string, BringKind> = { person: "contact", event: "event", task: "task", note: "note" };
   const dropAt = (key: string, clientX: number, clientY: number) => {
     if (key === "text") dropText(clientX, clientY);
+    else if (key === "mind") dropMind(clientX, clientY);
     else if (DROPS[key]) setBringing({ x: clientX, y: clientY, kind: DROPS[key] });
   };
   /** A click rather than a drag: the search opens in the middle of the canvas. */
@@ -468,7 +479,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       // work. A plain click still drops one in the middle, for a pointer that
       // would rather not drag.
       onPointerDown={(e) => {
-        if ((key !== "text" && !DROPS[key]) || e.button !== 0) return;
+        if ((key !== "text" && key !== "mind" && !DROPS[key]) || e.button !== 0) return;
         e.preventDefault();
         setDragging(key);
         const finish = (up: PointerEvent) => {
@@ -562,6 +573,10 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       {tool("event", "Drag onto the canvas — an event", <Calendar size={15} />, () => searchMiddle("event"))}
       {tool("task", "Drag onto the canvas — a task", <CheckSquare size={15} />, () => searchMiddle("task"))}
       {tool("note", "Drag onto the canvas — a note or page", <StickyNote size={15} />, () => searchMiddle("note"))}
+      {tool("mind", "Drag onto the canvas — a mind map", <Network size={15} />, () => {
+        const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
+        dropMind((box?.left ?? 0) + (box?.width ?? 800) / 2, (box?.top ?? 0) + (box?.height ?? 600) / 2);
+      })}
       {tool("tag", "Everything with a tag, onto the canvas", <Hash size={15} />, () => {
         const box = window.document.querySelector(".cv-wrap")?.getBoundingClientRect();
         setTagging({ x: (box?.left ?? 0) + (box?.width ?? 800) / 2, y: (box?.top ?? 0) + (box?.height ?? 600) / 2 });

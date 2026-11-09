@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
-import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { readableOn } from "../lib/display.ts";
 import { document_, keepResized, pictureAt, setBackground } from "../api.ts";
+import { addChild, addParent, addSibling, colorDescendants, descendantIds, flowOf, hasChildren, hasParent, mapOf, mindLine, mindOf, rootOf, setFlow, type Flow } from "../mindmap.ts";
+import { putDocument } from "../document.ts";
 import { fieldEditor } from "./LongTextField.tsx";
 import { CustomColor } from "./CustomColor.tsx";
 import {
@@ -171,6 +173,9 @@ const SHAPES: Record<string, string> = {
   // The cut corner of a sticky. The turned-up flap is drawn over it below.
   postIt: "polygon(0 0, 100% 0, 100% 78%, 78% 100%, 0 100%)",
 };
+/** The sizes a note's words come in, as multiples of the usual (`sizeOf`). */
+const TEXT_SIZES = [0.75, 0.9, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
 export interface CanvasEdge {
   id: string;
   from: string; // block id or ephemeral "n:<id>"
@@ -2664,6 +2669,19 @@ export function CanvasView({
     if (focusNote) setFocusNote(null);
   }, [focusNote]);
   const [confirmRemove, setConfirmRemove] = useState<string[] | null>(null);
+  /** How many of those are only there because they are below one in a mind map, to be said. */
+  const [removeBelow, setRemoveBelow] = useState(0);
+  /**
+   * A delete asked for: a mind map's node takes everything below it with it
+   * (mindmap.ts) — left behind, they would be maps of their own nobody made —
+   * and the dialog says how many.
+   */
+  const askRemove = (ids: string[]) => {
+    const all = new Set(ids);
+    for (const id of ids) if (id.startsWith("n:")) for (const d of descendantIds(id.slice(2))) all.add(`n:${d}`);
+    setRemoveBelow(all.size - ids.length);
+    setConfirmRemove([...all]);
+  };
   /**
    * "Remove from canvas" asks by a second press, as every plain delete in
    * Talaris does (kit.js, ask): a block taken off stays in your notes. Only a
@@ -2704,6 +2722,12 @@ export function CanvasView({
   const removalMessage = (ids: string[]) => {
     const c = countRemoval(ids);
     const parts: string[] = [];
+    if (removeBelow)
+      parts.push(
+        removeBelow === 1
+          ? "This also deletes the 1 note below it in the mind map."
+          : `This also deletes the ${removeBelow} notes below it in the mind map.`,
+      );
     if (c.notes)
       parts.push(
         c.notes === 1
@@ -2759,7 +2783,7 @@ export function CanvasView({
         setSelected([...members.map((m) => m.id), ...notes.map((n) => n.id)]);
       } else if ((e.key === "Delete" || e.key === "Backspace") && selected.length > 0) {
         e.preventDefault();
-        setConfirmRemove([...selected]);
+        askRemove([...selected]);
       } else if (e.key.startsWith("Arrow")) {
         e.preventDefault();
         const step = 80;
@@ -2977,6 +3001,25 @@ export function CanvasView({
     const fr = rectOf(e.from);
     const tr = rectOf(e.to);
     if (!fr || !tr) return null;
+    /*
+     * A mind map's line (mindmap.ts): out of the parent's side facing the way
+     * the map flows, into the child's opposite side, square-on at both ends —
+     * the soft S a mind map is drawn with. Its bend is not its own to change.
+     */
+    const mind = e.from.startsWith("n:") && e.to.startsWith("n:") ? mindLine(e.from.slice(2), e.to.slice(2)) : null;
+    if (mind) {
+      const sideways = mind.flow === "right" || mind.flow === "left";
+      const fwd = mind.flow === "right" || mind.flow === "down";
+      const a = sideways
+        ? { x: fwd ? fr.x + fr.w : fr.x, y: fr.y + fr.h / 2 }
+        : { x: fr.x + fr.w / 2, y: fwd ? fr.y + fr.h : fr.y };
+      const b = sideways
+        ? { x: fwd ? tr.x : tr.x + tr.w, y: tr.y + tr.h / 2 }
+        : { x: tr.x + tr.w / 2, y: fwd ? tr.y : tr.y + tr.h };
+      const c1 = sideways ? { x: (a.x + b.x) / 2, y: a.y } : { x: a.x, y: (a.y + b.y) / 2 };
+      const c2 = sideways ? { x: (a.x + b.x) / 2, y: b.y } : { x: b.x, y: (a.y + b.y) / 2 };
+      return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    }
     // Which sides a line leaves and arrives on is a fact about where the two
     // things are NOW, not about where they were when it was drawn. The stored
     // sides were a snapshot of that moment: move either end and the line kept
@@ -3136,6 +3179,16 @@ export function CanvasView({
     return shape === "postIt" ? "var(--postit)" : "transparent";
   };
 
+  /**
+   * How large its words are: a note's own `textSize`, a multiple of the usual,
+   * kept on its item (a key only Talaris reads, carried through as any is).
+   * Everything in it scales together — words, headings, lists, the editor.
+   */
+  const sizeOf = (id: string): React.CSSProperties => {
+    const k = id.startsWith("n:") ? (document_().items.find((i) => i.id === id.slice(2)) as { textSize?: number } | undefined)?.textSize : undefined;
+    return k && k !== 1 ? ({ zoom: k } as React.CSSProperties) : {};
+  };
+
   const alignment = (r: NodeCtx): React.CSSProperties => {
     const across = { leading: "left", center: "center", trailing: "right" } as const;
     const down = { top: "flex-start", middle: "center", bottom: "flex-end" } as const;
@@ -3248,6 +3301,16 @@ export function CanvasView({
           e.stopPropagation();
           toggleMembership(addingTo, id);
           return;
+        }
+        // Shift and drag, on a mind map's node: the whole map moves (mindmap.ts).
+        if (e.shiftKey && id.startsWith("n:")) {
+          const map = mapOf(id.slice(2));
+          if (map.length > 1) {
+            // Moved together without being selected: a selection of several is a region offered, which this is not.
+            const ids = map.map((m) => `n:${m}`);
+            if (editingNode) setEditingNode(null);
+            return startGroupDrag(ids, id, e);
+          }
         }
         const group = groupWith(id);
         if (group) return startGroupDrag(group, id, e);
@@ -3368,7 +3431,7 @@ export function CanvasView({
             <GripHorizontal size={13} />
           </div>
         )}
-        <div className="cv-body" style={alignment(r)}>{shown}</div>
+        <div className="cv-body" style={{ ...alignment(r), ...sizeOf(id) }}>{shown}</div>
         {entityLine}
       </div>
       {stands && (
@@ -3576,7 +3639,9 @@ export function CanvasView({
           {edges.map((e) => {
             const p = edgePath(e);
             if (!p) return null;
-            const arrow = e.arrow ?? "forward";
+            // A mind map's line: its branch's color, a little heavier, and no arrowhead.
+            const mind = e.from.startsWith("n:") && e.to.startsWith("n:") ? mindLine(e.from.slice(2), e.to.slice(2)) : null;
+            const arrow = mind ? "none" : e.arrow ?? "forward";
             return (
               <g
                 key={e.id}
@@ -3599,8 +3664,8 @@ export function CanvasView({
                 <path
                   d={p.d}
                   className="cv-edge"
-                  stroke={e.color ?? "#5f6b74"}
-                  strokeWidth={e.width ?? 2}
+                  stroke={mind ? mind.color : e.color ?? "#5f6b74"}
+                  strokeWidth={mind ? 2.5 : e.width ?? 2}
                   strokeDasharray={dashOf(e)}
                   markerEnd={arrow === "forward" || arrow === "both" ? `url(#cv-arrow-${e.id})` : undefined}
                   markerStart={arrow === "back" || arrow === "both" ? `url(#cv-arrow-${e.id})` : undefined}
@@ -3861,6 +3926,58 @@ export function CanvasView({
                 <div className="menu-sep" />
               </>
             )}
+            {(() => {
+              /*
+               * A node of a mind map (mindmap.ts): a parent, a child, a brother
+               * or sister before or after — only under a parent — and the way
+               * the whole map flows. First, being what a map's node is for; everything after is as for any note.
+               */
+              const itemId = nodeMenu.id.startsWith("n:") ? nodeMenu.id.slice(2) : null;
+              const doc = document_();
+              const item = itemId ? doc.items.find((i) => i.id === itemId) : null;
+              if (!itemId || !item || !mindOf(item)) return null;
+              const under = hasParent(itemId);
+              const flow = flowOf(doc, item);
+              const act = (run: () => Promise<string | null | void>) => () => {
+                setNodeMenu(null);
+                // Nothing is typed into the node that was being written in while the new one is made.
+                setEditingNode(null);
+                (window.document.activeElement as HTMLElement | null)?.blur();
+                void run().then((made) => {
+                  onChanged();
+                  // Written in at once, as a new note is, once it is drawn.
+                  if (typeof made === "string") {
+                    let tries = 120;
+                    const wait = () => {
+                      if (window.document.querySelector(`[data-block-id="${CSS.escape(`n:${made}`)}"]`)) {
+                        window.document.dispatchEvent(new CustomEvent("talaris-edit-node", { detail: { id: made } }));
+                      } else if (tries-- > 0) requestAnimationFrame(wait);
+                    };
+                    requestAnimationFrame(wait);
+                  }
+                });
+              };
+              const flows: [Flow, string, typeof ArrowRight][] = [["right", "Flows right", ArrowRight], ["down", "Flows down", ArrowDown], ["left", "Flows left", ArrowLeft], ["up", "Flows up", ArrowUp]];
+              return (
+                <>
+                  <div className="hint" style={{ padding: "4px 10px" }}>Mind map</div>
+                  <button className="menu-item" onClick={act(() => addChild(itemId))}>Add a child</button>
+                  <button className="menu-item" onClick={act(() => addParent(itemId))}>Add a parent</button>
+                  {under && <button className="menu-item" onClick={act(() => addSibling(itemId, false))}>Add a sibling before</button>}
+                  {under && <button className="menu-item" onClick={act(() => addSibling(itemId, true))}>Add a sibling after</button>}
+                  {hasChildren(itemId) && <button className="menu-item" onClick={act(() => colorDescendants(itemId))}>Send color down</button>}
+                  <div className="cv-menu-row">
+                    {flows.map(([key, name, Icon]) => (
+                      <button key={key} className={`cv-swatch cv-align${flow === key ? " is-on" : ""}`} title={name}
+                        onClick={act(() => setFlow(rootOf(doc, item).id, key))}>
+                        <Icon size={13} />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="menu-sep" />
+                </>
+              );
+            })()}
             <div className="cv-menu-row">
               {NODE_COLORS.map((c) => (
                 <button
@@ -4072,6 +4189,29 @@ export function CanvasView({
                 <>
                   <div className="menu-sep" />
                   <div className="hint" style={{ padding: "4px 10px" }}>Text</div>
+                  {nodeMenu.id.startsWith("n:") && (() => {
+                    // Its words smaller or larger, all of them together (`sizeOf`).
+                    const item = document_().items.find((i) => i.id === nodeMenu.id.slice(2)) as ({ textSize?: number } & Record<string, unknown>) | undefined;
+                    if (!item) return null;
+                    const k = item.textSize ?? 1;
+                    const at = TEXT_SIZES.indexOf(TEXT_SIZES.reduce((best, s) => (Math.abs(s - k) < Math.abs(best - k) ? s : best), 1));
+                    const size = (step: number) => {
+                      const next = TEXT_SIZES[Math.max(0, Math.min(TEXT_SIZES.length - 1, at + step))]!;
+                      if (next === 1) delete item.textSize; else item.textSize = next;
+                      void putDocument(document_()).then(() => onChanged());
+                    };
+                    return (
+                      <div className="cv-menu-row">
+                        <button className="cv-swatch cv-align" title="Smaller text" disabled={at <= 0} onClick={() => size(-1)}>
+                          <span style={{ fontSize: 10, fontWeight: 600 }}>A</span>
+                        </button>
+                        <span className="hint" style={{ minWidth: 38, textAlign: "center" }}>{Math.round(k * 100)}%</span>
+                        <button className="cv-swatch cv-align" title="Larger text" disabled={at >= TEXT_SIZES.length - 1} onClick={() => size(1)}>
+                          <span style={{ fontSize: 15, fontWeight: 600 }}>A</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
                   <div className="cv-menu-row">
                     {across.map(([key, name, Icon]) => (
                       <button key={key} className={`cv-swatch cv-align${h === key ? " is-on" : ""}`} title={name}
@@ -4163,7 +4303,7 @@ export function CanvasView({
                 }
                 setArmRemove(null);
                 setNodeMenu(null);
-                if (id.startsWith("n:")) setConfirmRemove([id]);
+                if (id.startsWith("n:")) askRemove([id]);
                 else void removeMany([id]);
               }}
             >

@@ -33,7 +33,10 @@ export function useMenuPosition(x: number, y: number) {
     const el = ref.current;
     if (!el) return;
     const place = () => {
-      const { width, height } = el.getBoundingClientRect();
+      // The whole of what it holds, not the box: once capped, the box is the cap,
+      // and measured again (below) it said nothing overflowed and stopped scrolling.
+      const { width } = el.getBoundingClientRect();
+      const height = Math.max(el.scrollHeight, el.getBoundingClientRect().height);
       const maxH = window.innerHeight - MARGIN * 2;
       const h = Math.min(height, maxH);
       const left =
@@ -50,7 +53,7 @@ export function useMenuPosition(x: number, y: number) {
         top,
         right: "auto",
         maxHeight: maxH,
-        overflowY: height > maxH ? "auto" : undefined,
+        overflowY: "auto",
       });
     };
     place();
