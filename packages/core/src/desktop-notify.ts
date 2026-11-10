@@ -14,6 +14,8 @@
 import { execFile } from "node:child_process";
 
 export function notifyDesktop(app: string, title: string, body: string): void {
+  // Never from a test: it would land on the screen of whoever runs them. NODE_TEST_CONTEXT is node --test's own mark.
+  if (process.env.TALARIS_NO_NOTIFY || process.env.NODE_TEST_CONTEXT) return;
   execFile("gdbus", ["call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications",
     "--method", "org.freedesktop.Notifications.Notify", app, "0", "", title, body, "[]", "{}", "int32 -1"], { timeout: 5000 }, () => undefined);
 }

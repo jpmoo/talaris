@@ -1753,7 +1753,18 @@ async function drawMeaning() {
   try { st = await core("GET", "/meaning/status"); } catch { /* the core is away for a moment */ }
   const url = pel("input", { type: "text", spellcheck: "false", autocomplete: "off", placeholder: "http://host:11434", value: m.url || "" });
   const models = pel("span", { class: "what" });
+  // Through Morgan (meaning.ts, `via`): its brain's model server makes them, and this machine reaches only the brain.
+  const viaMorgan = m.via === "morgan";
   const listModels = async () => {
+    if (viaMorgan) {
+      models.replaceChildren(pel("small", {}, "Asking Morgan…"));
+      const r = await ask("ollama.models", {});
+      const list = r && r.ok ? (r.embedding || []).map((x) => x.name) : null;
+      models.replaceChildren(...(!list ? [pel("small", { class: "err" }, (r && r.error) || "Morgan did not answer")]
+        : list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...m, model: name } }) }, name))
+        : [pel("small", {}, "Morgan's model server has no embedding model")]));
+      return;
+    }
     const at = url.value.trim();
     if (!at) { models.replaceChildren(pel("small", {}, "Set the address first")); return; }
     models.replaceChildren(pel("small", {}, "Looking…"));
@@ -1775,7 +1786,12 @@ async function drawMeaning() {
     : `${st.items} things, ${st.passages} passages${st.pending ? `, ${st.pending} waiting` : ""}${st.last ? ` · looked ${when(st.last)}` : ""}`;
   host.replaceChildren(
     pel("div", { class: "row" }, pel("span", { class: "name" }, "On"), pel("span", { class: "what" }, mgSwitch(Boolean(m.on), (on) => save({ meaning: { ...m, on } })))),
-    pel("div", { class: "row" }, pel("span", { class: "name" }, "Model server", pel("small", {}, "Ollama, or anything with the OpenAI-style API")), pel("span", { class: "what" }, url, useMorgans)),
+    ...(morganHere || viaMorgan ? [pel("div", { class: "row" }, pel("span", { class: "name" }, "Made by", pel("small", {}, viaMorgan
+      ? "Morgan's brain asks its own model server: this computer reaches only the brain"
+      : "This computer asks the model server itself")),
+      pel("span", { class: "what" }, segOf([["morgan", "Morgan's brain"], ["server", "A model server"]], viaMorgan ? "morgan" : "server",
+        (via) => save({ meaning: { ...m, via } }))))] : []),
+    ...(viaMorgan ? [] : [pel("div", { class: "row" }, pel("span", { class: "name" }, "Model server", pel("small", {}, "Ollama, or anything with the OpenAI-style API")), pel("span", { class: "what" }, url, useMorgans))]),
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Embedding model", pel("small", {}, m.model ? `Now: ${m.model}. Changing it makes the index again` : "Not chosen")), models),
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Index", pel("small", { class: st && st.error ? "err" : "" }, said)),
       pel("span", { class: "what" }, pel("button", { class: "t-btn", disabled: !m.on || !m.model ? "" : null, onclick: async (e) => {
@@ -1783,7 +1799,7 @@ async function drawMeaning() {
         try { const r = await core("POST", "/meaning/reindex"); say(`${r.embedded} embedded`); } catch (x) { say(x.message, true); }
         drawMeaning();
       } }, "Index now"))));
-  if (m.url) listModels();
+  if (m.url || viaMorgan) listModels();
   drawReading();
 }
 

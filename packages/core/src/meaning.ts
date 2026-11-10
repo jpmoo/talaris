@@ -34,7 +34,7 @@ import { allRecords, getFile, profilesOf, titleOf, types, type Entity } from "./
 import { execFileSync } from "node:child_process";
 import { filesVersion, listFiles, watchLinked, type FileRow } from "./files.js";
 import { Unavailable, aboutIsYours, editAbout, fileText, forgetText, keepOnly, keptAbout, keptText, pageAbout, readable, saveFileText, setAbout, setDescriber, setPageAbout, textOf, textOfBytes } from "./filetext.js";
-import { morganDescribe, morganDescribeText, morganInstalled } from "./morgan-describe.js";
+import { morganCommand, morganDescribe, morganDescribeText, morganInstalled } from "./morgan-describe.js";
 import { describeProjects, SUMMARY, summarizeProjects } from "./project-describe.js";
 import { linkedBytes } from "./links.js";
 import { CONFIG_DIR, STATE_DIR } from "./paths.js";
@@ -54,6 +54,13 @@ import type { PageNode } from "@talaris/model";
 
 export interface MeaningSettings {
   on?: boolean; url?: string; model?: string;
+  /**
+   * Where the embeddings are made: `morgan` — by the model server Morgan's
+   * brain uses, asked through Morgan on this machine (heymorgan's `embed`,
+   * protocol 1.14), so that this machine reaches nothing but the brain; `url`
+   * is then not used. Otherwise (`server`, or unsaid), at `url` directly.
+   */
+  via?: "server" | "morgan";
   /** Pictures with no words in them described by Morgan (its `describe`); false: left with none. */
   describe?: boolean;
   /**
@@ -440,28 +447,45 @@ let awaySaid = false;
 /** Whether the model server could not be reached lately. */
 export const modelServerAway = () => Date.now() < unreachedUntil;
 
-/** Vectors for texts, from the model server: Ollama's `/api/embed`, else the OpenAI-style `/v1/embeddings`. Each made unit length. */
-export let embedder = async (s: Required<Pick<MeaningSettings, "url" | "model">>, texts: string[]): Promise<Float32Array[]> => {
-  const base = s.url.replace(/\/+$/, "");
+/** The way to the model server lost: left alone for a while, and said once. */
+function unreached(where: string): void {
+  unreachedUntil = Date.now() + UNREACHED_FOR_MS;
+  if (!awaySaid) {
+    awaySaid = true;
+    notifyDesktop("Talaris", "Can't reach the AI server", `${where} isn't answering, so search by meaning and suggestions are paused. Anything new waits, and is read once it's back.`);
+  }
+}
+/** The way back. */
+function reached(): void {
+  if (awaySaid) {
+    awaySaid = false;
+    notifyDesktop("Talaris", "The AI server is back", "Search by meaning and suggestions are back, and what waited is being read now.");
+  }
+}
+
+/** Where the embeddings are made, as settings name it. */
+export type EmbedAt = Pick<MeaningSettings, "url" | "via"> & { model: string };
+
+/**
+ * Vectors for texts, from the model server: through Morgan (`via: "morgan"`), or
+ * at `url` — Ollama's `/api/embed`, else the OpenAI-style `/v1/embeddings`.
+ * Each made unit length.
+ */
+export let embedder = async (s: EmbedAt, texts: string[]): Promise<Float32Array[]> => {
   if (modelServerAway()) throw new Error("the model server could not be reached a moment ago");
+  if (s.via === "morgan") return (await throughMorgan(s.model, texts)).map(unit);
+  const base = (s.url ?? "").replace(/\/+$/, "");
   let res: Response;
   try {
     res = await fetch(`${base}/api/embed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: s.model, input: texts }), signal: AbortSignal.timeout(120_000) });
   } catch (e) {
     // Not an answer but no way through: left alone for a while.
-    unreachedUntil = Date.now() + UNREACHED_FOR_MS;
-    if (!awaySaid) {
-      awaySaid = true;
-      let host = s.url;
-      try { host = new URL(s.url).hostname; } catch { /* as written */ }
-      notifyDesktop("Talaris", "Can't reach the AI server", `${host} isn't answering, so search by meaning and suggestions are paused. Anything new waits, and is read once it's back.`);
-    }
+    let host = s.url ?? "";
+    try { host = new URL(host).hostname; } catch { /* as written */ }
+    unreached(host);
     throw e;
   }
-  if (awaySaid) {
-    awaySaid = false;
-    notifyDesktop("Talaris", "The AI server is back", "Search by meaning and suggestions are back, and what waited is being read now.");
-  }
+  reached();
   let vecs: number[][] | undefined;
   if (res.ok) vecs = ((await res.json()) as { embeddings?: number[][] }).embeddings;
   else {
@@ -472,6 +496,32 @@ export let embedder = async (s: Required<Pick<MeaningSettings, "url" | "model">>
   if (!vecs || vecs.length !== texts.length) throw new Error("the model server gave back no vectors");
   return vecs.map(unit);
 };
+/**
+ * Embeddings made by the model server Morgan's brain uses, asked through
+ * Morgan on this machine (heymorgan's `embed`): this machine reaches the brain
+ * and nothing else. Morgan not answering (not running, its brain out of reach)
+ * is the server out of reach; a Morgan too old to know `embed` says so.
+ */
+async function throughMorgan(model: string, texts: string[]): Promise<number[][]> {
+  const r = await morganCommand(`embed ${JSON.stringify({ texts, model })}`, 120_000);
+  if (!r) {
+    unreached("Morgan's brain");
+    throw new Error("Morgan could not be asked");
+  }
+  if (!r.ok) {
+    const error = String(r.error ?? "");
+    // An older brain (before heymorgan's protocol 1.14) knows no `embed`: not an outage, and not to be waited out.
+    if (/^unknown command/i.test(error)) throw new Error("Morgan's brain does not know embed yet (heymorgan protocol 1.14): update it");
+    // The brain answered, and its model server did not: the server is what is away.
+    if (/fetch failed|ECONNREFUSED|timed? ?out|aborted/i.test(error)) unreached("The AI server, through Morgan,");
+    throw new Error(`Morgan's brain: ${error}`);
+  }
+  reached();
+  const vecs = r.embeddings as number[][] | undefined;
+  if (!Array.isArray(vecs) || vecs.length !== texts.length) throw new Error("Morgan's brain gave back no vectors");
+  return vecs;
+}
+
 /** For tests: vectors from somewhere else. */
 export function setEmbedder(f: typeof embedder): void { embedder = f; }
 
@@ -486,7 +536,8 @@ function unit(v: number[] | Float32Array): Float32Array {
 
 // ------------------------------------------------------------ keeping it current
 
-const ready = (s: MeaningSettings): s is Required<Pick<MeaningSettings, "url" | "model">> & MeaningSettings => Boolean(s.on && s.url && s.model);
+/** On, with a model, and somewhere to make embeddings: a server's address, or Morgan. */
+const ready = (s: MeaningSettings): s is MeaningSettings & { model: string } => Boolean(s.on && s.model && (s.via === "morgan" || s.url));
 
 /** What a pass in progress has done so far, written down (`reindex`). */
 let keepDone: () => void = () => undefined;
@@ -717,11 +768,11 @@ export function startMeaning(): void {
     }
   }, 30_000).unref();
 }
-export function meaningStatus(): { on: boolean; model: string; url: string; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string;
+export function meaningStatus(): { on: boolean; model: string; url: string; via: "server" | "morgan"; items: number; passages: number; pending: number; indexing: boolean; last: string; error: string;
   doing: string; doingKind: string; done: number; of: number; morganAway: boolean; scan: string; at: string; lastScan: string; idle: boolean; scanning: boolean; files: { read: number; nowords: number; waiting: number } } {
   const s = meaningSettings();
   const ix = s.model ? load(s.model) : null;
-  return { on: Boolean(s.on), model: s.model ?? "", url: s.url ?? "", items: ix?.entries.size ?? 0,
+  return { on: Boolean(s.on), model: s.model ?? "", url: s.url ?? "", via: s.via === "morgan" ? "morgan" : "server", items: ix?.entries.size ?? 0,
     passages: ix ? [...ix.entries.values()].reduce((n, e) => n + e.chunks.length, 0) : 0, ...status,
     scan: s.scan ?? "change", at: s.at ?? "03:00", lastScan: lastScan().at, idle: idleNow(), scanning, files: fileCounts() };
 }
