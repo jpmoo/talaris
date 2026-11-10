@@ -1761,7 +1761,7 @@ async function drawMeaning() {
       const r = await ask("ollama.models", {});
       const list = r && r.ok ? (r.embedding || []).map((x) => x.name) : null;
       models.replaceChildren(...(!list ? [pel("small", { class: "err" }, (r && r.error) || "Morgan did not answer")]
-        : list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...m, model: name } }) }, name))
+        : list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...(cfg.meaning || {}), model: name } }) }, name))
         : [pel("small", {}, "Morgan's model server has no embedding model")]));
       return;
     }
@@ -1770,27 +1770,28 @@ async function drawMeaning() {
     models.replaceChildren(pel("small", {}, "Looking…"));
     try {
       const list = await core("GET", `/meaning/models?url=${encodeURIComponent(at)}`);
-      models.replaceChildren(...(list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...m, url: at, model: name } }) }, name))
+      models.replaceChildren(...(list.length ? list.map((name) => pel("button", { class: "t-btn" + (name === m.model ? " on" : ""), onclick: () => save({ meaning: { ...(cfg.meaning || {}), url: at, model: name } }) }, name))
         : [pel("small", {}, "It has no embedding model")]));
     } catch (e) { models.replaceChildren(pel("small", { class: "err" }, e.message)); }
   };
-  const useMorgans = pel("button", { class: "t-btn", onclick: async () => {
+  // Morgan's model server's address copied here, for this computer to ask directly: not the same as Made by, Morgan's brain.
+  const useMorgans = pel("button", { class: "t-btn", title: "Put the address Morgan's brain uses here; this computer still asks it directly", onclick: async () => {
     const r = await ask("config.get");
     if (!r || !r.ok || !(r.ollama || {}).url) { say("Morgan did not say its model server", true); return; }
-    save({ meaning: { ...m, url: r.ollama.url, model: r.embedModel || m.model } });
-  } }, "Use Morgan's");
+    save({ meaning: { ...(cfg.meaning || {}), url: r.ollama.url, model: r.embedModel || m.model } });
+  } }, "Copy Morgan's address");
   useMorgans.hidden = !morganHere;
-  url.addEventListener("keydown", (e) => { if (e.key === "Enter") save({ meaning: { ...m, url: url.value.trim() } }); });
+  url.addEventListener("keydown", (e) => { if (e.key === "Enter") save({ meaning: { ...(cfg.meaning || {}), url: url.value.trim() } }); });
   const said = !st ? "" : st.error ? `Stopped: ${st.error}`
     : st.indexing ? `Indexing… ${st.items} found so far, ${st.pending} to go`
     : `${st.items} things, ${st.passages} passages${st.pending ? `, ${st.pending} waiting` : ""}${st.last ? ` · looked ${when(st.last)}` : ""}`;
   host.replaceChildren(
-    pel("div", { class: "row" }, pel("span", { class: "name" }, "On"), pel("span", { class: "what" }, mgSwitch(Boolean(m.on), (on) => save({ meaning: { ...m, on } })))),
+    pel("div", { class: "row" }, pel("span", { class: "name" }, "On"), pel("span", { class: "what" }, mgSwitch(Boolean(m.on), (on) => save({ meaning: { ...(cfg.meaning || {}), on } })))),
     ...(morganHere || viaMorgan ? [pel("div", { class: "row" }, pel("span", { class: "name" }, "Made by", pel("small", {}, viaMorgan
       ? "Morgan's brain asks its own model server: this computer reaches only the brain"
       : "This computer asks the model server itself")),
       pel("span", { class: "what" }, segOf([["morgan", "Morgan's brain"], ["server", "A model server"]], viaMorgan ? "morgan" : "server",
-        (via) => save({ meaning: { ...m, via } }))))] : []),
+        (via) => save({ meaning: { ...(cfg.meaning || {}), via } }))))] : []),
     ...(viaMorgan ? [] : [pel("div", { class: "row" }, pel("span", { class: "name" }, "Model server", pel("small", {}, "Ollama, or anything with the OpenAI-style API")), pel("span", { class: "what" }, url, useMorgans))]),
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Embedding model", pel("small", {}, m.model ? `Now: ${m.model}. Changing it makes the index again` : "Not chosen")), models),
     pel("div", { class: "row" }, pel("span", { class: "name" }, "Index", pel("small", { class: st && st.error ? "err" : "" }, said)),
