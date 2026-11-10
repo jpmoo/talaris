@@ -316,18 +316,33 @@ function draw() {
 // The calendars on show, by account: a key to their colors. Which are on
 // show is Settings, Accounts' to say; those turned off are not here at all.
 const showing = () => calendars.filter((c) => !hidden.has(c.id));
+// Sections of the list put away by their heading: this page's own preference, kept.
+let shut = new Set();
+try { shut = new Set(JSON.parse(localStorage.getItem("talaris.calendar.shut") || "[]")); } catch { /* fine */ }
+function toggleShut(name) {
+  if (shut.has(name)) shut.delete(name); else shut.add(name);
+  try { localStorage.setItem("talaris.calendar.shut", JSON.stringify([...shut])); } catch { /* fine */ }
+  drawSide();
+}
+/** A heading that puts its section away, and what is under it unless it is away. */
+const section = (name, ...kids) => [
+  el("h3", { class: "fold", title: shut.has(name) ? "Show this section" : "Put this section away", onclick: () => toggleShut(name) }, Kit.caret(!shut.has(name)), name),
+  ...(shut.has(name) ? [] : kids),
+];
 function drawSide() {
   const byAccount = {};
   for (const c of showing()) (byAccount[c.account] ||= []).push(c);
   const side = $("side");
-  side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) => [
-    el("h3", {}, account),
-    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click for its color, or to remove it" : c.writable ? "" : "Read only",
-      ...(c.feed ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
-      el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name))),
-  ]),
-  el("button", { class: "t-btn add-feed", onclick: (ev) => addFeed(ev.currentTarget) }, "+ Feed"),
-  el("h3", {}, "Show"),
+  // Feeds are known by being feeds, not by their heading's name; the button that brings one in sits with them, or makes their heading.
+  const addFeedBtn = el("button", { class: "t-btn add-feed", onclick: (ev) => addFeed(ev.currentTarget) }, "+ Feed");
+  const feedsHeading = Object.entries(byAccount).find(([, list]) => list.every((c) => c.feed));
+  const calRow = (c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click for its color, or to remove it" : c.writable ? "" : "Read only",
+    ...(c.feed ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
+    el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name));
+  side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) =>
+    section(account, ...list.map(calRow), ...(feedsHeading && feedsHeading[0] === account ? [addFeedBtn] : []))),
+  ...(feedsHeading ? [] : section("Feeds", addFeedBtn)),
+  ...section("Show",
   el("div", { class: "cal" + (declinedShown ? " on" : " muted"), style: "--c:var(--muted)" },
     el("button", { class: "sw", title: declinedShown ? "Hide declined events" : "Show declined events", onclick: () => showDeclined(!declinedShown) }),
     el("span", {}, "Declined events")),
@@ -343,7 +358,7 @@ function drawSide() {
     el("div", { class: "cal" + (overdueShown ? " on" : " muted"), style: "--c:var(--danger)" },
       el("button", { class: "sw", title: overdueShown ? "Hide overdue tasks" : "Show overdue tasks on today", onclick: () => showTasks("overdue", !overdueShown) }),
       el("span", {}, "Overdue Tasks")),
-  ]));
+  ])));
 }
 
 // ---------------------------------------------------------------- feeds
