@@ -468,6 +468,45 @@ function drawMonth(view) {
   view.replaceChildren(grid);
 }
 
+/**
+ * A day's timed events, each told where it stands across the day: `_lane`, of
+ * `_lanes`, spanning `_span` of them. Lanes are shared only among events that
+ * overlap — one at a time, or through others that do — so an event at 9 is as
+ * wide as the day though three meet at 2; and an event takes the lanes beside
+ * it that nothing beside it is using. Drawn shorter than 18px, an event takes
+ * that much room, so it is laid out as that tall.
+ */
+function sideBySide(events) {
+  const least = 18 / 48 * 3600000;
+  const endOf = (e) => Math.max(e.end, e.start + least);
+  const sorted = events.slice().sort((a, b) => a.start - b.start || endOf(b) - endOf(a));
+  const groups = [];
+  let group = [], reach = -Infinity;
+  for (const e of sorted) {
+    if (group.length && e.start >= reach) { groups.push(group); group = []; reach = -Infinity; }
+    group.push(e);
+    reach = Math.max(reach, endOf(e));
+  }
+  if (group.length) groups.push(group);
+  for (const g of groups) {
+    const lanes = [];
+    for (const e of g) {
+      let lane = lanes.findIndex((list) => list.every((x) => endOf(x) <= e.start || x.start >= endOf(e)));
+      if (lane < 0) { lane = lanes.length; lanes.push([]); }
+      lanes[lane].push(e);
+      e._lane = lane;
+    }
+    for (const e of g) {
+      e._lanes = lanes.length;
+      // Wider, into the lanes to its right while nothing in them meets it.
+      let span = 1;
+      while (e._lane + span < lanes.length && lanes[e._lane + span].every((x) => endOf(x) <= e.start || x.start >= endOf(e))) span++;
+      e._span = span;
+    }
+  }
+  return sorted;
+}
+
 function drawDays(view, cols) {
   const [start] = span();
   const today = new Date();
@@ -489,21 +528,14 @@ function drawDays(view, cols) {
       const at = new Date(d); at.setHours(h);
       col.append(el("div", { class: "slot", ondblclick: () => create(at, false) }, wxHour(d, h)));
     }
-    // Timed events laid side by side where they overlap.
-    const timed = onDay(d).filter((e) => !e.allDay).sort((a, b) => a.start - b.start);
-    const lanes = [];
-    for (const e of timed) {
-      let lane = lanes.findIndex((end) => end <= e.start);
-      if (lane < 0) { lane = lanes.length; lanes.push(0); }
-      lanes[lane] = e.end;
-      e._lane = lane;
-    }
+    // Timed events laid side by side where they overlap (sideBySide).
+    const timed = sideBySide(onDay(d).filter((e) => !e.allDay));
     const dayStart = startOfDay(d).getTime();
     for (const e of timed) {
       const top = Math.max(0, (e.start - dayStart) / 3600000) * 48;
       const bottom = Math.min(24, (e.end - dayStart) / 3600000) * 48;
-      const width = 100 / Math.max(1, lanes.length);
-      col.append(el("div", { class: "ev" + answerClass(e), style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width}% - 4px)`,
+      const width = 100 / e._lanes;
+      col.append(el("div", { class: "ev" + answerClass(e), style: `--c:${colorOf(e.calendar)};top:${top}px;height:${Math.max(18, bottom - top - 2)}px;left:calc(${e._lane * width}% + 2px);right:auto;width:calc(${width * e._span}% - 4px)`,
         onclick: () => edit(e) }, e.title || "(no title)", el("small", {}, `${clock(e.start)} – ${clock(e.end)}${e.location ? ` · ${e.location}` : ""}`)));
     }
     if (sameDay(d, today)) {
