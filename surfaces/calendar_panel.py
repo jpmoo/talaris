@@ -422,7 +422,7 @@ class CalendarBridge(Bridge):
     def ask(self, request: str) -> None:
         """`{do: range|create|update|delete|subscribe|unsubscribe, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
-        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe"):
+        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe", "color"):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)

@@ -322,7 +322,7 @@ function drawSide() {
   const side = $("side");
   side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) => [
     el("h3", {}, account),
-    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click to remove it" : c.writable ? "" : "Read only",
+    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click for its color, or to remove it" : c.writable ? "" : "Read only",
       ...(c.feed ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
       el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name))),
   ]),
@@ -372,12 +372,16 @@ function addFeed(button) {
   setTimeout(() => url.focus(), 30);
 }
 function feedMenu(ev, c) {
+  // Its color, as Settings offers every calendar's (Palette, as Google's and Outlook's own run).
+  const colors = el("div", { class: "feed-colors" }, ...Palette.COLORS.map((col) => el("button", {
+    class: "sw" + (col === c.color ? " is-on" : ""), style: `background:${col}`, title: col,
+    onclick: () => { popAway(); send({ do: "color", calendar: c.id, color: col }).catch((x) => say(x.message || "The color was not changed", true)); } })));
   const off = el("button", { class: "t-btn danger" }, "Remove feed");
   Kit.twice(off, { key: `unfeed:${c.id}`, ask: "Remove it?", act: () => {
     popAway();
     send({ do: "unsubscribe", calendar: c.id }).then(() => say(`${c.name} removed`), (x) => say(x.message || "It was not removed", true));
   } });
-  Kit.pop({ x: ev.clientX, y: ev.clientY }, el("div", { class: "feed-form" }, el("label", {}, c.name), off));
+  Kit.pop({ x: ev.clientX, y: ev.clientY }, el("div", { class: "feed-form" }, el("label", {}, c.name), colors, el("div", { class: "row" }, off)));
 }
 
 // Declined, faded; still to come and unanswered, a dashed edge.

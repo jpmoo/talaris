@@ -419,11 +419,11 @@ window.EventCard = (() => {
       } }, "Archive");
       acts.append(arch);
     }
-    // A feed's event made yours: a copy on Talaris's own calendar, which a sync may carry on; the feed's own is not shown beside it.
+    // A feed's event copied into Talaris: a copy on Talaris's own calendar, which a sync may carry on; the feed's own is not shown beside it.
     if (!isNew && calOf(e.calendar).feed) {
-      acts.append(el("button", { class: "t-btn", title: "Copy it to your Talaris calendar, where it is yours to change", onclick: () => {
+      acts.append(el("button", { class: "t-btn", title: "A copy on your Talaris calendar, yours to change; the feed's is no longer shown", onclick: () => {
         makeOwn({ "talaris:fromFeed": `${e.calendar}/${e.uid}/${e.rid || ""}` });
-      } }, "Make it mine"));
+      } }, "Copy feed event into Talaris"));
     }
     // Glance on it, by its entity: made now if the mirror has not reached it.
     if (!isNew) {

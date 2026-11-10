@@ -155,6 +155,8 @@ class Feeds:
             self.list = []
         self.read: dict[str, object] = {}
         self.problem: dict[str, str] = {}
+        #: Each feed's zones, by TZID, as libical made them: kept, and let go of when the feed is read again.
+        self.zones: dict[tuple, object] = {}
         for feed in self.list:
             try:
                 with open(self._cache(feed["id"]), encoding="utf-8") as f:
@@ -213,7 +215,9 @@ class Feeds:
 
     def _take(self, fid: str, text: str) -> bool:
         try:
-            self.read[fid] = self._parse(text)
+            cal = self._parse(text)
+            self.zones = {k: z for k, z in self.zones.items() if k[0] != fid}
+            self.read[fid] = cal
             self.problem.pop(fid, None)
             return True
         except (ValueError, GLib.Error) as e:
@@ -287,6 +291,19 @@ class Feeds:
             say({"done": {"req": req, "error": "", "uid": f"feed:{fid}"}})
         self._off(address, done)
 
+    def color(self, req: int, calendar: str, color: str) -> None:
+        """A feed's color: kept with it in Talaris's list, as an account's is kept in EDS."""
+        fid = calendar.removeprefix("feed:")
+        feed = next((x for x in self.list if x["id"] == fid), None)
+        if not feed or not re.match(r"^#[0-9a-fA-F]{6}$", color):
+            say({"done": {"req": req, "error": "Not a feed or a color"}})
+            return
+        feed["color"] = color.lower()
+        self._save()
+        self.tell()
+        self.changed()
+        say({"done": {"req": req, "error": ""}})
+
     def remove(self, req: int, calendar: str) -> None:
         fid = calendar.removeprefix("feed:")
         if not calendar.startswith("feed:") or not any(x["id"] == fid for x in self.list):
@@ -313,15 +330,18 @@ class Feeds:
         for fid, cal in list(self.read.items()):
             calendar = f"feed:{fid}"
 
-            def zone_of(tzid, *_args, cal=cal):
-                """A TZID as the feed defines it (its VTIMEZONE), or as libical knows it, or where you are."""
+            def zone_of(tzid, *_args, cal=cal, fid=fid):
+                """A TZID as the feed defines it (its VTIMEZONE), or as libical knows it, or where you are: each once, and kept."""
                 if not tzid:
                     return None
-                try:
-                    found = cal.get_timezone(tzid)
-                except (TypeError, AttributeError):
-                    found = None
-                return found or ICalGLib.Timezone.get_builtin_timezone(tzid) or LOCAL
+                key = (fid, tzid)
+                if key not in self.zones:
+                    try:
+                        found = cal.get_timezone(tzid)
+                    except (TypeError, AttributeError):
+                        found = None
+                    self.zones[key] = found or ICalGLib.Timezone.get_builtin_timezone(tzid) or LOCAL
+                return self.zones[key]
 
             events, moved = [], {}
             comp = cal.get_first_component(ICalGLib.ComponentKind.VEVENT_COMPONENT)
@@ -802,6 +822,9 @@ class Calendars:
         say({"done": {"req": req, "error": ""}})
 
     def color(self, req: int, calendar: str, color: str) -> None:
+        if calendar.startswith("feed:"):
+            self.feeds.color(req, calendar, color)
+            return
         source = self.wanted.get(calendar)
         if not source or not (len(color) == 7 and color.startswith("#")):
             say({"done": {"req": req, "error": "Not a calendar or a color"}})
