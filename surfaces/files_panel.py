@@ -30,7 +30,7 @@ import spawn
 
 #: What the page may ask the core for: Files' own routes, projects, tags, and a link on a task.
 # And what a thing's card edits and finds (thingcard.js), as People's page may; of plugins, only their buttons on a person.
-ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words|entities|people|mentionables)(/|$|\?)|^/plugins/calendars(/events\?from=\d+&to=\d+)?$|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
+ALLOWED = re.compile(r"^/(files|projects|tags|tasks|entity-types|suggestions|meaning/words|entities|people|mentionables)(/|$|\?)|^/plugins/calendars(/events\?from=\d+&to=\d+|/taken)?$|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$")
 HOME = os.path.expanduser("~")
 
 

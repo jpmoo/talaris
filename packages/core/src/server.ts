@@ -69,6 +69,7 @@ import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
+import { ownCalendar, ownEvents, takenFromFeeds } from "./own-calendar.js";
 import * as plugins from "./plugins.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
@@ -699,8 +700,14 @@ route("GET", "/demo", () => ({ on: inDemo, root: inDemo ? DEMO_ROOT : null }));
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
-route("GET", "/plugins/calendars", () => plugins.pluginCalendars());
-route("GET", "/plugins/calendars/events", (_r, _p, q) => plugins.pluginCalendarEvents(Number(q.get("from") ?? 0), Number(q.get("to") ?? 0)));
+// The calendars the core keeps or brings: Talaris's own (own-calendar.ts) first, then the plugins'.
+route("GET", "/plugins/calendars", () => [ownCalendar(), ...plugins.pluginCalendars()]);
+route("GET", "/plugins/calendars/events", (_r, _p, q) => {
+  const from = Number(q.get("from") ?? 0), to = Number(q.get("to") ?? 0);
+  return [...ownEvents(from, to), ...plugins.pluginCalendarEvents(from, to)];
+});
+// The feed occurrences made yours, so the calendar does not show the feed's copy beside yours.
+route("GET", "/plugins/calendars/taken", () => takenFromFeeds());
 // Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
 route("GET", "/plugins/decisions", (_r, _p, q) => plugins.decisionsOn(q.get("on") ?? ""));
 route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? "", q.get("entity") ?? undefined));

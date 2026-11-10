@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { instantOn, TIMEZONE } from "./zoned.js";
+import { drawnEvent, isOwnEvent } from "./own-calendar.js";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { allRecords, getEntity, profilesOf, titleOf, typeFor, types } from "./entities.js";
+import { allRecords, getEntity, profilesOf, types } from "./entities.js";
 import { onRecord } from "./feed.js";
 import { restoreLinks, unbacked } from "./links.js";
 import { createObject, defineCollection, getInterchangeFile, liveManifest, makeCollection, patchObject, putInterchangeFile, readEnvelope, writeMember, type WritePatch } from "./interchange.js";
@@ -887,39 +887,22 @@ export function pluginCalendars(): { id: string; name: string; account: string; 
   });
 }
 
-/** A time as it is drawn: Date.parse reads a date alone as UTC, and a day is the day where you are. */
-function whenOf(v: unknown, zone?: unknown): { at: number; day: boolean } | null {
-  if (typeof v === "number") return { at: v, day: false };
-  if (typeof v !== "string") return null;
-  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-  const on = !d && typeof zone === "string" && zone ? instantOn(v, zone) : NaN;
-  const at = d ? new Date(Number(d[1]), Number(d[2]) - 1, Number(d[3])).getTime() : Number.isNaN(on) ? Date.parse(v) : on;
-  return Number.isNaN(at) ? null : { at, day: Boolean(d) };
-}
-
 /**
  * What is on those calendars between two times, drawn as a calendar's events
  * are: an event of no real calendar (no source of its own) that the plugin
- * linked (`<plugin>:link`), which is how a sync says a copy is its own.
+ * linked (`<plugin>:link`), which is how a sync says a copy is its own — but
+ * never one of Talaris's own (own-calendar.ts), which is shown on that
+ * calendar however many apps a sync has carried it to.
  */
 export function pluginCalendarEvents(from: number, to: number): Record<string, unknown>[] {
   const cals = pluginCalendars();
   if (!cals.length) return [];
-  const body = typeFor("event")?.profiles?.event?.body;
   const out: Record<string, unknown>[] = [];
   for (const { object: o } of allRecords()) {
-    if (o.archived || o.stub || !profilesOf(o).includes("event") || ((o["talaris:sources"] as unknown[] | undefined) ?? []).length) continue;
+    if (o.archived || o.stub || isOwnEvent(o) || !profilesOf(o).includes("event") || ((o["talaris:sources"] as unknown[] | undefined) ?? []).length) continue;
     const cal = cals.find((c) => o.properties[`${c.plugin}:link`]);
-    const zone = o.properties[TIMEZONE];
-    const start = whenOf(o.properties.start, zone);
-    if (!cal || !start) continue;
-    const allDay = start.day;
-    const last = whenOf(o.properties.end, zone) ?? start;
-    // A day's end is that day's: drawn to the start of the next, as an all-day event of a real calendar's is.
-    const end = allDay ? last.at + 24 * 60 * 60 * 1000 : Math.max(last.at, start.at);
-    if (end < from || start.at > to) continue;
-    out.push({ calendar: cal.id, uid: o.id, entity: o.id, rid: "", title: titleOf(o), start: start.at, end, allDay, ...(typeof zone === "string" && zone ? { timezone: zone } : {}), recurring: false,
-      location: typeof o.properties.location === "string" ? o.properties.location : "", notes: typeof body === "string" && typeof o.properties[body] === "string" ? o.properties[body] : "" });
+    const drawn = cal && drawnEvent(o, cal.id, from, to);
+    if (drawn) out.push(drawn);
   }
   return out;
 }

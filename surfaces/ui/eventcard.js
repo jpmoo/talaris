@@ -39,6 +39,8 @@ window.EventCard = (() => {
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  /** Talaris's own calendar (the core's own-calendar.ts), where an event is an entity rather than an account's. */
+  const OWN_CALENDAR = "talaris";
   const dayLabel = (d) => Kit.day(d);
   const timeLabel = (m) => Kit.minutes(m);
 
@@ -359,9 +361,28 @@ window.EventCard = (() => {
       api("PATCH", `/entities/${enc(editing.entity)}`, { properties })
         .then(() => { say(""); if (ctx.saved) ctx.saved(); finish(); }, (x) => say(x.message || "It was not saved", true));
     }
+    /**
+     * An event as Talaris's own calendar keeps it (the core's own-calendar.ts): an Event entity marked as that
+     * calendar's, its times as a plugin's are (a day alone, or the time where you are). `extra`: what else it carries.
+     */
+    function makeOwn(extra = {}) {
+      const event = collected();
+      const properties = { title: event.title || "Untitled", location: event.location || null, notes: event.notes || null,
+        allDay: event.allDay, start: event.allDay ? iso(new Date(event.start)) : `${local(event.start)}:00`,
+        end: event.allDay ? iso(new Date(event.end - DAY_MS)) : `${local(event.end)}:00` };
+      say("Saving…");
+      return api("POST", "/entities", { role: "event", properties, "talaris:calendar": OWN_CALENDAR, ...extra }).then((made) => {
+        say("");
+        const id = made && made.id;
+        if (id && editing.projects.length) api("PUT", `/entities/${enc(id)}/projects`, { projects: editing.projects }).catch((x) => say(x.message || "The project was not saved", true));
+        if (ctx.saved) ctx.saved();
+        finish();
+      }, (x) => say(x.message || "It was not saved", true));
+    }
     function save() {
       if (editing.readOnly) return;
       if (editing.entity) { saveEntity(); return; }
+      if (isNew && calOf(v.calendar).own) { makeOwn(); return; }
       const event = collected();
       say("Saving…");
       if (isNew) {
@@ -398,6 +419,12 @@ window.EventCard = (() => {
       } }, "Archive");
       acts.append(arch);
     }
+    // A feed's event made yours: a copy on Talaris's own calendar, which a sync may carry on; the feed's own is not shown beside it.
+    if (!isNew && calOf(e.calendar).feed) {
+      acts.append(el("button", { class: "t-btn", title: "Copy it to your Talaris calendar, where it is yours to change", onclick: () => {
+        makeOwn({ "talaris:fromFeed": `${e.calendar}/${e.uid}/${e.rid || ""}` });
+      } }, "Make it mine"));
+    }
     // Glance on it, by its entity: made now if the mirror has not reached it.
     if (!isNew) {
       const glance = ctx.glance || (bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null);
@@ -410,6 +437,8 @@ window.EventCard = (() => {
 
     function paint() {
       paintRepeats();
+      // Talaris's own calendar keeps one event at a time: no repeats, no invitations.
+      if (calOf(v.calendar).own) freqRow.hidden = daysRow.hidden = endsRow.hidden = true;
       paintPeople();
       const cal = calendars().find((c) => c.id === v.calendar);
       calBtn.replaceChildren(el("span", { class: "sw", style: `background:${(cal && cal.color) || "var(--accent)"}` }), el("span", { class: "lbl" }, cal ? `${cal.name} · ${cal.account}` : "Choose a calendar"));

@@ -263,6 +263,11 @@ class CalendarService(QObject):
     def _mirror_out(self, items: list) -> None:
         desktop = self.parent()
         hidden = set(getattr(desktop, "config", {}).get("calendar", {}).get("hidden", []))
+        # A feed's events are someone else's, often hundreds of them: not things of yours until one is made yours (calendar.js).
+        try:
+            hidden |= {c["id"] for c in json.loads(self.last_calendars or "[]") if c.get("feed")}
+        except (ValueError, TypeError, KeyError):
+            pass
         events = mirrored(items, hidden)
 
         def send() -> None:
@@ -390,7 +395,7 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
                          # An event's notes take @ (mentions.js): finding what to name, making a person or a task by name, and opening one.
                          r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$"
                          # The calendars plugins bring, and what is on them.
-                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+)?$"
+                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+|/taken)?$"
                          # An event's projects: the event's entity, made if the mirror has not reached it, and what it is filed under.
                          r"|^/tasks/projects$|^/entities/by-source\?kind=[a-z-]+&key=[^&]*$|^/entities/mirror/events$|^/entities/[A-Za-z0-9_.:-]+/projects$"
                          # And its card: what it is connected to, taken apart, and what it might be.
@@ -415,9 +420,9 @@ class CalendarBridge(Bridge):
 
     @Slot(str)
     def ask(self, request: str) -> None:
-        """`{do: range|create|update|delete, req, …}`, passed to the calendar's process as it is."""
+        """`{do: range|create|update|delete|subscribe|unsubscribe, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
-        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people"):
+        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe"):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)

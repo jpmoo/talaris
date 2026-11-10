@@ -31,6 +31,13 @@ screen up.
   {"do": "delete", "req": n, "calendar": id, "uid": …, "rid": …, "which": "this"|"all"}
   {"do": "color", "req": n, "calendar": id, "color": "#rrggbb"}   — kept in EDS, so every
                                                                     app using it sees it too
+  {"do": "subscribe", "req": n, "url": …, "name": …, "color": …}   — a feed (an .ics address,
+                                                                    webcal:// or https://), read
+                                                                    here (Feeds, below): answered
+                                                                    once it has been read as one
+  {"do": "unsubscribe", "req": n, "calendar": id}                  — a feed, and only a feed, put away
+
+A calendar is said with `feed: true` when it is one of those.
 
 Times are milliseconds since the epoch; an all-day event's start and end are
 local midnights, the end the day after its last.
@@ -111,6 +118,250 @@ def time_of(ms: int, all_day: bool):
     return t
 
 
+# ------------------------------------------------------------------ feeds
+
+#: Where the feeds brought in are listed (Talaris's config), and where each one's last reading is kept, for offline.
+FEEDS_FILE = os.path.join(os.environ.get("TALARIS_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".config", "talaris"), "feeds.json")
+FEEDS_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache"), "talaris", "feeds")
+#: How often a feed is read again.
+FEED_EVERY_S = 30 * 60
+FEED_MAX_BYTES = 20 * 1024 * 1024
+
+
+class Feeds:
+    """
+    Feeds: someone else's calendar, read from an address (an .ics file, as a
+    school, a team or a service publishes one) and never written.
+
+    **Read here, not by EDS.** EDS has a backend for these ("On the web"),
+    and it was tried first: on a slow network it took six and a half minutes
+    to open one and then held no events. So the address is fetched here, on a
+    thread of its own, its last reading kept on disk for when there is no
+    network, and the events read with the same libical every account's are
+    (a repeating one by ECal's own rule-following, its exceptions and moved
+    occurrences included). Read again every half hour.
+
+    Each is a calendar of its own, `feed:<id>`, read only. One of its events
+    is made yours from its card — a copy, on Talaris's own calendar.
+    """
+
+    def __init__(self, changed, tell) -> None:
+        self.changed, self.tell = changed, tell
+        self.list: list[dict] = []
+        try:
+            with open(FEEDS_FILE, encoding="utf-8") as f:
+                self.list = [x for x in json.load(f) if isinstance(x, dict) and x.get("id") and x.get("url")]
+        except (OSError, ValueError):
+            self.list = []
+        self.read: dict[str, object] = {}
+        self.problem: dict[str, str] = {}
+        for feed in self.list:
+            try:
+                with open(self._cache(feed["id"]), encoding="utf-8") as f:
+                    self._take(feed["id"], f.read())
+            except OSError:
+                pass
+        self.refresh()
+        GLib.timeout_add_seconds(FEED_EVERY_S, self.refresh)
+
+    @staticmethod
+    def _cache(fid: str) -> str:
+        return os.path.join(FEEDS_CACHE, f"{fid}.ics")
+
+    def _save(self) -> None:
+        os.makedirs(os.path.dirname(FEEDS_FILE), exist_ok=True)
+        tmp = FEEDS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.list, f, indent=1)
+        os.replace(tmp, FEEDS_FILE)
+
+    def calendars(self) -> list:
+        return [{"id": f"feed:{x['id']}", "name": x.get("name") or "Feed", "color": x.get("color") or "",
+                 "account": "Feeds", "writable": False, "connected": x["id"] in self.read, "invites": False,
+                 "email": "", "feed": True, "url": x["url"], "problem": self.problem.get(x["id"], "")} for x in self.list]
+
+    # ---- reading an address
+
+    @staticmethod
+    def _address(url: str) -> str:
+        url = url.strip()
+        if url.lower().startswith("webcal://"):
+            url = "https://" + url[len("webcal://"):]
+        elif url.lower().startswith("webcals://"):
+            url = "https://" + url[len("webcals://"):]
+        return url if re.match(r"^https?://[^\s/]+", url, re.I) else ""
+
+    @staticmethod
+    def _fetch(url: str) -> str:
+        import urllib.request
+        ask = urllib.request.Request(url, headers={"User-Agent": "Talaris calendar", "Accept": "text/calendar, */*"})
+        with urllib.request.urlopen(ask, timeout=30) as r:
+            body = r.read(FEED_MAX_BYTES + 1)
+        if len(body) > FEED_MAX_BYTES:
+            raise ValueError("too large to be a calendar")
+        return body.decode("utf-8", errors="replace")
+
+    @staticmethod
+    def _parse(text: str):
+        """The feed's VCALENDAR, or why it is not one."""
+        if "BEGIN:VCALENDAR" not in text[:4096].upper():
+            raise ValueError("That address did not answer with a calendar")
+        cal = ICalGLib.Component.new_from_string(text)
+        if not cal or cal.isa() != ICalGLib.ComponentKind.VCALENDAR_COMPONENT:
+            raise ValueError("That calendar could not be read")
+        return cal
+
+    def _take(self, fid: str, text: str) -> bool:
+        try:
+            self.read[fid] = self._parse(text)
+            self.problem.pop(fid, None)
+            return True
+        except (ValueError, GLib.Error) as e:
+            self.problem[fid] = str(getattr(e, "message", e))
+            return False
+
+    def _off(self, url: str, done) -> None:
+        """Fetched on a thread; `done(text, error)` back on the main loop."""
+        import threading
+
+        def run() -> None:
+            try:
+                text, error = self._fetch(url), ""
+            except Exception as e:  # noqa: BLE001 — any failure is said, never raised
+                text, error = "", f"It could not be read: {getattr(e, 'reason', None) or e}"
+            GLib.idle_add(lambda: (done(text, error), False)[1])
+        threading.Thread(target=run, daemon=True).start()
+
+    def refresh(self) -> bool:
+        for feed in list(self.list):
+            self._off(feed["url"], lambda text, error, fid=feed["id"]: self._refreshed(fid, text, error))
+        return True
+
+    def _refreshed(self, fid: str, text: str, error: str) -> None:
+        if not any(x["id"] == fid for x in self.list):
+            return
+        if error:
+            # Kept as it was last read: a feed out of reach is not a feed emptied.
+            self.problem[fid] = error
+        elif self._take(fid, text):
+            os.makedirs(FEEDS_CACHE, exist_ok=True)
+            with open(self._cache(fid), "w", encoding="utf-8") as f:
+                f.write(text)
+        self.tell()
+        self.changed()
+
+    # ---- brought in, put away
+
+    def add(self, req: int, url: str, name: str, color: str) -> None:
+        address = self._address(url)
+        if not address:
+            say({"done": {"req": req, "error": "That is not a feed's address (https:// or webcal://)"}})
+            return
+        for x in self.list:
+            if x["url"] == address:
+                say({"done": {"req": req, "error": f"Already here, as {x.get('name') or 'a feed'}"}})
+                return
+
+        def done(text: str, error: str) -> None:
+            if not error:
+                try:
+                    cal = self._parse(text)
+                except (ValueError, GLib.Error) as e:
+                    error = str(getattr(e, "message", e))
+            if error:
+                say({"done": {"req": req, "error": error}})
+                return
+            import uuid
+            fid = uuid.uuid4().hex[:12]
+            # Its own name, if it gives one (X-WR-CALNAME), when none was typed.
+            own = re.search(r"^X-WR-CALNAME:(.+)$", text, re.M)
+            label = name.strip() or (own.group(1).strip() if own else "") or (GLib.Uri.parse(address, GLib.UriFlags.ENCODED).get_host() or "Feed")
+            self.list.append({"id": fid, "name": label[:120], "url": address, **({"color": color} if len(color) == 7 and color.startswith("#") else {})})
+            self._save()
+            self.read[fid] = cal
+            os.makedirs(FEEDS_CACHE, exist_ok=True)
+            with open(self._cache(fid), "w", encoding="utf-8") as f:
+                f.write(text)
+            self.tell()
+            self.changed()
+            say({"done": {"req": req, "error": "", "uid": f"feed:{fid}"}})
+        self._off(address, done)
+
+    def remove(self, req: int, calendar: str) -> None:
+        fid = calendar.removeprefix("feed:")
+        if not calendar.startswith("feed:") or not any(x["id"] == fid for x in self.list):
+            say({"done": {"req": req, "error": "Not a feed"}})
+            return
+        self.list = [x for x in self.list if x["id"] != fid]
+        self._save()
+        self.read.pop(fid, None)
+        self.problem.pop(fid, None)
+        try:
+            os.remove(self._cache(fid))
+        except OSError:
+            pass
+        self.tell()
+        self.changed()
+        say({"done": {"req": req, "error": ""}})
+
+    # ---- its events
+
+    def instances(self, start_ms: int, end_ms: int) -> list:
+        items: list = []
+        start = ICalGLib.Time.new_from_timet_with_zone(int(start_ms // 1000), 0, UTC)
+        end = ICalGLib.Time.new_from_timet_with_zone(int(end_ms // 1000), 0, UTC)
+        for fid, cal in list(self.read.items()):
+            calendar = f"feed:{fid}"
+
+            def zone_of(tzid, *_args, cal=cal):
+                """A TZID as the feed defines it (its VTIMEZONE), or as libical knows it, or where you are."""
+                if not tzid:
+                    return None
+                try:
+                    found = cal.get_timezone(tzid)
+                except (TypeError, AttributeError):
+                    found = None
+                return found or ICalGLib.Timezone.get_builtin_timezone(tzid) or LOCAL
+
+            events, moved = [], {}
+            comp = cal.get_first_component(ICalGLib.ComponentKind.VEVENT_COMPONENT)
+            while comp:
+                rid = comp.get_recurrenceid()
+                if rid and not rid.is_null_time():
+                    moved.setdefault(comp.get_uid() or "", {})[rid.as_ical_string()] = comp
+                events.append(comp)
+                comp = cal.get_next_component(ICalGLib.ComponentKind.VEVENT_COMPONENT)
+
+            for comp in events:
+                uid = comp.get_uid() or ""
+                rid0 = comp.get_recurrenceid()
+                is_moved = bool(rid0 and not rid0.is_null_time())
+                repeats = bool(comp.get_first_property(ICalGLib.PropertyKind.RRULE_PROPERTY))
+                if (comp.get_status() == ICalGLib.PropertyStatus.CANCELLED) if hasattr(comp, "get_status") else False:
+                    continue
+                dtstart = comp.get_dtstart()
+                tz0 = zone_of(dtstart.get_tzid()) if dtstart and dtstart.get_tzid() else None
+
+                def one(icomp, istart, iend, *_args, uid=uid, repeats=repeats, is_moved=is_moved, tz0=tz0) -> bool:
+                    rid = icomp.get_recurrenceid().as_ical_string() if is_moved else (istart.as_ical_string() if repeats else "")
+                    # An occurrence moved elsewhere (its own VEVENT, by RECURRENCE-ID) is drawn there, not here.
+                    if not is_moved and repeats and rid in moved.get(uid, {}):
+                        return True
+                    items.append({
+                        "calendar": calendar, "uid": uid, "rid": rid,
+                        "title": icomp.get_summary() or "", "location": icomp.get_location() or "",
+                        "notes": icomp.get_description() or "",
+                        "start": ms_of(istart, tz0), "end": ms_of(iend, tz0), "allDay": bool(istart.is_date()),
+                        "recurring": repeats, "rrule": "", "organizer": "", "attendees": [], "mine": "", "organizing": False,
+                    })
+                    return True
+                try:
+                    ECal.recur_generate_instances_sync(comp, start, end, one, None, zone_of, None, LOCAL, None)
+                except (GLib.Error, TypeError) as e:
+                    self.problem[fid] = f"An event could not be read: {getattr(e, 'message', e)}"
+        return items
+
+
 class Calendars:
     def __init__(self) -> None:
         self.registry = EDataServer.SourceRegistry.new_sync(None)
@@ -129,6 +380,7 @@ class Calendars:
         self.registry.connect("source-changed", lambda *_: self._sources())
         self.registry.connect("source-enabled", lambda *_: self._sources())
         self.registry.connect("source-disabled", lambda *_: self._sources())
+        self.feeds = Feeds(self._changed, self._tell_calendars)
         self._sources()
         self._books()
 
@@ -186,7 +438,7 @@ class Calendars:
                            "invites": bool(client and client.check_capability(ECal.STATIC_CAPABILITY_CREATE_MESSAGES)),
                            "email": self.emails.get(uid, "")})
         listed.sort(key=lambda c: (c["account"], c["name"].lower()))
-        say({"calendars": listed})
+        say({"calendars": listed + self.feeds.calendars()})
 
     def _watch(self, client) -> None:
         """Tell the screen whenever this calendar's events change — here, or on the service."""
@@ -255,7 +507,7 @@ class Calendars:
                 client.generate_instances_sync(start, end, None, one)
             except (GLib.Error, TypeError) as e:
                 sys.stderr.write(f"calendar {uid}: {e}\n")
-        return items
+        return items + self.feeds.instances(start_ms, end_ms)
 
     @staticmethod
     def _rrule(icomp) -> str:
@@ -570,6 +822,10 @@ class Calendars:
             self.range(req, int(msg["from"]), int(msg["to"]))
         elif verb == "search":
             self.search(req, str(msg.get("q", ""))[:200])
+        elif verb == "subscribe":
+            self.feeds.add(req, str(msg.get("url", ""))[:2000], str(msg.get("name", ""))[:200], str(msg.get("color", "")))
+        elif verb == "unsubscribe":
+            self.feeds.remove(req, str(msg.get("calendar", "")))
         elif verb == "create":
             self.create(req, str(msg["calendar"]), msg["event"])
         elif verb == "update":
@@ -724,6 +980,8 @@ class DemoCalendars:
             self._save()
             self.tell_calendars()
             say({"done": {"req": req, "error": ""}})
+        elif verb in ("subscribe", "unsubscribe"):
+            say({"done": {"req": req, "error": "Feeds are not part of the demo"}})
         elif verb == "respond":
             say({"done": {"req": req, "error": ""}})
         elif verb == "people":

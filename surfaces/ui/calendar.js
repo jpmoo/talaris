@@ -32,6 +32,9 @@ let calendars = [];
 let events = [];
 // The calendars plugins bring (the core's pluginCalendars), read only, and what is on them in the span on show.
 let realCalendars = [], pluginCalendars = [], pluginEvents = [];
+// A feed's occurrences made yours (on Talaris's own calendar): the feed's copy is not shown beside yours.
+let taken = new Set();
+const feedKey = (e) => `${e.calendar}/${e.uid}/${e.rid || ""}`;
 const allCalendars = () => { calendars = [...realCalendars, ...pluginCalendars]; };
 let mode = "month";
 let focus = startOfDay(new Date());
@@ -96,6 +99,7 @@ function fetchPlugins() {
   if (!bridge || typeof bridge.core !== "function") return;
   const [a, b] = span();
   core("GET", "/plugins/calendars").then((list) => { pluginCalendars = list || []; allCalendars(); draw(); }).catch(() => {});
+  core("GET", "/plugins/calendars/taken").then((keys) => { taken = new Set(keys || []); draw(); }).catch(() => {});
   core("GET", `/plugins/calendars/events?from=${a.getTime()}&to=${b.getTime()}`).then((list) => {
     const [x, y] = span();
     if (x.getTime() !== a.getTime() || y.getTime() !== b.getTime()) return; // moved on meanwhile
@@ -120,7 +124,7 @@ function title() {
   return Kit.month(focus);
 }
 function shown() {
-  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined"));
+  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined") && !taken.has(feedKey(e)));
 }
 // The events on a day: those that start before it ends and end after it starts.
 function onDay(day) {
@@ -318,9 +322,12 @@ function drawSide() {
   const side = $("side");
   side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) => [
     el("h3", {}, account),
-    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.writable ? "" : "Read only" },
+    ...list.map((c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click to remove it" : c.writable ? "" : "Read only",
+      ...(c.feed ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
       el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name))),
-  ]), el("h3", {}, "Show"),
+  ]),
+  el("button", { class: "t-btn add-feed", onclick: (ev) => addFeed(ev.currentTarget) }, "+ Feed"),
+  el("h3", {}, "Show"),
   el("div", { class: "cal" + (declinedShown ? " on" : " muted"), style: "--c:var(--muted)" },
     el("button", { class: "sw", title: declinedShown ? "Hide declined events" : "Show declined events", onclick: () => showDeclined(!declinedShown) }),
     el("span", {}, "Declined events")),
@@ -337,6 +344,40 @@ function drawSide() {
       el("button", { class: "sw", title: overdueShown ? "Hide overdue tasks" : "Show overdue tasks on today", onclick: () => showTasks("overdue", !overdueShown) }),
       el("span", {}, "Overdue Tasks")),
   ]));
+}
+
+// ---------------------------------------------------------------- feeds
+//
+// A feed (an .ics address) is brought in as a calendar of its own, kept by
+// the calendar's process as the accounts' are (calendard.py, "On the web"),
+// read only. One of its events is made yours from its card (eventcard.js).
+
+function addFeed(button) {
+  const url = el("input", { type: "text", placeholder: "https://… or webcal://…", spellcheck: "false" });
+  const name = el("input", { type: "text", placeholder: "Name (optional)" });
+  const go = el("button", { class: "t-btn" }, "Add");
+  const note = el("div", { class: "feed-note" });
+  const bring = () => {
+    if (!url.value.trim()) { url.focus(); return; }
+    go.disabled = true;
+    note.textContent = "Adding…";
+    send({ do: "subscribe", url: url.value.trim(), name: name.value.trim() }).then(() => {
+      popAway();
+      say("Feed added; its events arrive in a moment");
+    }, (x) => { go.disabled = false; note.textContent = x.message || "It was not added"; });
+  };
+  go.addEventListener("click", bring);
+  for (const i of [url, name]) i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); bring(); } });
+  Kit.pop(button, el("div", { class: "feed-form" }, el("label", {}, "Feed address"), url, name, el("div", { class: "row" }, go), note));
+  setTimeout(() => url.focus(), 30);
+}
+function feedMenu(ev, c) {
+  const off = el("button", { class: "t-btn danger" }, "Remove feed");
+  Kit.twice(off, { key: `unfeed:${c.id}`, ask: "Remove it?", act: () => {
+    popAway();
+    send({ do: "unsubscribe", calendar: c.id }).then(() => say(`${c.name} removed`), (x) => say(x.message || "It was not removed", true));
+  } });
+  Kit.pop({ x: ev.clientX, y: ev.clientY }, el("div", { class: "feed-form" }, el("label", {}, c.name), off));
 }
 
 // Declined, faded; still to come and unanswered, a dashed edge.

@@ -57,3 +57,28 @@ test("asked for, an open task past its due comes too, wherever its dates fall; a
   assert.equal(got.find((r) => r.id === late.id)?.overdue, true);
   assert.equal(got.some((r) => r.id === doneLate.id), false);
 });
+
+test("Talaris's own calendar: its events drawn on it, a feed's made yours remembered, and none on a plugin's", async () => {
+  const own = await import("../src/own-calendar.js");
+  const plugins = await import("../src/plugins.js");
+  const mine = entities.createEntity({ role: "event", "talaris:calendar": "talaris", "talaris:fromFeed": "feed1/uid9/",
+    properties: { title: "Game night", start: "2026-11-20T19:00:00", end: "2026-11-20T21:00:00", "hermes-sync:link": { url: "https://h.example/block/x" } } });
+  entities.createEntity({ role: "event", "talaris:calendar": "talaris", properties: { title: "Field trip", start: "2026-11-21", end: "2026-11-21" } });
+  entities.createEntity({ role: "event", properties: { title: "Someone else's", start: "2026-11-20T10:00:00" } });
+  const from = new Date(2026, 10, 19).getTime(), to = new Date(2026, 10, 23).getTime();
+  const drawn = own.ownEvents(from, to);
+  assert.deepEqual(drawn.map((e) => e.title).sort(), ["Field trip", "Game night"], "only its own");
+  const night = drawn.find((e) => e.title === "Game night")!;
+  assert.equal(night.calendar, "talaris");
+  assert.equal(night.entity, mine.id);
+  assert.equal(night.start, new Date(2026, 10, 20, 19, 0).getTime(), "a time where you are");
+  const trip = drawn.find((e) => e.title === "Field trip")!;
+  assert.equal(trip.allDay, true);
+  assert.equal((trip.end as number) - (trip.start as number), 24 * 60 * 60 * 1000, "a day's end is the start of the next");
+  assert.deepEqual(own.takenFromFeeds(), ["feed1/uid9/"]);
+  assert.equal(own.ownCalendar().writable, true);
+  // Linked by a sync or not, it is never drawn again on a plugin's calendar.
+  assert.ok(!plugins.pluginCalendarEvents(from, to).some((e) => e.entity === mine.id));
+  entities.updateEntity(mine.id, { archived: true });
+  assert.deepEqual(own.takenFromFeeds(), [], "archived: the feed's own shows again");
+});
