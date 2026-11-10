@@ -569,6 +569,12 @@ class Bar(QObject):
         if not hide:
             self._show()
 
+    def depth(self) -> int:
+        """How far in from its edge the bar stands, out or not: itself, and the space off the edge when floating (_show)."""
+        look = self.desktop.config["bar"]
+        near = margins(look)[self.edge] if look.get("shape") == "floating" else 0
+        return zoom(BAR + near, "bar")
+
     def cover(self, covered: bool) -> None:
         """A fullscreen window in front, or none any more: the bar placed for it."""
         if covered != self.covered:

@@ -28,6 +28,16 @@ Escape brings it back, but its Escape does not always reach the window that
 is fullscreen (2026-10-28). Talaris binds Super+Escape itself, so it works
 whatever covers the screen; the window goes back to its tile, and is told so.
 
+**A window sitting where the bar is** puts the bar away too, and the dock
+the same: a floating window on the screen in front reaching into the strip
+the bar stands in — Zoom's sharing toolbar, which places itself at the top of
+the screen (2026-11-10, and could not be pressed: the bar, on the layer above
+windows, took every press). Only floating windows, and pinned ones from any
+desktop: a tiled one never reaches the bar's strip while it is kept, and one
+that grows into it once the bar is away must not keep it away. Floating
+windows move without Hyprland saying so, so while one is about, it is looked
+at again every two seconds.
+
 Each change is logged with the window — which application, its title, which
 desktop, and the mode it is in and the one it was told it is in — so that the
 next time the screen is taken, the journal says by what.
@@ -80,6 +90,41 @@ def covering() -> dict | None:
     return None
 
 
+def in_the_way(strips: dict[str, tuple[str, int, float, float]]) -> dict[str, dict | None]:
+    """
+    For each strip (`{"bar": ("top", 43, 0, 1), ...}`: an edge, how far in
+    from it, and from where to where along it as shares of the screen's
+    width), the floating window on the monitor in front reaching into it, or
+    None. Pinned windows count from whatever desktop they were pinned on.
+    """
+    out: dict[str, dict | None] = {k: None for k in strips}
+    try:
+        active = json.loads(hypr.ask("j/activeworkspace") or "{}")
+        clients = json.loads(hypr.ask("j/clients") or "[]")
+        monitor = next((m for m in json.loads(hypr.ask("j/monitors") or "[]") if m.get("id") == active.get("monitorID")), None)
+    except (OSError, ValueError):
+        return out
+    if not monitor:
+        return out
+    scale = float(monitor.get("scale") or 1)
+    mx, my = monitor.get("x", 0), monitor.get("y", 0)
+    mw, mh = round(monitor.get("width", 0) / scale), round(monitor.get("height", 0) / scale)
+    for c in clients:
+        if not c.get("floating") or not c.get("mapped", True) or c.get("hidden"):
+            continue
+        if c.get("monitor") != monitor.get("id") or not (c.get("pinned") or c.get("workspace", {}).get("id") == active.get("id")):
+            continue
+        (x, y), (w, h) = c.get("at", [0, 0]), c.get("size", [0, 0])
+        # On this monitor's screen at all.
+        if w <= 0 or h <= 0 or x + w <= mx or x >= mx + mw:
+            continue
+        for key, (edge, far, lo, hi) in strips.items():
+            across = x < mx + mw * hi and x + w > mx + mw * lo
+            if out[key] is None and across and (y < my + far if edge == "top" else y + h > my + mh - far) and y + h > my and y < my + mh:
+                out[key] = {"address": c.get("address", ""), "class": c.get("class") or c.get("initialClass") or "", "title": c.get("title", "")}
+    return out
+
+
 class Fullscreen(QObject):
     def __init__(self, desktop) -> None:
         super().__init__(desktop)
@@ -95,9 +140,27 @@ class Fullscreen(QObject):
         self._settle.setSingleShot(True)
         self._settle.timeout.connect(self.check)
         ev.windows.connect(lambda: self._settle.start(300))
+        #: What is in the bar's and the dock's way now (in_the_way), by which.
+        self.under: dict[str, dict | None] = {"bar": None, "dock": None}
+        # Floating windows move without a word from Hyprland: looked at every two seconds (cheap: three small questions).
+        self._watch = QTimer(self)
+        self._watch.setInterval(2000)
+        self._watch.timeout.connect(self.check)
+        self._watch.start()
         QTimer.singleShot(1500, self.check)
 
+    def _strips(self) -> dict[str, tuple[str, int, float, float]]:
+        """Where the bar and the dock stand, whether or not they are out: each one's edge, depth, and span along it."""
+        strips = {"bar": (self.desktop.bar.edge, self.desktop.bar.depth(), 0.0, 1.0)}
+        dock = getattr(self.desktop, "dock", None)
+        if dock is not None and self.desktop.config["dock"].get("enabled", True):
+            # The dock is narrower than the screen: only what is beside it is in its way (its span, as its page last said).
+            lo, hi = getattr(dock, "_span", (0.0, 1.0))
+            strips["dock"] = (dock.edge, dock.thickness(), lo, hi)
+        return strips
+
     def check(self) -> None:
+        self._check_under()
         now = covering()
         before = self.now
         same = (now or {}).get("address") == (before or {}).get("address") and (now or {}).get("mode") == (before or {}).get("mode")
@@ -110,9 +173,29 @@ class Fullscreen(QObject):
                 f" ({how}): the bar and dock out over it from the edge")
         elif before:
             log(f"fullscreen: nothing covers the desktop in front (was {before['class'] or '?'} on {before['workspace']}); the bar and dock as Settings has them")
-        self.desktop.bar.cover(bool(now))
+        self._cover()
+
+    def _check_under(self) -> None:
+        """A floating window in the bar's or the dock's way, come or gone: logged, and that one put away or back."""
+        under = in_the_way(self._strips())
+        changed = False
+        for key in ("bar", "dock"):
+            was, now = self.under.get(key), under.get(key)
+            if (was or {}).get("address") == (now or {}).get("address"):
+                continue
+            changed = True
+            if now:
+                log(f"in the way: {now['class'] or '?'} \"{now['title'][:60]}\" where the {key} stands: the {key} away, out from the edge")
+            else:
+                log(f"in the way: nothing where the {key} stands any more (was {(was or {}).get('class') or '?'}); the {key} as Settings has it")
+        self.under = {"bar": under.get("bar"), "dock": under.get("dock")}
+        if changed:
+            self._cover()
+
+    def _cover(self) -> None:
+        self.desktop.bar.cover(bool(self.now) or bool(self.under["bar"]))
         if getattr(self.desktop, "dock", None) is not None:
-            self.desktop.dock.cover(bool(now))
+            self.desktop.dock.cover(bool(self.now) or bool(self.under["dock"]))
 
     def leave(self) -> bool:
         """The window covering the desktop in front, out of fullscreen and back in its tile; False if none was."""

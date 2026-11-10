@@ -322,7 +322,8 @@ const Kit = (() => {
             return el("button", { class: "day" + (d.getMonth() !== month0.getMonth() ? " other" : "") + (sameDay(d, chosen) ? " on" : "") + (sameDay(d, new Date()) ? " today" : ""),
               onclick: (e) => choose(e, d) }, String(d.getDate()));
           })),
-        quick.length ? el("div", { class: "kit-chips" }, quick) : null);
+        // None, when there are none: replaceChildren writes a null out as the word.
+        ...(quick.length ? [el("div", { class: "kit-chips" }, quick)] : []));
     };
     draw();
     return wrap;
