@@ -1054,7 +1054,11 @@ class Desktop(QObject):
             elif verb == "new":
                 self.new.toggle()
             elif verb == "screenshot":
-                self.shot.start()
+                # Print: the panel. "done" or "cancel": Enter or Escape while it scrolls a region.
+                if arg in ("done", "cancel"):
+                    self.shot.scroll_key(arg)
+                else:
+                    self.shot.start()
             elif verb == "projects":
                 self.jump.carousel()
             elif verb == "window":
@@ -1119,7 +1123,7 @@ def main() -> int:
     if args[:1] == ["--new"]:
         return send("new")
     if args[:1] == ["--screenshot"]:
-        return send("screenshot")
+        return send("screenshot " + (args[1] if len(args) > 1 else ""))
     if args[:1] == ["--projects"]:
         return send("projects")
     if args[:1] == ["--window"] and len(args) == 2:

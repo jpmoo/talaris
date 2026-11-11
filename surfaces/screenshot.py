@@ -50,12 +50,15 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 import hypr
 from core import Bridge
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, LayerSurface, Placement, full_screen
+from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement, full_screen
 from overlay import Overlay
 from views import log, zoom
 
 #: The key, bound by Talaris itself (surfaces._bind).
 KEYS = ", Print"
+#: Enter and Escape while Talaris scrolls a region: bound for that long (the strip lets go of the keyboard, `_scroll_way`).
+STOP_KEYS = {", Return": "done", ", Escape": "cancel"}
+LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
 #: A scrolling shot no taller (or wider) in all than this.
 SCROLL_TALLEST = 40_000
 
@@ -757,6 +760,7 @@ class Shot(Overlay):
         anchors = (ANCHOR_TOP if at_top else ANCHOR_BOTTOM)
         margins = ((screen.width() - width) // 2, 12, 0, 0) if at_top else ((screen.width() - width) // 2, 0, 0, 12)
         self.strip_surface = LayerSurface(strip, "talaris-shot-scroll", nudge=False)
+        self.strip_place = (anchors | ANCHOR_LEFT, width, height, margins)
         self.strip_surface.apply(Placement(OVERLAY, anchors | ANCHOR_LEFT, width, height, KEYBOARD_EXCLUSIVE, exclusive=-1, margins=margins))
         strip.setFocus()
         strip.done.connect(lambda: self._scroll_end(True))
@@ -855,8 +859,21 @@ class Shot(Overlay):
         if self.scrolling and not self.way and way in ("down", "up", "left", "right"):
             self.way = way
             log(f"shot: scrolling it {way}")
-            if self.strip is not None:
+            # While a layer holds the keyboard Hyprland keeps the pointer from the windows, and the wheel's turns
+            # never reached the page (2026-11-11). So the strip lets go of it, and Enter and Escape are Talaris's
+            # own keys until the scrolling is over.
+            if self.strip is not None and self.strip_surface is not None:
+                anchors, width, height, margins = self.strip_place
+                self.strip_surface.placement = None
+                self.strip_surface.apply(Placement(OVERLAY, anchors, width, height, KEYBOARD_NONE, exclusive=-1, margins=margins))
                 self.strip.say(f"Scrolling {way}… · Enter to stop · Esc to cancel")
+            for keys, what in STOP_KEYS.items():
+                hypr.bind(keys, f"{LAUNCHER} --screenshot {what}")
+
+    def scroll_key(self, what: str) -> None:
+        """Enter or Escape, bound while Talaris scrolls a region."""
+        if self.scrolling:
+            self._scroll_end(what == "done")
 
     def _progress(self, text: str) -> None:
         said = json.loads(text)
@@ -874,6 +891,8 @@ class Shot(Overlay):
         if not self.scrolling:
             return
         self.scrolling = False
+        for keys in STOP_KEYS:
+            hypr.unbind(keys)
         if getattr(self, "_scroller", None) is not None:
             self._scroller.join(timeout=3)
         if self.strip is not None:
