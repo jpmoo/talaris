@@ -91,6 +91,8 @@ const colorOf = (id) => (calendars.find((c) => c.id === id) || {}).color || "var
 function span() {
   if (mode === "day") return [startOfDay(focus), addDays(startOfDay(focus), 1)];
   if (mode === "week") { const s = startOfWeek(focus); return [s, addDays(s, 7)]; }
+  // Three days from the one in focus: today and the two after it, when it opens on today.
+  if (mode === "three") return [startOfDay(focus), addDays(startOfDay(focus), 3)];
   const first = new Date(focus.getFullYear(), focus.getMonth(), 1);
   const s = startOfWeek(first);
   return [s, addDays(s, 42)];
@@ -117,8 +119,8 @@ function fetchRange() {
 }
 function title() {
   if (mode === "day") return focus.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  if (mode === "week") {
-    const s = startOfWeek(focus), e = addDays(s, 6);
+  if (mode === "week" || mode === "three") {
+    const s = mode === "week" ? startOfWeek(focus) : startOfDay(focus), e = addDays(s, mode === "week" ? 6 : 2);
     return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   }
   return Kit.month(focus);
@@ -294,7 +296,7 @@ function draw() {
     return;
   }
   $("title").textContent = title();
-  seg("mode", [["day", "Day"], ["week", "Week"], ["month", "Month"]], mode, (m) => {
+  seg("mode", [["day", "Day"], ["three", "3 days"], ["week", "Week"], ["month", "Month"]], mode, (m) => {
     mode = m; try { localStorage.setItem("talaris.calendar.mode", m); } catch { /* fine */ }
     draw(); fetchRange();
   });
@@ -310,7 +312,7 @@ function draw() {
       el("p", {}, el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Add an account"))));
     return;
   }
-  if (mode === "month") drawMonth(view); else drawDays(view, mode === "week" ? 7 : 1);
+  if (mode === "month") drawMonth(view); else drawDays(view, mode === "week" ? 7 : mode === "three" ? 3 : 1);
 }
 
 // The calendars on show, by account: a key to their colors. Which are on
@@ -548,7 +550,7 @@ function drawDays(view, cols) {
   wrap.append(grid);
   view.replaceChildren(wrap);
   // The working day in view: from an hour before now, or 8 in the morning.
-  grid.scrollTop = Math.max(0, (sameDay(focus, today) || cols === 7 ? Math.min(new Date().getHours() - 1, 16) : 8)) * 48;
+  grid.scrollTop = Math.max(0, (days.some((d) => sameDay(d, today)) ? Math.min(new Date().getHours() - 1, 16) : 8)) * 48;
 }
 
 // ---------------------------------------------------------------- making and changing
@@ -624,6 +626,7 @@ $("side-toggle").addEventListener("click", () => { sideOn = !sideOn; sideShown(s
 function step(n) {
   if (mode === "day") focus = addDays(focus, n);
   else if (mode === "week") focus = addDays(focus, 7 * n);
+  else if (mode === "three") focus = addDays(focus, 3 * n);
   else focus = new Date(focus.getFullYear(), focus.getMonth() + n, 1);
   draw(); fetchRange();
 }
