@@ -123,7 +123,7 @@ function onState(s) {
   const unread = s.unread || 0;
   $("bell").classList.toggle("unread", unread > 0);
   $("bell").dataset.badge = (s.look || {}).badge || "dot";
-  $("bell").querySelector(".dot").textContent = (s.look || {}).badge === "count" && unread ? (unread > 99 ? "99+" : String(unread)) : "";
+  $("bell").querySelector(".dot").textContent = (s.look || {}).badge === "count" && unread ? (unread > 9 ? "+" : String(unread)) : "";
   bellUnread = unread;
   timers = s.timers || [];
   tickBell();

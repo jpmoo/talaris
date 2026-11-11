@@ -2072,7 +2072,14 @@ function drawBarShown() {
     const [label, switches] = BAR_UNITS[unit] || [unit, []];
     const opens = BAR_OPENS[unit === "clock" ? "time" : unit];
     const gone = switches.length ? switches.every(([id]) => hidden.has(id)) : false;
-    const parts = switches.flatMap(([id, l]) => switchFor(id, l));
+    // A percentage goes with its item: not to be turned on or off while the item itself is off the bar.
+    const parts = switches.flatMap(([id, l]) => {
+      const made = switchFor(id, l);
+      if (id.endsWith("-n") && switches[0][0] !== id && hidden.has(switches[0][0])) {
+        for (const x of made) { x.classList.add("off"); if (x.tagName === "BUTTON") { x.disabled = true; x.title = "Shown with its item"; } }
+      }
+      return made;
+    });
     // The bell's badge while anything is unread: a dot, the dot with how many, or none.
     if (unit === "bell") parts.unshift(segOf([["dot", "Dot"], ["count", "Dot and number"], ["none", "No badge"]], cfg.bar.badge || "dot", (badge) => save({ bar: { badge } })));
     if (opens) {
@@ -2143,6 +2150,8 @@ function reload(page) {
 // Opening, or a page asked for, starts fresh; any other state — the theme
 // just changed, say — leaves the page as it is.
 let wasUp = false;
+let pageAskedSeen;
+const currentPage = () => (document.querySelector("nav button.on") || {}).dataset?.page || "look";
 // How it comes and goes (motion.js): as windows do, from the top, the line
 // beside the sections drawn too.
 let motionNow = {};
@@ -2171,7 +2180,10 @@ Surface.connect({
     if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };
     if (s.up && !wasUp) Motion.arrive($("win"), how());
-    if (bridge && s.up && (!wasUp || s.page)) reload(s.page || "look");
+    // A page asked for (Settings, Bar from the bar's menu): gone to once for each asking, however often the state is said.
+    const asked = s.pageAsked !== undefined && s.pageAsked !== pageAskedSeen;
+    if (bridge && s.up && (!wasUp || asked)) reload(asked && s.page ? s.page : wasUp ? currentPage() : "look");
+    if (asked) pageAskedSeen = s.pageAsked;
     wasUp = !!s.up;
   },
 }).then((b) => {

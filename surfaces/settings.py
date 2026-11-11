@@ -557,19 +557,22 @@ class Settings(Overlay):
     def describe(self) -> dict:
         # Its size in its page's pixels, for arriving to wait for — once it has a page.
         z = (self._view.zoomFactor() or 1) if self._view is not None else 1
-        return {**super().describe(), "page": self.page, "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)],
+        return {**super().describe(), "page": self.page, "pageAsked": getattr(self, "page_asked", 0), "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)],
                 # Whether the BlueBubbles app here is signed in to a server: codes from texts need it.
                 "blueBubbles": bluebubbles.server() is not None,
                 # Where you are, as Settings, Location shows it (location.py).
                 **({"location": self.desktop.location.describe()} if getattr(self.desktop, "location", None) else {})}
 
     def open(self, page: str = "") -> None:
+        # The page asked for, kept until it is opened again, and numbered: its page goes there once for each number.
+        # Cleared at once, it was gone by the time a page made for this opening (Settings is made when first wanted)
+        # asked what to show, and it showed Look.
         self.page = page
+        self.page_asked = getattr(self, "page_asked", 0) + 1
         # Already out: the page asked for is said all the same.
         if self.up:
             self.bridge.state.emit(json.dumps(self.describe()))
         super().open()
-        self.page = ""
 
     def grow(self) -> None:
         """A box, not a panel: there is no window of it."""
