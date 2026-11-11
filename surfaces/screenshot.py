@@ -100,6 +100,53 @@ def accent() -> QColor:
         return QColor("#7aa2f7")
 
 
+class ActiveLook:
+    """
+    Every window drawn as the one in use, while a shot is taken.
+
+    Choosing what to take puts the keyboard in Talaris's panel, and so every
+    window — the one being worked in too — is drawn as one not in use: its
+    border the plain line, and as see-through as hyprland.conf makes windows
+    not in use (decoration:inactive_opacity). In a shot, what is in it should
+    look as it does when it is used, however many windows that is: so for the
+    grab, the inactive look is made the active one, and put back after.
+    """
+
+    def __init__(self, desktop) -> None:
+        self.desktop = desktop
+        self.held: dict | None = None
+
+    @staticmethod
+    def _option(name: str, key: str):
+        try:
+            return json.loads(hypr.ask(f"j/getoption {name}") or "{}").get(key)
+        except ValueError:
+            return None
+
+    def on(self) -> None:
+        if self.held is not None:
+            return
+        self.held = {"opacity": self._option("decoration:inactive_opacity", "float"), "dim": self._option("decoration:dim_inactive", "int")}
+        hypr.keyword("decoration:inactive_opacity", f"{self._option('decoration:active_opacity', 'float') or 1:g}")
+        if self.held["dim"]:
+            hypr.keyword("decoration:dim_inactive", "0")
+        self.desktop.style_compositor(all_active=True)
+
+    def off(self) -> None:
+        if self.held is None:
+            return
+        held, self.held = self.held, None
+        if held["opacity"] is not None:
+            hypr.keyword("decoration:inactive_opacity", f"{held['opacity']:g}")
+        if held["dim"]:
+            hypr.keyword("decoration:dim_inactive", str(held["dim"]))
+        self.desktop.style_compositor()
+
+
+#: How long Hyprland is given to draw the windows again, as the one in use, before the screen is taken.
+REDRAWN_MS = 120
+
+
 # ------------------------------------------------------------------ choosing, on the screen held still
 
 
@@ -430,6 +477,7 @@ class Shot(Overlay):
         self.scrolling = False
         self.stitcher: Stitcher | None = None
         self.bridge.progress.connect(self._progress)
+        self.look = ActiveLook(desktop)
 
     def describe(self) -> dict:
         return {**super().describe(), "mode": self.state}
@@ -462,17 +510,26 @@ class Shot(Overlay):
         QTimer.singleShot(450, lambda: self._take(kind))
 
     def _take(self, kind: str) -> None:
+        # Whatever is taken, as it looks in use (ActiveLook): drawn so first, then taken.
+        self.look.on()
+        QTimer.singleShot(REDRAWN_MS, lambda: self._grab(kind))
+
+    def _grab(self, kind: str) -> None:
         mon = focused_monitor()
         try:
-            if kind == "full":
-                self._show(grab(output=mon.get("name", "")))
-                return
-            frozen = grab(output=mon.get("name", ""))
+            shot = grab(output=mon.get("name", ""))
         except (OSError, subprocess.SubprocessError, ValueError) as e:
+            self.look.off()
             log(f"shot: the screen could not be taken ({e})")
             self.state = "choose"
             return
-        self._pick(frozen, kind, mon)
+        # Scrolling is taken again and again while it is scrolled: it keeps the look until it is done.
+        if kind != "scroll":
+            self.look.off()
+        if kind == "full":
+            self._show(shot)
+            return
+        self._pick(shot, kind, mon)
 
     def _pick(self, frozen: Image.Image, kind: str, mon: dict) -> None:
         screen = QApplication.primaryScreen().geometry()
@@ -504,6 +561,7 @@ class Shot(Overlay):
 
         def cancelled() -> None:
             gone()
+            self.look.off()
             self.state = "choose"
             log("shot: cancelled")
 
@@ -589,6 +647,7 @@ class Shot(Overlay):
             self.strip.hide()
             self.strip.deleteLater()
         self.strip = self.strip_surface = None
+        self.look.off()
         img = self.stitcher.image() if keep and self.stitcher is not None else None
         self.stitcher = None
         if img is None:

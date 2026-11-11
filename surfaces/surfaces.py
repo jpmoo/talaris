@@ -486,12 +486,16 @@ class Desktop(QObject):
         self.style_compositor()
         return True
 
-    def style_compositor(self) -> None:
+    def style_compositor(self, all_active: bool = False) -> None:
         """
         What Hyprland draws round the windows, made to match Talaris: the
         borders in the theme's accent, and the same space on every side.
         Runtime keywords, so hyprland.conf is untouched; a reload puts its own
         values back, and `_bind` runs this again when it does.
+
+        `all_active`: every window's border as the one in use has it — while a
+        screenshot is taken (screenshot.ActiveLook), so that what is in it
+        looks as it does while it is being used.
         """
         theme = self.config["theme"]
         accent = theme["accent"].lstrip("#")
@@ -502,7 +506,8 @@ class Desktop(QObject):
         # the rest a line, all one or the other, or none (no border at all).
         hypr.keyword("general:border_size", "0" if outline == "none" else str(int(win.get("border", 2))))
         hypr.keyword("general:col.active_border", f"rgba({line}aa)" if outline == "line" else f"rgba({accent}ee)")
-        hypr.keyword("general:col.inactive_border", f"rgba({accent}ee)" if outline == "accent" else f"rgba({line}aa)")
+        active = f"rgba({line}aa)" if outline == "line" else f"rgba({accent}ee)"
+        hypr.keyword("general:col.inactive_border", active if all_active else f"rgba({accent}ee)" if outline == "accent" else f"rgba({line}aa)")
         self.window_motion()
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
