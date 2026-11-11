@@ -42,7 +42,7 @@ import subprocess
 import threading
 import time
 
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWebEngineCore import QWebEngineProfile
@@ -90,6 +90,44 @@ def grab(geometry: str = "", output: str = "") -> Image.Image:
     img = Image.open(io.BytesIO(shot.stdout))
     img.load()
     return img.convert("RGB")
+
+
+#: Round a window shot: this much clear space, in the screen's own units, and nothing behind it.
+WINDOW_MARGIN = 10
+
+
+def _option(name: str, key: str, default):
+    try:
+        v = json.loads(hypr.ask(f"j/getoption {name}") or "{}").get(key)
+    except ValueError:
+        v = None
+    return default if v is None else v
+
+
+def window_cut(frozen: Image.Image, box: tuple[int, int, int, int], scale: float) -> Image.Image:
+    """
+    A window as it is drawn, cut out of the screen: its border with it, its
+    corners rounded as Hyprland rounds them (decoration:rounding, the border
+    outside it), nothing of the desktop behind showing at them, and a clear
+    margin round it — a picture of the window, to be put on anything.
+    """
+    border = int(_option("general:border_size", "int", 0))
+    rounding = int(_option("decoration:rounding", "int", 0))
+    grow = round(border * scale)
+    x0, y0, x1, y1 = box
+    x0, y0, x1, y1 = max(0, x0 - grow), max(0, y0 - grow), min(frozen.width, x1 + grow), min(frozen.height, y1 + grow)
+    window = frozen.crop((x0, y0, x1, y1)).convert("RGBA")
+    w, h = window.size
+    radius = (rounding + border) * scale if rounding else 0
+    if radius:
+        # Drawn four times larger and made smaller again: an edge as smooth as the compositor's.
+        big = Image.new("L", (w * 4, h * 4), 0)
+        ImageDraw.Draw(big).rounded_rectangle((0, 0, w * 4 - 1, h * 4 - 1), radius=radius * 4, fill=255)
+        window.putalpha(big.resize((w, h), Image.LANCZOS))
+    margin = round(WINDOW_MARGIN * scale)
+    out = Image.new("RGBA", (w + 2 * margin, h + 2 * margin), (0, 0, 0, 0))
+    out.paste(window, (margin, margin), window)
+    return out
 
 
 def png_bytes(img: Image.Image) -> bytes:
@@ -501,40 +539,78 @@ class VirtualWheel:
 
 class ScrollStrip(QWidget):
     """
-    A small strip, clear of the region being scrolled: how tall the shot is
-    so far (or that it lost its place), Done and Cancel. In Talaris's colors
-    and typeface; its corners see-through, painted as the tips are (tip.py).
+    A small strip, clear of the region being scrolled. First it asks which
+    way, with the four arrows as buttons (pressed, or their keys); then it
+    says how far it has got, with Cancel and Done. In Talaris's colors and
+    typeface; its corners see-through, painted as the tips are (tip.py).
     """
 
     done = Signal()
     cancelled = Signal()
     #: An arrow: which way Talaris is to scroll it — "down", "up", "left" or "right".
     way = Signal(str)
-    FIRST = "Which way to scroll? ↑ ↓ ← → · Esc to cancel"
-    #: The longest things it says, which its width is made for.
-    SAYS = (FIRST, "Scrolling right… 99999 pixels · Enter to stop · Esc to cancel", "Talaris cannot scroll it here · Esc to cancel")
+    ASK = "Which way to scroll?"
+    ARROWS = ("up", "down", "left", "right")
+    #: The longest things it says while scrolling, which its width is made for.
+    SAYS = ("Scrolling right… 99999 pixels · Enter to stop · Esc to cancel", "Talaris cannot scroll it here · Esc to cancel")
 
     def __init__(self) -> None:
         super().__init__()
         self.look = Look()
-        self.said = self.FIRST
+        self.said = self.ASK
+        self.asking = True
+        self.hover = ""
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAutoFillBackground(False)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMouseTracking(True)
         self.buttons: dict[str, QRect] = {}
         self.font_ = self.look.font(13, 400)
         self.button_font = self.look.font(13, 500)
 
+    def _key(self) -> int:
+        """An arrow button's side."""
+        return QFontMetrics(self.button_font).height() + zoom(10)
+
     def size_wanted(self) -> tuple[int, int]:
         fm, bm = QFontMetrics(self.font_), QFontMetrics(self.button_font)
-        words = max(fm.horizontalAdvance(t) for t in self.SAYS)
-        buttons = sum(bm.horizontalAdvance(t) + zoom(24) for t in ("Done", "Cancel")) + zoom(8)
-        return words + buttons + zoom(14 + 16 + 10), max(fm.height(), bm.height()) + zoom(24)
+        pad = zoom(14 + 10)
+        ends = sum(bm.horizontalAdvance(t) + zoom(24) for t in ("Done", "Cancel")) + zoom(8)
+        asking = fm.horizontalAdvance(self.ASK) + zoom(16) + 4 * (self._key() + zoom(6)) + zoom(10) + bm.horizontalAdvance("Cancel") + zoom(24)
+        scrolling = max(fm.horizontalAdvance(t) for t in self.SAYS) + zoom(16) + ends
+        return max(asking, scrolling) + pad, max(fm.height(), self._key()) + zoom(14)
 
     def say(self, text: str) -> None:
         self.said = text
         self.update()
+
+    def scrolling(self) -> None:
+        """The way chosen: no arrows any more, and Done beside Cancel."""
+        self.asking = False
+        self.hover = ""
+        self.update()
+
+    @staticmethod
+    def _arrow(p: QPainter, r: QRect, way: str, color: QColor) -> None:
+        """An arrow drawn in the middle of `r`, pointing `way`: a shaft and a head, as an icon's would be."""
+        c = QPointF(r.center()) + QPointF(0.5, 0.5)
+        n = r.height() * 0.22
+        pts = {"up": ((0, n), (0, -n), (-n * 0.8, -n * 0.2), (n * 0.8, -n * 0.2)),
+               "down": ((0, -n), (0, n), (-n * 0.8, n * 0.2), (n * 0.8, n * 0.2)),
+               "left": ((n, 0), (-n, 0), (-n * 0.2, -n * 0.8), (-n * 0.2, n * 0.8)),
+               "right": ((-n, 0), (n, 0), (n * 0.2, -n * 0.8), (n * 0.2, n * 0.8))}[way]
+        tail, tip, a, b = (c + QPointF(x, y) for x, y in pts)
+        pen = QPen(color, max(1.6, r.height() * 0.075))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        p.drawLine(tail, tip)
+        path = QPainterPath(a)
+        path.lineTo(tip)
+        path.lineTo(b)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(path)
 
     def paintEvent(self, _event) -> None:  # noqa: N802 — Qt's name
         p = QPainter(self)
@@ -546,28 +622,60 @@ class ScrollStrip(QWidget):
         self.buttons = {}
         p.setFont(self.button_font)
         bm = p.fontMetrics()
+        pad = zoom(7)
         right = self.width() - zoom(8)
-        pad = zoom(6)
-        for key, label, primary in (("done", "Done", True), ("cancel", "Cancel", False)):
+        ends = (("cancel", "Cancel", False),) if self.asking else (("done", "Done", True), ("cancel", "Cancel", False))
+        for key, label, primary in ends:
             w = bm.horizontalAdvance(label) + zoom(24)
             r = QRect(right - w, pad, w, self.height() - 2 * pad)
             right -= w + zoom(8)
-            p.setPen(Qt.PenStyle.NoPen if primary else QPen(look.frame, 1))
-            p.setBrush(look.accent if primary else Qt.BrushStyle.NoBrush)
+            hot = self.hover == key
+            p.setPen(Qt.PenStyle.NoPen if primary else QPen(look.accent if hot else look.frame, 1))
+            p.setBrush(look.accent if primary else (QColor(look.text.red(), look.text.green(), look.text.blue(), 18) if hot else Qt.BrushStyle.NoBrush))
             p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), zoom(6), zoom(6))
             p.setPen(look.on_accent if primary else look.text)
             p.drawText(r, Qt.AlignmentFlag.AlignCenter, label)
             self.buttons[key] = r
+        if self.asking:
+            # The four arrows, as keys: each a button, lit under the pointer.
+            side = self._key()
+            right -= zoom(4)
+            for way in reversed(self.ARROWS):
+                r = QRect(right - side, (self.height() - side) // 2, side, side)
+                right -= side + zoom(6)
+                hot = self.hover == way
+                p.setPen(QPen(look.accent if hot else look.frame, 1))
+                p.setBrush(QColor(look.accent.red(), look.accent.green(), look.accent.blue(), 40) if hot else QColor(look.text.red(), look.text.green(), look.text.blue(), 14))
+                p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), zoom(6), zoom(6))
+                self._arrow(p, r, way, look.accent if hot else look.text)
+                self.buttons[way] = r
         p.setFont(self.font_)
         p.setPen(look.text)
         p.drawText(QRect(zoom(14), 0, right - zoom(14), self.height()), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.said)
 
+    def _at(self, at: QPoint) -> str:
+        return next((k for k, r in self.buttons.items() if r.contains(at)), "")
+
+    def mouseMoveEvent(self, e) -> None:  # noqa: N802 — Qt's name
+        hot = self._at(e.position().toPoint())
+        if hot != self.hover:
+            self.hover = hot
+            self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor if hot else Qt.CursorShape.ArrowCursor))
+            self.update()
+
+    def leaveEvent(self, _e) -> None:  # noqa: N802 — Qt's name
+        if self.hover:
+            self.hover = ""
+            self.update()
+
     def mousePressEvent(self, e) -> None:  # noqa: N802 — Qt's name
-        at = e.position().toPoint()
-        if self.buttons.get("done", QRect()).contains(at):
+        hit = self._at(e.position().toPoint())
+        if hit == "done":
             self.done.emit()
-        elif self.buttons.get("cancel", QRect()).contains(at):
+        elif hit == "cancel":
             self.cancelled.emit()
+        elif hit in self.ARROWS:
+            self.way.emit(hit)
 
     def keyPressEvent(self, e) -> None:  # noqa: N802 — Qt's name
         if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -715,6 +823,8 @@ class Shot(Overlay):
             if kind == "scroll":
                 geometry = f"{round(mon.get('x', 0) + r.left() * to_comp)},{round(mon.get('y', 0) + r.top() * to_comp)} {max(1, round(r.width() * to_comp))}x{max(1, round(r.height() * to_comp))}"
                 self._scroll(geometry, r, screen)
+            elif kind == "window":
+                self._show(window_cut(frozen, box, mon.get("scale") or 1))
             else:
                 self._show(frozen.crop(box))
 
@@ -812,28 +922,47 @@ class Shot(Overlay):
                     time.sleep(0.1)
                 st.add(img)
                 self.bridge.progress.emit(json.dumps({"height": st.height}))
-                notches, unmoved = 3, 0
+                def still() -> Image.Image:
+                    """The region once it has stopped moving: a page scrolls smoothly, for as long as it likes."""
+                    time.sleep(0.12)
+                    was = turned(grab(geometry=geometry))
+                    for _ in range(15):
+                        time.sleep(0.08)
+                        now = turned(grab(geometry=geometry))
+                        if st._differ(st._narrow(was), st._narrow(now)) < 0.5:
+                            return now
+                        was = now
+                    return was
+
+                # One notch first: how far one goes is not known until it has been turned.
+                notches, unmoved, misses = 1, 0, 0
                 while self.scrolling:
                     hypr.ask(f"/dispatch movecursor {middle[0]} {middle[1]}")
                     wheel.turn(toward * notches, across)
-                    # A page scrolls smoothly: settled before it is taken.
-                    time.sleep(0.35)
-                    img = turned(grab(geometry=geometry))
+                    img = still()
                     if not self.scrolling:
                         break
                     before = st.offset
                     joined = st.add(img)
                     if joined == "lost":
-                        # Too far to see where it joins: back a little, and smaller steps from now on.
-                        wheel.turn(-toward * max(1, notches // 2), across)
+                        # Too far to see where it joins: all the way back to the last grab joined, and half the step.
+                        # (Half the way back, it went forward again to the same place, and lost it again, for ever.)
+                        wheel.turn(-toward * notches, across)
+                        still()
+                        if notches == 1:
+                            misses += 1
+                            if misses >= 2:
+                                # A notch is more than the region shows: as far as it can go.
+                                log("shot: one notch scrolls further than the region shows; stopped")
+                                self.bridge.progress.emit(json.dumps({"end": True, "short": True}))
+                                break
                         notches = max(1, notches // 2)
-                        time.sleep(0.3)
                     elif joined:
-                        unmoved = 0
+                        unmoved = misses = 0
                         moved = abs(st.offset - before)
-                        # About half the region a step: always overlapping, and not more steps than need be.
+                        # About a third of the region a step: always overlapping well, and not more steps than need be.
                         if moved:
-                            notches = max(1, min(15, round(notches * (img.height * 0.5) / moved)))
+                            notches = max(1, min(15, int(notches * (img.height / 3) / moved) or 1))
                         self.bridge.progress.emit(json.dumps({"height": st.height}))
                     else:
                         # Turned, and nothing moved: the end of the page (twice, to be sure of it).
@@ -866,6 +995,7 @@ class Shot(Overlay):
                 anchors, width, height, margins = self.strip_place
                 self.strip_surface.placement = None
                 self.strip_surface.apply(Placement(OVERLAY, anchors, width, height, KEYBOARD_NONE, exclusive=-1, margins=margins))
+                self.strip.scrolling()
                 self.strip.say(f"Scrolling {way}… · Enter to stop · Esc to cancel")
             for keys, what in STOP_KEYS.items():
                 hypr.bind(keys, f"{LAUNCHER} --screenshot {what}")
