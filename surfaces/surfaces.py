@@ -632,9 +632,15 @@ class Desktop(QObject):
                 core.call("PUT", "/clipboard/keep", json.dumps({"keep": self.clipboard.keep()}))
         if after.get("notifications") != before.get("notifications") or after["theme"] != before["theme"]:
             self.notifications.toasts._tell()
-        if after["bar"] != before["bar"]:
+        # What is on the bar and in what order (Settings, Bar; a drag along it; a right-click): its page draws
+        # that itself, so the bar is told, not put on the screen again — which made it flash at every drag.
+        in_place = ("order", "hidden", "shown", "badge")
+        if any(after["bar"].get(k) != before["bar"].get(k) for k in after["bar"].keys() | before["bar"].keys() if k not in in_place):
             self.bar.edge = after["bar"]["edge"]
             self.bar.place()
+        elif after["bar"] != before["bar"]:
+            self.bar.changed()
+        if after["bar"] != before["bar"]:
             # The tray as Settings now has it (on, off, which icons): said again, not
             # left as it was until an icon next changes.
             if any(after["bar"].get(k) != before["bar"].get(k) for k in ("tray", "trayHidden", "trayFold")):
