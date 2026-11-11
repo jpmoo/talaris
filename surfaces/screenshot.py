@@ -60,7 +60,7 @@ KEYS = ", Print"
 STOP_KEYS = {", Return": "done", ", Escape": "cancel"}
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
 #: How much of the region each step of a scrolling shot moves it by: the rest is the overlap it is joined on.
-STEP = 0.55
+STEP = 0.7
 #: A scrolling shot no taller (or wider) in all than this.
 SCROLL_TALLEST = 40_000
 
@@ -519,17 +519,15 @@ class VirtualWheel:
 
     def turn(self, notches: int, across: bool = False) -> None:
         """
-        Turned by so many notches, a notch at a time, toward the end of the page
-        when more than 0 (down it, or across it to the right), back when less.
+        Turned by so many notches, toward the end of the page when more than 0
+        (down it, or across it to the right), back when less.
         """
-        one = 1 if notches > 0 else -1
         # A wheel's turn down is less than 0 to the kernel, and its tilt right more.
-        wheel, fine, sign = (self.REL_HWHEEL, self.REL_HWHEEL_HI_RES, one) if across else (self.REL_WHEEL, self.REL_WHEEL_HI_RES, -one)
-        for _ in range(abs(notches)):
-            self._event(self.EV_REL, wheel, sign)
-            self._event(self.EV_REL, fine, sign * 120)
-            self._event(self.EV_SYN, 0, 0)
-            time.sleep(0.005)
+        wheel, fine, sign = (self.REL_HWHEEL, self.REL_HWHEEL_HI_RES, 1) if across else (self.REL_WHEEL, self.REL_WHEEL_HI_RES, -1)
+        # All of it at once, as a fast flick of a real wheel is: a page animates one scroll, not one a notch.
+        self._event(self.EV_REL, wheel, sign * notches)
+        self._event(self.EV_REL, fine, sign * notches * 120)
+        self._event(self.EV_SYN, 0, 0)
 
     def close(self) -> None:
         try:
@@ -926,10 +924,10 @@ class Shot(Overlay):
                 self.bridge.progress.emit(json.dumps({"height": st.height}))
                 def still() -> Image.Image:
                     """The region once it has stopped moving: a page scrolls smoothly, for as long as it likes."""
-                    time.sleep(0.06)
+                    time.sleep(0.04)
                     was = turned(grab(geometry=geometry))
-                    for _ in range(25):
-                        time.sleep(0.05)
+                    for _ in range(40):
+                        time.sleep(0.03)
                         now = turned(grab(geometry=geometry))
                         if st._differ(st._narrow(was), st._narrow(now)) < 0.5:
                             return now
@@ -962,9 +960,9 @@ class Shot(Overlay):
                     elif joined:
                         unmoved = misses = 0
                         moved = abs(st.offset - before)
-                        # A little over half the region a step: overlapping enough to join, and as few steps as that allows.
+                        # Most of the region a step (STEP): overlapping enough to join, and as few steps as that allows.
                         if moved:
-                            notches = max(1, min(25, int(notches * (img.height * STEP) / moved) or 1))
+                            notches = max(1, min(40, int(notches * (img.height * STEP) / moved) or 1))
                         self.bridge.progress.emit(json.dumps({"height": st.height}))
                     else:
                         # Turned, and nothing moved: the end of the page (twice, to be sure of it).

@@ -27,6 +27,7 @@
     rect: svg('<rect x="4" y="6" width="16" height="12" rx="1.5"/>'),
     ellipse: svg('<ellipse cx="12" cy="12" rx="9" ry="6.5"/>'),
     text: svg('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'),
+    crop: svg('<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>'),
     redact: svg('<rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7v10M11 7v10M15 7v10M3 12h18"/>'),
     undo: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
     redo: svg('<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
@@ -84,9 +85,8 @@
         ink = document.createElement("canvas");
         ink.width = W; ink.height = H;
         inkCtx = ink.getContext("2d");
-        board().style.width = `${W}px`;
-        board().style.height = `${H}px`;
         board().replaceChildren(img, ink);
+        layout();
         fit();
         drawTools();
         say("");
@@ -106,6 +106,30 @@
     ctx.closePath();
     ctx.fill();
   }
+  // ---- cropping: a mark like the others (undone as they are), the last one the shot's edges
+
+  /** What is shown, kept and copied, in the shot's own pixels: the last crop, or the whole of it. */
+  function cropNow() {
+    for (let i = marks.length - 1; i >= 0; i--) if (marks[i].tool === "crop") return marks[i].rect;
+    return { x: 0, y: 0, w: W, h: H };
+  }
+  /** The board the size of what is shown, the shot and its marks moved so that only that shows. */
+  function layout() {
+    const c = cropNow();
+    board().style.width = `${c.w}px`;
+    board().style.height = `${c.h}px`;
+    for (const layer of [img, ink]) if (layer) { layer.style.left = `${-c.x}px`; layer.style.top = `${-c.y}px`; }
+    const dims = document.querySelector(".dim-note");
+    if (dims) dims.textContent = `${c.w} × ${c.h}`;
+  }
+  /** A crop drawn: within what is shown already, whole pixels. */
+  function cropOf(m) {
+    const c = cropNow(), r = box(m);
+    const x = Math.max(c.x, Math.round(r.x)), y = Math.max(c.y, Math.round(r.y));
+    const x2 = Math.min(c.x + c.w, Math.round(r.x + r.w)), y2 = Math.min(c.y + c.h, Math.round(r.y + r.h));
+    return { x, y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) };
+  }
+
   function box(m) {
     return { x: Math.min(m.a.x, m.b.x), y: Math.min(m.a.y, m.b.y), w: Math.abs(m.b.x - m.a.x), h: Math.abs(m.b.y - m.a.y) };
   }
@@ -147,6 +171,20 @@
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(small, 0, 0, small.width, small.height, r.x, r.y, r.w, r.h);
       }
+    } else if (m.tool === "crop") {
+      // Only while it is drawn: what will go, dimmed, and a dashed edge round what stays.
+      if (m === draft) {
+        const c = cropNow(), r = cropOf(m);
+        ctx.fillStyle = "rgba(0,0,0,.5)";
+        ctx.beginPath();
+        ctx.rect(c.x, c.y, c.w, c.h);
+        ctx.rect(r.x, r.y, r.w, r.h);
+        ctx.fill("evenodd");
+        ctx.setLineDash([unit() * 3, unit() * 2]);
+        ctx.lineWidth = Math.max(1, unit() * 0.6);
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+      }
     } else if (m.tool === "text") {
       ctx.font = `600 ${m.font}px system-ui, sans-serif`;
       ctx.textBaseline = "top";
@@ -172,9 +210,11 @@
     if (draft) paintMark(inkCtx, draft);
   }
   function rendered() {
+    const c = cropNow();
     const out = document.createElement("canvas");
-    out.width = W; out.height = H;
+    out.width = c.w; out.height = c.h;
     const ctx = out.getContext("2d");
+    ctx.translate(-c.x, -c.y);
     ctx.drawImage(img, 0, 0);
     for (const m of marks) paintMark(ctx, m);
     return out.toDataURL("image/png");
@@ -192,10 +232,11 @@
   }
   function fit() {
     const st = $("stage").getBoundingClientRect();
-    if (!W || !st.width) return;
-    z = Math.min(1, (st.width - 32) / W, (st.height - 32) / H);
-    tx = (st.width - W * z) / 2;
-    ty = Math.max(16, (st.height - H * z) / 2);
+    const c = cropNow();
+    if (!c.w || !st.width) return;
+    z = Math.min(1, (st.width - 32) / c.w, (st.height - 32) / c.h);
+    tx = (st.width - c.w * z) / 2;
+    ty = Math.max(16, (st.height - c.h * z) / 2);
     place();
   }
   function actual() {
@@ -213,7 +254,8 @@
   /** A point on the screen, in the shot's own pixels. */
   function at(e) {
     const st = $("stage").getBoundingClientRect();
-    return { x: (e.clientX - st.left - tx) / z, y: (e.clientY - st.top - ty) / z };
+    const c = cropNow();
+    return { x: (e.clientX - st.left - tx) / z + c.x, y: (e.clientY - st.top - ty) / z + c.y };
   }
 
   $("stage").addEventListener("wheel", (e) => {
@@ -274,14 +316,27 @@
     const m = draft;
     draft = null;
     const tiny = m.points ? false : Math.hypot(m.b.x - m.a.x, m.b.y - m.a.y) < 3;
+    if (m.tool === "crop") {
+      const r = cropOf(m);
+      if (r.w >= 4 && r.h >= 4) { add({ tool: "crop", rect: r }); return; }
+      paint();
+      return;
+    }
     if (!tiny) add(m); else paint();
   };
   $("stage").addEventListener("pointerup", endDrag);
   $("stage").addEventListener("pointercancel", endDrag);
 
-  function add(m) { marks.push(m); undone = []; kept = false; paint(); drawTools(); }
-  function undo() { if (marks.length) { undone.push(marks.pop()); kept = false; paint(); drawTools(); } }
-  function redo() { if (undone.length) { marks.push(undone.pop()); kept = false; paint(); drawTools(); } }
+  /** Marks changed: drawn again — and, if a crop came or went, the board laid out and fitted to what now shows. */
+  function changed(m) {
+    kept = false;
+    paint();
+    drawTools();
+    if (m && m.tool === "crop") { layout(); fit(); }
+  }
+  function add(m) { marks.push(m); undone = []; changed(m); }
+  function undo() { if (marks.length) { const m = marks.pop(); undone.push(m); changed(m); } }
+  function redo() { if (undone.length) { const m = undone.pop(); marks.push(m); changed(m); } }
 
   // ---- text
 
@@ -293,8 +348,9 @@
     t.style.color = color;
     t.style.fontSize = `${font * z}px`;
     const st = $("stage").getBoundingClientRect();
-    t.style.left = `${p.x * z + tx}px`;
-    t.style.top = `${p.y * z + ty}px`;
+    const c = cropNow();
+    t.style.left = `${(p.x - c.x) * z + tx}px`;
+    t.style.top = `${(p.y - c.y) * z + ty}px`;
     t.addEventListener("keydown", (e) => {
       e.stopPropagation();
       if (e.key === "Escape") { e.preventDefault(); cancelText(); }
@@ -317,7 +373,7 @@
 
   // ---------------------------------------------------------------- the toolbar
 
-  const TOOLS = [["move", "Move (V, or hold Space)"], ["pen", "Pen (P)"], ["marker", "Highlighter (H)"], ["arrow", "Arrow (A)"], ["rect", "Box (B)"], ["ellipse", "Oval (O)"], ["text", "Text (T)"], ["redact", "Hide (X)"]];
+  const TOOLS = [["move", "Move (V, or hold Space)"], ["pen", "Pen (P)"], ["marker", "Highlighter (H)"], ["arrow", "Arrow (A)"], ["rect", "Box (B)"], ["ellipse", "Oval (O)"], ["text", "Text (T)"], ["redact", "Hide (X)"], ["crop", "Crop (C)"]];
   function iconBtn(name, title, act, opts = {}) {
     const b = el("button", { class: "tool" + (opts.on ? " on" : ""), title, onclick: act, ...(opts.disabled ? { disabled: "" } : {}) });
     b.innerHTML = ICON[name];
@@ -344,7 +400,7 @@
       el("span", { id: "zoom" }, `${Math.round(z * 100)}%`),
       msgEl,
       el("span", { class: "spacer" }),
-      el("span", { class: "dim-note", style: "font-size:11px;color:var(--muted)" }, W ? `${W} × ${H}` : ""),
+      el("span", { class: "dim-note", style: "font-size:11px;color:var(--muted)" }, W ? `${cropNow().w} × ${cropNow().h}` : ""),
       el("button", { class: "t-btn", title: "Copy it (Ctrl+C)", onclick: copy }, "Copy"),
       el("button", { class: "t-btn primary", title: "Keep it in Screenshots (Ctrl+S)", onclick: save }, "Save"),
       closeButton());
@@ -419,7 +475,7 @@
     if (ctrl || e.altKey) return;
     if (e.key === "0") { fit(); return; }
     if (e.key === "1") { actual(); return; }
-    const keyed = { v: "move", p: "pen", h: "marker", a: "arrow", b: "box", r: "rect", o: "ellipse", t: "text", x: "redact" }[e.key.toLowerCase()];
+    const keyed = { v: "move", p: "pen", h: "marker", a: "arrow", b: "box", r: "rect", o: "ellipse", t: "text", x: "redact", c: "crop" }[e.key.toLowerCase()];
     const t = keyed === "box" ? "rect" : keyed;
     if (t) { tool = t; drawTools(); }
   });
