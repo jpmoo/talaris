@@ -282,9 +282,10 @@ let trayNow = [];
 // lit while its own menu is.
 function markTray() {
   // A bar item's own menu (bar.py, item_menu) is shown in the tray's dropdown, as "bar:<item>": that item lit, not the tray.
-  const own = state.popup === "tray" && String(state.trayItem || "").startsWith("bar:") ? state.trayItem.slice(4) : "";
+  const barMenu = state.popup === "tray" && String(state.trayItem || "").startsWith("bar:");
+  const own = barMenu ? state.trayItem.slice(4) : "";
   for (const b of document.querySelectorAll(".tray-item")) {
-    const out = b.classList.contains("tray-fold") ? state.popup === "trayicons" || (state.popup === "tray" && !own) : state.popup === "tray" && b.dataset.id === state.trayItem;
+    const out = b.classList.contains("tray-fold") ? state.popup === "trayicons" || (state.popup === "tray" && !barMenu) : state.popup === "tray" && b.dataset.id === state.trayItem;
     b.classList.toggle("on", out);
   }
   for (const id of BAR_ITEMS) {
@@ -392,7 +393,13 @@ addEventListener("contextmenu", (e) => {
   // A percentage is its item's: the menu is the item's, with the percentage in it.
   const part = { "net-n": "net", "vol-n": "vol", "bat-n": "bat", "bright-n": "bright" };
   const item = hit && [hit.id, hit.parentElement && hit.parentElement.id].map((id) => part[id] || id).find((id) => BAR_ITEMS.includes(id));
-  if (!item) return;
+  // Nowhere in particular (between the items): the bar's own menu — hide it for now, autohide, its settings.
+  if (!item) {
+    if (e.target.closest("button, .bar-item, #where, #clock, #weather")) return;
+    e.preventDefault();
+    bridge.itemMenu("", e.clientX);
+    return;
+  }
   e.preventDefault();
   const r = $(item).getBoundingClientRect();
   bridge.itemMenu(item, r.left + r.width / 2);

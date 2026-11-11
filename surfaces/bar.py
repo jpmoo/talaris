@@ -834,7 +834,7 @@ class Bar(QObject):
         under it): hide it from the bar, or open the bar's settings. Only what
         the bar may leave off (Settings, Bar); Settings itself may not go.
         """
-        if item not in self.ITEM_NAMES:
+        if item and item not in self.ITEM_NAMES:
             return
         key = f"bar:{item}"
         if self.popup.kind == "tray" and self.popup.tray_item == key:
@@ -842,6 +842,14 @@ class Bar(QObject):
             return
         self.popup.tray_item, self.popup.at = key, int(x * zoom_of("bar"))
         self.popup.show("tray")
+        if not item:
+            # Nowhere in particular: the bar's own menu.
+            self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": "Bar", "items": [
+                {"id": 50, "label": "Temporarily hide"},
+                {"id": 51, "label": "Set to autohide", "toggle": "checkmark", "state": 1 if self.desktop.config["bar"].get("autohide") else 0},
+                {"type": "separator"}, {"id": 2, "label": "Bar settings…"}]}))
+            self.bridge.state.emit(json.dumps(self.describe()))
+            return
         entries = [{"id": 1, "label": "Hide from the bar"}]
         if item in self.PERCENT:
             entries.append({"id": 3, "label": "Show percentage", "toggle": "checkmark", "state": 1 if self._shown(self.PERCENT[item]) else 0})
@@ -871,6 +879,11 @@ class Bar(QObject):
             error = self._set_shown(self.PERCENT[item], not self._shown(self.PERCENT[item]))
         elif entry == 20:
             self.desktop.notifications.read_all()
+        elif entry == 50:
+            # Away for now, as a Ctrl-click puts it: back when the pointer touches its edge — once the menu has gone.
+            QTimer.singleShot(150, lambda: self.desktop.tuck("bar", True))
+        elif entry == 51:
+            error = self.desktop.settings.apply({"bar": {"autohide": not self.desktop.config["bar"].get("autohide")}})
         elif 30 <= entry < 30 + len(self.WEATHER):
             error = self.desktop.settings.apply({"bar": {"weatherShows": self.WEATHER[entry - 30][0]}})
         elif 40 <= entry < 40 + len(self.UNITS):
