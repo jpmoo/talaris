@@ -17,10 +17,13 @@ page, so it is up the moment the panel has gone), and the shot is cut from it
 — so what was on the screen when Print was pressed is what is taken, menus and
 all. The whole screen is the focused monitor's.
 
-**Scrolling**, as Shottr does it: a region drawn as above, then grabbed again
-and again while it is scrolled (`Stitcher`), each grab joined below the last
-where they overlap; Enter or Done when the end is reached. A small strip says
-how far it has got (`ScrollStrip`), clear of the region so that it is never in it.
+**Scrolling**, as Shottr does it: a region drawn as above, then ↓ or ↑, and
+Talaris scrolls it itself (`VirtualWheel`, a mouse wheel of its own made
+through uinput, with the pointer put over the region), a few notches at a
+time, grabbing it after each and joining the grabs where they overlap
+(`Stitcher`); it stops at the end of the page, or at Enter. Scrolled by hand
+instead, it is grabbed as it goes. A small strip says how far it has got
+(`ScrollStrip`), clear of the region so that it is never in it.
 
 **Kept** in `~/Pictures/Screenshots` (or the pictures folder XDG names), as
 "Screenshot <date> at <time>.png"; **copied** as a PNG (wl-copy), so the
@@ -30,9 +33,11 @@ clipboard's history has it too.
 from __future__ import annotations
 
 import base64
+import fcntl
 import io
 import json
 import os
+import struct
 import subprocess
 import threading
 import time
@@ -437,6 +442,56 @@ class Stitcher:
         return out
 
 
+class VirtualWheel:
+    """
+    A mouse wheel of Talaris's own, for scrolling a region by itself: a
+    device made through the kernel's uinput (this account may write to
+    /dev/uinput), turned a notch at a time. Its turns go where the pointer
+    is, as a real wheel's do. Wayland gives a program no other way to scroll
+    another's window, and nothing needs installing for this one.
+    """
+
+    UI_SET_EVBIT, UI_SET_KEYBIT, UI_SET_RELBIT = 0x40045564, 0x40045565, 0x40045566
+    UI_DEV_SETUP, UI_DEV_CREATE, UI_DEV_DESTROY = 0x405C5503, 0x5501, 0x5502
+    EV_SYN, EV_KEY, EV_REL = 0, 1, 2
+    REL_X, REL_Y, REL_WHEEL, REL_WHEEL_HI_RES = 0, 1, 8, 11
+    BTN_LEFT = 0x110
+
+    def __init__(self) -> None:
+        self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        try:
+            for ev in (self.EV_KEY, self.EV_REL):
+                fcntl.ioctl(self.fd, self.UI_SET_EVBIT, ev)
+            # A button too: a device with one is a pointer to libinput, and its wheel is heard.
+            fcntl.ioctl(self.fd, self.UI_SET_KEYBIT, self.BTN_LEFT)
+            for rel in (self.REL_X, self.REL_Y, self.REL_WHEEL, self.REL_WHEEL_HI_RES):
+                fcntl.ioctl(self.fd, self.UI_SET_RELBIT, rel)
+            fcntl.ioctl(self.fd, self.UI_DEV_SETUP, struct.pack("HHHH80sI", 0x03, 0x7461, 0x6c61, 1, b"Talaris screenshot scroll", 0))
+            fcntl.ioctl(self.fd, self.UI_DEV_CREATE)
+        except OSError:
+            os.close(self.fd)
+            raise
+
+    def _event(self, kind: int, code: int, value: int) -> None:
+        os.write(self.fd, struct.pack("llHHi", 0, 0, kind, code, value))
+
+    def turn(self, notches: int) -> None:
+        """Turned by so many notches, a notch at a time: up the page when more than 0, down it when less."""
+        one = 1 if notches > 0 else -1
+        for _ in range(abs(notches)):
+            self._event(self.EV_REL, self.REL_WHEEL, one)
+            self._event(self.EV_REL, self.REL_WHEEL_HI_RES, one * 120)
+            self._event(self.EV_SYN, 0, 0)
+            time.sleep(0.012)
+
+    def close(self) -> None:
+        try:
+            fcntl.ioctl(self.fd, self.UI_DEV_DESTROY)
+        except OSError:
+            pass
+        os.close(self.fd)
+
+
 class ScrollStrip(QWidget):
     """
     A small strip, clear of the region being scrolled: how tall the shot is
@@ -446,14 +501,17 @@ class ScrollStrip(QWidget):
 
     done = Signal()
     cancelled = Signal()
+    #: ↓ or ↑: which way Talaris is to scroll it (1 down the page, -1 up).
+    way = Signal(int)
+    FIRST = "↓ to scroll down, ↑ to scroll up · Esc to cancel"
     #: The longest things it says, which its width is made for.
-    SAYS = ("Scroll the region · Enter when done · Esc to cancel", "Scrolled too far to join · scroll back up a little",
-            "99999 pixels tall so far · Enter when done · Esc to cancel")
+    SAYS = (FIRST, "Scrolling down… 99999 pixels · Enter to stop · Esc to cancel",
+            "Scrolled too far to join · scroll back up a little", "99999 pixels tall so far · Enter when done · Esc to cancel")
 
     def __init__(self) -> None:
         super().__init__()
         self.look = Look()
-        self.said = self.SAYS[0]
+        self.said = self.FIRST
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAutoFillBackground(False)
@@ -510,6 +568,10 @@ class ScrollStrip(QWidget):
             self.done.emit()
         elif e.key() == Qt.Key.Key_Escape:
             self.cancelled.emit()
+        elif e.key() in (Qt.Key.Key_Down, Qt.Key.Key_PageDown):
+            self.way.emit(1)
+        elif e.key() in (Qt.Key.Key_Up, Qt.Key.Key_PageUp):
+            self.way.emit(-1)
 
 
 # ------------------------------------------------------------------ the panel
@@ -681,6 +743,8 @@ class Shot(Overlay):
     def _scroll(self, geometry: str, r: QRect, screen: QRect) -> None:
         self.stitcher = Stitcher()
         self.scrolling = True
+        #: Which way Talaris is scrolling it itself: 0 not (scrolled by hand, if at all), 1 down the page, -1 up.
+        self.auto = 0
         strip = ScrollStrip()
         self.strip = strip
         width, height = strip.size_wanted()
@@ -693,38 +757,106 @@ class Shot(Overlay):
         strip.setFocus()
         strip.done.connect(lambda: self._scroll_end(True))
         strip.cancelled.connect(lambda: self._scroll_end(False))
+        strip.way.connect(self._scroll_way)
         log(f"shot: scrolling capture of {geometry}")
+        at, size = geometry.split(" ")
+        x, y = (int(v) for v in at.split(","))
+        w, h = (int(v) for v in size.split("x"))
+        middle = (x + w // 2, y + h // 2)
 
         def run() -> None:
-            while self.scrolling:
-                began = time.monotonic()
-                try:
-                    img = grab(geometry=geometry)
-                except (OSError, subprocess.SubprocessError, ValueError) as e:
-                    log(f"shot: a grab failed ({e})")
-                    break
-                st = self.stitcher
-                if st is None or not self.scrolling:
-                    break
-                joined = st.add(img)
-                if joined == "lost":
-                    self.bridge.progress.emit(json.dumps({"lost": True}))
-                elif joined:
-                    self.bridge.progress.emit(json.dumps({"frames": len(st.strips), "height": st.height}))
-                if st.height >= SCROLL_TALLEST:
-                    self.bridge.progress.emit(json.dumps({"full": True}))
-                    break
-                time.sleep(max(0.0, SCROLL_EVERY_S - (time.monotonic() - began)))
+            wheel: VirtualWheel | None = None
+            back_to = None
+            notches, unmoved = 3, 0
+            try:
+                while self.scrolling:
+                    began = time.monotonic()
+                    way = self.auto
+                    st = self.stitcher
+                    if way:
+                        if wheel is None:
+                            try:
+                                wheel = VirtualWheel()
+                            except OSError as e:
+                                log(f"shot: no wheel of its own ({e})")
+                                self.auto = 0
+                                self.bridge.progress.emit(json.dumps({"say": "Talaris cannot scroll it here · scroll it yourself, then Enter"}))
+                                continue
+                            # Heard by the compositor as a new pointer a moment after it is made.
+                            time.sleep(0.4)
+                            try:
+                                back_to = json.loads(hypr.ask("j/cursorpos") or "{}")
+                            except ValueError:
+                                back_to = None
+                        # The pointer over the region, where the wheel's turns go.
+                        hypr.ask(f"/dispatch movecursor {middle[0]} {middle[1]}")
+                        wheel.turn(-way * notches)
+                        # A page scrolls smoothly: settled before it is taken.
+                        time.sleep(0.35)
+                    try:
+                        img = grab(geometry=geometry)
+                    except (OSError, subprocess.SubprocessError, ValueError) as e:
+                        log(f"shot: a grab failed ({e})")
+                        break
+                    if st is None or not self.scrolling:
+                        break
+                    before = st.offset
+                    joined = st.add(img)
+                    if joined == "lost":
+                        if way:
+                            # Too far to see where it joins: back a little, and smaller steps from now on.
+                            wheel.turn(way * max(1, notches // 2))
+                            notches = max(1, notches // 2)
+                            time.sleep(0.3)
+                        else:
+                            self.bridge.progress.emit(json.dumps({"lost": True}))
+                    elif joined:
+                        unmoved = 0
+                        moved = abs(st.offset - before)
+                        # About half the region a step: always overlapping, and not more steps than need be.
+                        if way and moved:
+                            notches = max(1, min(15, round(notches * (img.height * 0.5) / moved)))
+                        self.bridge.progress.emit(json.dumps({"height": st.height, "way": way}))
+                    elif way:
+                        # Turned, and nothing moved: the end of the page (twice, to be sure of it).
+                        unmoved += 1
+                        if unmoved >= 2:
+                            self.bridge.progress.emit(json.dumps({"end": True}))
+                            break
+                    if st.height >= SCROLL_TALLEST:
+                        self.bridge.progress.emit(json.dumps({"full": True}))
+                        break
+                    if not way:
+                        time.sleep(max(0.0, SCROLL_EVERY_S - (time.monotonic() - began)))
+            finally:
+                if wheel is not None:
+                    wheel.close()
+                if back_to and "x" in back_to:
+                    hypr.ask(f"/dispatch movecursor {back_to['x']} {back_to['y']}")
         self._scroller = threading.Thread(target=run, daemon=True)
         self._scroller.start()
 
+    def _scroll_way(self, way: int) -> None:
+        """↓ or ↑: scrolled that way by Talaris itself, until the end of the page or Enter."""
+        if self.scrolling:
+            self.auto = way
+            log(f"shot: scrolling it {'down' if way > 0 else 'up'}")
+            if self.strip is not None:
+                self.strip.say(f"Scrolling {'down' if way > 0 else 'up'}… · Enter to stop · Esc to cancel")
+
     def _progress(self, text: str) -> None:
         said = json.loads(text)
-        if said.get("full"):
+        if said.get("full") or said.get("end"):
             self._scroll_end(True)
-        elif said.get("lost") and self.strip is not None:
+        elif self.strip is None:
+            return
+        elif said.get("say"):
+            self.strip.say(said["say"])
+        elif said.get("lost"):
             self.strip.say("Scrolled too far to join · scroll back up a little")
-        elif self.strip is not None:
+        elif said.get("way"):
+            self.strip.say(f"Scrolling {'down' if said['way'] > 0 else 'up'}… {said['height']} pixels · Enter to stop · Esc to cancel")
+        else:
             self.strip.say(f"{said['height']} pixels tall so far · Enter when done · Esc to cancel")
 
     def _scroll_end(self, keep: bool) -> None:
@@ -732,7 +864,7 @@ class Shot(Overlay):
             return
         self.scrolling = False
         if getattr(self, "_scroller", None) is not None:
-            self._scroller.join(timeout=2)
+            self._scroller.join(timeout=3)
         if self.strip is not None:
             self.strip.hide()
             self.strip.deleteLater()
