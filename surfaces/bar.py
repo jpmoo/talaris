@@ -852,7 +852,7 @@ class Bar(QObject):
             return
         entries = [{"id": 1, "label": "Hide from the bar"}]
         if item in self.PERCENT:
-            entries.append({"id": 3, "label": "Show percentage", "toggle": "checkmark", "state": 1 if self._shown(self.PERCENT[item]) else 0})
+            entries.append({"id": 3, "label": "Show percentage", "toggle": "radio", "state": 1 if self._shown(self.PERCENT[item]) else 0})
         if item == "bell":
             badge = self.desktop.config["bar"].get("badge", "dot")
             entries.insert(0, {"id": 20, "label": "Mark all read", "enabled": self.desktop.notifications.unread() > 0})
