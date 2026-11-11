@@ -27,6 +27,9 @@ body[data-edge="top"] .menu { bottom: auto; top: 14px; }
 #presses .p-foot { display: flex; justify-content: space-between; margin-top: 8px; }
 .doc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none !important; letter-spacing: 0 !important; }
 .doc-name[hidden] { display: none; }
+/* On the dock's empty space: only its own part, without the line above it. */
+body.bare #menu > :not(.dock-part), body.bare #dock-sep { display: none !important; }
+.tick { display: inline-block; width: 1.1em; }
 </style>
 </head>
 <body>
@@ -59,6 +62,12 @@ body[data-edge="top"] .menu { bottom: auto; top: 14px; }
   <div class="menu-sep" id="sep"></div>
   <button class="menu-item" data-verb="close">Close window</button>
   <button class="menu-item" data-verb="close-all">Close all windows</button>
+  <!-- The dock's own part, on every one of its menus; alone on its empty space (dock.py, BARE). -->
+  <div class="menu-sep dock-part" id="dock-sep"></div>
+  <div class="hint dock-part">Dock</div>
+  <button class="menu-item dock-part" data-verb="dock-autohide"><span class="tick" id="dock-auto-tick"></span>Set to autohide</button>
+  <button class="menu-item dock-part" data-verb="dock-tuck">Temporarily hide</button>
+  <button class="menu-item dock-part" data-verb="dock-settings">Dock settings…</button>
 </div>
 <!-- What a press, Shift-press and Ctrl-press do: each one of the three, every one reachable. -->
 <div class="menu" id="presses" hidden>
@@ -83,6 +92,11 @@ const show = (verb, yes) => { document.querySelector(`[data-verb="${verb}"]`).hi
 function onState(s) {
   // Put away: opened again, it opens on the menu, not the chooser.
   if (!s.up) { showPresses(false); return; }
+  document.body.classList.toggle("bare", !!s.bare);
+  document.getElementById("dock-auto-tick").textContent = s.dockAutohide ? "✓" : "";
+  // Hidden for now only means something while it does not hide by itself.
+  show("dock-tuck", !s.dockAutohide);
+  if (s.bare) { key = ""; return; }
   const it = s.item || {};
   key = it.key || "";
   const doc = !!it.doc;

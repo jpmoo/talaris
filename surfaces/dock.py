@@ -90,6 +90,10 @@ DOCK_ROOM = 26
 #: The item menu's size.
 #: The menu's width, and its height before rows: with the room round it for its shadow (dockmenu.html .menu).
 MENU = (256, 334)
+#: The key a right-click on the dock's empty space opens its menu with: only the dock's own part of it.
+BARE = "(dock)"
+#: The height of that part: a line between, its heading, and its three.
+DOCK_PART = 112
 #: An item menu nobody touches puts itself away.
 MENU_IDLE_MS = 10000
 #: The windows' pictures: each one's room, how many at most, how often the pointer is looked for, how long it may be off them.
@@ -203,9 +207,11 @@ class DockMenu(QObject):
         return self.dock.last
 
     def describe(self) -> dict:
+        if self.key == BARE:
+            return {"up": True, "bare": True, "item": {}, "theme": self.desktop.config["theme"], "dockAutohide": bool(self.desktop.config["dock"].get("autohide"))}
         item = self.dock.items.get(self.key, {})
         apps_only = bool(self.key) and not self.key.startswith(("doc:", "class:"))
-        return {"up": bool(self.key), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
+        return {"up": bool(self.key), "bare": False, "dockAutohide": bool(self.desktop.config["dock"].get("autohide")), "item": item, "found": self.found, "theme": self.desktop.config["theme"],
                 "everywhere": self.everywhere, "elsewhere": self.dock.how(self.key) if apps_only else "",
                 "chosen": self.desktop.config["dock"].get("elsewhere", {}).get(self.key, "") if self.key else "",
                 # Its three presses, and whether they are its own or the default's (the chooser).
@@ -271,6 +277,11 @@ class DockMenu(QObject):
         return out
 
     def open(self, key: str, x: int) -> None:
+        if key == BARE:
+            # On no item: the dock's own part alone (autohide, hide for now, its settings).
+            self.key, self.found, self.everywhere = BARE, None, []
+            self._place(x, zoom(MENU[0]), zoom(DOCK_PART + 16))
+            return
         if key not in self.dock.items:
             return
         self.key = key
@@ -287,7 +298,11 @@ class DockMenu(QObject):
         places = {"hidden" if x["hidden"] else "here" if x["here"] else x["project"] for x in self.everywhere}
         rows = len(self.everywhere) + len(places) + 1 if len(self.everywhere) > 1 else 0
         rows += len(self._go_to(item))
-        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120 + (52 if not item.get("doc") and self.everywhere and not self._placed(item) else 0))
+        w, h = zoom(MENU[0] + (60 if rows else 0)), zoom(MENU[1] + 26 * min(rows, 16) + 120 + DOCK_PART + (52 if not item.get("doc") and self.everywhere and not self._placed(item) else 0))
+        self._place(x, w, h)
+
+    def _place(self, x: int, w: int, h: int) -> None:
+        screen = QApplication.primaryScreen().geometry()
         x = int(x)
         left = max(4, min(int(x) - w // 2, screen.width() - w - 4))
         bottom = self.dock.edge == "bottom"
@@ -319,6 +334,16 @@ class DockMenu(QObject):
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def act(self, verb: str, key: str) -> None:
+        if verb in ("dock-autohide", "dock-tuck", "dock-settings"):
+            self.close()
+            if verb == "dock-autohide":
+                self.desktop.settings.apply({"dock": {"autohide": not self.desktop.config["dock"].get("autohide")}})
+            elif verb == "dock-tuck":
+                # Away for now, as a Ctrl-click puts it: back when the pointer touches its edge — once the menu has gone.
+                QTimer.singleShot(150, lambda: self.desktop.tuck("dock", True))
+            else:
+                self.desktop.settings.open("dock-page")
+            return
         found = self.found
         address = self._window_to_send() if verb.startswith("send") else ""
         name = self.dock.items.get(key, {}).get("name", "it")

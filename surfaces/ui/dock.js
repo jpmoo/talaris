@@ -105,6 +105,13 @@ function item(app, pinned) {
   return b;
 }
 
+// A right-click on the dock but on none of its items: the dock's own menu (dock.py, BARE).
+addEventListener("contextmenu", (e) => {
+  if (e.defaultPrevented || !bridge || !e.target.closest("#dock")) return;
+  e.preventDefault();
+  bridge.menu("(dock)", Math.round(e.clientX));
+});
+
 const PREVIEW_REST_MS = 350, PREVIEW_NEXT_MS = 60;
 let previewSoon = 0, previewing = false;
 let pills = false;
