@@ -279,9 +279,15 @@ let trayNow = [];
 // The tray's button lit while its pane, or a menu from it, is out; an icon
 // lit while its own menu is.
 function markTray() {
+  // A bar item's own menu (bar.py, item_menu) is shown in the tray's dropdown, as "bar:<item>": that item lit, not the tray.
+  const own = state.popup === "tray" && String(state.trayItem || "").startsWith("bar:") ? state.trayItem.slice(4) : "";
   for (const b of document.querySelectorAll(".tray-item")) {
-    const out = b.classList.contains("tray-fold") ? state.popup === "trayicons" || state.popup === "tray" : state.popup === "tray" && b.dataset.id === state.trayItem;
+    const out = b.classList.contains("tray-fold") ? state.popup === "trayicons" || (state.popup === "tray" && !own) : state.popup === "tray" && b.dataset.id === state.trayItem;
     b.classList.toggle("on", out);
+  }
+  for (const id of BAR_ITEMS) {
+    const node = $(id);
+    if (node) node.classList.toggle("menu-on", id === own);
   }
 }
 function drawTray(items) {
