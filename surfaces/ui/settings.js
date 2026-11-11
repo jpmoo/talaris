@@ -95,7 +95,7 @@ function draw() {
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
   // What the bar's items open are drawn with them (drawBarShown); these open another way.
-  for (const who of ["glance", "archive", "shot", "settings"]) {
+  for (const who of ["glance", "archive"]) {
     seg(`ov-${who}`, [["windows", "Like windows"], ["drawers", "Like panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
@@ -2096,7 +2096,8 @@ $("unlock-go").addEventListener("click", async () => {
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
 const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],
-  files: ["files"], canvas: ["canvas"], writing: ["writing"], time: ["calendar", "Opens the calendar"] };
+  files: ["files"], canvas: ["canvas"], writing: ["writing"], time: ["calendar", "Opens the calendar"],
+  shot: ["shot", "Print Screen too"], settings: ["settings"] };
 /** What each of the bar's items is called here, and what shows or hides it (its switches): an item may have two, or none. */
 const BAR_UNITS = {
   where: ["Project", [["where", ""]]], ask: ["Launcher", [["ask", ""]]], morgan: ["Morgan", [["morgan", ""]]], new: ["New", [["new", ""]]],
@@ -2127,7 +2128,8 @@ function drawBarShown() {
   const row = (region, unit) => {
     const [label, switches] = BAR_UNITS[unit] || [unit, []];
     const opens = BAR_OPENS[unit === "clock" ? "time" : unit];
-    const gone = switches.length ? switches.every(([id]) => hidden.has(id)) : false;
+    // Off the bar, what it opens is not opened from there — except the screenshot panel, which Print opens all the same.
+    const gone = switches.length && unit !== "shot" ? switches.every(([id]) => hidden.has(id)) : false;
     // A percentage goes with its item: not to be turned on or off while the item itself is off the bar.
     const parts = switches.flatMap(([id, l]) => {
       const made = switchFor(id, l);
