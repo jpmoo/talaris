@@ -83,6 +83,7 @@ function onState(s) {
   if (where.looking) { $("loc").innerHTML = Icons.pin_place(); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
+  arrange((s.look || {}).order);
   $("where").innerHTML = "";
   if (shows !== "code" || !p.code) {
     // No longer than "Board of Education" in the bar's own type, measured as it is drawn, so a change of
@@ -298,6 +299,77 @@ function drawTray(items) {
   }));
   markTray();
 }
+
+// ---------------------------------------------------------------- the order of things on it
+//
+// Each region (barlayout.js) laid out as Settings keeps it, and reordered by
+// dragging an item along the bar — within its region only. A press that does
+// not move is the item's own (a click); one held with Ctrl is the bar's (tuck).
+
+/** The bar's regions, laid out in the order kept: what is already in place is left alone. */
+function arrange(order) {
+  for (const host of document.querySelectorAll("[data-region]")) {
+    if (dragging && dragging.host === host) continue;
+    const want = BarLayout.ordered(host.dataset.region, order).map((id) => $(id)).filter(Boolean);
+    const now = [...host.children].filter((c) => want.includes(c));
+    if (now.length === want.length && now.every((c, i) => c === want[i])) continue;
+    for (const node of want) host.append(node);
+  }
+}
+
+let dragging = null;  // { node, host, x, moved }
+addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.ctrlKey || !bridge) return;
+  const host = e.target.closest("[data-region]");
+  if (!host) return;
+  const node = [...host.children].find((c) => c.contains(e.target));
+  if (!node || !node.id) return;
+  dragging = { node, host, x: e.clientX, moved: false, pointer: e.pointerId };
+});
+addEventListener("pointermove", (e) => {
+  const d = dragging;
+  if (!d) return;
+  if (!d.moved) {
+    if (Math.abs(e.clientX - d.x) < 6) return;
+    d.moved = true;
+    d.node.classList.add("bar-dragging");
+    document.body.classList.add("bar-drag-on");
+    try { d.node.setPointerCapture(d.pointer); } catch { /* fine */ }
+    if (state.popup) bridge.file();
+  }
+  // Before the first neighbour whose middle is past the pointer: the item moves there at once, as it is carried.
+  const others = [...d.host.children].filter((c) => c !== d.node && c.id && !c.hidden && getComputedStyle(c).display !== "none");
+  const before = others.find((c) => { const r = c.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
+  if (before) { if (d.node.nextElementSibling !== before) d.host.insertBefore(d.node, before); }
+  else if (d.host.lastElementChild !== d.node) d.host.append(d.node);
+});
+const dropped = () => {
+  const d = dragging;
+  dragging = null;
+  if (!d || !d.moved) return;
+  d.node.classList.remove("bar-dragging");
+  document.body.classList.remove("bar-drag-on");
+  // The press was a drag, not the item's click.
+  const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+  addEventListener("click", swallow, true);
+  setTimeout(() => removeEventListener("click", swallow, true), 0);
+  const ids = [...d.host.children].map((c) => c.id).filter((id) => BarLayout.regionOf(id) === d.host.dataset.region);
+  bridge.barOrder(d.host.dataset.region, JSON.stringify(ids));
+};
+addEventListener("pointerup", dropped);
+addEventListener("pointercancel", dropped);
+
+// A right-click on something the bar may leave off: its menu, to hide it (bar.py, item_menu). The tray's icons
+// have their own menus; Settings may not go.
+addEventListener("contextmenu", (e) => {
+  if (!bridge || e.target.closest(".tray-item, #tray, #settings")) return;
+  const hit = e.target.closest("[id]");
+  const item = hit && [hit.id, hit.parentElement && hit.parentElement.id].find((id) => BAR_ITEMS.includes(id));
+  if (!item) return;
+  e.preventDefault();
+  const r = $(item).getBoundingClientRect();
+  bridge.itemMenu(item, r.left + r.width / 2);
+});
 
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {

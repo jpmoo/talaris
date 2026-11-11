@@ -105,9 +105,11 @@ class BarBridge(Bridge):
 
     @Slot(int)
     def trayClick(self, entry: int) -> None:  # noqa: N802 — called from the page by this name
-        """An entry chosen in a tray item's menu."""
+        """An entry chosen in a tray item's menu — or in a bar item's own (`itemMenu`)."""
         popup = self.owner.desktop.bar.popup
-        if popup.tray_item:
+        if popup.tray_item.startswith("bar:"):
+            self.owner.desktop.bar.item_chosen(popup.tray_item[4:], entry)
+        elif popup.tray_item:
             self.owner.desktop.tray.do(do="click", id=popup.tray_item, item=entry)
         popup.close()
 
@@ -251,6 +253,20 @@ class BarBridge(Bridge):
     @Slot(int, str)
     def actNotice(self, nid: int, key: str) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.notifications.act(nid, key)
+
+    @Slot(str, float)
+    def itemMenu(self, item: str, x: float) -> None:  # noqa: N802 — called from the page by this name
+        """A bar item right-clicked: its menu, under it — hide it, or the bar's settings."""
+        self.owner.desktop.bar.item_menu(item, x)
+
+    @Slot(str, str)
+    def barOrder(self, region: str, ids: str) -> None:  # noqa: N802 — called from the page by this name
+        """An item dragged along the bar: its region's order kept, as Settings, Bar keeps it."""
+        order = dict(self.owner.desktop.config["bar"].get("order") or {})
+        order[region] = json.loads(ids)
+        error = self.owner.desktop.settings.apply({"bar": {"order": order}})
+        if error:
+            log(f"bar: the order was not kept ({error})")
 
     @Slot()
     def screenshot(self) -> None:
@@ -777,6 +793,40 @@ class Bar(QObject):
         else:
             self.popup.close()
             self.desktop.tray.do(do=verb, id=item, x=at, y=0)
+
+    #: What a bar item is called in its menu (Settings, Bar has the same names).
+    ITEM_NAMES = {"where": "Project", "ask": "Launcher", "morgan": "Morgan", "new": "New", "tasks": "Tasks", "people": "People",
+                  "files": "Library", "canvas": "Canvas", "writing": "Writing", "day": "Date", "time": "Time", "weather": "Weather",
+                  "loc": "Location in use", "shot": "Screenshot", "clipboard": "Clipboard", "theme": "Light/dark", "net": "Wi-Fi",
+                  "bt": "Bluetooth", "vol": "Volume", "bat": "Battery", "bat-n": "Battery percent", "bell": "Notifications", "power": "Power"}
+
+    def item_menu(self, item: str, x: float) -> None:
+        """
+        A bar item's own menu, shown as a tray item's is (the same dropdown,
+        under it): hide it from the bar, or open the bar's settings. Only what
+        the bar may leave off (Settings, Bar); Settings itself may not go.
+        """
+        if item not in self.ITEM_NAMES:
+            return
+        key = f"bar:{item}"
+        if self.popup.kind == "tray" and self.popup.tray_item == key:
+            self.popup.close()
+            return
+        self.popup.tray_item, self.popup.at = key, int(x * zoom_of("bar"))
+        self.popup.show("tray")
+        self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": self.ITEM_NAMES[item], "items": [
+            {"id": 1, "label": "Hide from the bar"}, {"id": 2, "label": "Bar settings…"}]}))
+        self.bridge.state.emit(json.dumps(self.describe()))
+
+    def item_chosen(self, item: str, entry: int) -> None:
+        self.popup.close()
+        if entry == 1:
+            hidden = list(self.desktop.config["bar"].get("hidden", []))
+            if item not in hidden:
+                error = self.desktop.settings.apply({"bar": {"hidden": hidden + [item]}})
+                log(f"bar: {item} hidden" + (f" — not kept ({error})" if error else ""))
+        elif entry == 2:
+            self.desktop.settings.open("bar-page")
 
     def _tray_menu(self, text: str) -> None:
         menu = json.loads(text)

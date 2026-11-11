@@ -2037,35 +2037,72 @@ $("unlock-go").addEventListener("click", async () => {
 });
 
 // What the bar shows, item by item. Settings is not among them: it is the way back.
-const BAR_SHOWN = [["where", "Project"], ["ask", "Launcher"], ["morgan", "Morgan"], ["new", "New"], ["tasks", "Tasks"], ["people", "People"], ["files", "Library"], ["canvas", "Canvas"],
-  ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["weather", "Weather"], ["loc", "Location in use"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
-  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["shot", "Screenshot"], ["clipboard", "Clipboard"], ["bell", "Notifications"], ["power", "Power"]];
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
 const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],
   files: ["files"], canvas: ["canvas"], writing: ["writing"], time: ["calendar", "Opens the calendar"] };
+/** What each of the bar's items is called here, and what shows or hides it (its switches): an item may have two, or none. */
+const BAR_UNITS = {
+  where: ["Project", [["where", ""]]], ask: ["Launcher", [["ask", ""]]], morgan: ["Morgan", [["morgan", ""]]], new: ["New", [["new", ""]]],
+  tasks: ["Tasks", [["tasks", ""]]], people: ["People", [["people", ""]]], files: ["Library", [["files", ""]]],
+  canvas: ["Canvas", [["canvas", ""]]], writing: ["Writing", [["writing", ""]]],
+  clock: ["Date and time", [["day", "Date"], ["time", "Time"]]], weather: ["Weather", [["weather", ""]]],
+  loc: ["Location in use", [["loc", ""]]], tray: ["Tray", []], shot: ["Screenshot", [["shot", ""]]], clipboard: ["Clipboard", [["clipboard", ""]]],
+  theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""]]], bt: ["Bluetooth", [["bt", ""]]], vol: ["Volume", [["vol", ""]]],
+  bat: ["Battery", [["bat", ""], ["bat-n", "Percent"]]], settings: ["Settings", []], bell: ["Notifications", [["bell", ""]]], power: ["Power", [["power", ""]]],
+};
+const REGION_NAMES = { start: "Left", middle: "Middle", end: "Right" };
+/**
+ * Settings, Bar, Shown: the bar's items by region, in the order they stand,
+ * each shown or not — and dragged by its grip to another place in its region
+ * (barlayout.js), as they are along the bar itself.
+ */
 function drawBarShown() {
   const hidden = new Set(cfg.bar.hidden || []);
   const ov = cfg.overlays || {};
-  const off = (id) => (id === "time" ? hidden.has("day") && hidden.has("time") : hidden.has(id));
-  $("bar-shown").replaceChildren(...BAR_SHOWN.filter(([id]) => id !== "morgan" || morganHere).map(([id, label]) => {
-    const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: "Shown" });
+  const order = cfg.bar.order || {};
+  const switchFor = (id, label) => {
+    const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: label || "Shown" });
     sw.addEventListener("click", () => {
       const next = new Set(cfg.bar.hidden || []);
       if (next.has(id)) next.delete(id); else next.add(id);
       save({ bar: { hidden: [...next] } });
     });
-    const opens = BAR_OPENS[id];
-    const name = el("span", { class: "name" }, label, opens && opens[1] ? el("small", {}, opens[1]) : "");
-    if (!opens) return el("div", { class: "row" }, name, el("span", { class: "what" }, sw));
-    // Shown first, then how it comes and goes — greyed, and not to be changed, while it is off the bar.
-    const who = opens[0], gone = off(id);
-    const how = el("span", { class: "seg" + (gone ? " off" : ""), title: gone ? "Not on the bar" : "How it comes and goes" },
-      ...[["windows", "Like windows"], ["drawers", "Like panels"]].map(([value, text]) =>
-        el("button", { class: value === (ov[who] || "windows") ? "on" : "", ...(gone ? { disabled: "" } : {}),
-          onclick: () => !gone && value !== (ov[who] || "windows") && save({ overlays: { ...(cfg.overlays || {}), [who]: value } }) }, text)));
-    return el("div", { class: "row" }, name, el("span", { class: "what" }, sw, how));
-  }));
+    return label ? [el("small", { class: "note", style: "margin:0" }, label), sw] : [sw];
+  };
+  const row = (region, unit) => {
+    const [label, switches] = BAR_UNITS[unit] || [unit, []];
+    const opens = BAR_OPENS[unit === "clock" ? "time" : unit];
+    const gone = switches.length ? switches.every(([id]) => hidden.has(id)) : false;
+    const parts = switches.flatMap(([id, l]) => switchFor(id, l));
+    if (opens) {
+      // How it comes and goes — greyed, and not to be changed, while it is off the bar.
+      const who = opens[0];
+      parts.push(el("span", { class: "seg" + (gone ? " off" : ""), title: gone ? "Not on the bar" : "How it comes and goes" },
+        ...[["windows", "Like windows"], ["drawers", "Like panels"]].map(([value, text]) =>
+          el("button", { class: value === (ov[who] || "windows") ? "on" : "", ...(gone ? { disabled: "" } : {}),
+            onclick: () => !gone && value !== (ov[who] || "windows") && save({ overlays: { ...(cfg.overlays || {}), [who]: value } }) }, text))));
+    }
+    const note = !switches.length ? (unit === "settings" ? "Always on the bar: the way back here" : "Running applications' icons") : opens && opens[1] ? opens[1] : "";
+    const r = el("div", { class: "row bar-unit", title: "Drag to move it along its part of the bar" },
+      el("span", { class: "name" }, el("span", { class: "grip" }, "⠿"), label, note ? el("small", {}, note) : ""),
+      el("span", { class: "what" }, ...parts));
+    Kit.draggable(r, { region, unit }, { ignore: "button, input, .seg" });
+    Kit.dropZone(r, {
+      accepts: (p) => p && p.region === region && p.unit !== unit,
+      drop: (p, where) => {
+        const ids = BarLayout.ordered(region, order).filter((id) => id !== p.unit);
+        const at = ids.indexOf(unit) + (where === "below" ? 1 : 0);
+        ids.splice(at, 0, p.unit);
+        save({ bar: { order: { ...(cfg.bar.order || {}), [region]: ids } } });
+      },
+    });
+    return r;
+  };
+  $("bar-shown").replaceChildren(...Object.keys(BarLayout.REGIONS).flatMap((region) => [
+    el("h3", { class: "bar-region" }, REGION_NAMES[region]),
+    ...BarLayout.ordered(region, order).filter((u) => u !== "morgan" || morganHere).map((u) => row(region, u)),
+  ]));
 }
 
 function show(page) {

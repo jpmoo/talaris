@@ -108,6 +108,13 @@ def _checked(c: dict) -> str:
     BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
         return "Not something the bar shows"
+    # The order of each region (ui/barlayout.js): only its own items, each once.
+    regions = {"start": ("where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing"), "middle": ("clock", "weather"),
+               "end": ("loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bat", "settings", "bell", "power")}
+    order = c["bar"].get("order") or {}
+    if not isinstance(order, dict) or any(r not in regions or not isinstance(ids, list) or len(set(ids)) != len(ids)
+                                          or not all(i in regions[r] for i in ids) for r, ids in order.items()):
+        return "Not an order of the bar's items"
     if not 0 <= int(c["bar"].get("spacing", 4)) <= 24:
         return "Spacing on the bar is 0 to 24"
     if c["bar"].get("project", "both") not in ("name", "code", "both"):

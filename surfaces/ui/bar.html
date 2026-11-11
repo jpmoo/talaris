@@ -33,6 +33,9 @@ body[data-shape="floating"] #bar {
 body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--m-right) var(--m-bottom) var(--m-left); height: calc(100% - var(--m-bottom) - var(--room, 0px)); }
 .side { display: flex; align-items: center; gap: var(--bar-gap, 4px); min-width: 0; }
 .bar-hidden { display: none !important; }
+/* An item carried along the bar to another place in its region (bar.js, arrange). */
+.bar-dragging { opacity: .55; transform: translateY(1px); }
+body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
 .side.end { justify-content: flex-end; }
 
 
@@ -151,7 +154,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 </head>
 <body data-edge="top">
 <div id="bar">
-  <div class="side">
+  <div class="side" data-region="start">
     <!-- Where you are, first: then what opens from there. -->
     <div id="where"></div>
     <button id="ask" class="bar-item" title="Find anything, or ask (Super+Space)"></button>
@@ -164,8 +167,8 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
     <button id="writing" class="bar-item" title="Writing (Super+Shift+W)"></button>
   </div>
   <!-- The middle: the clock (the calendar), and beside it the weather (its own popup) — each its own button. -->
-  <span id="middle"><span id="clock"><span class="day" id="day"></span><span id="time"></span></span><span id="weather"></span></span>
-  <div class="side end">
+  <span id="middle" data-region="middle"><span id="clock"><span class="day" id="day"></span><span id="time"></span></span><span id="weather"></span></span>
+  <div class="side end" data-region="end">
     <span id="loc" hidden></span>
     <span id="tray"></span>
     <button id="shot" class="bar-item" title="Screenshot (Print Screen)"></button>
@@ -184,6 +187,7 @@ body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) 
 <script src="icons.js"></script>
 <script src="surface.js"></script>
 <script src="kit.js"></script>
+<script src="barlayout.js"></script>
 <script src="bar.js"></script>
 <script src="tips.js"></script>
 </body>
