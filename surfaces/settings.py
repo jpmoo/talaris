@@ -29,6 +29,7 @@ import os
 import shutil
 import re
 import threading
+import time
 
 import shiboken6
 from PySide6.QtCore import QProcess, QTimer, Signal, Slot
@@ -38,6 +39,7 @@ import hypr
 import accounts
 import bluebubbles
 import power
+import settings_io
 import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config, settle_accent, settle_opacity, single_window
@@ -512,6 +514,48 @@ class SettingsBridge(Bridge):
         """A folder for backups, or a backup to revive, in the desktop's own chooser."""
         self.owner.choose_path(kind)
 
+    @Slot(bool, result=str)
+    def settingsFiles(self, with_hypr: bool) -> str:  # noqa: N802 — called from the page by this name
+        """What an export would take (settings_io): Talaris's files, and the Hyprland folder's."""
+        return json.dumps({"talaris": [n for n in settings_io.TALARIS_FILES if os.path.isfile(os.path.join(settings_io.CONFIG, n))],
+                           "hypr": settings_io.hypr_files() if with_hypr else []})
+
+    @Slot(str, bool, result=str)
+    def exportSettings(self, path: str, with_hypr: bool) -> str:  # noqa: N802 — called from the page by this name
+        try:
+            return json.dumps(settings_io.export(path, with_hypr))
+        except (OSError, ValueError) as e:
+            return json.dumps({"error": str(e)})
+
+    @Slot(str, result=str)
+    def importLook(self, path: str) -> str:  # noqa: N802 — called from the page by this name
+        """What a settings file holds, before anything is done with it."""
+        try:
+            return json.dumps(settings_io.read(path))
+        except ValueError as e:
+            return json.dumps({"error": str(e)})
+
+    @Slot(str, bool, result=str)
+    def importSettings(self, path: str, with_hypr: bool) -> str:  # noqa: N802 — called from the page by this name
+        """
+        Its settings written (what they replace copied aside first), Hyprland
+        reloaded if its files were, and Talaris restarted a moment later to
+        take the rest — the core and then the surfaces, from outside this
+        process, which is one of the things restarted.
+        """
+        try:
+            done = settings_io.restore(path, with_hypr)
+        except (OSError, ValueError, KeyError) as e:
+            return json.dumps({"error": str(e)})
+        log(f"settings: imported {done['talaris'] + done['hypr']} from {path}; the old ones are in {done['aside']}")
+        if done["hypr"]:
+            hypr.ask("/reload")
+        QTimer.singleShot(1500, lambda: subprocess.Popen(
+            ["systemd-run", "--user", "--collect", "--quiet", "sh", "-c",
+             "systemctl --user restart talaris-core.service; systemctl --user restart talaris-surfaces.service"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True))
+        return json.dumps(done)
+
     @Slot(str)
     def copyText(self, text: str) -> None:  # noqa: N802 — called from the page by this name
         """Onto the clipboard (the recovery key, to put in a password manager) — and not into its history."""
@@ -640,6 +684,14 @@ class Settings(Overlay):
             chooser.setArguments(["--file-selection", "--directory", "--title=A folder for backups"])
         elif kind == "plugin":
             chooser.setArguments(["--file-selection", "--directory", "--title=A plugin's folder (it has a plugin.toml)"])
+        elif kind == "export":
+            name = time.strftime("Talaris settings %Y-%m-%d.talaris-settings")
+            chooser.setArguments(["--file-selection", "--save", "--confirm-overwrite", "--title=Export Talaris's settings",
+                                  f"--filename={os.path.join(os.path.expanduser('~/Documents'), name)}",
+                                  "--file-filter=Talaris settings | *.talaris-settings"])
+        elif kind == "import":
+            chooser.setArguments(["--file-selection", "--title=Talaris settings to import", f"--filename={os.path.expanduser('~/Documents')}/",
+                                  "--file-filter=Talaris settings | *.talaris-settings"])
         else:
             start = self.desktop.config.get("data", {}).get("backupFolder") or os.path.expanduser("~/.local/share/talaris/backups")
             chooser.setArguments(["--file-selection", "--title=A backup to revive", f"--filename={os.path.expanduser(start)}/",

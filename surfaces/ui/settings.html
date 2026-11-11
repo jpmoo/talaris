@@ -544,6 +544,11 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div id="data-open">
         <h3>Recovery key</h3>
         <div id="recovery"></div>
+        <h3>Settings</h3>
+        <p class="note">Talaris's settings in one file, to take to another computer or keep: what Settings changes (its keys among them), the calendar's feeds and the plugins' settings — never access keys, which are typed again. Your Hyprland files go too if you like, as they are.</p>
+        <div class="row"><span class="name">Export<small id="export-what"></small></span><span class="what"><small class="note" style="margin:0">Include my Hyprland files</small><button class="switch" id="export-hypr" title="Include my Hyprland files"></button><button class="t-btn" id="export-go">Export…</button></span></div>
+        <div class="row"><span class="name">Import<small>What it replaces is copied aside first; Talaris restarts to take it</small></span><span class="what"><button class="t-btn" id="import-choose">Choose…</button></span></div>
+        <div id="import"></div>
         <h3>Backups</h3>
         <div class="row"><span class="name">Folder<small id="backup-folder"></small></span><span class="what"><button class="t-btn" id="backup-choose">Choose…</button></span></div>
         <div class="row"><span class="name">Back up</span><span class="what"><span class="seg" id="backup-schedule"></span></span></div>

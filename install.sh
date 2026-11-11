@@ -5,14 +5,141 @@
 # Build Talaris and install its user services. Everything that can fail is
 # checked or built first, so a failure leaves the installed services as they
 # were rather than pointing at something half-made.
+#
+#   ./install.sh            check what Talaris needs, offer to install what is missing, then install Talaris
+#   ./install.sh --check    only say what is missing; change nothing
+#   ./install.sh --yes      install what is required without asking (the optional, only if asked for too)
+#   ./install.sh --optional install the optional packages as well
+#   ./install.sh --no-deps  skip the check (another distribution, or you have seen to it)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-NODE="$(command -v node || true)"
 
-[ -n "$NODE" ] || { echo "install: node is not on PATH" >&2; exit 1; }
+CHECK_ONLY=0 YES=0 OPTIONAL=0 DEPS=1
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK_ONLY=1 ;;
+    --yes|-y) YES=1 ;;
+    --optional) OPTIONAL=1 ;;
+    --no-deps) DEPS=0 ;;
+    *) echo "install: unknown option $arg (--check, --yes, --optional, --no-deps)" >&2; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------- what Talaris needs
+#
+# Each package with what it is for, as the code uses it: the surfaces (Python,
+# Qt and its web engine, layer-shell), the core's helpers, and what Talaris
+# borrows rather than builds (DESIGN.md) — the calendar's Evolution Data
+# Server and GNOME Online Accounts, PipeWire's volume, NetworkManager, grim,
+# Hyprland's idle, wallpaper and polkit helpers. The optional ones add a
+# feature each; without them that feature is quietly not there.
+REQUIRED=(
+  "python3-gi|Python's GLib bindings (the calendar, the tray)"
+  "python3-pil|pictures: screenshots, thumbnails"
+  "python3-pyside6.qtcore|Qt for Python"
+  "python3-pyside6.qtgui|Qt for Python"
+  "python3-pyside6.qtwidgets|Qt for Python"
+  "python3-pyside6.qtnetwork|Qt for Python"
+  "python3-pyside6.qtwebchannel|Qt for Python: pages talking to Talaris"
+  "python3-pyside6.qtwebenginecore|Qt's web engine: every panel"
+  "python3-pyside6.qtwebenginewidgets|Qt's web engine: every panel"
+  "liblayershellqtinterface6|the bar, the dock and the panels as layer surfaces"
+  "gir1.2-ecal-2.0|the calendar (Evolution Data Server)"
+  "gir1.2-edataserver-1.2|the calendar (Evolution Data Server)"
+  "gir1.2-ebook-1.2|contacts (Evolution Data Server)"
+  "gir1.2-ebookcontacts-1.2|contacts (Evolution Data Server)"
+  "gir1.2-goa-1.0|accounts (GNOME Online Accounts)"
+  "gnome-online-accounts-gtk|adding Google, Microsoft and other accounts"
+  "evolution-ews|Microsoft 365 calendars"
+  "libglib2.0-bin|gdbus, gio, gsettings: notifications, trash, settings"
+  "libnotify-bin|notify-send"
+  "xdg-utils|opening files and links"
+  "xdg-user-dirs|where Pictures and the rest are"
+  "xdg-desktop-portal-hyprland|file choosers and screen sharing"
+  "wl-clipboard|the clipboard and its history"
+  "grim|screenshots, and thumbnails of windows"
+  "wireplumber|volume (wpctl)"
+  "network-manager|Wi-Fi (nmcli)"
+  "upower|the battery"
+  "brightnessctl|screen brightness"
+  "procps|pgrep"
+  "zenity|file choosers (attachments, backups, settings)"
+  "curl|asking the core"
+  "hypridle|locking and screens off when idle"
+  "hyprpaper|the wallpaper"
+  "hyprpolkitagent|password prompts"
+  "mako-notifier|notifications until Talaris holds them"
+)
+OPTIONALS=(
+  "bluez|Bluetooth"
+  "gammastep|the night light"
+  "power-profiles-daemon|power profiles (Settings, Power)"
+  "poppler-utils|reading PDFs, for search by meaning"
+  "tesseract-ocr|reading the words in pictures and scans"
+  "libreoffice-common|reading office documents (large)"
+  "fprintd|fingerprints"
+  "pkexec|setting where you are for the whole system (Location)"
+)
+
+missing() {  # the packages of a list not installed, one a line: name|what for
+  local entry
+  for entry in "$@"; do
+    dpkg-query -W -f='${Status}' "${entry%%|*}" 2>/dev/null | grep -q "install ok installed" || echo "$entry"
+  done
+}
+ask() {  # yes or no, Enter giving the default
+  local prompt="$1" default="$2" reply
+  [ -t 0 ] || { [ "$default" = y ]; return; }
+  read -r -p "$prompt " reply || reply=""
+  reply="${reply:-$default}"
+  [[ "$reply" =~ ^[Yy] ]]
+}
+show() { local entry; for entry in "$@"; do printf '    %-38s %s\n' "${entry%%|*}" "${entry#*|}"; done; }
+
+if [ "$DEPS" = 1 ]; then
+  echo "==> Checking what Talaris needs"
+  if ! command -v dpkg-query >/dev/null || ! command -v apt-get >/dev/null; then
+    echo "    Not a Debian or Ubuntu system: install these yourself, then run with --no-deps."
+    show "${REQUIRED[@]}"
+    [ "$CHECK_ONLY" = 1 ] && exit 0
+    exit 1
+  fi
+  mapfile -t NEED < <(missing "${REQUIRED[@]}")
+  mapfile -t COULD < <(missing "${OPTIONALS[@]}")
+  if [ ${#NEED[@]} -eq 0 ]; then echo "    Everything required is installed."; else
+    echo "    Required, not installed:"; show "${NEED[@]}"; fi
+  if [ ${#COULD[@]} -gt 0 ]; then echo "    Optional, not installed (each adds what it says):"; show "${COULD[@]}"; fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    command -v node >/dev/null || echo "    node 22 or later: not on PATH"
+    command -v pnpm >/dev/null || echo "    pnpm: not on PATH"
+    exit 0
+  fi
+  TO=()
+  if [ ${#NEED[@]} -gt 0 ]; then
+    if [ "$YES" = 1 ] || ask "    Install the required packages now (sudo apt install)? [Y/n]" y; then
+      for entry in "${NEED[@]}"; do TO+=("${entry%%|*}"); done
+    else
+      echo "install: Talaris needs them; run again when they are installed." >&2; exit 1
+    fi
+  fi
+  if [ ${#COULD[@]} -gt 0 ]; then
+    if [ "$OPTIONAL" = 1 ] || { [ "$YES" = 0 ] && ask "    Install the optional ones too? [y/N]" n; }; then
+      for entry in "${COULD[@]}"; do TO+=("${entry%%|*}"); done
+    fi
+  fi
+  if [ ${#TO[@]} -gt 0 ]; then
+    echo "==> sudo apt-get install ${TO[*]}"
+    sudo apt-get update -qq
+    sudo apt-get install -y "${TO[@]}"
+  fi
+fi
+
+# Node and pnpm are not taken from apt: Ubuntu's own node is often older than the 22 the core needs.
+NODE="$(command -v node || true)"
+[ -n "$NODE" ] || { echo "install: node 22 or later is needed and is not on PATH (https://nodejs.org, or nvm)" >&2; exit 1; }
 major="$("$NODE" -p 'process.versions.node.split(".")[0]')"
 [ "$major" -ge 22 ] || { echo "install: node 22 or later is needed (found $major)" >&2; exit 1; }
-command -v pnpm >/dev/null || { echo "install: pnpm is not on PATH" >&2; exit 1; }
+command -v pnpm >/dev/null || { echo "install: pnpm is not on PATH (corepack enable pnpm, or npm install -g pnpm)" >&2; exit 1; }
 
 echo "==> Building"
 (cd "$ROOT" && pnpm install --frozen-lockfile && pnpm -r build)

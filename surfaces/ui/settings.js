@@ -1906,6 +1906,7 @@ function drawDemo() {
 
 function drawData() {
   drawDemo();
+  drawExport();
   const v = vaultNow;
   if (!v) return;
   drawMeaning();
@@ -2009,8 +2010,63 @@ function drawRevive() {
     el("span", { class: "what" }, key, look, go)), out);
 }
 
+// ---------------------------------------------------------------- settings, exported and imported (settings_io.py)
+
+let exportHypr = true;
+try { exportHypr = localStorage.getItem("talaris.settings.exportHypr") !== "0"; } catch { /* fine */ }
+function drawExport() {
+  $("export-hypr").classList.toggle("on", exportHypr);
+  bridge.settingsFiles(exportHypr, (text) => {
+    const f = JSON.parse(text);
+    $("export-what").textContent = `${f.talaris.length} of Talaris's files` + (exportHypr ? `, and ${f.hypr.length} Hyprland files (${f.hypr.join(", ")})` : "");
+  });
+}
+$("export-hypr").addEventListener("click", () => {
+  exportHypr = !exportHypr;
+  try { localStorage.setItem("talaris.settings.exportHypr", exportHypr ? "1" : "0"); } catch { /* fine */ }
+  drawExport();
+});
+$("export-go").addEventListener("click", () => bridge.choose("export"));
+$("import-choose").addEventListener("click", () => bridge.choose("import"));
+
+function exported(path) {
+  bridge.exportSettings(path, exportHypr, (text) => {
+    const r = JSON.parse(text);
+    if (r.error) { say(r.error, true); return; }
+    say(`Exported to ${r.path.split("/").pop()}`);
+  });
+}
+function importing(path) {
+  bridge.importLook(path, (text) => {
+    const m = JSON.parse(text);
+    if (m.error) { $("import").replaceChildren(el("p", { class: "note err" }, m.error)); return; }
+    let withHypr = false;
+    const hyprSw = el("button", { class: "switch", title: "Also restore my Hyprland files" });
+    hyprSw.addEventListener("click", () => { withHypr = !withHypr; hyprSw.classList.toggle("on", withHypr); });
+    const out = el("p", { class: "note" });
+    const go = el("button", { class: "t-btn" }, "Import");
+    Kit.twice(go, { key: "import-settings", ask: "Restart Talaris and import?", act: () => {
+      go.disabled = true;
+      out.textContent = "Importing…";
+      bridge.importSettings(path, withHypr, (t) => {
+        const r = JSON.parse(t);
+        if (r.error) { out.textContent = r.error; out.className = "note err"; go.disabled = false; return; }
+        out.textContent = `Imported${r.hypr.length ? `, with ${r.hypr.length} Hyprland files` : ""}. What it replaced is in ${r.aside}. Talaris restarts now.`;
+      });
+    } });
+    const when = m.made ? new Date(m.made.replace(/([+-]\d\d)(\d\d)$/, "$1:$2")).toLocaleString() : "an unknown time";
+    $("import").replaceChildren(
+      el("p", { class: "note" }, `${path.split("/").pop()}: made ${when}${m.host ? ` on ${m.host}` : ""}. Talaris's settings: ${m.talaris.join(", ") || "none"}.`
+        + (m.hypr.length ? ` Hyprland files: ${m.hypr.join(", ")}.` : " No Hyprland files.")),
+      ...(m.hypr.length ? [el("div", { class: "row" }, el("span", { class: "name" }, "Also restore my Hyprland files", el("small", {}, "Off: only Talaris's settings. On: these files too, and Hyprland reloads")), el("span", { class: "what" }, hyprSw))] : []),
+      el("div", { class: "row" }, el("span", { class: "name" }, ""), el("span", { class: "what" }, go)), out);
+  });
+}
+
 function onPicked(p) {
   if (p.kind === "plugin") { installPlugin(p.path); return; }
+  if (p.kind === "export") { exported(p.path); return; }
+  if (p.kind === "import") { importing(p.path); return; }
   if (p.kind === "folder") save({ data: { backupFolder: p.path } });
   else { reviving = p.path; drawRevive(); }
 }

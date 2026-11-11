@@ -85,8 +85,10 @@ cd talaris
 ./install.sh
 ```
 
-The installer builds everything, starts Talaris's services, and writes
-`~/.config/hypr/talaris.conf`. To turn Talaris on, add this line to the end of
+The installer first checks for everything Talaris needs (on Debian and
+Ubuntu) and offers to install what is missing, and the optional extras
+separately; `./install.sh --check` only reports. Then it builds everything,
+starts Talaris's services, and writes `~/.config/hypr/talaris.conf`. To turn Talaris on, add this line to the end of
 your `hyprland.conf`, then log out and back in:
 
 ```
@@ -216,6 +218,10 @@ writes `talaris.conf`; one `source =` line in your `hyprland.conf` turns it
 on. [examples/hyprland.conf](examples/hyprland.conf) is an annotated
 starting point: what stays yours, and what to leave out because Talaris
 does it.
+
+Settings, Data exports Talaris's settings to one file and imports them
+again — and your Hyprland files as they are, if you choose — copying aside
+whatever an import replaces.
 
 **How security is handled**
 
