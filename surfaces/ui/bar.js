@@ -25,9 +25,10 @@ $("morgan-ic").innerHTML = Icons.morgan();
 $("power").innerHTML = Icons.power();
 $("bell-ic").innerHTML = Icons.bell();
 $("clipboard").innerHTML = Icons.clipboard();
+$("shot").innerHTML = Icons.camera();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "clipboard", "bell", "power"];
+const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -38,7 +39,7 @@ function onState(s) {
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
-  for (const name of ["canvas", "writing", "tasks", "new", "people", "files"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
@@ -249,6 +250,8 @@ setInterval(() => { if (timers.length) tickBell(); }, 30000);
 
 $("bell").addEventListener("click", () => bridge && bridge.popupAt("notifications", under("bell")));
 $("clipboard").addEventListener("click", () => bridge && bridge.popupAt("clipboard", under("clipboard")));
+// The screenshot panel, as Print opens it (screenshot.py).
+$("shot").addEventListener("click", () => bridge && bridge.screenshot());
 
 // The tray: running applications' icons. A press opens the application (or,
 // for one that is only a menu, its menu); the middle button is its second
@@ -299,7 +302,7 @@ function drawTray(items) {
 // A press anywhere else on the bar puts an open popup away.
 addEventListener("pointerdown", (e) => {
   if (!bridge || !state.popup) return;
-  if (e.target.closest("#where, #vol, #power, #bell, #clipboard, #bat, #net, #bt, #ask, #new, #morgan, #people, #files, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
+  if (e.target.closest("#where, #vol, #power, #bell, #clipboard, #shot, #bat, #net, #bt, #ask, #new, #morgan, #people, #files, #tasks, #theme, #canvas, #writing, #settings, .tray-item")) return;
   bridge.file();
 }, true);
 

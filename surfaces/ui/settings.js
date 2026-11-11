@@ -2039,7 +2039,7 @@ $("unlock-go").addEventListener("click", async () => {
 // What the bar shows, item by item. Settings is not among them: it is the way back.
 const BAR_SHOWN = [["where", "Project"], ["ask", "Launcher"], ["morgan", "Morgan"], ["new", "New"], ["tasks", "Tasks"], ["people", "People"], ["files", "Library"], ["canvas", "Canvas"],
   ["writing", "Writing"], ["day", "Date"], ["time", "Time"], ["weather", "Weather"], ["loc", "Location in use"], ["theme", "Light/dark"], ["net", "Wi-Fi"], ["bt", "Bluetooth"],
-  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["clipboard", "Clipboard"], ["bell", "Notifications"], ["power", "Power"]];
+  ["vol", "Volume"], ["bat", "Battery"], ["bat-n", "Battery percent"], ["shot", "Screenshot"], ["clipboard", "Clipboard"], ["bell", "Notifications"], ["power", "Power"]];
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
 const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],

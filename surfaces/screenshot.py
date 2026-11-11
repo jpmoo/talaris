@@ -1106,7 +1106,11 @@ class Shot(Overlay):
         except OSError:
             pass
 
+    def opened(self) -> None:
+        self.desktop.bar.changed()
+
     def closed(self) -> None:
+        self.desktop.bar.changed()
         # Put away while choosing (Escape, a press on the dim): nothing to keep.
         if self.state == "choose":
             self.shot = None

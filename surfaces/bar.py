@@ -253,6 +253,12 @@ class BarBridge(Bridge):
         self.owner.desktop.notifications.act(nid, key)
 
     @Slot()
+    def screenshot(self) -> None:
+        """The bar's camera: the screenshot panel, as Print opens it."""
+        self.owner.desktop.bar.close_popup()
+        self.owner.desktop.shot.start()
+
+    @Slot()
     def glance(self) -> None:
         """The project menu's "Glance at current project"."""
         self.owner.desktop.bar.close_popup()
@@ -649,7 +655,8 @@ class Bar(QObject):
                            "tasks": bool(getattr(self.desktop, "tasks", None) and (self.desktop.tasks.up or self.desktop.tasks.windowed)),
                            "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
                            "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed)),
-                           "files": bool(getattr(self.desktop, "files_panel", None) and (self.desktop.files_panel.up or self.desktop.files_panel.windowed))},
+                           "files": bool(getattr(self.desktop, "files_panel", None) and (self.desktop.files_panel.up or self.desktop.files_panel.windowed)),
+                           "shot": bool(getattr(self.desktop, "shot", None) and self.desktop.shot.up)},
             # Morgan's timers and reminders, soonest first: the bell counts the next one down within the hour.
             "timers": getattr(self, "timers", []),
             # The bell's dot: how many notifications have not been seen in its list.
