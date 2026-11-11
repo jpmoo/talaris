@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+Screenshots (screenshot.py), on Print: first what to take — a region, a region
+scrolled through, a window, the whole screen — and then, in the same panel,
+the shot: panned and zoomed by touchpad or mouse, marked up, saved, copied,
+or closed without keeping it.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris screenshot</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+html { background: var(--catch); overflow: hidden; height: 100%; cursor: pointer; }
+body {
+  cursor: default; position: relative; margin: 0 auto; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
+  box-shadow: var(--menu-shadow); overflow: hidden; font-size: 13px;
+}
+/* Choosing: a small sheet. Looking it over: most of the screen. */
+body.choose { width: min(560px, calc(100% - 32px)); height: auto; margin-top: 22vh; padding: 16px; gap: 12px; }
+body.view { width: calc(100% - 48px); height: calc(100vh - 48px); margin-top: 24px; }
+body.choose .view-only, body.view .choose-only { display: none !important; }
+
+/* ---- choosing */
+.choose-only h1 { font-size: 15px; font-weight: 500; margin: 0 2px; }
+.kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kind { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-control);
+  background: none; color: var(--text); font: inherit; cursor: pointer; }
+.kind:hover, .kind:focus-visible { border-color: var(--accent); background: var(--accent-hover); outline: none; }
+.kind svg { width: 30px; height: 30px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.kind .k { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.choose-only .foot { color: var(--muted); font-size: 12px; text-align: center; }
+
+/* ---- looking it over */
+header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); flex: none; flex-wrap: wrap; }
+header .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 4px; }
+header .spacer { flex: 1; }
+.tool { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--radius-control);
+  background: none; color: var(--text); cursor: pointer; padding: 0; }
+.tool:hover { background: var(--accent-hover); }
+.tool.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+.tool:disabled { opacity: .35; cursor: default; background: none; }
+.tool svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.color { width: 18px; height: 18px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+.color.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+.widths button { min-width: 26px; }
+#zoom { font-size: 12px; color: var(--muted); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg.err { color: var(--danger); }
+#msg a { color: var(--accent); cursor: pointer; }
+
+#stage { flex: 1; min-height: 0; position: relative; overflow: hidden; background:
+  repeating-conic-gradient(color-mix(in srgb, var(--text) 6%, transparent) 0% 25%, transparent 0% 50%) 0 0 / 22px 22px; touch-action: none; }
+#board { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 2px 18px rgba(0,0,0,.35); }
+#board img, #board canvas { position: absolute; left: 0; top: 0; display: block; image-rendering: auto; }
+#stage.pixels #board img, #stage.pixels #board canvas { image-rendering: pixelated; }
+#stage.move { cursor: grab; }
+#stage.move.dragging { cursor: grabbing; }
+#stage.draw { cursor: crosshair; }
+#stage.text { cursor: text; }
+#typing { position: absolute; z-index: 2; min-width: 80px; padding: 2px 4px; border: 1px dashed var(--accent); background: rgba(0,0,0,.05); outline: none;
+  font-family: system-ui, sans-serif; font-weight: 600; white-space: pre; line-height: 1.2; }
+.kit-empty { padding: 40px; text-align: center; color: var(--muted); }
+</style>
+<link rel="stylesheet" href="kit.css">
+</head>
+<body data-arrives class="choose">
+<div class="choose-only">
+  <h1>Screenshot</h1>
+</div>
+<div class="kinds choose-only" id="kinds"></div>
+<div class="foot choose-only">Press a letter, or Esc to cancel</div>
+
+<header class="view-only" id="tools"></header>
+<div id="stage" class="view-only"><div id="board"></div></div>
+
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="pagetips.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="kit.js"></script>
+<script src="motion.js"></script>
+<script src="shot.js"></script>
+</body>
+</html>

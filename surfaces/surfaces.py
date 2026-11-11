@@ -51,6 +51,7 @@ from morgan import installed as morgan_installed
 from calendar_panel import Calendar, CalendarService
 from tasks_panel import Tasks
 from new_panel import New
+from screenshot import KEYS as SHOT_KEYS, Shot
 from jump_panel import Jump
 from people_panel import People
 from files_panel import FilesPanel
@@ -289,6 +290,8 @@ class Desktop(QObject):
         self.new = New(profile, self, self.calendar_service)
         # The project carousel: Super+Tab.
         self.jump = Jump(profile, self)
+        # Screenshots, on Print: what to take, then the shot to mark up, keep or copy (screenshot.py).
+        self.shot = Shot(profile, self)
         # A window focused on another project's desktop slides in as any change of project does (`_slide_toward`).
         hypr.before_focus = self._slide_toward
         # Notifications: Talaris's own, in place of mako; the bar's bell lists them.
@@ -384,7 +387,7 @@ class Desktop(QObject):
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
         return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "files_panel", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
-                            *getattr(self, "workspaces", {}).values()) if p]
+                            getattr(self, "shot", None), *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
     #: a 44px panel and a 3px margin in a 50px surface). The gap on the dock's
@@ -544,6 +547,11 @@ class Desktop(QObject):
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
         hypr.bind("SUPER SHIFT, G", f"{LAUNCHER} --glance")
         hypr.bind(CLIP_KEYS, f"{LAUNCHER} --popup clipboard")
+        # Print: Talaris's screenshots, in place of whatever the key did before (a config reload puts that back; this runs again then).
+        # Hyprland matches a pressed key's name in any case, but takes a bind away only as it was spelled: hyprland.conf's
+        # PRINT is let go of too, or both would run.
+        hypr.unbind(", PRINT")
+        hypr.bind(SHOT_KEYS, f"{LAUNCHER} --screenshot")
         # The lid, for when Talaris holds it (power.py); on the lock screen too.
         hypr.bind(", switch:on:Lid Switch", f"{LAUNCHER} --lid closed", flags="l")
         hypr.bind(", switch:off:Lid Switch", f"{LAUNCHER} --lid open", flags="l")
@@ -574,7 +582,7 @@ class Desktop(QObject):
         os._exit(code)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, SEND_KEYS, SEND_FOLLOW_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, SEND_KEYS, SEND_FOLLOW_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, SHOT_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -674,6 +682,7 @@ class Desktop(QObject):
             {"keys": "Super + Shift + N", "does": "New: a task, an event, a person, a note, a project"},
             {"keys": "Super + Shift + G", "does": "Glance: this project, all of it"},
             {"keys": "Super + V", "does": "Clipboard history"},
+            {"keys": "Print Screen", "does": "A screenshot: a region, scrolling, a window, or the whole screen"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
             {"keys": "Super + Shift + W", "does": "The writing surface"},
             {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
@@ -1039,6 +1048,8 @@ class Desktop(QObject):
                 self.archive.toggle()
             elif verb == "new":
                 self.new.toggle()
+            elif verb == "screenshot":
+                self.shot.start()
             elif verb == "projects":
                 self.jump.carousel()
             elif verb == "window":
@@ -1102,6 +1113,8 @@ def main() -> int:
         return send("archive")
     if args[:1] == ["--new"]:
         return send("new")
+    if args[:1] == ["--screenshot"]:
+        return send("screenshot")
     if args[:1] == ["--projects"]:
         return send("projects")
     if args[:1] == ["--window"] and len(args) == 2:

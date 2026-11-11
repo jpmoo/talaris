@@ -95,7 +95,7 @@ function draw() {
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
   const ov = cfg.overlays || {};
   // What the bar's items open are drawn with them (drawBarShown); these open another way.
-  for (const who of ["glance", "archive", "settings"]) {
+  for (const who of ["glance", "archive", "shot", "settings"]) {
     seg(`ov-${who}`, [["windows", "Like windows"], ["drawers", "Like panels"]], ov[who] || "windows", (v) => save({ overlays: { ...ov, [who]: v } }));
   }
   const p = cfg.panels;
