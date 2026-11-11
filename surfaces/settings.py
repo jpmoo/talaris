@@ -110,6 +110,8 @@ def _checked(c: dict) -> str:
     BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])) or not all(x in ("bright", "net-n") for x in c["bar"].get("shown", [])):
         return "Not something the bar shows"
+    if c["bar"].get("weatherShows", "both") not in ("sky", "temp", "both"):
+        return "The weather shows its conditions, its temperature, or both"
     if c["bar"].get("badge", "dot") not in ("dot", "count", "none"):
         return "The notifications' badge is a dot, a dot and a number, or none"
     # The order of each region (ui/barlayout.js): only its own items, each once.

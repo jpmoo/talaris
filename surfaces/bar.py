@@ -811,6 +811,9 @@ class Bar(QObject):
     #: An item's percentage, shown or not from its menu.
     PERCENT = {"net": "net-n", "vol": "vol-n", "bat": "bat-n", "bright": "bright-n"}
     BADGES = (("dot", "Show dot"), ("count", "Show dot and number"), ("none", "Show no badge"))
+    WEATHER = (("sky", "Show conditions"), ("temp", "Show temperature"), ("both", "Show both"))
+    #: The weather's units, as Settings, Location has them (location.py).
+    UNITS = (("auto", "Units by where you are"), ("c", "°C"), ("f", "°F"))
 
     def _shown(self, item: str) -> bool:
         look = self.desktop.config["bar"]
@@ -848,6 +851,13 @@ class Bar(QObject):
             entries.insert(1, {"type": "separator"})
             entries += [{"type": "separator"}] + [{"id": 10 + i, "label": label, "toggle": "radio", "state": 1 if badge == key_ else 0}
                                                    for i, (key_, label) in enumerate(self.BADGES)]
+        if item == "weather":
+            shows = self.desktop.config["bar"].get("weatherShows", "both")
+            units = self.desktop.config.get("location", {}).get("units", "auto")
+            entries += [{"type": "separator"}] + [{"id": 30 + i, "label": label, "toggle": "radio", "state": 1 if shows == k else 0}
+                                                   for i, (k, label) in enumerate(self.WEATHER)]
+            entries += [{"type": "separator"}] + [{"id": 40 + i, "label": label, "toggle": "radio", "state": 1 if units == k else 0}
+                                                   for i, (k, label) in enumerate(self.UNITS)]
         entries += [{"type": "separator"}, {"id": 2, "label": "Bar settings…"}]
         self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": self.ITEM_NAMES[item], "items": entries}))
         self.bridge.state.emit(json.dumps(self.describe()))
@@ -861,6 +871,10 @@ class Bar(QObject):
             error = self._set_shown(self.PERCENT[item], not self._shown(self.PERCENT[item]))
         elif entry == 20:
             self.desktop.notifications.read_all()
+        elif 30 <= entry < 30 + len(self.WEATHER):
+            error = self.desktop.settings.apply({"bar": {"weatherShows": self.WEATHER[entry - 30][0]}})
+        elif 40 <= entry < 40 + len(self.UNITS):
+            error = self.desktop.settings.apply({"location": {"units": self.UNITS[entry - 40][0]}})
         elif 10 <= entry < 10 + len(self.BADGES):
             error = self.desktop.settings.apply({"bar": {"badge": self.BADGES[entry - 10][0]}})
         elif entry == 2:

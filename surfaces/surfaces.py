@@ -634,7 +634,7 @@ class Desktop(QObject):
             self.notifications.toasts._tell()
         # What is on the bar and in what order (Settings, Bar; a drag along it; a right-click): its page draws
         # that itself, so the bar is told, not put on the screen again — which made it flash at every drag.
-        in_place = ("order", "hidden", "shown", "badge")
+        in_place = ("order", "hidden", "shown", "badge", "weatherShows")
         if any(after["bar"].get(k) != before["bar"].get(k) for k in after["bar"].keys() | before["bar"].keys() if k not in in_place):
             self.bar.edge = after["bar"]["edge"]
             self.bar.place()

@@ -2137,6 +2137,7 @@ function drawBarShown() {
       return made;
     });
     // The bell's badge while anything is unread: a dot, the dot with how many, or none.
+    if (unit === "weather") parts.unshift(segOf([["sky", "Conditions"], ["temp", "Temperature"], ["both", "Both"]], cfg.bar.weatherShows || "both", (weatherShows) => save({ bar: { weatherShows } })));
     if (unit === "bell") parts.unshift(segOf([["dot", "Dot"], ["count", "Dot and number"], ["none", "No badge"]], cfg.bar.badge || "dot", (badge) => save({ bar: { badge } })));
     if (opens) {
       // How it comes and goes — greyed, and not to be changed, while it is off the bar.

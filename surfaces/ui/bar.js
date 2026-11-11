@@ -77,7 +77,9 @@ function onState(s) {
   // Where you are (location.py): the weather after the clock, and a pin while anything else looks.
   const where = s.location || {};
   const w = where.weather;
-  $("weather").innerHTML = w ? `${Icons.sky(w.icon, w.day)}<span>${w.temp}°</span>` : "";
+  // The sky, the temperature, or both, as its right-click menu or Settings, Bar has it (bar.weatherShows).
+  const weatherShows = (s.look || {}).weatherShows || "both";
+  $("weather").innerHTML = w ? (weatherShows !== "temp" ? Icons.sky(w.icon, w.day) : "") + (weatherShows !== "sky" ? `<span>${w.temp}°</span>` : "") : "";
   $("weather").title = w ? `${w.sky}, ${w.temp}${w.unit}` : "";
   $("loc").hidden = !where.looking;
   if (where.looking) { $("loc").innerHTML = Icons.pin_place(); $("loc").title = "Something is using your location"; }
