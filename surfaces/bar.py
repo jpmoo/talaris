@@ -844,6 +844,8 @@ class Bar(QObject):
             entries.append({"id": 3, "label": "Show percentage", "toggle": "checkmark", "state": 1 if self._shown(self.PERCENT[item]) else 0})
         if item == "bell":
             badge = self.desktop.config["bar"].get("badge", "dot")
+            entries.insert(0, {"id": 20, "label": "Mark all read", "enabled": self.desktop.notifications.unread() > 0})
+            entries.insert(1, {"type": "separator"})
             entries += [{"type": "separator"}] + [{"id": 10 + i, "label": label, "toggle": "radio", "state": 1 if badge == key_ else 0}
                                                    for i, (key_, label) in enumerate(self.BADGES)]
         entries += [{"type": "separator"}, {"id": 2, "label": "Bar settings…"}]
@@ -857,6 +859,8 @@ class Bar(QObject):
             error = self._set_shown(item, False)
         elif entry == 3 and item in self.PERCENT:
             error = self._set_shown(self.PERCENT[item], not self._shown(self.PERCENT[item]))
+        elif entry == 20:
+            self.desktop.notifications.read_all()
         elif 10 <= entry < 10 + len(self.BADGES):
             error = self.desktop.settings.apply({"bar": {"badge": self.BADGES[entry - 10][0]}})
         elif entry == 2:
