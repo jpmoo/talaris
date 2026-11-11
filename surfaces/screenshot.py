@@ -59,6 +59,8 @@ KEYS = ", Print"
 #: Enter and Escape while Talaris scrolls a region: bound for that long (the strip lets go of the keyboard, `_scroll_way`).
 STOP_KEYS = {", Return": "done", ", Escape": "cancel"}
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
+#: How much of the region each step of a scrolling shot moves it by: the rest is the overlap it is joined on.
+STEP = 0.55
 #: A scrolling shot no taller (or wider) in all than this.
 SCROLL_TALLEST = 40_000
 
@@ -527,7 +529,7 @@ class VirtualWheel:
             self._event(self.EV_REL, wheel, sign)
             self._event(self.EV_REL, fine, sign * 120)
             self._event(self.EV_SYN, 0, 0)
-            time.sleep(0.012)
+            time.sleep(0.005)
 
     def close(self) -> None:
         try:
@@ -924,10 +926,10 @@ class Shot(Overlay):
                 self.bridge.progress.emit(json.dumps({"height": st.height}))
                 def still() -> Image.Image:
                     """The region once it has stopped moving: a page scrolls smoothly, for as long as it likes."""
-                    time.sleep(0.12)
+                    time.sleep(0.06)
                     was = turned(grab(geometry=geometry))
-                    for _ in range(15):
-                        time.sleep(0.08)
+                    for _ in range(25):
+                        time.sleep(0.05)
                         now = turned(grab(geometry=geometry))
                         if st._differ(st._narrow(was), st._narrow(now)) < 0.5:
                             return now
@@ -960,9 +962,9 @@ class Shot(Overlay):
                     elif joined:
                         unmoved = misses = 0
                         moved = abs(st.offset - before)
-                        # About a third of the region a step: always overlapping well, and not more steps than need be.
+                        # A little over half the region a step: overlapping enough to join, and as few steps as that allows.
                         if moved:
-                            notches = max(1, min(15, int(notches * (img.height / 3) / moved) or 1))
+                            notches = max(1, min(25, int(notches * (img.height * STEP) / moved) or 1))
                         self.bridge.progress.emit(json.dumps({"height": st.height}))
                     else:
                         # Turned, and nothing moved: the end of the page (twice, to be sure of it).
