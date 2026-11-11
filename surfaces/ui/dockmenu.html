@@ -65,7 +65,7 @@ body.bare #menu > :not(.dock-part), body.bare #dock-sep { display: none !importa
   <!-- The dock's own part, on every one of its menus; alone on its empty space (dock.py, BARE). -->
   <div class="menu-sep dock-part" id="dock-sep"></div>
   <div class="hint dock-part">Dock</div>
-  <button class="menu-item dock-part" data-verb="dock-autohide"><span class="tick" id="dock-auto-tick"></span>Set to autohide</button>
+  <button class="menu-item dock-part" data-verb="dock-autohide"><span class="tick" id="dock-auto-tick"></span>Autohide</button>
   <button class="menu-item dock-part" data-verb="dock-tuck">Temporarily hide</button>
   <button class="menu-item dock-part" data-verb="dock-settings">Dock settings…</button>
 </div>
@@ -93,7 +93,7 @@ function onState(s) {
   // Put away: opened again, it opens on the menu, not the chooser.
   if (!s.up) { showPresses(false); return; }
   document.body.classList.toggle("bare", !!s.bare);
-  document.getElementById("dock-auto-tick").textContent = s.dockAutohide ? "✓" : "";
+  document.getElementById("dock-auto-tick").textContent = s.dockAutohide ? "●" : "";
   // Hidden for now only means something while it does not hide by itself.
   show("dock-tuck", !s.dockAutohide);
   if (s.bare) { key = ""; return; }

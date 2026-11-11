@@ -846,7 +846,7 @@ class Bar(QObject):
             # Nowhere in particular: the bar's own menu.
             self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": "Bar", "items": [
                 {"id": 50, "label": "Temporarily hide"},
-                {"id": 51, "label": "Set to autohide", "toggle": "checkmark", "state": 1 if self.desktop.config["bar"].get("autohide") else 0},
+                {"id": 51, "label": "Autohide", "toggle": "radio", "state": 1 if self.desktop.config["bar"].get("autohide") else 0},
                 {"type": "separator"}, {"id": 2, "label": "Bar settings…"}]}))
             self.bridge.state.emit(json.dumps(self.describe()))
             return
