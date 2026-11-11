@@ -149,6 +149,7 @@ const Icons = (() => {
   // Clipboard history: a board with its clip, and a line written on it. Its
   // tiles: a pin, an eye (looked at, not copied), a bin, a page (a file), a warning.
   const clipboard = () => svg('<path d="M5.5 3H4a1 1 0 0 0-1 1v9.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-1.5"/><rect x="5.5" y="1.8" width="5" height="2.4" rx=".8"/><path d="M5.5 8h5M5.5 10.8h3.4"/>');
+  const brightness = (level = 100) => svg(`<circle cx="8" cy="8" r="3"/><path d="M8 5a3 3 0 0 1 0 6z" fill="currentColor" opacity="${Math.max(.15, level / 100)}"/><path d="M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/>`);
   const camera = () => svg('<path d="M2.5 5.5a1 1 0 0 1 1-1h1.8l1-1.5h3.4l1 1.5h1.8a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><circle cx="8" cy="8.5" r="2.3"/>');
   const pin = () => svg('<path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5"/>');
   const eye = () => svg('<path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="2"/>');
@@ -158,5 +159,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

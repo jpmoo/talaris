@@ -139,6 +139,10 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
   background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;
 }
 #bell.unread .dot { display: block; }
+/* The badge as Settings has it (bar.badge): a dot, the dot with how many in it, or nothing. */
+#bell[data-badge="none"] .dot { display: none !important; }
+#bell[data-badge="count"] .dot { width: auto; min-width: 13px; height: 13px; padding: 0 3px; top: 1px; right: 0; border-radius: 7px;
+  font-size: 9px; line-height: 13px; font-weight: 600; text-align: center; color: var(--on-accent, #111); box-sizing: border-box; }
 /* Any of Morgan's timers or reminders set: a dot at the other shoulder that
    pulses slowly; how many, and the next, are in the bell's tip and its list. */
 #bell .timing-dot {
@@ -174,9 +178,10 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
     <button id="shot" class="bar-item" title="Screenshot (Print Screen)"></button>
     <button id="clipboard" class="bar-item" title="Clipboard (Super+V)"></button>
     <button id="theme" class="bar-item" title="Light or dark"></button>
-    <button id="net" class="bar-item" title=""></button>
+    <button id="net" class="bar-item" title=""><span id="net-ic"></span><span class="n" id="net-n"></span></button>
     <button id="bt" class="bar-item" title=""></button>
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
+    <button id="bright" class="bar-item" title=""><span id="bright-ic"></span><span class="n" id="bright-n"></span></button>
     <button id="bat" class="bar-item" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></button>
     <button id="settings" class="bar-item" title="Settings"></button>
     <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span class="timing-dot"></span><span class="dot"></span></button>

@@ -136,8 +136,15 @@ def battery_state() -> dict:
     }
 
 
+def _brightness() -> dict:
+    """The screen's backlight, as brightnessctl reads it (`-m`: device,class,current,percent,max); none without one."""
+    parts = _run("brightnessctl", "-m", "-c", "backlight", "info").strip().split(",")
+    pct = parts[3].rstrip("%") if len(parts) >= 4 else ""
+    return {"present": True, "level": int(pct)} if pct.isdigit() else {"present": False}
+
+
 def read_all() -> dict:
-    return {"volume": _volume(), "network": _network(), "bluetooth": _bluetooth(), "battery": _battery()}
+    return {"volume": _volume(), "network": _network(), "bluetooth": _bluetooth(), "battery": _battery(), "brightness": _brightness()}
 
 
 class _Read(QRunnable):
@@ -499,6 +506,12 @@ class Machine(QObject):
                  f"{change[1:]}%{change[0]}")
         elif re.fullmatch(r"\d{1,3}", change):
             _run("wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", f"{min(int(change), 100)}%")
+        self.refresh()
+
+    def brightness(self, change: str) -> None:
+        """`+5` or `-5`: the backlight changed, as its keys change it (osd.py), never to nothing."""
+        if re.fullmatch(r"[+-]\d{1,3}", change):
+            _run("brightnessctl", "-e4", "-n2", "set", f"{change[1:]}%{change[0]}")
         self.refresh()
 
     def power(self, verb: str) -> None:

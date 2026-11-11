@@ -105,12 +105,14 @@ def _checked(c: dict) -> str:
     speeds = ("slow", "normal", "fast", "fastest")
     if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
         return "Text is small, medium or large"
-    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power")
-    if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])):
+    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n")
+    if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])) or not all(x in ("bright", "net-n") for x in c["bar"].get("shown", [])):
         return "Not something the bar shows"
+    if c["bar"].get("badge", "dot") not in ("dot", "count", "none"):
+        return "The notifications' badge is a dot, a dot and a number, or none"
     # The order of each region (ui/barlayout.js): only its own items, each once.
     regions = {"start": ("where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing"), "middle": ("clock", "weather"),
-               "end": ("loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bat", "settings", "bell", "power")}
+               "end": ("loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "bat", "settings", "bell", "power")}
     order = c["bar"].get("order") or {}
     if not isinstance(order, dict) or any(r not in regions or not isinstance(ids, list) or len(set(ids)) != len(ids)
                                           or not all(i in regions[r] for i in ids) for r, ids in order.items()):

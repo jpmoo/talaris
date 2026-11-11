@@ -28,7 +28,7 @@ $("clipboard").innerHTML = Icons.clipboard();
 $("shot").innerHTML = Icons.camera();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power"];
+const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -70,7 +70,7 @@ function onState(s) {
   $("theme").innerHTML = dark ? Icons.moon() : Icons.sun();
   $("theme").title = dark ? "Dark — switch to light" : "Light — switch to dark";
   // What Settings, Bar has left out, and the space between what is left.
-  const hidden = new Set((s.look || {}).hidden || []);
+  const hidden = new Set(BAR_ITEMS.filter((id) => !BarLayout.isShown(id, s.look || {})));
   // Morgan's button only where Morgan is installed (morgan.py, installed): it is a companion of its own.
   if (s.morganHere === false) hidden.add("morgan");
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
@@ -122,6 +122,8 @@ function onState(s) {
   // The bell wears a dot while anything is unread; its tip says how many.
   const unread = s.unread || 0;
   $("bell").classList.toggle("unread", unread > 0);
+  $("bell").dataset.badge = (s.look || {}).badge || "dot";
+  $("bell").querySelector(".dot").textContent = (s.look || {}).badge === "count" && unread ? (unread > 99 ? "99+" : String(unread)) : "";
   bellUnread = unread;
   timers = s.timers || [];
   tickBell();
@@ -129,7 +131,8 @@ function onState(s) {
 
 function onMachine(m) {
   const net = m.network || {};
-  $("net").innerHTML = net.kind === "wifi" ? Icons.wifi(net.signal) : net.kind === "ethernet" ? Icons.ethernet() : Icons.offline();
+  $("net-ic").innerHTML = net.kind === "wifi" ? Icons.wifi(net.signal) : net.kind === "ethernet" ? Icons.ethernet() : Icons.offline();
+  $("net-n").textContent = net.kind === "wifi" && net.signal != null ? `${net.signal}%` : "";
   $("net").title = net.kind === "none" ? "Offline" : `${net.name}${net.signal != null ? ` · ${net.signal}%` : ""}`;
 
   const bt = m.bluetooth || {};
@@ -145,6 +148,15 @@ function onMachine(m) {
     $("vol-ic").innerHTML = Icons.volume(vol.level, vol.muted);
     $("vol-n").textContent = vol.muted ? "" : `${vol.level}%`;
     $("vol").title = vol.muted ? "Muted" : `Volume ${vol.level}% — scroll to change`;
+  }
+
+  // The screen's brightness (machine.py): scrolled on to change it, as the volume is.
+  const br = m.brightness || {};
+  $("bright").hidden = !br.present;
+  if (br.present) {
+    $("bright-ic").innerHTML = Icons.brightness(br.level);
+    $("bright-n").textContent = `${br.level}%`;
+    $("bright").title = `Brightness ${br.level}% — scroll to change`;
   }
 
   const bat = m.battery || {};
@@ -195,6 +207,11 @@ $("vol").addEventListener("wheel", (e) => {
   if (!bridge) return;
   e.preventDefault();
   bridge.volume(e.deltaY < 0 ? "+5" : "-5");
+}, { passive: false });
+$("bright").addEventListener("wheel", (e) => {
+  if (!bridge) return;
+  e.preventDefault();
+  bridge.brightness(e.deltaY < 0 ? "+5" : "-5");
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
@@ -364,7 +381,9 @@ addEventListener("pointercancel", dropped);
 addEventListener("contextmenu", (e) => {
   if (!bridge || e.target.closest(".tray-item, #tray, #settings")) return;
   const hit = e.target.closest("[id]");
-  const item = hit && [hit.id, hit.parentElement && hit.parentElement.id].find((id) => BAR_ITEMS.includes(id));
+  // A percentage is its item's: the menu is the item's, with the percentage in it.
+  const part = { "net-n": "net", "vol-n": "vol", "bat-n": "bat", "bright-n": "bright" };
+  const item = hit && [hit.id, hit.parentElement && hit.parentElement.id].map((id) => part[id] || id).find((id) => BAR_ITEMS.includes(id));
   if (!item) return;
   e.preventDefault();
   const r = $(item).getBoundingClientRect();

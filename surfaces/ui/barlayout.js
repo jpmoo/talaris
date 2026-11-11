@@ -15,8 +15,27 @@ const BarLayout = (() => {
   const REGIONS = {
     start: ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing"],
     middle: ["clock", "weather"],
-    end: ["loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bat", "settings", "bell", "power"],
+    end: ["loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "bat", "settings", "bell", "power"],
   };
+
+  /**
+   * What is off until it is asked for: shown only when the bar's `shown` names it, whatever `hidden` says — so
+   * one new since the settings were saved does not turn up uninvited. Everything else is shown unless `hidden`
+   * names it.
+   */
+  const OPT_IN = ["bright", "net-n"];
+  const isShown = (id, look) => (OPT_IN.includes(id) ? (look.shown || []).includes(id) : !(look.hidden || []).includes(id));
+  /** The bar's settings with `id` shown or not: the change to save. */
+  function showing(id, on, look) {
+    if (OPT_IN.includes(id)) {
+      const shown = new Set(look.shown || []);
+      if (on) shown.add(id); else shown.delete(id);
+      return { shown: [...shown] };
+    }
+    const hidden = new Set(look.hidden || []);
+    if (on) hidden.delete(id); else hidden.add(id);
+    return { hidden: [...hidden] };
+  }
 
   /** A region's ids in the order kept, with any it does not name put where they come by default. */
   function ordered(region, order) {
@@ -36,5 +55,5 @@ const BarLayout = (() => {
   /** The region an id belongs to. */
   const regionOf = (id) => Object.keys(REGIONS).find((r) => REGIONS[r].includes(id)) || null;
 
-  return { REGIONS, ordered, regionOf };
+  return { REGIONS, ordered, regionOf, OPT_IN, isShown, showing };
 })();

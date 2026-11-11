@@ -306,6 +306,12 @@ class BarBridge(Bridge):
     def volume(self, change: str) -> None:
         self.owner.desktop.machine.volume(change)
 
+    @Slot(str)
+    def brightness(self, change: str) -> None:
+        """Scrolled on the bar's brightness: changed, and the level shown as its keys show it."""
+        self.owner.desktop.machine.brightness(change)
+        self.owner.desktop.osd.show("brightness")
+
     @Slot(result=str)
     def system(self) -> str:
         """How the machine is doing, for the power menu's graphs (sysmon.py): asked each second while it is open."""
@@ -798,7 +804,26 @@ class Bar(QObject):
     ITEM_NAMES = {"where": "Project", "ask": "Launcher", "morgan": "Morgan", "new": "New", "tasks": "Tasks", "people": "People",
                   "files": "Library", "canvas": "Canvas", "writing": "Writing", "day": "Date", "time": "Time", "weather": "Weather",
                   "loc": "Location in use", "shot": "Screenshot", "clipboard": "Clipboard", "theme": "Light/dark", "net": "Wi-Fi",
-                  "bt": "Bluetooth", "vol": "Volume", "bat": "Battery", "bat-n": "Battery percent", "bell": "Notifications", "power": "Power"}
+                  "bt": "Bluetooth", "vol": "Volume", "bat": "Battery", "bat-n": "Battery percent", "bell": "Notifications", "power": "Power",
+                  "bright": "Brightness"}
+    #: Off until asked for (ui/barlayout.js, OPT_IN): shown when `shown` names them.
+    OPT_IN = ("bright", "net-n")
+    #: An item's percentage, shown or not from its menu.
+    PERCENT = {"net": "net-n", "vol": "vol-n", "bat": "bat-n", "bright": "bright-n"}
+    BADGES = (("dot", "Show dot"), ("count", "Show dot and number"), ("none", "Show no badge"))
+
+    def _shown(self, item: str) -> bool:
+        look = self.desktop.config["bar"]
+        return item in look.get("shown", []) if item in self.OPT_IN else item not in look.get("hidden", [])
+
+    def _show(self, item: str, on: bool) -> str:
+        look = self.desktop.config["bar"]
+        if item in self.OPT_IN:
+            shown = set(look.get("shown", []))
+            shown.add(item) if on else shown.discard(item)
+            return self.desktop.settings.apply({"bar": {"shown": sorted(shown)}})
+        hidden = [x for x in look.get("hidden", []) if x != item] + ([] if on else [item])
+        return self.desktop.settings.apply({"bar": {"hidden": hidden}})
 
     def item_menu(self, item: str, x: float) -> None:
         """
@@ -814,19 +839,30 @@ class Bar(QObject):
             return
         self.popup.tray_item, self.popup.at = key, int(x * zoom_of("bar"))
         self.popup.show("tray")
-        self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": self.ITEM_NAMES[item], "items": [
-            {"id": 1, "label": "Hide from the bar"}, {"id": 2, "label": "Bar settings…"}]}))
+        entries = [{"id": 1, "label": "Hide from the bar"}]
+        if item in self.PERCENT:
+            entries.append({"id": 3, "label": "Show percentage", "toggle": "checkmark", "state": 1 if self._shown(self.PERCENT[item]) else 0})
+        if item == "bell":
+            badge = self.desktop.config["bar"].get("badge", "dot")
+            entries += [{"type": "separator"}] + [{"id": 10 + i, "label": label, "toggle": "radio", "state": 1 if badge == key_ else 0}
+                                                   for i, (key_, label) in enumerate(self.BADGES)]
+        entries += [{"type": "separator"}, {"id": 2, "label": "Bar settings…"}]
+        self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": self.ITEM_NAMES[item], "items": entries}))
         self.bridge.state.emit(json.dumps(self.describe()))
 
     def item_chosen(self, item: str, entry: int) -> None:
         self.popup.close()
+        error = ""
         if entry == 1:
-            hidden = list(self.desktop.config["bar"].get("hidden", []))
-            if item not in hidden:
-                error = self.desktop.settings.apply({"bar": {"hidden": hidden + [item]}})
-                log(f"bar: {item} hidden" + (f" — not kept ({error})" if error else ""))
+            error = self._show(item, False)
+        elif entry == 3 and item in self.PERCENT:
+            error = self._show(self.PERCENT[item], not self._shown(self.PERCENT[item]))
+        elif 10 <= entry < 10 + len(self.BADGES):
+            error = self.desktop.settings.apply({"bar": {"badge": self.BADGES[entry - 10][0]}})
         elif entry == 2:
             self.desktop.settings.open("bar-page")
+        if error:
+            log(f"bar: {item}'s change not kept ({error})")
 
     def _tray_menu(self, text: str) -> None:
         menu = json.loads(text)

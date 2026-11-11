@@ -2048,7 +2048,8 @@ const BAR_UNITS = {
   canvas: ["Canvas", [["canvas", ""]]], writing: ["Writing", [["writing", ""]]],
   clock: ["Date and time", [["day", "Date"], ["time", "Time"]]], weather: ["Weather", [["weather", ""]]],
   loc: ["Location in use", [["loc", ""]]], tray: ["Tray", []], shot: ["Screenshot", [["shot", ""]]], clipboard: ["Clipboard", [["clipboard", ""]]],
-  theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""]]], bt: ["Bluetooth", [["bt", ""]]], vol: ["Volume", [["vol", ""]]],
+  theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""], ["net-n", "Percent"]]], bt: ["Bluetooth", [["bt", ""]]],
+  vol: ["Volume", [["vol", ""], ["vol-n", "Percent"]]], bright: ["Brightness", [["bright", ""], ["bright-n", "Percent"]]],
   bat: ["Battery", [["bat", ""], ["bat-n", "Percent"]]], settings: ["Settings", []], bell: ["Notifications", [["bell", ""]]], power: ["Power", [["power", ""]]],
 };
 const REGION_NAMES = { start: "Left", middle: "Middle", end: "Right" };
@@ -2058,16 +2059,13 @@ const REGION_NAMES = { start: "Left", middle: "Middle", end: "Right" };
  * (barlayout.js), as they are along the bar itself.
  */
 function drawBarShown() {
-  const hidden = new Set(cfg.bar.hidden || []);
+  // Shown or not as the bar has it (barlayout.js): what is off until asked for, by `shown`; the rest by `hidden`.
+  const hidden = new Set(Object.keys(BAR_UNITS).flatMap((u) => BAR_UNITS[u][1].map(([id]) => id)).filter((id) => !BarLayout.isShown(id, cfg.bar)));
   const ov = cfg.overlays || {};
   const order = cfg.bar.order || {};
   const switchFor = (id, label) => {
     const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: label || "Shown" });
-    sw.addEventListener("click", () => {
-      const next = new Set(cfg.bar.hidden || []);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      save({ bar: { hidden: [...next] } });
-    });
+    sw.addEventListener("click", () => save({ bar: BarLayout.showing(id, hidden.has(id), cfg.bar) }));
     return label ? [el("small", { class: "note", style: "margin:0" }, label), sw] : [sw];
   };
   const row = (region, unit) => {
@@ -2075,6 +2073,8 @@ function drawBarShown() {
     const opens = BAR_OPENS[unit === "clock" ? "time" : unit];
     const gone = switches.length ? switches.every(([id]) => hidden.has(id)) : false;
     const parts = switches.flatMap(([id, l]) => switchFor(id, l));
+    // The bell's badge while anything is unread: a dot, the dot with how many, or none.
+    if (unit === "bell") parts.unshift(segOf([["dot", "Dot"], ["count", "Dot and number"], ["none", "No badge"]], cfg.bar.badge || "dot", (badge) => save({ bar: { badge } })));
     if (opens) {
       // How it comes and goes — greyed, and not to be changed, while it is off the bar.
       const who = opens[0];

@@ -39,8 +39,9 @@ DEFAULTS = {
             # What the bar leaves out, by item (ui/bar.js BAR_ITEMS), and the
             # space between its items in the page's pixels. Settings is never
             # hidden: it is the way back.
-            # The screenshot button is off until it is asked for: Print does the same.
-            "hidden": ["shot"], "spacing": 4},
+            # The screenshot button is off until it is asked for: Print does the same. `shown`: what is off until
+            # it is asked for whatever `hidden` says (ui/barlayout.js, OPT_IN). The bell's badge: dot, count, none.
+            "hidden": ["shot"], "shown": [], "badge": "dot", "spacing": 4},
     # The bar's clock: 12- or 24-hour, seconds or not, and how the date reads.
     "clock": {"hours": "12", "seconds": False, "date": "weekday-month-day"},
     # Super+Space while Noctalia holds it; Talaris takes it when Noctalia goes.
