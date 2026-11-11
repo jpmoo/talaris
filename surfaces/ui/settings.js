@@ -156,13 +156,9 @@ function draw() {
     onclick: () => save({ theme: { font: f } }) }, el("b", {}, f), el("small", {}, "CANVAS · WRITING · 0123"))));
 
   // The bar along the top and the dock along the bottom: not a choice any more.
-  $("tray-on").classList.toggle("on", cfg.bar.tray !== false);
   drawBarShown();
   slider("bar-spacing", cfg.bar.spacing ?? 4, (v) => `${v} px`, (spacing) => save({ bar: { spacing } }));
-  seg("bar-project", [["name", "Name"], ["code", "Code"], ["both", "Both"]], cfg.bar.project || "both", (project) => save({ bar: { project } }));
   if (bridge && $("accounts").classList.contains("on")) drawCalendars();
-  $("tray-fold").classList.toggle("on", !!cfg.bar.trayFold);
-  needs(["tray-fold"], cfg.bar.tray !== false);
   if (bridge) trayRows();
   $("bar-hide").classList.toggle("on", !!cfg.bar.autohide);
   $("dock-hide").classList.toggle("on", !!cfg.dock.autohide);
@@ -227,8 +223,6 @@ $("dock-on").addEventListener("click", () => save({ dock: { enabled: cfg.dock.en
 $("dock-hide").addEventListener("click", () => save({ dock: { autohide: !cfg.dock.autohide } }));
 // The tray: on or off, and each icon there is now shown or put away (kept by
 // the application's id, so it stays put away when the application comes back).
-$("tray-on").addEventListener("click", () => save({ bar: { tray: cfg.bar.tray === false } }));
-$("tray-fold").addEventListener("click", () => save({ bar: { trayFold: !cfg.bar.trayFold } }));
 function trayRows() {
   bridge.trayItems((text) => {
     const hidden = new Set(cfg.bar.trayHidden || []);
@@ -2138,6 +2132,17 @@ function drawBarShown() {
       }
       return made;
     });
+    // The project: its name, its code, or both.
+    if (unit === "where") parts.unshift(segOf([["name", "Name"], ["code", "Code"], ["both", "Both"]], cfg.bar.project || "both", (project) => save({ bar: { project } })));
+    // The tray: on or off, and folded into one icon (a press shows the rest under it); each icon's own switch under the row.
+    if (unit === "tray") {
+      const on = cfg.bar.tray !== false;
+      const trayOn = el("button", { class: "switch" + (on ? " on" : ""), title: "Running applications' icons" });
+      trayOn.addEventListener("click", () => save({ bar: { tray: !on } }));
+      const fold = el("button", { class: "switch" + (cfg.bar.trayFold ? " on" : "") + (on ? "" : " off"), title: "One icon on the bar; a press shows the rest under it" });
+      if (on) fold.addEventListener("click", () => save({ bar: { trayFold: !cfg.bar.trayFold } })); else fold.disabled = true;
+      parts.push(trayOn, el("small", { class: "note" + (on ? "" : " off"), style: "margin:0" }, "Folded"), fold);
+    }
     // The bell's badge while anything is unread: a dot, the dot with how many, or none.
     if (unit === "weather") parts.unshift(segOf([["sky", "Conditions"], ["temp", "Temperature"], ["both", "Both"]], cfg.bar.weatherShows || "both", (weatherShows) => save({ bar: { weatherShows } })));
     if (unit === "bell") parts.unshift(segOf([["dot", "Dot"], ["count", "Dot and number"], ["none", "No badge"]], cfg.bar.badge || "dot", (badge) => save({ bar: { badge } })));
@@ -2149,7 +2154,7 @@ function drawBarShown() {
           el("button", { class: value === (ov[who] || "windows") ? "on" : "", ...(gone ? { disabled: "" } : {}),
             onclick: () => !gone && value !== (ov[who] || "windows") && save({ overlays: { ...(cfg.overlays || {}), [who]: value } }) }, text))));
     }
-    const note = !switches.length ? (unit === "settings" ? "Always on the bar: the way back here" : "Running applications' icons") : opens && opens[1] ? opens[1] : "";
+    const note = unit === "where" ? "The project's name, its code, or both" : !switches.length ? (unit === "settings" ? "Always on the bar: the way back here" : "Running applications' icons, each below") : opens && opens[1] ? opens[1] : "";
     const r = el("div", { class: "row bar-unit", title: "Drag to move it along its part of the bar" },
       el("span", { class: "name" }, el("span", { class: "grip" }, "⠿"), label, note ? el("small", {}, note) : ""),
       el("span", { class: "what" }, ...parts));
@@ -2165,9 +2170,12 @@ function drawBarShown() {
     });
     return r;
   };
+  // The tray's icons, each with its switch, kept under the tray's row (trayRows fills it).
+  const trayItems = $("tray-items");
+  trayItems.classList.add("tray-items");
   $("bar-shown").replaceChildren(...Object.keys(BarLayout.REGIONS).flatMap((region) => [
     el("h3", { class: "bar-region" }, REGION_NAMES[region]),
-    ...BarLayout.ordered(region, order).filter((u) => u !== "morgan" || morganHere).map((u) => row(region, u)),
+    ...BarLayout.ordered(region, order).filter((u) => u !== "morgan" || morganHere).flatMap((u) => (u === "tray" ? [row(region, u), trayItems] : [row(region, u)])),
   ]));
 }
 

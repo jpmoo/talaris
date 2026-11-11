@@ -135,6 +135,7 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 #bar-shown h3.bar-region { margin: 14px 0 4px; }
 #bar-shown h3.bar-region:first-child { margin-top: 2px; }
 #bar-shown .bar-unit { cursor: grab; }
+#bar-shown .tray-items { margin-left: 26px; border-left: 1px solid var(--line); padding-left: 10px; }
 #bar-shown .bar-unit .grip { color: var(--muted); margin-right: 8px; cursor: grab; user-select: none; }
 #bar-shown .bar-unit.kit-dragging { opacity: .4; }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
@@ -323,16 +324,12 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h3>Shown</h3>
       <p class="note" style="margin:0 0 10px">What's on the bar, and how each one animates when it opens and closes.</p>
       <div id="bar-shown"></div>
+      <!-- Under the tray's row in the list above (drawBarShown): each icon it holds now, shown or put away. -->
+      <div id="tray-items"></div>
       <div class="row"><span class="name">Spacing<small>Between the bar's items</small></span><span class="what"><input type="range" id="bar-spacing" min="0" max="24"><span class="n" id="bar-spacing-n"></span></span></div>
       <h3>Opened another way</h3>
       <div class="row"><span class="name">Archive<small>From the project's menu</small></span><span class="what"><span class="seg" id="ov-archive"></span></span></div>
       <div class="row"><span class="name">Glance<small>Super+Shift+G</small></span><span class="what"><span class="seg" id="ov-glance"></span></span></div>
-      <h3>Project</h3>
-      <div class="row"><span class="name">Shows<small>The project's name, its code, or both</small></span><span class="what"><span class="seg" id="bar-project"></span></span></div>
-      <h3>Tray</h3>
-      <div class="row"><span class="name">Tray<small>Running applications' icons, before Wi-Fi</small></span><span class="what"><button class="switch" id="tray-on"></button></span></div>
-      <div class="row"><span class="name">Folded<small>One icon on the bar; a press shows the rest under it</small></span><span class="what"><button class="switch" id="tray-fold"></button></span></div>
-      <div id="tray-items"></div>
       <h3>The bar</h3>
       <div class="row"><span class="name">Hide<small>Out when the pointer touches its edge</small></span><span class="what"><button class="switch" id="bar-hide"></button></span></div>
       <div class="row"><span class="name">Motion<small>Coming out from hiding</small></span><span class="what"><span class="seg" id="bar-motion"></span></span></div>
