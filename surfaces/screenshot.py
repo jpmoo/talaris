@@ -282,23 +282,27 @@ class Picker(QWidget):
 
 class Stitcher:
     """
-    Grabs of one region, as it is scrolled, joined into one tall picture.
+    Grabs of one region, as it is scrolled — down, or up from the bottom of a
+    page, or both by turns — joined into one tall picture.
 
     Each grab is laid over the one before at every distance it might have
-    moved, and the distance where they differ least is taken — differ least,
-    not match: at a fractional scale (1.25, say) a scroll seldom moves the
-    page by whole pixels of the screen, so the same line of text is drawn a
-    little differently each time, and no row is ever the same twice. The
-    comparing is done by Pillow, on a narrow copy of each grab (its columns
+    moved, either way, and the distance where they differ least is taken —
+    differ least, not match: at a fractional scale (1.25, say) a scroll seldom
+    moves the page by whole pixels of the screen, so the same line of text is
+    drawn a little differently each time, and no row is ever the same twice.
+    The comparing is done by Pillow, on a narrow copy of each grab (its columns
     averaged, which is all a vertical move needs): every distance on a copy
-    half as tall, then the best few again at full height.
+    half as tall, then the best few again at full height. The way it moved
+    last is tried first, and the other only if that does not fit.
 
     What a page keeps in place — a header or a footer that does not scroll —
     is what barely changed at the same height, and is left out of the
-    comparing; the footer, as the least of it seen, is laid down once at the
-    end. Each grab is placed on the page by how far it has moved in all, and
-    what it newly shows kept (with a margin of rows already had); at the end
-    they are laid down in order, later over earlier.
+    comparing. Each grab is placed on the page by how far it has moved in all
+    (above the first, when scrolled up), and what it newly shows kept, with a
+    margin of rows already had; at the end the page is laid down in order,
+    later over earlier, without the header and the footer — the fewest of
+    their rows seen, a blank line beside one being unmoving once by chance —
+    and those put back once, at the top and at the bottom.
 
     A grab that barely changed adds nothing (a cursor blinking is not a
     scroll); one with nowhere it fits — scrolled further than its own height
@@ -306,7 +310,7 @@ class Stitcher:
     back a little, the next one joins again.
     """
 
-    #: Rows kept above what each grab newly shows: room for a footer first taken as taller than it is.
+    #: Rows kept beyond what each grab newly shows: room for a header or footer first taken as larger than it is.
     MARGIN = 96
     #: How wide the copies compared are.
     NARROW = 160
@@ -317,15 +321,18 @@ class Stitcher:
 
     def __init__(self) -> None:
         self.first: Image.Image | None = None
-        self.strips: list[tuple[int, int, Image.Image]] = []   # (offset of the grab, row the strip starts at, the strip)
+        self.strips: list[tuple[int, int, Image.Image]] = []   # (offset of the grab, its first row kept, those rows)
         self.prev: Image.Image | None = None    # the last joined grab, narrow and grey
         self.last: Image.Image | None = None
-        self.offset = 0
+        self.offset = 0                         # where the last joined grab's top is on the page; the first's is 0
+        self.highest = self.lowest = 0          # the least and most of those
+        self.head: int | None = None
         self.foot: int | None = None
+        self.way = 1                            # the way it moved last: 1 down the page, -1 up
 
     @property
     def height(self) -> int:
-        return (self.offset + self.first.height) if self.first is not None else 0
+        return (self.lowest - self.highest + self.first.height) if self.first is not None else 0
 
     def _narrow(self, img: Image.Image) -> Image.Image:
         return img.convert("L").resize((self.NARROW, img.height), Image.BOX)
@@ -339,6 +346,29 @@ class Stitcher:
         """Each row's average difference."""
         return list(diff.resize((1, diff.height), Image.BOX).tobytes())
 
+    def _cost(self, a: Image.Image, b: Image.Image, lo: int, hi: int, moved: int) -> float:
+        """How unalike `a` and `b` are with `b` moved up by `moved` rows (down, when less than 0), between rows lo and hi."""
+        w = self.NARROW
+        if moved > 0:
+            return self._differ(a.crop((0, lo + moved, w, hi)), b.crop((0, lo, w, hi - moved)))
+        return self._differ(a.crop((0, lo, w, hi + moved)), b.crop((0, lo - moved, w, hi)))
+
+    def _best(self, prev: Image.Image, g: Image.Image, lo: int, hi: int, least: int, way: int) -> tuple[float, int] | None:
+        """The distance, one way, where the two differ least: every distance at half height, the best three again at full."""
+        h = g.height
+        ph, gh = prev.resize((self.NARROW, h // 2), Image.BOX), g.resize((self.NARROW, h // 2), Image.BOX)
+        lo2, hi2, least2 = lo // 2, hi // 2, least // 2
+        tried = sorted((self._cost(ph, gh, lo2, hi2, way * m), m) for m in range(1, hi2 - lo2 - least2 + 1))
+        best = None
+        for _, m2 in tried[:3]:
+            for m in range(max(1, m2 * 2 - 2), m2 * 2 + 3):
+                if hi - lo - m < least:
+                    continue
+                cost = self._cost(prev, g, lo, hi, way * m)
+                if best is None or cost < best[0]:
+                    best = (cost, way * m)
+        return best
+
     def add(self, img: Image.Image) -> bool | str:
         """True: joined. False: nothing new. "lost": changed, and nowhere to join it."""
         g = self._narrow(img)
@@ -346,10 +376,10 @@ class Stitcher:
         if self.first is None or self.first.size != img.size:
             self.__init__()
             self.first, self.prev, self.last = img, g, img
+            self.strips.append((0, 0, img))
             return True
         prev = self.prev
-        same = ImageChops.difference(prev, g)
-        rows = self._rows(same)
+        rows = self._rows(ImageChops.difference(prev, g))
         still = [r <= self.STILL for r in rows]
         if sum(still) > h * 0.9:
             return False
@@ -361,36 +391,31 @@ class Stitcher:
         while foot < third and still[h - 1 - foot]:
             foot += 1
         lo, hi = head, h - foot
-        span = hi - lo
-        least = max(16, span // 6)   # overlap needed for a placing to count
-        if span < least * 2:
+        least = max(16, (hi - lo) // 6)   # overlap needed for a placing to count
+        if hi - lo < least * 2:
             return "lost"
         not_moving = self._differ(prev.crop((0, lo, self.NARROW, hi)), g.crop((0, lo, self.NARROW, hi)))
-        # Every distance, on copies half as tall.
-        ph, gh = prev.resize((self.NARROW, h // 2), Image.BOX), g.resize((self.NARROW, h // 2), Image.BOX)
-        lo2, hi2, least2 = lo // 2, hi // 2, least // 2
-        tried = []
-        for moved in range(1, hi2 - lo2 - least2 + 1):
-            tried.append((self._differ(ph.crop((0, lo2 + moved, self.NARROW, hi2)), gh.crop((0, lo2, self.NARROW, hi2 - moved))), moved))
-        if not tried:
-            return "lost"
-        tried.sort()
-        # The best few again, at full height, a pixel either side.
-        best = None
-        for _, moved2 in tried[:3]:
-            for moved in range(max(1, moved2 * 2 - 2), moved2 * 2 + 3):
-                if hi - lo - moved < least:
-                    continue
-                cost = self._differ(prev.crop((0, lo + moved, self.NARROW, hi)), g.crop((0, lo, self.NARROW, hi - moved)))
-                if best is None or cost < best[0]:
-                    best = (cost, moved)
-        if best is None or best[0] > self.FITS or best[0] > not_moving * 0.6:
+        fits = lambda b: b is not None and b[0] <= self.FITS and b[0] <= not_moving * 0.6  # noqa: E731
+        best = self._best(prev, g, lo, hi, least, self.way)
+        if not fits(best):
+            other = self._best(prev, g, lo, hi, least, -self.way)
+            best = other if fits(other) and (best is None or other[0] < best[0]) else None
+        if best is None:
             return "lost"
         moved = best[1]
+        self.way = 1 if moved > 0 else -1
         self.offset += moved
+        self.highest, self.lowest = min(self.highest, self.offset), max(self.lowest, self.offset)
+        self.head = head if self.head is None else min(self.head, head)
         self.foot = foot if self.foot is None else min(self.foot, foot)
-        top = max(lo, hi - moved - self.MARGIN)
-        self.strips.append((self.offset, top, img.crop((0, top, w, h))))
+        if moved > 0:
+            # Down the page: what is new is at the bottom of this grab.
+            top = max(lo, hi - moved - self.MARGIN)
+            self.strips.append((self.offset, top, img.crop((0, top, w, h))))
+        else:
+            # Up the page: at its top.
+            bottom = min(hi, lo - moved + self.MARGIN)
+            self.strips.append((self.offset, 0, img.crop((0, 0, w, bottom))))
         self.prev, self.last = g, img
         return True
 
@@ -398,14 +423,17 @@ class Stitcher:
         if self.first is None:
             return None
         w, h = self.first.size
-        foot = self.foot or 0
-        out = Image.new("RGB", (w, self.offset + h))
-        out.paste(self.first.crop((0, 0, w, h - foot)), (0, 0))
+        head, foot = self.head or 0, self.foot or 0
+        out = Image.new("RGB", (w, self.height))
         for offset, top, strip in self.strips:
-            # The strip without the footer's rows, at its place on the page.
-            out.paste(strip.crop((0, 0, w, max(0, h - foot - top))), (0, offset + top))
+            # The page's own rows of it, without the header's and the footer's, at its place.
+            a, b = max(top, head), min(top + strip.height, h - foot)
+            if b > a:
+                out.paste(strip.crop((0, a - top, w, b - top)), (0, offset - self.highest + a))
+        if head:
+            out.paste(self.last.crop((0, 0, w, head)), (0, 0))
         if foot:
-            out.paste(self.last.crop((0, h - foot, w, h)), (0, self.offset + h - foot))
+            out.paste(self.last.crop((0, h - foot, w, h)), (0, out.height - foot))
         return out
 
 
@@ -682,7 +710,7 @@ class Shot(Overlay):
                 if joined == "lost":
                     self.bridge.progress.emit(json.dumps({"lost": True}))
                 elif joined:
-                    self.bridge.progress.emit(json.dumps({"frames": len(st.strips) + 1, "height": st.height}))
+                    self.bridge.progress.emit(json.dumps({"frames": len(st.strips), "height": st.height}))
                 if st.height >= SCROLL_TALLEST:
                     self.bridge.progress.emit(json.dumps({"full": True}))
                     break
