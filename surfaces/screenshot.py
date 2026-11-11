@@ -36,11 +36,10 @@ import os
 import subprocess
 import threading
 import time
-from collections import Counter
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QColor, QCursor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -48,7 +47,7 @@ import hypr
 from core import Bridge
 from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_EXCLUSIVE, OVERLAY, LayerSurface, Placement, full_screen
 from overlay import Overlay
-from views import log
+from views import log, zoom
 
 #: The key, bound by Talaris itself (surfaces._bind).
 KEYS = ", Print"
@@ -92,12 +91,29 @@ def png_bytes(img: Image.Image) -> bytes:
     return out.getvalue()
 
 
-def accent() -> QColor:
-    try:
+class Look:
+    """Talaris's colors and typeface, as the pages have them (ui/tokens.css) and the tips do (tip.py)."""
+
+    def __init__(self) -> None:
         import config
-        return QColor(config.load_config()["theme"]["accent"])
-    except Exception:  # noqa: BLE001 — a color, whatever happens
-        return QColor("#7aa2f7")
+        from tip import COLORS, _load_fonts
+        _load_fonts()
+        try:
+            theme = config.load_config()["theme"]
+        except Exception:  # noqa: BLE001 — the default look, whatever happens
+            theme = {}
+        surface, frame, text = COLORS.get(theme.get("mode"), COLORS["dark"])
+        self.surface, self.frame, self.text = QColor(surface), QColor(frame), QColor(text)
+        self.accent = QColor(theme.get("accent") or "#7aa2f7")
+        # Words on the accent: dark on a light one, light on a dark one, as the pages' primary buttons have them.
+        self.on_accent = QColor("#16181a") if self.accent.lightness() > 140 else QColor("#ffffff")
+        self.family = theme.get("font") or "Barlow Semi Condensed"
+
+    def font(self, px: int, weight: int = 500) -> QFont:
+        f = QFont(self.family)
+        f.setPixelSize(zoom(px))
+        f.setWeight(QFont.Weight(weight))
+        return f
 
 
 class ActiveLook:
@@ -168,7 +184,8 @@ class Picker(QWidget):
         self.start: QPoint | None = None
         self.end: QPoint | None = None
         self.hover: QRect | None = None
-        self.accent = accent()
+        self.look = Look()
+        self.accent = self.look.accent
         self.setMouseTracking(True)
         self.setCursor(QCursor(Qt.CursorShape.CrossCursor if mode != "window" else Qt.CursorShape.PointingHandCursor))
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -198,21 +215,22 @@ class Picker(QWidget):
             # Its size, in the pixels the shot will have.
             f = self.pixmap.width() / max(1, self.width())
             label = f"{round(pick.width() * f)} × {round(pick.height() * f)}"
-            p.setFont(QFont("sans", 9))
-            box = p.fontMetrics().boundingRect(label).adjusted(-6, -3, 6, 3)
+            p.setFont(self.look.font(12))
+            box = p.fontMetrics().boundingRect(label).adjusted(-7, -3, 7, 3)
             box.moveTopLeft(QPoint(pick.left(), pick.bottom() + 6 if pick.bottom() + 6 + box.height() < self.height() else pick.top() - box.height() - 6))
             p.fillRect(box, QColor(0, 0, 0, 190))
             p.setPen(QColor("white"))
             p.drawText(box, Qt.AlignmentFlag.AlignCenter, label)
         # What to do, once, at the top.
         hint = {"window": "Click a window · Esc to cancel", "scroll": "Drag over what will scroll · Esc to cancel"}.get(self.mode, "Drag a region · Esc to cancel")
-        p.setFont(QFont("sans", 10))
-        box = p.fontMetrics().boundingRect(hint).adjusted(-12, -6, 12, 6)
-        box.moveCenter(QPoint(self.width() // 2, 28))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(0, 0, 0, 170))
-        p.drawRoundedRect(QRectF(box), 8, 8)
-        p.setPen(QColor("white"))
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setFont(self.look.font(14))
+        box = p.fontMetrics().boundingRect(hint).adjusted(-zoom(12), -zoom(6), zoom(12), zoom(6))
+        box.moveCenter(QPoint(self.width() // 2, zoom(30)))
+        p.setPen(QPen(self.look.frame, 1))
+        p.setBrush(self.look.surface)
+        p.drawRoundedRect(QRectF(box), zoom(8), zoom(8))
+        p.setPen(self.look.text)
         p.drawText(box, Qt.AlignmentFlag.AlignCenter, hint)
 
     def _window_at(self, at: QPoint) -> QRect | None:
@@ -266,30 +284,41 @@ class Stitcher:
     """
     Grabs of one region, as it is scrolled, joined into one tall picture.
 
-    Each grab is compared with the one before row by row: a row that appears
-    once in each says how far the content moved between them, and the move
-    most rows agree on is taken. What a page keeps in place — a header or a
-    footer that does not scroll — is the same row at the same height in both,
-    and is left out of the count.
+    Each grab is laid over the one before at every distance it might have
+    moved, and the distance where they differ least is taken — differ least,
+    not match: at a fractional scale (1.25, say) a scroll seldom moves the
+    page by whole pixels of the screen, so the same line of text is drawn a
+    little differently each time, and no row is ever the same twice. The
+    comparing is done by Pillow, on a narrow copy of each grab (its columns
+    averaged, which is all a vertical move needs): every distance on a copy
+    half as tall, then the best few again at full height.
 
-    Each grab is placed on the page by how far it has moved in all, and what
-    it newly shows (with a margin above, of rows already had) kept; at the end
-    they are laid down in order, later over earlier. A footer is the fewest
-    unmoving rows at the bottom seen across all of them — a blank line just
-    above it, unmoving once by chance, must not be taken for part of it — and
-    is laid down once, at the end.
-    A grab that did not move adds nothing; one that moved further than its
-    own height (scrolled too fast to see where it joins) adds nothing either,
-    and says so (`lost`) — scrolled back a little, the next one joins again.
+    What a page keeps in place — a header or a footer that does not scroll —
+    is what barely changed at the same height, and is left out of the
+    comparing; the footer, as the least of it seen, is laid down once at the
+    end. Each grab is placed on the page by how far it has moved in all, and
+    what it newly shows kept (with a margin of rows already had); at the end
+    they are laid down in order, later over earlier.
+
+    A grab that barely changed adds nothing (a cursor blinking is not a
+    scroll); one with nowhere it fits — scrolled further than its own height
+    since the last — adds nothing either, and says so (`lost`): scrolled
+    back a little, the next one joins again.
     """
 
     #: Rows kept above what each grab newly shows: room for a footer first taken as taller than it is.
     MARGIN = 96
+    #: How wide the copies compared are.
+    NARROW = 160
+    #: A row that differs from itself by no more than this (of 255, on average) has not changed.
+    STILL = 2.0
+    #: Two placings this alike are the same picture (mean difference of 255); and must be this much better than not moving.
+    FITS = 7.0
 
     def __init__(self) -> None:
         self.first: Image.Image | None = None
         self.strips: list[tuple[int, int, Image.Image]] = []   # (offset of the grab, row the strip starts at, the strip)
-        self.rows: list[int] | None = None
+        self.prev: Image.Image | None = None    # the last joined grab, narrow and grey
         self.last: Image.Image | None = None
         self.offset = 0
         self.foot: int | None = None
@@ -298,58 +327,71 @@ class Stitcher:
     def height(self) -> int:
         return (self.offset + self.first.height) if self.first is not None else 0
 
-    @property
-    def parts(self) -> list:
-        return ([self.first] if self.first is not None else []) + [s for _, _, s in self.strips]
+    def _narrow(self, img: Image.Image) -> Image.Image:
+        return img.convert("L").resize((self.NARROW, img.height), Image.BOX)
 
     @staticmethod
-    def _rows(img: Image.Image) -> list[int]:
-        g = img.convert("L")
-        w, h = g.size
-        data = g.tobytes()
-        return [hash(data[i * w:(i + 1) * w]) for i in range(h)]
+    def _differ(a: Image.Image, b: Image.Image) -> float:
+        return ImageStat.Stat(ImageChops.difference(a, b)).mean[0]
+
+    @staticmethod
+    def _rows(diff: Image.Image) -> list[int]:
+        """Each row's average difference."""
+        return list(diff.resize((1, diff.height), Image.BOX).tobytes())
 
     def add(self, img: Image.Image) -> bool | str:
         """True: joined. False: nothing new. "lost": changed, and nowhere to join it."""
-        rows = self._rows(img)
+        g = self._narrow(img)
         w, h = img.size
         if self.first is None or self.first.size != img.size:
             self.__init__()
-            self.first, self.rows, self.last = img, rows, img
+            self.first, self.prev, self.last = img, g, img
             return True
-        prev = self.rows
-        if rows == prev:
-            return False
-        # Mostly the same rows in the same places: something changing in place (a cursor blinking), not a scroll.
-        if sum(1 for x, y in zip(rows, prev) if x == y) > h * 0.8:
+        prev = self.prev
+        same = ImageChops.difference(prev, g)
+        rows = self._rows(same)
+        still = [r <= self.STILL for r in rows]
+        if sum(still) > h * 0.9:
             return False
         third = h // 3
-        foot = 0
-        while foot < third and rows[h - 1 - foot] == prev[h - 1 - foot]:
-            foot += 1
         head = 0
-        while head < third and rows[head] == prev[head]:
+        while head < third and still[head]:
             head += 1
+        foot = 0
+        while foot < third and still[h - 1 - foot]:
+            foot += 1
         lo, hi = head, h - foot
-        now_count, prev_count = Counter(rows[lo:hi]), Counter(prev[lo:hi])
-        where = {r: i for i, r in enumerate(rows) if lo <= i < hi and now_count[r] == 1}
-        votes: Counter = Counter()
-        for i in range(lo, hi):
-            r = prev[i]
-            if prev_count[r] == 1 and r in where:
-                moved = i - where[r]
-                if moved > 0:
-                    votes[moved] += 1
-        if not votes:
+        span = hi - lo
+        least = max(16, span // 6)   # overlap needed for a placing to count
+        if span < least * 2:
             return "lost"
-        moved, n = votes.most_common(1)[0]
-        if n < max(6, (hi - lo) // 12):
+        not_moving = self._differ(prev.crop((0, lo, self.NARROW, hi)), g.crop((0, lo, self.NARROW, hi)))
+        # Every distance, on copies half as tall.
+        ph, gh = prev.resize((self.NARROW, h // 2), Image.BOX), g.resize((self.NARROW, h // 2), Image.BOX)
+        lo2, hi2, least2 = lo // 2, hi // 2, least // 2
+        tried = []
+        for moved in range(1, hi2 - lo2 - least2 + 1):
+            tried.append((self._differ(ph.crop((0, lo2 + moved, self.NARROW, hi2)), gh.crop((0, lo2, self.NARROW, hi2 - moved))), moved))
+        if not tried:
             return "lost"
+        tried.sort()
+        # The best few again, at full height, a pixel either side.
+        best = None
+        for _, moved2 in tried[:3]:
+            for moved in range(max(1, moved2 * 2 - 2), moved2 * 2 + 3):
+                if hi - lo - moved < least:
+                    continue
+                cost = self._differ(prev.crop((0, lo + moved, self.NARROW, hi)), g.crop((0, lo, self.NARROW, hi - moved)))
+                if best is None or cost < best[0]:
+                    best = (cost, moved)
+        if best is None or best[0] > self.FITS or best[0] > not_moving * 0.6:
+            return "lost"
+        moved = best[1]
         self.offset += moved
         self.foot = foot if self.foot is None else min(self.foot, foot)
         top = max(lo, hi - moved - self.MARGIN)
         self.strips.append((self.offset, top, img.crop((0, top, w, h))))
-        self.rows, self.last = rows, img
+        self.prev, self.last = g, img
         return True
 
     def image(self) -> Image.Image | None:
@@ -368,17 +410,35 @@ class Stitcher:
 
 
 class ScrollStrip(QWidget):
-    """A small strip, clear of the region being scrolled: how tall the shot is so far, Done and Cancel."""
+    """
+    A small strip, clear of the region being scrolled: how tall the shot is
+    so far (or that it lost its place), Done and Cancel. In Talaris's colors
+    and typeface; its corners see-through, painted as the tips are (tip.py).
+    """
 
     done = Signal()
     cancelled = Signal()
+    #: The longest things it says, which its width is made for.
+    SAYS = ("Scroll the region · Enter when done · Esc to cancel", "Scrolled too far to join · scroll back up a little",
+            "99999 pixels tall so far · Enter when done · Esc to cancel")
 
     def __init__(self) -> None:
         super().__init__()
-        self.said = "Scroll the region · Enter when done · Esc to cancel"
-        self.accent = accent()
+        self.look = Look()
+        self.said = self.SAYS[0]
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAutoFillBackground(False)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.buttons: dict[str, QRect] = {}
+        self.font_ = self.look.font(13, 400)
+        self.button_font = self.look.font(13, 500)
+
+    def size_wanted(self) -> tuple[int, int]:
+        fm, bm = QFontMetrics(self.font_), QFontMetrics(self.button_font)
+        words = max(fm.horizontalAdvance(t) for t in self.SAYS)
+        buttons = sum(bm.horizontalAdvance(t) + zoom(24) for t in ("Done", "Cancel")) + zoom(8)
+        return words + buttons + zoom(14 + 16 + 10), max(fm.height(), bm.height()) + zoom(24)
 
     def say(self, text: str) -> None:
         self.said = text
@@ -387,26 +447,28 @@ class ScrollStrip(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: N802 — Qt's name
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(20, 22, 26, 235))
-        p.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 10, 10)
-        p.setFont(QFont("sans", 10))
-        fm = p.fontMetrics()
-        x = 14
-        p.setPen(QColor("white"))
-        p.drawText(QRect(x, 0, self.width() - 170, self.height()), Qt.AlignmentFlag.AlignVCenter, self.said)
+        look = self.look
+        p.setPen(QPen(look.frame, 1))
+        p.setBrush(look.surface)
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), zoom(10), zoom(10))
         self.buttons = {}
-        right = self.width() - 10
-        for key, label, fill in (("done", "Done", self.accent), ("cancel", "Cancel", QColor(255, 255, 255, 30))):
-            w = fm.horizontalAdvance(label) + 22
-            r = QRect(right - w, 8, w, self.height() - 16)
-            right -= w + 8
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(fill)
-            p.drawRoundedRect(QRectF(r), 7, 7)
-            p.setPen(QColor("white"))
+        p.setFont(self.button_font)
+        bm = p.fontMetrics()
+        right = self.width() - zoom(8)
+        pad = zoom(6)
+        for key, label, primary in (("done", "Done", True), ("cancel", "Cancel", False)):
+            w = bm.horizontalAdvance(label) + zoom(24)
+            r = QRect(right - w, pad, w, self.height() - 2 * pad)
+            right -= w + zoom(8)
+            p.setPen(Qt.PenStyle.NoPen if primary else QPen(look.frame, 1))
+            p.setBrush(look.accent if primary else Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), zoom(6), zoom(6))
+            p.setPen(look.on_accent if primary else look.text)
             p.drawText(r, Qt.AlignmentFlag.AlignCenter, label)
             self.buttons[key] = r
+        p.setFont(self.font_)
+        p.setPen(look.text)
+        p.drawText(QRect(zoom(14), 0, right - zoom(14), self.height()), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.said)
 
     def mousePressEvent(self, e) -> None:  # noqa: N802 — Qt's name
         at = e.position().toPoint()
@@ -593,7 +655,7 @@ class Shot(Overlay):
         self.scrolling = True
         strip = ScrollStrip()
         self.strip = strip
-        width, height = 560, 46
+        width, height = strip.size_wanted()
         # Clear of the region: above it at the top of the screen, unless the region reaches there.
         at_top = r.top() > height + 24
         anchors = (ANCHOR_TOP if at_top else ANCHOR_BOTTOM)
