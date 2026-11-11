@@ -846,13 +846,14 @@ class Bar(QObject):
             # Nowhere in particular: the bar's own menu.
             self.popup.bridge.trayMenu.emit(json.dumps({"id": key, "title": "Bar", "items": [
                 {"id": 50, "label": "Temporarily hide"},
-                {"id": 51, "label": "Autohide", "toggle": "radio", "state": 1 if self.desktop.config["bar"].get("autohide") else 0},
+                {"id": 51, "label": "Turn off autohide" if self.desktop.config["bar"].get("autohide") else "Turn on autohide"},
                 {"type": "separator"}, {"id": 2, "label": "Bar settings…"}]}))
             self.bridge.state.emit(json.dumps(self.describe()))
             return
         entries = [{"id": 1, "label": "Hide from the bar"}]
         if item in self.PERCENT:
-            entries.append({"id": 3, "label": "Show percentage", "toggle": "radio", "state": 1 if self._shown(self.PERCENT[item]) else 0})
+            # On or off: said as what it will do, not marked (a dot is for one of several).
+            entries.append({"id": 3, "label": "Hide percentage" if self._shown(self.PERCENT[item]) else "Show percentage"})
         if item == "bell":
             badge = self.desktop.config["bar"].get("badge", "dot")
             entries.insert(0, {"id": 20, "label": "Mark all read", "enabled": self.desktop.notifications.unread() > 0})
