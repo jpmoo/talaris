@@ -816,7 +816,7 @@ class Bar(QObject):
         look = self.desktop.config["bar"]
         return item in look.get("shown", []) if item in self.OPT_IN else item not in look.get("hidden", [])
 
-    def _show(self, item: str, on: bool) -> str:
+    def _set_shown(self, item: str, on: bool) -> str:
         look = self.desktop.config["bar"]
         if item in self.OPT_IN:
             shown = set(look.get("shown", []))
@@ -854,9 +854,9 @@ class Bar(QObject):
         self.popup.close()
         error = ""
         if entry == 1:
-            error = self._show(item, False)
+            error = self._set_shown(item, False)
         elif entry == 3 and item in self.PERCENT:
-            error = self._show(self.PERCENT[item], not self._shown(self.PERCENT[item]))
+            error = self._set_shown(self.PERCENT[item], not self._shown(self.PERCENT[item]))
         elif 10 <= entry < 10 + len(self.BADGES):
             error = self.desktop.settings.apply({"bar": {"badge": self.BADGES[entry - 10][0]}})
         elif entry == 2:
