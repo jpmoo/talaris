@@ -134,3 +134,10 @@ test("a lone dash under a line is a list being started, not a heading's underlin
   const underlined = at("A heading\n---\n\n|body");
   assert.ok(liveSpecs(underlined).some((s) => s.kind === "line" && s.cls === "cm-h2"), "a real underline still makes one");
 });
+
+test("a heading, a list item or a quote colored keeps what it is: only its words take the color", () => {
+  assert.equal(colored("## Title", "#e11d48"), '## <span style="color:#e11d48">Title</span>');
+  assert.equal(colored("- [ ] a task\n> quoted", "#e11d48"), '- [ ] <span style="color:#e11d48">a task</span>\n> <span style="color:#e11d48">quoted</span>');
+  assert.equal(colored("# not the start", "#e11d48", false), '<span style="color:#e11d48"># not the start</span>', "words mid-line are only words");
+  assert.equal(colored('## <span style="color:#e11d48">Title</span>', null), "## Title", "and plain again");
+});

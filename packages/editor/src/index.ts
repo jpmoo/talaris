@@ -597,7 +597,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
       const changes: Array<{ from: number; to: number; insert: string }> = [];
       for (const r of state.selection.ranges) {
         if (!r.empty) {
-          changes.push({ from: r.from, to: r.to, insert: colored(state.doc.sliceString(r.from, r.to), color) });
+          changes.push({ from: r.from, to: r.to, insert: colored(state.doc.sliceString(r.from, r.to), color, r.from === state.doc.lineAt(r.from).from) });
           continue;
         }
         // No selection: the colored span around the cursor, if there is one.

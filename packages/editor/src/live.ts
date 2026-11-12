@@ -275,9 +275,21 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
  * The text between `from` and `to`, colored (or, with no color, plain): any
  * colored spans inside it are undone first, so colors never nest.
  */
-export function colored(text: string, color: string | null): string {
+/** What starts a line and makes it what it is — a heading's #s, a quote's >s, a list's bullet or number, a task's box. */
+const BLOCK_START = /^\s*(?:(?:>\s?)+)?(?:#{1,6}\s+|(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/;
+
+/**
+ * Words in a color, or plain with `null`. A span keeps to one line: each line
+ * of a selection is colored by itself — its words, never what starts the line
+ * (a heading colored is still a heading). `atLineStart`: whether the text's
+ * first line begins its line, as the rest always do.
+ */
+export function colored(text: string, color: string | null, atLineStart = true): string {
   const plain = text.replace(COLOR_SPAN, "$2");
   if (!color || !plain) return plain;
-  // A span keeps to one line: each line of a selection is colored by itself.
-  return plain.split("\n").map((l) => (l ? `<span style="color:${color}">${l}</span>` : l)).join("\n");
+  return plain.split("\n").map((l, i) => {
+    const lead = i > 0 || atLineStart ? (BLOCK_START.exec(l)?.[0] ?? "") : "";
+    const words = l.slice(lead.length);
+    return words ? `${lead}<span style="color:${color}">${words}</span>` : l;
+  }).join("\n");
 }
