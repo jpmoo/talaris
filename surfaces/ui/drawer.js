@@ -459,7 +459,8 @@ window.talarisCore = (method, path, body) => core(method, path, body);
 // What every @ in the drawer works from (mentions.js): this project's things
 // first, and a page or a canvas opened where it lives.
 // Files dropped into a page or a canvas note are this project's (files.js).
-window.talarisFileDefaults = TalarisFiles(core, () => here().id, () => bridge);
+// Files go with the page's project: Home's for a daily page, whatever project is being browsed.
+window.talarisFileDefaults = TalarisFiles(core, () => (state.drawer === "writing" ? wpid() : here().id), () => bridge);
 let lastOpened = { id: "", at: 0 };
 window.talarisMentionDefaults = {
   project: () => here().id,
@@ -702,7 +703,7 @@ function drawPageFiles() {
     if (!seen.has(path)) seen.set(path, m[1] || path.split("/").pop());
   }
   box.replaceChildren(...(seen.size ? [el("span", { class: "label" }, `FILES · ${seen.size}`),
-    ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(here().id, path) }, name))] : []));
+    ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(wpid(), path) }, name))] : []));
 }
 
 let edits = 0; // changes made here, counted: a page read while one was made keeps it (loadWriting)
