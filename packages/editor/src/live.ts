@@ -142,8 +142,21 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
         return false;
       }
 
+      /*
+       * A quote is the indent words have in Markdown: drawn as one, a step in
+       * for each `>` its line starts with (Indent adds one, Outdent takes one:
+       * quote.ts). Only the outermost quote says so — a nested one is the same
+       * lines.
+       */
       if (name === "Blockquote") {
-        lineStarts(node.from, node.to, "cm-quote");
+        let up = node.node.parent;
+        while (up && up.name !== "Blockquote") up = up.parent;
+        if (up) return;
+        for (let n = state.doc.lineAt(node.from).number; n <= state.doc.lineAt(node.to).number; n++) {
+          const line = state.doc.line(n);
+          const depth = Math.min(4, Math.max(1, (/^(?:\s*>)+/.exec(line.text)?.[0].match(/>/g) ?? []).length));
+          specs.push({ kind: "line", at: line.from, cls: `cm-quote cm-quote-${depth}` });
+        }
         return;
       }
       if (name === "QuoteMark") {
@@ -170,6 +183,9 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
        */
       if (name === "ListMark") {
         lineStarts(node.from, node.from, "cm-listline");
+        // Its nesting drawn wider than two spaces in the page's type, which are hardly a step: the file keeps them.
+        const lineFrom = state.doc.lineAt(node.from).from;
+        if (node.from > lineFrom) specs.push({ kind: "mark", from: lineFrom, to: node.from, cls: "cm-nest" });
         const mark = state.doc.sliceString(node.from, node.to);
         if (!/^[-*+]$/.test(mark)) return; // a number stays a number
         const after = state.doc.sliceString(node.to, node.to + 1) === " " ? 1 : 0;

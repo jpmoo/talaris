@@ -131,6 +131,9 @@ window.EventCard = (() => {
       sd: startOfDay(s), st: s.getHours() * 60 + s.getMinutes(), ed: startOfDay(end0), et: end0.getHours() * 60 + end0.getMinutes(),
       rule: parseRule(e.rrule || ""), people: (e.attendees || []).filter((a) => a.email !== (calOf(e.calendar).email || "")).map((a) => ({ ...a })) };
     editing.readOnly = !isNew && !e.entity && !calOf(e.calendar).writable;
+    // A feed's event is the feed's, wholly: nothing is kept on it here — notes, files, projects — until it is copied
+    // into Talaris ("Copy feed event into Talaris"), where it is yours.
+    const feedEvent = !isNew && !e.entity && !!calOf(e.calendar).feed;
     const popAway = () => Kit.popAway();
     const row = (label, ...kids) => el("div", { class: "row" }, el("span", {}, label), ...kids);
     const seg = (host, choices, current, pick) => host.replaceChildren(...choices.map(([value, label]) =>
@@ -362,7 +365,7 @@ window.EventCard = (() => {
         // Its own type; with no entity yet, the type an event's would be (the one with the event profile).
         const t = filesTypes.find((x) => (o ? x.id === o.type : x.profiles && x.profiles.event));
         filesKey = ((t && t.fields.find((f) => f.kind === "attachment" && f.many)) || {}).key || "";
-        filesRow.hidden = !filesKey;
+        filesRow.hidden = !filesKey || feedEvent;
         if (filesKey) paintFiles(o);
       } catch { /* not to be had: no row */ }
     }
@@ -375,7 +378,17 @@ window.EventCard = (() => {
     const raw = e.notes || "";
     const notesShown = /<\/?[a-z][^>]*>/i.test(raw) ? htmlToMarkdown(raw) : raw;
     let notesEd = null;
-    ThingCard.withEditor(notesHost, (m) => {
+    // Words that cannot be changed here are shown, not offered to edit: their links still open in the browser.
+    if (editing.readOnly) {
+      notesHost.classList.add("ev-from-account");
+      notesHost.addEventListener("click", (ev) => {
+        const a = ev.target.closest("a[href]");
+        if (!a) return;
+        ev.preventDefault();
+        if (/^https?:/.test(a.href) && bridge && bridge.openUrl) bridge.openUrl(a.href);
+      });
+      import("./markdown.js").then((md) => notesHost.replaceChildren(md.render(notesShown))).catch(() => { notesHost.textContent = notesShown; });
+    } else ThingCard.withEditor(notesHost, (m) => {
       notesEd = m.createEditor(notesHost, notesShown, { live: true, compact: true, placeholder: notesHost.dataset.placeholder, onOpenUrl: (u) => bridge && bridge.openUrl(u),
         mentions: TalarisMentions(api, ctx.openMention || ((x) => ctx.open(`e:${x}`)), ctx.mentionOpts || { project: () => "", openPlace: (p) => ctx.open(`${p.kind}:${p.project}/${p.where}`) }) });
       ThingCard.keepEditor(notesEd);
@@ -417,7 +430,7 @@ window.EventCard = (() => {
     // words (its description, an invitation's) are the Details below, as they always were.
     const mineHost = el("div", { class: "ed-field ev-notes", "data-placeholder": "Your notes — @ to link a person, event or task" });
     const mineRow = row("Notes", mineHost);
-    mineRow.hidden = !account;
+    mineRow.hidden = !account || feedEvent;
     let mineKey = "", mineKept = null, mineTimer = null, mineEd = null;
     const keepMine = () => {
       clearTimeout(mineTimer);
@@ -431,7 +444,7 @@ window.EventCard = (() => {
         .catch((x) => { mineKept = was; say(x.message || "Your notes were not saved", true); });
     };
     async function loadMine() {
-      if (!account) return;
+      if (!account || feedEvent) return;
       try {
         filesTypes = filesTypes || (await api("GET", "/entity-types")) || [];
         const id = editing.entityId || "";
@@ -581,9 +594,11 @@ window.EventCard = (() => {
     which("this");
     paint();
 
+    const projectsRow = row("Projects", el("div", { class: "who" }, projects, projectAdd));
+    projectsRow.hidden = feedEvent;
     const card = el("div", { class: "ev-card" },
       row("Title", title), row("Calendar", calBtn), row("All day", allDay), row("Starts", sd, st), row("Ends", ed, et), row("Where", where),
-      row("Projects", el("div", { class: "who" }, projects, projectAdd)), filesRow, mineRow, detailsRow, fromAccountRow,
+      projectsRow, filesRow, mineRow, detailsRow, fromAccountRow,
       freqRow, daysRow, endsRow, whoRow, whoNote, answerRow, whichRow, acts, connectedHost);
     card.save = save;
     card.focusTitle = () => title.focus();

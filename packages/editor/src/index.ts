@@ -30,6 +30,7 @@ import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@c
 import type { StateCommand } from "@codemirror/state";
 import { findInText, openFind } from "./find.ts";
 import { listItemAt, moveListItem } from "./lists.ts";
+import { inCode, quoteLevel, quoted, toggleCodeBlock } from "./quote.ts";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { COLOR_SPAN, colored, liveSpecs, type Spec } from "./live.ts";
 
@@ -111,6 +112,47 @@ function listShift(dir: 1 | -1): StateCommand {
     return true;
   };
 }
+
+/** Whether the cursor is in code, where Tab indents as code does. */
+const inCodeHere = (state: EditorState): boolean => inCode(state, state.selection.main.head);
+
+/*
+ * A list item that wraps hangs: its later lines start where its words do, not
+ * under its bullet. Where that is depends on what is drawn — a bullet, a task's
+ * box, a number, the spaces nesting it — so it is measured, once the lines are
+ * laid out, and each list line's padding and first-line indent set from it.
+ */
+const LIST_START = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/;
+const hangingIndent = ViewPlugin.fromClass(class {
+  constructor(view: EditorView) { this.measure(view); }
+  update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged || u.geometryChanged || u.selectionSet) this.measure(u.view); }
+  measure(view: EditorView) {
+    view.requestMeasure({
+      key: this,
+      read: (v) => {
+        const out: Array<{ el: HTMLElement; indent: number }> = [];
+        for (const el of Array.from(v.contentDOM.querySelectorAll<HTMLElement>(".cm-line"))) {
+          let pos: number;
+          try { pos = v.posAtDOM(el, 0); } catch { continue; }
+          const line = v.state.doc.lineAt(pos);
+          const m = el.classList.contains("cm-listline") ? LIST_START.exec(line.text) : null;
+          if (!m) { if (el.style.textIndent) out.push({ el, indent: 0 }); continue; }
+          const start = v.coordsAtPos(line.from, 1), words = v.coordsAtPos(line.from + m[0].length, 1);
+          if (!start || !words || words.top > start.bottom) continue;
+          out.push({ el, indent: Math.max(0, Math.round(words.left - start.left)) });
+        }
+        return out;
+      },
+      write: (lines) => {
+        for (const { el, indent } of lines) {
+          const pad = indent ? `${indent + 2}px` : "", hang = indent ? `-${indent}px` : "";
+          if (el.style.paddingLeft !== pad) el.style.paddingLeft = pad;
+          if (el.style.textIndent !== hang) el.style.textIndent = hang;
+        }
+      },
+    });
+  }
+});
 
 /** A list item with items nested under it folds from the end of its first line to the end of its last child. */
 const listFolding = foldService.of((state, lineStart, lineEnd) => {
@@ -273,7 +315,11 @@ const look = EditorView.theme({
   ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": { background: "var(--accent-wash)", color: "var(--accent)" },
   ".cm-completionDetail": { marginLeft: "8px", color: "var(--muted)", fontStyle: "normal", fontSize: "0.85em" },
   ".cm-completionIcon": { display: "none" },
-  ".cm-quote": { borderLeft: "2px solid var(--line)", paddingLeft: "10px", color: "var(--muted)" },
+  // A quote drawn as the indent it stands for: a clear step in for each level, a faint rule along it, the words as any.
+  ".cm-quote": { borderLeft: "2px solid var(--line)", paddingLeft: "1.6em" },
+  ".cm-quote-2": { paddingLeft: "3.2em" },
+  ".cm-quote-3": { paddingLeft: "4.8em" },
+  ".cm-quote-4": { paddingLeft: "6.4em" },
   ".cm-bullet": { color: "var(--accent)", padding: "0 2px" },
   ".cm-check": { display: "inline-flex", width: "14px", height: "14px", margin: "0 6px 0 0", verticalAlign: "-2px", border: "1.5px solid var(--muted)", borderRadius: "var(--radius-row)", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "background var(--dur), border-color var(--dur)" },
   ".cm-check svg": { width: "10px", height: "10px", fill: "none", stroke: "var(--surface)", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", opacity: "0" },
@@ -286,6 +332,8 @@ const look = EditorView.theme({
   // Room on the left for the grip and no more: 26 read as a wide margin.
   ".cm-content": { padding: "10px 12px 10px 14px", caretColor: "var(--accent)" },
   ".cm-listline": { position: "relative" },
+  // Each space of a list item's nesting about a character and a half: two of them, a step that reads as one.
+  ".cm-nest": { letterSpacing: "0.75em" },
   ".cm-listline::before": { content: "'⋮⋮'", position: "absolute", left: "-12px", top: "0", width: "11px", letterSpacing: "-3px", color: "var(--muted)", opacity: "0", cursor: "grab", transition: "opacity var(--dur)" },
   ".cm-listline:hover::before": { opacity: "0.8" },
   ".cm-dragging": { opacity: "0.45" },
@@ -392,6 +440,14 @@ export interface Editor {
   insert(text: string): void;
   /** The find box out (find.ts), for a page asked with the focus elsewhere. */
   find(): void;
+  /** A quote level in (1) or out (-1) on the lines chosen (quote.ts). */
+  quote(dir: 1 | -1): void;
+  /** A list item nested a step in or out, as Tab and Shift+Tab; code indented. Answers whether there was one to. */
+  indent(dir: 1 | -1): boolean;
+  /** The lines chosen fenced as code, or the block the cursor is in unfenced. */
+  codeBlock(): void;
+  /** Where the cursor is, for a menu to offer what applies: a list item, a quote. */
+  readonly at: { list: boolean; quote: boolean };
   destroy(): void;
 }
 
@@ -428,7 +484,15 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         markdown({ base: markdownLanguage }),
         keymap.of([
           { key: "Tab", run: listShift(1), shift: listShift(-1) },
-          { key: "Tab", run: indentMore, shift: indentLess },
+          // Tab indents a list (above) and code, which have indents of their own; words are quoted instead (Ctrl+Shift+.).
+          { key: "Tab", run: (v) => inCodeHere(v.state) && indentMore(v), shift: (v) => inCodeHere(v.state) && indentLess(v) },
+          // A quote level in (Ctrl+Shift+.) and out (Ctrl+Shift+,); a code block on and off (Ctrl+Shift+`).
+          { key: "Mod->", run: quoteLevel(1) },
+          { key: "Mod-Shift-.", run: quoteLevel(1) },
+          { key: "Mod-<", run: quoteLevel(-1) },
+          { key: "Mod-Shift-,", run: quoteLevel(-1) },
+          { key: "Mod-~", run: toggleCodeBlock },
+          { key: "Mod-Shift-`", run: toggleCodeBlock },
           ...foldKeymap,
           ...defaultKeymap,
           ...historyKeymap,
@@ -437,6 +501,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         options.placeholder ? placeholder(options.placeholder) : [],
         options.singleLine ? Prec.highest(keymap.of([{ key: "Enter", run: () => { options.onEnter?.(); return true; } }])) : findInText(),
         listFolding,
+        hangingIndent,
         codeFolding({ placeholderText: "…" }),
         options.compact ? [] : [foldGutter({ markerDOM: chevron }), listDrag],
         options.compact ? compactLook : [],
@@ -523,6 +588,17 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
       view.focus();
     },
     find() { if (!options.singleLine) openFind(view); },
+    quote(dir: 1 | -1) { quoteLevel(dir)(view); view.focus(); },
+    indent(dir: 1 | -1) {
+      const did = listShift(dir)(view) || (inCodeHere(view.state) && (dir > 0 ? indentMore : indentLess)(view));
+      view.focus();
+      return did;
+    },
+    codeBlock() { toggleCodeBlock(view); view.focus(); },
+    get at() {
+      const text = view.state.doc.lineAt(view.state.selection.main.head).text;
+      return { list: /^\s*(?:>\s?)*(?:[-*+]|\d+[.)])\s/.test(text), quote: quoted(view.state) };
+    },
     destroy() { view.destroy(); },
   };
 }

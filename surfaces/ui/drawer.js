@@ -1305,9 +1305,20 @@ addEventListener("contextmenu", (e) => {
   const papers = el("div", { class: "cv-menu-row text-colors" },
     ...PAPERS.map((c) => el("button", { class: "cv-swatch", style: `background:${c}`, title: c, onclick: () => { closeMenu(); setPaper(c); } })),
     el("button", { class: "cv-swatch plain", title: "The theme's paper", onclick: () => { closeMenu(); setPaper(null); } }));
+  // The lines' shape, as Markdown names it: a list item nested in or out (a list's indent), a quote a level in or out
+  // (words'), a code block. Each offered where it applies.
+  const at = editor ? editor.at : { list: false, quote: false };
+  const shape = (label, keys, act, on = true) => el("button", { class: "menu-item", disabled: on ? null : "", onclick: () => { closeMenu(); if (editor && on) act(editor); } },
+    el("span", { class: "lbl" }, label), el("span", { class: "n" }, keys));
   Kit.pop({ x: e.clientX, y: e.clientY }, el("div", { class: "menu-list" },
     item("Cut", "cut", picked), item("Copy", "copy", picked), item("Paste", "paste"),
     el("div", { class: "menu-sep" }), item("Select all", "selectAll"),
+    el("div", { class: "menu-sep" }),
+    shape("Indent", "Tab", (ed) => ed.indent(1), at.list),
+    shape("Outdent", "Shift+Tab", (ed) => ed.indent(-1), at.list),
+    shape("Quote", "Ctrl+Shift+.", (ed) => ed.quote(1)),
+    shape("Unquote", "Ctrl+Shift+,", (ed) => ed.quote(-1), at.quote),
+    shape("Code block", "Ctrl+Shift+`", (ed) => ed.codeBlock()),
     el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Text color"), colors,
     el("div", { class: "hint" }, "Paper"), papers));
 });
