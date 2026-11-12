@@ -50,8 +50,6 @@ button.armed, .armed > button { color: var(--danger) !important; border-color: v
 .kit-empty { color: var(--muted); font-size: 12.5px; padding: 10px 8px; }
 .err { color: var(--danger) !important; }
 /* "Connect to…" in the writing drawer: a box to find by, the things found under it. */
-.kit-pop .cn-menu { min-width: 260px; }
-.kit-pop .cn-menu .cn-q { width: 100%; box-sizing: border-box; margin-bottom: 4px; }
 /* The fold mark (Kit.caret, and the pages' own .caret): ▾ open, turned along when shut. */
 .kit-caret { display: inline-block; font-size: 9px; color: var(--muted); transition: transform var(--dur); width: 12px; text-align: center; }
 .kit-caret.shut { transform: rotate(-90deg); }

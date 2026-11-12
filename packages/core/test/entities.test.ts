@@ -673,6 +673,30 @@ test("undated notes through the live binding: their file is the truth, renamed a
   assert.equal(live.patchObject("e_made_note", { set: { project: null } }).ok, true);
   assert.equal(pagesM.readPage(H, "Pages/From elsewhere"), "its words", "moved back to Home's Pages");
   assert.equal(entities.getEntity("e_made_note").properties.project ?? null, null);
+  // A page linking its project's files, moved: the files go with it (one file, never a copy), its links follow, and a
+  // page left behind that links one is pointed across to it.
+  const fileFrom = projectsM.createProject("Has the files");
+  const kept = projectsM.putProjectFile(fileFrom.id, "plan (draft).pdf", Buffer.from("the plan"));
+  projectsM.putProjectFile(fileFrom.id, "same.txt", Buffer.from("same bytes"));
+  const fileTo = projectsM.createProject("Gets the files");
+  projectsM.putProjectFile(fileTo.id, "same.txt", Buffer.from("same bytes"));
+  projectsM.putProjectFile(fileTo.id, "plan (draft).pdf", Buffer.from("another plan"));
+  const link = (rel: string) => `talaris-file:${encodeURI(rel).replace(/\(/g, "%28").replace(/\)/g, "%29")}`;
+  const linking = pagesM.createPage(fileFrom.id, null, "Links files");
+  pagesM.writePage(fileFrom.id, linking.path, `See [plan](${link(kept.path)}) and [same](${link("Files/same.txt")}) and [gone](${link("Files/none.pdf")}).`);
+  const staying = pagesM.createPage(fileFrom.id, null, "Stays behind");
+  pagesM.writePage(fileFrom.id, staying.path, `Also [plan](${link(kept.path)}).`);
+  const landed = pagesM.transferPage(fileFrom.id, linking.path, fileTo.id, null, false);
+  const words = pagesM.readPage(fileTo.id, landed.path);
+  assert.ok(words.includes(link("Files/plan (draft) 2.pdf")), "moved beside the other project's own of that name");
+  assert.equal(projectsM.readProjectFile(fileTo.id, "Files/plan (draft) 2.pdf").toString(), "the plan");
+  assert.ok(!existsSync(join(projectsM.findProject(fileFrom.id).folder, "Files", "plan (draft).pdf")), "moved, not copied");
+  assert.ok(words.includes(link("Files/same.txt")), "the same file there already: linked as it is");
+  assert.ok(!existsSync(join(projectsM.findProject(fileTo.id).folder, "Files", "same 2.txt")), "and not kept twice");
+  assert.ok(words.includes(link("Files/none.pdf")), "one not there to move: left as it was");
+  const behind = pagesM.readPage(fileFrom.id, staying.path);
+  assert.ok(behind.includes(link(`@${fileTo.id}/Files/plan (draft) 2.pdf`)), "the page left behind points across");
+  assert.equal(projectsM.readProjectFile(fileFrom.id, `@${fileTo.id}/Files/plan (draft) 2.pdf`).toString(), "the plan", "and reaches it");
   // Made through the binding in a project: at the top of its writing.
   assert.equal(live.createObject("e_in_project", { type: "t_note", properties: { title: "Plan for it", body: "hello", project: [pe] } }).ok, true);
   assert.equal(pagesM.readPage(p.id, "Plan for it"), "hello");

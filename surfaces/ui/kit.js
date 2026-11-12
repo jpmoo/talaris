@@ -240,6 +240,8 @@ const Kit = (() => {
         if (it === "sep") return el("div", { class: "menu-sep" });
         const b = el("button", { class: "menu-item" + (it.on ? " on" : ""), title: it.title || null, disabled: it.disabled || null,
           onclick: (e) => { e.stopPropagation(); popAway(); it.act(); } },
+          // Marked with a dot where chosen, as the bar's menus mark theirs (popup.js): every item, so the labels line up.
+          opts.dots ? el("span", { class: "tick" }, it.on ? "●" : "") : null,
           it.color ? el("span", { class: "sw", style: `background:${it.color}` }) : null,
           el("span", { class: "lbl" }, it.label), it.sub ? el("span", { class: "n" }, it.sub) : null);
         buttons.push(b);

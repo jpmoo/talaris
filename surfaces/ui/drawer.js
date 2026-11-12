@@ -966,15 +966,13 @@ async function loadWriting() {
     const page = { path: open, title: open.split("/").pop() };
     actions.push(" ", btn("New page inside", () => newPage(open)),
       " ", btn("Rename", () => renamePage(page)),
-      // To another project's writing, or to Home; and the projects it belongs to besides (notes.ts).
-      " ", el("button", { class: "t-btn", title: "Move this page to another project, or to Home", onclick: (e) => { e.stopPropagation(); moveMenu(e.currentTarget); } }, "Move to…"),
-      " ", el("button", { class: "t-btn", title: "The projects this page belongs to: the one it lives in, and any others", onclick: (e) => { e.stopPropagation(); projectsMenu(e.currentTarget); } }, "Projects…"),
-      // Connected, not copied: a page belongs in one place, and is tied to whatever else it is about.
-      " ", el("button", { class: "t-btn", title: "Connect this page to a person, a task, a project, an event or another page", onclick: (e) => connectMenu(e.currentTarget) }, "Connect to…"),
-      " ", Kit.twice(btn("Delete", null, "danger"), { key: `del-page:${open}`, ask: "Delete it?", act: deletePage }));
+      // Where it is: Home, or the projects it is in — one menu, a dot on each (notes.ts).
+      " ", el("button", { class: "t-btn", title: "Where this page is: Home, or the projects it is in", onclick: (e) => { e.stopPropagation(); projectsMenu(e.currentTarget); } }, "Projects…"));
   }
   // Glance on the page open: what it is connected to, and possible connections.
   if (open && window.Peek && bridge && bridge.glanceAt) actions.push(" ", Peek.glanceButton(`page:${wpid()}/${open}`, (k) => bridge.glanceAt(k), ""));
+  // Delete, always last.
+  if (open && !dailyOn) actions.push(" ", Kit.twice(btn("Delete", null, "danger"), { key: `del-page:${open}`, ask: "Delete it?", act: deletePage }));
   $("actions").replaceChildren(...actions);
   // A day with no note yet reads as empty; the file appears when you write.
   if (open) text = words;
@@ -1100,29 +1098,11 @@ function followTo(projectId, path, name) {
   loadWriting();
 }
 
-/** Move to…: the page to another project's writing (at its top), or to Home; followed there. */
-async function moveMenu(anchor) {
-  if (!open) return;
-  let choices;
-  try { choices = await projectChoices(); } catch (e) { status(e.message, true); return; }
-  const now = inHome() ? null : wpid();
-  const go = async (to, name) => {
-    if (saveTimer) { clearTimeout(saveTimer); await save(); }
-    try {
-      const landed = await core("POST", `/projects/${wpid()}/page/transfer`, { path: open, to: to ?? homeId, parent: to ? null : PAGES, copy: false });
-      status(`Moved to ${name}`);
-      followTo(to, landed.path, name);
-    } catch (e) { status(String(e.message || e), true); }
-  };
-  Kit.menu(anchor, [
-    ...(now ? [{ label: "Home (no project)", act: () => go(null, "Home") }, "sep"] : []),
-    ...choices.filter((p) => p.id !== now).map((p) => ({ label: p.name, act: () => go(p.id, p.name) })),
-  ]);
-}
-
 /**
- * Projects…: the projects the page belongs to, checked — the one it lives in said so. One clicked is added, or taken
- * off; the one it lives in taken off moves it to the next, or to Home (notes.ts, setPageProjects).
+ * Projects…: where the page is, one menu — Home, and every project, a dot on each it is in; one pressed is added or
+ * taken off. It is always somewhere: the last one is not taken off, and Home is chosen by pressing it (which takes
+ * it out of every project, to Home's pages). The project it lives in taken off moves it to the next (notes.ts,
+ * setPageProjects); what it links in its project's Files go with it (pages.ts, filesMoved). Followed where it went.
  */
 async function projectsMenu(anchor) {
   if (!open) return;
@@ -1130,6 +1110,7 @@ async function projectsMenu(anchor) {
   let choices, mine;
   try { [choices, mine] = await Promise.all([projectChoices(), core("GET", `/projects/${pid}/page/projects?path=${encodeURIComponent(path)}`)]); }
   catch (e) { status(String(e.message || e), true); return; }
+  const inHomeNow = !mine.length;
   const lives = mine[0] && (choices.find((p) => p.entity === mine[0]) || {}).id === pid ? mine[0] : null;
   const set = async (next, said) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
@@ -1139,17 +1120,26 @@ async function projectsMenu(anchor) {
       if (after.project !== pid || after.path !== path) {
         const went = choices.find((p) => p.id === after.project);
         followTo(went ? went.id : null, after.path, went ? went.name : "Home");
-      }
+      } else loadWriting();
     } catch (e) { status(String(e.message || e), true); }
   };
-  Kit.menu(anchor, choices.filter((p) => p.entity).map((p) => {
+  const home = { label: "Home (no project)", on: inHomeNow,
+    title: inHomeNow ? "It is in Home: choose a project to move it there" : "Out of every project, to Home's pages",
+    act: () => { if (!inHomeNow) set([], "Moved to Home"); } };
+  const items = choices.filter((p) => p.entity).map((p) => {
     const inIt = mine.includes(p.entity);
+    const last = inIt && mine.length === 1;
     return {
       label: p.entity === lives ? `${p.name} (lives here)` : p.name, on: inIt,
-      act: () => set(inIt ? mine.filter((x) => x !== p.entity) : [...mine, p.entity],
-        inIt ? (p.entity === lives ? `Taken out of ${p.name}: moved` : `Taken out of ${p.name}`) : `Also in ${p.name}`),
+      title: last ? "It is always somewhere: choose another project, or Home, first" : "",
+      act: () => {
+        if (last) { status("It is always somewhere: choose another project, or Home, first", true); return; }
+        set(inIt ? mine.filter((x) => x !== p.entity) : [...mine, p.entity],
+          inIt ? (p.entity === lives ? `Taken out of ${p.name}: moved` : `Taken out of ${p.name}`) : inHomeNow ? `Moved to ${p.name}` : `Also in ${p.name}`);
+      },
     };
-  }));
+  });
+  Kit.menu(anchor, [home, "sep", ...items], { dots: true });
 }
 
 function deletePage() {
@@ -1293,46 +1283,6 @@ const TEXT_COLORS = Palette.COLORS;
 // One pop-up at a time, the kit's (kit.js): placed, kept on screen, put away by a press elsewhere, a scroll or Escape.
 const closeMenu = () => Kit.popAway();
 
-/*
- * Connect to…: the page open tied to something else — found as an @ finds it
- * (the core's /mentionables), this project's things first — in the field a
- * page declares for it (a person, a project), else as a link. The page's own
- * entity, and a page or canvas chosen, are made as they are needed.
- */
-const KIND_WORD = { contact: "Person", task: "Task", event: "Event", note: "Page", page: "Page", canvas: "Canvas", project: "Project" };
-function connectMenu(anchor) {
-  closeMenu();
-  const q = el("input", { type: "search", class: "cn-q", placeholder: "Find a person, task, page, project…", spellcheck: "false" });
-  const list = el("div", {});
-  Kit.pop(anchor, el("div", { class: "cn-menu" }, q, list));
-  q.focus();
-  let asked = 0;
-  const find = async () => {
-    const mine = ++asked;
-    const rows = await core("GET", `/mentionables?q=${encodeURIComponent(q.value.trim())}&project=${encodeURIComponent(wpid())}&limit=14`).catch(() => []);
-    if (mine !== asked || !Kit.isOpen()) return;
-    const shown = (rows || []).filter((x) => !(x.kind === "page" && x.project === wpid() && x.where === open));
-    list.replaceChildren(...(shown.length ? shown.map((x) => el("button", { class: "menu-item", title: x.projectName ? `${x.title} — ${x.projectName}` : x.title,
-      onclick: () => { closeMenu(); connectPage(x); } }, el("span", { class: "tg" }, x.title), el("span", { class: "n" }, KIND_WORD[x.kind] || "Thing")))
-      : [Kit.empty("Nothing by that name")]));
-  };
-  let timer = null;
-  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, Kit.SEARCH_MS); });
-  q.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); const first = list.querySelector("button"); if (first) first.click(); }
-  });
-  find();
-}
-async function connectPage(x) {
-  try {
-    const me = await core("POST", "/entities/place", { kind: "page", project: wpid(), where: open, title: open.split("/").pop() });
-    let to = x.id;
-    if (!to && (x.kind === "page" || x.kind === "canvas")) to = (await core("POST", "/entities/place", { kind: x.kind, project: x.project, where: x.where, title: x.title })).id;
-    if (!to) throw new Error("that cannot be connected to");
-    await core("POST", `/entities/${encodeURIComponent(me.id)}/connect`, { to, type: "about" });
-    status(`Connected to ${x.title}`);
-  } catch (e) { status(String(e.message || e), true); }
-}
 addEventListener("contextmenu", (e) => {
   e.preventDefault();
   closeMenu();

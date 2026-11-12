@@ -5,8 +5,8 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { dirname, join, relative, resolve } from "node:path";
 import type { PageNode } from "@talaris/model";
 import { MACHINERY, WRITING, stamp } from "./paths.js";
-import { Conflict, NotFound, PAGES, findProject, pagesPlace } from "./projects.js";
-import { readJson, readText, writeAtomic, writeJson } from "./store.js";
+import { Conflict, NotFound, PAGES, attachedFile, findProject, pagesPlace } from "./projects.js";
+import { readBytes, readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
 import { membersMoved } from "./filelists.js";
 import { starredPageMoved } from "./starred.js";
@@ -429,6 +429,12 @@ export function transferPage(fromProject: string, path: string, toProject: strin
     }
   }
   const moved = (p: string) => to + p.slice(from.length);
+  // The files it links (`Files/…`, its project's) moved to the other side with it, page by page beneath it — a copy's
+  // stay where they are, linked across, so there is still one file.
+  for (const p of below) {
+    if (copy) filesLinkedAcross(fromProject, toProject, moved(p));
+    else filesMoved(fromProject, toProject, moved(p));
+  }
   // Its place: last on the other side; gone from this one if it went.
   const dOrder = readOrder(dst.folder);
   dOrder[under] = [...siblings(dst.folder, under, dOrder).filter((n) => n !== title), title];
@@ -470,6 +476,91 @@ export function transferPage(fromProject: string, path: string, toProject: strin
     }
   }
   return { path: to, title, children: [] };
+}
+
+/** A page's link to one of its project's files, as the editor writes it (files.js): `](talaris-file:Files/a%20b.pdf)`. */
+const FILE_LINK = /\]\(talaris-file:([^)\s]+)\)/g;
+const linkOf = (rel: string) => encodeURI(rel).replace(/\(/g, "%28").replace(/\)/g, "%29");
+const relOf = (link: string) => { try { return decodeURI(link.replace(/%28/g, "(").replace(/%29/g, ")")); } catch { return link; } };
+
+/**
+ * A page gone to another project (`transferPage`), with what it links in its old project's `Files/`: each file moved
+ * into the new one's — one file, never a copy, so what is changed in it is changed for every page — and its links made
+ * to point there. A page left behind that links one too is pointed across to where it went (`@<project>/Files/…`,
+ * projects.ts' attachedFile). The same file there already, by name and bytes, is linked as it is; one the old project
+ * does not have is left linked as it was.
+ */
+function filesMoved(fromProject: string, toProject: string, path: string): void {
+  let text: string;
+  try { text = readPage(toProject, path); } catch { return; }
+  const went = new Map<string, string>();
+  const next = text.replace(FILE_LINK, (whole, link: string) => {
+    const rel = relOf(link);
+    if (rel.startsWith("@") || !rel.startsWith("Files/")) return whole;
+    if (!went.has(rel)) went.set(rel, fileMoved(fromProject, toProject, rel));
+    const to = went.get(rel)!;
+    return to === rel ? whole : `](talaris-file:${linkOf(to)})`;
+  });
+  if (next !== text) writePage(toProject, path, next);
+  // What else in the old project links them: pointed across.
+  const across = new Map([...went].filter(([rel, to]) => to !== rel).map(([rel, to]) => [rel, `@${toProject}/${to}`]));
+  if (across.size) for (const other of everyPage(fromProject)) {
+    let words: string;
+    try { words = readPage(fromProject, other); } catch { continue; }
+    const pointed = words.replace(FILE_LINK, (whole, link: string) => {
+      const to = across.get(relOf(link));
+      return to ? `](talaris-file:${linkOf(to)})` : whole;
+    });
+    if (pointed !== words) writePage(fromProject, other, pointed);
+  }
+}
+
+/** One file of a project's moved to another's `Files/`: where it is now (a free name there), or `rel` if it stayed. */
+function fileMoved(fromProject: string, toProject: string, rel: string): string {
+  let from: string;
+  try { from = attachedFile(fromProject, rel).abs; } catch { return rel; }
+  const name = rel.split("/").pop()!;
+  const dir = join(findProject(toProject).folder, "Files");
+  // The same file there already: that one is it, and this one — the same bytes — goes (its links are pointed there).
+  try {
+    if (readBytes(join(dir, name)).equals(readBytes(from))) { rmSync(from, { force: true }); return `Files/${name}`; }
+  } catch { /* not there, or not the same */ }
+  mkdirSync(dir, { recursive: true });
+  const dot = name.lastIndexOf(".");
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  let free = name;
+  for (let n = 2; existsSync(join(dir, free)); n++) free = `${stem} ${n}${ext}`;
+  try { renameSync(from, join(dir, free)); } catch { cpSync(from, join(dir, free)); rmSync(from, { force: true }); }
+  return `Files/${free}`;
+}
+
+/** A copy of a page in another project: its links to the old project's files pointed across to them, still one file. */
+function filesLinkedAcross(fromProject: string, toProject: string, path: string): void {
+  let text: string;
+  try { text = readPage(toProject, path); } catch { return; }
+  const next = text.replace(FILE_LINK, (whole, link: string) => {
+    const rel = relOf(link);
+    return rel.startsWith("Files/") ? `](talaris-file:${linkOf(`@${fromProject}/${rel}`)})` : whole;
+  });
+  if (next !== text) writePage(toProject, path, next);
+}
+
+/** Every page of a project's, by path: its daily notes too. */
+function everyPage(projectId: string): string[] {
+  const root = writingDir(pagesPlace(projectId).folder);
+  const out: string[] = [];
+  const walk = (dir: string, under: string) => {
+    let names: string[];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      if (n.startsWith(".")) continue;
+      const full = join(dir, n);
+      if (statSync(full).isDirectory()) walk(full, under ? `${under}/${n}` : n);
+      else if (n.endsWith(".md")) out.push(under ? `${under}/${n.slice(0, -3)}` : n.slice(0, -3));
+    }
+  };
+  walk(root, "");
+  return out;
 }
 
 /** The days of `month` (`YYYY-MM`) that have a note, and how many words each holds. */

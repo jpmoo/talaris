@@ -292,6 +292,12 @@ export function putProjectFile(projectId: string, filename: string, data: Buffer
  * the folder, and never Talaris's own machinery (`.talaris/`).
  */
 export function attachedFile(projectId: string, rel: string): { abs: string; sealed: boolean } {
+  // Another project's file, as a page links one that moved there with another page (pages.ts, filesMoved): `@<id>/…`.
+  if (rel.startsWith("@")) {
+    const cut = rel.indexOf("/");
+    if (cut < 2) throw new Conflict("not a file of a project's");
+    return attachedFile(rel.slice(1, cut), rel.slice(cut + 1));
+  }
   const { folder } = findProject(projectId);
   const parts = rel.split("/");
   if (parts[0] === MACHINERY || parts.some((p) => !p || p === "." || p === ".." || p.includes("\\") || p.includes("\0"))) {
