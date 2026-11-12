@@ -139,5 +139,8 @@ input.field.bad { border-color: var(--danger) !important; }
 .ev-chips { display: contents; }
 .ev-card .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 .ev-notes { flex: 1; min-width: 0; min-height: 70px; max-height: 30vh; overflow: auto; font-size: 13px; }
+.ev-from-account { flex: 1; min-width: 0; max-height: 30vh; overflow: auto; font-size: 13px; padding: 4px 8px; color: var(--muted); overflow-wrap: anywhere; }
+.ev-from-account a { color: var(--accent); }
+.ev-from-account p { margin: 0 0 6px; }
 .ev-notes .cm-content { padding: 4px 8px; min-height: 62px; }
 .ev-card .acts { flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }

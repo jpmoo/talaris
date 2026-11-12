@@ -208,7 +208,29 @@ class Overlay(QObject):
         else:
             self.to_window()
 
+    # Where the page is — its page, its selection — carried across, so a panel made a window (or a window made a panel
+    # again) opens where it was. A page says it with `window.talarisPlace()` (anything JSON) and goes to one with
+    # `window.talarisGoTo(place)`; a page with neither opens as it would.
+    PLACE_JS = "window.talarisPlace ? JSON.stringify(window.talarisPlace()) : ''"
+
+    def _carry(self, source, target, fresh: bool) -> None:
+        def go(place) -> None:
+            if not place:
+                return
+            script = f"window.talarisGoTo && window.talarisGoTo({place})"
+            # A page still loading is given it once loaded (the page holds it until its bridge is there).
+            if fresh and target.page().isLoading():
+                def loaded(ok: bool) -> None:
+                    target.loadFinished.disconnect(loaded)
+                    if ok:
+                        target.page().runJavaScript(script, 0)
+                target.loadFinished.connect(loaded)
+            else:
+                target.page().runJavaScript(script, 0)
+        source.page().runJavaScript(self.PLACE_JS, 0, go)
+
     def to_window(self) -> None:
+        fresh = self.window is None
         if self.window is None:
             sep = "&" if "?" in self.url else "?"
             self.window = make_view(self.profile, f"{self.NAME}-window", f"{self.url}{sep}window=1", self.bridge, self, area=self.area)
@@ -223,6 +245,7 @@ class Overlay(QObject):
             self.desktop.dim.release(self)
             self.view.hide()
             self.surface.placement = None
+        self._carry(self.view, self.window, fresh)
         self.windowed = True
         self.window.show()
         self.bridge.state.emit(json.dumps(self.describe()))
@@ -233,6 +256,7 @@ class Overlay(QObject):
     def to_panel(self) -> None:
         self.windowed = False
         if self.window is not None:
+            self._carry(self.window, self.view, False)
             self.window.hide()
         self.open()
 

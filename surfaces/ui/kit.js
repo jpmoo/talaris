@@ -614,8 +614,20 @@ const Kit = (() => {
   /** An empty list said one way: "Nothing here yet", "Nothing matches" — sentence case, no stop. */
   const empty = (text) => el("div", { class: "kit-empty" }, String(text).replace(/\.$/, ""));
 
+  /**
+   * Where a page is, carried between it as a panel and as a window (overlay.py, _carry): `get()` says it (anything
+   * JSON), `go(place)` goes there. A place handed over before the page can act (its bridge not there yet) is held, and
+   * gone to when the page says it is ready — the answer's `ready()`.
+   */
+  function place(get, go) {
+    let ready = false, held = null;
+    window.talarisPlace = get;
+    window.talarisGoTo = (p) => { if (ready) go(p); else held = p; };
+    return { ready() { ready = true; if (held) { const p = held; held = null; go(p); } } };
+  }
+
   return {
-    el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
+    place, el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
     onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };

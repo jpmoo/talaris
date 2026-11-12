@@ -193,6 +193,14 @@ class Notifications(QObject):
             self._keep()
             self.changed.emit()
 
+    def read(self, nid: int) -> None:
+        """One of them read: its rule comes off, and the bell counts one fewer."""
+        n = next((x for x in self.items if x.get("id") == nid), None)
+        if n and not n.get("read"):
+            n["read"] = True
+            self._keep()
+            self.changed.emit()
+
     def dismiss(self, nid: int) -> None:
         """Out of the list, and off the screen."""
         self.items = [n for n in self.items if n.get("id") != nid]

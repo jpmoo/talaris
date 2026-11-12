@@ -23,13 +23,13 @@ box, its keys again, the bar's button, `--file-all`, and an idle timeout.
 
 from __future__ import annotations
 
+import spawn
 import json
 import subprocess
 import os
 import signal
 
-from PySide6.QtCore import QRunnable, QThreadPool, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QRunnable, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 import hypr
@@ -589,5 +589,5 @@ class Launcher(Overlay):
         real = os.path.realpath(path)
         if not real.startswith(root + os.sep) or not os.path.isfile(real):
             return "Not a file in this project"
-        QDesktopServices.openUrl(QUrl.fromLocalFile(real))
+        spawn.open_url(real)
         return ""

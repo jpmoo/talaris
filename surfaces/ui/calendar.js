@@ -35,6 +35,8 @@ let realCalendars = [], pluginCalendars = [], pluginEvents = [];
 // A feed's occurrences made yours (on Talaris's own calendar): the feed's copy is not shown beside yours.
 let taken = new Set();
 const feedKey = (e) => `${e.calendar}/${e.uid}/${e.rid || ""}`;
+/** Shown already as one of Talaris's own: this occurrence, or this meeting by its UID on any calendar (own-calendar.ts). */
+const isTaken = (e) => e.calendar !== "talaris" && (taken.has(feedKey(e)) || taken.has(`*/${e.uid}/${e.rid || ""}`));
 const allCalendars = () => { calendars = [...realCalendars, ...pluginCalendars]; };
 let mode = "month";
 let focus = startOfDay(new Date());
@@ -126,7 +128,7 @@ function title() {
   return Kit.month(focus);
 }
 function shown() {
-  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined") && !taken.has(feedKey(e)));
+  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined") && !isTaken(e));
 }
 // The events on a day: those that start before it ends and end after it starts.
 function onDay(day) {
@@ -338,8 +340,8 @@ function drawSide() {
   // Feeds are known by being feeds, not by their heading's name; the button that brings one in sits with them, or makes their heading.
   const addFeedBtn = el("button", { class: "t-btn add-feed", onclick: (ev) => addFeed(ev.currentTarget) }, "+ Feed");
   const feedsHeading = Object.entries(byAccount).find(([, list]) => list.every((c) => c.feed));
-  const calRow = (c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click for its color, or to remove it" : c.writable ? "" : "Read only",
-    ...(c.feed ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
+  const calRow = (c) => el("div", { class: "cal" + (muted.has(c.id) ? " muted" : " on"), style: `--c:${c.color || "var(--accent)"}`, title: c.feed ? "A feed: right-click for its color, or to remove it" : c.own ? "Right-click for its color" : c.writable ? "" : "Read only",
+    ...(c.feed || c.own ? { oncontextmenu: (ev) => { ev.preventDefault(); feedMenu(ev, c); } } : {}) },
     el("button", { class: "sw", title: muted.has(c.id) ? "Show its events" : "Hide its events", onclick: () => mute(c.id) }), el("span", {}, c.name));
   side.replaceChildren(...Object.entries(byAccount).flatMap(([account, list]) =>
     section(account, ...list.map(calRow), ...(feedsHeading && feedsHeading[0] === account ? [addFeedBtn] : []))),
@@ -388,11 +390,22 @@ function addFeed(button) {
   Kit.pop(button, el("div", { class: "feed-form" }, el("label", {}, "Feed address"), url, name, el("div", { class: "row" }, go), note));
   setTimeout(() => url.focus(), 30);
 }
+/** A calendar's color: Talaris's own is the core's to keep; a feed's, the calendar's process's. */
+function recolor(c, color) {
+  if (!c.own) return send({ do: "color", calendar: c.id, color });
+  return core("PUT", "/plugins/calendars/talaris", { color }).then(() => core("GET", "/plugins/calendars"))
+    .then((list) => { pluginCalendars = list || []; allCalendars(); draw(); });
+}
 function feedMenu(ev, c) {
   // Its color, as Settings offers every calendar's (Palette, as Google's and Outlook's own run).
   const colors = el("div", { class: "feed-colors" }, ...Palette.COLORS.map((col) => el("button", {
     class: "sw" + (col === c.color ? " is-on" : ""), style: `background:${col}`, title: col,
-    onclick: () => { popAway(); send({ do: "color", calendar: c.id, color: col }).catch((x) => say(x.message || "The color was not changed", true)); } })));
+    onclick: () => { popAway(); recolor(c, col).catch((x) => say(x.message || "The color was not changed", true)); } })));
+  // Talaris's own calendar: its color, and nothing to remove.
+  if (c.own) {
+    Kit.pop({ x: ev.clientX, y: ev.clientY }, el("div", { class: "feed-form" }, el("label", {}, c.name), colors));
+    return;
+  }
   const off = el("button", { class: "t-btn danger" }, "Remove feed");
   Kit.twice(off, { key: `unfeed:${c.id}`, ask: "Remove it?", act: () => {
     popAway();
@@ -576,9 +589,11 @@ const cardCtx = () => ({ api: core, say, failed: (x) => say(x.message || "It did
   open: (key) => { if (window.Peek) Peek.openCard(key); },
   openMention: null,
   redraw: () => {}, close: closeEditor, saved: () => { fetchPlugins(); fetchRange(); } });
+let openedEvent = null; // the event whose card is open (not a new one): where the calendar is, with its day
 function open(e, isNew) {
   popAway();
   ThingCard.putAway();
+  openedEvent = isNew ? null : e;
   const [card] = EventCard.parts(e, isNew, cardCtx(), ThingCard.connected);
   editing = card;
   $("editor-box").replaceChildren(card);
@@ -591,7 +606,7 @@ function create(at, allDay) {
   const start = allDay ? startOfDay(at) : at;
   open({ start: start.getTime(), end: allDay ? start.getTime() + DAY_MS : start.getTime() + 3600000, allDay }, true);
 }
-function closeEditor() { popAway(); ThingCard.putAway(); $("editor").classList.remove("open"); $("editor-box").replaceChildren(); editing = null; }
+function closeEditor() { popAway(); ThingCard.putAway(); $("editor").classList.remove("open"); $("editor-box").replaceChildren(); editing = null; openedEvent = null; }
 
 $("editor").addEventListener("click", (e) => { if (e.target === $("editor")) closeEditor(); });
 // A press elsewhere in it puts a list away.
@@ -610,6 +625,17 @@ function say(text, error = false) { Kit.say($("msg"), text, error, 0); }
 
 // ---------------------------------------------------------------- moving about
 
+// Sync again: every account asked to fetch from its server, every feed read again, then what is on show read anew.
+$("resync").innerHTML = Icons.refresh();
+$("resync").addEventListener("click", () => {
+  const b = $("resync");
+  if (b.disabled) return;
+  b.disabled = true;
+  b.classList.add("turning");
+  say("Syncing…");
+  send({ do: "refresh" }).then(() => { say("Synced"); fetchPlugins(); fetchRange(); }, (x) => say(x.message || "It did not sync", true))
+    .finally(() => { b.disabled = false; b.classList.remove("turning"); });
+});
 $("today").addEventListener("click", () => { focus = startOfDay(new Date()); draw(); fetchRange(); });
 // The list of calendars, out or away — this page's own preference, kept.
 $("side-toggle").innerHTML = Icons.sideList();
@@ -717,12 +743,26 @@ window.Calendar = {
   },
 };
 
+// Where it is — the view, the day, the event open — carried when it is made a window, or a panel again (kit.js).
+const placeHere = Kit.place(() => ({ mode, focus: focus.getTime(), event: openedEvent }), (p) => {
+  if (["day", "three", "week", "month"].includes(p.mode)) mode = p.mode;
+  if (typeof p.focus === "number") focus = startOfDay(new Date(p.focus));
+  draw();
+  fetchRange();
+  if (p.event) edit(p.event); else if (editing) closeEditor();
+});
 Surface.connect({ onState }).then((b) => {
   bridge = b;
-  const hello = (text) => { const h = JSON.parse(text); status = h.status; realCalendars = h.calendars; allCalendars(); draw(); fetchRange(); };
+  const hello = (text) => { const h = JSON.parse(text); status = h.status; realCalendars = h.calendars; allCalendars(); draw(); fetchRange(); placeHere.ready(); };
   b.hello(hello);
   b.status.connect((text) => { status = JSON.parse(text); draw(); fetchRange(); });
   b.calendars.connect((text) => { realCalendars = JSON.parse(text); allCalendars(); draw(); });
+  // Files chosen for a card and kept (or why not): the card that asked draws them again.
+  if (b.attached) b.attached.connect((text) => {
+    const r = JSON.parse(text);
+    if (r.error) say(r.error, true);
+    EventCard.attached(r);
+  });
   b.events.connect((text) => {
     const got = JSON.parse(text);
     if (got.req === searchReq && searching) { found.events = got.items; draw(); return; }

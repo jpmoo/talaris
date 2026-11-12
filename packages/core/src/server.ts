@@ -69,7 +69,7 @@ import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
 import "./mentions.js";
 import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
-import { ownCalendar, ownEvents, takenFromFeeds } from "./own-calendar.js";
+import { joinAccountTwins, ownCalendar, ownEvents, setOwnColor, takenElsewhere } from "./own-calendar.js";
 import * as plugins from "./plugins.js";
 import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
@@ -482,7 +482,10 @@ route("GET", "/context", (_r, _p, q) => contextFor(q.get("q") ?? "", { limit: Nu
 route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
 route("POST", "/entities/mirror/events", async (req) => {
   const b = await json<{ events?: entities.MirroredEvent[] }>(req);
-  return { ids: (b.events ?? []).map((e) => entities.mirrorEvent(e).id) };
+  const ids = (b.events ?? []).map((e) => entities.mirrorEvent(e).id);
+  // A meeting a sync brought before its account's reached here: one, now (own-calendar.ts) — answered as the one kept.
+  if (joinAccountTwins()) return { ids: ids.map((id) => mergedInto(id) ?? id) };
+  return { ids };
 });
 // The projects a thing is filed under, by its type's own field (filing.ts): what an event's sheet shows and changes.
 route("GET", "/entities/:id/projects", (_r, [id]) => ({ projects: filedUnder(entities.getEntity(id!)) }));
@@ -706,8 +709,15 @@ route("GET", "/plugins/calendars/events", (_r, _p, q) => {
   const from = Number(q.get("from") ?? 0), to = Number(q.get("to") ?? 0);
   return [...ownEvents(from, to), ...plugins.pluginCalendarEvents(from, to)];
 });
-// The feed occurrences made yours, so the calendar does not show the feed's copy beside yours.
-route("GET", "/plugins/calendars/taken", () => takenFromFeeds());
+// The occurrences elsewhere that Talaris's own events stand for — a feed's made yours, an account's joined — not shown twice.
+route("GET", "/plugins/calendars/taken", () => takenElsewhere());
+// Talaris's own calendar's color (its row's right-click, in the calendar).
+route("PUT", "/plugins/calendars/talaris", async (req) => {
+  const b = await json<{ color?: string }>(req);
+  if (typeof b.color !== "string") throw new BadRequest("a color, or empty for the accent's");
+  try { setOwnColor(b.color); } catch (e) { throw new BadRequest((e as Error).message); }
+  return ownCalendar();
+});
 // Buttons plugins put on a sheet (`[[actions]]`), and one pressed.
 route("GET", "/plugins/decisions", (_r, _p, q) => plugins.decisionsOn(q.get("on") ?? ""));
 route("GET", "/plugins/actions", (_r, _p, q) => plugins.pluginActions(q.get("kind") ?? "", q.get("entity") ?? undefined));
@@ -748,6 +758,8 @@ route("GET", "/interchange", (_r, _p, q) =>
   readEnvelope({ since: q.get("since") ?? undefined, profile: q.get("profile") ?? undefined, q: q.get("q") ?? undefined }));
 route("PUT", "/interchange/objects/:id", async (req, [id]) => {
   const answer = createObject(id!, await json<{ id?: string; type?: string; properties?: Record<string, unknown> }>(req));
+  // An event a sync brings that an account already keeps: one (own-calendar.ts).
+  if (answer.ok && answer.created) joinAccountTwins();
   return new Answer(!answer.ok ? (answer.reports.includes("create.unknown-type") ? 422 : 400) : answer.created ? 201 : 200, answer);
 });
 route("PATCH", "/interchange/objects/:id", async (req, [id]) => {

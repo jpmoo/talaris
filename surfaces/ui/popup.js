@@ -85,17 +85,11 @@ function drawProjects() {
   });
 }
 
-// The bell's list, newest first. Opening it reads them all, so which were
-// unread is what the first fetch said; kept for as long as it stays open, so
-// a redraw from `notices` does not take the rule off what was just seen.
+// The bell's list, newest first. Opening it reads none of them: one is read
+// when it is pressed (or opened, or answered), all of them by Mark all read.
 let noticesShown = null;
-let unreadSeen = new Set();
 function drawNotices() {
-  bridge.notifications((text) => {
-    const list = JSON.parse(text);
-    unreadSeen = new Set(list.filter((n) => !n.read).map((n) => n.id));
-    showNotices(list);
-  });
+  bridge.notifications((text) => showNotices(JSON.parse(text)));
 }
 /** When it came, as the kit says when anything happened. */
 const noticeWhen = (at) => Kit.ago(at);
@@ -105,10 +99,11 @@ function plainText(markup) {
   return (new DOMParser().parseFromString(String(markup), "text/html").body.textContent || "").trim();
 }
 function showNotices(list) {
-  for (const n of list) if (!n.read) unreadSeen.add(n.id);
   $("notice-clear").hidden = !list.length;
+  $("notice-read").hidden = !list.some((n) => !n.read);
   $("notice-list").replaceChildren(...(list.length ? list.map((n) => {
-    const d = Object.assign(document.createElement("div"), { className: "notice" + (unreadSeen.has(n.id) ? " unread" : "") });
+    const d = Object.assign(document.createElement("div"), { className: "notice" + (n.read ? "" : " unread") });
+    if (!n.read) d.addEventListener("click", (e) => { if (!e.target.closest("button")) bridge.readNotice(n.id); });
     const top = Object.assign(document.createElement("div"), { className: "top" });
     if (n.icon) top.append(Object.assign(document.createElement("img"), { src: n.icon, alt: "" }));
     else top.insertAdjacentHTML("beforeend", Icons.bell());
@@ -122,13 +117,15 @@ function showNotices(list) {
     const body = plainText(n.body);
     if (body) d.append(Object.assign(document.createElement("div"), { className: "body", textContent: body }));
     const acts = Object.assign(document.createElement("div"), { className: "acts" });
-    for (const [key, label] of n.actions || []) if (key !== "default") acts.append(button(label || key, () => bridge.actNotice(n.id, key)));
-    if (n.canOpen) acts.append(button("Open", () => bridge.openNotice(n.id)));
+    const read = () => { if (!n.read) bridge.readNotice(n.id); };
+    for (const [key, label] of n.actions || []) if (key !== "default") acts.append(button(label || key, () => { read(); bridge.actNotice(n.id, key); }));
+    if (n.canOpen) acts.append(button("Open", () => { read(); bridge.openNotice(n.id); }));
     d.append(acts);
     return d;
   }) : [note("No notifications")]));
 }
 $("notice-clear").addEventListener("click", () => bridge && bridge.clearNotices());
+$("notice-read").addEventListener("click", () => bridge && bridge.readNotices());
 
 // Morgan's timers and reminders still to come, above the notifications: what
 // each is, how long is left (counted down each second while the list is out),

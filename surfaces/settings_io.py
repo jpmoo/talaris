@@ -6,7 +6,7 @@ another machine, or back to this one (Settings, Data).
 
 **What goes.** Talaris's own settings — `config.json` (everything Settings
 changes: the bar, the dock, the theme, its keys, search by meaning), the
-calendar's feeds, the plugins' settings and which are on — and, if asked,
+calendar's feeds and the color of its own calendar, the plugins' settings and which are on — and, if asked,
 your Hyprland files, as they are: `hyprland.conf` and what sits beside it
 (monitors, workspaces, idle, lock, wallpaper). Talaris's own keys are not
 in hyprland.conf: it binds them as it runs, from `config.json`, so they go
@@ -41,7 +41,7 @@ CONFIG = os.environ.get("TALARIS_CONFIG_DIR") or os.path.join(os.path.expanduser
 HYPR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "hypr")
 BACKUPS = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"), "talaris", "settings-backups")
 #: Talaris's own settings files, by name: what an export takes from its config folder, and an import may write there.
-TALARIS_FILES = ("config.json", "feeds.json", "plugins.json")
+TALARIS_FILES = ("config.json", "feeds.json", "plugins.json", "own-calendar.json")
 #: What of the Hyprland folder is never taken: copies kept by hand, and what install.sh writes.
 NOT_HYPR = re.compile(r"(\.bak|\.before-|~$|^talaris\.conf$)")
 #: A name, and only a name: no folders, nothing hidden, nothing odd.

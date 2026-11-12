@@ -130,6 +130,8 @@ const Icons = (() => {
   const tasks = () => svg('<path d="M2 4.6 3.5 6 6 3.2M8.5 4.8h5.5M2 10.6 3.5 12 6 9.2M8.5 10.8h5.5"/>');
   // New: a plus, for making something (new.html).
   const plus = () => svg('<path d="M8 2.6v10.8M2.6 8h10.8"/>');
+  // Refresh: an arc coming round to its arrowhead.
+  const refresh = () => svg('<path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M11.8 1.8v2.8H9"/>');
   // Notifications: a bell. With some unread the bar sets a dot at its shoulder
   // (bar.html's #bell .dot), a thing of its own so it keeps its color and place.
   const bell = () => svg('<path d="M4 11V7.4a4 4 0 0 1 8 0V11l1.2 1.5H2.8z"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>');
@@ -159,5 +161,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
 })();

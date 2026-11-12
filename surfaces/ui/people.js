@@ -853,8 +853,11 @@
       const going = Motion.leave(document.body, how());
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
-    start();
+    start().then(() => placeHere.ready(), () => placeHere.ready());
   });
+
+  // Who is on show, carried when it is made a window, or a panel again (kit.js).
+  const placeHere = Kit.place(() => ({ chosen }), (p) => { if (p.chosen && p.chosen !== chosen) window.People.show(p.chosen); });
 
   // Asked from elsewhere (a person clicked in a page, a card, Glance): that person, shown,
   // whatever the list was narrowed to.

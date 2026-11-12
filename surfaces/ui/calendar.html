@@ -73,7 +73,7 @@ main { flex: 1; min-height: 0; display: flex; }
 .feed-form label { font-size: 11px; color: var(--muted); }
 .feed-form .row { display: flex; justify-content: flex-end; }
 .feed-colors { display: grid; grid-template-columns: repeat(8, 22px); gap: 6px; }
-.feed-colors .sw { width: 22px; height: 22px; border-radius: 5px; border: 0; padding: 0; cursor: pointer; }
+.feed-colors .sw { width: 22px; height: 22px; border-radius: var(--radius-row); border: 0; padding: 0; cursor: pointer; }
 .feed-colors .sw.is-on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
 .feed-form .feed-note { font-size: 11.5px; color: var(--muted); min-height: 1em; }
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -153,6 +153,8 @@ main { flex: 1; min-height: 0; display: flex; }
 #msg { font-size: 12px; color: var(--muted); }
 #msg.err { color: var(--danger); }
 body { position: relative; }
+#resync.turning svg { animation: resync-turn 0.9s linear infinite; }
+@keyframes resync-turn { to { transform: rotate(360deg); } }
 </style>
 <link rel="stylesheet" href="kit.css">
 <link rel="stylesheet" href="thingcard.css">
@@ -168,6 +170,7 @@ body { position: relative; }
   <span class="spacer"></span>
   <input type="search" id="search" placeholder="Find events and tasks" spellcheck="false" title="Find events a year either side, and tasks (Ctrl+F)">
   <span class="seg" id="mode"></span>
+  <button class="icon-btn" id="resync" title="Sync again: accounts and feeds"></button>
   <button class="t-btn" id="new">New event</button>
   <button class="icon-btn" id="grow" title="Full screen"></button>
   <button class="icon-btn" id="close" title="Close"></button>

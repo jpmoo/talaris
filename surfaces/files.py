@@ -60,6 +60,7 @@ def choose_files(overlay, title: str, chosen) -> None:
     hears the paths, or none.
     """
     if getattr(overlay, "_chooser", None):
+        log(f"{getattr(overlay, 'NAME', '?')}: a chooser is open already")
         return
     chooser = QProcess(overlay)
     chooser.setProgram("zenity")
@@ -72,7 +73,18 @@ def choose_files(overlay, title: str, chosen) -> None:
         overlay.come_back()
         chosen(paths)
 
+    def failed(error) -> None:
+        # Never started (zenity missing, say): no `finished` will come, so the panel is let go here — or every later
+        # chooser would be refused as one already open.
+        if error == QProcess.ProcessError.FailedToStart:
+            log(f"{getattr(overlay, 'NAME', '?')}: the file chooser did not start (zenity)")
+            overlay._chooser = None
+            chooser.deleteLater()
+            overlay.come_back()
+            chosen([])
+
     chooser.finished.connect(done)
+    chooser.errorOccurred.connect(failed)
     overlay._chooser = chooser
     overlay.step_aside()
     chooser.start()

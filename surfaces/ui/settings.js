@@ -2096,7 +2096,7 @@ const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: 
 const BAR_UNITS = {
   where: ["Project", [["where", ""]]], ask: ["Launcher", [["ask", ""]]], morgan: ["Morgan", [["morgan", ""]]], new: ["New", [["new", ""]]],
   tasks: ["Tasks", [["tasks", ""]]], people: ["People", [["people", ""]]], files: ["Library", [["files", ""]]],
-  canvas: ["Canvas", [["canvas", ""]]], writing: ["Writing", [["writing", ""]]],
+  canvas: ["Canvas", [["canvas", ""]]], writing: ["Notes", [["writing", ""]]],
   clock: ["Date and time", [["day", "Date"], ["time", "Time"]]], weather: ["Weather", [["weather", ""]]],
   loc: ["Location in use", [["loc", ""]]], tray: ["Tray", []], shot: ["Screenshot", [["shot", ""]]], clipboard: ["Clipboard", [["clipboard", ""]]],
   theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""], ["net-n", "Percent"]]], bt: ["Bluetooth", [["bt", ""]]],

@@ -16,12 +16,13 @@ Downloads.
 
 from __future__ import annotations
 
+import spawn
 import argparse
 import os
 import sys
 
 from PySide6.QtCore import QStandardPaths, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication
@@ -41,7 +42,7 @@ class Page(QWebEnginePage):
     def acceptNavigationRequest(self, url: QUrl, kind, is_main_frame: bool) -> bool:  # noqa: N802 — Qt's name
         if not is_main_frame or same_site(url, self.home) or url.scheme() not in ("http", "https", "mailto"):
             return True
-        QDesktopServices.openUrl(url)
+        spawn.open_url(url.toString())
         return False
 
     def createWindow(self, kind):  # noqa: N802 — Qt's name
@@ -60,7 +61,7 @@ class Outside(QWebEnginePage):
         if same_site(url, self.opener.home):
             self.opener.setUrl(url)
         elif url.scheme() in ("http", "https", "mailto"):
-            QDesktopServices.openUrl(url)
+            spawn.open_url(url.toString())
         self.deleteLater()
         return False
 

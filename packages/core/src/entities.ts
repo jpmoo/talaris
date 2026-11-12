@@ -928,6 +928,8 @@ export interface MirroredEvent {
   location?: string;
   organizer?: { email: string; name?: string };
   attendees?: { email: string; name?: string; status?: string }[];
+  /** One of a series: its entity stands for them all, its start the next to come (calendar_panel.py, mirrored). */
+  recurring?: boolean;
 }
 
 /**
@@ -961,15 +963,22 @@ export function mirrorEvent(e: MirroredEvent): Entity {
   };
   const sources = [e.source, ...(e.also ?? [])];
   const known = sources.map(bySource).find((x) => x) ?? null;
+  const recurring = e.recurring ? true : undefined;
+  // A meeting another app keeps in step, joined to this account's event (own-calendar.ts, joinAccountTwins), when that
+  // turns out to be a series: its times are its own, never moved on to the series' next — said so, and left.
+  if (known && recurring && Object.keys(known.properties).some((k) => k.endsWith(":link") && !k.startsWith("talaris:"))) {
+    return known["talaris:recurring"] === true ? known : updateEntity(known.id, { "talaris:recurring": true });
+  }
   if (!known) {
     const clean = Object.fromEntries(Object.entries(properties).filter(([, v]) => v !== null));
-    return createEntity({ type: type.id, properties: clean, sources, ...(attendees.length ? { "talaris:attendance": attendance } : {}) });
+    return createEntity({ type: type.id, properties: clean, sources, ...(attendees.length ? { "talaris:attendance": attendance } : {}), ...(recurring ? { "talaris:recurring": true } : {}) });
   }
   const newSource = sources.some((s) => !sourcesOf(known).some((x) => sourceKey(x) === sourceKey(s)));
   const changed = newSource || Object.entries(properties).some(([k, v]) => JSON.stringify(known.properties[k] ?? null) !== JSON.stringify(v))
-    || JSON.stringify(known["talaris:attendance"] ?? {}) !== JSON.stringify(attendees.length ? attendance : {});
+    || JSON.stringify(known["talaris:attendance"] ?? {}) !== JSON.stringify(attendees.length ? attendance : {})
+    || known["talaris:recurring"] !== recurring;
   if (!changed) return known;
-  return updateEntity(known.id, { properties, sources, "talaris:attendance": attendees.length ? attendance : undefined });
+  return updateEntity(known.id, { properties, sources, "talaris:attendance": attendees.length ? attendance : undefined, "talaris:recurring": recurring });
 }
 
 // ------------------------------------------------------------ attachments

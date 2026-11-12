@@ -14,6 +14,7 @@ games. The scheme only serves the pages' own files, which are all GETs.
 
 from __future__ import annotations
 
+import spawn
 import http.client
 import json
 import re
@@ -23,8 +24,7 @@ import threading
 import time
 from urllib.parse import parse_qs, urlsplit
 
-from PySide6.QtCore import QObject, QThreadPool, QUrl, Signal, Slot
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QObject, QThreadPool, Signal, Slot
 
 import hypr
 from views import log
@@ -201,7 +201,8 @@ class Bridge(QObject):
     leave = Signal()
     #: Pushed to a drawer's page: open on this — `{canvas}` or `{page}`.
     show = Signal(str)
-    #: Files chosen and kept in a project (`attachToProject`): {project, files: [{name, path}], error}.
+    #: Files chosen and kept in a project (`attachToProject`): {project, asker, files: [{name, path}], error}. A panel
+    #: and its window share this bridge, so `asker` says which page asked: only it links them.
     projectFiles = Signal(str)
     #: The core's answer to a panel's `core` slot (`answer_core`): {id, status, data}.
     coreReply = Signal(str)
@@ -375,23 +376,32 @@ class Bridge(QObject):
         from files import open_project_file
         open_project_file(project, path)
 
-    @Slot(str)
-    def attachToProject(self, project: str) -> None:  # noqa: N802 — called from the page by this name
+    @Slot(str, str)
+    def attachToProject(self, project: str, asker: str = "") -> None:  # noqa: N802 — called from the page by this name
         """Files chosen in the desktop's chooser and kept in the project's `Files/`; the page hears where."""
         from files import choose_files, send_project_files
+        from views import log
         if not hasattr(self.owner, "step_aside"):
+            log(f"attach: {getattr(self.owner, 'NAME', '?')} cannot step aside for the chooser")
             return
 
+        def kept(paths: list) -> None:
+            got = send_project_files(project, paths)
+            log(f"attach: {len(got['files'])} of {len(paths)} kept in {project}{' — ' + got['error'] if got['error'] else ''}")
+            self.projectFiles.emit(json.dumps({"project": project, "asker": asker, **got}))
+
         def chosen(paths: list) -> None:
+            log(f"attach: {len(paths)} chosen")
             if paths:
-                threading.Thread(target=lambda: self.projectFiles.emit(json.dumps({"project": project, **send_project_files(project, paths)})), daemon=True).start()
+                threading.Thread(target=lambda: kept(paths), daemon=True).start()
+        log(f"attach: asked, for {project}")
         choose_files(self.owner, "Attach files", chosen)
 
     @Slot(str)
     def openUrl(self, url: str) -> None:  # noqa: N802 — called from the page by this name
         """A web link from a page opens in the browser — never inside a drawer, never anything but http(s)."""
         if url.startswith(("http://", "https://")):
-            QDesktopServices.openUrl(QUrl(url))
+            spawn.open_url(url)
 
     @Slot(str)
     def openPath(self, path: str) -> None:  # noqa: N802 — called from the page by this name
@@ -403,7 +413,7 @@ class Bridge(QObject):
         root = os.path.realpath(os.path.expanduser(os.environ.get("TALARIS_PROJECTS", "~/Projects")))
         real = os.path.realpath(path)
         if real.startswith(root + os.sep) and os.path.isfile(real):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(real))
+            spawn.open_url(real)
 
     @Slot(result=str)
     def current(self) -> str:

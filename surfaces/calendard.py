@@ -821,6 +821,31 @@ class Calendars:
             return
         say({"done": {"req": req, "error": ""}})
 
+    def refresh(self, req: int) -> None:
+        """
+        Sync again, as asked from the calendar: each account's calendar asked to fetch from its server (where its
+        backend can), each feed read again; answered once every account has, and what changed said as ever.
+        """
+        self.feeds.refresh()
+        waiting = [c for c in self.clients.values() if c.check_refresh_supported()]
+        left = {"n": len(waiting), "errors": []}
+
+        def one(client, result, _data=None) -> None:
+            try:
+                client.refresh_finish(result)
+            except GLib.Error as e:
+                left["errors"].append(e.message)
+            left["n"] -= 1
+            if left["n"] == 0:
+                self._changed()
+                say({"done": {"req": req, "error": "; ".join(left["errors"][:2])}})
+        if not waiting:
+            self._changed()
+            say({"done": {"req": req, "error": ""}})
+            return
+        for c in waiting:
+            c.refresh(None, one, None)
+
     def color(self, req: int, calendar: str, color: str) -> None:
         if calendar.startswith("feed:"):
             self.feeds.color(req, calendar, color)
@@ -861,6 +886,8 @@ class Calendars:
             self.cards(req, str(msg.get("q", "")), [str(k) for k in msg.get("keys", [])][:200], bool(msg.get("all")))
         elif verb == "color":
             self.color(req, str(msg["calendar"]), str(msg["color"]))
+        elif verb == "refresh":
+            self.refresh(req)
         elif verb == "delete":
             self.delete(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg.get("which", "all"))
 

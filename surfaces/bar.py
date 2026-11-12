@@ -192,10 +192,16 @@ class BarBridge(Bridge):
 
     @Slot(result=str)
     def notifications(self) -> str:
-        """The bell's list, newest first; opening it reads them all."""
-        listing = self.owner.desktop.bar.notification_listing()
+        """The bell's list, newest first. Opening it reads none of them: one is read when it is pressed, or all at once."""
+        return self.owner.desktop.bar.notification_listing()
+
+    @Slot(int)
+    def readNotice(self, nid: int) -> None:  # noqa: N802 — called from the page by this name
+        self.owner.desktop.notifications.read(nid)
+
+    @Slot()
+    def readNotices(self) -> None:  # noqa: N802 — called from the page by this name
         self.owner.desktop.notifications.read_all()
-        return listing
 
     @Slot()
     def remindersRead(self) -> None:  # noqa: N802 — called from the page by this name
@@ -802,7 +808,7 @@ class Bar(QObject):
 
     #: What a bar item is called in its menu (Settings, Bar has the same names).
     ITEM_NAMES = {"where": "Project", "ask": "Launcher", "morgan": "Morgan", "new": "New", "tasks": "Tasks", "people": "People",
-                  "files": "Library", "canvas": "Canvas", "writing": "Writing", "day": "Date", "time": "Time", "weather": "Weather",
+                  "files": "Library", "canvas": "Canvas", "writing": "Notes", "day": "Date", "time": "Time", "weather": "Weather",
                   "loc": "Location in use", "shot": "Screenshot", "clipboard": "Clipboard", "theme": "Light/dark", "net": "Wi-Fi",
                   "bt": "Bluetooth", "vol": "Volume", "bat": "Battery", "bat-n": "Battery percent", "bell": "Notifications", "power": "Power",
                   "bright": "Brightness"}

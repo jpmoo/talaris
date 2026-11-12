@@ -97,9 +97,11 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #level { flex: 1; }
 /* The bell's list: newest first, each the app, when, what it said, and what
    can be done about it. Unread when the list was opened: an accent rule. */
-#notice-clear, #clip-clear { border: 0 !important; padding: 0 !important; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); background: none; cursor: pointer; }
-#notice-clear:hover, #clip-clear:hover { color: var(--accent); }
-#notice-clear[hidden], #clip-clear[hidden] { display: none; }
+.hint-acts { display: flex; gap: 12px; }
+.notice.unread { cursor: pointer; }
+#notice-read, #notice-clear, #clip-clear { border: 0 !important; padding: 0 !important; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); background: none; cursor: pointer; }
+#notice-read:hover, #notice-clear:hover, #clip-clear:hover { color: var(--accent); }
+#notice-read[hidden], #notice-clear[hidden], #clip-clear[hidden] { display: none; }
 /* Clipboard history (clipboard.js): Notchnik's grid of square tiles, when under each. */
 #clip-q { margin: 2px 10px 8px; }
 #clip-grid { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 10px 6px;
@@ -209,7 +211,7 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
     <div class="hint"><span>Coming up</span></div>
     <div id="timer-list"></div>
   </div>
-  <div class="hint"><span>Notifications</span><button id="notice-clear" hidden>Clear all</button></div>
+  <div class="hint"><span>Notifications</span><span class="hint-acts"><button id="notice-read" hidden>Mark all read</button><button id="notice-clear" hidden>Clear all</button></span></div>
   <div class="list" id="notice-list"></div>
 </div>
 <div class="panel menu" id="clipboard">

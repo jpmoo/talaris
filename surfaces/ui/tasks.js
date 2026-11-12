@@ -1055,7 +1055,13 @@
       const going = Motion.leave(document.body, how());
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
-    start();
+    start().then(() => placeHere.ready(), () => placeHere.ready());
+  });
+
+  // Where it is — the list or project on show, the task open — carried when it is made a window, or a panel again (kit.js).
+  const placeHere = Kit.place(() => ({ current, editing }), (p) => {
+    if (p.current && p.current.kind && p.current.id) showThing(p.current.kind, p.current.id);
+    if (p.editing) openTask(p.editing);
   });
 
   // What the other two parts may call (TASKS-CONTRACT.md). The type and the

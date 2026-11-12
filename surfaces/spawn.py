@@ -40,3 +40,10 @@ def start(*cmd: str) -> None:
                          stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
         pass
+
+
+def open_url(target: str) -> None:
+    """An address or a file opened in its application, as xdg-open says, in a scope of its own (never QDesktopServices'
+    own launch, which starts it as Talaris's child: a browser opened from a link ended by a restart)."""
+    if target:
+        start("xdg-open", target)

@@ -7,7 +7,9 @@
 
 "use strict";
 
-const NAMES = { canvas: "Canvas", writing: "Writing" };
+const NAMES = { canvas: "Canvas", writing: "Notes" };
+/** This page, as against the same drawer's other (its panel, its window): which one asked for something. */
+const PAGE_ID = Math.random().toString(36).slice(2);
 let bridge = null;
 let state = { drawer: "", mode: "filed", edge: "left", project: { id: "", code: "", name: "Home" }, theme: {} };
 // Another project's notes or canvases, looked through from this drawer (its project's name is a menu): the
@@ -160,11 +162,28 @@ function update(next) {
     ? '<path d="M2 3h10M2 6h10M2 9h10M2 12h6"/>'
     : '<rect x="1.5" y="1.5" width="11" height="11" rx="2"/><rect x="4" y="4.5" width="4" height="3" rx=".6"/>';
   if (state.drawer !== "canvas") {
-    $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+    $("where").replaceChildren(...heading());
   }
   if (!WINDOW && state.mode !== "filed" && was === "filed") arrive();
   if (state.mode !== "filed") load();
+  if (state.drawer) placeHere.ready();
 }
+
+// Where it is — which set, whose, the page or the canvas — carried when it is made a window, or a panel again (kit.js).
+const placeHere = Kit.place(() => ({ scope, browsing, open, viewing }), async (p) => {
+  if (saveTimer) { clearTimeout(saveTimer); await save(); }
+  if (editor) { editor.destroy(); editor = null; }
+  browsing = p.browsing || null;
+  if (state.drawer === "writing") {
+    scope = p.scope === "daily" ? "daily" : "project";
+    open = p.open || null;
+  } else {
+    viewing = p.viewing || null;
+    canvasTreeCache = null;
+  }
+  if (state.drawer !== "canvas") $("where").replaceChildren(...heading());
+  load();
+});
 
 // ---------------------------------------------------------------- the project shown
 
@@ -175,20 +194,32 @@ function update(next) {
  */
 function projectCrumb() {
   const away = Boolean(browsing);
+  // Notes' dailies are a set of their own (Home's, the same from every project): the menu's first, named here when shown.
+  const daily = state.drawer === "writing" && scope === "daily";
   return el("button", {
-    class: "crumb proj" + (away ? " away" : ""),
-    title: away ? `Looking through ${here().name} — the workspace is still ${state.project.name || "Home"}` : `Look through another project's ${state.drawer === "canvas" ? "canvases" : "notes"}, without leaving this one`,
+    class: "crumb proj" + (away && !daily ? " away" : ""),
+    title: daily ? "The daily pages — or another project's notes" : away ? `Looking through ${here().name} — the workspace is still ${state.project.name || "Home"}` : `Look through another project's ${state.drawer === "canvas" ? "canvases" : "notes"}, without leaving this one`,
     onclick: (e) => { e.stopPropagation(); projectMenu(e.currentTarget); },
-  }, here().name || "Home", " ▾");
+  }, daily ? "Dailies" : here().name || "Home", " ▾");
 }
+
+/** The header: what this is (Notes, Canvas), then whose — the project's menu. */
+const heading = () => [el("span", { class: "drawer-name" }, NAMES[state.drawer] || state.drawer), el("span", { class: "slash" }, " / "), projectCrumb()];
 
 async function projectMenu(anchor) {
   let all = [];
   try { all = await core("GET", "/projects"); } catch (e) { status(e.message); return; }
   const shown = (all || []).filter((p) => !p.archived)
     .sort((a, b) => Number(Boolean(b.home)) - Number(Boolean(a.home)) || String(a.name).localeCompare(String(b.name)));
-  const items = shown.map((p) => ({ label: p.id === state.project.id ? `${p.name} (this project)` : p.name, on: p.id === here().id, act: () => browse(p) }));
-  Kit.menu(anchor, browsing ? [{ label: `Back to ${state.project.name || "Home"}`, act: () => browse(state.project) }, "sep", ...items] : items);
+  const notes = state.drawer === "writing";
+  const daily = notes && scope === "daily";
+  // In Notes, a project chosen leaves the dailies for that project's pages.
+  const pick = async (p) => { if (daily) await setScope("project"); browse(p); };
+  const items = shown.map((p) => ({ label: p.id === state.project.id ? `${p.name} (this project)` : p.name, on: !daily && p.id === here().id, act: () => pick(p) }));
+  const back = browsing ? [{ label: `Back to ${state.project.name || "Home"}`, act: () => pick(state.project) }, "sep"] : [];
+  // Notes' dailies first: Home's daily pages, whichever project is shown.
+  const dailies = notes ? [{ label: "Dailies", on: daily, act: () => setScope("daily") }, "sep"] : [];
+  Kit.menu(anchor, [...dailies, ...back, ...items]);
 }
 
 function browse(p) {
@@ -196,7 +227,7 @@ function browse(p) {
   viewing = null;
   open = null;
   canvasTreeCache = null;
-  if (state.drawer !== "canvas") $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  if (state.drawer !== "canvas") $("where").replaceChildren(...heading());
   load();
 }
 
@@ -472,7 +503,7 @@ async function loadCanvas() {
 
   // The trail is the header: each step goes back up to that canvas.
   const where = $("where");
-  where.replaceChildren(projectCrumb());
+  where.replaceChildren(...heading());
   for (const step of trail) {
     where.append(el("span", { class: "slash" }, " / "),
       el("span", { class: "crumb", title: "Double-click to rename", onclick: () => view(step.id), ondblclick: () => renameCanvas(step) }, step.title));
@@ -674,7 +705,9 @@ function drawPageFiles() {
     ...[...seen].map(([path, name]) => el("button", { class: "chip", title: path, onclick: () => bridge && bridge.openProjectFile(here().id, path) }, name))] : []));
 }
 
+let edits = 0; // changes made here, counted: a page read while one was made keeps it (loadWriting)
 function changed(next) {
+  edits++;
   text = next;
   drawPageFiles();
   clearTimeout(saveTimer);
@@ -747,16 +780,16 @@ function setMode(next) {
 const DAILY = "Daily";
 
 /*
- * Two sets of notes, a tab each (DESIGN, Writing):
- *   Dailies       — Home's daily notes, the only ones there are: from any
- *                   other project they are said to be Home's, plainly, so a
- *                   day written there is not mistaken for this project's;
- *   Project Pages — the pages of the project shown (the menu at the top looks
- *                   through another's). Home's are the pages of no other
- *                   project, kept in Home/Writing/Pages, and in Hermes Notes
- *                   as its notes.
+ * Two sets of notes, chosen from the menu in the header (DESIGN, Writing):
+ *   Dailies       — Home's daily notes, the only ones there are, the menu's
+ *                   first: the same from any project, named "Dailies" in the
+ *                   header, so a day written there is not taken for this
+ *                   project's;
+ *   a project     — its pages (the project shown, or another looked through).
+ *                   Home's are the pages of no other project, kept in
+ *                   Home/Writing/Pages, and in Hermes Notes as its notes.
  * A note moves between projects, Home too; a daily note stays where it is.
- * Which tab was last chosen is this page's to keep.
+ * Which was last chosen is this page's to keep.
  */
 const PAGES = "Pages";
 const SCOPE_KEY = "talaris.writing.scope";
@@ -772,6 +805,7 @@ async function setScope(next) {
   if (scope === "project") openIn.project.set(here().id, open);
   scope = next;
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
+  $("where").replaceChildren(...heading());
   open = scope === "daily" ? `${DAILY}/${today()}` : openIn.project.get(here().id) ?? null;
   if (scope === "daily") shownMonth = today().slice(0, 7);
   loadWriting();
@@ -851,6 +885,9 @@ function pageHeading() {
 let writingSeq = 0;
 async function loadWriting() {
   const mine = ++writingSeq;
+  // Words not yet saved (a change waits a moment: typing, a file's link just put in) are saved before the page is read
+  // again — it is drawn again from what is kept, whenever the drawer is told anything, and would otherwise lose them.
+  if (saveTimer) { clearTimeout(saveTimer); await save(); }
   if (!homeId) homeId = ((await core("GET", "/projects")).find((p) => p.home) || {}).id || "";
   dailyOn = scope === "daily";
   if (dailyOn && !isDaily(open)) open = `${DAILY}/${today()}`;
@@ -888,15 +925,8 @@ async function loadWriting() {
     }
     return wrap;
   };
-  const tab = (s, label, title) => el("button", { class: "wtab" + (scope === s ? " on" : ""), title, onclick: () => setScope(s) }, label);
   const calendar = dailyOn ? await calendarNode().catch(() => el("div", { class: "calendar", id: "calendar" })) : "";
-  const tabs = el("div", { class: "seg wtabs", role: "tablist" },
-    tab("daily", "Dailies", "Home's daily pages"),
-    tab("project", "Project Pages", "The pages of the project shown"));
-  // Away from its own project's notes, the drawer says so, at the top of the list — Home's daily notes from another project.
-  const whose = scope === "daily" && !inHome() ? el("div", { class: "whose" }, el("b", {}, "Home's"), " daily pages — not ", el("b", {}, here().name), "'s") : "";
   const tree = el("div", { class: "tree" + (scope === "daily" && !inHome() ? " away" : "") },
-    tabs, whose,
     calendar,
     !dailyOn && (pages.length || filterTag) ? (() => { const head = sortButton("writing", loadWriting); head.append(tagFilterButton()); return head; })() : "",
     dailyOn ? "" : starredSection(pages, "writing", (n) => n.path, kept.pages || [], starredRow,
@@ -907,7 +937,7 @@ async function loadWriting() {
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
   // a thing done to the page, so apart from the ways of seeing it.
-  const attach = el("button", { class: "t-btn small attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid()); } }, "Attach");
+  const attach = el("button", { class: "t-btn small attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid(), PAGE_ID); } }, "Attach");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
@@ -915,8 +945,11 @@ async function loadWriting() {
     el("div", { class: "page-tags", id: "pageTags" }));
   const listKey = `writing:${scope}:${pid}`, top = scrolledTo(listKey);
   // The page's words, read before the drawer is swapped, so the editor is drawn at once and never shows empty first.
-  const words = open ? await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "") : "";
+  const reading = open, editsBefore = edits;
+  let words = open ? await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "") : "";
   if (mine !== writingSeq) return;
+  // Changed here while it was being read (a file's link put in, a word typed): what is here is newer than what came.
+  if (open && open === reading && edits !== editsBefore) words = text;
   $("body").replaceChildren(tree, pane);
   scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
@@ -1063,7 +1096,7 @@ function followTo(projectId, path, name) {
   openIn.project.set(to, path);
   try { localStorage.setItem(SCOPE_KEY, scope); } catch { /* fine */ }
   open = path;
-  $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+  $("where").replaceChildren(...heading());
   loadWriting();
 }
 
@@ -1357,12 +1390,24 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // The launcher found a canvas or a page: open on it. If the drawer is on its
   // way out, arriving will load it; if it is already out, load it now.
   // Files chosen for the page and kept: linked where the cursor is.
+  // Files chosen for the page and kept: linked where the cursor is — or, with no editor to put them in (Preview, or
+  // the page drawn again while they were on their way), at the page's end, and saved. Never kept and not linked.
   bridge.projectFiles.connect((json) => {
     const r = JSON.parse(json);
+    // The panel and its window share the bridge: only the page that asked links them (the other may show another page).
+    if (r.asker && r.asker !== PAGE_ID) return;
     if (r.error) status(r.error, true);
-    if (editor && r.files && r.files.length && r.project === wpid()) {
-      editor.insert(r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ") + " ");
+    if (!(r.files && r.files.length)) return;
+    const links = r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ");
+    console.warn(`attach: ${r.files.length} to link, in ${r.project}; shown ${wpid()}/${open}; editor ${editor ? "on" : "off"}`);
+    if (r.project !== wpid() || !open) {
+      console.warn(`attach: kept in ${r.project}, but the page shown is ${wpid()}/${open}; not linked`);
+      status(`Kept in Files, but not linked: the page changed`, true);
+      return;
     }
+    if (editor) { editor.insert(links + " "); return; }
+    changed(`${text.trimEnd()}${text.trim() ? "\n\n" : ""}${links}\n`);
+    drawEditor();
   });
   bridge.show.connect(async (json) => {
     const target = JSON.parse(json);
@@ -1378,7 +1423,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
       viewing = target.canvas;
       if (state.mode !== "filed") loadCanvas();
     } else if (state.drawer === "writing" && target.page) {
-      $("where").replaceChildren(projectCrumb(), el("span", { class: "slash" }, " / "), NAMES[state.drawer] || state.drawer);
+      $("where").replaceChildren(...heading());
       const into = daily ? "daily" : "project";
       if (into !== scope) {
         if (scope === "project") openIn.project.set(here().id, open);

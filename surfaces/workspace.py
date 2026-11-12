@@ -46,7 +46,7 @@ class DrawerBridge(Bridge):
 class Workspace(Overlay):
     def __init__(self, name: str, profile: QWebEngineProfile, desktop) -> None:
         self.NAME = name
-        self.TITLE = {"canvas": "Canvas", "writing": "Writing"}.get(name, name.title())
+        self.TITLE = {"canvas": "Canvas", "writing": "Notes"}.get(name, name.title())
         super().__init__(profile, desktop, f"talaris-ui://ui/drawer.html?drawer={name}", DrawerBridge(None, None))
         self.bridge.owner = self
         self.bridge.setParent(self)

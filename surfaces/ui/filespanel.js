@@ -770,7 +770,7 @@
     const s = r.status;
     const said = [];
     if (s.includes("folder")) said.push(el("span", {}, "In ", el("b", {}, `${projectName(r.project)}'s folder`), "."));
-    if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A writing page."), " Open it in Writing to edit, move or rename it."));
+    if (s.includes("page")) said.push(el("span", {}, el("b", {}, "A notes page."), " Open it in Notes to edit, move or rename it."));
     if (s.includes("canvas")) said.push(el("span", {}, el("b", {}, "A canvas"), ` in ${projectName(r.project)}.`));
     if (s.includes("conversation")) said.push(el("span", {}, el("b", {}, "A conversation with Morgan"), `, kept in ${projectName(r.project)}.`));
     if (s.includes("shortcut") && r.thing) said.push(el("span", {}, el("b", {}, "A shortcut"), ` to a ${r.type === "canvas" ? "canvas" : "conversation with Morgan"} kept in ${projectName((r.alsoIn || [])[0])}.`));
@@ -796,7 +796,7 @@
     ].filter(Boolean);
     const acts = [];
     const act = (label, fn, cls = "") => acts.push(el("button", { class: `t-btn small ${cls}`, onclick: fn }, label));
-    if (s.includes("page")) act("Open in Writing", () => bridge.page(r.project, r.path));
+    if (s.includes("page")) act("Open in Notes", () => bridge.page(r.project, r.path));
     else if (r.thing && !s.includes("missing")) act(r.type === "conversation" ? "Open the conversation" : "Open the canvas", () => open(r));
     else if (!s.includes("missing")) act(s.includes("snapshot") || r.sealed ? "Open a copy" : "Open", () => open(r));
     // A canvas or a conversation, in another project too: a shortcut there; one there already, gone to.
@@ -1535,6 +1535,14 @@
   }
 
   drawControls();
+  // Where it is — the project, the row chosen, the card open — carried when it is made a window, or a panel again (kit.js).
+  const placeHere = Kit.place(() => ({ project, chosen, cardOf }), async (p) => {
+    if (p.cardOf) { await showCard(`e:${p.cardOf}`).catch(failed); return; }
+    project = p.project ?? project;
+    chosen = p.chosen ?? null;
+    cardOf = null;
+    await load().catch(failed);
+  });
   Surface.connect({ onState }).then((b) => {
     bridge = b;
     b.coreReply.connect((text) => asked.reply(JSON.parse(text)));
@@ -1555,6 +1563,7 @@
     // Files or a picture kept on the card on show (or why not).
     b.attached.connect((text) => {
       const r = JSON.parse(text);
+      if (window.EventCard && EventCard.attached(r)) { if (r.error) say(r.error, true); return; }
       if (r.task) TaskCard.filesSaid(r.error || "", Boolean(r.error), r.linked);
       else if (r.error) say(r.error, true);
       ThingCard.forgetPictures();
@@ -1573,6 +1582,6 @@
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
     if (project === null) project = surface.project || "";
-    loadProjects().then(load).catch(failed);
+    loadProjects().then(load).catch(failed).finally(() => placeHere.ready());
   });
 })();

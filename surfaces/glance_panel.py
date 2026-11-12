@@ -18,6 +18,7 @@ in Tasks, a file in its application, anything else as its card.
 
 from __future__ import annotations
 
+import spawn
 import json
 import re
 import threading
@@ -45,11 +46,9 @@ class GlanceBridge(Bridge):
     def openFile(self, path: str, sha256: str, name: str) -> None:  # noqa: N802 — called from the page by this name
         """A file on things but in no folder: linked from elsewhere in the home folder, or the copy kept, opened in its application."""
         import os
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
         home = os.path.realpath(os.path.expanduser("~"))
         if path and os.path.realpath(path).startswith(home + os.sep) and os.path.isfile(path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            spawn.open_url(path)
             return
         if sha256:
             def run() -> None:
@@ -57,7 +56,7 @@ class GlanceBridge(Bridge):
                 got, _why = ask_json("POST", "/files/open-copy", json.dumps({"sha256": sha256, "name": name}), timeout=60)
                 copy = (got or {}).get("path", "")
                 if copy:
-                    QDesktopServices.openUrl(QUrl.fromLocalFile(copy))
+                    spawn.open_url(copy)
             threading.Thread(target=run, daemon=True).start()
 
     @Slot(str)

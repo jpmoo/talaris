@@ -10,10 +10,11 @@ a channel, and the page's complaints in the journal.
 
 from __future__ import annotations
 
+import spawn
 import sys
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices
+from PySide6.QtGui import QColor
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -33,7 +34,7 @@ class Page(QWebEnginePage):
     def acceptNavigationRequest(self, url, kind, is_main_frame: bool) -> bool:  # noqa: N802 — Qt's name
         """A link out — in an answer, a page — opens in the browser, never in place of a surface."""
         if url.scheme() in ("http", "https", "mailto"):
-            QDesktopServices.openUrl(url)
+            spawn.open_url(url.toString())
             return False
         return True
 

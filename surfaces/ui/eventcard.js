@@ -100,7 +100,9 @@ window.EventCard = (() => {
     const near = (list) => list.length ? list.reduce((a, b) => (Math.abs(b.start - at) < Math.abs(a.start - at) ? b : a)) : null;
     const on = (o["talaris:sources"] || []).find((s) => s.kind === "eds-event");
     try {
-      if (!on) return near(((await ctx.api("GET", `/plugins/calendars/events?from=${from}&to=${to}`)) || []).filter((e) => e.entity === o.id));
+      // Talaris's own first — one joined to an account's event is drawn on its calendar, not the account's.
+      const ours = near(((await ctx.api("GET", `/plugins/calendars/events?from=${from}&to=${to}`)) || []).filter((e) => e.entity === o.id));
+      if (ours || !on) return ours;
       const cut = on.key.indexOf("/");
       const calendar = on.key.slice(0, cut), uid = on.key.slice(cut + 1);
       const got2 = await ctx.send({ do: "range", from, to });
@@ -109,6 +111,9 @@ window.EventCard = (() => {
   }
 
   // ---------------------------------------------------------------- the card
+
+  /** The card waiting on files from the desktop's chooser: {id, again}. */
+  let filesWaiting = null;
 
   /**
    * The card's elements, for an event as a calendar has it. Its `save()` (Enter, in a page that wants that) is on the
@@ -307,15 +312,61 @@ window.EventCard = (() => {
       if (isNew) return;
       try {
         const id = e.entity || (got && got.entity.id) || (await api("GET", `/entities/by-source?kind=eds-event&key=${enc(`${e.calendar}/${e.uid}`)}`).then((o) => (o && o.id) || ""));
-        if (!id) return;
+        if (!id) { loadMine(); return; }
         editing.entityId = id;
+        loadFiles();
+        loadMine();
         const [g, r] = await Promise.all([api("GET", `/entities/${enc(id)}?shown=1`), api("GET", `/entities/${enc(id)}/projects`)]);
         editing.projects = r.projects || [];
         paintProjects();
         showConnected(g);
-      } catch { /* not there yet: the mirror will reach it */ }
+      } catch { loadMine(); /* not there yet: the mirror will reach it */ }
     };
-    loadEntity();
+    // After the card is whole: an entity known already (one of Talaris's) is read at once, and fills rows made below.
+    queueMicrotask(loadEntity);
+
+    // ---- its files: kept on the event's entity, in its type's field of many files (found by its kind, never its name),
+    // as its projects are — so any event may have them, an account's or a feed's too, and the account never hears of
+    // them; the mirror keeps the entity's times in step with the calendar's and leaves its files alone. Added from the
+    // desktop's chooser, through the page's bridge (`attach`), the entity made then if there is none yet.
+    const filesHost = el("div", { class: "who" });
+    const filesRow = row("Files", filesHost);
+    filesRow.hidden = true;
+    let filesKey = "";
+    const paintFiles = (o) => {
+      const list = o && Array.isArray(o.properties[filesKey]) ? o.properties[filesKey] : [];
+      filesHost.replaceChildren(el("span", { class: "ev-chips" }, ...list.map((a) => {
+        const x = el("button", { class: "x-btn", title: "Take off", onclick: (ev) => {
+          ev.stopPropagation();
+          const rest = list.filter((y) => y.sha256 !== a.sha256);
+          api("PATCH", `/entities/${enc(o.id)}`, { properties: { [filesKey]: rest.length ? rest : null } }).then(loadFiles).catch((x2) => say(x2.message || "It was not taken off", true));
+        } });
+        x.innerHTML = Icons.close();
+        return el("span", { class: "chip" }, el("span", { class: "lbl to-card", title: `Open ${a.filename}`, onclick: () => bridge && bridge.openFile && bridge.openFile(a.sha256, a.filename) }, a.filename), x);
+      })), el("button", { class: "pick", onclick: () => {
+        if (!bridge || !bridge.attach) return;
+        eventEntity(editing).then((id) => {
+          if (!id) return;
+          filesWaiting = { id, again: loadFiles };
+          bridge.attach(id, filesKey);
+        }).catch((x) => say(x.message || "Files could not be added", true));
+      } }, el("span", { class: "lbl" }, "Add")));
+    };
+    let filesTypes = null;
+    async function loadFiles() {
+      if (isNew) return;
+      try {
+        filesTypes = filesTypes || (await api("GET", "/entity-types")) || [];
+        const id = e.entity || editing.entityId || "";
+        const o = id ? await api("GET", `/entities/${enc(id)}`) : null;
+        // Its own type; with no entity yet, the type an event's would be (the one with the event profile).
+        const t = filesTypes.find((x) => (o ? x.id === o.type : x.profiles && x.profiles.event));
+        filesKey = ((t && t.fields.find((f) => f.kind === "attachment" && f.many)) || {}).key || "";
+        filesRow.hidden = !filesKey;
+        if (filesKey) paintFiles(o);
+      } catch { /* not to be had: no row */ }
+    }
+    queueMicrotask(loadFiles);
 
     // ---- notes: the editor every description is (editor.js). Notes that came as HTML (Google writes its invitations
     // so) are shown as Markdown, and sent back as they came unless they were changed here.
@@ -329,6 +380,78 @@ window.EventCard = (() => {
         mentions: TalarisMentions(api, ctx.openMention || ((x) => ctx.open(`e:${x}`)), ctx.mentionOpts || { project: () => "", openPlace: (p) => ctx.open(`${p.kind}:${p.project}/${p.where}`) }) });
       ThingCard.keepEditor(notesEd);
     });
+    // The account's own words: Notes on Talaris's own events; Details on an account's, where there is any to show.
+    const account = !isNew && !e.entity;
+    const detailsRow = row(account ? "Details" : "Notes", notesHost);
+    detailsRow.hidden = account && !raw.trim() && editing.readOnly;
+
+    // ---- the account's words, on one of Talaris's joined to an account's event (the core's joinAccountTwins): the
+    // invitation, its meeting's link, read from the account as it has them now — shown, not kept or written here.
+    const fromAccountHost = el("div", { class: "ev-from-account" });
+    const fromAccountRow = row("Details", fromAccountHost);
+    // Its links open in the browser, never in the card.
+    fromAccountHost.addEventListener("click", (ev) => {
+      const a = ev.target.closest("a[href]");
+      if (!a) return;
+      ev.preventDefault();
+      if (/^https?:/.test(a.href) && bridge && bridge.openUrl) bridge.openUrl(a.href);
+    });
+    fromAccountRow.hidden = true;
+    if (!isNew && e.entity && typeof e.account === "string") {
+      const cut = e.account.indexOf("/");
+      const calendar = e.account.slice(0, cut), uid = e.account.slice(cut + 1);
+      ctx.send({ do: "range", from: e.start - DAY_MS, to: e.end + DAY_MS }).then((got) => {
+        const there = (got.items || []).find((x) => x.calendar === calendar && x.uid === uid);
+        const words = there && String(there.notes || "").trim();
+        if (!words) return;
+        return import("./markdown.js").then((md) => {
+          fromAccountHost.replaceChildren(md.render(/<\/?[a-z][^>]*>/i.test(words) ? htmlToMarkdown(words) : words));
+          fromAccountRow.hidden = false;
+        });
+      }).catch(() => { /* the account out of reach: nothing to add */ });
+    }
+
+    // ---- your notes, on an account's event: kept on its entity, in its type's notes (the event profile's body, never a
+    // name), as its projects and files are — so a sync carries them (Hermes Notes' notes on a meeting are here), and the
+    // account never hears of them. Saved as they are written, a read-only calendar's event too. The account's own
+    // words (its description, an invitation's) are the Details below, as they always were.
+    const mineHost = el("div", { class: "ed-field ev-notes", "data-placeholder": "Your notes — @ to link a person, event or task" });
+    const mineRow = row("Notes", mineHost);
+    mineRow.hidden = !account;
+    let mineKey = "", mineKept = null, mineTimer = null, mineEd = null;
+    const keepMine = () => {
+      clearTimeout(mineTimer);
+      mineTimer = null;
+      const text = mineEd ? mineEd.text : "";
+      if (!mineKey || text === (mineKept ?? "")) return;
+      const was = mineKept;
+      mineKept = text;
+      eventEntity(editing).then((id) => id && api("PATCH", `/entities/${enc(id)}`, { properties: { [mineKey]: text.trim() ? text : null } }))
+        .then(() => { if (ctx.changed) ctx.changed(); })
+        .catch((x) => { mineKept = was; say(x.message || "Your notes were not saved", true); });
+    };
+    async function loadMine() {
+      if (!account) return;
+      try {
+        filesTypes = filesTypes || (await api("GET", "/entity-types")) || [];
+        const id = editing.entityId || "";
+        const o = id ? await api("GET", `/entities/${enc(id)}`) : null;
+        const t = filesTypes.find((x) => (o ? x.id === o.type : x.profiles && x.profiles.event));
+        const body = t && t.profiles && t.profiles.event && t.profiles.event.body;
+        // Drawn once, when the entity is known or known not to be there (loadEntity says which).
+        if (typeof body !== "string" || mineKey) return;
+        mineKey = body;
+        mineKept = o && typeof o.properties[body] === "string" ? o.properties[body] : "";
+        ThingCard.withEditor(mineHost, (m) => {
+          mineEd = m.createEditor(mineHost, mineKept, { live: true, compact: true, placeholder: mineHost.dataset.placeholder, onOpenUrl: (u) => bridge && bridge.openUrl(u),
+            onChange: () => { clearTimeout(mineTimer); mineTimer = setTimeout(keepMine, 700); },
+            mentions: TalarisMentions(api, ctx.openMention || ((x) => ctx.open(`e:${x}`)), ctx.mentionOpts || { project: () => "", openPlace: (p) => ctx.open(`${p.kind}:${p.project}/${p.where}`) }) });
+          ThingCard.keepEditor(mineEd);
+          mineHost.addEventListener("focusout", () => { if (mineTimer) keepMine(); });
+        });
+      } catch { /* not to be had: the row stays empty */ }
+    }
+
     /** What is sent: the notes as written here, or as they came if nothing was changed. */
     const notesNow = () => {
       const text = notesEd ? notesEd.text : notesShown;
@@ -367,7 +490,10 @@ window.EventCard = (() => {
      */
     function makeOwn(extra = {}) {
       const event = collected();
-      const properties = { title: event.title || "Untitled", location: event.location || null, notes: event.notes || null,
+      // A feed's event copied in keeps its words (a meeting's link, its dial-in), and your notes on it after them.
+      const mine = mineEd ? mineEd.text.trim() : "";
+      const notes = [String(event.notes || "").trim(), mine].filter(Boolean).join("\n\n");
+      const properties = { title: event.title || "Untitled", location: event.location || null, notes: notes || null,
         allDay: event.allDay, start: event.allDay ? iso(new Date(event.start)) : `${local(event.start)}:00`,
         end: event.allDay ? iso(new Date(event.end - DAY_MS)) : `${local(event.end)}:00` };
       say("Saving…");
@@ -411,12 +537,15 @@ window.EventCard = (() => {
       acts.append(del);
     }
     // One a plugin brought is edited as a thing (the core's entities), which its sync carries back; archived, not deleted.
+    // One standing for another calendar's — copied from a feed, or joined to an account's meeting — is taken out of
+    // Talaris, and that one shows again; said so. Either way it is archived, not deleted, and its sync archives its copy.
     if (e.entity) {
-      const arch = el("button", { class: "t-btn", onclick: () => {
-        if (!Kit.ask(arch, { ask: "Archive it?" })) return;
+      const standsFor = !!(e.fromFeed || e.account);
+      const arch = el("button", { class: "t-btn", title: standsFor ? "Archived in Talaris; the feed's or account's event shows again" : "", onclick: () => {
+        if (!Kit.ask(arch, { ask: standsFor ? "Remove it from Talaris?" : "Archive it?" })) return;
         api("PATCH", `/entities/${enc(e.entity)}`, { archived: true })
-          .then(() => { if (ctx.saved) ctx.saved(); if (ctx.gone) ctx.gone(); else finish(); }, (x) => say(x.message || "It was not archived", true));
-      } }, "Archive");
+          .then(() => { if (ctx.saved) ctx.saved(); if (ctx.gone) ctx.gone(); else finish(); }, (x) => say(x.message || (standsFor ? "It was not removed" : "It was not archived"), true));
+      } }, standsFor ? "Remove from Talaris" : "Archive");
       acts.append(arch);
     }
     // A feed's event copied into Talaris: a copy on Talaris's own calendar, which a sync may carry on; the feed's own is not shown beside it.
@@ -454,12 +583,24 @@ window.EventCard = (() => {
 
     const card = el("div", { class: "ev-card" },
       row("Title", title), row("Calendar", calBtn), row("All day", allDay), row("Starts", sd, st), row("Ends", ed, et), row("Where", where),
-      row("Projects", el("div", { class: "who" }, projects, projectAdd)), row("Notes", notesHost),
+      row("Projects", el("div", { class: "who" }, projects, projectAdd)), filesRow, mineRow, detailsRow, fromAccountRow,
       freqRow, daysRow, endsRow, whoRow, whoNote, answerRow, whichRow, acts, connectedHost);
     card.save = save;
     card.focusTitle = () => title.focus();
     return [card];
   }
 
-  return { ask, parts };
+  /**
+   * Files chosen for an event's card and kept (or why not), as the page's bridge says (`attached`: {id, field, added,
+   * error}): the card that asked draws its files again. True when it was this card's.
+   */
+  function attached(r) {
+    const w = filesWaiting;
+    if (!w || !r || r.id !== w.id) return false;
+    filesWaiting = null;
+    w.again();
+    return true;
+  }
+
+  return { ask, parts, attached };
 })();

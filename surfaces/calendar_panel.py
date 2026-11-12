@@ -29,6 +29,7 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 
 from core import Bridge, call as core_call, get_json
+from files import attach_files, attach_to_task, link_to_task, open_kept_file
 from overlay import Overlay
 from views import log
 
@@ -53,10 +54,14 @@ def mirrored(items: list, hidden: set) -> list:
     """
     now = time.time() * 1000
     best: dict = {}
+    # A series: any occurrence that says so (a rule, or an occurrence's own id), or more than one under one UID.
+    series: set = set()
     for e in items:
         if e["calendar"] in hidden or not e.get("uid"):
             continue
         key = (e["calendar"], e["uid"])
+        if e.get("recurring") or e.get("rid") or key in best:
+            series.add(key)
         held = best.get(key)
         upcoming = e["end"] >= now
         if held is None:
@@ -75,6 +80,8 @@ def mirrored(items: list, hidden: set) -> list:
             "title": e.get("title") or "",
             "start": _local(e["start"]), "end": _local(e["end"]),
             "allDay": bool(e.get("allDay")),
+            # One of a series: never joined to a single meeting a sync brings (the core's own-calendar.ts).
+            "recurring": (calendar, uid) in series,
             "location": e.get("location") or "",
             "organizer": {"email": e["organizer"]} if e.get("organizer") else None,
             "attendees": [{"email": a["email"], "name": a.get("name") or "", "status": a.get("answer") or ""}
@@ -395,7 +402,7 @@ TASK_ROUTES = re.compile(r"^/tasks/days\?from=\d{4}-\d\d-\d\d&to=\d{4}-\d\d-\d\d
                          # An event's notes take @ (mentions.js): finding what to name, making a person or a task by name, and opening one.
                          r"|^/mentionables\?|^/people/find\?|^/entities/[A-Za-z0-9_.:-]+(/place)?(\?shown=1)?$|^/entities(/person)?$|^/tasks$"
                          # The calendars plugins bring, and what is on them.
-                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+|/taken)?$"
+                         r"|^/plugins/calendars(/events\?from=\d+&to=\d+|/taken|/talaris)?$"
                          # An event's projects: the event's entity, made if the mirror has not reached it, and what it is filed under.
                          r"|^/tasks/projects$|^/entities/by-source\?kind=[a-z-]+&key=[^&]*$|^/entities/mirror/events$|^/entities/[A-Za-z0-9_.:-]+/projects$"
                          # And its card: what it is connected to, taken apart, and what it might be.
@@ -422,7 +429,7 @@ class CalendarBridge(Bridge):
     def ask(self, request: str) -> None:
         """`{do: range|create|update|delete|subscribe|unsubscribe, req, …}`, passed to the calendar's process as it is."""
         msg = json.loads(request)
-        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe", "color"):
+        if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe", "color", "refresh"):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)
@@ -431,6 +438,26 @@ class CalendarBridge(Bridge):
     def core(self, ident: str, method: str, path: str, body: str) -> None:
         """Tasks above the day's events, and @ in an event's notes: only the routes for them (TASK_ROUTES), answered later on `coreReply`."""
         self.answer_core(ident, method, path, body, TASK_ROUTES, timeout=30, who="the calendar")
+
+    #: Files chosen for a card and kept, or why not: {id, field, added, error}, or a task's {task, added, error}.
+    attached = Signal(str)
+
+    @Slot(str, str)
+    def attach(self, entity: str, field: str) -> None:
+        """Files for a field on a card — an event's, or a connected thing's — from the desktop's chooser."""
+        attach_files(self.owner, entity, field, self.attached.emit)
+
+    @Slot(str)
+    def attachTask(self, task: str) -> None:  # noqa: N802 — called from the page by this name
+        attach_to_task(self.owner, task, self.attached.emit)
+
+    @Slot(str)
+    def linkTask(self, task: str) -> None:  # noqa: N802 — called from the page by this name
+        link_to_task(self.owner, task, self.attached.emit)
+
+    @Slot(str, str)
+    def openFile(self, sha: str, filename: str) -> None:  # noqa: N802 — called from the page by this name
+        open_kept_file(sha, filename)
 
     @Slot(str)
     def openTask(self, entity: str) -> None:

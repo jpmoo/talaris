@@ -25,7 +25,7 @@ const PICKS = "talaris.launcher.picks";
 // for a second Enter, as the power menu asks for a second press.
 const VERBS = [
   { name: "canvas", title: "Canvas", sub: "Pull out the canvas drawer" },
-  { name: "writing", title: "Writing", sub: "Pull out the writing drawer" },
+  { name: "writing", title: "Notes", sub: "Pull out the notes drawer" },
   { name: "file-all", title: "Put the drawers away" },
   { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a glance of how it is connected" },
   { name: "windows", title: "Open windows", sub: "Every one, by project: go to one, or close one, an app's, a project's or all" },
