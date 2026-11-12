@@ -19,6 +19,11 @@ document.addEventListener("click", (e) => {
 let barLeaving = null; // the slide back into hiding, held until the bar is taken away
 let state = { popup: "" };
 
+// What a button shows, written only when it changes: the bar's state and the machine's readings come often, and a
+// button's insides replaced between a press and its release lose that click.
+function drawn(el, html) {
+  if (el.dataset.drawn !== html) { el.innerHTML = html; el.dataset.drawn = html; }
+}
 $("ask").innerHTML = Icons.launcher();
 $("settings").innerHTML = Icons.settings();
 $("morgan-ic").innerHTML = Icons.morgan();
@@ -67,7 +72,7 @@ function onState(s) {
   const shows = ((s.look || {}).project) || "both";
   // Light or dark: the button wears the mode in use, and a press changes it.
   const dark = ((s.theme || {}).mode || "dark") !== "light";
-  $("theme").innerHTML = dark ? Icons.moon() : Icons.sun();
+  drawn($("theme"), dark ? Icons.moon() : Icons.sun());
   $("theme").title = dark ? "Dark — switch to light" : "Light — switch to dark";
   // What Settings, Bar has left out, and the space between what is left.
   const hidden = new Set(BAR_ITEMS.filter((id) => !BarLayout.isShown(id, s.look || {})));
@@ -79,37 +84,14 @@ function onState(s) {
   const w = where.weather;
   // The sky, the temperature, or both, as its right-click menu or Settings, Bar has it (bar.weatherShows).
   const weatherShows = (s.look || {}).weatherShows || "both";
-  $("weather").innerHTML = w ? (weatherShows !== "temp" ? Icons.sky(w.icon, w.day) : "") + (weatherShows !== "sky" ? `<span>${w.temp}°</span>` : "") : "";
+  drawn($("weather"), w ? (weatherShows !== "temp" ? Icons.sky(w.icon, w.day) : "") + (weatherShows !== "sky" ? `<span>${w.temp}°</span>` : "") : "");
   $("weather").title = w ? `${w.sky}, ${w.temp}${w.unit}` : "";
   $("loc").hidden = !where.looking;
-  if (where.looking) { $("loc").innerHTML = Icons.pin_place(); $("loc").title = "Something is using your location"; }
+  if (where.looking) { drawn($("loc"), Icons.pin_place()); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
-  $("where").innerHTML = "";
-  if (shows !== "code" || !p.code) {
-    // No longer than "Board of Education" in the bar's own type, measured as it is drawn, so a change of
-    // typeface or size moves the limit with it; a longer name ends in an ellipsis (its tip says it whole).
-    const nm = Object.assign(document.createElement("span"), { className: "nm", textContent: "Board of Education" });
-    $("where").append(nm);
-    nm.style.maxWidth = `${Math.ceil(nm.getBoundingClientRect().width) + 1}px`;
-    nm.textContent = p.name || "Home";
-  }
-  if (p.code && shows !== "name") {
-    const code = document.createElement("span");
-    code.className = "code" + (shows === "code" ? " alone" : "");
-    code.textContent = p.code;
-    $("where").append(code);
-  }
-  // Its tip says it in full, whichever the bar shows.
-  $("where").title = `${p.name || "Home"}${p.code ? ` · ${p.code}` : ""} — projects`;
-  if (s.demo) {
-    const badge = document.createElement("span");
-    badge.className = "demo-badge";
-    badge.textContent = "DEMO";
-    badge.title = "The demo: made up, none of it yours (Settings, Data to leave)";
-    $("where").append(badge);
-  }
+  drawWhere(s, p, shows);
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
   const now = s.morgan || "absent";
   $("morgan").dataset.state = now;
@@ -133,21 +115,21 @@ function onState(s) {
 
 function onMachine(m) {
   const net = m.network || {};
-  $("net-ic").innerHTML = net.kind === "wifi" ? Icons.wifi(net.signal) : net.kind === "ethernet" ? Icons.ethernet() : Icons.offline();
+  drawn($("net-ic"), net.kind === "wifi" ? Icons.wifi(net.signal) : net.kind === "ethernet" ? Icons.ethernet() : Icons.offline());
   $("net-n").textContent = net.kind === "wifi" && net.signal != null ? `${net.signal}%` : "";
   $("net").title = net.kind === "none" ? "Offline" : `${net.name}${net.signal != null ? ` · ${net.signal}%` : ""}`;
 
   const bt = m.bluetooth || {};
   $("bt").hidden = !bt.present;
   if (bt.present) {
-    $("bt").innerHTML = Icons.bluetooth(bt.powered);
+    drawn($("bt"), Icons.bluetooth(bt.powered));
     $("bt").title = !bt.powered ? "Bluetooth off" : bt.connected.length ? `Bluetooth: ${bt.connected.join(", ")}` : "Bluetooth on, nothing connected";
   }
 
   const vol = m.volume || {};
   $("vol").hidden = !vol.present;
   if (vol.present) {
-    $("vol-ic").innerHTML = Icons.volume(vol.level, vol.muted);
+    drawn($("vol-ic"), Icons.volume(vol.level, vol.muted));
     $("vol-n").textContent = vol.muted ? "" : `${vol.level}%`;
     $("vol").title = vol.muted ? "Muted" : `Volume ${vol.level}% — scroll to change`;
   }
@@ -156,7 +138,7 @@ function onMachine(m) {
   const br = m.brightness || {};
   $("bright").hidden = !br.present;
   if (br.present) {
-    $("bright-ic").innerHTML = Icons.brightness(br.level);
+    drawn($("bright-ic"), Icons.brightness(br.level));
     $("bright-n").textContent = `${br.level}%`;
     $("bright").title = `Brightness ${br.level}% — scroll to change`;
   }
@@ -166,7 +148,7 @@ function onMachine(m) {
   if (bat.present) {
     const charging = bat.state === "charging";
     const plugged = !!bat.plugged || charging || bat.state === "full";
-    $("bat-ic").innerHTML = Icons.battery(bat.level, charging, plugged);
+    drawn($("bat-ic"), Icons.battery(bat.level, charging, plugged));
     $("bat-n").textContent = `${bat.level}%`;
     $("bat").classList.toggle("low", bat.level <= 15 && !plugged);
     $("bat").title = `Battery ${bat.level}% · ${charging ? "charging" : plugged ? "plugged in" : "on battery"}`;
@@ -217,6 +199,38 @@ $("bright").addEventListener("wheel", (e) => {
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
+// The project's pill, drawn again only when what it shows changes: the bar's state comes often (Morgan, the
+// machine, a popup), and a pill emptied and refilled between a press and its release loses that click.
+let whereDrawn = "";
+function drawWhere(s, p, shows) {
+  const key = JSON.stringify([shows, p.name, p.code, !!s.demo, s.theme, (s.look || {}).font]);
+  if (key === whereDrawn) return;
+  whereDrawn = key;
+  $("where").innerHTML = "";
+  if (shows !== "code" || !p.code) {
+    // No longer than "Board of Education" in the bar's own type, measured as it is drawn, so a change of
+    // typeface or size moves the limit with it; a longer name ends in an ellipsis (its tip says it whole).
+    const nm = Object.assign(document.createElement("span"), { className: "nm", textContent: "Board of Education" });
+    $("where").append(nm);
+    nm.style.maxWidth = `${Math.ceil(nm.getBoundingClientRect().width) + 1}px`;
+    nm.textContent = p.name || "Home";
+  }
+  if (p.code && shows !== "name") {
+    const code = document.createElement("span");
+    code.className = "code" + (shows === "code" ? " alone" : "");
+    code.textContent = p.code;
+    $("where").append(code);
+  }
+  // Its tip says it in full, whichever the bar shows.
+  $("where").title = `${p.name || "Home"}${p.code ? ` · ${p.code}` : ""} — projects`;
+  if (s.demo) {
+    const badge = document.createElement("span");
+    badge.className = "demo-badge";
+    badge.textContent = "DEMO";
+    badge.title = "The demo: made up, none of it yours (Settings, Data to leave)";
+    $("where").append(badge);
+  }
+}
 // The project's name: the projects, to switch between.
 $("where").addEventListener("click", () => bridge && bridge.popupAt("projects", under("where")));
 // A project gone to (bar.py, went): its name flashes, again from the start if it already was.
