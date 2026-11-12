@@ -32,9 +32,10 @@
 
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { allRecords, bySource, createEntity, deleteEntity, getEntity, typeFor, types, updateEntity, type Entity } from "./entities.js";
-import { Conflict, PAGES, UNDATED, allProjects, ensureHome, findProject, pagesPlace } from "./projects.js";
-import { DAILY, createPage, movePage, pageTree, readPage, transferPage, writePage } from "./pages.js";
+import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, typeFor, types, updateEntity, type Entity } from "./entities.js";
+import { Conflict, PAGES, UNDATED, allProjects, attachedFile, ensureHome, findProject, pagesPlace, putProjectFile } from "./projects.js";
+import { DAILY, createPage, fileLinkText, movePage, pageFiles, pageTree, readPage, transferPage, withoutFileLink, writePage } from "./pages.js";
+import { linkedBytes, setPageLinks } from "./links.js";
 import { ensureProjectEntity, projectIdOf } from "./filing.js";
 import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
@@ -179,13 +180,65 @@ function mirrorDay(date: string, id?: string): Entity {
   const type = typeFor("daily");
   const e = bySource(daySource(date));
   const props = { title: date, date, body: text };
-  if (!e) return createEntity({ ...(id ? { id } : {}), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date });
+  if (!e) return dayFiles(createEntity({ ...(id ? { id } : {}), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date }), text);
   // An empty page's body is never kept (updateEntity drops ""), so none counts as empty: compared bare, an empty day
   // was written again on every reconcile, a new version each time — every write to it refused as stale, and every
   // reader of changes (the calendar) told of one, every few seconds.
-  if (e.type === type.id && e.properties.date === date && String(e.properties.body ?? "") === text && e.properties.title === date && e[DAY_MARK] === date) return e;
+  if (e.type === type.id && e.properties.date === date && String(e.properties.body ?? "") === text && e.properties.title === date && e[DAY_MARK] === date) return dayFiles(e, text);
   // The page's entity (its mentions' holder, made as a plain note) becomes the day's.
-  return updateEntity(e.id, { type: type.id, properties: props, [DAY_MARK]: date });
+  return dayFiles(updateEntity(e.id, { type: type.id, properties: props, [DAY_MARK]: date }), text);
+}
+
+/** Where a type keeps its files: its first attachment field, by kind. */
+const filesKey = (typeId: string | undefined): string | null => types().find((t) => t.id === typeId)?.fields.find((f) => f.kind === "attachment")?.key ?? null;
+
+/** A day's files, as its page links them: each a link to the file where it is (links.ts), so a sync can carry it. */
+function dayFiles(e: Entity, text: string): Entity {
+  const key = filesKey(e.type);
+  if (!key) return e;
+  const paths: string[] = [];
+  for (const rel of pageFiles(text)) {
+    try { const f = attachedFile(homeId()!, rel); if (!f.sealed) paths.push(f.abs); } catch { /* gone, or not a file: not one of its files */ }
+  }
+  return setPageLinks(e.id, key, paths) ? getEntity(e.id) : e;
+}
+
+/**
+ * The files a write says a day has: one it lacks filed in Home's Files and linked at the end of its page, as attaching
+ * there does; one it has and the write does not name, its link taken out of the page — the file itself stays.
+ */
+function takeDayFiles(date: string, e: Entity, wanted: unknown): void {
+  const key = filesKey(e.type);
+  if (!key) return;
+  const want = (Array.isArray(wanted) ? wanted : wanted ? [wanted] : [])
+    .filter((a): a is { kind: string; sha256: string; filename?: string } => Boolean(a) && typeof a === "object" && (a as { kind?: string }).kind === "attachment" && typeof (a as { sha256?: unknown }).sha256 === "string");
+  const wantSha = new Set(want.map((a) => a.sha256));
+  let text = "";
+  try { text = readPage(homeId(), `${DAILY}/${date}`); } catch { /* none yet */ }
+  // Which file each link is, by the hash its link on the entity holds.
+  const shaAt = new Map<string, string>();
+  for (const v of (Array.isArray(e.properties[key]) ? e.properties[key] : []) as { sha256?: string; "talaris:link"?: { path: string } }[]) {
+    if (v?.sha256 && v["talaris:link"]?.path) shaAt.set(v["talaris:link"].path, v.sha256);
+  }
+  const have = new Set<string>();
+  for (const rel of pageFiles(text)) {
+    let sha: string | undefined;
+    try { sha = shaAt.get(attachedFile(homeId()!, rel).abs); } catch { /* gone */ }
+    if (!sha) continue;
+    if (wantSha.has(sha)) have.add(sha);
+    else text = withoutFileLink(text, rel);
+  }
+  const added: string[] = [];
+  for (const a of want) {
+    if (have.has(a.sha256)) continue;
+    have.add(a.sha256);
+    const bytes = getFile(a.sha256) ?? linkedBytes(a.sha256);
+    if (!bytes) continue;
+    const put = putProjectFile(homeId()!, a.filename || "file", bytes);
+    added.push(fileLinkText(put.name, put.path));
+  }
+  if (added.length) text = `${text.replace(/\s+$/, "")}${text.trim() ? "\n\n" : ""}${added.join(" ")}\n`;
+  writePage(homeId(), `${DAILY}/${date}`, text);
 }
 
 /** Every daily note's entity as its page is; one whose page is gone, gone. */
@@ -207,17 +260,24 @@ export function writeDay(id: string, set: Record<string, unknown>, content: stri
   const date = getEntity(id)[DAY_MARK] as string;
   const words = typeof set.body === "string" ? set.body : "body" in set && set.body === null ? "" : content;
   if (words !== undefined) writePage(homeId(), `${DAILY}/${date}`, words);
+  const key = filesKey(getEntity(id).type);
+  if (key && key in set) takeDayFiles(date, mirrorDay(date), set[key]);
   return mirrorDay(date);
 }
 
 /** A day made through the binding: written as that day's page, at the id asked for — unless the day has one already. */
-export function createDay(id: string, date: string, words: string): Entity {
+export function createDay(id: string, date: string, words: string, properties: Record<string, unknown> = {}): Entity {
   if (!DATE.test(date)) throw new Conflict("journal.date: a day is YYYY-MM-DD");
   if (dayDates().includes(date)) throw new Conflict(`journal.duplicate: ${date} has a daily note already`);
   writePage(homeId(), `${DAILY}/${date}`, words);
   const made = bySource(daySource(date));
   if (made && made.id !== id) deleteEntity(made.id);
-  return mirrorDay(date, id);
+  const e = mirrorDay(date, id);
+  // Its files, as a write to it brings them: filed and linked in its page.
+  const key = filesKey(e.type);
+  if (!key || properties[key] === undefined) return e;
+  takeDayFiles(date, e, properties[key]);
+  return mirrorDay(date);
 }
 
 /** Every note's entity as its page is; any that stood for a page gone, gone (the feed says so). */

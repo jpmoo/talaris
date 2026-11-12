@@ -482,6 +482,24 @@ export function transferPage(fromProject: string, path: string, toProject: strin
 const FILE_LINK = /\]\(talaris-file:([^)\s]+)\)/g;
 const linkOf = (rel: string) => encodeURI(rel).replace(/\(/g, "%28").replace(/\)/g, "%29");
 const relOf = (link: string) => { try { return decodeURI(link.replace(/%28/g, "(").replace(/%29/g, ")")); } catch { return link; } };
+/** The files a page's words link, each as the link says it (`Files/…`, or `@<project>/Files/…`), in order, once each. */
+export function pageFiles(text: string): string[] {
+  return [...new Set([...text.matchAll(FILE_LINK)].map((m) => relOf(m[1]!)))];
+}
+/** A link to a file of the page's project, in the words of a page: `[name](talaris-file:Files/name)` (the editor's own, fileLink). */
+export function fileLinkText(name: string, rel: string): string {
+  return `[${name.replace(/[[\]]/g, "")}](talaris-file:${linkOf(rel)})`;
+}
+/** A page's words with every link to this file taken out — the link, not its file; a line left empty by it, gone too. */
+export function withoutFileLink(text: string, rel: string): string {
+  const lines = text.split("\n").flatMap((line) => {
+    const next = line.replace(/\[[^\]\n]*\]\(talaris-file:([^)\s]+)\)[ \t]?/g, (whole, link: string) => (relOf(link) === rel ? "" : whole));
+    return next !== line && !next.trim() ? [] : [next];
+  });
+  const out = lines.join("\n");
+  // The blank line that stood before it, not left at the end.
+  return out === text ? text : out.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, text.endsWith("\n") ? "\n" : "");
+}
 
 /**
  * A page gone to another project (`transferPage`), with what it links in its old project's `Files/`: each file moved

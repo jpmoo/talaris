@@ -540,9 +540,12 @@ export function patchObject(id: string, p: WritePatch): WriteAnswer {
   const release = () => { const after = new Set(hashesIn(set, touched)); forgetFiles(before.filter((h) => !after.has(h))); };
   // A daily note is its day's page: words to it (notes.ts); the date is its identity; anything else is the entity's.
   if (isDay(id)) {
-    writeDay(id, set ?? {}, body.body === "set" ? body.content : body.body === "clear" ? "" : undefined);
-    const rest: Record<string, unknown> = Object.fromEntries(Object.entries(set ?? {}).filter(([k]) => !["title", "date", "body"].includes(k)));
-    for (const k of propUnset) if (!["title", "date", "body"].includes(k)) rest[k] = null;
+    // Its files are its page's too (notes.ts): what links them, and what files one brought.
+    const own = ["title", "date", "body", ...types().find((t) => t.id === now.type)?.fields.filter((f) => f.kind === "attachment").map((f) => f.key) ?? []];
+    const unsetFiles = propUnset.filter((k) => own.includes(k) && !["title", "date", "body"].includes(k));
+    writeDay(id, { ...Object.fromEntries(unsetFiles.map((k) => [k, []])), ...(set ?? {}) }, body.body === "set" ? body.content : body.body === "clear" ? "" : undefined);
+    const rest: Record<string, unknown> = Object.fromEntries(Object.entries(set ?? {}).filter(([k]) => !own.includes(k)));
+    for (const k of propUnset) if (!own.includes(k)) rest[k] = null;
     if (Object.keys(rest).length || p.addTags?.length || p.removeTags?.length) {
       updateEntity(id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(p.addTags?.length || p.removeTags?.length ? { tags: ruled.object!.tags ?? [] } : {}) });
     }
@@ -624,7 +627,7 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     const bodyField = types().find((t) => t.id === body.type)?.profiles?.note?.body;
     const words = bodyField === "content" || typeof bodyField !== "string" ? body.content ?? "" : String(properties[bodyField] ?? "");
     let made;
-    try { made = createDay(at, String(properties[dayField]), words); }
+    try { made = createDay(at, String(properties[dayField]), words, properties); }
     catch (e) { return { ok: false, created: false, fidelity: "full", reports: [(e as Error).message], cursor: cursor() }; }
     if (body.tags?.length) updateEntity(made.id, { tags: body.tags });
     return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };

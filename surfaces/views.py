@@ -54,6 +54,9 @@ AREAS = ("interface", "bar", "launcher", "morgan", "writing", "canvas")
 #: The areas that are page zooms; the rest are type sizes (`type_scale`).
 PAGE_AREAS = ("interface", "bar", "launcher", "morgan")
 ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12}
+#: The type areas, which may also be a scale of their own: set from the page itself, a step at a time.
+TYPE_AREAS = ("writing", "canvas")
+TYPE_MIN, TYPE_MAX = 0.7, 2.0
 _zoom = {area: 1.0 for area in AREAS}
 _views: list[tuple[QWebEngineView, str]] = []
 
@@ -72,7 +75,11 @@ def set_zoom(sizes: dict) -> set[str]:
     """Each area's pages at its text size. Answers the areas that changed."""
     changed = set()
     for area in AREAS:
-        z = ZOOMS.get(sizes.get(area, "medium"), 1.0)
+        size = sizes.get(area, "medium")
+        if area in TYPE_AREAS and isinstance(size, (int, float)) and not isinstance(size, bool):
+            z = min(TYPE_MAX, max(TYPE_MIN, float(size)))
+        else:
+            z = ZOOMS.get(size, 1.0)
         if z != _zoom[area]:
             _zoom[area] = z
             changed.add(area)

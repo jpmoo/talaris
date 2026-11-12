@@ -1253,6 +1253,38 @@ addEventListener("keydown", (e) => {
     else if (editor && document.querySelector(".editor .cm-editor")) { e.preventDefault(); editor.find(); }
   }
 });
+/*
+ * The writing page's type, larger or smaller where it is: Ctrl+= and Ctrl+- a tenth at a time, Ctrl+0 back to the
+ * plain size, Ctrl+scroll too. Kept as Settings' Notes size, so it is the same size next time and everywhere. The
+ * canvas has its own zoom on those keys, so it keeps them.
+ */
+function stepType(step) {
+  if (state.drawer !== "writing" || !bridge || !bridge.typeSize) return false;
+  const now = Number(state.typeScale ?? 1) || 1;
+  const next = step === 0 ? 1 : Math.min(2, Math.max(0.7, Math.round((now + step * 0.1) * 10) / 10));
+  if (next === now) return true;
+  state.typeScale = next;
+  document.body.style.setProperty("--type-scale", String(next));
+  bridge.typeSize(next, (kept) => {
+    if (typeof kept === "number" && kept !== state.typeScale) { state.typeScale = kept; document.body.style.setProperty("--type-scale", String(kept)); }
+  });
+  Kit.say($("status"), `Text ${Math.round(next * 100)}%`, false, 1500);
+  return true;
+}
+addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented) return;
+  const step = e.key === "=" || e.key === "+" ? 1 : e.key === "-" || e.key === "_" ? -1 : e.key === "0" ? 0 : null;
+  if (step !== null && stepType(step)) e.preventDefault();
+}, { capture: true });
+let typeWheelAt = 0;
+addEventListener("wheel", (e) => {
+  if (!e.ctrlKey || !e.deltaY || state.drawer !== "writing") return;
+  e.preventDefault();
+  // A touchpad's pinch is a stream of these: a step at most every so often.
+  if (performance.now() - typeWheelAt < 120) return;
+  typeWheelAt = performance.now();
+  stepType(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
 for (const type of ["pointerdown", "keydown", "wheel", "pointermove"]) addEventListener(type, touched, { passive: true, capture: true });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || state.mode !== "pulled") return;

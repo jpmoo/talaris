@@ -221,12 +221,15 @@ export const BUILT_IN: EntityType[] = [
   {
     // A daily note (pages.ts, Home's `Daily/<date>`), as the live binding hands
     // it out (notes.ts): a note that is the page for a day — the format's
-    // `journal` profile, its date the day's identity.
-    id: "t_daily", name: "Daily note", "talaris:role": "daily",
+    // `journal` profile, its date the day's identity. Version 2: its files —
+    // the ones its page links, as links (notes.ts, dayFiles), so a sync
+    // carries them, and one brought to it is filed in Home and linked there.
+    id: "t_daily", name: "Daily note", "talaris:role": "daily", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text" },
       { key: "date", kind: "date", required: true },
       { key: "body", kind: "richtext" },
+      { key: "files", kind: "attachment", many: true },
     ],
     profiles: { note: { title: "title", body: "body" }, journal: { date: "date" } },
   },

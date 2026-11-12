@@ -193,6 +193,30 @@ function rehash(entityId: string, path: string): void {
   })());
 }
 
+/**
+ * A page's files as links on its entity, in `key`: exactly the files at these
+ * paths (the ones the page links, notes.ts) — each hashed when first seen or
+ * changed, kept as it was otherwise. Never touches a file. Answers whether
+ * the field changed.
+ */
+export function setPageLinks(entityId: string, key: string, paths: string[]): boolean {
+  const o = getEntity(entityId);
+  const now = valuesIn(o.properties[key]);
+  const next: Value[] = [];
+  for (const full of new Set(paths)) {
+    if (!homeHolds(full) || !existsSync(full)) continue;
+    const st = statSync(full);
+    if (!st.isFile()) continue;
+    const was = now.find((a) => a[LINK]?.path === full);
+    if (was && !was[MISSING] && was[LINK]!.size === st.size && was[LINK]!.mtime === st.mtimeMs) { next.push(was); continue; }
+    const filename = basename(full);
+    next.push({ kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256: hashOf(readFileSync(full)), [LINK]: { path: full, size: st.size, mtime: st.mtimeMs } });
+  }
+  if (JSON.stringify(next) === JSON.stringify(now)) return false;
+  updateEntity(entityId, { properties: { [key]: next.length ? next : null } });
+  return true;
+}
+
 /** The bytes of a linked file with this hash, read from where it is — and only if they still are that file. */
 export function linkedBytes(sha256: string): Buffer | null {
   for (const { object: o } of allRecords()) {

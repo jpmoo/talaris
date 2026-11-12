@@ -71,7 +71,10 @@ function draw() {
   // A text size for each area; one never set follows the single size there was before.
   const sizes = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   for (const area of ["interface", "bar", "launcher", "morgan", "writing", "canvas"]) {
-    seg(`text-${area}`, sizes, (cfg.text || {})[area] || t.fontSize || "medium", (size) => save({ text: { ...(cfg.text || {}), [area]: size } }));
+    const now = (cfg.text || {})[area] || t.fontSize || "medium";
+    // A size set on the page itself (Ctrl+= in Notes) is a scale of its own: shown as one, beside the three.
+    const choices = typeof now === "number" ? [...sizes, [now, `${Math.round(now * 100)}%`]] : sizes;
+    seg(`text-${area}`, choices, now, (size) => save({ text: { ...(cfg.text || {}), [area]: size } }));
   }
   // Which mode's accent is being set: the one in use, unless the other is asked for.
   if (!accentFor) accentFor = t.mode === "light" ? "light" : "dark";

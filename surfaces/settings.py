@@ -48,7 +48,7 @@ from machine import wifi_addressing
 from layershell import OVERLAY, Placement
 from morgan import command
 from overlay import Overlay
-from views import log, zoom
+from views import TYPE_AREAS, TYPE_MAX, TYPE_MIN, log, zoom
 
 #: What Settings may ask the core for.
 SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
@@ -105,7 +105,12 @@ def _checked(c: dict) -> str:
         return "The bar and the dock need an edge each"
     p, b, d = c["panels"], c["bar"], c["dock"]
     speeds = ("slow", "normal", "fast", "fastest")
-    if t.get("fontSize", "medium") not in ("small", "medium", "large") or any(v not in ("small", "medium", "large") for v in c.get("text", {}).values()):
+    # Writing's and the canvas's type may also be a scale of its own (Ctrl+= and Ctrl+- on the page), within reason.
+    def _size_ok(area: str, v) -> bool:
+        if v in ("small", "medium", "large"):
+            return True
+        return area in TYPE_AREAS and isinstance(v, (int, float)) and not isinstance(v, bool) and TYPE_MIN <= v <= TYPE_MAX
+    if t.get("fontSize", "medium") not in ("small", "medium", "large") or not all(_size_ok(a, v) for a, v in c.get("text", {}).items()):
         return "Text is small, medium or large"
     BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n")
     if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])) or not all(x in ("bright", "net-n") for x in c["bar"].get("shown", [])):

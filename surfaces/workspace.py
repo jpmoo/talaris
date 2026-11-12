@@ -21,13 +21,14 @@ from __future__ import annotations
 import json
 import re
 
+from PySide6.QtCore import Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
 from config import DEFAULTS
 from core import Bridge
 from overlay import Overlay
-from views import type_scale, zoom_of
+from views import TYPE_MAX, TYPE_MIN, type_scale, zoom_of
 
 #: A panel's share of the screen: wider than tall, as a desk is.
 WIDE, TALL = 0.86, 0.80
@@ -42,6 +43,15 @@ class DrawerBridge(Bridge):
         r"^/(projects|entities|tasks|tags|mentionables|people/find)(/|$|\?)"
         r"|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$"
         r"|^/files/[0-9a-f]{64}$|^/files/unbacked$|^/meaning(\?|$)")
+
+    @Slot(float, result=float)
+    def typeSize(self, scale: float) -> float:  # noqa: N802 — called from the page by this name
+        """Ctrl+= / Ctrl+- / Ctrl+0 on the page: its type at this scale, kept as Settings' size for it. Answers the scale kept."""
+        scale = round(min(TYPE_MAX, max(TYPE_MIN, scale)), 2)
+        desktop = self.owner.desktop
+        # Back at the plain size is Medium again, as Settings says it.
+        error = desktop.settings.apply({"text": {self.owner.NAME: "medium" if abs(scale - 1) < 0.001 else scale}})
+        return type_scale(self.owner.NAME) if error else scale
 
 class Workspace(Overlay):
     def __init__(self, name: str, profile: QWebEngineProfile, desktop) -> None:
