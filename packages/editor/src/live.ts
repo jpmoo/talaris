@@ -64,6 +64,8 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
   // Touching counts: the cursor just after `**bold**` still shows its marks,
   // or it would be impossible to keep typing inside them.
   const touched = (a: number, b: number) => sel.some((r) => r.from <= b && r.to >= a);
+  // Underlines too short to be one (`-`, `--`): left as typed, their line not a heading.
+  const plainUnderline = new Set<number>();
   const lineStarts = (a: number, b: number, cls: string) => {
     for (let n = state.doc.lineAt(a).number; n <= state.doc.lineAt(b).number; n++) {
       specs.push({ kind: "line", at: state.doc.line(n).from, cls });
@@ -78,10 +80,25 @@ export function liveSpecs(state: EditorState, from = 0, to = state.doc.length): 
 
       const level = HEADINGS[name];
       if (level) {
+        /*
+         * An underlined heading (setext) only when its underline is one:
+         * three or more `=` or `-`. A lone `-` under a line is a list item
+         * being started ("- " before its words), which Markdown reads as an
+         * underline until the words come — the line above is not grown into
+         * a heading meanwhile.
+         */
+        if (name.startsWith("Setext")) {
+          const under = state.doc.lineAt(node.to);
+          if (under.text.trim().length < 3) {
+            plainUnderline.add(under.from + (under.text.length - under.text.trimStart().length));
+            return;
+          }
+        }
         lineStarts(node.from, node.to, `cm-h${level}`);
         return;
       }
       if (name === "HeaderMark") {
+        if (plainUnderline.has(node.from)) return;
         if (lineActive(node.from)) return;
         // The space after `#` goes with it, so the heading starts flush.
         const after = state.doc.sliceString(node.to, node.to + 1) === " " ? 1 : 0;

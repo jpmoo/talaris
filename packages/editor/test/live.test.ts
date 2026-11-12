@@ -126,3 +126,11 @@ test("an address written as it is, bare or in <>, is a link with its url", () =>
   const named = at("|A [call](https://zoom.us/j/9) now");
   assert.equal(liveSpecs(named).filter((s) => s.kind === "mark" && s.cls === "cm-link").length, 1);
 });
+
+test("a lone dash under a line is a list being started, not a heading's underline", () => {
+  const starting = at("test title\n- |");
+  assert.ok(!liveSpecs(starting).some((s) => s.kind === "line" && /cm-h/.test(s.cls)), "the line above stays as it is");
+  assert.deepEqual(hidden(starting, liveSpecs(starting)), [], "and the dash shows");
+  const underlined = at("A heading\n---\n\n|body");
+  assert.ok(liveSpecs(underlined).some((s) => s.kind === "line" && s.cls === "cm-h2"), "a real underline still makes one");
+});

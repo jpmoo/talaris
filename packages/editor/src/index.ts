@@ -12,7 +12,7 @@
  * Built by esbuild into `surfaces/ui/editor.js`, which the drawer imports.
  */
 
-import { Compartment, EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import {
   Decoration,
@@ -118,41 +118,78 @@ const inCodeHere = (state: EditorState): boolean => inCode(state, state.selectio
 
 /*
  * A list item that wraps hangs: its later lines start where its words do, not
- * under its bullet. Where that is depends on what is drawn — a bullet, a task's
- * box, a number, the spaces nesting it — so it is measured, once the lines are
- * laid out, and each list line's padding and first-line indent set from it.
+ * under its bullet. Where that is depends on what is drawn before the words —
+ * a bullet, a task's box, a number, the spaces nesting it — so it is measured,
+ * once for each kind of start (in this type), and remembered; each list line
+ * is then drawn with its indent as part of the line, so typing, which draws
+ * lines again, never takes it away for a moment.
  */
 const LIST_START = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/;
+const remeasured = StateEffect.define<null>();
 const hangingIndent = ViewPlugin.fromClass(class {
-  constructor(view: EditorView) { this.measure(view); }
-  update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged || u.geometryChanged || u.selectionSet) this.measure(u.view); }
-  measure(view: EditorView) {
+  decorations: DecorationSet = Decoration.none;
+  widths = new Map<string, number>();
+  charWidth = 0;
+  asking = false;
+  constructor(view: EditorView) { this.decorations = this.build(view); }
+  update(u: ViewUpdate) {
+    // The type changed (its size, its face): every width measured again.
+    const retyped = u.view.defaultCharacterWidth !== this.charWidth;
+    if (retyped) { this.charWidth = u.view.defaultCharacterWidth; this.widths.clear(); }
+    if (retyped || u.docChanged || u.viewportChanged || u.selectionSet || u.geometryChanged || u.transactions.some((t) => t.effects.some((e) => e.is(remeasured)))) {
+      this.decorations = this.build(u.view);
+    }
+  }
+  /** What is drawn before a list item's words, as a key: the spaces, the bullet or number, a box; and the look. */
+  keyOf(view: EditorView, m: RegExpExecArray): string {
+    const mark = /^[-*+]$/.test(m[2]!) ? "•" : m[2]!;
+    return `${m[1]!.replace(/\t/g, "    ").length}|${mark}|${m[3]!.length}|${m[4] ? 1 : 0}|${view.dom.classList.contains("raw") ? "raw" : "live"}`;
+  }
+  build(view: EditorView): DecorationSet {
+    const ranges = [];
+    const unknown: Array<{ key: string; from: number; words: number }> = [];
+    const tree = syntaxTree(view.state);
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to;) {
+        const line = view.state.doc.lineAt(pos);
+        const m = LIST_START.exec(line.text);
+        if (m && tree.resolveInner(line.from + m[1]!.length, 1).name === "ListMark") {
+          const key = this.keyOf(view, m);
+          const w = this.widths.get(key);
+          if (w !== undefined) ranges.push(Decoration.line({ attributes: { style: `padding-left:${w + 2}px;text-indent:-${w}px` } }).range(line.from));
+          else unknown.push({ key, from: line.from, words: line.from + m[0].length });
+        }
+        pos = line.to + 1;
+      }
+    }
+    if (unknown.length && !this.asking) this.ask(view, unknown);
+    return Decoration.set(ranges, true);
+  }
+  /** Each kind of start not yet known, measured from a line that has it; then the lines drawn again with it. */
+  ask(view: EditorView, unknown: Array<{ key: string; from: number; words: number }>) {
+    this.asking = true;
     view.requestMeasure({
-      key: this,
       read: (v) => {
-        const out: Array<{ el: HTMLElement; indent: number }> = [];
-        for (const el of Array.from(v.contentDOM.querySelectorAll<HTMLElement>(".cm-line"))) {
-          let pos: number;
-          try { pos = v.posAtDOM(el, 0); } catch { continue; }
-          const line = v.state.doc.lineAt(pos);
-          const m = el.classList.contains("cm-listline") ? LIST_START.exec(line.text) : null;
-          if (!m) { if (el.style.textIndent) out.push({ el, indent: 0 }); continue; }
-          const start = v.coordsAtPos(line.from, 1), words = v.coordsAtPos(line.from + m[0].length, 1);
+        const got: Array<[string, number]> = [];
+        const seen = new Set<string>();
+        for (const u of unknown) {
+          if (seen.has(u.key)) continue;
+          const start = v.coordsAtPos(u.from, 1), words = v.coordsAtPos(u.words, 1);
           if (!start || !words || words.top > start.bottom) continue;
-          out.push({ el, indent: Math.max(0, Math.round(words.left - start.left)) });
+          seen.add(u.key);
+          got.push([u.key, Math.max(0, Math.round(words.left - start.left))]);
         }
-        return out;
+        return got;
       },
-      write: (lines) => {
-        for (const { el, indent } of lines) {
-          const pad = indent ? `${indent + 2}px` : "", hang = indent ? `-${indent}px` : "";
-          if (el.style.paddingLeft !== pad) el.style.paddingLeft = pad;
-          if (el.style.textIndent !== hang) el.style.textIndent = hang;
-        }
+      write: (got) => {
+        this.asking = false;
+        if (!got.length) return;
+        for (const [k, w] of got) this.widths.set(k, w);
+        setTimeout(() => { try { view.dispatch({ effects: remeasured.of(null) }); } catch { /* the editor is gone */ } }, 0);
       },
     });
   }
-});
+}, { decorations: (p) => p.decorations });
 
 /** A list item with items nested under it folds from the end of its first line to the end of its last child. */
 const listFolding = foldService.of((state, lineStart, lineEnd) => {
