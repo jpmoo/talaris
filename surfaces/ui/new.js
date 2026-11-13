@@ -319,10 +319,11 @@
   function fileField(f) {
     const files = v[f.key] = v[f.key] || [];
     const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
-    return row(labelOf(f), el("div", { class: "grow col" },
-      files.length ? el("div", { class: "chips" }, files.map((x, i) => el("span", { class: "chip", title: x.path }, el("span", { class: "lbl" }, `${x.name} · ${kb(x.size)}`),
-        xBtn("Remove", () => { files.splice(i, 1); paint(); })))) : null,
-      el("div", {}, el("button", { class: "t-btn", onclick: () => bridge && bridge.chooseFiles(f.key) }, f.many || !files.length ? "Add files…" : "Change…"))));
+    // As Projects are: chips, and Add after them.
+    return row(labelOf(f), el("div", { class: "grow chips" },
+      files.map((x, i) => el("span", { class: "chip", title: x.path }, el("span", { class: "lbl" }, `${x.name} · ${kb(x.size)}`),
+        xBtn("Remove", () => { files.splice(i, 1); paint(); }))),
+      el("button", { class: "pick empty", title: "Add files", onclick: () => bridge && bridge.chooseFiles(f.key) }, el("span", { class: "lbl" }, f.many || !files.length ? "Add" : "Change"))));
   }
 
   function enumField(f, def) {

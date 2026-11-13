@@ -99,7 +99,8 @@ window.TaskCard = (() => {
     const spanNow = () => (shape && shape.spanKey ? props()[shape.spanKey] : null) || {};
     const popAway = () => Kit.popAway();
     const menuAt = (x, y, items) => Kit.menu({ x, y }, items);
-    const row = (label, kids, top = false) => el("div", { class: "s-row" + (top ? " top" : "") }, el("span", { class: "lab" }, label), kids);
+    // A row of chips wraps onto more lines: its label stays at the top, by the first.
+    const row = (label, kids, top = false) => el("div", { class: "s-row" + (top || (kids && kids.classList && kids.classList.contains("chips")) ? " top" : "") }, el("span", { class: "lab" }, label), kids);
 
     /** A change, kept. `quiet`: what is being typed in stays as it is; anything else, the card drawn again with it. */
     async function update(patch, quiet = false) {

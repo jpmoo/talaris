@@ -27,6 +27,7 @@ section.part { margin-top: 18px; }
 .f-row > .lab { width: 96px; flex: none; color: var(--muted); }
 .f-row.top > .lab { padding-top: 6px; }
 .f-row > .grow { flex: 1; min-width: 0; }
+.f-row > .chips { min-height: 28px; }
 .col { display: flex; flex-direction: column; gap: 4px; }
 input.field { width: 100%; font-size: 12.5px; }
 input.field.day { width: 160px; }

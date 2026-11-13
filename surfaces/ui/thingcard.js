@@ -211,7 +211,8 @@ window.ThingCard = (() => {
     };
     const setProps = (p) => patch({ properties: p }).catch(failed);
     const popAway = () => Kit.popAway();
-    const row = (label, kids, top = false) => el("div", { class: "f-row" + (top ? " top" : "") }, el("span", { class: "lab" }, label), kids);
+    // A row of chips wraps onto more lines: its label stays at the top, by the first.
+    const row = (label, kids, top = false) => el("div", { class: "f-row" + (top || (kids && kids.classList && kids.classList.contains("chips")) ? " top" : "") }, el("span", { class: "lab" }, label), kids);
 
     function head() {
       const p = props();
@@ -412,7 +413,7 @@ window.ThingCard = (() => {
             const rest = files.filter((x) => x.sha256 !== a.sha256);
             setProps({ [f.key]: rest.length ? rest : null }).then(ctx.redraw);
           }))),
-        el("button", { class: "t-btn", onclick: () => { say(""); bridge.attach(id, f.key); } }, "Add files…")), true);
+        el("button", { class: "add", title: "Add files", onclick: () => { say(""); bridge.attach(id, f.key); } }, "+")));
     }
 
     function fieldRow(f) {
