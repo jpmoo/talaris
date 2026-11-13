@@ -343,7 +343,8 @@
       open: openHere,
       redraw: () => loadPerson().catch(failed),
       changed: () => loadPeople().catch(failed),
-      afterFields: isOrg() ? orgPeoplePart() : contactsPart(),
+      afterFields: isOrg() ? null : contactsPart(),
+      fieldRows: isOrg() ? (h) => [orgPeopleRow(h)] : null,
       end: foot(),
     }));
     host.scrollTop = same ? top : 0;
@@ -482,23 +483,23 @@
     const next = inIt ? (was.includes(orgId) ? was : [...was, orgId]) : was.filter((x) => x !== orgId);
     await api("PATCH", `/entities/${enc(personId)}`, { properties: { [key]: next } });
   }
-  function orgPeoplePart() {
+  function orgPeopleRow({ row, chip, add }) {
     const id = chosen;
     if (!orgSlot()) return null;
     const here = people.filter((p) => (p.organizations || []).some((o) => o.id === id)).sort((a, b) => a.title.localeCompare(b.title));
     const redo = async (text) => { say(text); await loadPeople(); drawPerson(); };
-    const row = (p) => el("div", { class: "org-person" },
-      el("button", { class: "linkish", title: `Show ${p.title}`, onclick: () => { if (mode === "orgs") { mode = "org"; store.set("talaris.people.mode", mode); drawMode(); drawList(); } choose(p.id); } },
-        p.title, p.role ? el("span", { class: "hint" }, `  ${p.role}`) : null),
-      el("button", { class: "x", title: `Take ${p.title} out of this organization`, onclick: async () => {
+    const show = (p) => { if (mode === "orgs") { mode = "org"; store.set("talaris.people.mode", mode); drawMode(); drawList(); } choose(p.id); };
+    return row("People", [
+      ...here.map((p) => chip(p.title, () => show(p), async () => {
         try { await setInOrg(p.id, id, false); await redo(`${p.title} taken out`); } catch (err) { failed(err); }
-      } }, "×"));
-    return el("section", { class: "part" },
-      el("h3", {}, el("span", {}, "People")),
-      here.length ? el("div", {}, ...here.map(row)) : el("div", { class: "hint" }, "No one yet"),
-      el("button", { class: "t-btn small", onclick: (e) => pickPerson(e.currentTarget, here.map((p) => p.id), async (p) => {
-        try { await setInOrg(p.id, id, true); await redo(`${p.title} added`); } catch (err) { failed(err); }
-      }) }, "+ Add person"));
+      })),
+      add((b) => {
+        if (Kit.openedBy() === b) { popAway(); return; }
+        pickPerson(b, here.map((p) => p.id), async (p) => {
+          try { await setInOrg(p.id, id, true); await redo(`${p.title} added`); } catch (err) { failed(err); }
+        });
+      }),
+    ]);
   }
 
   function contactsPart() {

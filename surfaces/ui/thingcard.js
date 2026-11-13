@@ -20,6 +20,7 @@
 //   hub                 which hub it is drawn in: the way there is not then offered
 //   glance(key)         Glance on it, if not by the bridge
 //   afterFields, end    what the page adds, under the fields and at the foot
+//   fieldRows({row, chip, add})  rows the page adds among the fields, as chips (an organization's people)
 //   attachTask, linkTask(id)  files for a task, from the desktop's chooser
 //   close, openMention(id)    its way to close, and how a mention opens, if the page has its own
 
@@ -444,6 +445,12 @@ window.ThingCard = (() => {
     }
 
     const rows = type.fields.filter((f) => !f["talaris:auto"] && f.key !== titleKey).map(fieldRow).flat().filter(Boolean);
+    // Rows the page adds among the fields, drawn as a reference field's are: chips, and a + after them.
+    const chip = (label, open, remove) => el("span", { class: "chip" },
+      el("span", { class: "lbl to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); open(); } }, label),
+      xBtn("Remove", remove));
+    const addBtn = (onclick) => el("button", { class: "add", title: "Add", onclick });
+    if (ctx.fieldRows) rows.push(...ctx.fieldRows({ row: (label, kids) => row(label, el("div", { class: "grow chips" }, kids)), chip, add: (fn) => { const b = addBtn((e) => fn(b, e)); b.textContent = "+"; return b; } }).filter(Boolean));
     // What the page adds, with what it acts on; what it is connected to, and might be, after them.
     return [head(), el("section", { class: "part fields" }, rows), ctx.afterFields, ctx.end, connected(got, ctx)].filter(Boolean);
   }
