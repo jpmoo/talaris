@@ -235,7 +235,7 @@
   }
 
   function drawMode() {
-    seg("mode", [["org", "Org"], ["az", "A–Z"], ["orgs", "Organizations"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
+    seg("mode", [["org", "By Org"], ["az", "A–Z"], ["orgs", "Organizations"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
     // Whether someone has a name or an organization says nothing of an organization: in Organizations, put away.
     $("named").hidden = $("orgd").hidden = mode === "orgs";
     $("add").textContent = mode === "orgs" ? "+ Organization" : "+ Person";
@@ -343,7 +343,7 @@
       open: openHere,
       redraw: () => loadPerson().catch(failed),
       changed: () => loadPeople().catch(failed),
-      afterFields: isOrg() ? null : contactsPart(),
+      afterFields: isOrg() ? orgPeoplePart() : contactsPart(),
       end: foot(),
     }));
     host.scrollTop = same ? top : 0;
@@ -464,6 +464,41 @@
     };
     return cards.map((c) => ({ c, s: score(c) })).filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s || byName(String(a.c.name || ""), String(b.c.name || ""))).map((x) => x.c);
+  }
+
+  // ---------------------------------------------------------------- an organization's people
+  //
+  // Who is in it, added and taken off from here: the tie is the person's own
+  // field (the contact profile's organization slot), so it is written there.
+
+  const orgSlot = () => (personType && personType.profiles && personType.profiles.contact && typeof personType.profiles.contact.organization === "string"
+    ? personType.profiles.contact.organization : null);
+  async function setInOrg(personId, orgId, inIt) {
+    const key = orgSlot();
+    if (!key) throw new Error("People have no organization field");
+    const g = await api("GET", `/entities/${enc(personId)}`);
+    const v = ((g && g.entity) || {}).properties?.[key];
+    const was = Array.isArray(v) ? v : v == null || v === "" ? [] : [v];
+    const next = inIt ? (was.includes(orgId) ? was : [...was, orgId]) : was.filter((x) => x !== orgId);
+    await api("PATCH", `/entities/${enc(personId)}`, { properties: { [key]: next } });
+  }
+  function orgPeoplePart() {
+    const id = chosen;
+    if (!orgSlot()) return null;
+    const here = people.filter((p) => (p.organizations || []).some((o) => o.id === id)).sort((a, b) => a.title.localeCompare(b.title));
+    const redo = async (text) => { say(text); await loadPeople(); drawPerson(); };
+    const row = (p) => el("div", { class: "org-person" },
+      el("button", { class: "linkish", title: `Show ${p.title}`, onclick: () => { if (mode === "orgs") { mode = "org"; store.set("talaris.people.mode", mode); drawMode(); drawList(); } choose(p.id); } },
+        p.title, p.role ? el("span", { class: "hint" }, `  ${p.role}`) : null),
+      el("button", { class: "x", title: `Take ${p.title} out of this organization`, onclick: async () => {
+        try { await setInOrg(p.id, id, false); await redo(`${p.title} taken out`); } catch (err) { failed(err); }
+      } }, "×"));
+    return el("section", { class: "part" },
+      el("h3", {}, el("span", {}, "People")),
+      here.length ? el("div", {}, ...here.map(row)) : el("div", { class: "hint" }, "No one yet"),
+      el("button", { class: "t-btn small", onclick: (e) => pickPerson(e.currentTarget, here.map((p) => p.id), async (p) => {
+        try { await setInOrg(p.id, id, true); await redo(`${p.title} added`); } catch (err) { failed(err); }
+      }) }, "+ Add person"));
   }
 
   function contactsPart() {
