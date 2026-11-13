@@ -149,7 +149,8 @@ const MOST_PROJECTS = 3;
 /**
  * The projects a piece of writing is tied to by what it names (Morgan's memory: talaris_note_projects) — never a
  * project guessed or made up. A project it names is one; a person or an organization it names brings the projects
- * they are tied to, one step either way, as Glance draws them (their fields, and what points at them). A person is
+ * they are tied to, one step either way, as Glance draws them (their fields, and what points at them); a person's
+ * organizations bring theirs too. Tied to more than a few, a thing says nothing about which. A person is
  * named by their whole name, or by a first name only one person has; Home is no project.
  */
 export function projectsNamedIn(text: string): NamedProject[] {
@@ -165,6 +166,16 @@ export function projectsNamedIn(text: string): NamedProject[] {
   const people = all.filter((o) => kindOfEntity(o) === "person");
   const firsts = new Map<string, number>();
   for (const p of people) { const f = titleOf(p).trim().split(/\s+/)[0] ?? ""; firsts.set(f, (firsts.get(f) ?? 0) + 1); }
+  /** What a thing is tied to, one step either way, live and once each. */
+  const tiedTo = (id: string): Entity[] => {
+    const c = connections(id);
+    return [...new Map([...c.out, ...c.in].map((k) => getEntity(k.entity.id)).filter((x) => !x.archived).map((x) => [x.id, x])).values()];
+  };
+  /** The projects a thing is tied to — none, where they are too many to say which. */
+  const projectsOf = (id: string): Entity[] => {
+    const ps = tiedTo(id).filter((x) => kindOfEntity(x) === "project" && !isHome(x));
+    return ps.length > MOST_PROJECTS ? [] : ps;
+  };
   const found = new Map<string, NamedProject>();
   const add = (project: Entity, via: string) => {
     if (isHome(project)) return;
@@ -182,11 +193,13 @@ export function projectsNamedIn(text: string): NamedProject[] {
     const named = (first === title ? holdsFirst(title) : holds(title)) || (kind === "person" && first !== title && firsts.get(first) === 1 && holdsFirst(first));
     if (!named) continue;
     if (kind === "project") { add(o, title); continue; }
-    const c = connections(o.id);
-    const projects = [...c.out, ...c.in].map((k) => getEntity(k.entity.id)).filter((p) => kindOfEntity(p) === "project" && !p.archived && !isHome(p));
-    const distinct = [...new Map(projects.map((p) => [p.id, p])).values()];
-    if (distinct.length > MOST_PROJECTS) continue;
-    for (const p of distinct) add(p, title);
+    for (const p of projectsOf(o.id)) add(p, title);
+    // A person's organizations bring theirs: someone at LHRIC is in what LHRIC is in — two steps out, as Glance walks.
+    if (kind === "person") {
+      for (const org of tiedTo(o.id).filter((x) => kindOfEntity(x) === "organization")) {
+        for (const p of projectsOf(org.id)) add(p, `${title} (${titleOf(org)})`);
+      }
+    }
   }
   return [...found.values()].sort((a, b) => a.title.localeCompare(b.title));
 }

@@ -65,4 +65,18 @@ test("a note's projects: those it names, and those the people it names are tied 
   assert.deepEqual(titles("Will Ames will call"), ["Planning"], "a whole name");
   assert.deepEqual(titles("Pat Rowe likes tea"), [], "tied to too many to say which");
   assert.deepEqual(titles("Likes oat milk"), []);
+
+  // A person in an organization: what the organization is in.
+  const tech = entities.createEntity({ role: "project", properties: { title: "Technology Plan" } });
+  const lhric = entities.createEntity({ role: "organization", properties: { title: "LHRIC" } });
+  entities.connect(lhric.id, tech.id, { type: "project" });
+  const dana = entities.createEntity({ role: "person", properties: { title: "Dana Fox" } });
+  entities.connect(dana.id, lhric.id, { type: "organization" });
+  assert.deepEqual(projectsNamedIn("Dana sends the draft Fridays").map((p) => [p.title, p.via]), [["Technology Plan", ["Dana Fox (LHRIC)"]]]);
+  // An organization in too many projects brings none of them.
+  const district = entities.createEntity({ role: "organization", properties: { title: "District Office" } });
+  for (const t of ["E", "F", "G", "H"]) entities.connect(district.id, entities.createEntity({ role: "project", properties: { title: `Project ${t}` } }).id, { type: "project" });
+  const sam = entities.createEntity({ role: "person", properties: { title: "Sam Ortiz" } });
+  entities.connect(sam.id, district.id, { type: "organization" });
+  assert.deepEqual(titles("Sam Ortiz is out Monday"), []);
 });
