@@ -39,6 +39,8 @@ POLL_MS = 3000
 PLUG_MS = 1500
 #: …and while none is: each reading starts several small programs, and the bar's icons can be a few seconds behind.
 IDLE_S = 15
+#: Played when power is plugged in.
+PLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "plug.wav")
 
 
 def _run(*cmd: str, timeout: float = 2.0) -> str:
@@ -478,8 +480,8 @@ class Machine(QObject):
         self._plugged = now
         self.refresh()
         if now:
-            # The sound theme's own, at the system's volume: silent if that is muted or the theme has none.
-            threading.Thread(target=_run, args=("canberra-gtk-play", "-i", "power-plug"), daemon=True).start()
+            # Talaris' own (sounds/make.py), kept quiet, through the default output: silent if that is muted.
+            threading.Thread(target=_run, args=("pw-play", "--volume", "0.7", str(PLUG_SOUND)), kwargs={"timeout": 5.0}, daemon=True).start()
 
     def _tick(self) -> None:
         if self.watched() or time.monotonic() - self._read_at >= IDLE_S:
