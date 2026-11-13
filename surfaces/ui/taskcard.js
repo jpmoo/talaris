@@ -68,7 +68,7 @@ window.TaskCard = (() => {
       api("GET", `/tasks/${enc(id)}/recurrence`).catch(() => ({ rule: null, summary: "" })),
       api("GET", `/entities/${enc(id)}/folder`).catch(() => ({ folder: "" })),
       api("GET", "/tasks/projects").catch(() => [])]);
-    return { type: t.type, shape: t.shape, rec: rec || { rule: null, summary: "" }, folder: (f && f.folder) || "", projects: projects || [] };
+    return { type: t.type, shape: t.shape, rec: rec || { rule: null, summary: "" }, folder: (f && f.folder) || "", project: (f && f.project) || "", projects: projects || [] };
   }
 
   // What was said of files just chosen, for the card drawn next: under its files, and a move offered then and there.
@@ -79,7 +79,7 @@ window.TaskCard = (() => {
 
   function parts(got, info, ctx, connected) {
     const { api, say, failed, bridge } = ctx;
-    const { type, shape, rec, folder: taskFolder, projects } = info;
+    const { type, shape, rec, folder: taskFolder, project: taskProject, projects } = info;
     const id = got.entity.id;
     const entity = () => got.entity;
     const props = () => got.entity.properties || {};
@@ -390,8 +390,20 @@ window.TaskCard = (() => {
             el("span", { class: "lbl" }, a.filename),
             x);
         }),
-        el("button", { class: "add", title: "Attach files (stored on this task)", onclick: () => { filesNote(""); ctx.attachTask(id); } }, "+"),
-        el("button", { class: "add link-add", title: "Link files where they are", onclick: () => { filesNote(""); ctx.linkTask(id); } }, "↗"),
+        // Attach (attach.js): a file of this project's, linked where it is; one from another project moved here or a
+        // shortcut made; one from outside linked where it is, with a move into this project's folder offered then.
+        el("button", { class: "add", title: "Attach a file", onclick: (e) => {
+          filesNote("");
+          if (!window.Attach || !taskProject) { ctx.linkTask(id); return; }
+          Attach.open(e.currentTarget, {
+            api,
+            project: taskProject,
+            pick: (file) => (file.abs
+              ? api("POST", `/entities/${enc(id)}/links`, { path: file.abs }).then(after).catch(failed)
+              : failed(new Error(`${file.name} has no place on disk to link`))),
+            outside: () => ctx.linkTask(id),
+          });
+        } }, "+"),
         noteEl), true);
       // What was said of the files just chosen; linked from another folder, a move into this project's offered then and there.
       if (note) {

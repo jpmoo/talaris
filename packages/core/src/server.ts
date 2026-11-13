@@ -867,8 +867,14 @@ route("POST", "/entities/:id/attachments/:sha/trash", (_r, [id, sha]) => { links
 route("POST", "/entities/:id/links/restore", (_r, [id]) => links.restoreLinks(id!));
 route("GET", "/files/unbacked", () => links.unbacked());
 links.setFallbackFolder(filesFolderFor);
-// The folder of the project a thing is filed under (Home's if none): a file linked from inside it is the project's, from anywhere else another folder's.
-route("GET", "/entities/:id/folder", (_r, [id]) => ({ folder: dirname(filesFolderFor(id!)) }));
+// Where a thing's files go: its project's folder (Home's, if it is in none), and that project, for the Attach picker.
+route("GET", "/entities/:id/folder", (_r, [id]) => {
+  const folder = dirname(filesFolderFor(id!));
+  const project = folderProjectOf(entities.getEntity(id!));
+  let known = "";
+  try { known = findProject(project).id; } catch { known = ensureHome().id; }
+  return { folder, project: known };
+});
 /** Where a copy saved to be linked goes: the Files folder of the project the thing is filed under, or Home's. */
 function filesFolderFor(id: string): string {
   const project = folderProjectOf(entities.getEntity(id));

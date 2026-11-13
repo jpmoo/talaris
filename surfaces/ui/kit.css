@@ -87,3 +87,11 @@ body.kit-drag-on, body.kit-drag-on * { cursor: grabbing !important; user-select:
 /* A name that opens its card in the Library. */
 .to-card { cursor: pointer; }
 .to-card:hover { color: var(--accent); }
+
+/* Attach (attach.js): this project's files, then everywhere else's, then a file from outside. */
+.kit-pop .attach-pick { display: flex; flex-direction: column; gap: 6px; width: 360px; max-width: 80vw; }
+.kit-pop .attach-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+.kit-pop .attach-head { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 6px 8px 2px; }
+.kit-pop .attach-list .hint { padding: 4px 8px; color: var(--muted); font-size: 12px; }
+.kit-pop .attach-list .hint.err { color: var(--danger); }
+.kit-pop .attach-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 6px; }

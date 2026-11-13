@@ -114,10 +114,23 @@ def send_files(path: str, files: list, extra: dict | None = None) -> tuple[int, 
 
 
 def send_project_files(project: str, files: list) -> dict:
-    """Files kept in a project's `Files/`: {files: [{name, path}], error}."""
+    """
+    Files kept in a project's `Files/`: {files: [{name, path}], error}. One
+    chosen from inside the project's own folder is already the project's: it is
+    linked where it is, never copied — a second copy is one that goes stale.
+    """
     kept, errors = [], []
+    projects, _ = ask_json("GET", "/projects", timeout=30)
+    folder = next((p.get("folder") for p in (projects or []) if p.get("id") == project), None)
+    root = os.path.realpath(folder) if folder else None
     for file in files:
         name = os.path.basename(file)
+        real = os.path.realpath(file)
+        if root and real.startswith(root + os.sep) and os.path.isfile(real):
+            rel = os.path.relpath(real, root).replace(os.sep, "/")
+            if not rel.startswith(".talaris/"):
+                kept.append({"name": name, "path": rel})
+                continue
         try:
             if os.path.getsize(file) > LARGEST:
                 errors.append(f"{name} is larger than {LARGEST // (1024 * 1024)} MB")

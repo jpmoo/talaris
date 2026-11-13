@@ -886,6 +886,9 @@ function pageHeading() {
 let writingSeq = 0;
 async function loadWriting() {
   const mine = ++writingSeq;
+  // Counted from the start: a file's link put in while the list below is asked for (coming back from the file
+  // chooser draws the page again) is as new as one put in while the page itself is read.
+  const editsAtStart = edits;
   // Words not yet saved (a change waits a moment: typing, a file's link just put in) are saved before the page is read
   // again — it is drawn again from what is kept, whenever the drawer is told anything, and would otherwise lose them.
   if (saveTimer) { clearTimeout(saveTimer); await save(); }
@@ -938,7 +941,18 @@ async function loadWriting() {
     ...["live", "raw", "preview"].map((m) => el("button", { "data-mode": m, onclick: () => setMode(m) }, m.toUpperCase())));
   // Files chosen in the desktop's chooser, kept in the project, linked at the cursor:
   // a thing done to the page, so apart from the ways of seeing it.
-  const attach = el("button", { class: "t-btn small attach", title: "Attach files (or drop them in)", onclick: () => { if (bridge && open) bridge.attachToProject(wpid(), PAGE_ID); } }, "Attach");
+  // Attach (attach.js): a file of this project's, found by typing; one from another project, moved here or a
+  // shortcut made; or one from outside, through the desktop's chooser. Linked where the cursor is, never copied.
+  const attach = el("button", { class: "t-btn small attach", title: "Attach a file (or drop one in)", onclick: (e) => {
+    if (!open) return;
+    const pageProject = wpid(), page = open;
+    Attach.open(e.currentTarget, {
+      api: core,
+      project: pageProject,
+      pick: (file) => linkFiles(pageProject, page, [Attach.pageLink(file, pageProject)]),
+      outside: () => { if (bridge) bridge.attachToProject(pageProject, PAGE_ID); },
+    });
+  } }, "Attach");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
@@ -946,11 +960,13 @@ async function loadWriting() {
     el("div", { class: "page-tags", id: "pageTags" }));
   const listKey = `writing:${scope}:${pid}`, top = scrolledTo(listKey);
   // The page's words, read before the drawer is swapped, so the editor is drawn at once and never shows empty first.
-  const reading = open, editsBefore = edits;
+  const reading = open;
+  // What waits to be saved is saved before the page is read, so what is read has it.
+  if (saveTimer) { clearTimeout(saveTimer); await save(); }
   let words = open ? await core("GET", `/projects/${wpid()}/page?path=${encodeURIComponent(open)}`).catch(() => "") : "";
   if (mine !== writingSeq) return;
-  // Changed here while it was being read (a file's link put in, a word typed): what is here is newer than what came.
-  if (open && open === reading && edits !== editsBefore) words = text;
+  // Changed here since this began (a file's link put in, a word typed): what is here is newer than what came.
+  if (open && open === reading && edits !== editsAtStart) words = text;
   $("body").replaceChildren(tree, pane);
   scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
@@ -1386,22 +1402,29 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Files chosen for the page and kept: linked where the cursor is.
   // Files chosen for the page and kept: linked where the cursor is — or, with no editor to put them in (Preview, or
   // the page drawn again while they were on their way), at the page's end, and saved. Never kept and not linked.
+  /**
+   * Links to files put in the page shown, if it is still the one they were chosen for: where the cursor is, or with
+   * no editor to put them in (Preview, or the page drawn again while they were on their way), at the page's end.
+   */
+  window.linkFiles = (project, page, links) => {
+    if (!links.length) return;
+    if (project !== wpid() || page !== open) {
+      console.warn(`attach: for ${project}/${page}, but the page shown is ${wpid()}/${open}; not linked`);
+      status("Not linked: the page changed", true);
+      return;
+    }
+    if (editor) { editor.insert(links.join(" ") + " "); return; }
+    changed(`${text.trimEnd()}${text.trim() ? "\n\n" : ""}${links.join(" ")}\n`);
+    drawEditor();
+  };
   bridge.projectFiles.connect((json) => {
     const r = JSON.parse(json);
     // The panel and its window share the bridge: only the page that asked links them (the other may show another page).
     if (r.asker && r.asker !== PAGE_ID) return;
     if (r.error) status(r.error, true);
     if (!(r.files && r.files.length)) return;
-    const links = r.files.map((f) => `[${f.name.replace(/[\[\]]/g, "")}](talaris-file:${encodeURI(f.path).replace(/\(/g, "%28").replace(/\)/g, "%29")})`).join(" ");
     console.warn(`attach: ${r.files.length} to link, in ${r.project}; shown ${wpid()}/${open}; editor ${editor ? "on" : "off"}`);
-    if (r.project !== wpid() || !open) {
-      console.warn(`attach: kept in ${r.project}, but the page shown is ${wpid()}/${open}; not linked`);
-      status(`Kept in Files, but not linked: the page changed`, true);
-      return;
-    }
-    if (editor) { editor.insert(links + " "); return; }
-    changed(`${text.trimEnd()}${text.trim() ? "\n\n" : ""}${links}\n`);
-    drawEditor();
+    linkFiles(r.project, open, r.files.map((f) => Attach.pageLink({ name: f.name, project: r.project, path: f.path }, r.project)));
   });
   bridge.show.connect(async (json) => {
     const target = JSON.parse(json);

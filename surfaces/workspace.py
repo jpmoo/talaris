@@ -42,7 +42,9 @@ class DrawerBridge(Bridge):
     ROUTES = re.compile(
         r"^/(projects|entities|tasks|tags|mentionables|people/find)(/|$|\?)"
         r"|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$"
-        r"|^/files/[0-9a-f]{64}$|^/files/unbacked$|^/meaning(\?|$)")
+        r"|^/files/[0-9a-f]{64}$|^/files/unbacked$|^/meaning(\?|$)"
+        # Attach (attach.js): the Library read, and a file moved here or a shortcut made, as the picker asks.
+        r"|^/files(\?|$)|^/files/(move|shortcut)$")
 
     @Slot(float, result=float)
     def typeSize(self, scale: float) -> float:  # noqa: N802 — called from the page by this name

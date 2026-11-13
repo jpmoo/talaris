@@ -1135,11 +1135,20 @@
       // No browser pickers on a layer surface: the projects as buttons, the one chosen lit.
       const to = { value: r.project };
       const picks = el("div", { class: "pick-list" });
-      const drawPicks = () => picks.replaceChildren(...projects.filter((p) => !p.pagesOnly).map((p) => el("button", { class: `t-btn small${p.id === to.value ? " on" : ""}`, onclick: () => { to.value = p.id; drawPicks(); } }, p.name)));
-      drawPicks();
+      // To another project, it goes into that one's Files, where a project's files are, unless a folder is typed;
+      // within its own, it stays in the folder it is in.
+      let typed = false;
+      const folderFor = (project) => (project === r.project ? whereOf(r) : "Files");
+      const drawPicks = () => picks.replaceChildren(...projects.filter((p) => !p.pagesOnly).map((p) => el("button", { class: `t-btn small${p.id === to.value ? " on" : ""}`, onclick: () => {
+        to.value = p.id;
+        if (!typed) dir.value = folderFor(p.id);
+        drawPicks();
+      } }, p.name)));
       const folders = [...new Set(rows.filter((x) => x.project === r.project && x.path).map(whereOf).filter(Boolean))].sort();
       const list = el("datalist", { id: "folders" }, ...folders.map((f) => el("option", { value: f })));
-      const dir = el("input", { type: "text", placeholder: "Folder (empty: the top)", list: "folders", value: whereOf(r), spellcheck: "false" });
+      const dir = el("input", { type: "text", placeholder: "Folder (empty: the top)", list: "folders", value: folderFor(r.project), spellcheck: "false" });
+      dir.addEventListener("input", () => { typed = true; });
+      drawPicks();
       const go = () => api("POST", "/files/move", { project: r.project, path: r.path, toProject: to.value, toDir: dir.value.trim().replace(/^\/+|\/+$/g, "") })
         .then((x) => { chosen = `p:${to.value}/${x.path}`; say(`Moved to ${projectName(to.value)}${x.path.includes("/") ? ` / ${x.path.slice(0, x.path.lastIndexOf("/"))}` : ""}`); return load(); }).catch(failed);
       host.replaceChildren(picks, dir, list, el("button", { class: "t-btn", onclick: go }, "Move"));
