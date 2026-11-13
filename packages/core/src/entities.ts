@@ -209,14 +209,16 @@ export const BUILT_IN: EntityType[] = [
   },
   {
     // An organization: a thing people are at, with no surface of its own. Its home is People (the format's `organization`).
-    id: "t_organization", name: "Organization", "talaris:role": "organization", "talaris:version": 1,
+    // Version 2: the projects it is in (pkm-interchange: organization.project), as a person's.
+    id: "t_organization", name: "Organization", "talaris:role": "organization", "talaris:version": 2,
     fields: [
       { key: "title", kind: "text", required: true, "talaris:label": "Name" },
       { key: "description", kind: "richtext", "talaris:label": "About" },
       { key: "parent", kind: "reference", targetType: "t_organization", many: true, "talaris:label": "Part of" },
+      { key: "project", kind: "reference", targetType: "t_project", many: true, "talaris:label": "Projects" },
       { key: "files", kind: "attachment", many: true },
     ],
-    profiles: { organization: { title: "title", body: "description", parent: "parent" } },
+    profiles: { organization: { title: "title", body: "description", parent: "parent", project: "project" } },
   },
   {
     // A daily note (pages.ts, Home's `Daily/<date>`), as the live binding hands

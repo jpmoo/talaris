@@ -128,6 +128,23 @@
   const hasOrg = (p) => Boolean((p.organizations || []).length);
   const isMine = (org) => myOrgs.some((m) => m.toLowerCase() === String(org || "").trim().toLowerCase());
   const ORGD = { all: () => true, has: hasOrg, mine: (p) => (p.organizations || []).some((o) => isMine(o.title)), none: (p) => !hasOrg(p) };
+  // The organizations on show, in Organizations: every one, found by its name, or one of mine.
+  function shownOrgs() {
+    const q = $("q").value.trim().toLowerCase();
+    return orgs.filter((o) => !q || Kit.matches(q, o.title));
+  }
+  const peopleAt = (orgId) => people.filter((p) => (p.organizations || []).some((o) => o.id === orgId)).length;
+  function orgRow(o) {
+    const n = peopleAt(o.id);
+    return el("div", { class: "prow" + (o.id === chosen ? " on" : ""), "data-id": o.id, onclick: () => { choose(o.id); $("list").focus(); },
+      oncontextmenu: (e) => {
+        e.preventDefault();
+        menuAt(e.clientX, e.clientY, [{ label: o.mine ? "Not one of my organizations" : "One of my organizations", act: () => markMine(o.title, !o.mine) }]);
+      } },
+      ThingCard.avatar(api, o.id, o.title, null),
+      el("div", { class: "p-main" }, el("div", { class: "p-name" }, o.title), el("div", { class: "p-sub" }, n === 1 ? "1 person" : `${n} people`)),
+      o.mine ? el("span", { class: "own-mark" }, "Mine") : null);
+  }
   function shown() {
     const q = $("q").value.trim().toLowerCase();
     return people.filter((p) => matches(p, q) && (named === "all" || (named === "named") !== unnamed(p)) && (ORGD[orgd] || ORGD.all)(p));
@@ -154,9 +171,27 @@
 
   function drawList() {
     const list = $("list");
+    const out = [];
+    // Organizations, as people are listed: A to Z, each its own row, chosen to see and change it.
+    if (mode === "orgs") {
+      const rows = shownOrgs();
+      $("count").textContent = rows.length === orgs.length ? String(orgs.length) : `${rows.length} of ${orgs.length}`;
+      if (!orgs.length) out.push(Kit.empty("No organizations yet"));
+      else if (!rows.length) out.push(Kit.empty("Nothing matches"));
+      let letter = null;
+      for (const o of rows) {
+        const first = (o.title.match(/\p{L}/u) || ["#"])[0].toLocaleUpperCase();
+        const l = /\p{L}/u.test(first) ? first : "#";
+        if (l !== letter) { letter = l; out.push(el("div", { class: "letter" }, l)); }
+        out.push(orgRow(o));
+      }
+      const top = list.scrollTop;
+      list.replaceChildren(...out);
+      list.scrollTop = top;
+      return;
+    }
     const rows = shown();
     $("count").textContent = rows.length === people.length ? String(people.length) : `${rows.length} of ${people.length}`;
-    const out = [];
     // An organization with nobody yet still has its heading: it is here, and found by its name.
     const typed = $("q").value.trim();
     const bare = mode === "org" && orgd !== "none" ? orgs.filter((o) => (orgd !== "mine" || o.mine) && (!typed || Kit.matches(typed.toLowerCase(), o.title))) : [];
@@ -200,7 +235,11 @@
   }
 
   function drawMode() {
-    seg("mode", [["org", "Org"], ["az", "A–Z"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
+    seg("mode", [["org", "Org"], ["az", "A–Z"], ["orgs", "Organizations"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
+    // Whether someone has a name or an organization says nothing of an organization: in Organizations, put away.
+    $("named").hidden = $("orgd").hidden = mode === "orgs";
+    $("add").textContent = mode === "orgs" ? "+ Organization" : "+ Person";
+    $("review").hidden = mode === "orgs";
     seg("named", [["all", "All"], ["named", "Named"], ["unnamed", "No name"]], named, (n) => { named = n; store.set("talaris.people.named", n); drawMode(); drawList(); });
     // Pressed again, the one chosen lets go: everyone.
     seg("orgd", [["has", "Has org"], ["mine", "My orgs"], ["none", "No org"]], orgd, (o) => {
@@ -480,6 +519,35 @@
   }
 
   // Someone already here, picked by name or address: for "Both are…" and "Same person as…".
+  function pickOrg(anchor, leaveOut, picked) {
+    const box = el("input", { type: "search", class: "find", placeholder: "Which organization?", spellcheck: "false" });
+    const hits = el("div", { class: "menu-list" });
+    const show = () => {
+      const q = box.value.trim().toLowerCase();
+      const rows = orgs.filter((o) => !leaveOut.includes(o.id) && q && Kit.matches(q, o.title)).slice(0, 8);
+      hits.replaceChildren(...(rows.length ? rows.map((o) => el("button", { class: "menu-item", onclick: () => { popAway(); picked(o); } }, o.title))
+        : [el("div", { class: "hint" }, q ? "None by that name" : "Type a name")]));
+    };
+    box.addEventListener("input", show);
+    show();
+    popUnder(anchor, el("div", {}, box, hits));
+    setTimeout(() => box.focus(), 0);
+  }
+  /**
+   * Two of one kind made one (merge.ts), the one asked for kept — unless the other is the one a sync keeps in step,
+   * which the core says, and then that one is kept instead. Answers the id kept.
+   */
+  async function sameThing(drop, keep) {
+    try {
+      await api("POST", `/entities/${enc(drop)}/merge`, { into: keep });
+      return keep;
+    } catch (err) {
+      if (!/keep that one instead/.test(String(err && err.message))) throw err;
+      await api("POST", `/entities/${enc(keep)}/merge`, { into: drop });
+      return drop;
+    }
+  }
+
   function pickPerson(anchor, leaveOut, picked) {
     const box = el("input", { type: "search", class: "find", placeholder: "Who are they?", spellcheck: "false" });
     const hits = el("div", { class: "menu-list" });
@@ -658,7 +726,21 @@
   // ---------------------------------------------------------------- making and removing
 
   function foot() {
-    if (isOrg()) return el("div", { class: "p-foot" }, el("span", { class: "spacer" }),
+    if (isOrg()) return el("div", { class: "p-foot" },
+      // One already here it really is (the same organization twice, under another name): made one with it.
+      el("button", { class: "t-btn", title: "An organization already here: this one is made one with it", onclick: (e) => {
+        const id = chosen;
+        pickOrg(e.currentTarget, [id], async (target) => {
+          try {
+            const kept = await sameThing(id, target.id);
+            say(`Made one with ${target.title}`);
+            await loadPeople();
+            got = null;
+            choose(kept);
+          } catch (err) { failed(err); }
+        });
+      } }, "Same organization as…"),
+      el("span", { class: "spacer" }),
       Kit.twice(el("button", { class: "t-btn danger" }, "Delete organization"), { key: `del-org:${chosen}`, ask: "Delete for good?", act: remove }));
     return el("div", { class: "p-foot" },
       // Someone already here they really are (the same person entered twice, under another name or none):
@@ -682,7 +764,7 @@
   async function remove() {
     const id = chosen;
     // The neighbour below takes its place (or above, for the last).
-    const order = shown().map((p) => p.id);
+    const order = (mode === "orgs" ? shownOrgs() : shown()).map((p) => p.id);
     const i = order.indexOf(id);
     const next = order[i + 1] || order[i - 1] || null;
     try {
@@ -697,7 +779,11 @@
 
   async function addPerson() {
     try {
-      const made = await api("POST", "/entities", { role: "person", properties: { [titleKey()]: "New person" } });
+      // In Organizations, an organization: named by its type's organization profile, as everything is.
+      const orgTitle = ((orgType && orgType.profiles.organization) || {}).title || "title";
+      const made = mode === "orgs" && orgType
+        ? await api("POST", "/entities", { type: orgType.id, properties: { [orgTitle]: "New organization" } })
+        : await api("POST", "/entities", { role: "person", properties: { [titleKey()]: "New person" } });
       $("q").value = "";
       await loadPeople();
       chosen = null;
