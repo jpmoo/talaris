@@ -62,7 +62,7 @@ import * as files from "./files.js";
 import * as filelists from "./filelists.js";
 import * as threads from "./threads.js";
 import * as meaning from "./meaning.js";
-import { contextFor, eventTimes } from "./context.js";
+import { contextFor, eventTimes, projectsNamedIn } from "./context.js";
 import { mergeEntities, mergedInto } from "./merge.js";
 import * as suggest from "./suggest.js";
 import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
@@ -479,6 +479,10 @@ route("GET", "/entities", (_r, _p, q) => {
 route("POST", "/entities", async (req) => entities.createEntity(await json<entities.NewEntity>(req)));
 // Context for what was typed (context.ts): what holds its words, and everything the things it names touch.
 route("GET", "/context", (_r, _p, q) => contextFor(q.get("q") ?? "", { limit: Number(q.get("limit") ?? 20) }));
+route("POST", "/context/projects", async (req) => {
+  const b = await json<{ texts?: unknown }>(req);
+  return (Array.isArray(b.texts) ? b.texts : []).slice(0, 200).map((t) => projectsNamedIn(String(t ?? "")));
+});
 route("GET", "/entities/by-source", (_r, _p, q) => entities.bySource({ kind: need(q, "kind"), key: need(q, "key") }));
 route("POST", "/entities/mirror/events", async (req) => {
   const b = await json<{ events?: entities.MirroredEvent[] }>(req);

@@ -13,7 +13,9 @@
  * notes and tasks that point at them; a project's tasks; an event's people.
  */
 
-import { bySource, connections, findEntities, getEntity, kindOfEntity, titleOf, types, type Entity } from "./entities.js";
+import { allRecords, bySource, connections, findEntities, getEntity, kindOfEntity, titleOf, types, type Entity } from "./entities.js";
+import { PROJECT_SOURCE } from "./filing.js";
+import { ensureHome } from "./projects.js";
 import { readSlot } from "./profile.js";
 import { hereFrom, TIMEZONE } from "./zoned.js";
 import { placeOf, placeSource } from "./mentionables.js";
@@ -136,4 +138,55 @@ export function contextFor(query: string, options: { limit?: number } = {}): Con
     return { focus, related: related.slice(0, RELATED), more: Math.max(0, related.length - RELATED) };
   });
   return { query: q, hits, about };
+}
+
+/** A project a piece of writing is tied to, and the names in it that tie it there. */
+export interface NamedProject { id: string; title: string; via: string[] }
+
+// A person or organization tied to more projects than this says nothing about which one a note is about.
+const MOST_PROJECTS = 3;
+
+/**
+ * The projects a piece of writing is tied to by what it names (Morgan's memory: talaris_note_projects) — never a
+ * project guessed or made up. A project it names is one; a person or an organization it names brings the projects
+ * they are tied to, one step either way, as Glance draws them (their fields, and what points at them). A person is
+ * named by their whole name, or by a first name only one person has; Home is no project.
+ */
+export function projectsNamedIn(text: string): NamedProject[] {
+  const said = String(text ?? "");
+  if (!said.trim()) return [];
+  const home = ensureHome().id;
+  const isHome = (o: Entity) => ((o["talaris:sources"] as { kind: string; key: string }[] | undefined) ?? []).some((s) => s.kind === PROJECT_SOURCE && s.key === home);
+  // A whole name, as written, between word edges; a name of one short word is not trusted.
+  const holds = (name: string) => name.length >= 3 && new RegExp(`(^|[^\\p{L}\\p{N}])${escape(name)}($|[^\\p{L}\\p{N}])`, "iu").test(said);
+  // A name as written, capitals and all: a first name (only one person's), or a name of one word.
+  const holdsFirst = (name: string) => name.length >= 3 && new RegExp(`(^|[^\\p{L}\\p{N}])${escape(name)}($|[^\\p{L}\\p{N}])`, "u").test(said);
+  const all = allRecords().map((r) => r.object).filter((o) => !o.archived);
+  const people = all.filter((o) => kindOfEntity(o) === "person");
+  const firsts = new Map<string, number>();
+  for (const p of people) { const f = titleOf(p).trim().split(/\s+/)[0] ?? ""; firsts.set(f, (firsts.get(f) ?? 0) + 1); }
+  const found = new Map<string, NamedProject>();
+  const add = (project: Entity, via: string) => {
+    if (isHome(project)) return;
+    const had = found.get(project.id) ?? { id: project.id, title: titleOf(project), via: [] };
+    if (!had.via.includes(via)) had.via.push(via);
+    found.set(project.id, had);
+  };
+  for (const o of all) {
+    const kind = kindOfEntity(o);
+    if (kind !== "project" && kind !== "person" && kind !== "organization") continue;
+    const title = titleOf(o).trim();
+    if (!title) continue;
+    const first = title.split(/\s+/)[0] ?? "";
+    // A name of one word ("Budget") only as a name is written: "the budget" is a word, not the project.
+    const named = (first === title ? holdsFirst(title) : holds(title)) || (kind === "person" && first !== title && firsts.get(first) === 1 && holdsFirst(first));
+    if (!named) continue;
+    if (kind === "project") { add(o, title); continue; }
+    const c = connections(o.id);
+    const projects = [...c.out, ...c.in].map((k) => getEntity(k.entity.id)).filter((p) => kindOfEntity(p) === "project" && !p.archived && !isHome(p));
+    const distinct = [...new Map(projects.map((p) => [p.id, p])).values()];
+    if (distinct.length > MOST_PROJECTS) continue;
+    for (const p of distinct) add(p, title);
+  }
+  return [...found.values()].sort((a, b) => a.title.localeCompare(b.title));
 }

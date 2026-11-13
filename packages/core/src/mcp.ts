@@ -127,6 +127,16 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "talaris_note_projects",
+    description: "For Morgan's own memory, not for answering: the Talaris projects each piece of writing is tied to by what it names — a project, or a person or organization tied to one. Never a project guessed. Answers JSON: one list per text, each project with its id, title and the names that tie it.",
+    inputSchema: { type: "object", properties: { texts: { type: "array", items: { type: "string" }, description: "The writings, at most 200." } }, required: ["texts"] },
+    annotations: { readOnlyHint: true, title: "Projects a note is tied to" },
+    run: async (a) => {
+      const texts = (Array.isArray(a.texts) ? a.texts : []).slice(0, 200).map(str);
+      return JSON.stringify(await core<unknown>("POST", "/context/projects", { texts }));
+    },
+  },
+  {
     name: "talaris_suggestions",
     description: "What a Talaris thing is probably tied to and is not yet — by a name in its words, by being the same thing twice, by closeness in meaning (files by their contents) — each with why, and the ways that fit: mention (the name in its words made a mention), connect, attach (a file put on a thing), merge (two of one kind made one). Give an entity id, or a key (page:<project>/<path>, file:<project>/<path>, project:<id>). Offer them to the user; tie one only when they say so (talaris_tie).",
     inputSchema: { type: "object", properties: { id: { type: "string" }, key: { type: "string" } } },
