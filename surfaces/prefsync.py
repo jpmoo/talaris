@@ -3,11 +3,11 @@
 """
 Your settings between machines (docs/SYNC.md, *What syncs*).
 
-**Yours, not the machine's.** The look, the bar, the clock, the launcher's
-keys, the dock's pins, panels, notifications, the wallpapers: the same on
-every machine you use. The screen, its text sizes, touch, power, the model
-server, where backups go, which calendars show (their ids are the machine's
-own), where you last were: each machine's.
+**The wallpapers, and nothing else of the screens'.** Each project's, and the
+default: the same on every machine you use. The bar, the dock, the look, the
+launcher, the clock, notifications, the screen and the rest are about the
+machine, not about what is in Talaris, and stay each machine's. (Plugins'
+settings travel through the core.)
 
 **By path**, one level in (`theme.accent`, `dock.pinned`), so a change to one
 setting here and another there both stand; the core keeps them as the
@@ -33,16 +33,13 @@ import wallpaper
 from core import call, get_json
 from views import log
 
-#: Each of your settings' groups, and what in it is the machine's all the same.
+#: What syncs of the settings: the wallpapers — each project's, and (below) the default. The bar, the dock, the
+#: look and the rest are the machine's: about the machine, not about what is in Talaris. Plugins' settings travel
+#: through the core (plugins.ts), not from here.
 YOURS: dict[str, set[str]] = {
-    "theme": {"fontSize", "panelOpacity"},
-    "bar": set(), "clock": set(), "launcher": set(), "overlays": set(), "wallpaper": set(),
-    "notifications": set(), "clipboard": set(), "activity": set(), "panels": set(), "shown": set(),
-    "windows": set(), "drawers": set(),
-    "location": {"last", "place", "places"},
-    "dock": {"elsewhere", "clicks"},
+    "wallpaper": set(),
 }
-SCALARS = ("idleSeconds",)
+SCALARS: tuple[str, ...] = ()
 
 STATE = os.path.join(os.environ.get("TALARIS_STATE_DIR") or os.path.join(
     os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "talaris"), "prefs-sent.json")

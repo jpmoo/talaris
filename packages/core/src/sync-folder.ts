@@ -27,6 +27,7 @@ import { unseal } from "./seal.js";
 import { machine, syncing, type Rec } from "./records.js";
 import { apply, known } from "./sync-apply.js";
 import { blobsAt, getBlob, scanFiles } from "./sync-files.js";
+import { isInstalled } from "./plugins.js";
 
 const STATE = () => join(DATA_DIR, "sync");
 const FOLDER_FILE = () => join(STATE(), "folder");
@@ -134,6 +135,8 @@ function pull(folder: string): number {
     if ((r.of.startsWith("file:") || r.of.startsWith("wallpaper:")) && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
     // About something this Talaris does not know yet — written by a newer one: kept, and applied once this is updated.
     if (!known(r)) { still.push(r); continue; }
+    // A plugin's settings, for a plugin not installed here yet: kept, and given to it once it is.
+    if (r.of.startsWith("plugin:") && !isInstalled(r.of.slice("plugin:".length))) { still.push(r); continue; }
     try { if (apply(r)) n++; } catch (e) { console.log(`talaris-core: sync: ${r.of} not applied: ${(e as Error).message}`); }
   }
   writeFileSync(SEEN(), JSON.stringify(seen));

@@ -17,6 +17,7 @@ import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
 import { parseToml } from "./toml.js";
 import { forgetSecret, getSecret, setSecret } from "./vault.js";
+import { write as writeRecord } from "./records.js";
 
 /**
  * Plugins (DESIGN, *Plugins*). A plugin is **its own process**, any language,
@@ -279,6 +280,13 @@ export function setSettings(id: string, values: Record<string, unknown>): void {
   }
   k.settings[id] = mine;
   keep(k);
+  // What changed, to your other machines (sync-apply.ts): never a secret — those stay in this machine's keyring.
+  const shared: Record<string, unknown> = {}, cleared: string[] = [];
+  for (const [key, v] of Object.entries(values)) {
+    if (m.settings.find((x) => x.key === key)?.kind === "secret") continue;
+    if (v === null) cleared.push(key); else shared[key] = v;
+  }
+  writeRecord({ of: `plugin:${id}`, set: shared, unset: cleared });
   // Told at once, so a sync with a new address does not wait for a restart.
   running.get(id)?.notify("notifications/talaris/settings_changed", { settings: settingsFor(m) });
 }
@@ -957,4 +965,15 @@ export async function callPluginTool(id: string, tool: string, args: Record<stri
   if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
   if (!r.tools.some((t) => t.name === tool)) throw new NotFound(`${r.manifest.name} offers no ${tool}`);
   return r.request("tools/call", { name: tool, arguments: args ?? {} });
+}
+
+/** Whether a plugin is installed here: another machine's settings for it wait until it is (sync-folder.ts). */
+export function isInstalled(id: string): boolean {
+  return installed().some((x) => x.manifest.id === id);
+}
+
+/** A plugin's settings as they are here, its secrets only as whether they are set (sync-apply.ts). */
+export function settingsOf(id: string): Record<string, unknown> {
+  const m = installed().find((x) => x.manifest.id === id)?.manifest;
+  return m ? settingsShown(m) : {};
 }

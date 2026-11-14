@@ -45,6 +45,7 @@ import { applyKept } from "./suggest.js";
 import { merge3 } from "./merge3.js";
 import { libraryFileSha, removeLibraryFile, writeLibraryFile } from "./sync-files.js";
 import { writeWallpaper } from "./wallpapers.js";
+import { setSettings, settingsOf as pluginSettingsShown } from "./plugins.js";
 
 // ------------------------------------------------------------ clocks
 
@@ -123,7 +124,7 @@ export function replacedFor(of?: string): Replaced[] {
 // ------------------------------------------------------------ applying
 
 /** Whether this Talaris knows what a record is about: one from a newer Talaris may not be, yet (sync-folder.ts keeps it). */
-const KINDS = ["e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
+const KINDS = ["plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
 export function known(r: Rec): boolean {
   return KINDS.some((k) => r.of.startsWith(k)) || ["merged", "suggest", "prefs"].includes(r.of);
 }
@@ -482,6 +483,24 @@ function tellScreens(word: string): void {
   } catch { /* not running */ }
 }
 
+/**
+ * A plugin's settings from another machine, field by field by their moment, given to the plugin here as Settings
+ * would. Not its secrets, which never travel, nor whether it is on: each machine's own (a plugin that talks to
+ * something outside, on two machines at once, is step 5's to make safe). Not installed here: it waits (sync-folder.ts).
+ */
+function applyPluginSettings(r: Rec): boolean {
+  const id = r.of.slice("plugin:".length);
+  const now: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(pluginSettingsShown(id))) if (!(v && typeof v === "object" && "set" in (v as object))) now[k] = v;
+  const before = JSON.stringify(now);
+  if (!mergeInto(r, now, new Set()) && JSON.stringify(now) === before) return false;
+  const values: Record<string, unknown> = {};
+  for (const k of Object.keys(r.set ?? {})) values[k] = now[k];
+  for (const k of r.unset ?? []) values[k] = null;
+  setSettings(id, values);
+  return true;
+}
+
 /** Whether this machine is joining (join.ts): only then may an arriving Home take its own. */
 export const joining = () => existsSync(join(DATA_DIR, "sync", "joining"));
 
@@ -505,6 +524,7 @@ export function apply(r: Rec): boolean {
         if (r.of === "merged") { for (const [d, k] of Object.entries(r.set ?? {})) rememberMerge(d, String(k)); return true; }
         if (r.of === "suggest") { applyKept((r.add ?? {}) as never, (r.remove ?? {}) as never); return true; }
         if (r.of === "prefs") return applyPrefs(r);
+        if (r.of.startsWith("plugin:")) return applyPluginSettings(r);
         if (r.of.startsWith("wallpaper:")) {
           const ok = typeof r.set?.sha === "string" && writeWallpaper(r.of.slice("wallpaper:".length), r.set.sha);
           // A wallpaper the settings named before its picture had come: the settings taken again, now it is here.

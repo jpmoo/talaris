@@ -245,6 +245,28 @@ const TOOLS: Tool[] = [
       return `Updated (version ${e.version}).`;
     },
   },
+  {
+    name: "talaris_set_picture",
+    description: "Set the picture of a Talaris thing — a person's photo, an organization's logo — from an image: what its card shows. Only when the user asks for it. The thing by its entity id (talaris_find); the image as base64 (a JPEG or PNG).",
+    inputSchema: { type: "object", properties: {
+      id: { type: "string" },
+      image: { type: "string", description: "The picture, base64" },
+      mediaType: { type: "string", enum: ["image/jpeg", "image/png", "image/webp"] },
+    }, required: ["id", "image"] },
+    annotations: { readOnlyHint: false, title: "Set a picture in Talaris" },
+    run: async (a) => {
+      const id = str(a.id);
+      const thing = await core<{ entity: { type: string; properties: Record<string, unknown> }; title: string }>("GET", `/entities/${encodeURIComponent(id)}`);
+      const types = await core<{ id: string; fields: { key: string; kind: string; many?: boolean }[] }[]>("GET", "/entity-types");
+      // Its picture is the field of one attachment, by kind — whatever the type calls it (people.js reads it so).
+      const field = types.find((t) => t.id === thing.entity.type)?.fields.find((f) => f.kind === "attachment" && !f.many)?.key;
+      if (!field) return `${thing.title} has no picture to set: its type keeps none.`;
+      const mediaType = str(a.mediaType) || "image/jpeg";
+      const ext = mediaType === "image/png" ? "png" : mediaType === "image/webp" ? "webp" : "jpg";
+      await core("POST", `/entities/${encodeURIComponent(id)}/files`, { filename: `picture.${ext}`, mediaType, data: str(a.image), field });
+      return `The picture of ${thing.title} is set.`;
+    },
+  },
 ];
 
 // ------------------------------------------------------------ tasks
