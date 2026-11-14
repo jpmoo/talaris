@@ -28,6 +28,7 @@ import { Conflict, NotFound } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
+import { write as writeRecord } from "./records.js";
 
 /** The plugin keeping a thing in step with another app, if one does. */
 export function syncedBy(o: Entity): string | null {
@@ -155,4 +156,6 @@ export function rememberMerge(dropId: string, keepId: string): void {
   const map = aliasMap();
   map[dropId] = keepId;
   writeAtomic(ALIASES(), seal(storeKey(), JSON.stringify(map)));
+  // One entry of many, as sync records it (records.ts).
+  writeRecord({ of: "merged", set: { [dropId]: keepId } });
 }

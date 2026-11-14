@@ -320,6 +320,12 @@ Each step leaves Talaris working on one machine as it does now.
    Left: a page moved outside Talaris leaves its versions at the old path.
 2. **Records.** The feed widened to field-level records with batches and the
    clock, for every store that syncs, including the single-file ones.
+   Done 2026-11-14 (records.ts, project-records.ts): entities; pages (with the
+   base a merge needs), canvases item by item, a project's own files entry by
+   entry, moves, copies, deletes; the small sealed stores, done-once markers,
+   merges, dismissed suggestions — all off until a machine syncs.
+   Left: the Library's files with their bytes (2b), and the part of
+   `config.json` that is yours (the surfaces write it, in Python).
 3. **Applying.** Records applied through the core's own paths; the replaced
    log; tombstones; three-way page merge; per-item canvas merge.
 4. **The folder transport**, sealed logs and blobs, snapshots, and *Joining*.

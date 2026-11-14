@@ -109,3 +109,31 @@ test("the log is sealed: no field of a record readable in the file", () => {
   const text = readdirSync(dir).map((n) => readFileSync(join(dir, n), "utf8")).join("");
   assert.ok(!text.includes("Call Ann"));
 });
+
+test("a small sealed store: what changed in a record; a list's members as members", () => {
+  entities.sealedPut("lists", "c_test", { id: "c_test", name: "Reading", members: ["e_a"] });
+  entities.sealedPut("lists", "c_test", { id: "c_test", name: "Reading", members: ["e_a", "e_b"] });
+  const r = records.ownLog().filter((x) => x.of === "sealed:lists/c_test").pop()!;
+  assert.deepEqual(r.add!.members, ["e_b"]);
+  assert.ok(!r.set || !("name" in r.set));
+  entities.sealedDrop("lists", "c_test");
+  assert.equal(records.ownLog().filter((x) => x.of === "sealed:lists/c_test").pop()!.gone, true);
+});
+
+test("done once here: said, so a machine joining does not do it again", () => {
+  entities.sealedOnce("lists", "starters-test");
+  assert.equal(records.ownLog().filter((x) => x.of === "once:lists/starters-test").pop()!.set!.done, true);
+});
+
+test("a merge remembered: one entry", async () => {
+  const merge = await import("../src/merge.js");
+  merge.rememberMerge("e_dropped", "e_kept");
+  assert.deepEqual(records.ownLog().filter((x) => x.of === "merged").pop()!.set, { e_dropped: "e_kept" });
+});
+
+test("a suggestion said no to: one member added", async () => {
+  const suggest = await import("../src/suggest.js");
+  suggest.dismiss("e_one", "e_two");
+  const r = records.ownLog().filter((x) => x.of === "suggest").pop()!;
+  assert.equal(r.add!.no!.length, 1);
+});

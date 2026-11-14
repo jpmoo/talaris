@@ -402,12 +402,22 @@ export function sealedList<T>(folder: string): T[] {
   mkdirSync(d, { recursive: true });
   return readdirSync(d).filter((n) => !n.startsWith(".")).map((n) => readSealed<T>(join(d, n)));
 }
+/**
+ * A record of a small sealed store (lists, task series, preferences, forgotten cards), as sync records it
+ * (records.ts): what changed in it, `sealed:<folder>/<id>`; a list's members as members added and removed.
+ */
+const asFields = (v: unknown): Record<string, unknown> | null => (v == null ? null : typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : { value: v });
 export function sealedPut(folder: string, id: string, value: unknown): void {
   load();
-  writeSealed(join(dir(folder), safe(id)), value);
+  const path = join(dir(folder), safe(id));
+  let before: unknown = null;
+  try { if (existsSync(path)) before = readSealed<unknown>(path); } catch { before = null; }
+  writeSealed(path, value);
+  writeRecord(diff(`sealed:${folder}/${id}`, asFields(before), asFields(value) ?? {}, new Set(["members"])));
 }
 export function sealedDrop(folder: string, id: string): void {
   rmSync(join(dir(folder), safe(id)), { force: true });
+  writeRecord({ of: `sealed:${folder}/${id}`, gone: true });
 }
 /** Whether a store has been through something once (a dotfile, so never read as one of its records); marked when asked. */
 export function sealedOnce(folder: string, what: string): boolean {
@@ -415,6 +425,8 @@ export function sealedOnce(folder: string, what: string): boolean {
   if (existsSync(mark)) return true;
   mkdirSync(dir(folder), { recursive: true });
   writeFileSync(mark, "");
+  // Done once here, done everywhere: a machine joining is not to make the starter lists again (records.ts).
+  writeRecord({ of: `once:${folder}/${what}`, set: { done: true } });
   return false;
 }
 

@@ -54,6 +54,7 @@ import { Conflict, NotFound, ensureHome, findProject } from "./projects.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { DATA_DIR, storeKey } from "./vault.js";
+import { diff, write as writeRecord } from "./records.js";
 
 export type How = "mention" | "connect" | "attach" | "merge" | "shortcut";
 export interface Way { how: How; label: string; /** For a mention: the words made one. */ text?: string; /** What it will do, where its one word does not say. */ says?: string }
@@ -375,9 +376,18 @@ function keptState(): Kept {
   if (existsSync(KEPT())) {
     try { kept = { no: [], quiet: [], ...JSON.parse(unseal(storeKey(), readFileSync(KEPT())).toString("utf8")) as Partial<Kept> }; } catch { /* started again */ }
   }
+  keptSaved = JSON.parse(JSON.stringify(kept)) as Kept;
   return kept;
 }
-const saveKept = () => writeAtomic(KEPT(), seal(storeKey(), JSON.stringify(keptState())));
+/** What was last saved, for sync's record of what changed (records.ts): no-to's and quiet ones as members. */
+let keptSaved: Kept | null = null;
+const saveKept = () => {
+  const now = keptState();
+  if (!keptSaved) keptSaved = { no: [], quiet: [] };
+  writeAtomic(KEPT(), seal(storeKey(), JSON.stringify(now)));
+  writeRecord(diff("suggest", keptSaved as unknown as Record<string, unknown>, now as unknown as Record<string, unknown>, new Set(["no", "quiet"])));
+  keptSaved = JSON.parse(JSON.stringify(now)) as Kept;
+};
 const pair = (a: string, b: string) => [a, b].sort().join("\u0000");
 
 /** No to a suggestion: not made again, either way round. */
