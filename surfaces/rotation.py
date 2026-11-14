@@ -46,6 +46,23 @@ def available() -> bool:
     return bool(shutil.which("monitor-sensor")) and bool(glob.glob("/sys/bus/iio/devices/*/in_accel_x_raw"))
 
 
+def flat() -> bool:
+    """
+    Whether the accelerometer lies flat — gravity nearly all on its z axis — and so cannot say which way is up.
+    On the mini the sensor is in the keyboard half: open as a laptop on a desk it lies flat, and iio-sensor-proxy,
+    with nothing to go on, says `normal` (the panel's own way, portrait). A flat reading is not obeyed: the screen
+    stays as it is until the device is tilted up. Read from the sensor's own files, which need no claim.
+    """
+    for d in glob.glob("/sys/bus/iio/devices/*/"):
+        try:
+            x, y, z = (float(open(f"{d}in_accel_{a}_raw").read()) for a in "xyz")
+        except (OSError, ValueError):
+            continue
+        # Within about 25° of lying flat.
+        return z * z > 4 * (x * x + y * y)
+    return False
+
+
 def _built_in() -> dict | None:
     """The built-in screen as Hyprland has it now, or None."""
     try:
@@ -128,6 +145,10 @@ class Rotation(QObject):
 
     def _turn(self) -> None:
         if not self.on() or self.locked or self.orientation not in TRANSFORMS:
+            return
+        if flat():
+            # Its report means nothing lying flat; looked at again in a moment, in case it is being lifted.
+            self._settle.start(1500)
             return
         self._set(TRANSFORMS[self.orientation])
 
