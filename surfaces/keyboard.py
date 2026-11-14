@@ -67,6 +67,12 @@ class Keyboard(QObject):
         self._room = QTimer(self)
         self._room.setSingleShot(True)
         self._room.timeout.connect(self._measure)
+        # While it is up, measured again now and then: it changes size with the screen turned (283 high in landscape,
+        # 466 in portrait), and nothing says so. Kept clear of the landscape height in portrait, the panels lay over
+        # its top rows and took their taps as a press off the panel (2026-11-14).
+        self._again = QTimer(self)
+        self._again.setInterval(1000)
+        self._again.timeout.connect(self._measure)
         #: Folded back into a tablet (rotation.py): the keyboard comes up by itself in a field, as there is no other.
         self.auto = False
         # However it came up — asked by a button, or by itself in a tablet — panels keep clear of it.
@@ -93,6 +99,7 @@ class Keyboard(QObject):
             self._room.start(150)
         else:
             self._room.stop()
+            self._again.stop()
             layershell.set_keyboard(0)
 
     def theme(self) -> None:
@@ -181,6 +188,11 @@ sq_button.change-view-3, sq_button.emoji-group, sq_button.character-group {{ bac
                 for layer in level:
                     if layer.get("namespace") == "osk":
                         layershell.set_keyboard(int(layer.get("h", 0)))
+                        self._again.start()
                         return
         if self.up:
             self._room.start(250)
+        else:
+            # Gone without a word (its layer's closing missed): nothing kept clear of it any more.
+            self._again.stop()
+            layershell.set_keyboard(0)
