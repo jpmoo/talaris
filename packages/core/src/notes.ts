@@ -36,6 +36,7 @@ import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, t
 import { Conflict, PAGES, UNDATED, allProjects, attachedFile, ensureHome, findProject, pagesPlace, putProjectFile } from "./projects.js";
 import { DAILY, createPage, fileLinkText, movePage, pageFiles, pageTree, readPage, transferPage, withoutFileLink, writePage } from "./pages.js";
 import { linkedBytes, setPageLinks } from "./links.js";
+import { movedText } from "./mentions.js";
 import { ensureProjectEntity, projectIdOf } from "./filing.js";
 import { WRITING } from "./paths.js";
 import type { PageNode } from "@talaris/model";
@@ -163,6 +164,8 @@ export const DAY_MARK = "talaris:daily";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Home, made if it is not yet: the project that is always there, and where the undated notes and daily notes are.
 const homeId = () => ensureHome().id;
+/** The id a day made here is given: from its date alone, the same on every machine. */
+export const dayId = (date: string) => `e_day${date.replace(/-/g, "")}`;
 const daySource = (date: string) => ({ kind: "page", key: `${homeId()}/${DAILY}/${date}` });
 
 function dayDates(): string[] {
@@ -180,7 +183,9 @@ function mirrorDay(date: string, id?: string): Entity {
   const type = typeFor("daily");
   const e = bySource(daySource(date));
   const props = { title: date, date, body: text };
-  if (!e) return dayFiles(createEntity({ ...(id ? { id } : {}), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date }), text);
+  // Made here, a day's id is its date's: two machines that each write that day's note make one (docs/SYNC.md). One
+  // from elsewhere keeps the id it came with (a Hermes day is made at Hermes' id).
+  if (!e) return dayFiles(createEntity({ id: id ?? dayId(date), type: type.id, properties: props, sources: [daySource(date)], "talaris:textElsewhere": true, [DAY_MARK]: date }), text);
   // An empty page's body is never kept (updateEntity drops ""), so none counts as empty: compared bare, an empty day
   // was written again on every reconcile, a new version each time — every write to it refused as stale, and every
   // reader of changes (the calendar) told of one, every few seconds.
@@ -280,6 +285,40 @@ export function createDay(id: string, date: string, words: string, properties: R
   return mirrorDay(date);
 }
 
+/**
+ * Pages renamed or moved outside Talaris — in a file manager, by another app, or (docs/SYNC.md) arriving so from
+ * another machine — kept as the same note. Talaris's own renames carry the entity with them (pages.ts, movePage);
+ * one made elsewhere looks like a page gone and another come, and its entity, with every connection to it, would
+ * be deleted and a new one made. So a page gone and a page come with the same words are taken for one page moved
+ * — and, with no words to tell them by, the same title in the same project. Only where that is certain: a page
+ * gone that two new ones could be, or two gone that one could be, is left to be gone and made, as before.
+ */
+function movedOutside(places: Place[], keys: Set<string>): void {
+  const gone = allRecords().map((r) => r.object).filter((e) => {
+    if (e[MARK] !== true) return false;
+    const src = pageSource(e);
+    return Boolean(src && !keys.has(src.key) && placeOf(src.key));
+  });
+  if (!gone.length) return;
+  const come = places.filter((at) => !bySource(sourceOf(at)));
+  if (!come.length) return;
+  const textOf = (at: Place) => { try { return readPage(at.project, at.path); } catch { return ""; } };
+  const texts = new Map(come.map((at) => [keyOf(at), textOf(at)]));
+  const same = (e: Entity, at: Place): boolean => {
+    const was = placeOf(pageSource(e)!.key)!;
+    const words = wordsOf(e);
+    if (words.trim()) return words === texts.get(keyOf(at));
+    return !texts.get(keyOf(at))?.trim() && was.project === at.project && titleOf(was.path) === titleOf(at.path);
+  };
+  for (const e of gone) {
+    const could = come.filter((at) => same(e, at));
+    if (could.length !== 1) continue;
+    const at = could[0]!;
+    if (gone.filter((o) => same(o, at)).length !== 1) continue;
+    movedText(pageSource(e)!, sourceOf(at));
+  }
+}
+
 /** Every note's entity as its page is; any that stood for a page gone, gone (the feed says so). */
 export function reconcileNotes(): void {
   reconcileDays();
@@ -290,6 +329,7 @@ export function reconcileNotes(): void {
   }
   const places = allPlaces();
   const keys = new Set(places.map(keyOf));
+  movedOutside(places, keys);
   for (const at of places) mirror(at);
   for (const r of allRecords()) {
     const e = r.object;

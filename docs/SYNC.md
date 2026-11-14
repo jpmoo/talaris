@@ -128,15 +128,18 @@ what it is**, so both make the same one and they merge into one:
 
 | Thing | Today | Becomes |
 |---|---|---|
-| A page | its path; its note entity re-made with a new random id whenever the path appears anew or moves (`reconcileNotes`, notes.ts:284) | a lasting **page id**, kept in the page's front matter, independent of its path; the note entity keyed to it; renames are a field change |
-| Today's daily note | `Daily/<date>` | id from Home and the date |
+| A page | its path, and its note entity — whose id already lasts through Talaris's own renames (`movePage` → `movedText`) — deleted and re-made when a page is renamed or moved *outside* Talaris (`reconcileNotes`) | **the note entity's id is the page's id.** A page gone and one come with the same words (or, empty, the same title in the same project) is taken for one moved, and keeps its entity — **done** (notes.ts, `movedOutside`). No id in the file: front matter would show in the editor and travel to Hermes |
+| Today's daily note | `Daily/<date>`, a random entity id | a day made here is `e_day<yyyymmdd>` — **done** (notes.ts, `dayId`); one from Hermes keeps Hermes' id |
 | Home | `ensureHome()` makes one per fresh machine | made once; a joining machine takes the existing one |
 | A project's code | `nextCode()`: max + 1, so two machines both make PRJ-22 | a code is a field; a clash is renumbered on the later one, said in its record |
 | Something from outside (a plugin's import, a calendar event, an address-book card) | `createEntity` gives a random id | id from the source and its key: `id = hash(kind, key)` (*Mirrors*) |
 
-**Paths stop being identities.** Page versions, order, look and starred lists
-key on page ids rather than paths; file-list rows, the files index and `file`
-sources key on a file id kept for each file in the project's file table.
+**Paths stay on disk, and stop at the records.** Page versions, order, look,
+starred and file lists keep their paths on disk; a record names a page by its
+entity's id and a file by its project and path with its hash (a file moved is
+a record saying so; one moved outside Talaris is found by its hash), and the
+receiving machine turns them back into its paths. Nothing on disk is reshaped
+for sync.
 
 ## What syncs
 
@@ -311,10 +314,10 @@ made — page notes, canvases, lists, Home, project ids and codes — do not. So
 
 Each step leaves Talaris working on one machine as it does now.
 
-1. **Ids that last.** Page ids in front matter; notes keyed to them, so
-   `reconcileNotes` stops deleting and re-making; file ids; daily note and
-   Home ids; project codes as fields. Paths stop being keys in order, look,
-   starred, versions, file lists.
+1. **Ids that last** — done 2026-11-14: a page moved outside Talaris keeps its
+   entity; a day made here has its date's id. (Home, project codes and files
+   are settled where records are written and applied, steps 2 and 3.)
+   Left: a page moved outside Talaris leaves its versions at the old path.
 2. **Records.** The feed widened to field-level records with batches and the
    clock, for every store that syncs, including the single-file ones.
 3. **Applying.** Records applied through the core's own paths; the replaced
