@@ -356,6 +356,11 @@ class BarBridge(Bridge):
     def popup(self, kind: str) -> None:
         self.owner.desktop.bar.toggle_popup(kind)
 
+    @Slot()
+    def rotate(self) -> None:
+        """The screen held where it started, or following the device again (rotation.py)."""
+        self.owner.desktop.rotation.toggle_lock()
+
     @Slot(str, float)
     def popupAt(self, kind: str, x: float) -> None:  # noqa: N802 — called from the page by this name
         """A popup centered under the button at `x` along the bar (its page's pixels)."""
@@ -675,6 +680,8 @@ class Bar(QObject):
             # conversation is out.
             "morgan": self.desktop.morgan_link.now,
             "morganHere": bool(getattr(self.desktop, "morgan_here", True)),
+            # Turning with the device (rotation.py): its button, and whether the screen is held.
+            "rotation": self.desktop.rotation.describe() if getattr(self.desktop, "rotation", None) else {},
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),

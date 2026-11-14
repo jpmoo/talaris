@@ -32,7 +32,7 @@ body[data-shape="floating"] #bar {
 }
 body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--m-right) var(--m-bottom) var(--m-left); height: calc(100% - var(--m-bottom) - var(--room, 0px)); }
 .side { display: flex; align-items: center; gap: var(--bar-gap, 4px); min-width: 0; }
-.bar-hidden { display: none !important; }
+.bar-hidden, .bar-shed { display: none !important; }
 /* Its right-click menu out (bar.js, markTray): lit as a button with its popup out is. */
 .menu-on { border-color: var(--accent) !important; background: var(--accent-wash) !important; color: var(--accent) !important; }
 /* An item carried along the bar to another place in its region (bar.js, arrange). */
@@ -185,6 +185,7 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
     <button id="bright" class="bar-item" title=""><span id="bright-ic"></span><span class="n" id="bright-n"></span></button>
     <button id="bat" class="bar-item" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></button>
+    <button id="rotate" class="bar-item" hidden></button>
     <button id="settings" class="bar-item" title="Settings"></button>
     <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span class="timing-dot"></span><span class="dot"></span></button>
     <button id="power" class="bar-item" title="Power"></button>

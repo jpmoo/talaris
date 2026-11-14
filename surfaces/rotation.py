@@ -64,6 +64,9 @@ class Rotation(QObject):
         #: The built-in screen's transform when this started: where it goes back to when turned off.
         self.home: int | None = None
         self._buffer = b""
+        #: Held where it started (the bar's button), whatever the sensor says: a convertible's screen folded back on its
+        #: hinge moves the screen and not the sensor, so it never hears it is a laptop again.
+        self.locked = False
         # A device being turned passes through ways up on its way: the last one, once it has settled.
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
@@ -87,6 +90,7 @@ class Rotation(QObject):
             self._set(self.home)
             self.home = None
         self.orientation = ""
+        self.locked = False
 
     def _start(self) -> None:
         mon = _built_in()
@@ -123,9 +127,25 @@ class Rotation(QObject):
                 log(f"rotation: {text.strip()}")
 
     def _turn(self) -> None:
-        if not self.on() or self.orientation not in TRANSFORMS:
+        if not self.on() or self.locked or self.orientation not in TRANSFORMS:
             return
         self._set(TRANSFORMS[self.orientation])
+
+    def toggle_lock(self) -> None:
+        """Held where it started — the screen put back there now — or following the device again."""
+        if not self.on():
+            return
+        self.locked = not self.locked
+        if self.locked:
+            if self.home is not None:
+                self._set(self.home)
+        else:
+            self._turn()
+        self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
+
+    def describe(self) -> dict:
+        """For the bar's button: shown while this follows the device, and whether it is held."""
+        return {"on": self.on(), "locked": self.locked}
 
     def _set(self, transform: int) -> None:
         """The built-in screen at this transform, and its touchscreen and stylus with it."""

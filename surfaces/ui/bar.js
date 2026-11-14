@@ -89,8 +89,17 @@ function onState(s) {
   $("loc").hidden = !where.looking;
   if (where.looking) { drawn($("loc"), Icons.pin_place()); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
+  // Turning with the device (rotation.py): held where it started, or following it — a press changes which.
+  const rot = s.rotation || {};
+  $("rotate").hidden = !rot.on;
+  if (rot.on) {
+    drawn($("rotate"), rot.locked ? Icons.lock() : Icons.refresh());
+    $("rotate").classList.toggle("on", !!rot.locked);
+    $("rotate").title = rot.locked ? "Held in its usual position — follow the device" : "Following the device — hold in the usual position";
+  }
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
+  requestAnimationFrame(fit);
   drawWhere(s, p, shows);
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
   const now = s.morgan || "absent";
@@ -432,4 +441,26 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.tray.connect((text) => drawTray(JSON.parse(text)));
   b.trayItems((text) => drawTray(JSON.parse(text)));
 });
+
+// ---------------------------------------------------------------- too narrow
+//
+// A screen narrower than the bar's items (a small screen turned on its side, or
+// at a large text size): the least needed go, one at a time, until the rest fit
+// — the numbers beside icons first, the hubs last. Each is still a key or a
+// search away in the launcher. Measured afresh whenever the bar changes or its
+// surface does.
+const SHED = ["bat-n", "vol-n", "bright-n", "net-n", "day", "weather", "shot", "theme", "clipboard", "bt",
+  "canvas", "writing", "files", "people", "tasks", "new"];
+function fit() {
+  for (const id of SHED) $(id).classList.remove("bar-shed");
+  const bar = $("bar");
+  const over = () => bar.scrollWidth > bar.clientWidth + 1
+    || [...bar.querySelectorAll(".side")].some((x) => x.scrollWidth > x.clientWidth + 1);
+  for (const id of SHED) {
+    if (!over()) break;
+    $(id).classList.add("bar-shed");
+  }
+}
+addEventListener("resize", () => requestAnimationFrame(fit));
+$("rotate").addEventListener("click", () => bridge && bridge.rotate());
 
