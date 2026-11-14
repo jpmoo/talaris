@@ -22,7 +22,9 @@ so the keyboard is the panel's neighbor rather than under it.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import signal
 import subprocess
 
 from PySide6.QtCore import QObject, QTimer
@@ -33,6 +35,12 @@ from views import log
 
 #: The one keyboard, for the bridge's slot every page has (core.Bridge.keyboard).
 current: "Keyboard | None" = None
+
+#: Talaris's grays (ui/tokens.css), and a raised one for the keys that change what the keyboard shows.
+DARK = {"desk": "#16181a", "surface": "#222528", "raised": "#2b2f33", "line": "#3a3f44", "text": "#d5d9dc", "muted": "#868c92"}
+LIGHT = {"desk": "#d9dcdf", "surface": "#eceef0", "raised": "#e1e4e7", "line": "#c3c8cd", "text": "#25292d", "muted": "#6c7277"}
+BEGIN = "/* >>> Talaris: the on-screen keyboard's look (keyboard.py) — written from Settings, Look; replaced whole */"
+END = "/* <<< Talaris */"
 
 OSK = ["gdbus", "call", "--session", "--dest", "sm.puri.OSK0", "--object-path", "/sm/puri/OSK0", "--method", "sm.puri.OSK0.SetVisible"]
 
@@ -65,6 +73,7 @@ class Keyboard(QObject):
         desktop.events.layer.connect(self._layer)
         if available():
             self._start()
+            self.theme()
 
     def set_auto(self, on: bool) -> None:
         """A tablet (the keyboard by itself in any field), or a laptop again (only from a field's button)."""
@@ -85,6 +94,59 @@ class Keyboard(QObject):
         else:
             self._room.stop()
             layershell.set_keyboard(0)
+
+    def theme(self) -> None:
+        """
+        The keyboard in Talaris's look: its grays, accent and font, dark or light, as Settings, Look has them.
+        Squeekboard is a GTK 3 program drawn as `sq_view` and `sq_button`, names no other program uses, so a
+        block for them in the user's GTK stylesheet dresses it and nothing else. Talaris owns only its marked
+        block; the rest of the file is left as it is. Squeekboard reads it as it starts, so it is started again.
+        """
+        if not available():
+            return
+        t = self.desktop.config.get("theme", {})
+        light = t.get("mode") == "light"
+        accent = (t.get("accentLight") if light else t.get("accentDark")) or t.get("accent") or "#c98a5b"
+        c = LIGHT if light else DARK
+        font = t.get("font") or "Barlow Semi Condensed"
+        block = f"""{BEGIN}
+sq_view {{ background-color: {c['desk']}; box-shadow: inset 0 1px 0 0 {c['line']}; font-family: '{font}', sans-serif; }}
+sq_button {{ color: {c['text']}; background: {c['surface']}; border: 1px solid {c['line']}; border-radius: 8px; box-shadow: none; }}
+sq_button:active, sq_button.locked, sq_button.latched {{ background: {accent}; color: {c['desk']}; border-color: {accent}; }}
+sq_button.subtle-highlight, sq_button.subtle-highlight-2, sq_button.change-view, sq_button.change-view-2,
+sq_button.change-view-3, sq_button.emoji-group, sq_button.character-group {{ background: {c['raised']}; color: {c['muted']}; border: 1px solid {c['line']}; }}
+{END}
+"""
+        path = os.path.expanduser("~/.config/gtk-3.0/gtk.css")
+        try:
+            text = open(path, encoding="utf-8").read()
+        except OSError:
+            text = ""
+        if BEGIN in text and END in text:
+            head, _, rest = text.partition(BEGIN)
+            _, _, tail = rest.partition(END)
+            new = head + block.rstrip("\n") + tail
+        else:
+            new = (text.rstrip("\n") + "\n\n" if text.strip() else "") + block
+        if new == text:
+            return
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new)
+        self._restart()
+
+    def _restart(self) -> None:
+        """Squeekboard started again, to read its look: signalled by its pid, then started by Hyprland."""
+        out = subprocess.run(["pgrep", "-x", "squeekboard"], capture_output=True, text=True).stdout.split()
+        for pid in out:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+            except (OSError, ValueError):
+                pass
+        QTimer.singleShot(600, lambda: hypr.ask("/dispatch exec squeekboard"))
+        self.up = False
+        layershell.set_keyboard(0)
+        log("keyboard: dressed in Talaris's look")
 
     def _start(self) -> None:
         # Never by itself: only when a field's button asks (see above).

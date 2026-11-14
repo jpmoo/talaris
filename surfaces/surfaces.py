@@ -696,6 +696,9 @@ class Desktop(QObject):
             self.calendar.bridge.state.emit(json.dumps(self.calendar.describe()))
         if after["power"] != before["power"]:
             self.power.apply()
+        if after["theme"] != before["theme"]:
+            # The on-screen keyboard dressed again in the new look (keyboard.py).
+            self.keyboard.theme()
         if after["touch"] != before["touch"]:
             self.touch_targets()
         if after["launcher"]["keys"] != before["launcher"]["keys"]:

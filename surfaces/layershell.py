@@ -171,7 +171,10 @@ def clear_of_keyboard(placement: Placement) -> Placement:
     What takes no keys (the corners, the dim) is left where it is.
     """
     room = _keyboard / QT_SCALE
-    if not room or placement.layer != OVERLAY or placement.keyboard == KEYBOARD_NONE:
+    # What covers the screen top to bottom — a panel's dim, a popup's catcher — stops there too, keys or none:
+    # over the keyboard, it took the taps meant for it. The corners and the like are left where they are.
+    tall = bool(placement.anchors & ANCHOR_TOP and placement.anchors & ANCHOR_BOTTOM)
+    if not room or placement.layer != OVERLAY or (placement.keyboard == KEYBOARD_NONE and not tall):
         return placement
     left, top, right, bottom = placement.margins
     if placement.anchors & ANCHOR_BOTTOM:
