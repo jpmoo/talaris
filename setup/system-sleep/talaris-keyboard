@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+#
+# The built-in keyboard back after a wake. Some machines' firmware turns the
+# keyboard controller off as the lid closes and does not turn it on again
+# after deep sleep (S3): the keyboard is dead until the machine is folded into
+# a tablet and back. Re-attaching Linux's keyboard driver sends it the
+# commands that turn it on. Lighter sleep (s2idle) also kept the keyboard, but
+# on the same machine left the screen black and touch dead after a wake.
+#
+# Installed by hand where it is needed, as root:
+#   install -m 755 setup/system-sleep/talaris-keyboard /usr/lib/systemd/system-sleep/
+# systemd runs it with "pre" before sleep and "post" after; only "post" acts.
+
+[ "$1" = post ] || exit 0
+driver=/sys/bus/serio/drivers/atkbd
+[ -e "$driver/serio0" ] || exit 0
+printf serio0 > "$driver/unbind"
+printf serio0 > "$driver/bind"
