@@ -516,7 +516,8 @@ class Dock(QObject):
         self.last = "{}"
         self.items: dict[str, dict] = {}
         self.bridge = DockBridge(self, self)
-        self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self)
+        # Its own area, not the interface's: the dock has no text size (views.AREAS), and a zoomed page was cut off by its fixed thickness.
+        self.view = make_view(profile, "dock", "talaris-ui://ui/dock.html", self.bridge, self, area="dock")
         self.surface = LayerSurface(self.view, "talaris-dock")
         self.hider = Autohide(profile, "dock", self.view, self._show, self._hide, slide_out=self._slide_out,
                               busy=lambda: bool(self.menu.key or self.preview.key), parent=self,
