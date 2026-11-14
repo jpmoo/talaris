@@ -602,6 +602,8 @@
     const control = !task ? el("span", { class: "nostat" }) : fmt === "checklist" ? checkEl(r) : chipEl(r);
     const row = el("div", { class: "row" + (r.complete ? " done" : "") + (editing === r.id ? " on" : ""), "data-id": r.id,
       onclick: () => { if (task) openTask(r.id); },
+      // Twice: its own card, in the Library.
+      ondblclick: () => { if (task && window.Peek) Peek.openCard(`e:${r.id}`); },
       oncontextmenu: (e) => { if (!plain) { rowMenu(e, r); return; } e.preventDefault(); if (isTask(r)) menuAt(e.clientX, e.clientY, statusItems(r)); } },
       fmt === "numbered" ? el("span", { class: "num" }, `${n}.`) : null,
       control,

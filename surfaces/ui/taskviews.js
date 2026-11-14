@@ -255,6 +255,8 @@ const TaskViews = (() => {
     // A press anywhere on the card opens the task — not on its buttons or its status dot, which do their own thing
     // (and the click that ends a drag never arrives: draggable swallows it).
     node.addEventListener("click", (e) => { if (!e.target.closest("button, input, .tv-sdot, .tv-nodrag")) ctx.openTask(row.id); });
+    // Twice: its own card, in the Library.
+    node.addEventListener("dblclick", (e) => { if (!e.target.closest("button, input, .tv-sdot, .tv-nodrag") && window.Peek) Peek.openCard(`e:${row.id}`); });
     return draggable(node, { id: row.id, row, from: opts.from, region: row.region });
   }
 
@@ -433,7 +435,8 @@ const TaskViews = (() => {
         const pen = el("button", { class: "tv-pen", title: "Rename" }, ICON.pen());
         const edit = () => editInPlace(td, row.title || "", (v) => v.trim() && props(c.fk, v.trim()));
         pen.addEventListener("click", (e) => { e.stopPropagation(); edit(); });
-        td.append(el("span", { class: "tv-title", onclick: (e) => { e.stopPropagation(); ctx.openTask(row.id); } }, row.title || "Untitled"), pen);
+        td.append(el("span", { class: "tv-title", onclick: (e) => { e.stopPropagation(); ctx.openTask(row.id); },
+          ondblclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${row.id}`); } }, row.title || "Untitled"), pen);
         td.addEventListener("click", (e) => { if (e.target === td) edit(); });
         break;
       }
@@ -762,7 +765,7 @@ const TaskViews = (() => {
     const s = row.status != null ? ctx.status(row.status) || {} : null;
     const node = el("div", { class: "tv-chip" + (row.overdue ? " late" : "") + (row.complete ? " done" : ""), "data-card": row.id, title: row.title || "" },
       statusDot(ctx, sh, row),
-      el("span", { class: "tv-title", onclick: () => ctx.openTask(row.id) }, row.title || "Untitled"));
+      el("span", { class: "tv-title", onclick: () => ctx.openTask(row.id), ondblclick: () => window.Peek && Peek.openCard(`e:${row.id}`) }, row.title || "Untitled"));
     if (s && sh.options.length) node.addEventListener("contextmenu", (e) => { e.preventDefault(); openPop({ x: e.clientX, y: e.clientY }, hint("Status"), ...statusItems(ctx, sh, row)); });
     return draggable(node, { id: row.id, row, day, from: "calendar" });
   }
