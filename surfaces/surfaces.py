@@ -629,6 +629,7 @@ class Desktop(QObject):
         """The screen is another shape: the bar and the dock, which span it, placed again, and what was open over it put away."""
         self.bar.close_popup()
         self.bar.place()
+        self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
         self.dock.place()
         log("screen: placed again at its new size")
 

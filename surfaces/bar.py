@@ -660,9 +660,17 @@ class Bar(QObject):
         self.bridge.state.emit(json.dumps({**self.describe(), "leaving": True}))
         return round(260 * {"slow": 1.6, "normal": 1, "fast": .6, "fastest": .3}.get(look.get("speed"), 1)) + 30
 
+    @staticmethod
+    def _portrait() -> bool:
+        screen = QApplication.primaryScreen()
+        g = screen.geometry() if screen is not None else None
+        return bool(g and g.height() > g.width())
+
     def describe(self) -> dict:
         return {
             "edge": self.edge,
+            # A screen taller than wide (turned, rotation.py): a short date and time, and no numbers beside the icons.
+            "portrait": self._portrait(),
             "project": self.desktop.project,
             # Demo mode (demo.py): the bar says so, so a made-up world is never taken for the real one.
             "demo": bool(os.environ.get("TALARIS_DEMO")),

@@ -66,6 +66,8 @@ function onState(s) {
     else if (s.arrived && slides) $("bar").animate([{ transform: away }, { transform: "none" }], timing);
   }
   if (s.clock && JSON.stringify(s.clock) !== JSON.stringify(clock)) { clock = s.clock; tick(); }
+  // Turned on its side (rotation.py): a short date and time, and no numbers beside the icons.
+  if (!!s.portrait !== portrait) { portrait = !!s.portrait; document.body.classList.toggle("portrait", portrait); tick(); }
   document.body.dataset.edge = s.edge || "top";
   // The project: its name, its code, or both, as Settings, Bar says.
   const p = s.project || {};
@@ -181,16 +183,20 @@ function dateText(now, style) {
     default: return `${wd}, ${mo} ${d}`;
   }
 }
+let portrait = false;
 function tick() {
   clearTimeout(ticking);
   const now = new Date();
-  $("day").textContent = dateText(now, clock.date);
-  $("time").textContent = now.toLocaleTimeString("en-US", {
-    hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
-    ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
-  });
+  // Short in portrait: 11/14 and 1:22, whatever the date's style or the seconds.
+  $("day").textContent = portrait && clock.date !== "off" ? `${now.getMonth() + 1}/${now.getDate()}` : dateText(now, clock.date);
+  $("time").textContent = portrait
+    ? (clock.hours === "24" ? `${now.getHours()}`.padStart(2, "0") : `${now.getHours() % 12 || 12}`) + `:${String(now.getMinutes()).padStart(2, "0")}`
+    : now.toLocaleTimeString("en-US", {
+      hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
+      ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
+    });
   $("clock").title = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + " — calendar";
-  const wait = clock.seconds ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+  const wait = clock.seconds && !portrait ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
   ticking = setTimeout(tick, wait + 20);
 }
 tick();
