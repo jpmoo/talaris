@@ -1211,6 +1211,8 @@ def main() -> int:
         return send("quit")
 
     register_scheme()
+    import keyboard as osk  # noqa: PLC0415
+    osk.before_qt()
     app = QApplication(sys.argv)
     # The name Hyprland and the dock know Talaris's ordinary windows by (a
     # panel made a window), rather than python3.

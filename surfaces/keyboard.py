@@ -57,6 +57,19 @@ def available() -> bool:
     return bool(shutil.which("squeekboard")) and _touchscreen()
 
 
+def before_qt() -> None:
+    """
+    **Typed as keys.** Where the keyboard is, Talaris's own surfaces leave Wayland's text-input aside, before Qt
+    starts: Squeekboard then types into them as a keyboard does, key by key, to whichever has the keys. Through
+    text-input, Qt lost track of which of its surfaces had the field (a panel, its dim, the bar are each one) and
+    what was typed went nowhere — the keyboard up over the launcher, and no letters (2026-11-14). Other programs keep
+    text-input; only these surfaces are without it, so Squeekboard does not come up by itself in their fields: they
+    ask (`field`), when it is a tablet.
+    """
+    if available():
+        os.environ.setdefault("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "none")
+
+
 class Keyboard(QObject):
     def __init__(self, desktop) -> None:
         super().__init__(desktop)
@@ -156,6 +169,11 @@ sq_button.change-view-3, sq_button.emoji-group, sq_button.character-group {{ bac
             # Started by Hyprland, not as a child of this process: a restart of Talaris leaves it running.
             hypr.ask("/dispatch exec squeekboard")
             log("keyboard: Squeekboard started")
+
+    def field(self, focused: bool) -> None:
+        """A field taken or left, in a tablet: the keyboard up or away by itself, as Squeekboard would for others."""
+        if self.auto:
+            self.show(focused)
 
     def show(self, on: bool) -> None:
         """The keyboard up (a field's button) or away (the field left)."""

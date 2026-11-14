@@ -171,19 +171,24 @@ def clear_of_keyboard(placement: Placement) -> Placement:
     What takes no keys (the corners, the dim) is left where it is.
     """
     room = _keyboard / QT_SCALE
-    # What covers the screen top to bottom — a panel's dim, a popup's catcher — stops there too, keys or none:
-    # over the keyboard, it took the taps meant for it. The corners and the like are left where they are.
+    # What covers the screen top to bottom — a panel's dim, a popup's catcher — stops there too, keys or none, and
+    # on whatever level it is: the dim is on `top`, beside the keyboard, and over it took the taps meant for it,
+    # which put the panel away (2026-11-14). The corners and the like are left where they are.
     tall = bool(placement.anchors & ANCHOR_TOP and placement.anchors & ANCHOR_BOTTOM)
-    if not room or placement.layer != OVERLAY or (placement.keyboard == KEYBOARD_NONE and not tall):
+    if not room or (not tall and (placement.layer != OVERLAY or placement.keyboard == KEYBOARD_NONE)):
         return placement
     left, top, right, bottom = placement.margins
     if placement.anchors & ANCHOR_BOTTOM:
         return dataclasses.replace(placement, margins=(left, top, right, int(bottom + room)))
-    if placement.anchors & ANCHOR_TOP or not placement.height:
-        return placement
     screen = QApplication.primaryScreen()
-    if screen is None:
+    if screen is None or not placement.height:
         return placement
+    if placement.anchors & ANCHOR_TOP:
+        # Hung from the top (Morgan's conversation): no longer than reaches the keyboard. Its lower part over the
+        # keyboard took the taps on it as a press off the panel, and put it away.
+        free = screen.geometry().height() - room - top - FIT_GAP
+        h = min(placement.height, max(int(free), 200))
+        return placement if h == placement.height else dataclasses.replace(placement, height=h)
     free = screen.geometry().height() - room
     h = min(placement.height, max(int(free - FIT_GAP * 2), 200))
     return dataclasses.replace(placement, anchors=placement.anchors | ANCHOR_TOP, height=h,
