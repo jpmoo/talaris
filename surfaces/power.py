@@ -73,6 +73,23 @@ def times(p: dict, plugged: bool) -> dict:
     return {**flat, **p.get("ac" if plugged else "battery", {})}
 
 
+def backlight_off(p: dict) -> bool:
+    """
+    Whether the screen is put out by its light alone rather than switched off. Settings, Power may say
+    (`screenOffBy`: "display" or "backlight"); left to itself, a built-in DSI panel is (the mini's): switched off and
+    on again by the display system it never came back — black until a wake from sleep set it going — while its
+    light out and back in worked every time.
+    """
+    how = p.get("screenOffBy", "auto")
+    if how in ("display", "backlight"):
+        return how == "backlight"
+    try:
+        mons = json.loads(hypr.ask("j/monitors") or "[]")
+    except ValueError:
+        return False
+    return any(str(m.get("name", "")).startswith("DSI") for m in mons)
+
+
 def _file(p: dict, plugged: bool) -> str:
     """The hypridle file for these settings: each step only if it has a time (0 is never)."""
     t = times(p, plugged)
@@ -94,7 +111,14 @@ def _file(p: dict, plugged: bool) -> str:
     # Dimmed by brightnessctl, which saves the level and puts it back.
     listener(int(t.get("dim", 0)), f"brightnessctl -s set {int(p.get('dimTo', 20))}%", "brightnessctl -r")
     listener(int(t.get("lock", 0)), "loginctl lock-session")
-    listener(int(t.get("screenOff", 0)), "hyprctl dispatch dpms off", "hyprctl dispatch dpms on")
+    # Off: the display switched off — or, for a panel that does not come back from that (backlight_off), only its
+    # light put out, which looks the same and leaves the panel running.
+    if backlight_off(p):
+        dimmed = int(t.get("dim", 0)) > 0
+        # The level to come back to is the one saved as it dimmed; with no dimming first, saved here.
+        listener(int(t.get("screenOff", 0)), f"brightnessctl {'' if dimmed else '-s '}set 0", "brightnessctl -r")
+    else:
+        listener(int(t.get("screenOff", 0)), "hyprctl dispatch dpms off", "hyprctl dispatch dpms on")
     listener(int(t.get("suspend", 0)), "systemctl suspend")
     # Away two minutes, and back: told to the core, which reads files then if Settings, Data says so ("While idle").
     sock = os.environ.get("TALARIS_SOCKET") or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "talaris.sock")
