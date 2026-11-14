@@ -526,6 +526,8 @@ class Dock(QObject):
         self.preview = DockPreview(profile, self)
         #: A window covers the screen (a game, a fullscreen video): the dock hides, and comes out over it from the edge (fullscreen.py).
         self.covered = False
+        #: Nothing to show — nothing open here, nothing pinned: the dock is not there (refresh).
+        self.empty = False
         #: Where the dock is across its surface, as shares of its width (the page's `span`): near it, it does not hide by itself.
         self._span = (0.0, 1.0)
         self._soon = QTimer(self)
@@ -535,7 +537,7 @@ class Dock(QObject):
 
     def place(self) -> None:
         """Along its edge — or, set to hide, away until the edge is touched — or, turned off, nowhere."""
-        if not self.desktop.config["dock"].get("enabled", True):
+        if not self.desktop.config["dock"].get("enabled", True) or self.empty:
             self.hider.set(False, self.edge)
             self.menu.close()
             self._hide()
@@ -719,6 +721,10 @@ class Dock(QObject):
         if text != self.last:
             self.last = text
             self.bridge.windows.emit(text)
+        # Nothing open here and nothing pinned: no dock at all, and its space given to windows — back with the first one.
+        if (not items) != self.empty:
+            self.empty = not items
+            self.place()
 
     def _project_name(self, key: str) -> str:
         """A project's name, from its id (a desktop is named by its project's id); the key itself for none."""
