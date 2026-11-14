@@ -91,13 +91,15 @@ function onState(s) {
   $("loc").hidden = !where.looking;
   if (where.looking) { drawn($("loc"), Icons.pin_place()); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
-  // Turning with the device (rotation.py): held where it started, or following it — a press changes which.
+  // Turning the screen (rotation.py): wherever it can turn. A press turns it a quarter and holds it there; while it
+  // would follow the device and is held, a right-click follows the device again.
   const rot = s.rotation || {};
   $("rotate").hidden = !rot.on;
   if (rot.on) {
-    drawn($("rotate"), rot.locked ? Icons.lock() : Icons.refresh());
-    $("rotate").classList.toggle("on", !!rot.locked);
-    $("rotate").title = rot.locked ? "Held in its usual position — follow the device" : "Following the device — hold in the usual position";
+    drawn($("rotate"), Icons.refresh());
+    const held = rot.auto && rot.locked;
+    $("rotate").classList.toggle("on", held);
+    $("rotate").title = "Turn the screen" + (held ? " — held; right-click to follow the device again" : "");
   }
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
@@ -466,4 +468,9 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 $("rotate").addEventListener("click", () => bridge && bridge.rotate());
+$("rotate").addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (bridge && state.rotation && state.rotation.auto && state.rotation.locked) bridge.rotateFollow();
+});
 

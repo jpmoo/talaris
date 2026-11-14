@@ -358,8 +358,13 @@ class BarBridge(Bridge):
 
     @Slot()
     def rotate(self) -> None:
-        """The screen held where it started, or following the device again (rotation.py)."""
-        self.owner.desktop.rotation.toggle_lock()
+        """The screen turned a quarter, clockwise, and held there (rotation.py)."""
+        self.owner.desktop.rotation.turn_once()
+
+    @Slot()
+    def rotateFollow(self) -> None:  # noqa: N802 — called from the page by this name
+        """Following the device's own way up again (rotation.py)."""
+        self.owner.desktop.rotation.follow()
 
     @Slot(str, float)
     def popupAt(self, kind: str, x: float) -> None:  # noqa: N802 — called from the page by this name

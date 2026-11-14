@@ -79,18 +79,18 @@ class Rotation(QObject):
         return bool(self.desktop.config.get("screen", {}).get("rotate")) and available()
 
     def apply(self) -> None:
-        """As Settings says: reading the sensor and turning with it, or not — and back as it started."""
+        """As Settings says: reading the sensor and turning with it, or not; and a screen turned by hand kept turned."""
         if self.on():
             if self.process is None:
                 self._start()
-            return
-        if self.process is not None:
-            self.process.kill()
-            self.process = None
-        if self.home is not None:
-            self._set(self.home)
-            self.home = None
-        self.orientation = ""
+        else:
+            if self.process is not None:
+                self.process.kill()
+                self.process = None
+            self.orientation = ""
+        turned = self.desktop.config.get("screen", {}).get("turned")
+        if self.locked and isinstance(turned, int) and available():
+            self._set(turned)
 
     def _start(self) -> None:
         mon = _built_in()
@@ -131,24 +131,35 @@ class Rotation(QObject):
             return
         self._set(TRANSFORMS[self.orientation])
 
-    def toggle_lock(self) -> None:
-        """Held where it started — the screen put back there now — or following the device again."""
-        if not self.on():
+    def turn_once(self) -> None:
+        """
+        The bar's button: the screen turned a quarter, clockwise, and held there — the device's own way up not
+        followed until asked again (`follow`). Kept across restarts, where it was turned to.
+        """
+        mon = _built_in()
+        if mon is None:
             return
-        self.locked = not self.locked
-        # Kept: a restart (or a login) holds it as it was, rather than turning to whatever the sensor says first.
-        self.desktop.config.setdefault("screen", {})["rotateLocked"] = self.locked
+        transform = (int(mon.get("transform", 0)) + 3) % 4
+        self.locked = True
+        screen = self.desktop.config.setdefault("screen", {})
+        screen["rotateLocked"], screen["turned"] = True, transform
         save_config(self.desktop.config)
-        if self.locked:
-            if self.home is not None:
-                self._set(self.home)
-        else:
-            self._turn()
+        self._set(transform)
+        self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
+
+    def follow(self) -> None:
+        """Following the device's own way up again (the button's right-click, while Turn with the device is on)."""
+        self.locked = False
+        screen = self.desktop.config.setdefault("screen", {})
+        screen["rotateLocked"] = False
+        screen.pop("turned", None)
+        save_config(self.desktop.config)
+        self._turn()
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
 
     def describe(self) -> dict:
-        """For the bar's button: shown while this follows the device, and whether it is held."""
-        return {"on": self.on(), "locked": self.locked}
+        """For the bar's button: shown wherever the screen can turn; whether it follows the device, and is held."""
+        return {"on": available(), "auto": self.on(), "locked": self.locked}
 
     def _set(self, transform: int) -> None:
         """The built-in screen at this transform, and its touchscreen and stylus with it."""
