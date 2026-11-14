@@ -227,3 +227,9 @@ def save_config(config: dict) -> None:
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, CONFIG)
+    # What of yours changed, to the other machines (prefsync.py). Imported here: it imports this module.
+    try:
+        import prefsync  # noqa: PLC0415
+        prefsync.sent(config)
+    except Exception:  # noqa: BLE001 — a setting saved here stays saved whatever sync makes of it
+        pass

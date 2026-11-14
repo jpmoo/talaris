@@ -82,6 +82,7 @@ from wallpaper import current as wallpaper_current
 from power import Power
 from rotation import Rotation
 from keyboard import Keyboard
+import prefsync
 from workspace import Workspace
 import sensor as sensor_module
 from settings import Settings
@@ -347,6 +348,8 @@ class Desktop(QObject):
         self.keyboard = Keyboard(self)
         # Folded already as Talaris starts (the switch, read just above): the keyboard as a tablet's.
         self.keyboard.set_auto(self.rotation.tablet)
+        # Your settings as the machines agree on them, taken now; or, the first anywhere, these sent (prefsync.py).
+        QTimer.singleShot(3000, lambda: prefsync.start(self))
         # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
         screen = QApplication.primaryScreen()
         if screen is not None:
@@ -892,6 +895,9 @@ class Desktop(QObject):
             if not path:
                 return "No picture yet"
             error = wallpaper.choose(path, fit)
+            # The default is hyprpaper's file, not the settings: sent from here (prefsync.py).
+            if not error:
+                prefsync.sent(self.config)
             # hyprpaper starts again on the default; a project with its own is shown it again after.
             if not error and wallpaper.for_project(self.config, here)["own"]:
                 QTimer.singleShot(1500, lambda: wallpaper.show(self.config, here))
@@ -1045,6 +1051,9 @@ class Desktop(QObject):
                 # The dock and the bar, out from hiding: put away again (sensor.py, Autohide).
                 self.dock.hider.clicked()
                 self.bar.hider.clicked()
+            elif verb == "prefs":
+                # Your settings, from another machine (prefsync.py): taken as Settings would.
+                prefsync.arrived(self)
             elif verb == "woke":
                 # Back from sleep (hypridle's after_sleep_cmd): a fold or unfold while asleep is never sent.
                 QTimer.singleShot(1500, self.rotation.recheck)

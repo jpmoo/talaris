@@ -33,7 +33,8 @@ import { join } from "node:path";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
-import { applyingOff, compare, observe, onWritten, whileApplying, type Rec, type Stamp } from "./records.js";
+import { applyingOff, compare, observe, onWritten, whileApplying, write as writeRecord, type Rec, type Stamp } from "./records.js";
+import { createConnection } from "node:net";
 import { bySource, deleteFlat, readFlat, sealedDrop, sealedList, sealedOnce, sealedPut, setsOf, writeFlat } from "./entities.js";
 import { readJson, writeJson } from "./store.js";
 import { findProject, listProjects, makeProjectSynced, renameProject } from "./projects.js";
@@ -433,6 +434,47 @@ function applyLibraryFile(r: Rec): boolean {
   return true;
 }
 
+// ------------------------------------------------------------ your settings
+
+/**
+ * The settings that are yours, not the machine's (the screens keep them, surfaces/prefsync.py): each by its path
+ * (`theme.accent`, `dock.pinned`), kept here as the machines agree on them. A change made here comes in through
+ * `setPrefs` and is recorded; one from elsewhere is merged by the field's moment like anything else, kept, and
+ * the screens are told to take it.
+ */
+const PREFS = () => join(DATA_DIR, "sync", "prefs.json");
+export function prefs(): Record<string, unknown> {
+  try { return JSON.parse(readFileSync(PREFS(), "utf8")) as Record<string, unknown>; } catch { return {}; }
+}
+function keepPrefs(p: Record<string, unknown>): void {
+  mkdirSync(join(DATA_DIR, "sync"), { recursive: true });
+  writeAtomic(PREFS(), JSON.stringify(p));
+}
+/** Changed here (the screens): kept, and recorded for the others. */
+export function setPrefs(set: Record<string, unknown>, unset: string[]): void {
+  const p = prefs();
+  for (const [k, v] of Object.entries(set)) p[k] = v;
+  for (const k of unset) delete p[k];
+  keepPrefs(p);
+  writeRecord({ of: "prefs", set, unset });
+}
+function applyPrefs(r: Rec): boolean {
+  const p = prefs();
+  if (!mergeInto(r, p, new Set())) return false;
+  keepPrefs(p);
+  tellScreens("prefs");
+  return true;
+}
+/** A word to the screens (their command socket): they take it from there. Not running, they read it as they start. */
+function tellScreens(word: string): void {
+  const sock = join(process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.() ?? 1000}`, "talaris-surfaces.sock");
+  try {
+    const s = createConnection(sock);
+    s.on("error", () => { /* not running: it reads them as it starts */ });
+    s.on("connect", () => { s.end(`${word}\n`); });
+  } catch { /* not running */ }
+}
+
 /** Whether this machine is joining (join.ts): only then may an arriving Home take its own. */
 export const joining = () => existsSync(join(DATA_DIR, "sync", "joining"));
 
@@ -455,6 +497,7 @@ export function apply(r: Rec): boolean {
       default:
         if (r.of === "merged") { for (const [d, k] of Object.entries(r.set ?? {})) rememberMerge(d, String(k)); return true; }
         if (r.of === "suggest") { applyKept((r.add ?? {}) as never, (r.remove ?? {}) as never); return true; }
+        if (r.of === "prefs") return applyPrefs(r);
         return false;
     }
   });

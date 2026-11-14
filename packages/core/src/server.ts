@@ -80,6 +80,7 @@ import { addClip, clearClips, clipPicture, keepClips, listClips, pinClip, remove
 import { setFolder as setSyncFolder, syncStatus, tick as syncTick } from "./sync-folder.js";
 import { seed } from "./sync-seed.js";
 import { setSyncing } from "./records.js";
+import { prefs, setPrefs } from "./sync-apply.js";
 
 /**
  * The core's HTTP, on a Unix socket. No port is opened: a port would make every
@@ -170,6 +171,14 @@ function need(query: URLSearchParams, key: string): string {
 // Sync with other machines (sync-folder.ts, docs/SYNC.md): its state, and this machine made the first — sync turned
 // on with a folder, and everything it has written there as records for others to join from.
 route("GET", "/sync", () => syncStatus());
+// Your settings, as the machines agree on them (sync-apply.ts): read by the screens as they start and when told,
+// and a change made here given to them to keep and record.
+route("GET", "/sync/prefs", () => prefs());
+route("POST", "/sync/prefs", async (req) => {
+  const { set = {}, unset = [] } = await json<{ set?: Record<string, unknown>; unset?: string[] }>(req);
+  setPrefs(set, unset);
+  return { ok: true };
+});
 route("POST", "/sync/first", async (req) => {
   const { folder } = await json<{ folder?: string }>(req);
   if (!folder) throw new Conflict("a sync folder is needed");
