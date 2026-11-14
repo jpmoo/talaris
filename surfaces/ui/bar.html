@@ -64,6 +64,7 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
 #where:hover { background: var(--accent-strong); }
 #where:hover, #where:hover .code { color: var(--accent); }
 #where.on { border-color: var(--accent); background: var(--accent-wash); }
+#osk.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
 #where { margin-right: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text); white-space: nowrap; }
 #where .code { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
 #where .nm { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -195,6 +196,7 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
     <button id="vol" class="bar-item" title=""><span id="vol-ic"></span><span class="n" id="vol-n"></span></button>
     <button id="bright" class="bar-item" title=""><span id="bright-ic"></span><span class="n" id="bright-n"></span></button>
     <button id="bat" class="bar-item" title=""><span id="bat-ic"></span><span class="n" id="bat-n"></span></button>
+    <button id="osk" class="bar-item" title="Keyboard" hidden></button>
     <button id="rotate" class="bar-item" hidden></button>
     <button id="settings" class="bar-item" title="Settings"></button>
     <button id="bell" class="bar-item" title="Notifications"><span id="bell-ic"></span><span class="timing-dot"></span><span class="dot"></span></button>

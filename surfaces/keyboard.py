@@ -95,6 +95,10 @@ class Keyboard(QObject):
     def _layer(self, namespace: str, opened: bool) -> None:
         if namespace != "osk":
             return
+        # Up or away however it went — asked here, or by itself in a tablet — as the bar's button shows it.
+        if opened != self.up:
+            self.up = opened
+            self._tell_bar()
         if opened:
             self._room.start(150)
         else:
@@ -170,6 +174,7 @@ sq_button.change-view-3, sq_button.emoji-group, sq_button.character-group {{ bac
         if not available() or on == self.up:
             return
         self.up = on
+        self._tell_bar()
         subprocess.Popen([*OSK, "true" if on else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         if on:
             # Its height, once it is on screen: what the panels keep clear of.
@@ -177,6 +182,11 @@ sq_button.change-view-3, sq_button.emoji-group, sq_button.character-group {{ bac
         else:
             self._room.stop()
             layershell.set_keyboard(0)
+
+    def _tell_bar(self) -> None:
+        bar = getattr(self.desktop, "bar", None)
+        if bar is not None:
+            bar.bridge.state.emit(json.dumps(bar.describe()))
 
     def _measure(self) -> None:
         try:

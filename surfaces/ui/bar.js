@@ -93,6 +93,15 @@ function onState(s) {
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
   // Turning the screen (rotation.py): wherever it can turn. A press turns it a quarter and holds it there; while it
   // would follow the device and is held, a right-click follows the device again.
+  // The on-screen keyboard (keyboard.py), where there is one: up or away, into whatever has the keys. A field's own
+  // button does the same where there is a field; this one is there for every other place (a page, a canvas).
+  const kb = s.keyboard || {};
+  $("osk").hidden = !kb.on;
+  if (kb.on) {
+    drawn($("osk"), Icons.keyboard());
+    $("osk").classList.toggle("on", !!kb.up);
+    $("osk").title = kb.up ? "Put the keyboard away" : "Keyboard";
+  }
   const rot = s.rotation || {};
   $("rotate").hidden = !rot.on;
   if (rot.on) {
@@ -467,6 +476,10 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 // A long press on a touchscreen is a right-click and then, as the finger lifts, a click: only the right-click is meant.
+// Kept from taking the keys: the field being typed into keeps them, and the keyboard types there.
+$("osk").addEventListener("pointerdown", (e) => e.preventDefault());
+$("osk").addEventListener("click", () => { if (bridge && bridge.keyboardToggle) bridge.keyboardToggle(); });
+
 let rotateHeld = 0;
 $("rotate").addEventListener("pointerdown", () => { rotateHeld = Date.now(); });
 $("rotate").addEventListener("click", () => {

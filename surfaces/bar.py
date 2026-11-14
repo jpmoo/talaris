@@ -77,6 +77,12 @@ def margins(look: dict) -> dict:
     return {side: int(given.get(side, inset)) for side in ("top", "right", "bottom", "left")}
 
 
+
+def _keyboard_state() -> dict:
+    import keyboard as osk  # noqa: PLC0415
+    k = osk.current
+    return {"on": bool(k is not None and osk.available()), "up": bool(k is not None and k.up)}
+
 class BarBridge(Bridge):
     """The drawer's bridge, plus what the bar and its popup may ask."""
 
@@ -360,6 +366,13 @@ class BarBridge(Bridge):
     def rotate(self) -> None:
         """The screen turned a quarter, clockwise, and held there (rotation.py)."""
         self.owner.desktop.rotation.turn_once()
+
+    @Slot()
+    def keyboardToggle(self) -> None:  # noqa: N802 — called from the page by this name
+        """The on-screen keyboard up, or away (keyboard.py)."""
+        import keyboard as osk  # noqa: PLC0415
+        if osk.current is not None:
+            osk.current.show(not osk.current.up)
 
     @Slot()
     def rotateFollow(self) -> None:  # noqa: N802 — called from the page by this name
@@ -695,6 +708,8 @@ class Bar(QObject):
             "morganHere": bool(getattr(self.desktop, "morgan_here", True)),
             # Turning with the device (rotation.py): its button, and whether the screen is held.
             "rotation": self.desktop.rotation.describe() if getattr(self.desktop, "rotation", None) else {},
+            # The on-screen keyboard (keyboard.py): its button, wherever there is one, and whether it is up.
+            "keyboard": _keyboard_state(),
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),
