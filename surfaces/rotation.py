@@ -32,6 +32,7 @@ import shutil
 from PySide6.QtCore import QObject, QProcess, QTimer
 
 import hypr
+from config import save_config
 from views import log
 
 #: iio-sensor-proxy's orientations, as Wayland's output transforms: the panel's own way up is 0.
@@ -66,7 +67,7 @@ class Rotation(QObject):
         self._buffer = b""
         #: Held where it started (the bar's button), whatever the sensor says: a convertible's screen folded back on its
         #: hinge moves the screen and not the sensor, so it never hears it is a laptop again.
-        self.locked = False
+        self.locked = bool(desktop.config.get("screen", {}).get("rotateLocked"))
         # A device being turned passes through ways up on its way: the last one, once it has settled.
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
@@ -90,7 +91,6 @@ class Rotation(QObject):
             self._set(self.home)
             self.home = None
         self.orientation = ""
-        self.locked = False
 
     def _start(self) -> None:
         mon = _built_in()
@@ -136,6 +136,9 @@ class Rotation(QObject):
         if not self.on():
             return
         self.locked = not self.locked
+        # Kept: a restart (or a login) holds it as it was, rather than turning to whatever the sensor says first.
+        self.desktop.config.setdefault("screen", {})["rotateLocked"] = self.locked
+        save_config(self.desktop.config)
         if self.locked:
             if self.home is not None:
                 self._set(self.home)
