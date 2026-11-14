@@ -144,8 +144,15 @@ class Rotation(QObject):
                 log(f"rotation: {text.strip()}")
 
     def _turn(self) -> None:
-        if not self.on() or self.locked or self.orientation not in TRANSFORMS:
+        if not self.on() or self.orientation not in TRANSFORMS:
             return
+        if self.locked:
+            # Held by the button only until the device itself turns: a way up other than the one it had when the
+            # button was pressed, and not lying flat, lets the hold go and is followed.
+            held_from = self.desktop.config.get("screen", {}).get("heldFrom")
+            if not held_from or self.orientation == held_from or flat():
+                return
+            self._release()
         if flat():
             # Its report means nothing lying flat; looked at again in a moment, in case it is being lifted.
             self._settle.start(1500)
@@ -154,8 +161,9 @@ class Rotation(QObject):
 
     def turn_once(self) -> None:
         """
-        The bar's button: the screen turned a quarter, clockwise, and held there — the device's own way up not
-        followed until asked again (`follow`). Kept across restarts, where it was turned to.
+        The bar's button: the screen turned a quarter, clockwise, and held there — until the device itself is
+        turned some other way (_turn), or its long press follows the device at once (`follow`). Kept across
+        restarts, where it was turned to.
         """
         mon = _built_in()
         if mon is None:
@@ -164,17 +172,27 @@ class Rotation(QObject):
         self.locked = True
         screen = self.desktop.config.setdefault("screen", {})
         screen["rotateLocked"], screen["turned"] = True, transform
+        # Which way up the device was as it was pressed: held until it is turned some other way (_turn).
+        if self.orientation:
+            screen["heldFrom"] = self.orientation
+        else:
+            screen.pop("heldFrom", None)
         save_config(self.desktop.config)
         self._set(transform)
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
 
-    def follow(self) -> None:
-        """Following the device's own way up again (the button's right-click, while Turn with the device is on)."""
+    def _release(self) -> None:
+        """The button's hold let go: following the device's own way up again."""
         self.locked = False
         screen = self.desktop.config.setdefault("screen", {})
         screen["rotateLocked"] = False
         screen.pop("turned", None)
+        screen.pop("heldFrom", None)
         save_config(self.desktop.config)
+
+    def follow(self) -> None:
+        """Following the device's own way up again (the button's long press, while Turn with the device is on)."""
+        self._release()
         self._turn()
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
 
