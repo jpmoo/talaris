@@ -241,7 +241,8 @@ const TaskViews = (() => {
     if (row.start) meta.push(el("span", { class: "tv-avail" }, `From ${shortDate(row.start)}`));
     if (row.due) meta.push(el("span", { class: "tv-due" + (row.overdue ? " late" : "") }, `Due ${shortDate(row.due)}`));
     if (row.projects && row.projects.length) meta.push(el("span", { class: "tv-proj" }, row.projects.flatMap((p, i) => [i ? ", " : null,
-      el("span", { class: "to-card", title: "Open its card", onclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${p.id}`); } }, p.title)]).filter(Boolean)));
+      // A finger's tap on the project's name is a tap on the card: on a small card it is where most taps land.
+      el("span", { class: "to-card", title: "Open its card", onclick: (e) => { if (e.pointerType === "touch") return; e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${p.id}`); } }, p.title)]).filter(Boolean)));
     // In a matrix's region, a card wears a wash of the region's color.
     const node = el("div", { class: "tv-card" + (row.complete ? " done" : "") + (opts.color ? " tinted" : ""), "data-card": row.id, title: row.title || "Untitled",
       ...(opts.color ? { style: `--rc:${opts.color}` } : {}) },
