@@ -22,7 +22,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DATA_DIR, ENTITIES_DIR, storeKey } from "./vault.js";
+import { DATA_DIR, ENTITIES_DIR, readVault, storeKey } from "./vault.js";
 import { unseal } from "./seal.js";
 import { machine, syncing, type Rec } from "./records.js";
 import { apply } from "./sync-apply.js";
@@ -58,6 +58,11 @@ function push(folder: string): void {
   mkdirSync(join(mine, "log"), { recursive: true });
   const info = join(mine, "machine.json");
   if (!existsSync(info)) writeFileSync(info, JSON.stringify({ id: me.id, name: me.name }));
+  // The store key's public record, for a machine joining (join.ts): its key is sealed to the recovery key, which
+  // only the person has — so a joining machine takes the same key by typing that, and nothing here opens it.
+  const v = readVault();
+  const shared = join(folder, "vault.json");
+  if (v && !existsSync(shared)) writeFileSync(shared, JSON.stringify({ publicKey: v.publicKey, wrapped: v.wrapped, check: v.check }));
   const logs = join(STATE(), "log", me.id);
   if (existsSync(logs)) for (const n of readdirSync(logs)) copyIfGrown(join(logs, n), join(mine, "log", n));
   // Attached files, as the store keeps them (sealed already): each once.
@@ -164,4 +169,20 @@ export function startSync(): void {
     } catch (e) { console.log(`talaris-core: sync: ${(e as Error).message}`); }
   }, 5000);
   timer.unref();
+}
+
+/** What Settings, Sync shows: the folder, this machine, the others seen there, what waits. */
+export function syncStatus(): { on: boolean; folder: string | null; machine: { id: string; name: string }; others: { id: string; name: string; records: number }[]; waiting: number } {
+  const folder = syncFolder();
+  const me = machine();
+  const others: { id: string; name: string; records: number }[] = [];
+  if (folder && existsSync(folder)) {
+    const seen = readState<Seen>(SEEN(), {});
+    for (const id of readdirSync(folder).filter((n) => n.startsWith("m_") && n !== me.id)) {
+      let name = id;
+      try { name = (JSON.parse(readFileSync(join(folder, id, "machine.json"), "utf8")) as { name: string }).name; } catch { /* named by id */ }
+      others.push({ id, name, records: seen[id]?.line ?? 0 });
+    }
+  }
+  return { on: syncing(), folder, machine: me, others, waiting: readState<Rec[]>(WAITING(), []).length };
 }

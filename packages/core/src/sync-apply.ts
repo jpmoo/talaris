@@ -34,9 +34,9 @@ import { DATA_DIR, storeKey } from "./vault.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
 import { applyingOff, compare, observe, onWritten, whileApplying, type Rec, type Stamp } from "./records.js";
-import { deleteFlat, readFlat, sealedDrop, sealedList, sealedOnce, sealedPut, setsOf, writeFlat } from "./entities.js";
+import { bySource, deleteFlat, readFlat, sealedDrop, sealedList, sealedOnce, sealedPut, setsOf, writeFlat } from "./entities.js";
 import { readJson, writeJson } from "./store.js";
-import { findProject, makeProjectSynced, renameProject } from "./projects.js";
+import { findProject, listProjects, makeProjectSynced, renameProject } from "./projects.js";
 import { deletePage, movePage, readPage, transferPage, writePage } from "./pages.js";
 import { canvasPlace, deleteCanvasSynced, readCanvas, writeCanvasSynced } from "./canvases.js";
 import { rememberMerge } from "./merge.js";
@@ -356,7 +356,14 @@ function applyProject(r: Rec): boolean {
     const fields: Record<string, unknown> = { id };
     mergeInto(r, fields, new Set());
     if (!fields.name) return false;
+    // Arriving as Home, this machine's own Home (made at its first start) takes its id: the thing that stood for
+    // the Home that was here goes, or it would be a second Home.
+    const before = fields.home ? listProjects().find((x) => x.home)?.id : undefined;
     makeProjectSynced(fields);
+    if (before && before !== id) {
+      const stray = bySource({ kind: "talaris-project", key: before });
+      if (stray) deleteFlat(stray.id);
+    }
     return true;
   }
   const file = join(p.folder, ".talaris", "project.json");

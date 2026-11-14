@@ -340,6 +340,13 @@ Each step leaves Talaris working on one machine as it does now.
 4. **The folder transport**, sealed logs and blobs, snapshots, and *Joining*.
    Two Talarises in one test, syncing through a temporary folder, is the test
    suite for everything above.
+   Done 2026-11-14 (sync-seed.ts, sync-files.ts, sync-folder.ts, join.ts):
+   the first machine seeds its whole Talaris as records (`POST /sync/first`);
+   Library files found by looking and carried by hash; each machine's log,
+   attachments and Library bytes through the folder; a machine joins with
+   `join.js --folder`, what it had moved aside and the store key taken with the
+   recovery key. Tested as two processes through one folder.
+   Left: snapshots (the logs are not trimmed yet), and Settings, Sync.
 5. **Plugins**: synced storage, `one`, ids from an outside key; Hermes sync
    moved onto them, its Hermes ids from Talaris ids.
 6. **Mirrors** keyed by provider ids.

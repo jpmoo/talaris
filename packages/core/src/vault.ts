@@ -65,7 +65,7 @@ function keyring(verb: string, name: string, input?: string): { code: number; ou
 
 const testing = () => Boolean(process.env.TALARIS_KEY);
 
-function readVault(): Vault | null {
+export function readVault(): Vault | null {
   return existsSync(VAULT) ? (JSON.parse(readFileSync(VAULT, "utf8")) as Vault) : null;
 }
 
