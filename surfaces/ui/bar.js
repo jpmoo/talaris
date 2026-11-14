@@ -102,7 +102,8 @@ function onState(s) {
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
   requestAnimationFrame(fit);
-  drawWhere(s, p, shows);
+  // In portrait, the project by its name alone.
+  drawWhere(s, p, portrait ? "name" : shows);
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
   const now = s.morgan || "absent";
   $("morgan").dataset.state = now;
