@@ -56,7 +56,10 @@ const Clips = (() => {
     const f = el("div", "face");
     if (c.kind === "text") {
       f.classList.add("words");
-      f.textContent = c.text.length > PREVIEW_CHARS ? c.text.slice(0, PREVIEW_CHARS) + "…" : c.text;
+      // In the middle of its tile: a short clip's line was at the top, under the tile's buttons. Blank lines
+      // round it are not shown, so one line is one line.
+      const text = c.text.trim() || c.text;
+      f.append(Object.assign(el("span", "said"), { textContent: text.length > PREVIEW_CHARS ? text.slice(0, PREVIEW_CHARS) + "…" : text }));
     } else if (c.kind === "image") {
       f.classList.add("picture");
       f.append(Object.assign(document.createElement("img"), { src: `talaris-ui://clip/?id=${c.id}`, alt: "", loading: "lazy" }));

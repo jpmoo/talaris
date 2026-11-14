@@ -113,7 +113,9 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #clipboard .clip:hover, #clipboard .clip.at { border-color: var(--accent-line); }
 #clipboard .clip.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 #clipboard .face { position: absolute; inset: 0; }
-#clipboard .face.words { padding: 8px 9px; font-size: 11.5px; line-height: 1.32; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
+/* The words in the middle of the tile, top to bottom (`safe`: what is longer than the tile starts at its top). */
+#clipboard .face.words { padding: 8px 9px; display: flex; flex-direction: column; justify-content: safe center; overflow: hidden; }
+#clipboard .face.words .said { font-size: 11.5px; line-height: 1.32; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 14; -webkit-box-orient: vertical; }
 #clipboard .face.picture img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #clipboard .face.files { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px; text-align: center; }
