@@ -97,6 +97,17 @@ ask() {  # yes or no, Enter giving the default
 }
 show() { local entry; for entry in "$@"; do printf '    %-38s %s\n' "${entry%%|*}" "${entry#*|}"; done; }
 
+# The screen's brightness: brightnessctl writes the backlight's file, which
+# belongs to the `video` group. A user outside it gets the brightness keys'
+# level shown but never changed (a new machine's account often is not in it).
+backlight_group() {
+  local f g
+  f="$(ls /sys/class/backlight/*/brightness 2>/dev/null | head -n1)"
+  [ -n "$f" ] && [ ! -w "$f" ] || return 1
+  g="$(stat -c %G "$f")"
+  [ "$g" != root ] && ! id -nG | tr ' ' '\n' | grep -qx "$g" && echo "$g"
+}
+
 if [ "$DEPS" = 1 ]; then
   echo "==> Checking what Talaris needs"
   if ! command -v dpkg-query >/dev/null || ! command -v apt-get >/dev/null; then
@@ -113,6 +124,7 @@ if [ "$DEPS" = 1 ]; then
   if [ "$CHECK_ONLY" = 1 ]; then
     command -v node >/dev/null || echo "    node 22 or later: not on PATH"
     command -v pnpm >/dev/null || echo "    pnpm: not on PATH"
+    g="$(backlight_group || true)"; [ -n "$g" ] && echo "    brightness keys: you are not in the $g group (sudo usermod -aG $g $USER, then log in again)"
     exit 0
   fi
   TO=()
@@ -132,6 +144,14 @@ if [ "$DEPS" = 1 ]; then
     echo "==> sudo apt-get install ${TO[*]}"
     sudo apt-get update -qq
     sudo apt-get install -y "${TO[@]}"
+  fi
+  BL="$(backlight_group || true)"
+  if [ -n "$BL" ]; then
+    echo "    The brightness keys need you in the $BL group, which owns the screen's backlight."
+    if [ "$YES" = 1 ] || ask "    Add $USER to $BL now (sudo usermod -aG $BL $USER)? [Y/n]" y; then
+      sudo usermod -aG "$BL" "$USER"
+      echo "    Added: log out and in again for it to take effect."
+    fi
   fi
 fi
 
