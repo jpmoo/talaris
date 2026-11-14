@@ -60,9 +60,11 @@ function push(folder: string): void {
   if (!existsSync(info)) writeFileSync(info, JSON.stringify({ id: me.id, name: me.name }));
   // The store key's public record, for a machine joining (join.ts): its key is sealed to the recovery key, which
   // only the person has — so a joining machine takes the same key by typing that, and nothing here opens it.
+  // Written again when it changes: a recovery key replaced (Settings, Data) is the one a machine joining types.
   const v = readVault();
   const shared = join(folder, "vault.json");
-  if (v && !existsSync(shared)) writeFileSync(shared, JSON.stringify({ publicKey: v.publicKey, wrapped: v.wrapped, check: v.check }));
+  const now = v ? JSON.stringify({ publicKey: v.publicKey, wrapped: v.wrapped, check: v.check }) : "";
+  if (v && (!existsSync(shared) || readFileSync(shared, "utf8") !== now)) writeFileSync(shared, now);
   const logs = join(STATE(), "log", me.id);
   if (existsSync(logs)) for (const n of readdirSync(logs)) copyIfGrown(join(logs, n), join(mine, "log", n));
   // Attached files, as the store keeps them (sealed already): each once.
