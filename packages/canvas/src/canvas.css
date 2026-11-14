@@ -579,11 +579,13 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
  * gesture, so the class goes there. `!important` because the things being
  * crossed set cursors of their own, and for this moment none of them are right.
  */
-/* A finger on what can be dragged drags it. The board takes no touch scrolling (.cv-wrap), but a card, a region,
-   a handle or a tool to drop was still the engine's to scroll by, and it took the drag back after its first step. */
-.cv-node, .cv-region, .cv-grab, .cv-corner, .cv-wrap svg, .tools button { touch-action: none; }
+/* A finger on what can be dragged drags it. The board takes no touch scrolling (.cv-wrap), but the engine reads
+   touch-action only up to the nearest element that scrolls or clips — a card's body is one — so whatever sat on the
+   board was still the engine's to scroll by, and it took a card's drag back after a step. Everything on the board,
+   then, and the tools that are dropped onto it. */
+.cv-wrap *, .tools button { touch-action: none; }
 /* A long text inside a card still scrolls under a finger. */
-.cv-node .longtext { touch-action: pan-y; }
+.cv-wrap .longtext, .cv-wrap .longtext * { touch-action: pan-y; }
 
 .cv-wrap.cv-holding,
 .cv-wrap.cv-holding * {
