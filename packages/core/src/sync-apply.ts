@@ -356,9 +356,13 @@ function applyProject(r: Rec): boolean {
     const fields: Record<string, unknown> = { id };
     mergeInto(r, fields, new Set());
     if (!fields.name) return false;
-    // Arriving as Home, this machine's own Home (made at its first start) takes its id: the thing that stood for
-    // the Home that was here goes, or it would be a second Home.
+    // Arriving as Home, this machine's own Home (made at its first start) takes its id — only while this machine
+    // is joining: anywhere else a second Home arriving is another machine's mistake, and is not let take this one.
     const before = fields.home ? listProjects().find((x) => x.home)?.id : undefined;
+    if (before && before !== id && !joining()) {
+      console.log(`talaris-core: sync: another machine's Home (${id}) not let take this one's (${before})`);
+      return false;
+    }
     makeProjectSynced(fields);
     if (before && before !== id) {
       const stray = bySource({ kind: "talaris-project", key: before });
@@ -428,6 +432,9 @@ function applyLibraryFile(r: Rec): boolean {
   keep(r.of, c);
   return true;
 }
+
+/** Whether this machine is joining (join.ts): only then may an arriving Home take its own. */
+export const joining = () => existsSync(join(DATA_DIR, "sync", "joining"));
 
 export function apply(r: Rec): boolean {
   observe(r.at);

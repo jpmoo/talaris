@@ -81,10 +81,22 @@ async function main(): Promise<void> {
   adopt(JSON.parse(readFileSync(shared, "utf8")), recovery);
 
   const { setSyncing } = await import("./records.js");
-  const { setFolder } = await import("./sync-folder.js");
+  const { setFolder, tick, startSync } = await import("./sync-folder.js");
   setSyncing(true);
   setFolder(folder);
-  console.log("Joined. Start Talaris (systemctl --user start talaris-core); it fills itself from the folder.");
+  // Filled now, before Talaris first starts here: so it finds the others' Home and makes no Home of its own —
+  // which, written as this machine's change, would reach the others.
+  const { writeFileSync } = await import("node:fs");
+  const flag = join(DATA_DIR, "sync", "joining");
+  writeFileSync(flag, new Date().toISOString());
+  const { startRecordingProjects } = await import("./project-records.js");
+  startRecordingProjects();
+  startSync();
+  const n = tick();
+  const { rmSync } = await import("node:fs");
+  rmSync(flag, { force: true });
+  console.log(`Joined: ${n} change(s) applied from the folder.`);
+  console.log("Start Talaris: systemctl --user start talaris-core");
 }
 
 main().catch((e) => { console.error(`join: ${(e as Error).message}`); process.exit(1); });

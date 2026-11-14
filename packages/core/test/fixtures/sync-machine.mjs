@@ -38,9 +38,10 @@ if (step === "first") {
   Object.assign(out, { home: home.id, plan: p.id, task: t.id, canvas: cv });
 }
 if (step === "join") {
+  // As join.js does: filled before Talaris first starts here, so it makes no Home of its own.
   records.setSyncing(true);
-  projects.ensureHome(); // as a fresh machine's first start makes one
   folder.tick();
+  projects.ensureHome(); // Talaris's first start: the Home that came is the Home
   const p = plan();
   out.home = projects.listProjects().find((x) => x.home)?.id;
   out.plan = p?.id;
