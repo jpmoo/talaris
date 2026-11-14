@@ -246,6 +246,33 @@ export function ensureHome(): ProjectSummary {
 }
 
 /**
+ * A project as another machine's records bring it (sync-apply.ts): made here at its own id, with what its
+ * `project.json` says, in a folder of its name — or, being Home, in this machine's Home folder, which takes
+ * the other's id: a machine joining has a Home made at its first start, and the one it joins is the Home.
+ * Archived, it is put where the archive keeps it.
+ */
+export function makeProjectSynced(fields: Record<string, unknown>): ProjectSummary {
+  const id = String(fields.id);
+  const name = String(fields.name ?? "Project");
+  if (fields.home) {
+    const home = listProjects().find((p) => p.home);
+    if (home) {
+      writeJson(projectFile(home.folder), { ...fields });
+      kept = null;
+      return findProject(id);
+    }
+  }
+  const under = fields.archived ? join(projectsRoot(), ARCHIVED, String(fields.archived).slice(0, 4)) : projectsRoot();
+  let folder = join(under, fields.home ? "Home" : folderName(name));
+  for (let n = 2; existsSync(projectFile(folder)); n++) folder = join(under, `${folderName(name)} ${n}`);
+  mkdirSync(join(folder, MACHINERY, "canvases"), { recursive: true });
+  mkdirSync(join(folder, WRITING), { recursive: true });
+  writeJson(projectFile(folder), { ...fields });
+  kept = null;
+  return findProject(id);
+}
+
+/**
  * Files Talaris makes for you — a canvas exported as a picture — go in the
  * project's visible `Exports/` folder, beside `Writing/`: the project is a
  * folder, and what comes out of it belongs in it. No save dialog: the name is

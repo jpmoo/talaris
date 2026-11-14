@@ -29,6 +29,7 @@ import { ensurePagesFolder } from "./notes.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
 import { startRecordingProjects } from "./project-records.js";
+import { startSync } from "./sync-folder.js";
 
 /**
  * Talaris's own folders, the person's alone: its settings (a plugin's choices,
@@ -73,6 +74,8 @@ async function main(): Promise<void> {
   startSealing();
   // Sync's records of the projects' files, as they are written (project-records.ts); none while sync is off.
   startRecordingProjects();
+  // Sync with other machines through a folder, when this one is set up for it (sync-folder.ts).
+  startSync();
   if (!inDemo) startSchedule();
   // Files: every project's folder read once, then followed (files.ts).
   try { startWatching(); } catch (e) { console.log(`talaris-core: files not watched yet: ${(e as Error).message}`); }

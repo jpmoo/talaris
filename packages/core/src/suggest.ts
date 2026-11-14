@@ -367,10 +367,10 @@ function waysBetween(a: Thing, b: Thing): Way[] {
 
 // ------------------------------------------------------------ what was said no to
 
-interface Kept { no: string[]; quiet: string[] }
+export interface Kept { no: string[]; quiet: string[] }
 const KEPT = () => join(DATA_DIR, "suggest.sealed");
 let kept: Kept | null = null;
-function keptState(): Kept {
+export function keptState(): Kept {
   if (kept) return kept;
   kept = { no: [], quiet: [] };
   if (existsSync(KEPT())) {

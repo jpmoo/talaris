@@ -36,12 +36,13 @@ import { writeAtomic } from "./store.js";
 import { applyingOff, compare, observe, onWritten, whileApplying, type Rec, type Stamp } from "./records.js";
 import { deleteFlat, readFlat, sealedDrop, sealedList, sealedOnce, sealedPut, setsOf, writeFlat } from "./entities.js";
 import { readJson, writeJson } from "./store.js";
-import { findProject, renameProject } from "./projects.js";
+import { findProject, makeProjectSynced, renameProject } from "./projects.js";
 import { deletePage, movePage, readPage, transferPage, writePage } from "./pages.js";
 import { canvasPlace, deleteCanvasSynced, readCanvas, writeCanvasSynced } from "./canvases.js";
 import { rememberMerge } from "./merge.js";
 import { applyKept } from "./suggest.js";
 import { merge3 } from "./merge3.js";
+import { libraryFileSha, removeLibraryFile, writeLibraryFile } from "./sync-files.js";
 
 // ------------------------------------------------------------ clocks
 
@@ -349,7 +350,15 @@ function applyOnCanvas(r: Rec, list: "items" | "links" | "regions"): boolean {
 function applyProject(r: Rec): boolean {
   const id = r.of.slice("project:".length);
   let p;
-  try { p = findProject(id); } catch { return false; } // not here: projects are made where they are joined (step 4)
+  try { p = findProject(id); } catch { p = null; }
+  if (!p) {
+    // Not here yet: made here, at its own id, from what the record says.
+    const fields: Record<string, unknown> = { id };
+    mergeInto(r, fields, new Set());
+    if (!fields.name) return false;
+    makeProjectSynced(fields);
+    return true;
+  }
   const file = join(p.folder, ".talaris", "project.json");
   const fields = readJson<Record<string, unknown>>(file);
   const name = fields.name;
@@ -392,6 +401,27 @@ function applySealed(r: Rec): boolean {
   return true;
 }
 
+/** A Library file: its bytes by hash, the later change winning; gone, removed. False when its bytes have not come. */
+function applyLibraryFile(r: Rec): boolean {
+  if (r.gone) {
+    if (!goes(r)) return false;
+    return removeLibraryFile(r.of);
+  }
+  if (stillGone(r)) return false;
+  const c = clockOf(r.of);
+  const sha = r.set?.sha as string | undefined;
+  if (!sha) return false;
+  const here = libraryFileSha(r.of);
+  if (here === sha) { c.fields.sha = later(r.at, c.fields.sha) ? r.at : c.fields.sha!; keep(r.of, c); return false; }
+  if (!later(r.at, c.fields.sha)) { replaced(r.of, "sha", sha, r.at, c.fields.sha!); return false; }
+  if (here) replaced(r.of, "sha", here, c.fields.sha ?? r.at, r.at);
+  if (!writeLibraryFile(r.of, sha)) return false;
+  c.fields.sha = r.at;
+  c.fields.size = r.at;
+  keep(r.of, c);
+  return true;
+}
+
 export function apply(r: Rec): boolean {
   observe(r.at);
   return whileApplying(() => {
@@ -406,6 +436,7 @@ export function apply(r: Rec): boolean {
       case "project:": return applyProject(r);
       case "pfile:": return applyProjectFile(r);
       case "sealed:": return applySealed(r);
+      case "file:": return applyLibraryFile(r);
       case "once:": { const rest = r.of.slice(5); const cut = rest.indexOf("/"); sealedOnce(rest.slice(0, cut), rest.slice(cut + 1)); return false; }
       default:
         if (r.of === "merged") { for (const [d, k] of Object.entries(r.set ?? {})) rememberMerge(d, String(k)); return true; }

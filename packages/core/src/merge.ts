@@ -38,7 +38,7 @@ export function syncedBy(o: Entity): string | null {
 
 const ALIASES = () => join(DATA_DIR, "merged.sealed");
 let aliases: Record<string, string> | null = null;
-function aliasMap(): Record<string, string> {
+export function aliasMap(): Record<string, string> {
   if (aliases) return aliases;
   aliases = {};
   if (existsSync(ALIASES())) {

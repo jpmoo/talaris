@@ -42,7 +42,7 @@ import { bySource } from "./entities.js";
 interface Place { project: string; rel: string }
 
 /** Which project a path is in, and where in it; null for anything outside a project. */
-function placeOf(path: string): Place | null {
+export function placeOf(path: string): Place | null {
   let best: { id: string; folder: string } | null = null;
   for (const p of listProjects()) {
     if ((path === p.folder || path.startsWith(p.folder + sep)) && (!best || p.folder.length > best.folder.length)) best = p;

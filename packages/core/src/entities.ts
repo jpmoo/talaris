@@ -419,6 +419,24 @@ export function sealedDrop(folder: string, id: string): void {
   rmSync(join(dir(folder), safe(id)), { force: true });
   writeRecord({ of: `sealed:${folder}/${id}`, gone: true });
 }
+/** Every record of a small sealed store with its id, and what it has been through once (sync-seed.ts). */
+export function sealedEntries(folder: string): { records: [string, unknown][]; once: string[] } {
+  load();
+  const d = dir(folder);
+  if (!existsSync(d)) return { records: [], once: [] };
+  const names = readdirSync(d);
+  return {
+    records: names.filter((n) => !n.startsWith(".")).map((n) => [n.replace(/%3A/g, ":"), readSealed<unknown>(join(d, n))] as [string, unknown]),
+    once: names.filter((n) => n.startsWith(".")).map((n) => n.slice(1)),
+  };
+}
+/** Every entity as sync records a made one (sync-seed.ts): all its fields. */
+export function seedEntities(): number {
+  const ix = load();
+  for (const rec of ix.records.values()) recorded(undefined, rec, ix.types);
+  return ix.records.size;
+}
+
 /** Whether a store has been through something once (a dotfile, so never read as one of its records); marked when asked. */
 export function sealedOnce(folder: string, what: string): boolean {
   const mark = join(dir(folder), "." + safe(what));
