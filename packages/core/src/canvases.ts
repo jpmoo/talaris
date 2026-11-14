@@ -15,6 +15,7 @@ import { Conflict, NotFound, findProject, listProjects, readProject, writablePro
 import { newId, readJson, writeJson } from "./store.js";
 import { listVersions, readVersion, saveVersion, versionDir } from "./versions.js";
 import { syncText } from "./mentions.js";
+import { removed } from "./project-records.js";
 
 /**
  * A project's canvases are a tree: one top canvas, and below it children, each
@@ -292,6 +293,7 @@ export function deleteCanvas(projectId: string, id: string, options: { withChild
   saveVersion(versionDir(machinery(folder), "canvas", id), JSON.stringify(doc, null, 2) + "\n", "json");
   const parent = readCanvas(projectId, doc.parent);
   persist(folder, { ...parent, items: parent.items.filter((i) => !(i.kind === "canvas" && i.canvas === id)) });
+  removed(file(folder, id));
   rmSync(file(folder, id));
 }
 

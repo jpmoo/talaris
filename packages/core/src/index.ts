@@ -28,6 +28,7 @@ import { movePagesIntoHome } from "./pages-home.js";
 import { ensurePagesFolder } from "./notes.js";
 import { forgetNonPeople } from "./entities.js";
 import { startPlugins, stopPlugins } from "./plugins.js";
+import { startRecordingProjects } from "./project-records.js";
 
 /**
  * Talaris's own folders, the person's alone: its settings (a plugin's choices,
@@ -70,6 +71,8 @@ async function main(): Promise<void> {
     try { if (seedDemo()) console.log("talaris-core: demo world made"); } catch (e) { console.log(`talaris-core: demo not made: ${(e as Error).stack}`); }
   }
   startSealing();
+  // Sync's records of the projects' files, as they are written (project-records.ts); none while sync is off.
+  startRecordingProjects();
   if (!inDemo) startSchedule();
   // Files: every project's folder read once, then followed (files.ts).
   try { startWatching(); } catch (e) { console.log(`talaris-core: files not watched yet: ${(e as Error).message}`); }

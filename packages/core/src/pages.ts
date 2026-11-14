@@ -8,6 +8,7 @@ import { MACHINERY, WRITING, stamp } from "./paths.js";
 import { Conflict, NotFound, PAGES, attachedFile, findProject, pagesPlace } from "./projects.js";
 import { readBytes, readJson, readText, writeAtomic, writeJson } from "./store.js";
 import { movedText, syncText } from "./mentions.js";
+import { copiedTree, movedTree, removedTree } from "./project-records.js";
 import { membersMoved } from "./filelists.js";
 import { starredPageMoved } from "./starred.js";
 import { addInlineTags, forgetPages, pageTags, setPageTags } from "./tags.js";
@@ -241,6 +242,7 @@ export function movePage(projectId: string, path: string, newParent: string | nu
   for (const [a, b] of moves) {
     mkdirSync(dirname(b), { recursive: true });
     renameSync(a, b);
+    movedTree(a, b);
   }
 
   // Versions and order are keyed by path, so they follow the page.
@@ -320,9 +322,10 @@ export function deletePage(projectId: string, path: string, options: { withChild
   const file = pageFile(folder, p);
   if (existsSync(file)) {
     saveVersion(versionDir(join(folder, MACHINERY), "page", p), readText(file), "md");
+    removedTree(file);
     rmSync(file);
   }
-  if (existsSync(dir)) rmSync(dir, { recursive: true });
+  if (existsSync(dir)) { removedTree(dir); rmSync(dir, { recursive: true }); }
 }
 
 /** Every page beneath this one, at any depth, by path: what deleting it with them would take. */
@@ -423,9 +426,10 @@ export function transferPage(fromProject: string, path: string, toProject: strin
   const below = [from, ...pagesBelow(fromProject, from)];
   for (const [a, b] of pairs) {
     mkdirSync(dirname(b), { recursive: true });
-    if (copy) cpSync(a, b, { recursive: true });
+    if (copy) { cpSync(a, b, { recursive: true }); copiedTree(b); }
     else {
       try { renameSync(a, b); } catch { cpSync(a, b, { recursive: true }); rmSync(a, { recursive: true, force: true }); }
+      movedTree(a, b);
     }
   }
   const moved = (p: string) => to + p.slice(from.length);

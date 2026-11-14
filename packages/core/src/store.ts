@@ -13,6 +13,8 @@ import { randomBytes } from "node:crypto";
  */
 export function writeAtomic(path: string, data: string | Buffer): void {
   mkdirSync(dirname(path), { recursive: true });
+  // Told first, while the file on disk is still the old one and the data still plain (project-records.ts).
+  if (watcher) { try { watcher(path, data); } catch (e) { console.log(`talaris-core: recording ${path}: ${(e as Error).message}`); } }
   // A file inside an encrypted project is sealed on its way to disk.
   const key = sealer?.keyFor(path);
   if (key) data = sealer!.seal(key, data);
@@ -80,6 +82,11 @@ export interface Sealer {
   open(data: Buffer): Buffer;
 }
 let sealer: Sealer | null = null;
+/** Who hears of each write (sync's records, project-records.ts). */
+let watcher: ((path: string, data: string | Buffer) => void) | null = null;
+export function watchWrites(w: ((path: string, data: string | Buffer) => void) | null): void {
+  watcher = w;
+}
 export function setSealer(s: Sealer | null): void {
   sealer = s;
 }
