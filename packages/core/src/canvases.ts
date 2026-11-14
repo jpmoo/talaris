@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   FORMAT_VERSION,
@@ -377,4 +377,22 @@ export function canvasWords(doc: CanvasDocument, withTitle = true): string {
     if (t) bits.push(t);
   }
   return bits.join("\n\n");
+}
+
+// ------------------------------------------------------------ sync's way in (sync-apply.ts)
+
+/** Which project a canvas is in, by its id: its file's folder. */
+export function canvasPlace(id: string): { projectId: string; folder: string } | null {
+  for (const p of listProjects()) if (existsSync(file(p.folder, id))) return { projectId: p.id, folder: p.folder };
+  return null;
+}
+/** A canvas as another machine's records left it, written whole — none of a page's checks, which are a page's. */
+export function writeCanvasSynced(projectId: string, doc: CanvasDocument): void {
+  const { folder } = findProject(projectId);
+  mkdirSync(dir(folder), { recursive: true });
+  persist(folder, doc);
+}
+export function deleteCanvasSynced(projectId: string, id: string): void {
+  const { folder } = findProject(projectId);
+  rmSync(file(folder, id), { force: true });
 }

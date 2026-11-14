@@ -735,3 +735,15 @@ function tie(key: string, other: string, way: Way): string | { said: string; kep
   else connect(eb.id, ea.id, { type: "about" });
   return `${a.title} and ${b.title} are connected now.`;
 }
+
+/** Another machine's no's and quiet ones, as members in or out (sync-apply.ts). */
+export function applyKept(add: Partial<Kept>, remove: Partial<Kept>): void {
+  const k = keptState();
+  for (const key of ["no", "quiet"] as const) {
+    const set = new Set(k[key]);
+    for (const x of add[key] ?? []) set.add(x);
+    for (const x of remove[key] ?? []) set.delete(x);
+    k[key] = [...set];
+  }
+  saveKept();
+}

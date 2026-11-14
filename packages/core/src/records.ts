@@ -118,6 +118,12 @@ export function whileApplying<T>(f: () => T): T {
   applying = true;
   try { return f(); } finally { applying = was; }
 }
+/** Inside applying, a change that is this machine's own all the same (a merge both machines need): written out. */
+export function applyingOff<T>(f: () => T): T {
+  const was = applying;
+  applying = false;
+  try { return f(); } finally { applying = was; }
+}
 
 let openBatch: string | null = null;
 let held = 0;

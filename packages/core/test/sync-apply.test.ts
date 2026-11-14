@@ -23,6 +23,14 @@ import type { Rec } from "../src/records.js";
 const records = await import("../src/records.js");
 const entities = await import("../src/entities.js");
 const sync = await import("../src/sync-apply.js");
+// Every import before the first test: a test run while an import is awaited ends the file early, and its
+// clean-up takes the sandbox with it.
+const projects = await import("../src/projects.js");
+const pages = await import("../src/pages.js");
+const canvases = await import("../src/canvases.js");
+const pr = await import("../src/project-records.js");
+const merge3 = await import("../src/merge3.js");
+const { createHash } = await import("node:crypto");
 after(() => rmSync(sandbox, { recursive: true, force: true }));
 records.setSyncing(true);
 
@@ -94,4 +102,78 @@ test("arriving twice, or out of order, the same end", () => {
   const two = remote(`e:${e.id}`, { set: { "p.title": "Two" } }, 1_200_000);
   sync.apply(two); sync.apply(one); sync.apply(two);
   assert.equal(entities.getEntity(e.id).properties.title, "Two");
+});
+
+// ------------------------------------------------------------ pages, canvases, a project's files
+
+pr.startRecordingProjects();
+projects.ensureHome();
+const plan = projects.createProject("Shared");
+const h = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 16);
+
+test("merge3: changes to different lines both kept; the same lines changed differently, not clean", () => {
+  const base = "one\ntwo\nthree\nfour";
+  assert.deepEqual(merge3.merge3(base, "ONE\ntwo\nthree\nfour", "one\ntwo\nthree\nFOUR"), { text: "ONE\ntwo\nthree\nFOUR", clean: true });
+  assert.equal(merge3.merge3(base, "one\nTWO\nthree\nfour", "one\nZWEI\nthree\nfour").clean, false);
+});
+
+test("a page made there: made here", () => {
+  sync.apply(remote(`page:${plan.id}/From there`, { set: { text: "Hello from the mini.", was: null } }));
+  assert.equal(pages.readPage(plan.id, "From there"), "Hello from the mini.");
+});
+
+test("a page changed there from the text it has here: taken as it is", () => {
+  pages.writePage(plan.id, "Notes", "first line\nsecond line");
+  sync.apply(remote(`page:${plan.id}/Notes`, { set: { text: "first line\nsecond line\nthird, from the mini", was: h("first line\nsecond line") } }, 600_000));
+  assert.equal(pages.readPage(plan.id, "Notes"), "first line\nsecond line\nthird, from the mini");
+});
+
+test("a page changed on both, in different places: merged, and the merge written out for the other", () => {
+  const base = "alpha\nbeta\ngamma\ndelta";
+  pages.writePage(plan.id, "Both", base);
+  pages.writePage(plan.id, "Both", "ALPHA here\nbeta\ngamma\ndelta");
+  const n = records.ownLog().length;
+  sync.apply(remote(`page:${plan.id}/Both`, { set: { text: "alpha\nbeta\ngamma\nDELTA there", was: h(base) } }, 1_800_000));
+  assert.equal(pages.readPage(plan.id, "Both"), "ALPHA here\nbeta\ngamma\nDELTA there", JSON.stringify(sync.replacedFor(`page:${plan.id}/Both`).map((r) => r.field)));
+  assert.ok(records.ownLog().slice(n).some((r) => r.of === `page:${plan.id}/Both` && r.set?.text === "ALPHA here\nbeta\ngamma\nDELTA there"));
+});
+
+test("a page moved there: moved here", () => {
+  pages.writePage(plan.id, "Old name", "words");
+  sync.apply(remote(`page:${plan.id}/Old name`, { set: { movedTo: `${plan.id}/New name` } }, 2_400_000));
+  assert.equal(pages.readPage(plan.id, "New name"), "words");
+  assert.throws(() => pages.readPage(plan.id, "Old name"));
+});
+
+test("a card moved there, another here: both moves stand", () => {
+  const cv = canvases.canvasTree(plan.id).id;
+  const doc = canvases.readCanvas(plan.id, cv);
+  const items = [{ id: "it_1", kind: "note", x: 0, y: 0, w: 80, h: 40, text: "1" }, { id: "it_2", kind: "note", x: 0, y: 100, w: 80, h: 40, text: "2" }];
+  const saved = canvases.writeCanvas(plan.id, { ...doc, items } as never);
+  canvases.writeCanvas(plan.id, { ...saved, items: saved.items.map((i: { id: string }) => (i.id === "it_1" ? { ...i, x: 300 } : i)) } as never);
+  sync.apply(remote(`item:${cv}/it_2`, { set: { y: 500 } }, 3_000_000));
+  const now = canvases.readCanvas(plan.id, cv).items as Array<{ id: string; x: number; y: number }>;
+  assert.equal(now.find((i) => i.id === "it_1")!.x, 300);
+  assert.equal(now.find((i) => i.id === "it_2")!.y, 500);
+});
+
+test("a project renamed there: renamed here", () => {
+  sync.apply(remote(`project:${plan.id}`, { set: { name: "Shared, renamed" } }, 3_600_000));
+  assert.equal(projects.findProject(plan.id).name, "Shared, renamed");
+});
+
+test("a page's look set there, another's here: both kept, entry by entry", () => {
+  pages.writePage(plan.id, "Look here", "x");
+  pages.setPageLook(plan.id, "Look here", { paper: "#ffffff" });
+  pages.writePage(plan.id, "Look there", "y");
+  sync.apply(remote(`pfile:${plan.id}/writing-look.json`, { set: { "Look there": { paper: "#000000" } } }, 4_200_000));
+  assert.equal(pages.pageLook(plan.id, "Look here").paper, "#ffffff");
+  assert.equal(pages.pageLook(plan.id, "Look there").paper, "#000000");
+});
+
+test("a list's member added there, another here: both", () => {
+  entities.sealedPut("lists", "c_both", { id: "c_both", name: "Both", members: ["e_here"] });
+  sync.apply(remote("sealed:lists/c_both", { add: { members: ["e_there"] } }, 4_800_000));
+  const l = entities.sealedList<{ id: string; members: string[] }>("lists").find((x) => x.id === "c_both")!;
+  assert.deepEqual([...l.members].sort(), ["e_here", "e_there"]);
 });

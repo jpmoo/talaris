@@ -33,8 +33,15 @@ import { join } from "node:path";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { seal, unseal } from "./seal.js";
 import { writeAtomic } from "./store.js";
-import { compare, observe, onWritten, whileApplying, type Rec, type Stamp } from "./records.js";
-import { deleteFlat, readFlat, setsOf, writeFlat } from "./entities.js";
+import { applyingOff, compare, observe, onWritten, whileApplying, type Rec, type Stamp } from "./records.js";
+import { deleteFlat, readFlat, sealedDrop, sealedList, sealedOnce, sealedPut, setsOf, writeFlat } from "./entities.js";
+import { readJson, writeJson } from "./store.js";
+import { findProject, renameProject } from "./projects.js";
+import { deletePage, movePage, readPage, transferPage, writePage } from "./pages.js";
+import { canvasPlace, deleteCanvasSynced, readCanvas, writeCanvasSynced } from "./canvases.js";
+import { rememberMerge } from "./merge.js";
+import { applyKept } from "./suggest.js";
+import { merge3 } from "./merge3.js";
 
 // ------------------------------------------------------------ clocks
 
@@ -112,13 +119,6 @@ export function replacedFor(of?: string): Replaced[] {
 
 // ------------------------------------------------------------ applying
 
-/** Applies one record from another machine; says whether anything here changed. */
-export function apply(r: Rec): boolean {
-  observe(r.at);
-  if (r.of.startsWith("e:")) return whileApplying(() => applyEntity(r));
-  return false; // pages, canvases, a project's files: step 3b
-}
-
 /** A batch: applied in its order, whole. */
 export function applyBatch(recs: Rec[]): number {
   let n = 0;
@@ -126,36 +126,19 @@ export function applyBatch(recs: Rec[]): number {
   return n;
 }
 
-function applyEntity(r: Rec): boolean {
-  const id = r.of.slice(2);
+/**
+ * The record's changes merged into `fields` by the rules above, with its thing's clock: plain fields by the later
+ * moment, set-like ones (`sets`) member by member. Says whether `fields` changed; the clock is kept either way.
+ */
+function mergeInto(r: Rec, fields: Record<string, unknown>, sets: Set<string>): boolean {
   const c = clockOf(r.of);
-  const had = readFlat(id);
-  // Deleted: it goes, and is remembered gone; what it had is kept in the replaced log.
-  if (r.gone) {
-    if (c.gone && !later(r.at, c.gone)) return false;
-    c.gone = r.at;
-    keep(r.of, c);
-    if (had) {
-      replaced(r.of, "*", had, r.at, r.at);
-      deleteFlat(id);
-      return true;
-    }
-    return false;
-  }
-  // Gone already, said by a delete: a change to it from any machine does not bring it back.
-  if (c.gone) {
-    for (const [k, v] of Object.entries(r.set ?? {})) replaced(r.of, k, v, r.at, c.gone);
-    return false;
-  }
-  const fields: Record<string, unknown> = { ...(had ?? {}) };
   let changed = false;
-  // Plain fields: the later moment wins.
   for (const [k, v] of Object.entries(r.set ?? {})) {
     if (later(r.at, c.fields[k])) {
       if (c.fields[k] && JSON.stringify(fields[k]) !== JSON.stringify(v)) replaced(r.of, k, fields[k], c.fields[k]!, r.at);
+      if (JSON.stringify(fields[k]) !== JSON.stringify(v)) changed = true;
       fields[k] = v;
       c.fields[k] = r.at;
-      changed = true;
     } else if (JSON.stringify(fields[k]) !== JSON.stringify(v)) {
       replaced(r.of, k, v, r.at, c.fields[k]!);
     }
@@ -163,13 +146,11 @@ function applyEntity(r: Rec): boolean {
   for (const k of r.unset ?? []) {
     if (later(r.at, c.fields[k])) {
       if (fields[k] !== undefined && c.fields[k]) replaced(r.of, k, fields[k], c.fields[k]!, r.at);
+      if (fields[k] !== undefined) changed = true;
       delete fields[k];
       c.fields[k] = r.at;
-      changed = true;
     }
   }
-  // Set-like fields: member by member.
-  const sets = setsOf((fields.type as string | undefined) ?? undefined);
   for (const [op, inn] of [[r.add, true], [r.remove, false]] as const) {
     for (const [k, list] of Object.entries(op ?? {})) {
       const m = (c.members[k] ??= {});
@@ -182,14 +163,256 @@ function applyEntity(r: Rec): boolean {
         if (!inn && now.has(key)) { now.delete(key); changed = true; }
       }
       // A one-value field that is a set only in its records stays one value.
-      fields[k] = sets.has(k) || k === "relations" ? [...now.values()] : [...now.values()][0];
+      fields[k] = sets.has(k) ? [...now.values()] : [...now.values()][0];
     }
   }
   keep(r.of, c);
-  if (!changed) return false;
+  return changed;
+}
+
+/** A thing deleted: its going kept; says whether it is to go here (not already gone by a later say). */
+function goes(r: Rec): boolean {
+  const c = clockOf(r.of);
+  if (c.gone && !later(r.at, c.gone)) return false;
+  c.gone = r.at;
+  keep(r.of, c);
+  return true;
+}
+/** Gone already: a change to it does not bring it back, and is kept in the replaced log. */
+function stillGone(r: Rec): boolean {
+  const c = clockOf(r.of);
+  if (!c.gone) return false;
+  for (const [k, v] of Object.entries(r.set ?? {})) replaced(r.of, k, v, r.at, c.gone);
+  return true;
+}
+
+function applyEntity(r: Rec): boolean {
+  const id = r.of.slice(2);
+  const had = readFlat(id);
+  if (r.gone) {
+    if (!goes(r)) return false;
+    if (!had) return false;
+    replaced(r.of, "*", had, r.at, r.at);
+    deleteFlat(id);
+    return true;
+  }
+  if (stillGone(r)) return false;
+  const fields: Record<string, unknown> = { ...(had ?? {}) };
+  const type = (r.set?.type as string | undefined) ?? (fields.type as string | undefined);
+  if (!mergeInto(r, fields, setsOf(type))) return false;
   if (!fields.type) return false; // nothing yet to make it from: its creating record has not come
   writeFlat(id, fields);
   return true;
+}
+
+// ------------------------------------------------------------ pages
+
+/**
+ * The texts a page has had, by their hash, so the base of a three-way merge can be found from the `was` a
+ * record carries: this machine's own writes and those applied, the last few of each page.
+ */
+const PAGES = () => join(DATA_DIR, "sync", "pages");
+const pageFile = (of: string) => join(PAGES(), createHash("sha256").update(of).digest("hex").slice(0, 32));
+const textHash = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 16);
+function pageTexts(of: string): Record<string, string> {
+  try { return JSON.parse(unseal(storeKey(), readFileSync(pageFile(of))).toString("utf8")) as Record<string, string>; } catch { return {}; }
+}
+function rememberText(of: string, text: string): void {
+  const texts = pageTexts(of);
+  texts[textHash(text)] = text;
+  const keys = Object.keys(texts);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 12))) delete texts[k];
+  mkdirSync(PAGES(), { recursive: true });
+  writeAtomic(pageFile(of), seal(storeKey(), JSON.stringify(texts)));
+}
+onWritten((r) => { if (r.of.startsWith("page:") && typeof r.set?.text === "string") rememberText(r.of, r.set.text); });
+
+const pagePlace = (of: string) => { const key = of.slice(5); const cut = key.indexOf("/"); return { project: key.slice(0, cut), path: key.slice(cut + 1) }; };
+
+function applyPage(r: Rec): boolean {
+  const { project, path } = pagePlace(r.of);
+  let here: string | null = null;
+  try { here = readPage(project, path); } catch { here = null; }
+  if (r.gone) {
+    if (!goes(r) || here == null) return false;
+    replaced(r.of, "text", here, r.at, r.at);
+    try { deletePage(project, path, { withChildren: true }); } catch { /* gone already */ }
+    return true;
+  }
+  if (stillGone(r)) return false;
+  // Moved there: moved here, if it is here and its new place is free.
+  const to = r.set?.movedTo as string | undefined;
+  if (to) {
+    const cut = to.indexOf("/");
+    const toProject = to.slice(0, cut), toPath = to.slice(cut + 1);
+    if (here == null) return false;
+    const parent = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : null;
+    const title = toPath.split("/").pop()!;
+    try {
+      if (toProject === project) movePage(project, path, parent, title);
+      else transferPage(project, path, toProject, parent, false);
+    } catch { return false; }
+    return true;
+  }
+  const text = r.set?.text as string | undefined;
+  if (typeof text !== "string") return false;
+  rememberText(r.of, text);
+  const c = clockOf(r.of);
+  const was = r.set?.was as string | null | undefined;
+  if (here === text) { c.fields.text = later(r.at, c.fields.text) ? r.at : c.fields.text!; keep(r.of, c); return false; }
+  // Not here yet, or here exactly as it was there before this change: taken as it is.
+  if (here == null || (was && textHash(here) === was)) {
+    writePage(project, path, text);
+    c.fields.text = r.at;
+    keep(r.of, c);
+    return true;
+  }
+  // Changed on both: merged line by line against the text both last had.
+  const base = was ? pageTexts(r.of)[was] : undefined;
+  if (base !== undefined) {
+    const m = merge3(base, here, text);
+    if (m.clean) {
+      // The merge is new to both machines: written as this machine's own change, so the other has it too.
+      writePageOwn(project, path, m.text);
+      return true;
+    }
+  }
+  // Could not merge: the later wins; the other is kept in the replaced log and the page's versions.
+  if (later(r.at, c.fields.text)) {
+    replaced(r.of, "text", here, c.fields.text ?? r.at, r.at);
+    writePage(project, path, text);
+    c.fields.text = r.at;
+  } else {
+    replaced(r.of, "text", text, r.at, c.fields.text!);
+  }
+  keep(r.of, c);
+  return true;
+}
+
+/** A page written as this machine's own change, from inside applying (a merge both machines need). */
+let writePageOwn = (project: string, path: string, text: string) => {
+  applyingOff(() => writePage(project, path, text));
+};
+
+// ------------------------------------------------------------ canvases
+
+function canvasDoc(cv: string): { projectId: string; doc: Record<string, unknown> } | null {
+  const place = canvasPlace(cv);
+  if (!place) return null;
+  try { return { projectId: place.projectId, doc: readCanvas(place.projectId, cv) as unknown as Record<string, unknown> }; } catch { return null; }
+}
+
+function applyCanvas(r: Rec): boolean {
+  const cv = r.of.slice("canvas:".length);
+  const found = canvasDoc(cv);
+  if (r.gone) {
+    if (!goes(r) || !found) return false;
+    replaced(r.of, "*", found.doc, r.at, r.at);
+    deleteCanvasSynced(found.projectId, cv);
+    return true;
+  }
+  if (stillGone(r)) return false;
+  const doc: Record<string, unknown> = found ? { ...found.doc } : { id: cv, items: [], links: [], regions: [] };
+  if (!mergeInto(r, doc, new Set())) return false;
+  const projectId = found?.projectId ?? (doc.project as string | undefined);
+  if (!projectId) return false;
+  writeCanvasSynced(projectId, doc as never);
+  return true;
+}
+
+/** A card, link or region on a canvas: `item:<canvas>/<id>`, `clink:…`, `region:…`. */
+function applyOnCanvas(r: Rec, list: "items" | "links" | "regions"): boolean {
+  const rest = r.of.slice(r.of.indexOf(":") + 1);
+  const cut = rest.indexOf("/");
+  const cv = rest.slice(0, cut), id = rest.slice(cut + 1);
+  const found = canvasDoc(cv);
+  if (!found) return false; // its canvas not here yet: applied when it is (the batch's order brings the canvas first)
+  const doc = found.doc;
+  const all = Array.isArray(doc[list]) ? [...doc[list] as Record<string, unknown>[]] : [];
+  const at = all.findIndex((x) => x.id === id);
+  if (r.gone) {
+    if (!goes(r) || at < 0) return false;
+    replaced(r.of, "*", all[at], r.at, r.at);
+    all.splice(at, 1);
+  } else {
+    if (stillGone(r)) return false;
+    const fields: Record<string, unknown> = at >= 0 ? { ...all[at]! } : { id };
+    if (!mergeInto(r, fields, new Set())) return false;
+    if (at >= 0) all[at] = fields; else all.push(fields);
+  }
+  writeCanvasSynced(found.projectId, { ...doc, [list]: all } as never);
+  return true;
+}
+
+// ------------------------------------------------------------ a project, its files, the small stores
+
+function applyProject(r: Rec): boolean {
+  const id = r.of.slice("project:".length);
+  let p;
+  try { p = findProject(id); } catch { return false; } // not here: projects are made where they are joined (step 4)
+  const file = join(p.folder, ".talaris", "project.json");
+  const fields = readJson<Record<string, unknown>>(file);
+  const name = fields.name;
+  if (!mergeInto(r, fields, new Set())) return false;
+  if (fields.name !== name && typeof fields.name === "string") {
+    renameProject(id, fields.name);
+    return true;
+  }
+  writeJson(file, fields);
+  return true;
+}
+
+function applyProjectFile(r: Rec): boolean {
+  const rest = r.of.slice("pfile:".length);
+  const cut = rest.indexOf("/");
+  let p;
+  try { p = findProject(rest.slice(0, cut)); } catch { return false; }
+  const file = join(p.folder, ".talaris", rest.slice(cut + 1));
+  let fields: Record<string, unknown> = {};
+  try { fields = readJson<Record<string, unknown>>(file); } catch { fields = {}; }
+  if (!mergeInto(r, fields, new Set())) return false;
+  writeJson(file, fields);
+  return true;
+}
+
+function applySealed(r: Rec): boolean {
+  const rest = r.of.slice("sealed:".length);
+  const cut = rest.indexOf("/");
+  const folder = rest.slice(0, cut), id = rest.slice(cut + 1);
+  if (r.gone) {
+    if (!goes(r)) return false;
+    sealedDrop(folder, id);
+    return true;
+  }
+  if (stillGone(r)) return false;
+  const was = sealedList<Record<string, unknown>>(folder).find((x) => x && (x as { id?: unknown }).id === id);
+  const fields: Record<string, unknown> = { ...(was ?? {}) };
+  if (!mergeInto(r, fields, new Set(["members"]))) return false;
+  sealedPut(folder, id, "value" in fields && Object.keys(fields).length === 1 ? fields.value : fields);
+  return true;
+}
+
+export function apply(r: Rec): boolean {
+  observe(r.at);
+  return whileApplying(() => {
+    const kind = r.of.slice(0, r.of.indexOf(":") + 1) || r.of;
+    switch (kind) {
+      case "e:": return applyEntity(r);
+      case "page:": return applyPage(r);
+      case "canvas:": return applyCanvas(r);
+      case "item:": return applyOnCanvas(r, "items");
+      case "clink:": return applyOnCanvas(r, "links");
+      case "region:": return applyOnCanvas(r, "regions");
+      case "project:": return applyProject(r);
+      case "pfile:": return applyProjectFile(r);
+      case "sealed:": return applySealed(r);
+      case "once:": { const rest = r.of.slice(5); const cut = rest.indexOf("/"); sealedOnce(rest.slice(0, cut), rest.slice(cut + 1)); return false; }
+      default:
+        if (r.of === "merged") { for (const [d, k] of Object.entries(r.set ?? {})) rememberMerge(d, String(k)); return true; }
+        if (r.of === "suggest") { applyKept((r.add ?? {}) as never, (r.remove ?? {}) as never); return true; }
+        return false;
+    }
+  });
 }
 
 /** Under test: every clock forgotten, as on a machine that has never synced. */

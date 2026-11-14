@@ -328,6 +328,15 @@ Each step leaves Talaris working on one machine as it does now.
    `config.json` that is yours (the surfaces write it, in Python).
 3. **Applying.** Records applied through the core's own paths; the replaced
    log; tombstones; three-way page merge; per-item canvas merge.
+   Done 2026-11-14 (sync-apply.ts, merge3.ts): every field's last moment kept,
+   the later change winning on both machines whichever arrives first; sets by
+   member; deletes winning and remembered; the replaced log; pages taken as
+   they are when unchanged here, merged line by line against the text both
+   last had when changed on both (the merge written out as this machine's, so
+   the other has it), the later kept whole when the same lines changed; cards,
+   links and regions each their own; projects, their files, the small stores.
+   Left: a project made on one machine and not yet on the other is made where
+   machines join (step 4); the replaced log is not yet shown anywhere.
 4. **The folder transport**, sealed logs and blobs, snapshots, and *Joining*.
    Two Talarises in one test, syncing through a temporary folder, is the test
    suite for everything above.
