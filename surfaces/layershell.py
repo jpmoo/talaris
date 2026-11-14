@@ -135,8 +135,7 @@ def set_keyboard(height: int) -> None:
     _keyboard = height
     for surface in list(_surfaces):
         if surface.asked is not None and surface.placement is not None and surface.widget.isVisible():
-            surface.placement = None
-            surface.apply(surface.asked)
+            surface.reflow()
 
 
 def fitted(placement: Placement) -> Placement:
@@ -240,6 +239,29 @@ class LayerSurface:
             ptr = _get(shiboken6.getCppPointer(self.widget.windowHandle())[0])
             self._window = shiboken6.wrapInstance(ptr, QObject)
         return self._window
+
+    def reflow(self) -> None:
+        """
+        Placed again where it is, the keyboard come or gone: its edges and size changed on the surface as it stands.
+        Made anew (`apply`), each was a new surface — the field in it lost its focus, which sent the keyboard away,
+        which placed them all again, and back: everything blinked, and at last went (2026-11-14).
+        """
+        if self.asked is None or self.placement is None:
+            return
+        placement = clear_of_keyboard(fitted(self.asked))
+        if placement == self.placement:
+            return
+        if (placement.layer, placement.keyboard) != (self.placement.layer, self.placement.keyboard):
+            self.placement = None
+            self.apply(self.asked)
+            return
+        window = self._attach()
+        window.setProperty("anchors", placement.anchors)
+        window.setProperty("margins", QMargins(*(to_compositor(m) for m in placement.margins)))
+        window.setProperty("exclusionZone", to_compositor(placement.exclusive) if placement.exclusive > 0 else placement.exclusive)
+        if placement.width and placement.height:
+            self.widget.resize(placement.width, placement.height)
+        self.placement = placement
 
     def apply(self, placement: Placement) -> None:
         """Put the surface where `placement` says, by making it anew there."""

@@ -247,13 +247,6 @@ class Bridge(QObject):
         if osk.current is not None:
             osk.current.show(on)
 
-    @Slot(bool)
-    def field(self, focused: bool) -> None:
-        """A text field taken or left: in a tablet, the keyboard comes or goes with it (keyboard.py, `field`)."""
-        import keyboard as osk  # noqa: PLC0415
-        if osk.current is not None:
-            osk.current.field(focused)
-
     @Slot()
     def file(self) -> None:
         """Escape, from the page: put it back."""
