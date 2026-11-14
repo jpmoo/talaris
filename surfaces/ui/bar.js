@@ -111,6 +111,7 @@ function onState(s) {
   }
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
+  requestAnimationFrame(tellOsk);
   // In portrait, the project by its name alone.
   drawWhere(s, p, portrait ? "name" : shows);
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
@@ -476,14 +477,19 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 // A long press on a touchscreen is a right-click and then, as the finger lifts, a click: only the right-click is meant.
-// Whether a press, in this page's pixels, is on the keyboard's button: asked by the dim (dim.py), which lies over the
-// bar while a panel is out and would otherwise take that press as one off the panel.
-window.oskHit = (x, y) => {
+// Where the keyboard's button is, told to the process whenever it may have moved: panels, drawers and the dim lie
+// over the bar while they are out, and a press on it there is known by this (keyboard.py, `pressed_on_button`).
+let oskSaid = "";
+function tellOsk() {
   const b = $("osk");
-  if (!b || b.hidden) return false;
-  const r = b.getBoundingClientRect();
-  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-};
+  let r = null;
+  if (b && !b.hidden) { const q = b.getBoundingClientRect(); r = [q.left, q.top, q.width, q.height].map((n) => Math.round(n)); }
+  const said = JSON.stringify(r);
+  if (said !== oskSaid && bridge && bridge.oskPlace) { oskSaid = said; bridge.oskPlace(said); }
+}
+addEventListener("resize", () => requestAnimationFrame(tellOsk));
+addEventListener("scroll", () => requestAnimationFrame(tellOsk), true);
+setInterval(tellOsk, 2000);
 // Kept from taking the keys: the field being typed into keeps them, and the keyboard types there.
 $("osk").addEventListener("pointerdown", (e) => e.preventDefault());
 $("osk").addEventListener("click", () => { if (bridge && bridge.keyboardToggle) bridge.keyboardToggle(); });

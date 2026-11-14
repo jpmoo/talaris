@@ -63,23 +63,6 @@ class Dim(QObject):
             self.layer.hide()
 
     def _caught(self) -> None:
-        """
-        A press on the dim: whatever holds it, put away — unless it was on the bar's keyboard button, which the dim
-        lies over while a panel is out. That one brings the keyboard, for the panel: put away, there was nothing to
-        type into (2026-11-14).
-        """
-        at = self.layer.pressed_at
-        bar = getattr(self.parent(), "bar", None)
-        if at is not None and bar is not None:
-            bar.osk_hit(at, lambda hit: self._keyboard() if hit else self._away())
-            return
-        self._away()
-
-    def _away(self) -> None:
+        """A press on the dim: whatever holds it, put away."""
         if self.owner is not None and hasattr(self.owner, "file_away"):
             self.owner.file_away()
-
-    def _keyboard(self) -> None:
-        import keyboard as osk  # noqa: PLC0415
-        if osk.current is not None:
-            osk.current.show(not osk.current.up)

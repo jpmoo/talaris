@@ -127,8 +127,6 @@ class Catcher(QObject):
         super().__init__(parent)
         self.on_catch = on_catch
         self.up = False
-        #: The last press on it, in its own pixels — the screen's, as it covers the screen from its corner.
-        self.pressed_at: tuple[float, float] | None = None
         self.bridge = SensorBridge(self, self)
         self.view = make_view(profile, name, "talaris-ui://ui/catch.html", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
@@ -174,12 +172,8 @@ class Catcher(QObject):
 
     def eventFilter(self, _watched, event) -> bool:  # noqa: N802 — Qt's name
         if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.TouchBegin) and self.up:
-            # Where, for whoever must tell one press from another (dim.py: the bar's keyboard button under it).
-            try:
-                p = event.position() if event.type() == QEvent.Type.MouseButtonPress else event.points()[0].position()
-                self.pressed_at = (p.x(), p.y())
-            except (AttributeError, IndexError):
-                self.pressed_at = None
+            if _on_keyboard_button(_watched, event):
+                return True
             self.touched_edge()
         return False
 
@@ -235,6 +229,16 @@ class ClickAway(QObject):
         self.catcher.hide()
 
 
+def _on_keyboard_button(widget, event) -> bool:
+    """A press that is on the bar's keyboard button, under whatever lies over the bar: taken by the keyboard."""
+    try:
+        p = event.position() if event.type() == QEvent.Type.MouseButtonPress else event.points()[0].position()
+    except (AttributeError, IndexError):
+        return False
+    import keyboard as osk  # noqa: PLC0415
+    return osk.pressed_on_button(widget, p.x(), p.y())
+
+
 class Presses(QObject):
     """
     A press on a view, seen in Qt, handed to its page as `pressedAt(x, y)` in
@@ -269,6 +273,8 @@ class Presses(QObject):
         if not shiboken6.isValid(self.view):
             return False
         kind = event.type()
+        if kind in (QEvent.Type.MouseButtonPress, QEvent.Type.TouchBegin) and watched is self._watched and _on_keyboard_button(watched, event):
+            return True  # the bar's keyboard button, under this page: never the page's (keyboard.py)
         if kind == QEvent.Type.MouseButtonPress and watched is self._watched:
             z = self.view.zoomFactor() or 1
             p = event.position()

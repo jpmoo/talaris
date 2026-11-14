@@ -218,6 +218,14 @@ class _Exposed(QObject):
         return False
 
 
+def origin_of(widget: QWidget) -> tuple[float, float] | None:
+    """Where a surface's widget is on the screen, in Qt's pixels, from the edges it holds to; None if not placed."""
+    for surface in list(_surfaces):
+        if surface.widget is widget:
+            return surface.origin()
+    return None
+
+
 class LayerSurface:
     """One widget, drawn as a layer surface, re-placed on demand."""
 
@@ -239,6 +247,30 @@ class LayerSurface:
             ptr = _get(shiboken6.getCppPointer(self.widget.windowHandle())[0])
             self._window = shiboken6.wrapInstance(ptr, QObject)
         return self._window
+
+    def origin(self) -> tuple[float, float] | None:
+        """Its top-left on the screen, in Qt's pixels: placed at the edges it holds to, or centered between them."""
+        placed = self.placement
+        screen = QApplication.primaryScreen()
+        if placed is None or screen is None:
+            return None
+        g = screen.geometry()
+        ml, mt, mr, mb = placed.margins
+        w, h = self.widget.width(), self.widget.height()
+        a = placed.anchors
+        if a & ANCHOR_LEFT:
+            x = ml
+        elif a & ANCHOR_RIGHT:
+            x = g.width() - mr - w
+        else:
+            x = (g.width() - w) / 2
+        if a & ANCHOR_TOP:
+            y = mt
+        elif a & ANCHOR_BOTTOM:
+            y = g.height() - mb - h
+        else:
+            y = (g.height() - h) / 2
+        return (x, y)
 
     def reflow(self) -> None:
         """

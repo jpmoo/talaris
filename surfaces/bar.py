@@ -367,6 +367,24 @@ class BarBridge(Bridge):
         """The screen turned a quarter, clockwise, and held there (rotation.py)."""
         self.owner.desktop.rotation.turn_once()
 
+    @Slot(str)
+    def oskPlace(self, rect: str) -> None:  # noqa: N802 — called from the page by this name
+        """
+        Where the keyboard's button is, in the page's pixels (or null, hidden): kept as the screen's, for a press on
+        it under a panel, a drawer or the dim to be known as one (keyboard.py, `pressed_on_button`).
+        """
+        import keyboard as osk  # noqa: PLC0415
+        import layershell  # noqa: PLC0415
+        bar = self.owner.desktop.bar
+        r = json.loads(rect or "null")
+        at = layershell.origin_of(bar.view)
+        if not r or at is None:
+            osk.bar_button = None
+            return
+        z = bar.view.zoomFactor() or 1
+        osk.bar_button = (at[0] + r[0] * z, at[1] + r[1] * z, r[2] * z, r[3] * z)
+        log(f"keyboard: the bar's button at {tuple(round(n) for n in osk.bar_button)}")
+
     @Slot()
     def keyboardToggle(self) -> None:  # noqa: N802 — called from the page by this name
         """The on-screen keyboard up, or away (keyboard.py)."""
@@ -683,27 +701,6 @@ class Bar(QObject):
         screen = QApplication.primaryScreen()
         g = screen.geometry() if screen is not None else None
         return bool(g and g.height() > g.width())
-
-    def osk_hit(self, at: tuple[float, float], answer) -> None:
-        """
-        Whether a press at `at` — the screen's pixels, as the dim heard it — is on the keyboard's button here:
-        answered later (`answer(bool)`), the page asked where its button is.
-        """
-        placed = self.surface.placement
-        if placed is None or not self.view.isVisible():
-            answer(False)
-            return
-        # Where the bar is on the screen, from the edges it holds to (it may be at the top or the bottom).
-        from PySide6.QtWidgets import QApplication  # noqa: PLC0415
-        import layershell  # noqa: PLC0415
-        g = QApplication.primaryScreen().geometry()
-        ml, mt, mr, mb = placed.margins
-        w, h = self.view.width(), self.view.height()
-        left = ml if placed.anchors & layershell.ANCHOR_LEFT or not placed.anchors & layershell.ANCHOR_RIGHT else g.width() - mr - w
-        top = mt if placed.anchors & layershell.ANCHOR_TOP else g.height() - mb - h
-        z = self.view.zoomFactor() or 1
-        x, y = (at[0] - left) / z, (at[1] - top) / z
-        self.view.page().runJavaScript(f"window.oskHit ? oskHit({x:.1f}, {y:.1f}) : false", 0, lambda hit: answer(bool(hit)))
 
     def describe(self) -> dict:
         return {

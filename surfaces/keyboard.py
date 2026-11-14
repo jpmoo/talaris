@@ -27,7 +27,7 @@ import shutil
 import signal
 import subprocess
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QPointF, QTimer
 
 import hypr
 import layershell
@@ -35,6 +35,36 @@ from views import log
 
 #: The one keyboard, for the bridge's slot every page has (core.Bridge.keyboard).
 current: "Keyboard | None" = None
+
+#: Where the bar's keyboard button is on the screen (x, y, w, h, Qt's pixels), as the bar last said; None if hidden.
+bar_button: tuple[float, float, float, float] | None = None
+
+
+def pressed_on_button(widget, x: float, y: float) -> bool:
+    """
+    A press on `widget` at (x, y), its own pixels, that is really on the bar's keyboard button — under a panel, a
+    drawer or the dim, which lie over the bar while they are out and took it as a press off themselves, putting
+    themselves away (2026-11-14). Taken here, the keyboard is brought (or put away) and the press goes no further.
+    """
+    if bar_button is None or current is None:
+        return False
+    # The surface it is part of (the press may be on the engine's own widget, inside the view), and where that is.
+    w, at = widget, None
+    while w is not None and at is None:
+        at = layershell.origin_of(w)
+        if at is None:
+            pos = w.mapToParent(QPointF(x, y).toPoint()) if w.parentWidget() is not None else None
+            if pos is not None:
+                x, y = pos.x(), pos.y()
+            w = w.parentWidget()
+    if at is None:
+        return False
+    bx, by, bw, bh = bar_button
+    sx, sy = at[0] + x, at[1] + y
+    if not (bx <= sx <= bx + bw and by <= sy <= by + bh):
+        return False
+    current.show(not current.up)
+    return True
 
 #: Talaris's grays (ui/tokens.css), and a raised one for the keys that change what the keyboard shows.
 DARK = {"desk": "#16181a", "surface": "#222528", "raised": "#2b2f33", "line": "#3a3f44", "text": "#d5d9dc", "muted": "#868c92"}
