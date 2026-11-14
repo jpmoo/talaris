@@ -95,3 +95,5 @@ body.kit-drag-on, body.kit-drag-on * { cursor: grabbing !important; user-select:
 .kit-pop .attach-list .hint { padding: 4px 8px; color: var(--muted); font-size: 12px; }
 .kit-pop .attach-list .hint.err { color: var(--danger); }
 .kit-pop .attach-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 6px; }
+/* Held long enough to be picked up by a finger (kit.js, draggable): it says so before it moves. */
+.kit-held { outline: 2px solid var(--accent); outline-offset: -2px; transition: outline-color var(--dur); }

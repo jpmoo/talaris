@@ -478,12 +478,27 @@ const Kit = (() => {
    * moved a few pixels, so a press is still a press.
    */
   function draggable(node, payload, { ignore = "button, input, textarea, select, a, .no-drag", onStart = null } = {}) {
+    // A finger, as on a phone: held a moment, the item is picked up and follows it; moved at once, the finger
+    // scrolls what is under it, as it would anywhere — these items fill whole lists. Picked up, the page is kept
+    // from scrolling (a touchmove not passive, its default prevented), or the engine took the drag back.
+    let held = false;
+    node.addEventListener("touchmove", (e) => { if (held) e.preventDefault(); }, { passive: false });
     node.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || (ignore && e.target.closest(ignore))) return;
       const sx = e.clientX, sy = e.clientY;
+      const touch = e.pointerType === "touch";
+      let ready = !touch, holdTimer = null;
+      if (touch) {
+        holdTimer = setTimeout(() => { ready = true; held = true; node.classList.add("kit-held"); }, 350);
+      }
       let ghost = null, over = null, where = null, got = null;
       const move = (ev) => {
         if (!ghost) {
+          if (!ready) {
+            // Moved before it was held: a scroll, not a drag.
+            if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= 8) { clearTimeout(holdTimer); up(ev); }
+            return;
+          }
           if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
           popAway();
           const r = node.getBoundingClientRect();
@@ -515,6 +530,9 @@ const Kit = (() => {
         }
       };
       const up = (ev) => {
+        clearTimeout(holdTimer);
+        held = false;
+        node.classList.remove("kit-held");
         removeEventListener("pointermove", move);
         removeEventListener("pointerup", up);
         removeEventListener("pointercancel", up);
