@@ -68,7 +68,8 @@ DEFAULTS = {
     # The screen's own corners, rounded by Talaris (corners.py): their radius in
     # the screen's pixels, 0 square. In place of a screen shader, which left
     # half-drawn corners behind.
-    "screen": {"corners": 12},
+    # rotate: turn with the device, where it has an accelerometer (rotation.py).
+    "screen": {"corners": 12, "rotate": False},
     # What is done through Talaris, kept for suggestions about how you work
     # (activity.py): off until turned on; each choice is yours (Settings, Activity).
     "activity": {"enabled": False, "grain": "actions", "keep": 90, "suggest": "morgan", "share": "summary"},

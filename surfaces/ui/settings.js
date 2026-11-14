@@ -106,6 +106,8 @@ function draw() {
   $("shadow").classList.toggle("on", !!p.shadow);
   const pct = (v) => `${v}%`;
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
+  $("rotate-row").hidden = !canRotate;
+  $("rotate-on").classList.toggle("on", !!(cfg.screen || {}).rotate);
   slider("screen-corners", (cfg.screen || {}).corners ?? 12, (v) => (Number(v) ? `${v}px` : "Square"), (corners) => save({ screen: { corners } }));
   const sh = cfg.shown || {};
   $("shown-done").classList.toggle("on", !!sh.done);
@@ -246,6 +248,7 @@ function trayRows() {
 }
 
 $("power-on").addEventListener("click", () => save({ power: { managed: !cfg.power.managed } }));
+$("rotate-on").addEventListener("click", () => save({ screen: { ...(cfg.screen || {}), rotate: !(cfg.screen || {}).rotate } }));
 
 // ---------------------------------------------------------------- notifications
 //
@@ -295,6 +298,8 @@ function drawClipboard() {
   $("cb-codes-note").classList.toggle("err", !blueBubbles && cb().codes === true);
 }
 let blueBubbles = false;
+// Whether this machine can say which way up it is (rotation.py): Look's "Turn with the device" only where it can.
+let canRotate = false;
 $("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
 $("cb-codes").addEventListener("click", () => save({ clipboard: { codes: cb().codes !== true } }));
 // ---------------------------------------------------------------- activity
@@ -2259,6 +2264,7 @@ Surface.connect({
     morganHere = s.morganHere !== false;
     showMorgan();
     if (had !== morganHere && $("morgan").classList.contains("on")) loadMorgan();
+    if (canRotate !== !!s.canRotate) { canRotate = !!s.canRotate; if (cfg) draw(); }
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
     if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };

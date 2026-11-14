@@ -80,6 +80,7 @@ from winfx import WindowDraw
 import wallpaper
 from wallpaper import current as wallpaper_current
 from power import Power
+from rotation import Rotation
 from workspace import Workspace
 import sensor as sensor_module
 from settings import Settings
@@ -338,6 +339,13 @@ class Desktop(QObject):
         self.stall = Stall(self)
         # The screen's corners, rounded: four small surfaces over everything (corners.py).
         self.corners = Corners(self)
+        # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
+        self.rotation = Rotation(self)
+        self.rotation.apply()
+        # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            screen.geometryChanged.connect(lambda _g: QTimer.singleShot(150, self.screen_changed))
         # What is done through Talaris, kept as Settings says (activity.py); off until turned on.
         self.activity = Activity(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
@@ -617,6 +625,13 @@ class Desktop(QObject):
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
                 self.osd, self.settings, self.desk, *self.overlays()]
 
+    def screen_changed(self) -> None:
+        """The screen is another shape: the bar and the dock, which span it, placed again, and what was open over it put away."""
+        self.bar.close_popup()
+        self.bar.place()
+        self.dock.place()
+        log("screen: placed again at its new size")
+
     def reconfigure(self, before: dict, after: dict) -> None:
         """Make the screen match a new configuration, moving only what changed."""
         self.config = after
@@ -626,6 +641,7 @@ class Desktop(QObject):
             self.location.configured()
         if after.get("screen") != before.get("screen"):
             self.corners.apply()
+            self.rotation.apply()
         if after.get("clipboard") != before.get("clipboard"):
             self.clipboard.apply()
             if after.get("clipboard", {}).get("keep") != before.get("clipboard", {}).get("keep"):

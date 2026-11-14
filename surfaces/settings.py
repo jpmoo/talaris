@@ -40,6 +40,7 @@ import accounts
 import bluebubbles
 import power
 import settings_io
+import rotation
 import wallpaper
 from power import LID_ACTIONS
 from config import DEFAULTS, save_config, settle_accent, settle_opacity, single_window
@@ -618,6 +619,8 @@ class Settings(Overlay):
         return {**super().describe(), "page": self.page, "pageAsked": getattr(self, "page_asked", 0), "viewport": [round(zoom(SIZE[0]) / z), round(zoom(SIZE[1]) / z)],
                 # Whether the BlueBubbles app here is signed in to a server: codes from texts need it.
                 "blueBubbles": bluebubbles.server() is not None,
+                # Whether this machine can say which way up it is: Look's "Turn with the device" only where it can.
+                "canRotate": rotation.available(),
                 # Where you are, as Settings, Location shows it (location.py).
                 **({"location": self.desktop.location.describe()} if getattr(self.desktop, "location", None) else {})}
 
