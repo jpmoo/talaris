@@ -1040,6 +1040,9 @@ class Desktop(QObject):
                 # The dock and the bar, out from hiding: put away again (sensor.py, Autohide).
                 self.dock.hider.clicked()
                 self.bar.hider.clicked()
+            elif verb == "tablet":
+                # The firmware's tablet-mode switch (rotation.py): folded back, or a laptop again.
+                self.rotation.tablet_mode(arg == "on")
             elif verb == "hide-window":
                 # As the dock's Hide does, for the one with focus.
                 hypr.hide(str(hypr.windows()["focused"] or ""))
@@ -1128,6 +1131,8 @@ def main() -> int:
         return send(f"grow {args[1]}")
     if args[:1] == ["--settings"]:
         return send("settings " + (args[1] if len(args) > 1 else ""))
+    if args[:1] == ["--tablet"] and len(args) == 2:
+        return send(f"tablet {args[1]}")
     if args[:1] == ["--osd"] and len(args) == 2:
         return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:

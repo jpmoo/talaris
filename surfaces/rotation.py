@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
 import shutil
 
@@ -44,6 +45,26 @@ BUILT_IN = re.compile(r"^(eDP|DSI|LVDS)", re.I)
 def available() -> bool:
     """Whether this machine can say which way up it is: an accelerometer, and iio-sensor-proxy's program to read it."""
     return bool(shutil.which("monitor-sensor")) and bool(glob.glob("/sys/bus/iio/devices/*/in_accel_x_raw"))
+
+
+#: The firmware's tablet-mode switch, as Linux names it: on the mini, Intel's HID driver, once told to report it
+#: (`options intel_hid enable_sw_tablet_mode=1`). It appears only at the first fold after the driver starts.
+TABLET_SWITCHES = ("Intel HID switches", "Tablet Mode Switch")
+TALARIS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
+
+
+def tablet_switch() -> bool:
+    """Whether this machine says when it is a tablet: Intel's driver told to, or such a switch already there."""
+    try:
+        if open("/sys/module/intel_hid/parameters/enable_sw_tablet_mode").read().strip() in ("1", "Y"):
+            return True
+    except OSError:
+        pass
+    try:
+        names = [x.get("name", "") for x in json.loads(hypr.ask("j/devices") or "{}").get("switches", [])]
+    except ValueError:
+        return False
+    return any(n in TABLET_SWITCHES for n in names)
 
 
 def flat() -> bool:
@@ -85,12 +106,45 @@ class Rotation(QObject):
         #: Held where it started (the bar's button), whatever the sensor says: a convertible's screen folded back on its
         #: hinge moves the screen and not the sensor, so it never hears it is a laptop again.
         self.locked = bool(desktop.config.get("screen", {}).get("rotateLocked"))
+        #: Folded back into a tablet, as the firmware's switch says (`tablet`). Until it first says, a laptop.
+        self.tablet = False
+        self.switch = False
         # A device being turned passes through ways up on its way: the last one, once it has settled.
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(350)
         self._settle.timeout.connect(self._turn)
-        desktop.events.reloaded.connect(lambda: self.on() and self.orientation and self._settle.start())
+        desktop.events.reloaded.connect(self._reloaded)
+
+    def _reloaded(self) -> None:
+        # A config reload drops runtime binds, and puts Hyprland's own transform back.
+        if self.switch:
+            self._bind_switch()
+        if self.on() and self.orientation:
+            self._settle.start()
+
+    def _bind_switch(self) -> None:
+        for name in TABLET_SWITCHES:
+            hypr.bind(f", switch:on:{name}", f"{TALARIS} --tablet on", "l")
+            hypr.bind(f", switch:off:{name}", f"{TALARIS} --tablet off", "l")
+
+    def tablet_mode(self, on: bool) -> None:
+        """
+        Folded back into a tablet, or a laptop again (the switch's binds). A tablet follows the device, whatever a
+        press of the button held; a laptop is put back the way it started, and the sensor — in its base, lying
+        flat or tilted with the desk — is not followed.
+        """
+        if on == self.tablet:
+            return
+        self.tablet = on
+        log(f"rotation: {'a tablet' if on else 'a laptop'}")
+        if on:
+            if self.locked:
+                self._release()
+            self._turn()
+        elif self.home is not None and not self.locked:
+            self.orientation = ""
+            self._set(self.home)
 
     def on(self) -> bool:
         return bool(self.desktop.config.get("screen", {}).get("rotate")) and available()
@@ -100,6 +154,10 @@ class Rotation(QObject):
         if self.on():
             if self.process is None:
                 self._start()
+            # Where the machine says when it is a tablet, that decides when the device is followed (tablet_mode).
+            if not self.switch and tablet_switch():
+                self.switch = True
+                self._bind_switch()
         else:
             if self.process is not None:
                 self.process.kill()
@@ -145,6 +203,9 @@ class Rotation(QObject):
 
     def _turn(self) -> None:
         if not self.on() or self.orientation not in TRANSFORMS:
+            return
+        # A laptop, as its switch says: the sensor in its base is not followed.
+        if self.switch and not self.tablet:
             return
         if self.locked:
             # Held by the button only until the device itself turns: a way up other than the one it had when the
