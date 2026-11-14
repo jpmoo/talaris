@@ -98,7 +98,6 @@ function onState(s) {
   if (rot.on) {
     drawn($("rotate"), Icons.refresh());
     const held = rot.auto && rot.locked;
-    $("rotate").classList.toggle("on", held);
     $("rotate").title = "Turn the screen" + (held ? " — held; right-click to follow the device again" : "");
   }
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);

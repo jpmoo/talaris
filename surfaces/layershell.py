@@ -23,6 +23,7 @@ system on the object it returns. What the spike learned, and this follows:
 from __future__ import annotations
 
 import ctypes
+import weakref
 import dataclasses
 import json
 import math
@@ -120,6 +121,24 @@ def _reserved() -> tuple[float, float, float, float]:
 FIT_GAP = 8
 
 
+#: The on-screen keyboard's height while it is up (keyboard.py), in the compositor's pixels: panels keep clear of it.
+_keyboard = 0
+#: Every surface, to be placed again when the keyboard comes or goes.
+_surfaces: "weakref.WeakSet[LayerSurface]" = weakref.WeakSet()
+
+
+def set_keyboard(height: int) -> None:
+    """The on-screen keyboard up (its height) or away (0): every panel out placed again, clear of it."""
+    global _keyboard
+    if height == _keyboard:
+        return
+    _keyboard = height
+    for surface in list(_surfaces):
+        if surface.asked is not None and surface.placement is not None and surface.widget.isVisible():
+            surface.placement = None
+            surface.apply(surface.asked)
+
+
 def fitted(placement: Placement) -> Placement:
     """
     No larger than the screen it is on. Sizes are fixed lengths times the
@@ -143,6 +162,29 @@ def fitted(placement: Placement) -> Placement:
     if (w, h) == (placement.width, placement.height):
         return placement
     return dataclasses.replace(placement, width=w, height=h)
+
+
+def clear_of_keyboard(placement: Placement) -> Placement:
+    """
+    A panel — on the overlay level, taking keys — kept above the on-screen keyboard while it is up: anchored to the
+    bottom, it stops at the keyboard's top; floating in the middle, it is placed in the middle of what is left.
+    What takes no keys (the corners, the dim) is left where it is.
+    """
+    room = _keyboard / QT_SCALE
+    if not room or placement.layer != OVERLAY or placement.keyboard == KEYBOARD_NONE:
+        return placement
+    left, top, right, bottom = placement.margins
+    if placement.anchors & ANCHOR_BOTTOM:
+        return dataclasses.replace(placement, margins=(left, top, right, int(bottom + room)))
+    if placement.anchors & ANCHOR_TOP or not placement.height:
+        return placement
+    screen = QApplication.primaryScreen()
+    if screen is None:
+        return placement
+    free = screen.geometry().height() - room
+    h = min(placement.height, max(int(free - FIT_GAP * 2), 200))
+    return dataclasses.replace(placement, anchors=placement.anchors | ANCHOR_TOP, height=h,
+                               margins=(left, int(max(FIT_GAP, (free - h) / 2)), right, bottom))
 
 
 def full_screen(keyboard: int = KEYBOARD_NONE, layer: int = OVERLAY, exclusive: int = -1) -> Placement:
@@ -181,6 +223,9 @@ class LayerSurface:
         self._window: QObject | None = None
         self._exposed = None
         self.placement: Placement | None = None
+        #: The placement asked for, before it is fitted to the screen and kept clear of the keyboard.
+        self.asked: Placement | None = None
+        _surfaces.add(self)
 
     def _attach(self) -> QObject:
         if self._window is None:
@@ -190,7 +235,8 @@ class LayerSurface:
 
     def apply(self, placement: Placement) -> None:
         """Put the surface where `placement` says, by making it anew there."""
-        placement = fitted(placement)
+        self.asked = placement
+        placement = clear_of_keyboard(fitted(placement))
         if placement == self.placement and self.widget.isVisible():
             return
         # Sized before it is shown, so the compositor is never handed Qt's

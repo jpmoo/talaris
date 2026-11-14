@@ -240,6 +240,13 @@ class Bridge(QObject):
     def toggle(self) -> None:
         self.owner.toggle()
 
+    @Slot(bool)
+    def keyboard(self, on: bool) -> None:
+        """The on-screen keyboard up or away, as a field's button or the field left asks (keyboard.py)."""
+        import keyboard as osk  # noqa: PLC0415 — the desktop's, made after the pages' bridges
+        if osk.current is not None:
+            osk.current.show(on)
+
     @Slot()
     def file(self) -> None:
         """Escape, from the page: put it back."""

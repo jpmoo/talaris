@@ -81,6 +81,7 @@ import wallpaper
 from wallpaper import current as wallpaper_current
 from power import Power
 from rotation import Rotation
+from keyboard import Keyboard
 from workspace import Workspace
 import sensor as sensor_module
 from settings import Settings
@@ -342,6 +343,8 @@ class Desktop(QObject):
         # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
         self.rotation = Rotation(self)
         self.rotation.apply()
+        # The on-screen keyboard, where there is a touchscreen and Squeekboard: up only when a field's button asks.
+        self.keyboard = Keyboard(self)
         # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
         screen = QApplication.primaryScreen()
         if screen is not None:

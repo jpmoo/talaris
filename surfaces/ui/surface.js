@@ -46,11 +46,56 @@ const Surface = (() => {
           bridge.reading((text) => { try { onMachine(JSON.parse(text)); } catch { /* none yet */ } });
         }
         bridge.current(state);
+        if (bridge.keyboard) keyboardButton(bridge);
         if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
         if (window.Peek && bridge.libraryAt) Peek.cardThrough((key) => bridge.libraryAt(key));
         ok(bridge);
       });
     });
+  }
+
+  /**
+   * The on-screen keyboard, only when asked (keyboard.py): on a touchscreen, the text field with focus wears a small
+   * keyboard button at its corner; a press brings the keyboard up (again: puts it away), and leaving the field
+   * puts it away. Every page's, since every page connects here.
+   */
+  function keyboardButton(bridge) {
+    if (!(navigator.maxTouchPoints > 0)) return;
+    const css = document.createElement("style");
+    css.textContent = `.kb-btn { position: fixed; z-index: 2147483000; width: 30px; height: 26px; display: none; align-items: center;
+      justify-content: center; border-radius: var(--radius-control, 8px); border: 1px solid var(--line, #444);
+      background: var(--surface, #222); color: var(--muted, #aaa); cursor: pointer; padding: 0; touch-action: none; }
+      .kb-btn.on { color: var(--accent, #c98a5b); border-color: var(--accent, #c98a5b); }
+      .kb-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; }`;
+    document.head.appendChild(css);
+    const btn = document.createElement("button");
+    btn.className = "kb-btn";
+    btn.title = "Keyboard";
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M6 13.5h1M17 13.5h1M9 13.5h6"/></svg>';
+    document.body.appendChild(btn);
+    let up = false, field = null;
+    const editable = (el) => el && (el.isContentEditable || el.tagName === "TEXTAREA"
+      || (el.tagName === "INPUT" && /^(text|search|email|url|tel|password|number|)$/.test(el.type || "")));
+    const place = () => {
+      if (!field || !document.contains(field)) { btn.style.display = "none"; return; }
+      const r = field.getBoundingClientRect();
+      btn.style.display = "flex";
+      btn.style.left = `${Math.max(4, Math.min(innerWidth - 34, r.right - 34))}px`;
+      btn.style.top = `${Math.max(4, Math.min(innerHeight - 30, r.bottom - (r.height > 60 ? 30 : r.height / 2 + 13)))}px`;
+    };
+    const set = (on) => { up = on; btn.classList.toggle("on", on); bridge.keyboard(on); };
+    // The field keeps its focus: a press on the button never takes it.
+    btn.addEventListener("pointerdown", (e) => e.preventDefault());
+    btn.addEventListener("mousedown", (e) => e.preventDefault());
+    btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); set(!up); });
+    addEventListener("focusin", (e) => { if (editable(e.target)) { field = e.target; place(); } }, true);
+    addEventListener("focusout", () => setTimeout(() => {
+      if (editable(document.activeElement)) { field = document.activeElement; place(); return; }
+      field = null; btn.style.display = "none";
+      if (up) set(false);
+    }, 150), true);
+    addEventListener("scroll", () => field && place(), true);
+    addEventListener("resize", () => field && place());
   }
 
   return { connect, applyTheme };
