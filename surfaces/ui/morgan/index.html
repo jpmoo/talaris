@@ -823,6 +823,8 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
+  // The on-screen keyboard's button on its fields, as every other page has it (surface.js).
+  Surface.keyboard(bridge);
   // `bridge.call(line, then)` as it always was, answered later off the process's own thread (morgan.py, callLater).
   const waiting = new Map();
   let calls = 0;

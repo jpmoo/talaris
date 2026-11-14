@@ -8,6 +8,26 @@
 "use strict";
 
 const Surface = (() => {
+  // A press on the keyboard's button is no press off the panel. Each page puts itself away on a press outside its
+  // box (Settings' window, the launcher's box, a drawer's panel), and the button — drawn over the page, in no box —
+  // was one: a tap on it closed the panel it was for. Heard first, on the window as it goes down, and kept from the
+  // page; and kept from `pressedAt`, the same press as Qt saw it (sensor.py, Presses), whenever the page sets it.
+  const onKeyboardButton = (el) => Boolean(el && el.closest && el.closest(".kb-btn"));
+  for (const type of ["pointerdown", "mousedown", "touchstart"]) {
+    addEventListener(type, (e) => {
+      if (!onKeyboardButton(e.target)) return;
+      e.stopImmediatePropagation();
+      // The field keeps its focus. Not a touch's start: kept from its default, a tap makes no click.
+      if (type !== "touchstart" && e.cancelable) e.preventDefault();
+    }, { capture: true, passive: false });
+  }
+  let pagePressedAt = window.pressedAt;
+  Object.defineProperty(window, "pressedAt", {
+    configurable: true,
+    get: () => (pagePressedAt ? (x, y) => { if (!onKeyboardButton(document.elementFromPoint(x, y))) pagePressedAt(x, y); } : undefined),
+    set: (f) => { pagePressedAt = f; },
+  });
+
   function applyTheme(theme = {}) {
     const root = document.documentElement;
     root.dataset.mode = theme.mode === "light" ? "light" : "dark";
@@ -84,9 +104,7 @@ const Surface = (() => {
       btn.style.top = `${Math.max(4, Math.min(innerHeight - 30, r.bottom - (r.height > 60 ? 30 : r.height / 2 + 13)))}px`;
     };
     const set = (on) => { up = on; btn.classList.toggle("on", on); bridge.keyboard(on); };
-    // The field keeps its focus: a press on the button never takes it.
-    btn.addEventListener("pointerdown", (e) => e.preventDefault());
-    btn.addEventListener("mousedown", (e) => e.preventDefault());
+    // The field keeps its focus, and the panel stays: a press on the button is kept from the page (above).
     btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); set(!up); });
     addEventListener("focusin", (e) => { if (editable(e.target)) { field = e.target; place(); } }, true);
     addEventListener("focusout", () => setTimeout(() => {
@@ -98,5 +116,6 @@ const Surface = (() => {
     addEventListener("resize", () => field && place());
   }
 
-  return { connect, applyTheme };
+  // `keyboard(bridge)`: the button, for a page that connects by itself (Morgan's) rather than through `connect`.
+  return { connect, applyTheme, keyboard: (bridge) => { if (bridge && bridge.keyboard) keyboardButton(bridge); } };
 })();
