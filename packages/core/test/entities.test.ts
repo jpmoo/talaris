@@ -991,3 +991,9 @@ test("a keyring not open yet is waited for: looked at quietly, asked once more, 
   assert.equal(said.length, 1, "said once");
   await assert.rejects(untilStoreOpens({ ...ways, tryKey: () => { throw new Locked("the keyring's key does not open this store"); } }), /does not open/);
 });
+
+test("a card already tied on another machine (another book id, the same card id) finds its person: no second one", () => {
+  const first = entities.personFromCard({ key: "book-on-laptop/abc123", name: "No Email Person", emails: [], phones: ["555-0100"] } as never)!;
+  const again = entities.personFromCard({ key: "book-on-mini/abc123", name: "No Email Person", emails: [], phones: ["555-0100"] } as never)!;
+  assert.equal(again.id, first.id);
+});

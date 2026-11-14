@@ -1351,9 +1351,20 @@ export interface Card {
 export function personFromCard(card: Card): Entity | null {
   if (!/^[^/]+\/.+/.test(card.key)) throw new Conflict("a card is known by its book and its id");
   const source: Source = { kind: "eds-contact", key: card.key };
-  if (sealedList<{ key: string }>(FORGOTTEN).some((f) => f.key === card.key)) return null;
+  // A card's key is its address book's id here and the account's own id for the card; the book's id is this
+  // machine's (Evolution's), the card's the account's — the same on every machine signed in to it. So a card is
+  // known, and a person deleted remembered, by the card's own id too: on another machine, the same card.
+  const cardId = card.key.slice(card.key.indexOf("/") + 1);
+  const sameCard = (key: string) => key === card.key || key.slice(key.indexOf("/") + 1) === cardId;
+  if (sealedList<{ key: string }>(FORGOTTEN).some((f) => sameCard(f.key))) return null;
   const tied = bySource(source);
   if (tied) return tied;
+  const elsewhere = allRecords().map((r) => r.object).find((o) =>
+    ((o["talaris:sources"] as Source[] | undefined) ?? []).some((x) => x.kind === "eds-contact" && sameCard(x.key)));
+  if (elsewhere) {
+    const sources = ((elsewhere["talaris:sources"] as Source[] | undefined) ?? []);
+    return updateEntity(elsewhere.id, { "talaris:sources": [...sources, source] });
+  }
   const type = typeFor("person");
   const c = type.profiles?.contact ?? {};
   const titleKey = String(c.title ?? "title"), emailKey = String(c.email ?? "emails"), phoneKey = String(c.phone ?? "phones");
