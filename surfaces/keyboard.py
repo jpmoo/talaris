@@ -97,6 +97,7 @@ class Keyboard(QObject):
 
     def show(self, on: bool) -> None:
         """The keyboard up (a field's button) or away (the field left)."""
+        log(f"keyboard: asked {'up' if on else 'away'}{'' if available() else ' — none here'}{' (already)' if on == self.up else ''}")
         if not available() or on == self.up:
             return
         self.up = on
