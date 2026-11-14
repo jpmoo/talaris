@@ -431,6 +431,13 @@ class SettingsBridge(Bridge):
         error = self.owner.desktop.set_wallpaper(scope, fit=fit)
         self.wallpaperChanged.emit(json.dumps({**self.owner.wallpapers(scope), "error": error}))
 
+    @Slot(str, str)
+    def colorWallpaper(self, scope: str, color: str) -> None:  # noqa: N802 — called from the page by this name
+        """A solid color for the wallpaper: a picture of it, filling the screen."""
+        path = wallpaper.color_picture(color)
+        error = self.owner.desktop.set_wallpaper(scope, path=path, fit="fill") if path else "A color is like #1e2328"
+        self.wallpaperChanged.emit(json.dumps({**self.owner.wallpapers(scope), "error": error, "changed": not error}))
+
     @Slot(str)
     def defaultWallpaper(self, scope: str) -> None:  # noqa: N802 — called from the page by this name
         """A project's own wallpaper given up: it shows the default again."""
@@ -661,7 +668,7 @@ class Settings(Overlay):
         projects = core_projects()
         here = desktop.project.get("id", "")
         mine = wallpaper.for_project(desktop.config, scope) if scope else {**wallpaper.current(), "own": False}
-        return {**mine, "scope": scope, "here": here,
+        return {**mine, "color": wallpaper.color_of(mine.get("path", "")), "scope": scope, "here": here,
                 "projects": [{"id": p["id"], "name": p.get("name", ""), "home": bool(p.get("home")),
                               "own": wallpaper.for_project(desktop.config, p["id"])["own"]} for p in projects]}
 

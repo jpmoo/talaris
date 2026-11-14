@@ -1420,7 +1420,13 @@ function drawWallpaper(w) {
   $("walls").replaceChildren(tile("", "Default", "every project", true),
     ...projects.map((p) => tile(p.id, p.name, [p.id === w.here ? "here" : "", p.own ? "own" : "default"].filter(Boolean).join(" · "), p.own)));
   const scoped = wallScope !== "";
-  $("wall-name").textContent = scoped && !w.own ? "The default" : w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
+  $("wall-name").textContent = scoped && !w.own ? "The default" : w.color ? `Color ${w.color}` : w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
+  // A color instead of a picture: a few, and any other by its hex. A color fills the screen, so it has no fit.
+  const color = (scoped && !w.own) ? "" : w.color || "";
+  $("wall-colors").replaceChildren(...WALL_COLORS.map((c) => el("button", { class: c === color ? "on" : "", title: c, style: `background:${c}`,
+    onclick: () => bridge.colorWallpaper(wallScope || "", c) })));
+  if (document.activeElement !== $("wall-hex")) $("wall-hex").value = color;
+  $("wall-fit-row").style.display = color ? "none" : "";
   $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?${scoped ? `project=${encodeURIComponent(wallScope)}&` : ""}t=${stamp}` : "";
   // A button style wins over `hidden`: shown or not by its display.
   $("wall-default").style.display = scoped && w.own ? "" : "none";
@@ -1429,6 +1435,13 @@ function drawWallpaper(w) {
   if (w.error) say(w.error, true);
   else if (w.changed) say("Wallpaper set");
 }
+const WALL_COLORS = ["#111214", "#1e2328", "#2e333b", "#1d2838", "#1f2d27", "#33262b", "#d8d4cc", "#eceef1"];
+$("wall-hex").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const v = $("wall-hex").value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(v)) bridge.colorWallpaper(wallScope || "", v);
+  else say("A color is like #1e2328", true);
+});
 $("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper(wallScope || ""));
 $("wall-default").addEventListener("click", () => bridge && bridge.defaultWallpaper(wallScope || ""));
 

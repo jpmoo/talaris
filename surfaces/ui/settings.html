@@ -103,6 +103,10 @@ input[type="range"] { width: 200px; }
 .row.needs-off .switch, .row.needs-off .seg button { cursor: default; }
 #wall-preview { width: 128px; height: 80px; object-fit: cover; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--desk); }
 #wall-name { word-break: break-all; }
+#wall-colors { display: flex; gap: 6px; }
+#wall-colors button { width: 26px; height: 26px; border-radius: var(--radius-control); border: 1px solid var(--line); padding: 0; cursor: pointer; }
+#wall-colors button.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+#wall-hex { width: 96px; }
 /* Whose wallpaper: the default's, then each project's — its own picture, or the default's, faded. */
 .walls { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px; }
 .wall { flex: none; display: flex; flex-direction: column; gap: 4px; width: 104px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
@@ -308,7 +312,8 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h3>Wallpaper</h3>
       <div class="walls" id="walls"></div>
       <div class="row"><span class="name">Picture<small id="wall-name"></small></span><span class="what"><img id="wall-preview" alt=""><button class="t-btn" id="wall-default">Use the default</button><button class="t-btn" id="wall-choose">Choose…</button></span></div>
-      <div class="row"><span class="name">Fit</span><span class="what"><span class="seg" id="wall-fit"></span></span></div>
+      <div class="row"><span class="name">Color<small>Instead of a picture</small></span><span class="what"><span id="wall-colors"></span><input id="wall-hex" class="hex" spellcheck="false" placeholder="#1e2328"></span></div>
+      <div class="row" id="wall-fit-row"><span class="name">Fit</span><span class="what"><span class="seg" id="wall-fit"></span></span></div>
       <h3>Text size</h3>
       <div class="row"><span class="name">Interface<small>Menus, trees, headers, buttons, Settings</small></span><span class="what"><span class="seg" id="text-interface"></span></span></div>
       <div class="row"><span class="name">Bar</span><span class="what"><span class="seg" id="text-bar"></span></span></div>

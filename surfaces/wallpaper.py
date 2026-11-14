@@ -25,6 +25,30 @@ FILE = os.path.join((os.environ.get("XDG_CONFIG_HOME") or "").strip() or os.path
                     "hypr", "hyprpaper.conf")
 FITS = ("cover", "contain", "tile", "fill")
 PICTURES = (".jpg", ".jpeg", ".png", ".webp")
+#: A color for a wallpaper is a picture of it, made here: hyprpaper shows pictures, and so everything that shows a
+#: wallpaper — a project's own, the default, Settings' previews — takes a color as it takes any picture.
+COLORS = os.path.join((os.environ.get("XDG_DATA_HOME") or "").strip() or os.path.expanduser("~/.local/share"),
+                      "talaris", "wallpapers")
+HEX = re.compile(r"^#[0-9a-f]{6}$")
+
+
+def color_picture(color: str) -> str:
+    """The picture of one color, made if it is not there yet: its path, or "" for what is not a color like #1e2328."""
+    color = color.strip().lower()
+    if not HEX.match(color):
+        return ""
+    path = os.path.join(COLORS, f"color-{color[1:]}.png")
+    if not os.path.isfile(path):
+        from PIL import Image
+        os.makedirs(COLORS, exist_ok=True)
+        Image.new("RGB", (64, 64), color).save(path)
+    return path
+
+
+def color_of(path: str) -> str:
+    """The color a wallpaper is, if it is one made by color_picture; else ""."""
+    m = re.fullmatch(r"color-([0-9a-f]{6})\.png", os.path.basename(path or ""))
+    return f"#{m.group(1)}" if m and os.path.dirname(os.path.expanduser(path)) == COLORS else ""
 
 
 def current() -> dict:
