@@ -486,23 +486,25 @@ function saveAccent(c) {
   save({ theme: inUse() ? { accent: c } : { [accentFor === "light" ? "accentLight" : "accentDark"]: c } });
 }
 
-// Hue, saturation and value; the page's accent follows as you drag (when it is
-// the mode in use's), and the accent is saved when you let go.
-const picker = (() => {
+// Hue, saturation and value, in a picker of its own wherever a color is chosen
+// (the accent, the wallpaper): `live` hears the color as you drag, `done` when
+// you let go.
+function makePicker(root, { live, done }) {
   let h = 0, s = 1, v = 1;
+  const sv = root.querySelector(".sv"), hue = root.querySelector(".hue");
+  const svKnob = sv.querySelector(".knob"), hueKnob = hue.querySelector(".knob"), picked = root.querySelector(".picked");
   const hex = () => {
     const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
     return "#" + [f(5), f(3), f(1)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
   };
   const show = () => {
-    $("sv").style.setProperty("--hue", h);
-    $("sv-knob").style.left = `${s * 100}%`;
-    $("sv-knob").style.top = `${(1 - v) * 100}%`;
-    $("hue-knob").style.top = `${(h / 360) * 100}%`;
+    sv.style.setProperty("--hue", h);
+    svKnob.style.left = `${s * 100}%`;
+    svKnob.style.top = `${(1 - v) * 100}%`;
+    hueKnob.style.top = `${(h / 360) * 100}%`;
     const c = hex();
-    $("picked").style.background = c;
-    $("hex").value = c;
-    if (inUse()) Surface.applyTheme({ ...(cfg ? cfg.theme : {}), accent: c });
+    picked.style.background = c;
+    live(c);
   };
   const set = (color) => {
     const n = parseInt(color.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
@@ -517,12 +519,18 @@ const picker = (() => {
     const at = (ev) => { const r = box.getBoundingClientRect(); move(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height))); show(); };
     at(e);
     box.onpointermove = at;
-    box.onpointerup = () => { box.onpointermove = box.onpointerup = null; saveAccent(hex()); };
+    box.onpointerup = () => { box.onpointermove = box.onpointerup = null; done(hex()); };
   });
-  drag($("sv"), (x, y) => { s = x; v = 1 - y; });
-  drag($("hue"), (_x, y) => { h = Math.min(359, y * 360); });
+  drag(sv, (x, y) => { s = x; v = 1 - y; });
+  drag(hue, (_x, y) => { h = Math.min(359, y * 360); });
   return { set };
-})();
+}
+
+// The accent: the page's own follows as you drag (when it is the mode in use's), saved when you let go.
+const picker = makePicker($("picker"), {
+  live: (c) => { $("hex").value = c; if (inUse()) Surface.applyTheme({ ...(cfg ? cfg.theme : {}), accent: c }); },
+  done: (c) => saveAccent(c),
+});
 
 $("hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
@@ -1428,8 +1436,12 @@ function drawWallpaper(w) {
   $("wall-name").textContent = scoped && !w.own ? "The default" : w.color ? `Color ${w.color}` : w.path ? w.path.replace(/^\/home\/[^/]+/, "~") : "None set";
   // A color instead of a picture: a few, and any other by its hex. A color fills the screen, so it has no fit.
   const color = (scoped && !w.own) ? "" : w.color || "";
+  const anyColor = color && !WALL_COLORS.includes(color);
   $("wall-colors").replaceChildren(...WALL_COLORS.map((c) => el("button", { class: c === color ? "on" : "", title: c, style: `background:${c}`,
-    onclick: () => bridge.colorWallpaper(wallScope || "", c) })));
+    onclick: () => { $("wall-picker").classList.remove("open"); bridge.colorWallpaper(wallScope || "", c); } })),
+    // Any other color, in a picker of its own: set as you let go.
+    el("button", { class: "cv-swatch any" + (anyColor ? " custom is-on on" : ""), title: "Any color", style: anyColor ? `--custom:${color}` : "",
+      onclick: () => { const p = $("wall-picker"); p.classList.toggle("open"); if (p.classList.contains("open")) wallPicker.set(color || "#1e2328"); } }));
   if (document.activeElement !== $("wall-hex")) $("wall-hex").value = color;
   $("wall-fit-row").style.display = color ? "none" : "";
   $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?${scoped ? `project=${encodeURIComponent(wallScope)}&` : ""}t=${stamp}` : "";
@@ -1440,6 +1452,10 @@ function drawWallpaper(w) {
   if (w.error) say(w.error, true);
   else if (w.changed) say("Wallpaper set");
 }
+const wallPicker = makePicker($("wall-picker"), {
+  live: (c) => { $("wall-hex").value = c; },
+  done: (c) => bridge && bridge.colorWallpaper(wallScope || "", c),
+});
 const WALL_COLORS = ["#111214", "#1e2328", "#2e333b", "#1d2838", "#1f2d27", "#33262b", "#d8d4cc", "#eceef1"];
 $("wall-hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;

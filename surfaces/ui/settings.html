@@ -81,15 +81,15 @@ input[type="range"] { width: 200px; }
 .cv-swatch.any.custom { background: var(--custom); }
 /* A picker of its own: Qt's color dialog would open as a surface of its own,
    behind this one. Saturation and brightness in the square, hue in the strip. */
-#picker { display: none; gap: 10px; align-items: flex-start; margin: 6px 0 4px 204px; }
-#picker.open { display: flex; }
-#sv { position: relative; width: 200px; height: 130px; border-radius: var(--radius-control); cursor: crosshair; touch-action: none;
+.picker { display: none; gap: 10px; align-items: flex-start; margin: 6px 0 4px 204px; }
+.picker.open { display: flex; }
+.picker .sv { position: relative; width: 200px; height: 130px; border-radius: var(--radius-control); cursor: crosshair; touch-action: none;
       background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--hue, 0) 100% 50%)); } /* look: the colour picker draws colours */
-#hue { position: relative; width: 14px; height: 130px; border-radius: var(--radius-pill); cursor: ns-resize; touch-action: none;
+.picker .hue { position: relative; width: 14px; height: 130px; border-radius: var(--radius-pill); cursor: ns-resize; touch-action: none;
        background: linear-gradient(to bottom, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); } /* look: the colour picker draws colours */
 .knob { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; } /* look: the colour picker draws colours */
-#hue .knob { left: 50%; }
-#picked { width: 40px; height: 40px; border-radius: var(--radius-control); border: 1px solid var(--line); }
+.picker .hue .knob { left: 50%; }
+.picker .picked { width: 40px; height: 40px; border-radius: var(--radius-control); border: 1px solid var(--line); }
 .faces { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
 .face { text-align: left; border-radius: var(--radius-control) !important; padding: 12px 14px !important; }
 .face b { display: block; font-weight: 500; font-size: 15px; }
@@ -307,13 +307,14 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">Mode</span><span class="what"><span class="seg" id="mode"></span></span></div>
       <div class="row"><span class="name">Accent<small>Each mode keeps its own</small></span><span class="what"><span class="seg" id="accent-for"></span></span></div>
       <div class="row"><span class="name"></span><span class="what"><span class="swatches" id="swatches"></span><input id="hex" spellcheck="false" maxlength="7"></span></div>
-      <div id="picker"><div id="sv"><span class="knob" id="sv-knob"></span></div><div id="hue"><span class="knob" id="hue-knob"></span></div><div id="picked"></div></div>
+      <div id="picker" class="picker"><div class="sv"><span class="knob"></span></div><div class="hue"><span class="knob"></span></div><div class="picked"></div></div>
       <div class="row"><span class="name">Screen corners<small>Rounded, over everything; 0 is square</small></span><span class="what"><input type="range" id="screen-corners" min="0" max="32" step="1"><span class="n" id="screen-corners-n"></span></span></div>
       <div class="row" id="rotate-row" hidden><span class="name">Turn with the device<small>The screen, and touch, follow which way up it is held</small></span><span class="what"><button class="switch" id="rotate-on"></button></span></div>
       <h3>Wallpaper</h3>
       <div class="walls" id="walls"></div>
       <div class="row"><span class="name">Picture<small id="wall-name"></small></span><span class="what"><img id="wall-preview" alt=""><button class="t-btn" id="wall-default">Use the default</button><button class="t-btn" id="wall-choose">Choose…</button></span></div>
       <div class="row"><span class="name">Color<small>Instead of a picture</small></span><span class="what"><span id="wall-colors"></span><input id="wall-hex" class="hex" spellcheck="false" placeholder="#1e2328"></span></div>
+      <div id="wall-picker" class="picker"><div class="sv"><span class="knob"></span></div><div class="hue"><span class="knob"></span></div><div class="picked"></div></div>
       <div class="row" id="wall-fit-row"><span class="name">Fit</span><span class="what"><span class="seg" id="wall-fit"></span></span></div>
       <h3>Text size</h3>
       <div class="row"><span class="name">Interface<small>Menus, trees, headers, buttons, Settings</small></span><span class="what"><span class="seg" id="text-interface"></span></span></div>
