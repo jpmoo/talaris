@@ -81,6 +81,7 @@ import { setFolder as setSyncFolder, syncStatus, tick as syncTick } from "./sync
 import { seed } from "./sync-seed.js";
 import { setSyncing } from "./records.js";
 import { prefs, setPrefs } from "./sync-apply.js";
+import { keepWallpaper } from "./wallpapers.js";
 
 /**
  * The core's HTTP, on a Unix socket. No port is opened: a port would make every
@@ -174,6 +175,12 @@ route("GET", "/sync", () => ({ ...syncStatus(), first: existsSync(join(DATA_DIR,
 // Your settings, as the machines agree on them (sync-apply.ts): read by the screens as they start and when told,
 // and a change made here given to them to keep and record.
 route("GET", "/sync/prefs", () => prefs());
+// A picture chosen as a wallpaper, copied into Talaris's own (wallpapers.ts): its path there, which travels.
+route("POST", "/wallpapers", async (req) => {
+  const { path } = await json<{ path?: string }>(req);
+  if (!path) throw new Conflict("a picture's path is needed");
+  try { return { path: keepWallpaper(path) }; } catch (e) { throw new Conflict((e as Error).message); }
+});
 route("POST", "/sync/prefs", async (req) => {
   const { set = {}, unset = [] } = await json<{ set?: Record<string, unknown>; unset?: string[] }>(req);
   setPrefs(set, unset);

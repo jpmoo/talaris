@@ -44,6 +44,7 @@ import { rememberMerge } from "./merge.js";
 import { applyKept } from "./suggest.js";
 import { merge3 } from "./merge3.js";
 import { libraryFileSha, removeLibraryFile, writeLibraryFile } from "./sync-files.js";
+import { writeWallpaper } from "./wallpapers.js";
 
 // ------------------------------------------------------------ clocks
 
@@ -498,6 +499,12 @@ export function apply(r: Rec): boolean {
         if (r.of === "merged") { for (const [d, k] of Object.entries(r.set ?? {})) rememberMerge(d, String(k)); return true; }
         if (r.of === "suggest") { applyKept((r.add ?? {}) as never, (r.remove ?? {}) as never); return true; }
         if (r.of === "prefs") return applyPrefs(r);
+        if (r.of.startsWith("wallpaper:")) {
+          const ok = typeof r.set?.sha === "string" && writeWallpaper(r.of.slice("wallpaper:".length), r.set.sha);
+          // A wallpaper the settings named before its picture had come: the settings taken again, now it is here.
+          if (ok) tellScreens("prefs");
+          return ok;
+        }
         return false;
     }
   });

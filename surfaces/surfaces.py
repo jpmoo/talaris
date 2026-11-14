@@ -350,6 +350,8 @@ class Desktop(QObject):
         self.keyboard.set_auto(self.rotation.tablet)
         # Your settings as the machines agree on them, taken now; or, the first anywhere, these sent (prefsync.py).
         QTimer.singleShot(3000, lambda: prefsync.start(self))
+        # Wallpapers set before they were copied in: copied in now, once, so they are Talaris's own and travel.
+        QTimer.singleShot(5000, self._keep_wallpapers)
         # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
         screen = QApplication.primaryScreen()
         if screen is not None:
@@ -881,6 +883,16 @@ class Desktop(QObject):
         if pid and pid != self.project.get("id"):
             self.go_to_project(pid, move=False, announce=True)
 
+    def _keep_wallpapers(self) -> None:
+        current = wallpaper.current()
+        if current.get("path") and not wallpaper.color_of(current["path"]) and "/talaris/wallpapers/" not in current["path"]:
+            if os.path.isfile(current["path"]):
+                self.set_wallpaper("", path=current["path"], fit=current.get("fit", "cover"))
+        for pid, w in list(self.config.get("wallpaper", {}).get("projects", {}).items()):
+            p = (w or {}).get("path", "")
+            if p and not wallpaper.color_of(p) and "/talaris/wallpapers/" not in p and os.path.isfile(p):
+                self.set_wallpaper(pid, path=p, fit=w.get("fit", "cover"))
+
     def set_wallpaper(self, scope: str, path: str | None = None, fit: str | None = None, clear: bool = False) -> str:
         """
         The default wallpaper (`scope` empty) or one project's: a new picture,
@@ -889,6 +901,9 @@ class Desktop(QObject):
         not, or nothing.
         """
         here = self.project.get("id", "")
+        # A picture chosen is copied into Talaris's own wallpapers first (wallpaper.keep): that copy is the wallpaper.
+        if path:
+            path = wallpaper.keep(path)
         now = wallpaper.for_project(self.config, scope) if scope else {**wallpaper.current(), "own": False}
         if not scope:
             path, fit = path or now["path"], fit or now["fit"]

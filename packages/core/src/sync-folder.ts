@@ -131,7 +131,7 @@ function pull(folder: string): number {
   const still: Rec[] = [];
   let n = 0;
   for (const r of recs) {
-    if (r.of.startsWith("file:") && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
+    if ((r.of.startsWith("file:") || r.of.startsWith("wallpaper:")) && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
     try { if (apply(r)) n++; } catch (e) { console.log(`talaris-core: sync: ${r.of} not applied: ${(e as Error).message}`); }
   }
   writeFileSync(SEEN(), JSON.stringify(seen));

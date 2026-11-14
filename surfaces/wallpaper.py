@@ -119,3 +119,17 @@ def pick(parent, start: str, chosen) -> None:
     chooser.finished.connect(done)
     chooser.start()
 
+
+def keep(path: str) -> str:
+    """
+    A picture, copied into Talaris's own wallpapers (the core's wallpapers.ts) — never a link to where it was —
+    so it is there whatever becomes of the original, and travels to your other machines. Its path there; a
+    color's picture, or one already kept, as it is.
+    """
+    path = os.path.expanduser(path)
+    if not path or color_of(path) or not os.path.isfile(path):
+        return path
+    from core import ask_json  # noqa: PLC0415
+    import json  # noqa: PLC0415
+    data, why = ask_json("POST", "/wallpapers", json.dumps({"path": path}), timeout=20)
+    return data.get("path", path) if isinstance(data, dict) else path
