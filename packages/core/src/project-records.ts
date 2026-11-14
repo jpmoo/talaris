@@ -36,7 +36,7 @@ import { diff, syncing, write, type Change } from "./records.js";
 import { DATA_DIR } from "./vault.js";
 import { watchWrites, readText } from "./store.js";
 import { MACHINERY, WRITING } from "./paths.js";
-import { listProjects } from "./projects.js";
+import { allProjects as listProjects } from "./projects.js";
 import { bySource } from "./entities.js";
 
 interface Place { project: string; rel: string }

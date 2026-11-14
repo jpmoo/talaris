@@ -19,7 +19,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { write, diff, syncing } from "./records.js";
-import { listProjects } from "./projects.js";
+import { allProjects as listProjects } from "./projects.js";
 import { MACHINERY, WRITING } from "./paths.js";
 import { readText } from "./store.js";
 import { placeOf, recordsOf } from "./project-records.js";

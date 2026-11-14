@@ -25,7 +25,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { seal, unseal } from "./seal.js";
 import { readBytes, writeAtomic } from "./store.js";
-import { listProjects, findProject } from "./projects.js";
+import { allProjects as listProjects, findProject } from "./projects.js";
 import { MACHINERY, WRITING } from "./paths.js";
 import { syncing, write } from "./records.js";
 
