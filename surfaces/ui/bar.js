@@ -101,7 +101,6 @@ function onState(s) {
   }
   document.body.style.setProperty("--bar-gap", `${(s.look || {}).spacing ?? 4}px`);
   arrange((s.look || {}).order);
-  requestAnimationFrame(fit);
   // In portrait, the project by its name alone.
   drawWhere(s, p, portrait ? "name" : shows);
   // Morgan's button wears what Morgan is doing: listening, thinking, speaking.
@@ -380,14 +379,24 @@ addEventListener("pointerdown", (e) => {
   if (!host) return;
   const node = [...host.children].find((c) => c.contains(e.target));
   if (!node || !node.id) return;
-  dragging = { node, host, x: e.clientX, moved: false, pointer: e.pointerId };
+  // A region whose items do not all fit scrolls: a finger's slide is the engine's own scrolling (pan-x), and a
+  // mouse's quick drag scrolls it here. Held a moment first, a drag carries the item to a new place instead.
+  const scrolls = host.scrollWidth > host.clientWidth + 1;
+  if (scrolls && e.pointerType === "touch") return;
+  dragging = { node, host, x: e.clientX, moved: false, pointer: e.pointerId, at: Date.now(), scrolls, start: host.scrollLeft };
 });
 addEventListener("pointermove", (e) => {
   const d = dragging;
   if (!d) return;
+  if (d.mode === "scroll") { d.host.scrollLeft = d.start - (e.clientX - d.x); return; }
   if (!d.moved) {
     if (Math.abs(e.clientX - d.x) < 6) return;
     d.moved = true;
+    if (d.scrolls && Date.now() - d.at < 350) {
+      d.mode = "scroll";
+      try { d.host.setPointerCapture(d.pointer); } catch { /* fine */ }
+      return;
+    }
     d.node.classList.add("bar-dragging");
     document.body.classList.add("bar-drag-on");
     try { d.node.setPointerCapture(d.pointer); } catch { /* fine */ }
@@ -403,6 +412,13 @@ const dropped = () => {
   const d = dragging;
   dragging = null;
   if (!d || !d.moved) return;
+  if (d.mode === "scroll") {
+    // The press was a scroll, not the item's click.
+    const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+    addEventListener("click", swallow, true);
+    setTimeout(() => removeEventListener("click", swallow, true), 0);
+    return;
+  }
   d.node.classList.remove("bar-dragging");
   document.body.classList.remove("bar-drag-on");
   // The press was a drag, not the item's click.
@@ -449,25 +465,5 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.trayItems((text) => drawTray(JSON.parse(text)));
 });
 
-// ---------------------------------------------------------------- too narrow
-//
-// A screen narrower than the bar's items (a small screen turned on its side, or
-// at a large text size): the least needed go, one at a time, until the rest fit
-// — the numbers beside icons first, the hubs last. Each is still a key or a
-// search away in the launcher. Measured afresh whenever the bar changes or its
-// surface does.
-const SHED = ["bat-n", "vol-n", "bright-n", "net-n", "day", "weather", "shot", "theme", "clipboard", "bt",
-  "canvas", "writing", "files", "people", "tasks", "new"];
-function fit() {
-  for (const id of SHED) $(id).classList.remove("bar-shed");
-  const bar = $("bar");
-  const over = () => bar.scrollWidth > bar.clientWidth + 1
-    || [...bar.querySelectorAll(".side")].some((x) => x.scrollWidth > x.clientWidth + 1);
-  for (const id of SHED) {
-    if (!over()) break;
-    $(id).classList.add("bar-shed");
-  }
-}
-addEventListener("resize", () => requestAnimationFrame(fit));
 $("rotate").addEventListener("click", () => bridge && bridge.rotate());
 

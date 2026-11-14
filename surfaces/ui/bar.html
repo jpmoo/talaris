@@ -32,6 +32,11 @@ body[data-shape="floating"] #bar {
 }
 body[data-shape="floating"][data-edge="bottom"] #bar { margin: var(--room, 0px) var(--m-right) var(--m-bottom) var(--m-left); height: calc(100% - var(--m-bottom) - var(--room, 0px)); }
 .side { display: flex; align-items: center; gap: var(--bar-gap, 4px); min-width: 0; }
+/* Too many items for the room (a narrow screen, a large text size): the region scrolls along, by a finger's slide or
+   a quick drag (bar.js), with no scroll bar drawn. */
+.side { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
+.side::-webkit-scrollbar { display: none; }
+.side > * { flex: none; }
 .bar-hidden, .bar-shed { display: none !important; }
 /* Turned on its side: no numbers beside the icons (bar.js, portrait). */
 body.portrait .bar-item .n { display: none !important; }
@@ -40,7 +45,8 @@ body.portrait .bar-item .n { display: none !important; }
 /* An item carried along the bar to another place in its region (bar.js, arrange). */
 .bar-dragging { opacity: .55; transform: translateY(1px); }
 body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
-.side.end { justify-content: flex-end; }
+/* `safe`: when its items overflow, they start at its left edge, so all of them can be scrolled to. */
+.side.end { justify-content: safe flex-end; }
 
 
 /* Where you are: the project, letter-spaced like every label, with its code —

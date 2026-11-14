@@ -258,7 +258,10 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 
 /* ---- sliders: a hairline track, the accent up to the level (--fill) ----- */
 
-input[type="range"] { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer;
+  /* A finger on it moves it, never the page under it: in a scrolling page, a slide that drifted up or down was taken
+     for scrolling, and the slider let go. */
+  touch-action: none; }
 input[type="range"]::-webkit-slider-runnable-track {
   height: 3px; border-radius: 2px;
   background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%));
