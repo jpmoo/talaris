@@ -59,8 +59,32 @@ class Keyboard(QObject):
         self._room = QTimer(self)
         self._room.setSingleShot(True)
         self._room.timeout.connect(self._measure)
+        #: Folded back into a tablet (rotation.py): the keyboard comes up by itself in a field, as there is no other.
+        self.auto = False
+        # However it came up — asked by a button, or by itself in a tablet — panels keep clear of it.
+        desktop.events.layer.connect(self._layer)
         if available():
             self._start()
+
+    def set_auto(self, on: bool) -> None:
+        """A tablet (the keyboard by itself in any field), or a laptop again (only from a field's button)."""
+        if not available() or on == self.auto:
+            return
+        self.auto = on
+        subprocess.run(["gsettings", "set", "org.gnome.desktop.a11y.applications", "screen-keyboard-enabled", "true" if on else "false"],
+                       capture_output=True, timeout=3, check=False)
+        if not on and self.up:
+            self.show(False)
+        log(f"keyboard: {'up by itself in a field (a tablet)' if on else 'only from a field’s button'}")
+
+    def _layer(self, namespace: str, opened: bool) -> None:
+        if namespace != "osk":
+            return
+        if opened:
+            self._room.start(150)
+        else:
+            self._room.stop()
+            layershell.set_keyboard(0)
 
     def _start(self) -> None:
         # Never by itself: only when a field's button asks (see above).
@@ -92,7 +116,7 @@ class Keyboard(QObject):
         for monitor in layers.values():
             for level in monitor.get("levels", {}).values():
                 for layer in level:
-                    if layer.get("namespace") == "osk" and self.up:
+                    if layer.get("namespace") == "osk":
                         layershell.set_keyboard(int(layer.get("h", 0)))
                         return
         if self.up:

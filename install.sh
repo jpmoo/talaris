@@ -145,6 +145,22 @@ if [ "$DEPS" = 1 ]; then
     sudo apt-get update -qq
     sudo apt-get install -y "${TO[@]}"
   fi
+  # A convertible (an accelerometer, and Intel's HID driver): the firmware says when it is folded back into a
+  # tablet, but Linux reports it only when told to, and the switch is readable only by root. Talaris needs both —
+  # to follow the screen's turning only as a tablet, and to know which it is after a sleep (rotation.py).
+  if ls /sys/bus/acpi/devices/ 2>/dev/null | grep -q '^INTC1070' && ls /sys/bus/iio/devices/*/in_accel_x_raw >/dev/null 2>&1 \
+     && [ ! -e /etc/udev/rules.d/70-talaris-tablet.rules ]; then
+    echo "    This machine folds into a tablet. Talaris can tell which it is, given two system settings:"
+    echo "      /etc/modprobe.d/intel-hid-tablet.conf     the firmware's tablet switch reported"
+    echo "      /etc/udev/rules.d/70-talaris-tablet.rules  that switch readable by whoever is at the screen"
+    if [ "$YES" = 1 ] || ask "    Set them now (sudo)? [Y/n]" y; then
+      echo "options intel_hid enable_sw_tablet_mode=1" | sudo tee /etc/modprobe.d/intel-hid-tablet.conf >/dev/null
+      printf '%s\n' 'SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Intel HID switches", TAG+="uaccess"' \
+        | sudo tee /etc/udev/rules.d/70-talaris-tablet.rules >/dev/null
+      sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
+      echo "    Set. In effect after the next restart of the machine (or reload intel_hid now)."
+    fi
+  fi
   BL="$(backlight_group || true)"
   if [ -n "$BL" ]; then
     echo "    The brightness keys need you in the $BL group, which owns the screen's backlight."

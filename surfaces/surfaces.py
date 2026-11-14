@@ -345,6 +345,8 @@ class Desktop(QObject):
         self.rotation.apply()
         # The on-screen keyboard, where there is a touchscreen and Squeekboard: up only when a field's button asks.
         self.keyboard = Keyboard(self)
+        # Folded already as Talaris starts (the switch, read just above): the keyboard as a tablet's.
+        self.keyboard.set_auto(self.rotation.tablet)
         # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
         screen = QApplication.primaryScreen()
         if screen is not None:
@@ -1040,6 +1042,9 @@ class Desktop(QObject):
                 # The dock and the bar, out from hiding: put away again (sensor.py, Autohide).
                 self.dock.hider.clicked()
                 self.bar.hider.clicked()
+            elif verb == "woke":
+                # Back from sleep (hypridle's after_sleep_cmd): a fold or unfold while asleep is never sent.
+                QTimer.singleShot(1500, self.rotation.recheck)
             elif verb == "tablet":
                 # The firmware's tablet-mode switch (rotation.py): folded back, or a laptop again.
                 self.rotation.tablet_mode(arg == "on")
@@ -1131,6 +1136,8 @@ def main() -> int:
         return send(f"grow {args[1]}")
     if args[:1] == ["--settings"]:
         return send("settings " + (args[1] if len(args) > 1 else ""))
+    if args[:1] == ["--woke"]:
+        return send("woke")
     if args[:1] == ["--tablet"] and len(args) == 2:
         return send(f"tablet {args[1]}")
     if args[:1] == ["--osd"] and len(args) == 2:

@@ -395,6 +395,8 @@ class Events(QObject):
     pinned = Signal(str, bool)
     #: The workspace in front gained or lost a fullscreen window (which, and how, is asked: fullscreen.py).
     fullscreen = Signal()
+    #: A layer surface opened or closed: its namespace, and whether it is open now (the on-screen keyboard's, keyboard.py).
+    layer = Signal(str, bool)
 
     WATCH = ("workspace", "openwindow", "closewindow", "movewindow", "focusedmon", "activespecial")
     WINDOWS = WATCH + ("activewindow", "windowtitle", "renameworkspace", "createworkspace", "destroyworkspace")
@@ -420,6 +422,8 @@ class Events(QObject):
                 self.workspace.emit(line.split(b">>", 1)[1].decode("utf-8", "replace"))
             if name == "fullscreen":
                 self.fullscreen.emit()
+            if name in ("openlayer", "closelayer"):
+                self.layer.emit(line.split(b">>", 1)[1].decode("utf-8", "replace").strip(), name == "openlayer")
             if name == "pin":
                 addr, _, state = line.split(b">>", 1)[1].decode("ascii", "replace").partition(",")
                 self.pinned.emit("0x" + addr.strip(), state.strip() == "1")

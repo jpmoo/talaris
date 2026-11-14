@@ -67,6 +67,42 @@ def tablet_switch() -> bool:
     return any(n in TABLET_SWITCHES for n in names)
 
 
+def _tablet_device() -> str | None:
+    """The tablet switch's event device (/dev/input/eventN), by its name in the kernel's list of inputs."""
+    try:
+        text = open("/proc/bus/input/devices").read()
+    except OSError:
+        return None
+    for block in text.split("\n\n"):
+        if any(f'Name="{n}"' in block for n in TABLET_SWITCHES):
+            m = re.search(r"Handlers=.*?\b(event\d+)", block)
+            if m:
+                return f"/dev/input/{m.group(1)}"
+    return None
+
+
+def tablet_now() -> bool | None:
+    """
+    Whether the machine is folded back right now, read from the switch itself — None when that cannot be read
+    (no such switch yet, or not this user's to read: install.sh gives the seat's user the tablet switch).
+    Asked at start and after every wake: a fold or unfold while asleep is never sent, and a mini that went to
+    sleep folded woke up open still taken for a tablet, its keyboard switched off by its firmware.
+    """
+    path = _tablet_device()
+    if not path:
+        return None
+    import fcntl  # noqa: PLC0415
+    size = 8
+    request = (2 << 30) | (size << 16) | (ord("E") << 8) | 0x1B  # EVIOCGSW(size)
+    try:
+        with open(path, "rb") as f:
+            bits = bytearray(size)
+            fcntl.ioctl(f, request, bits)
+    except OSError:
+        return None
+    return bool(bits[0] & (1 << 1))  # SW_TABLET_MODE
+
+
 def flat() -> bool:
     """
     Whether the accelerometer lies flat — gravity nearly all on its z axis — and so cannot say which way is up.
@@ -128,6 +164,12 @@ class Rotation(QObject):
             hypr.bind(f", switch:on:{name}", f"{TALARIS} --tablet on", "l")
             hypr.bind(f", switch:off:{name}", f"{TALARIS} --tablet off", "l")
 
+    def recheck(self) -> None:
+        """Folded or not, read from the switch itself: at start, and after a wake (power.py's after_sleep_cmd)."""
+        now = tablet_now()
+        if now is not None:
+            self.tablet_mode(now)
+
     def tablet_mode(self, on: bool) -> None:
         """
         Folded back into a tablet, or a laptop again (the switch's binds). A tablet follows the device, whatever a
@@ -138,6 +180,9 @@ class Rotation(QObject):
             return
         self.tablet = on
         log(f"rotation: {'a tablet' if on else 'a laptop'}")
+        import keyboard  # noqa: PLC0415 — the desktop's, made after this
+        if keyboard.current is not None:
+            keyboard.current.set_auto(on)
         if on:
             if self.locked:
                 self._release()
@@ -158,6 +203,7 @@ class Rotation(QObject):
             if not self.switch and tablet_switch():
                 self.switch = True
                 self._bind_switch()
+                self.recheck()
         else:
             if self.process is not None:
                 self.process.kill()

@@ -44,6 +44,8 @@ from config import CONFIG
 from views import log
 
 IDLE_FILE = os.path.join(os.path.dirname(CONFIG), "hypridle.conf")
+#: Talaris, as a command: told after a wake (rotation.py rechecks the tablet switch).
+TALARIS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talaris-surfaces")
 #: Away this long, and the core is told it may read files (Settings, Data: Reading files, While idle).
 IDLE_READ_SECONDS = 120
 LID_ACTIONS = ("suspend", "lock", "screen-off", "nothing")
@@ -80,7 +82,7 @@ def _file(p: dict, plugged: bool) -> str:
         "general {",
         "    lock_cmd = pidof hyprlock || hyprlock",
         "    before_sleep_cmd = loginctl lock-session",
-        "    after_sleep_cmd = hyprctl dispatch dpms on",
+        f"    after_sleep_cmd = hyprctl dispatch dpms on; {TALARIS} --woke",
         "}",
     ]
 
