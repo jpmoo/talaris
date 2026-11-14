@@ -920,10 +920,15 @@ class Bar(QObject):
         if kind not in POPUPS:
             return
         if self.popup.kind == kind:
+            # A tap on a touchscreen comes twice — the page's own click, and the one Qt makes of the touch — and
+            # the second, a moment after, would close what the first opened: the popup never seen.
+            if time.monotonic() - getattr(self, "opened_at", 0.0) < 0.4:
+                return
             self.popup.close()
             return
         if self.just_closed(kind):
             return
+        self.opened_at = time.monotonic()
         # Under its button when the page says where that is; else at the bar's end.
         self.popup.at = int(x * zoom_of("bar")) if x is not None else -1
         self.popup.show(kind)
