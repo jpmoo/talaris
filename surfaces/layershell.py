@@ -23,6 +23,8 @@ system on the object it returns. What the spike learned, and this follows:
 from __future__ import annotations
 
 import ctypes
+import dataclasses
+import json
 import math
 import os
 from dataclasses import dataclass
@@ -103,6 +105,46 @@ class Placement:
     margins: tuple[int, int, int, int] = (0, 0, 0, 0)
 
 
+def _reserved() -> tuple[float, float, float, float]:
+    """What the bar and the dock hold back on the focused screen (left, top, right, bottom), in Qt's units."""
+    try:
+        mons = json.loads(hypr.ask("j/monitors") or "[]")
+        mon = next((m for m in mons if m.get("focused")), mons[0] if mons else None)
+        r = (mon or {}).get("reserved", [0, 0, 0, 0])
+        return (r[0] / QT_SCALE, r[1] / QT_SCALE, r[2] / QT_SCALE, r[3] / QT_SCALE)
+    except (OSError, ValueError, TypeError, IndexError):
+        return (0, 0, 0, 0)
+
+
+#: Room kept around a surface made smaller to fit, so it is not drawn against the screen's edges.
+FIT_GAP = 8
+
+
+def fitted(placement: Placement) -> Placement:
+    """
+    No larger than the screen it is on. Sizes are fixed lengths times the
+    area's text size (views.zoom), and on a small screen at Extra large a
+    panel ran off the bottom: it is made as large as there is room for, and
+    its page scrolls. Room is the screen less the surface's margins, and less
+    what the bar and the dock hold back when it keeps clear of them
+    (`exclusive` 0).
+    """
+    if not (placement.width and placement.height):
+        return placement
+    screen = QApplication.primaryScreen()
+    if screen is None:
+        return placement
+    g = screen.geometry()
+    left, top, right, bottom = placement.margins
+    rl, rt, rr, rb = _reserved() if placement.exclusive == 0 else (0, 0, 0, 0)
+    room_w = int(g.width() - left - right - rl - rr - FIT_GAP * 2)
+    room_h = int(g.height() - top - bottom - rt - rb - FIT_GAP * 2)
+    w, h = min(placement.width, max(room_w, 200)), min(placement.height, max(room_h, 200))
+    if (w, h) == (placement.width, placement.height):
+        return placement
+    return dataclasses.replace(placement, width=w, height=h)
+
+
 def full_screen(keyboard: int = KEYBOARD_NONE, layer: int = OVERLAY, exclusive: int = -1) -> Placement:
     """
     Over the whole screen, anchored to every edge: a panel and its dim, the
@@ -148,6 +190,7 @@ class LayerSurface:
 
     def apply(self, placement: Placement) -> None:
         """Put the surface where `placement` says, by making it anew there."""
+        placement = fitted(placement)
         if placement == self.placement and self.widget.isVisible():
             return
         # Sized before it is shown, so the compositor is never handed Qt's
