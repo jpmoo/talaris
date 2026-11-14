@@ -122,6 +122,12 @@ export function replacedFor(of?: string): Replaced[] {
 
 // ------------------------------------------------------------ applying
 
+/** Whether this Talaris knows what a record is about: one from a newer Talaris may not be, yet (sync-folder.ts keeps it). */
+const KINDS = ["e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
+export function known(r: Rec): boolean {
+  return KINDS.some((k) => r.of.startsWith(k)) || ["merged", "suggest", "prefs"].includes(r.of);
+}
+
 /** A batch: applied in its order, whole. */
 export function applyBatch(recs: Rec[]): number {
   let n = 0;

@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { DATA_DIR, ENTITIES_DIR, readVault, storeKey } from "./vault.js";
 import { unseal } from "./seal.js";
 import { machine, syncing, type Rec } from "./records.js";
-import { apply } from "./sync-apply.js";
+import { apply, known } from "./sync-apply.js";
 import { blobsAt, getBlob, scanFiles } from "./sync-files.js";
 
 const STATE = () => join(DATA_DIR, "sync");
@@ -132,6 +132,8 @@ function pull(folder: string): number {
   let n = 0;
   for (const r of recs) {
     if ((r.of.startsWith("file:") || r.of.startsWith("wallpaper:")) && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
+    // About something this Talaris does not know yet — written by a newer one: kept, and applied once this is updated.
+    if (!known(r)) { still.push(r); continue; }
     try { if (apply(r)) n++; } catch (e) { console.log(`talaris-core: sync: ${r.of} not applied: ${(e as Error).message}`); }
   }
   writeFileSync(SEEN(), JSON.stringify(seen));
