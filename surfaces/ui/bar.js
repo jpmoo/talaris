@@ -476,6 +476,14 @@ Surface.connect({ onState, onMachine }).then((b) => {
 });
 
 // A long press on a touchscreen is a right-click and then, as the finger lifts, a click: only the right-click is meant.
+// Whether a press, in this page's pixels, is on the keyboard's button: asked by the dim (dim.py), which lies over the
+// bar while a panel is out and would otherwise take that press as one off the panel.
+window.oskHit = (x, y) => {
+  const b = $("osk");
+  if (!b || b.hidden) return false;
+  const r = b.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+};
 // Kept from taking the keys: the field being typed into keeps them, and the keyboard types there.
 $("osk").addEventListener("pointerdown", (e) => e.preventDefault());
 $("osk").addEventListener("click", () => { if (bridge && bridge.keyboardToggle) bridge.keyboardToggle(); });

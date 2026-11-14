@@ -684,6 +684,27 @@ class Bar(QObject):
         g = screen.geometry() if screen is not None else None
         return bool(g and g.height() > g.width())
 
+    def osk_hit(self, at: tuple[float, float], answer) -> None:
+        """
+        Whether a press at `at` — the screen's pixels, as the dim heard it — is on the keyboard's button here:
+        answered later (`answer(bool)`), the page asked where its button is.
+        """
+        placed = self.surface.placement
+        if placed is None or not self.view.isVisible():
+            answer(False)
+            return
+        # Where the bar is on the screen, from the edges it holds to (it may be at the top or the bottom).
+        from PySide6.QtWidgets import QApplication  # noqa: PLC0415
+        import layershell  # noqa: PLC0415
+        g = QApplication.primaryScreen().geometry()
+        ml, mt, mr, mb = placed.margins
+        w, h = self.view.width(), self.view.height()
+        left = ml if placed.anchors & layershell.ANCHOR_LEFT or not placed.anchors & layershell.ANCHOR_RIGHT else g.width() - mr - w
+        top = mt if placed.anchors & layershell.ANCHOR_TOP else g.height() - mb - h
+        z = self.view.zoomFactor() or 1
+        x, y = (at[0] - left) / z, (at[1] - top) / z
+        self.view.page().runJavaScript(f"window.oskHit ? oskHit({x:.1f}, {y:.1f}) : false", 0, lambda hit: answer(bool(hit)))
+
     def describe(self) -> dict:
         return {
             "edge": self.edge,

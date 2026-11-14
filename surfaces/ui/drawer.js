@@ -1392,6 +1392,8 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
+  // The on-screen keyboard's button on its fields — the writing, a card's text — as every other page has it (surface.js).
+  Surface.keyboard(bridge);
   if (window.Peek && bridge.glanceAt) Peek.glanceThrough((key) => bridge.glanceAt(key));
   if (window.Peek && bridge.libraryAt) Peek.cardThrough((key) => bridge.libraryAt(key));
   bridge.replied.connect(onReply);

@@ -127,6 +127,8 @@ class Catcher(QObject):
         super().__init__(parent)
         self.on_catch = on_catch
         self.up = False
+        #: The last press on it, in its own pixels — the screen's, as it covers the screen from its corner.
+        self.pressed_at: tuple[float, float] | None = None
         self.bridge = SensorBridge(self, self)
         self.view = make_view(profile, name, "talaris-ui://ui/catch.html", self.bridge, self)
         self.surface = LayerSurface(self.view, f"talaris-{name}")
@@ -172,6 +174,12 @@ class Catcher(QObject):
 
     def eventFilter(self, _watched, event) -> bool:  # noqa: N802 — Qt's name
         if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.TouchBegin) and self.up:
+            # Where, for whoever must tell one press from another (dim.py: the bar's keyboard button under it).
+            try:
+                p = event.position() if event.type() == QEvent.Type.MouseButtonPress else event.points()[0].position()
+                self.pressed_at = (p.x(), p.y())
+            except (AttributeError, IndexError):
+                self.pressed_at = None
             self.touched_edge()
         return False
 
