@@ -813,6 +813,42 @@ export function updateEntity(id: string, patch: Patch): Entity {
   return changed(o, put({ object: next, relations: rec.relations }));
 }
 
+/**
+ * Sync's way in (sync-apply.ts): an entity as another machine's records left it, written as it is — through the
+ * index and the change feed (a follower here, a plugin, hears it), but not through the hooks a change made here
+ * goes through: what they would do (a completed task's next occurrence) the other machine did, and its records
+ * bring that too. Its fields as the records keep them (`flat`): `p.<key>` a property, `relations` the edges.
+ */
+export function readFlat(id: string): Record<string, unknown> | null {
+  const ix = load();
+  return flat(ix.records.get(id), ix.types)?.fields ?? null;
+}
+export function setsOf(type: string | undefined): Set<string> {
+  const ix = load();
+  const sets = new Set(["tags", "talaris:sources", "relations"]);
+  for (const f of (type ? ix.types.get(type) : undefined)?.fields ?? []) if (f.many) sets.add(`p.${f.key}`);
+  return sets;
+}
+export function writeFlat(id: string, fields: Record<string, unknown>): Entity {
+  const ix = load();
+  const was = ix.records.get(id)?.object;
+  const object: Entity = { id, properties: {} } as Entity;
+  let relations: Relation[] = [];
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined) continue;
+    if (k.startsWith("p.")) object.properties[k.slice(2)] = v;
+    else if (k === "relations") relations = (Array.isArray(v) ? v : []).map((x) => (typeof x === "string" ? JSON.parse(x) : x) as Relation);
+    else (object as Record<string, unknown>)[k] = v;
+  }
+  object.created = (object.created as string | undefined) ?? was?.created ?? now();
+  object.updated = now();
+  object.version = (was?.version ?? 0) + 1;
+  return put({ object, relations });
+}
+export function deleteFlat(id: string): void {
+  if (load().records.has(id)) deleteEntity(id);
+}
+
 /** Removed for good. What pointed at it now points at nothing, and says so when read. */
 export function deleteEntity(id: string): void {
   const ix = load();
