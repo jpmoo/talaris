@@ -9,6 +9,7 @@ import { seal, unseal } from "./seal.js";
 import { newId, writeAtomic } from "./store.js";
 import { ENTITIES_DIR, storeKey } from "./vault.js";
 import { record, reloadFeed } from "./feed.js";
+import { diff, write as writeRecord } from "./records.js";
 
 /**
  * Entities: people, notes, projects, tasks and events — the things with
@@ -433,9 +434,35 @@ function changed(before: Entity | null, after: Entity): Entity {
   return load().records.get(after.id)?.object ?? after;
 }
 
+/**
+ * An entity as sync records it (records.ts): its fields flat — each property its own, `p.<key>` — with what is
+ * set-like marked so (tags, sources, relations, a reference field of many), and what is the machine's own
+ * bookkeeping left out (`updated`, `version`: each machine keeps its own).
+ */
+const NOT_SYNCED = new Set(["id", "updated", "version"]);
+function flat(rec: Record_ | undefined, types: Map<string, EntityType>): { fields: Record<string, unknown>; sets: Set<string> } | null {
+  if (!rec) return null;
+  const { properties, relations: _r, ...top } = rec.object as Entity & { relations?: unknown };
+  const fields: Record<string, unknown> = { ...top };
+  for (const [k, v] of Object.entries(properties ?? {})) fields[`p.${k}`] = v;
+  fields.relations = rec.relations.map((r) => JSON.stringify(Object.fromEntries(Object.entries(r).sort())));
+  const sets = new Set(["tags", "talaris:sources", "relations"]);
+  const type = rec.object.type ? types.get(rec.object.type) : undefined;
+  // A field of many is a set: a project added here and another there, both kept; an address, a file, the same.
+  for (const f of type?.fields ?? []) if (f.many) sets.add(`p.${f.key}`);
+  return { fields, sets };
+}
+function recorded(before: Record_ | undefined, after: Record_, types: Map<string, EntityType>): void {
+  const a = flat(after, types)!;
+  const b = flat(before, types);
+  writeRecord(diff(`e:${after.object.id}`, b?.fields ?? null, a.fields, a.sets, NOT_SYNCED));
+}
+
 function put(rec: Record_): Entity {
   const ix = load();
   const existed = ix.records.has(rec.object.id);
+  // What it was, for sync's record of what changed (records.ts): only the change travels.
+  recorded(ix.records.get(rec.object.id), rec, ix.types);
   indexOut(ix, rec.object.id);
   writeSealed(join(dir("objects"), safe(rec.object.id)), rec);
   indexIn(ix, rec);
@@ -783,6 +810,7 @@ export function deleteEntity(id: string): void {
   indexOut(ix, id);
   rmSync(join(dir("objects"), safe(id)), { force: true });
   record(id, "delete");
+  writeRecord({ of: `e:${id}`, gone: true });
   if (files.length) forgetFiles(files);
 }
 
