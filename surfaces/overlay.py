@@ -323,6 +323,10 @@ class Overlay(QObject):
         # A window stays: it is put away as windows are.
         if not self.up:
             return
+        # What put it away, said: a panel going by itself is otherwise a mystery (the keyboard's button, 2026-11-14).
+        import traceback  # noqa: PLC0415
+        by = " < ".join(f"{os.path.basename(f.filename)}:{f.name}" for f in traceback.extract_stack(limit=4)[:-1][::-1])
+        log(f"{self.NAME}: put away ({by})")
         self.up = False
         self.idle.stop()
         self.desktop.dim.release(self)
