@@ -37,7 +37,7 @@ import os
 import re
 import subprocess
 
-from PySide6.QtCore import QObject, QProcess, QTimer
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer
 
 import hypr
 from config import CONFIG
@@ -209,6 +209,20 @@ class Power(QObject):
         # Not quiet: when a step fired is worth having in the log ("did the
         # screen go off?" is otherwise unanswerable afterwards).
         self.process.setArguments(["-c", IDLE_FILE])
+        # hypridle (0.1.7) looks for a config of its own before it reads the one it is handed, and stops if it finds
+        # none (a machine with no ~/.config/hypr/hypridle.conf). The fallback search path is given a folder that has
+        # one — Talaris's file — so it finds it, and nothing of the user's is written; what it runs (hyprlock) finds
+        # the user's own configs first, as before.
+        found = os.path.join(os.path.dirname(IDLE_FILE), "idle-config")
+        os.makedirs(os.path.join(found, "hypr"), exist_ok=True)
+        link = os.path.join(found, "hypr", "hypridle.conf")
+        if not os.path.islink(link):
+            if os.path.exists(link):
+                os.remove(link)
+            os.symlink(IDLE_FILE, link)
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("XDG_CONFIG_DIRS", ":".join(x for x in (found, env.value("XDG_CONFIG_DIRS") or "/etc/xdg") if x))
+        self.process.setProcessEnvironment(env)
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self._heard)
         self.process.finished.connect(self._ended)

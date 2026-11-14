@@ -467,7 +467,14 @@ Surface.connect({ onState, onMachine }).then((b) => {
   b.trayItems((text) => drawTray(JSON.parse(text)));
 });
 
-$("rotate").addEventListener("click", () => bridge && bridge.rotate());
+// A long press on a touchscreen is a right-click and then, as the finger lifts, a click: only the right-click is meant.
+let rotateHeld = 0;
+$("rotate").addEventListener("pointerdown", () => { rotateHeld = Date.now(); });
+$("rotate").addEventListener("click", () => {
+  const long = rotateHeld && Date.now() - rotateHeld > 450;
+  rotateHeld = 0;
+  if (!long && bridge) bridge.rotate();
+});
 $("rotate").addEventListener("contextmenu", (e) => {
   e.preventDefault();
   e.stopPropagation();
