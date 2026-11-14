@@ -53,7 +53,8 @@ class Page(QWebEnginePage):
 AREAS = ("interface", "bar", "launcher", "morgan", "writing", "canvas")
 #: The areas that are page zooms; the rest are type sizes (`type_scale`).
 PAGE_AREAS = ("interface", "bar", "launcher", "morgan")
-ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12}
+#: Extra large is for a small screen held close, a mini laptop's.
+ZOOMS = {"small": 0.9, "medium": 1.0, "large": 1.12, "xlarge": 1.3}
 #: The type areas, which may also be a scale of their own: set from the page itself, a step at a time.
 TYPE_AREAS = ("writing", "canvas")
 TYPE_MIN, TYPE_MAX = 0.7, 2.0

@@ -69,10 +69,10 @@ function draw() {
   // Appearance.
   seg("mode", [["dark", "Dark"], ["light", "Light"]], t.mode, (mode) => { accentFor = mode; save({ theme: { mode } }); });
   // A text size for each area; one never set follows the single size there was before.
-  const sizes = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+  const sizes = [["small", "Small"], ["medium", "Medium"], ["large", "Large"], ["xlarge", "Extra large"]];
   for (const area of ["interface", "bar", "launcher", "morgan", "writing", "canvas"]) {
     const now = (cfg.text || {})[area] || t.fontSize || "medium";
-    // A size set on the page itself (Ctrl+= in Notes) is a scale of its own: shown as one, beside the three.
+    // A size set on the page itself (Ctrl+= in Notes) is a scale of its own: shown as one, beside the four.
     const choices = typeof now === "number" ? [...sizes, [now, `${Math.round(now * 100)}%`]] : sizes;
     seg(`text-${area}`, choices, now, (size) => save({ text: { ...(cfg.text || {}), [area]: size } }));
   }
