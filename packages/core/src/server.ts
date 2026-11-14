@@ -7,7 +7,7 @@ import { describeProjects, projectAbout, projectProfile, setProjectAbout, summar
 import { DEMO_ROOT, inDemo } from "./demo.js";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { CanvasDocument, Health } from "@talaris/model";
 import { FILES, projectsRoot } from "./paths.js";
@@ -71,7 +71,7 @@ import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchOb
 import { Gone } from "./feed.js";
 import { joinAccountTwins, ownCalendar, ownEvents, setOwnColor, takenElsewhere } from "./own-calendar.js";
 import * as plugins from "./plugins.js";
-import { Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
+import { DATA_DIR, Locked, recoveryKept, recoveryState, replaceRecovery, unlock } from "./vault.js";
 import { SealError } from "./seal.js";
 import { backupNow, backupStatus, previewBackup, reviveBackup } from "./backup.js";
 import { encryptedProjects, setProjectEncrypted } from "./sealed-projects.js";
@@ -170,7 +170,7 @@ function need(query: URLSearchParams, key: string): string {
 
 // Sync with other machines (sync-folder.ts, docs/SYNC.md): its state, and this machine made the first — sync turned
 // on with a folder, and everything it has written there as records for others to join from.
-route("GET", "/sync", () => syncStatus());
+route("GET", "/sync", () => ({ ...syncStatus(), first: existsSync(join(DATA_DIR, "sync", "first")) }));
 // Your settings, as the machines agree on them (sync-apply.ts): read by the screens as they start and when told,
 // and a change made here given to them to keep and record.
 route("GET", "/sync/prefs", () => prefs());
@@ -184,6 +184,8 @@ route("POST", "/sync/first", async (req) => {
   if (!folder) throw new Conflict("a sync folder is needed");
   setSyncing(true);
   setSyncFolder(folder);
+  // The machine others join: only it may give its settings as where they start (surfaces/prefsync.py).
+  writeFileSync(join(DATA_DIR, "sync", "first"), new Date().toISOString());
   const seeded = seed();
   syncTick();
   return { seeded, ...syncStatus() };

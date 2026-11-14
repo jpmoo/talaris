@@ -113,10 +113,14 @@ def start(desktop) -> None:
     if _last() is None:
         if agreed:
             arrived(desktop)
-        else:
-            now = flat(desktop.config)
+            return
+        now = flat(desktop.config)
+        # Only the machine the others joined gives its settings as where they start. A machine that joined and
+        # has had none yet waits for them (the core tells it, `arrived`): sending its own, it once had them win
+        # over the first machine's, which arrived after it started.
+        if (get_json("/sync", {}) or {}).get("first"):
             _post(now, [])
-            _keep(now)
+        _keep(now)
         return
     arrived(desktop)
 
