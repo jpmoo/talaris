@@ -66,6 +66,7 @@ REQUIRED=(
   "zenity|file choosers (attachments, backups, settings)"
   "curl|asking the core"
   "hypridle|locking and screens off when idle"
+  "hyprlock|the lock screen"
   "hyprpaper|the wallpaper"
   "hyprpolkitagent|password prompts"
   "mako-notifier|notifications until Talaris holds them"
