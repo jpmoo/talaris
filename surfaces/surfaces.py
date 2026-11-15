@@ -718,6 +718,8 @@ class Desktop(QObject):
         if any(after["windows"].get(k) != before["windows"].get(k) for k in ("tiling", "gap")):
             self.bar.place()
             self.dock.place()
+            if getattr(self, "centering", None):
+                self.centering.soon()
         changed = set_zoom(self.text_sizes())
         if "bar" in changed:
             self.bar.place()

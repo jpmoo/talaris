@@ -139,6 +139,12 @@ class Centering(QObject):
         events.focus.connect(lambda _a: self._later.start())
         events.opened.connect(lambda _a: self._later.start())
         events.closed.connect(lambda _a: self._later.start())
+        # As it starts, and as the carousel is chosen (surfaces.py): no key has moved, and the one in use is centered.
+        QTimer.singleShot(1500, self.center)
+
+    def soon(self) -> None:
+        """Looked at in a moment: the carousel just chosen."""
+        QTimer.singleShot(400, self.center)
 
     def center(self) -> None:
         if time.monotonic() < self._quiet_until or not self.wanted():
