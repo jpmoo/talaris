@@ -1005,6 +1005,17 @@ async function loadWriting() {
  * canvas's are refused by the core as stale (`rev`) and the canvas reads
  * itself back.
  */
+// Changes from another machine (surface.js): the canvas or page shown read again — unless you are in the middle of
+// writing it, which the next save would merge with what came (sync-apply.ts) rather than be thrown away.
+addEventListener("talaris:synced", () => {
+  if (state.mode === "filed") return;
+  if (state.drawer === "canvas") loadCanvas();
+  else if (state.drawer === "writing" && !saveTimer && !(editor && document.activeElement && document.activeElement.closest && document.activeElement.closest(".cm-editor"))) {
+    if (editor) { editor.destroy(); editor = null; }
+    loadWriting();
+  }
+});
+
 window.talarisChanged = (c) => {
   if (!c) return;
   if (c.kind === "canvas" && c.project === here().id && state.drawer === "canvas" && c.where === viewing) loadCanvas();

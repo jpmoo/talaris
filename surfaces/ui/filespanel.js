@@ -243,6 +243,8 @@
     if (got.unwatched.length) say(`Too large to watch, read when asked: ${got.unwatched.map(projectName).join(", ")}`);
   }
   const reload = () => load().catch(failed);
+  // Changes from another machine (surface.js): the list read again.
+  addEventListener("talaris:synced", () => { load().catch(() => undefined); });
 
   // Looked at again when the core says something changed, while it is out.
   setInterval(async () => {

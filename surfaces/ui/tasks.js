@@ -311,6 +311,8 @@
     drawView();
   }
   // The type read again each time: its statuses are edited in Settings → Types.
+  // Changes from another machine (surface.js): the lists read again.
+  addEventListener("talaris:synced", () => { refresh(); });
   async function refresh() {
     try {
       const t = await api("GET", "/tasks/types");

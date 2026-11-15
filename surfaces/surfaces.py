@@ -402,6 +402,14 @@ class Desktop(QObject):
         self.desk.changed()
         log(f"project: {home.get('name', 'Home')}, once the core could say")
 
+    def synced(self) -> None:
+        """Changes came from another machine: each panel and drawer, as a panel or a window, told (`talarisSynced`)."""
+        for p in self.overlays():
+            for view in (getattr(p, "_view", None), getattr(p, "view", None), getattr(p, "window", None)):
+                page = getattr(view, "page", None) if view is not None else None
+                if callable(page):
+                    view.page().runJavaScript("window.talarisSynced && talarisSynced()")
+
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
         return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "files_panel", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
@@ -1069,6 +1077,9 @@ class Desktop(QObject):
             elif verb == "prefs":
                 # Your settings, from another machine (prefsync.py): taken as Settings would.
                 prefsync.arrived(self)
+            elif verb == "synced":
+                # Changes from another machine (the core's sync): every page out reads what it shows again (surface.js).
+                self.synced()
             elif verb == "woke":
                 # Back from sleep (hypridle's after_sleep_cmd): a fold or unfold while asleep is never sent.
                 QTimer.singleShot(1500, self.rotation.recheck)

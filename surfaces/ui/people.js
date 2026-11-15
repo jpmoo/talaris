@@ -247,6 +247,8 @@
     });
   }
 
+  // Changes from another machine (surface.js): the people read again, and the one open with them.
+  addEventListener("talaris:synced", () => { loadPeople().then(() => { if (chosen) return loadPerson(); }).catch(() => undefined); });
   async function loadPeople() {
     [people, orgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/organizations").catch(() => [])]);
     orgs = orgs || [];

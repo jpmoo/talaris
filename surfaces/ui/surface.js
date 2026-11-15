@@ -7,6 +7,10 @@
 
 "use strict";
 
+// Changes from another machine (the core's sync, surfaces.py `synced`): heard by any page as `talaris:synced`, to read
+// what it shows again. A page out of sight reads again too: cheap, and right when it comes back.
+window.talarisSynced = () => dispatchEvent(new CustomEvent("talaris:synced"));
+
 const Surface = (() => {
   // A press on the keyboard's button is no press off the panel. Each page puts itself away on a press outside its
   // box (Settings' window, the launcher's box, a drawer's panel), and the button — drawn over the page, in no box —

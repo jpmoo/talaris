@@ -474,7 +474,7 @@ function applyPrefs(r: Rec): boolean {
   return true;
 }
 /** A word to the screens (their command socket): they take it from there. Not running, they read it as they start. */
-function tellScreens(word: string): void {
+export function tellScreens(word: string): void {
   const sock = join(process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.() ?? 1000}`, "talaris-surfaces.sock");
   try {
     const s = createConnection(sock);

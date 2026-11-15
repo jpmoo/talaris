@@ -111,6 +111,8 @@ function fetchPlugins() {
     draw();
   }).catch(() => {});
 }
+// Changes from another machine (surface.js): the days shown read again.
+addEventListener("talaris:synced", () => { try { fetchRange(); } catch { /* not drawn yet */ } });
 function fetchRange() {
   fetchTasks();
   fetchPlugins();
