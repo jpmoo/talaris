@@ -777,7 +777,7 @@ const pageMap = (() => {
   const KEPT = "talaris-page-map";
   let open = (() => { try { return localStorage.getItem(KEPT) !== "closed"; } catch { return true; } })();
   let box = null, opener = null, canvas = null, frame = null, scroller = null, lines = [], drawn = { rows: 0, row: 1 };
-  const MAX_H = 460, W = 140;
+  const MAX_H = 690, W = 210;
   const scrollerOf = () => {
     const host = $("editorHost");
     if (!host) return null;
