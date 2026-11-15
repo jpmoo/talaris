@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
@@ -361,6 +362,9 @@ class Desktop(QObject):
         self._finger_down.connect(self._tapped)
         # A dock or bar a finger brought out goes a while after the finger lifts, not after the swipe began.
         self._slide_on_lift = 0
+        self._finger_down_at = 0.0
+        self._focus_moved_at = 0.0
+        self.events.focus.connect(lambda _a: setattr(self, "_focus_moved_at", time.monotonic()))
         self._fingers_up.connect(self._lifted)
         self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit,
                                           on_lift=self._fingers_up.emit)
@@ -519,12 +523,17 @@ class Desktop(QObject):
         self.dock.hider.lifted()
         self.bar.hider.lifted()
         way, self._slide_on_lift = self._slide_on_lift, 0
+        # A swipe begun on the next window's sliver at the edge: the touch gave that window the keys already (as a
+        # tap does), and going on from it went past the strip's end and back (2026-11-15). Then only centering.
+        if way and self._focus_moved_at >= self._finger_down_at - 0.3:
+            way = 0
         if way:
             import tiling  # noqa: PLC0415
             QTimer.singleShot(80, lambda: tiling.slide(way))
 
     def _tapped(self, across: float, down: float) -> None:
         """A finger down somewhere: off the dock or the bar while either is out, it goes (sensor.py, `tapped_at`)."""
+        self._finger_down_at = time.monotonic()
         try:
             mon = next(iter(json.loads(hypr.ask("j/monitors") or "[]")), None)
         except ValueError:
@@ -1221,6 +1230,10 @@ class Desktop(QObject):
                 self.workspaces[arg].grow()
             elif verb == "settings":
                 self.settings.open(arg)
+            elif verb == "slide" and arg in ("l", "r"):
+                # Super+Shift and Left or Right in the carousel (bin/move-or-split): Talaris's own move, centered.
+                import tiling  # noqa: PLC0415
+                tiling.slide(1 if arg == "r" else -1)
             elif verb == "osd":
                 self.osd.show(arg)
             elif verb == "morgan" and self.morgan_here:
@@ -1294,6 +1307,8 @@ def main() -> int:
         return send("woke")
     if args[:1] == ["--tablet"] and len(args) == 2:
         return send(f"tablet {args[1]}")
+    if args[:1] == ["--slide"] and len(args) == 2:
+        return send(f"slide {args[1]}")
     if args[:1] == ["--osd"] and len(args) == 2:
         return send(f"osd {args[1]}")
     if args[:1] == ["--morgan"]:

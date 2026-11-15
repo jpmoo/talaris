@@ -109,6 +109,9 @@ def apply(mode: str) -> str:
         hypr.keyword("plugin:hyprscrolling:fullscreen_on_one_column", "true")
         # The window moved to is put in the middle, the strip sliding under it.
         hypr.keyword("plugin:hyprscrolling:focus_fit_method", "0")
+        # The strip does not follow the keys by itself: following, it slid only as far as showed the window, and
+        # centering then slid it again — two moves, a stutter. Talaris centers it, in one (`Centering`).
+        hypr.keyword("plugin:hyprscrolling:follow_focus", "false")
         if _said != "carousel":
             log("tiling: carousel")
             _said = "carousel"
@@ -135,9 +138,9 @@ class Centering(QObject):
         self._quiet_until = 0.0
         self._later = QTimer(self)
         self._later.setSingleShot(True)
-        # Once the strip has slid: looked at mid-slide, the window gone to looked off the middle, was "centered" by
-        # going away and back — and at the strip's end came back to the wrong one (2026-11-15).
-        self._later.setInterval(700)
+        # Promptly: the strip no longer follows the keys by itself (follow_focus off), so nothing is sliding yet
+        # when it is looked at — one slide, Talaris's, to the middle. Its own slides are left alone (`quiet`).
+        self._later.setInterval(100)
         self._later.timeout.connect(self.center)
         events.focus.connect(lambda _a: self._later.start())
         events.opened.connect(lambda _a: self._later.start())
@@ -150,7 +153,7 @@ class Centering(QObject):
         QTimer.singleShot(400, self.center)
 
     def center(self) -> None:
-        if time.monotonic() < self._quiet_until or not self.wanted():
+        if time.monotonic() < max(self._quiet_until, _quiet_until) or not self.wanted():
             return
         try:
             if json.loads(hypr.ask("j/getoption general:layout") or "{}").get("str") != "scrolling":
@@ -182,10 +185,16 @@ class Centering(QObject):
             hypr.ask("/dispatch layoutmsg focus r")
 
 
+#: Until when the keys' move is Talaris's own (`slide`): centered already, not to be centered again.
+_quiet_until = 0.0
+
+
 def slide(way: int) -> None:
     """
     To the next window (+1) or the one before (-1): it takes the keys, and the strip brings it to the middle. The
     layout's `focus`, not its `move`: `move` slides the view alone, past the last window into empty screen, and
     leaves the keys where they were.
     """
+    global _quiet_until
+    _quiet_until = time.monotonic() + 0.8
     hypr.ask(f"/dispatch layoutmsg focus {'r' if way > 0 else 'l'}")

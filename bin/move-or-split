@@ -20,9 +20,10 @@ dir="${1:?a direction: l, r, u or d}"
 # In the carousel (Settings, Windows, Tiling: surfaces/tiling.py, Hyprland's scrolling layout): left and right go
 # to the window that way, the strip bringing it to the middle, and stop at the ends; up and down do nothing.
 if hyprctl getoption general:layout -j 2>/dev/null | grep -q '"scrolling"'; then
+  # Through Talaris (surfaces/tiling.py, `slide`), which then knows the move is its own and already centered.
   case "$dir" in
-    l) hyprctl dispatch layoutmsg focus l >/dev/null ;;
-    r) hyprctl dispatch layoutmsg focus r >/dev/null ;;
+    l|r) "$(dirname "$(readlink -f "$0")")/../surfaces/talaris-surfaces" --slide "$dir" >/dev/null 2>&1 \
+           || hyprctl dispatch layoutmsg focus "$dir" >/dev/null ;;
   esac
   exit 0
 fi
