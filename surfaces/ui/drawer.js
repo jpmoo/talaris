@@ -771,13 +771,13 @@ async function drawEditor() {
 // ---------------------------------------------------------------- the page's map
 //
 // The page in small, inside the writing at its upper right (as the canvas has its map, lower left): each line a bar as
-// long as it is, a heading in the accent, and the part on screen marked. A press or a drag on it scrolls there. Shown
-// and put away by the page bar's Map, as each machine likes it.
+// long as it is, a heading in the accent, and the part on screen as a frame. A press or a drag on it scrolls there. Its ×
+// closes it to a Map button in the same corner, as each machine likes it.
 const pageMap = (() => {
   const KEPT = "talaris-page-map";
   let open = (() => { try { return localStorage.getItem(KEPT) !== "closed"; } catch { return true; } })();
-  let box = null, canvas = null, frame = null, scroller = null, lines = [], drawn = { rows: 0, row: 1 };
-  const MAX_H = 350, W = 96;
+  let box = null, opener = null, canvas = null, frame = null, scroller = null, lines = [], drawn = { rows: 0, row: 1 };
+  const MAX_H = 460, W = 140;
   const scrollerOf = () => {
     const host = $("editorHost");
     if (!host) return null;
@@ -792,9 +792,12 @@ const pageMap = (() => {
     box = el("div", { class: "page-map" });
     canvas = document.createElement("canvas");
     frame = el("div", { class: "page-map-frame" });
-    const shut = el("button", { class: "page-map-close", title: "Close the map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
-    box.append(canvas, frame, shut);
-    host.append(box);
+    const shut = el("button", { class: "page-map-close", title: "Hide the map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
+    box.append(el("div", { class: "page-map-inner" }, canvas, frame), shut);
+    // Closed, the map is a button in its corner (the canvas's Map icon, drawn here as lucide draws it).
+    opener = el("button", { class: "page-map-open", title: "Show the map", onclick: () => set(true) });
+    opener.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>';
+    host.append(box, opener);
     let dragging = false;
     const go = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -826,9 +829,9 @@ const pageMap = (() => {
     const writing = state.drawer === "writing" && !!$("editorHost") && mode !== "preview";
     if (!build()) return;
     box.hidden = !writing || !open;
+    opener.hidden = !writing || open;
     box.parentElement.classList.toggle("mapped", !box.hidden);
-    const sw = $("mapSwitch");
-    if (sw) sw.classList.toggle("on", open);
+    box.parentElement.classList.toggle("map-shut", !opener.hidden);
     if (box.hidden) return;
     lines = String(text || "").split("\n");
     const row = Math.max(1, Math.min(3, MAX_H / Math.max(1, lines.length)));
@@ -1054,8 +1057,7 @@ async function loadWriting() {
     });
   } }, "Attach");
   const pane = el("div", { class: "pane" },
-    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }),
-      el("button", { class: `t-btn small${pageMap.open ? " on" : ""}`, id: "mapSwitch", title: "The page's map", onclick: () => pageMap.toggle() }, "Map"), attach, modes),
+    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
