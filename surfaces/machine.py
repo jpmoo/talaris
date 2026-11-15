@@ -176,6 +176,10 @@ def device_batteries() -> list[dict]:
         except OSError:
             continue
         name = "Pen" if re.search(r"touch\s*screen|stylus|pen", model, re.I) else (model or "Device")
+        # A touchscreen that carries no pen battery still says it has one, and says 1% (the mini's ELAN: the pen's report
+        # has the field and always sends 1, whatever the charge, as many ELAN screens do). Such a pen is left out.
+        if name == "Pen" and level.isdigit() and int(level) <= 1:
+            continue
         out.append({"name": name, "level": int(level) if level.isdigit() else None, "status": read("status").lower()})
     return out
 
