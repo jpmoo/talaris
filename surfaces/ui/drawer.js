@@ -770,7 +770,7 @@ async function drawEditor() {
 
 // ---------------------------------------------------------------- the page's map
 //
-// The page in small, lower left of the writing (as the canvas has its map): each line a bar as long as it is, a
+// The page in small, upper right of the writing (as the canvas has its map, lower left): each line a bar as long as it is, a
 // heading in the accent, and the part on screen as a frame. A press or a drag on it scrolls there. Opened and closed
 // by its corner button, as each machine likes it.
 const pageMap = (() => {
