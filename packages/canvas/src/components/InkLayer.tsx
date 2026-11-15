@@ -55,7 +55,7 @@ export function InkLayer({ span }: { span: number }) {
       if ((!inkState().on && !erasingByEnd()) || e.button !== 0) return;
       // Over the canvas's own controls (a card's menu, a field): theirs.
       const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, [contenteditable=true], .menu, .ctx-menu, button")) return;
+      if (t.closest("input, textarea, [contenteditable=true], .menu, .ctx-menu, button, .cv-minimap")) return;
       e.preventDefault();
       e.stopPropagation();
       drawing = e.pointerId;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 import { clearInk } from "../ink.ts";
+import { Minimap } from "./Minimap.tsx";
 import { InkLayer } from "./InkLayer.tsx";
 import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -3833,6 +3834,17 @@ export function CanvasView({
         {/* Ink (ink.ts), over the cards: written on top of things, as on paper. */}
         <InkLayer span={EDGE_SPAN} />
       </div>
+
+      {/* The canvas in small, lower left (Minimap.tsx): everything on it, and the part on screen. */}
+      {!exporting && (
+        <Minimap
+          boxes={allRects()}
+          regions={regions.map((rg) => regionRect(rg)).filter((r): r is Rect => r !== null)}
+          view={view}
+          setView={setView}
+          wrap={wrapRef}
+        />
+      )}
 
       {/* inline add search (top left) */}
       {/*

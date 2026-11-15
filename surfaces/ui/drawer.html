@@ -186,6 +186,18 @@ button.crumb.proj.away { color: var(--accent); }
 /* A long tag is cut short, whole in its tip. */
 .tag-filter { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+
+/* The page's map (drawer.js, pageMap): lower left of the writing. */
+.page-map { position: absolute; left: 8px; bottom: 8px; z-index: 5; width: 76px; max-height: 240px; overflow: hidden; padding: 5px;
+  border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .12); cursor: pointer; touch-action: none; }
+.page-map canvas { display: block; }
+.page-map-frame { position: absolute; left: 3px; right: 3px; margin-top: 5px; top: 0; border: 1px solid var(--accent); border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.page-map-close, .page-map-open { position: absolute; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%;
+  background: var(--surface); color: var(--muted, #888); cursor: pointer; padding: 0; font-size: 12px; line-height: 1; }
+.page-map-close { top: -1px; right: -1px; width: 18px; height: 18px; }
+.page-map-open { left: 8px; bottom: 8px; width: 26px; height: 26px; border-radius: 7px; z-index: 5; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>

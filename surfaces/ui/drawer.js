@@ -710,6 +710,9 @@ let edits = 0; // changes made here, counted: a page read while one was made kee
 function changed(next) {
   edits++;
   text = next;
+  // The page's map, drawn again on a pause (drawEditor).
+  clearTimeout(changed.mapTimer);
+  changed.mapTimer = setTimeout(() => pageMap.draw(), 300);
   drawPageFiles();
   clearTimeout(saveTimer);
   status("Editing");
@@ -762,7 +765,104 @@ async function drawEditor() {
   if (paperOf !== open) paperFor(open);
   drawPageFiles();
   editor.focus();
+  pageMap.draw();
 }
+
+// ---------------------------------------------------------------- the page's map
+//
+// The page in small, lower left of the writing (as the canvas has its map): each line a bar as long as it is, a
+// heading in the accent, and the part on screen as a frame. A press or a drag on it scrolls there. Opened and closed
+// by its corner button, as each machine likes it.
+const pageMap = (() => {
+  const KEPT = "talaris-page-map";
+  let open = (() => { try { return localStorage.getItem(KEPT) !== "closed"; } catch { return true; } })();
+  let box = null, canvas = null, frame = null, scroller = null, lines = [], drawn = { rows: 0, row: 1 };
+  const MAX_H = 220, W = 76;
+  const scrollerOf = () => {
+    const host = $("editorHost");
+    if (!host) return null;
+    const cm = host.querySelector(".cm-scroller");
+    // Whichever of the two scrolls: the editor's own scroller, or the box it sits in.
+    return cm && cm.scrollHeight > cm.clientHeight + 1 ? cm : host;
+  };
+  const build = () => {
+    const host = $("editorHost");
+    if (!host || !host.parentElement) return false;
+    if (box && box.isConnected) return true;
+    host.parentElement.style.position = "relative";
+    box = el("div", { class: "page-map" });
+    canvas = document.createElement("canvas");
+    frame = el("div", { class: "page-map-frame" });
+    const shut = el("button", { class: "page-map-close", title: "Hide the page's map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
+    const opener = el("button", { class: "page-map-open", title: "Show the page's map", onclick: () => set(true) }, "≡");
+    box.append(canvas, frame, shut);
+    host.parentElement.append(box, opener);
+    let dragging = false;
+    const go = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const row = Math.max(0, Math.min(drawn.rows - 1, (e.clientY - r.top) / drawn.row));
+      const sc = scrollerOf();
+      if (!sc) return;
+      // The line pressed brought to the middle of what is shown.
+      sc.scrollTop = (row / Math.max(1, drawn.rows)) * sc.scrollHeight - sc.clientHeight / 2;
+    };
+    box.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; dragging = true; box.setPointerCapture(e.pointerId); go(e); e.preventDefault(); });
+    box.addEventListener("pointermove", (e) => { if (dragging) go(e); });
+    box.addEventListener("pointerup", () => { dragging = false; });
+    box.addEventListener("pointercancel", () => { dragging = false; });
+    return true;
+  };
+  const set = (on) => {
+    open = on;
+    try { localStorage.setItem(KEPT, on ? "open" : "closed"); } catch { /* fine */ }
+    draw();
+  };
+  const place = () => {
+    if (!box || !scroller) return;
+    const sh = scroller.scrollHeight || 1;
+    frame.style.top = `${(scroller.scrollTop / sh) * drawn.rows * drawn.row}px`;
+    frame.style.height = `${Math.max(6, (scroller.clientHeight / sh) * drawn.rows * drawn.row)}px`;
+  };
+  function draw() {
+    const writing = state.drawer === "writing" && !!$("editorHost") && mode !== "preview";
+    if (!build()) return;
+    const opener = box.parentElement.querySelector(".page-map-open");
+    box.hidden = !writing || !open;
+    if (opener) opener.hidden = !writing || open;
+    if (box.hidden) return;
+    lines = String(text || "").split("\n");
+    const row = Math.max(1, Math.min(3, MAX_H / Math.max(1, lines.length)));
+    const h = Math.max(20, Math.ceil(lines.length * row));
+    drawn = { rows: lines.length, row };
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr; canvas.height = h * dpr;
+    canvas.style.width = `${W}px`; canvas.style.height = `${h}px`;
+    const g = canvas.getContext("2d");
+    g.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const ink = css.getPropertyValue("--text-muted").trim() || "#888";
+    const accent = css.getPropertyValue("--accent").trim() || "#c98a5b";
+    lines.forEach((line, i) => {
+      const t = line.replace(/\t/g, "  ");
+      const indent = t.length - t.trimStart().length;
+      const len = t.trim().length;
+      if (!len) return;
+      const head = /^#{1,6}\s/.test(t.trim());
+      g.fillStyle = head ? accent : ink;
+      g.globalAlpha = head ? 0.95 : 0.55;
+      g.fillRect(Math.min(W - 4, indent * 0.9), i * row, Math.max(2, Math.min(W - indent * 0.9, len * 0.9)), Math.max(1, row - (row > 1.5 ? 0.6 : 0)));
+    });
+    const sc = scrollerOf();
+    if (sc !== scroller) {
+      if (scroller) scroller.removeEventListener("scroll", place);
+      scroller = sc;
+      if (scroller) scroller.addEventListener("scroll", place, { passive: true });
+    }
+    place();
+  }
+  addEventListener("resize", () => draw());
+  return { draw };
+})();
 
 function setMode(next) {
   mode = next;

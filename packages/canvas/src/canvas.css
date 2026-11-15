@@ -803,3 +803,16 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .ink-now { position: relative; display: grid; place-items: center; }
 .ink-now-dot { position: absolute; right: -4px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--surface); }
 :root[data-ink-end="eraser"] .cv-wrap { cursor: cell; }
+
+/* The map (Minimap.tsx): lower left, over the canvas. */
+.cv-minimap { position: absolute; left: 10px; bottom: 10px; z-index: 20; padding: 6px; border: 1px solid var(--border);
+  border-radius: 10px; background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, .14);
+  touch-action: none; }
+.cv-minimap svg { display: block; cursor: pointer; }
+.cv-minimap-box { fill: var(--text-muted); opacity: .45; }
+.cv-minimap-region { fill: none; stroke: var(--text-muted); opacity: .6; }
+.cv-minimap-view { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); }
+.cv-minimap-close { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--text-muted); cursor: pointer; padding: 0; }
+.cv-minimap-open { position: absolute; left: 10px; bottom: 10px; z-index: 20; width: 30px; height: 30px; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-muted); cursor: pointer; padding: 0; }
