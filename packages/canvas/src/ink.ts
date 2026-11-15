@@ -110,6 +110,14 @@ export function chooseSize(size: number) {
   else changed();
 }
 
+/** The two themes' text colors (Talaris's ui/tokens.css): a stroke kept in one before "text" was kept as itself. */
+const TEXT_GRAYS = new Set(["#d5d9dc", "#25292d"]);
+
+/** A stroke's color as an SVG paint: "text" (or an old stroke's text gray) is the theme's text color, as it changes. */
+export function paint(color: string): string {
+  return color === "text" || TEXT_GRAYS.has(color.toLowerCase()) ? "var(--text)" : color;
+}
+
 /** A color as drawn: "text" is the theme's text color now. */
 export function resolveColor(color: string): string {
   if (color !== "text") return color;
@@ -173,7 +181,9 @@ export function begin(p: Pt, zoom: number) {
     return;
   }
   const tool: "pen" | "highlighter" = pressTool === "highlighter" ? "highlighter" : "pen";
-  state.live = { points: [p], color: resolveColor(state.color), width: INK_SIZES[tool][state.size]!, tool };
+  // "text" kept as itself, not as this machine's text color now: drawn in each machine's own, light or dark, theme
+  // (the laptop's light gray was all but invisible on a light canvas elsewhere, 2026-11-15).
+  state.live = { points: [p], color: state.color, width: INK_SIZES[tool][state.size]!, tool };
   changed();
 }
 /** The pen moved: the stroke goes on (points closer than a screen pixel left out), or the eraser sweeps on. */

@@ -9,7 +9,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { inkOf } from "../api.ts";
-import { begin, cancel, centerline, end, erasingByEnd, extend, inkState, onInk, outline, redo, setInk, undo } from "../ink.ts";
+import { begin, cancel, centerline, end, erasingByEnd, extend, inkState, onInk, outline, paint, redo, setInk, undo } from "../ink.ts";
 
 /** Where a point on the screen is on the canvas, and the zoom: from the layer's own transform (as CanvasTools does). */
 function toCanvas(wrap: HTMLElement, clientX: number, clientY: number): { x: number; y: number; z: number } {
@@ -141,17 +141,17 @@ export function InkLayer({ span }: { span: number }) {
     >
       {order.map((s) =>
         s.tool === "highlighter" ? (
-          <path key={s.id} transform={`translate(${s.x} ${s.y})`} d={centerline(s.points)} fill="none" stroke={s.color}
+          <path key={s.id} transform={`translate(${s.x} ${s.y})`} d={centerline(s.points)} style={{ fill: "none", stroke: paint(s.color) }}
             strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" opacity={0.35} />
         ) : (
-          <path key={s.id} transform={`translate(${s.x} ${s.y})`} d={outline(s.points, s.width)} fill={s.color} />
+          <path key={s.id} transform={`translate(${s.x} ${s.y})`} d={outline(s.points, s.width)} style={{ fill: paint(s.color) }} />
         ),
       )}
       {live && (live.tool === "highlighter" ? (
-        <path d={centerline(live.points)} fill="none" stroke={live.color} strokeWidth={live.width}
+        <path d={centerline(live.points)} style={{ fill: "none", stroke: paint(live.color) }} strokeWidth={live.width}
           strokeLinecap="round" strokeLinejoin="round" opacity={0.35} />
       ) : (
-        <path d={outline(live.points, live.width)} fill={live.color} />
+        <path d={outline(live.points, live.width)} style={{ fill: paint(live.color) }} />
       ))}
     </svg>
   );
