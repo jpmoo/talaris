@@ -792,7 +792,9 @@ const pageMap = (() => {
     box = el("div", { class: "page-map" });
     canvas = document.createElement("canvas");
     frame = el("div", { class: "page-map-frame" });
-    const shut = el("button", { class: "page-map-close", title: "Hide the map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
+    const shut = el("button", { class: "page-map-close", title: "Hide the map", onclick: (e) => { e.stopPropagation(); set(false); } });
+    // The canvas map's X (lucide's, at 12), not a typed ×, which sits off center.
+    shut.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     box.append(el("div", { class: "page-map-inner" }, canvas, frame), shut);
     // Closed, the map is a button in its corner (the canvas's Map icon, drawn here as lucide draws it).
     opener = el("button", { class: "page-map-open", title: "Show the map", onclick: () => set(true) });
