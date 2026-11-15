@@ -39,6 +39,8 @@ from views import make_view
 TARGET = {"thick": 6, "length": 100}
 #: How long the pointer must be away before a revealed thing goes again.
 AWAY_MS = 700
+#: Brought out by a finger: how long it stays after the last touch on it.
+FINGER_STAY_MS = 4000
 
 
 class SensorBridge(Bridge):
@@ -46,12 +48,19 @@ class SensorBridge(Bridge):
     def touched(self) -> None:
         self.owner.touched_edge()
 
+    @Slot()
+    def swiped(self) -> None:
+        """A finger drawn in across the strip (edge.html), on a touchscreen."""
+        self.owner.swiped_edge()
+
 
 class EdgeSensor(QObject):
-    def __init__(self, profile: QWebEngineProfile, name: str, edge: str, on_touch: Callable[[], None], parent: QObject) -> None:
+    def __init__(self, profile: QWebEngineProfile, name: str, edge: str, on_touch: Callable[[], None], parent: QObject,
+                 on_swipe: Callable[[], None] | None = None) -> None:
         super().__init__(parent)
         self.edge = edge
         self.on_touch = on_touch
+        self.on_swipe = on_swipe or on_touch
         self.up = False
         #: The top layer, under the drawers; the overlay while a fullscreen window covers the top (fullscreen.py).
         self.layer = TOP
@@ -95,6 +104,10 @@ class EdgeSensor(QObject):
     def touched_edge(self) -> None:
         if self.armed:
             self.on_touch()
+
+    def swiped_edge(self) -> None:
+        """A finger, not the pointer: nothing to be disarmed by, as it does not stay at the edge."""
+        self.on_swipe()
 
     def disarm_if_under_pointer(self) -> None:
         """Disarmed if the pointer is at this edge now, until it leaves."""
@@ -292,6 +305,36 @@ class Presses(QObject):
             self.dead()
 
 
+class Touches(QObject):
+    """Calls `on_touch()` as a finger comes down on a view (the engine's own widget inside it, too)."""
+
+    def __init__(self, view: QWidget, on_touch: Callable[[], None]) -> None:
+        super().__init__(view)
+        self.view = view
+        self.on_touch = on_touch
+        self._watched = None
+        view.installEventFilter(self)
+        if hasattr(view, "loadFinished"):
+            view.loadFinished.connect(lambda _ok: self._watch())
+        self._watch()
+
+    def _watch(self) -> None:
+        if not shiboken6.isValid(self.view):
+            return
+        target = self.view.focusProxy() or self.view
+        if target is not self._watched:
+            target.installEventFilter(self)
+            self._watched = target
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 — Qt's name
+        kind = event.type()
+        if kind in (QEvent.Type.TouchBegin, QEvent.Type.TouchUpdate):
+            self.on_touch()
+        elif kind == QEvent.Type.Show and watched is self.view:
+            self._watch()
+        return False
+
+
 class Hover(QObject):
     """Calls `on_change(inside)` as the pointer enters and leaves a view."""
 
@@ -335,11 +378,15 @@ class Autohide(QObject):
         self._leaving = QTimer(self)
         self._leaving.setSingleShot(True)
         self._leaving.timeout.connect(lambda: None if self.out else self._conceal())
-        self.sensor = EdgeSensor(profile, name, "top", self.touched, self)
+        self.sensor = EdgeSensor(profile, name, "top", self.touched, self, on_swipe=self.swiped)
         self._away = QTimer(self)
         self._away.setSingleShot(True)
         self._away.timeout.connect(self._gone)
         Hover(view, self._hover)
+        #: Out because a finger brought it (`swiped`): it goes a while after the last touch on it, not when the
+        #: pointer leaves — a finger never hovers, and the pointer is wherever it was.
+        self._by_finger = False
+        Touches(view, self._touched_on_it)
 
     def set(self, on: bool, edge: str, layer: int = TOP) -> None:
         """Turned on or off, or moved to another edge or layer."""
@@ -368,9 +415,28 @@ class Autohide(QObject):
             # Out because the pointer came; if it does not stay, it goes.
             self._away.start(AWAY_MS * 2)
 
+    def swiped(self) -> None:
+        """A finger drawn in from its edge: out, and staying while it is touched (`_touched_on_it`)."""
+        if self._come_back():
+            return
+        if self.on and not self.out:
+            self._out(True)
+            self._reveal()
+        if self.on and self.out:
+            self._by_finger = True
+            self._away.start(FINGER_STAY_MS)
+
+    def _touched_on_it(self) -> None:
+        """A finger on it while it is out: it stays a while longer."""
+        if self.on and self.out:
+            self._by_finger = True
+            self._away.start(FINGER_STAY_MS)
+
     def _hover(self, inside: bool) -> None:
         if not (self.on and self.out):
             return
+        if self._by_finger:
+            return  # the pointer's coming and going says nothing of a finger's use
         if inside:
             self._away.stop()
         else:
@@ -381,9 +447,10 @@ class Autohide(QObject):
             return
         # The pointer's leaving is only heard, and something up over it for a moment (a surface coming and going)
         # is heard as leaving: where the pointer is has the last word.
-        if self._busy() or self._on_it():
+        if self._busy() or (not self._by_finger and self._on_it()):
             self._away.start(AWAY_MS)
             return
+        self._by_finger = False
         self._out(False)
         self._put_away()
 

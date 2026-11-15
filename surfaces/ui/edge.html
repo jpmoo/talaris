@@ -4,8 +4,9 @@ SPDX-License-Identifier: GPL-3.0-only
 Copyright (c) 2026 Jeff Moore
 
 An edge sensor (sensor.py): a strip too thin to see, which says when the
-pointer touches it. A trace of color, not none, so the compositor delivers
-the pointer to it.
+pointer touches it — or a finger is drawn in from the edge across it, on a
+touchscreen, where nothing hovers. A trace of color, not none, so the
+compositor delivers the pointer to it.
 -->
 <html>
 <head>
@@ -20,6 +21,16 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
   document.addEventListener("mouseenter", () => bridge.touched());
   document.addEventListener("mousemove", () => bridge.touched());
+  // A finger drawn in from the edge: begun on the strip, it keeps reaching it as it goes; far enough, it is a swipe.
+  let from = null;
+  document.addEventListener("touchstart", (e) => { const t = e.touches[0]; from = { x: t.clientX, y: t.clientY }; }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!from) return;
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - from.x, t.clientY - from.y) >= 24) { from = null; if (bridge.swiped) bridge.swiped(); }
+  }, { passive: true });
+  document.addEventListener("touchend", () => { from = null; }, { passive: true });
+  document.addEventListener("touchcancel", () => { from = null; }, { passive: true });
 });
 </script>
 </body>
