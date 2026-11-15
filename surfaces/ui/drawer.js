@@ -1273,6 +1273,12 @@ function touched() {
   lastTouch = now;
   bridge.activity();
 }
+// Which end of the pen is near (the pen helper, through surfaces.py): to the canvas, which erases with the eraser end.
+window.talarisPenEnd = (end) => {
+  const frame = document.querySelector(".canvas-frame");
+  if (frame && frame.contentWindow) frame.contentWindow.postMessage({ talarisPenEnd: String(end || "") }, "*");
+};
+
 // Find in the page open, wherever the focus is (the editor hears it first when it has it).
 addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f" && !e.defaultPrevented) {

@@ -62,6 +62,24 @@ function changed() {
   for (const f of listeners) f();
 }
 export const inkState = () => state;
+
+/**
+ * The pen turned over, its eraser end near (the pen helper says, through the drawer): ink is erased with it, pen
+ * chosen or not, and the tool it had comes back as the pen end returns.
+ */
+let byEraserEnd = false;
+export const erasingByEnd = () => byEraserEnd;
+export function penEnd(end: string) {
+  const now = end === "eraser";
+  if (now === byEraserEnd) return;
+  byEraserEnd = now;
+  document.documentElement.dataset.inkEnd = now ? "eraser" : "";
+  changed();
+}
+addEventListener("message", (e) => {
+  const end = (e.data as { talarisPenEnd?: string } | null)?.talarisPenEnd;
+  if (typeof end === "string") penEnd(end);
+});
 export function onInk(f: () => void): () => void {
   listeners.add(f);
   return () => listeners.delete(f);
@@ -142,19 +160,25 @@ const newId = () => `ink-${Date.now().toString(36)}${Math.random().toString(36).
 
 /** A press begun with an ink tool, at a point on the canvas: a stroke started, or the eraser's sweep. */
 let erased: InkItem[] = [];
+/** The tool the press in hand began with: kept to its end, whatever end of the pen turns up meanwhile. */
+let pressTool: InkTool = "pen";
+/** The tool a press uses: the eraser while the pen's eraser end is near, else the one chosen. */
+const using = (): InkTool => (byEraserEnd ? "eraser" : state.tool);
+
 export function begin(p: Pt, zoom: number) {
-  if (state.tool === "eraser") {
+  pressTool = using();
+  if (pressTool === "eraser") {
     erased = [];
     erase(p, zoom);
     return;
   }
-  const tool = state.tool;
+  const tool: "pen" | "highlighter" = pressTool === "highlighter" ? "highlighter" : "pen";
   state.live = { points: [p], color: resolveColor(state.color), width: INK_SIZES[tool][state.size]!, tool };
   changed();
 }
 /** The pen moved: the stroke goes on (points closer than a screen pixel left out), or the eraser sweeps on. */
 export function extend(p: Pt, zoom: number) {
-  if (state.tool === "eraser") { erase(p, zoom); return; }
+  if (pressTool === "eraser") { erase(p, zoom); return; }
   const live = state.live;
   if (!live) return;
   const last = live.points[live.points.length - 1]!;
@@ -164,7 +188,7 @@ export function extend(p: Pt, zoom: number) {
 }
 /** The pen lifted: the stroke kept as an item (one dot, too), or the eraser's sweep kept as one step. */
 export function end() {
-  if (state.tool === "eraser") {
+  if (pressTool === "eraser") {
     if (erased.length) {
       undos.push({ add: [], remove: erased });
       redos.length = 0;

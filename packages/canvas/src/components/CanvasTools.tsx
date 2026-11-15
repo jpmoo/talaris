@@ -18,7 +18,7 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Calendar, CheckSquare, ChevronUp, Eraser, FileText, Hash, Highlighter, Image as ImageIcon, Network, PenLine, Redo2, Search, SquareDashed, StickyNote, Trash2, Type, Undo2, User } from "lucide-react";
+import { Calendar, CheckSquare, Eraser, FileText, Hash, Highlighter, Image as ImageIcon, Network, PenLine, PenOff, Redo2, Search, SquareDashed, StickyNote, Trash2, Type, Undo2, User } from "lucide-react";
 import { canRedo, canUndo, chooseColor, chooseSize, chooseTool, clearInk, inkState, INK_COLORS, INK_SIZES, onInk, redo, resolveColor, setInk, undo } from "../ink.ts";
 import { CustomColor } from "./CustomColor.tsx";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
@@ -137,6 +137,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
   const ink = inkState();
   // The ink bar put out of the way, the pen still drawing: the pen's button brings it back.
   const [inkBarTucked, setInkBarTucked] = useState(false);
+  const inkLeave = useRef<number | null>(null);
   useEffect(() => {
     if (selecting) window.document.documentElement.dataset.select = "on";
     else delete window.document.documentElement.dataset.select;
@@ -602,20 +603,31 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
           draw; a finger still pans and zooms. */}
       <button
         className={`tool${ink.on ? " armed" : ""}`}
-        title={ink.on ? (inkBarTucked ? "Drawing — show the pen's tools" : "Drawing — the pen draws, a finger pans; press again or Escape to stop")
+        title={ink.on ? (inkBarTucked ? "Drawing — show the pen's tools" : "Drawing — put the tools away (the pen keeps drawing)")
           : "Draw with the pen"}
         onClick={() => {
           if (selecting) setSelecting(false);
-          // On with its bar; tucked, the bar back; out, put down.
+          // Off: on, with its tools. On: its tools out of the way, or back. Put down from the tools, or Escape.
           if (!ink.on) { setInkBarTucked(false); setInk(true); }
-          else if (inkBarTucked) setInkBarTucked(false);
-          else setInk(false);
+          else setInkBarTucked((t) => !t);
         }}
       >
-        <PenLine size={15} />
+        {/* The tool in hand, in its color: what the pen will do. */}
+        <span className="ink-now">
+          {ink.on && ink.tool === "highlighter" ? <Highlighter size={15} /> : ink.on && ink.tool === "eraser" ? <Eraser size={15} /> : <PenLine size={15} />}
+          {ink.on && ink.tool !== "eraser" && <span className="ink-now-dot" style={{ background: resolveColor(ink.color) }} />}
+        </span>
       </button>
       {ink.on && !inkBarTucked && (
-        <div className="tool-menu ink-bar">
+        <div
+          className="tool-menu ink-bar"
+          // Left by the pointer (a mouse, the pen), it goes out of the way a moment after; back over it, it stays.
+          onPointerEnter={() => { if (inkLeave.current) { clearTimeout(inkLeave.current); inkLeave.current = null; } }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "touch") return;
+            inkLeave.current = window.setTimeout(() => { inkLeave.current = null; setInkBarTucked(true); }, 450);
+          }}
+        >
           <div className="ink-row">
             {([["pen", "Pen", <PenLine size={15} key="p" />], ["highlighter", "Highlighter", <Highlighter size={15} key="h" />],
               ["eraser", "Eraser — touch a stroke to take it off", <Eraser size={15} key="e" />]] as const).map(([key, name, icon]) => (
@@ -646,8 +658,7 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
             <button className="ink-pick" title="Undo (Ctrl+Z)" disabled={!canUndo()} onClick={() => undo()}><Undo2 size={15} /></button>
             <button className="ink-pick" title="Redo (Ctrl+Shift+Z)" disabled={!canRedo()} onClick={() => redo()}><Redo2 size={15} /></button>
             <button className="ink-pick" title="Clear all ink (undo brings it back)" onClick={() => clearInk()}><Trash2 size={15} /></button>
-            <button className="ink-pick" title="Put these tools away — the pen keeps drawing; the pen button brings them back"
-              onClick={() => setInkBarTucked(true)}><ChevronUp size={15} /></button>
+            <button className="ink-pick" title="Stop drawing (Escape)" onClick={() => setInk(false)}><PenOff size={15} /></button>
           </div>
         </div>
       )}

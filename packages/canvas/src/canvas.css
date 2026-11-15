@@ -800,3 +800,6 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .ink-swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer; padding: 0; }
 .ink-swatch.on { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ink-dot { display: block; border-radius: 50%; }
+.ink-now { position: relative; display: grid; place-items: center; }
+.ink-now-dot { position: absolute; right: -4px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--surface); }
+:root[data-ink-end="eraser"] .cv-wrap { cursor: cell; }

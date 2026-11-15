@@ -5,6 +5,9 @@ Description=Talaris pen: a touch held until the pen's coming near has been said
 After=systemd-udevd.service
 
 [Service]
+# /run/talaris-pen: which end of the pen is near (`end`), for Talaris to read.
+RuntimeDirectory=talaris-pen
+RuntimeDirectoryMode=0755
 ExecStart=/usr/bin/python3 -I /usr/local/lib/talaris/talaris-pen
 Restart=always
 RestartSec=3

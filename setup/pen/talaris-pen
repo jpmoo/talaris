@@ -55,6 +55,20 @@ ABS_X, ABS_Y = 0x00, 0x01
 TURN = "/run/user/{uid}/talaris-turn"
 #: The pointer's own range, each axis.
 SPAN = 65535
+#: Which end of the pen is near, said for Talaris (its canvas erases with the eraser end): "pen", "eraser" or "".
+END = "/run/talaris-pen/end"
+#: After the end changes, how long its first touch waits: Talaris to have heard which end it is.
+END_HOLD = 0.04
+
+
+def say_end(end: str) -> None:
+    try:
+        with open(END + ".tmp", "w") as f:
+            f.write(end)
+        os.chmod(END + ".tmp", 0o644)
+        os.replace(END + ".tmp", END)
+    except OSError:
+        pass
 ABS_CNT, KEY_CNT, MSC_CNT, PROP_CNT = 0x40, 0x300, 0x08, 0x20
 EVENT = struct.Struct("qqHHi")  # struct input_event, 64-bit
 
@@ -197,6 +211,9 @@ def run_pointer(path: str) -> None:
     log(f"taking {path}: the pen as a pointer, its touch the left button")
     raw = {ABS_X: 0, ABS_Y: 0}
     keys: dict[int, int] = {}
+    tools = {BTN_TOOL_PEN: 0, BTN_TOOL_RUBBER: 0}
+    end, end_at = "", 0.0
+    say_end("")
     batch: list[bytes] = []
     def emit(kind: int, code: int, value: int) -> None:
         batch.append(EVENT.pack(0, 0, kind, code, value))
@@ -210,6 +227,8 @@ def run_pointer(path: str) -> None:
                     raw[code] = value
                 elif kind == EV_KEY and code in (BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2):
                     keys[code] = value
+                elif kind == EV_KEY and code in tools:
+                    tools[code] = value
                 elif kind == EV_SYN and code == SYN_REPORT:
                     (xl, xh), (yl, yh) = info[ABS_X], info[ABS_Y]
                     u, v = place((raw[ABS_X] - xl) / (xh - xl), (raw[ABS_Y] - yl) / (yh - yl), turn())
@@ -217,6 +236,16 @@ def run_pointer(path: str) -> None:
                     emit(EV_ABS, ABS_X, round(max(0.0, min(1.0, u)) * SPAN))
                     emit(EV_ABS, ABS_Y, round(max(0.0, min(1.0, v)) * SPAN))
                     emit(EV_SYN, SYN_REPORT, 0)
+                    # Which end is near: said (for Talaris's canvas, which erases with the eraser end), and a touch
+                    # just after it changed held a moment, so the canvas knows which end it is before it lands.
+                    now_end = "eraser" if tools[BTN_TOOL_RUBBER] else "pen" if tools[BTN_TOOL_PEN] else ""
+                    if now_end != end:
+                        end, end_at = now_end, time.monotonic()
+                        say_end(end)
+                    if keys.get(BTN_TOUCH) == 1 and time.monotonic() - end_at < END_HOLD:
+                        os.write(ui, b"".join(batch))
+                        batch.clear()
+                        time.sleep(END_HOLD - (time.monotonic() - end_at))
                     for pen, button in ((BTN_TOUCH, BTN_LEFT), (BTN_STYLUS, BTN_RIGHT), (BTN_STYLUS2, BTN_MIDDLE)):
                         if pen in keys:
                             emit(EV_KEY, button, keys.pop(pen))

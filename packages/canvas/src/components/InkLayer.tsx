@@ -9,7 +9,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { inkOf } from "../api.ts";
-import { begin, cancel, centerline, end, extend, inkState, onInk, outline, redo, setInk, undo } from "../ink.ts";
+import { begin, cancel, centerline, end, erasingByEnd, extend, inkState, onInk, outline, redo, setInk, undo } from "../ink.ts";
 
 /** Where a point on the screen is on the canvas, and the zoom: from the layer's own transform (as CanvasTools does). */
 function toCanvas(wrap: HTMLElement, clientX: number, clientY: number): { x: number; y: number; z: number } {
@@ -51,7 +51,8 @@ export function InkLayer({ span }: { span: number }) {
     const down = (e: PointerEvent) => {
       if (e.pointerType === "touch") { palm(e); return; }
       penNear = performance.now();
-      if (!inkState().on || e.button !== 0) return;
+      // With the pen's eraser end, ink is erased whether or not a pen tool is chosen.
+      if ((!inkState().on && !erasingByEnd()) || e.button !== 0) return;
       // Over the canvas's own controls (a card's menu, a field): theirs.
       const t = e.target as HTMLElement;
       if (t.closest("input, textarea, [contenteditable=true], .menu, .ctx-menu, button")) return;

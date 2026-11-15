@@ -368,6 +368,12 @@ class Desktop(QObject):
         self._fingers_up.connect(self._lifted)
         self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit,
                                           on_lift=self._fingers_up.emit)
+        # Which end of the pen is near (setup/pen/talaris-pen writes it): the canvas erases with the eraser end.
+        self._pen_end = ""
+        self._pen_watch = QTimer(self)
+        self._pen_watch.timeout.connect(self._pen_end_now)
+        if os.path.isdir("/run/talaris-pen"):
+            self._pen_watch.start(60)
         # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
         self.centering = tiling.Centering(self.events, self.carousel)
         self.rotation.apply()
@@ -517,6 +523,20 @@ class Desktop(QObject):
         for w in hypr.windows()["windows"]:
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
+
+    def _pen_end_now(self) -> None:
+        """The pen's end, as the helper last said: a change told to the canvas, as a panel and as a window."""
+        try:
+            end = open("/run/talaris-pen/end").read().strip()
+        except OSError:
+            return
+        if end == self._pen_end:
+            return
+        self._pen_end = end
+        ws = self.workspaces.get("canvas")
+        for view in (getattr(ws, "view", None), getattr(ws, "window", None)):
+            if view is not None and callable(getattr(view, "page", None)):
+                view.page().runJavaScript(f"window.talarisPenEnd && talarisPenEnd({json.dumps(end)})")
 
     def _lifted(self) -> None:
         """Every finger off the glass: a dock or bar out by a finger counts its time from now; a side swipe goes."""
