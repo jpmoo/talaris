@@ -126,6 +126,9 @@ const Surface = (() => {
       taken(true);
     }, true);
     addEventListener("focusout", () => setTimeout(() => {
+      // The window losing the keys, not the field: the keyboard coming up took them a moment (the project menu's
+      // search lost its keyboard as it came), which is no leaving of the field.
+      if (!document.hasFocus()) return;
       if (editable(document.activeElement)) { field = document.activeElement; place(); return; }
       field = null; btn.style.display = "none";
       if (up) set(false);

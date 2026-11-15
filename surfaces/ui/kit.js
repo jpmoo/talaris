@@ -199,7 +199,11 @@ const Kit = (() => {
         if (!isOpen() || holder.contains(e.target) || (opener && opener.contains && opener.contains(e.target))) return;
         popAway();
       }, true);
-      addEventListener("resize", popAway);
+      // Narrower or wider (the screen turned): put away. Only shorter or taller is the on-screen keyboard coming or
+      // going, which the page is made room for — put away then, a menu with a search went as its keyboard came, and
+      // the keyboard with it (2026-11-15).
+      let wide = innerWidth;
+      addEventListener("resize", () => { if (innerWidth !== wide) { wide = innerWidth; popAway(); } });
       // The page scrolled under it: what opened it has moved away.
       document.addEventListener("scroll", (e) => { if (isOpen() && !holder.contains(e.target)) popAway(); }, true);
       // Escape puts the pop-up away and nothing else: first, before the page hears it.
