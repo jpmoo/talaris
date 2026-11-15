@@ -137,3 +137,39 @@ test("a suggestion said no to: one member added", async () => {
   const r = records.ownLog().filter((x) => x.of === "suggest").pop()!;
   assert.equal(r.add!.no!.length, 1);
 });
+
+test("compacting records (trimming) comes to what applying them all did, and later ones still win or lose as before", () => {
+  type R = import("../src/records.js").Rec;
+  // A model of applying: per field the latest moment's value; per member the latest add or remove; a thing gone gone.
+  const run = (recs: R[]) => {
+    const f = new Map<string, { at: R["at"]; v: unknown }>(), m = new Map<string, { at: R["at"]; in: boolean }>(), gone = new Map<string, R["at"]>();
+    const newer = (a: R["at"], b?: R["at"]) => !b || records.compare(a, b) >= 0;
+    for (const r of [...recs].sort((a, b) => records.compare(a.at, b.at))) {
+      for (const [k, v] of Object.entries(r.set ?? {})) if (newer(r.at, f.get(`${r.of}/${k}`)?.at)) f.set(`${r.of}/${k}`, { at: r.at, v });
+      for (const k of r.unset ?? []) if (newer(r.at, f.get(`${r.of}/${k}`)?.at)) f.set(`${r.of}/${k}`, { at: r.at, v: undefined });
+      for (const [k, ms] of Object.entries(r.add ?? {})) for (const x of ms) if (newer(r.at, m.get(`${r.of}/${k}/${x}`)?.at)) m.set(`${r.of}/${k}/${x}`, { at: r.at, in: true });
+      for (const [k, ms] of Object.entries(r.remove ?? {})) for (const x of ms) if (newer(r.at, m.get(`${r.of}/${k}/${x}`)?.at)) m.set(`${r.of}/${k}/${x}`, { at: r.at, in: false });
+      if (r.gone && newer(r.at, gone.get(r.of))) gone.set(r.of, r.at);
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of f) out[`f:${k}`] = x.v;
+    for (const [k, x] of m) out[`m:${k}`] = x.in;
+    for (const [k] of gone) out[`g:${k}`] = true;
+    return JSON.stringify(Object.fromEntries(Object.entries(out).sort()));
+  };
+  let seed = 7;
+  const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  const recs: R[] = [];
+  for (let i = 0; i < 3000; i++) {
+    const of = `e:${rnd(20)}`, at = { t: 1000 + rnd(500), c: rnd(3), m: ["m_a", "m_b"][rnd(2)]! };
+    const kind = rnd(6);
+    recs.push({ of, at, batch: `b${i}`, ...(kind === 0 ? { unset: [`f${rnd(4)}`] } : kind === 1 ? { add: { tags: [`t${rnd(5)}`] } }
+      : kind === 2 ? { remove: { tags: [`t${rnd(5)}`] } } : kind === 3 && rnd(10) === 0 ? { gone: true as const } : { set: { [`f${rnd(4)}`]: rnd(100) } }) });
+  }
+  const small = records.compact(recs);
+  assert.ok(small.length < recs.length / 3, `compacted: ${small.length} of ${recs.length}`);
+  assert.equal(run(small), run(recs), "the same, applied");
+  // Later records, from another machine, against either: the same again.
+  const later: R[] = [{ of: "e:3", at: { t: 1200, c: 9, m: "m_b" }, batch: "x", set: { f1: "late" } }, { of: "e:4", at: { t: 2000, c: 0, m: "m_b" }, batch: "y", remove: { tags: ["t1"] } }];
+  assert.equal(run([...small, ...later]), run([...recs, ...later]));
+});

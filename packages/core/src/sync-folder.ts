@@ -20,11 +20,11 @@
  * A file's record that arrives before its bytes waits, and is tried again.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DATA_DIR, ENTITIES_DIR, readVault, storeKey } from "./vault.js";
 import { unseal } from "./seal.js";
-import { machine, syncing, type Rec } from "./records.js";
+import { compactOwnLog, machine, syncing, type Rec } from "./records.js";
 import { apply, known, tellScreens } from "./sync-apply.js";
 import { blobsAt, getBlob, scanFiles } from "./sync-files.js";
 import { isInstalled, pluginStateBlobs } from "./plugins.js";
@@ -68,6 +68,10 @@ function push(folder: string): void {
   if (v && (!existsSync(shared) || readFileSync(shared, "utf8") !== now)) writeFileSync(shared, now);
   const logs = join(STATE(), "log", me.id);
   if (existsSync(logs)) for (const n of readdirSync(logs)) copyIfGrown(join(logs, n), join(mine, "log", n));
+  // How far this machine has read each other's log: for each to know which of its own files all have read (`trim`).
+  const seenNow = existsSync(SEEN()) ? readFileSync(SEEN(), "utf8") : "{}";
+  const seenOut = join(mine, "seen.json");
+  if (!existsSync(seenOut) || readFileSync(seenOut, "utf8") !== seenNow) writeFileSync(seenOut, seenNow);
   // Attached files, as the store keeps them (sealed already): each once.
   const blobs = join(ENTITIES_DIR, "blobs");
   const out = join(folder, "attachments");
@@ -148,12 +152,43 @@ function pull(folder: string): number {
   return n;
 }
 
+// ------------------------------------------------------------ trimming
+
+/**
+ * This machine's own log files that every other machine has read past (each says how far, in its seen.json),
+ * compacted into one (records.ts, `compactOwnLog`): what applying them comes to, nothing lost. A machine joining
+ * later reads that, and the rest as before. Only when every other machine has said where it is; never the file
+ * being written to.
+ */
+export function trim(folder: string): { kept: string; dropped: string[]; lines: number } | null {
+  const me = machine().id;
+  const others = readdirSync(folder).filter((n) => n.startsWith("m_") && n !== me);
+  if (!others.length) return null;
+  let before: string | null = null;
+  for (const o of others) {
+    const seen = readState<Seen>(join(folder, o, "seen.json"), {});
+    const at = seen[me]?.file;
+    if (!at) return null; // one that has not said (or not read any): nothing yet
+    if (before === null || at < before) before = at;
+  }
+  const done = compactOwnLog(before!);
+  if (!done) return null;
+  const mine = join(folder, me, "log");
+  copyIfGrown(join(STATE(), "log", me, done.kept), join(mine, done.kept));
+  for (const n of done.dropped) rmSync(join(mine, n), { force: true });
+  console.log(`talaris-core: sync: own log trimmed — ${done.dropped.length + 1} files into ${done.kept}, ${done.lines} records`);
+  return done;
+}
+
 // ------------------------------------------------------------ the beat
 
 let timer: NodeJS.Timeout | null = null;
 let busy = false;
 
 /** One round: in, the projects looked over, out. Says how many changes came in. */
+const TRIM_EVERY_MS = 60 * 60 * 1000;
+let lastTrim = 0;
+
 /** The last round, for Settings, Sync: when, how many changes came in it and the last that did, and what went wrong. */
 const last = { at: null as string | null, came: null as string | null, error: null as string | null };
 
@@ -166,6 +201,8 @@ export function tick(): number {
     const n = pull(folder);
     scanFiles();
     push(folder);
+    // Now and then: this machine's own old log files, which every other machine has read, compacted.
+    if (Date.now() - lastTrim > TRIM_EVERY_MS) { lastTrim = Date.now(); try { trim(folder); } catch (e) { console.log(`talaris-core: sync: trimming: ${(e as Error).message}`); } }
     last.at = new Date().toISOString();
     if (n) last.came = last.at;
     last.error = null;
