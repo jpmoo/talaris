@@ -20,6 +20,8 @@ fi
 install -D -m 0755 -o root -g root "$here/talaris-pen" /usr/local/lib/talaris/talaris-pen
 install -D -m 0644 -o root -g root "$here/talaris-pen.service" /etc/systemd/system/talaris-pen.service
 systemctl daemon-reload
-systemctl enable --now talaris-pen.service
+systemctl enable talaris-pen.service
+# Restarted, not only started: an older copy already running would go on running.
+systemctl restart talaris-pen.service
 sleep 1
 systemctl --no-pager --lines=3 status talaris-pen.service | sed -n '1,3p;/talaris-pen:/p'
