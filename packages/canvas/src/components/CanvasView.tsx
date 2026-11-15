@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
+import { clearInk } from "../ink.ts";
 import { InkLayer } from "./InkLayer.tsx";
 import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -2765,6 +2766,8 @@ export function CanvasView({
     if (blockIds.length) onChanged();
   };
   const clearCanvas = async () => {
+    // The ink too (ink.ts) — kept apart from the notes, so the notes' clearing left it — as a step its undo brings back.
+    clearInk();
     saveNotes([]);
     saveEdges([]);
     saveRegions([]);
