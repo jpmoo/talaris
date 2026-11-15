@@ -360,7 +360,8 @@ class Desktop(QObject):
         # And any finger down, off a dock or bar that is out, puts it away, as a click off it does (sensor.py).
         self._finger_down.connect(self._tapped)
         # A dock or bar a finger brought out goes a while after the finger lifts, not after the swipe began.
-        self._fingers_up.connect(lambda: (self.dock.hider.lifted(), self.bar.hider.lifted()))
+        self._slide_on_lift = 0
+        self._fingers_up.connect(self._lifted)
         self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit,
                                           on_lift=self._fingers_up.emit)
         # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
@@ -513,6 +514,15 @@ class Desktop(QObject):
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
 
+    def _lifted(self) -> None:
+        """Every finger off the glass: a dock or bar out by a finger counts its time from now; a side swipe goes."""
+        self.dock.hider.lifted()
+        self.bar.hider.lifted()
+        way, self._slide_on_lift = self._slide_on_lift, 0
+        if way:
+            import tiling  # noqa: PLC0415
+            QTimer.singleShot(80, lambda: tiling.slide(way))
+
     def _tapped(self, across: float, down: float) -> None:
         """A finger down somewhere: off the dock or the bar while either is out, it goes (sensor.py, `tapped_at`)."""
         try:
@@ -535,9 +545,10 @@ class Desktop(QObject):
         In the carousel, in from a side (where neither is) goes to the window that way: from the right, the next.
         """
         if edge in ("left", "right") and self.carousel() and not any(it.edge == edge for it in (self.dock, self.bar)):
-            import tiling  # noqa: PLC0415
             log(f"gestures: in from the {edge} edge: the {'next' if edge == 'right' else 'previous'} window")
-            tiling.slide(1 if edge == "right" else -1)
+            # Gone to once the finger lifts: Hyprland gives the keys back to the window under the pointer as a touch
+            # ends, and went to mid-swipe, the window gone to lost them a moment later — the strip bounced back.
+            self._slide_on_lift = 1 if edge == "right" else -1
             return
         for it in (self.dock, self.bar):
             if it.edge == edge and it.hider.on:
