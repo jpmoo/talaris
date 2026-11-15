@@ -63,28 +63,29 @@ def plug() -> list[float]:
 
 def opening() -> list[float]:
     """
-    Talaris come up: a soft chord, gently strummed — A major with a ninth (A4, C#5, E5, B5), each note a warm bell,
-    a few hundredths of a second apart, swelling in rather than struck, and ringing out.
+    Talaris come up: a soft run up the A major pentatonic (A4 B4 C#5 E5 F#5 A5), a note every 70 ms, each a warm
+    bell that swells in and rings on — so the run blooms into a chord as it ends.
     """
-    n = int(RATE * 2.2)
+    n = int(RATE * 2.6)
     out = [0.0] * n
-    notes = [(440.0, 0.000, 0.9), (554.4, 0.025, 0.75), (659.3, 0.050, 0.7), (987.8, 0.080, 0.4)]
-    for f, at, gain in notes:
-        start = int(RATE * at)
+    scale = [440.0, 493.9, 554.4, 659.3, 740.0, 880.0]
+    for k, f in enumerate(scale):
+        start = int(RATE * 0.07 * k)
+        gain = 0.85 - 0.07 * k
         for i in range(n - start):
             t = i / RATE
-            attack = min(1.0, t / 0.03) ** 2  # a swell, not a strike
-            decay = math.exp(-t * 2.2)
+            attack = min(1.0, t / 0.025) ** 2
+            decay = math.exp(-t * 1.9)
             s = (math.sin(2 * math.pi * f * t) + 0.6 * math.sin(2 * math.pi * f * 1.0015 * t)) * 0.6
-            s += 0.18 * math.sin(2 * math.pi * f * 2 * t) * math.exp(-t * 5)  # a little body, gone soon
-            s += 0.05 * math.sin(2 * math.pi * f * 3.01 * t) * math.exp(-t * 9)
+            s += 0.16 * math.sin(2 * math.pi * f * 2 * t) * math.exp(-t * 5)
+            s += 0.04 * math.sin(2 * math.pi * f * 3.01 * t) * math.exp(-t * 9)
             out[start + i] += gain * attack * decay * s
-    for delay, g in ((int(RATE * 0.11), 0.2), (int(RATE * 0.23), 0.1)):
+    for delay, g in ((int(RATE * 0.11), 0.18), (int(RATE * 0.23), 0.09)):
         for i in range(n - 1, delay - 1, -1):
             out[i] += g * out[i - delay]
     peak = max(abs(s) for s in out) or 1.0
-    fade = int(RATE * 0.4)
-    # Softer than the plug's: a greeting, not a notice.
+    fade = int(RATE * 0.5)
+    # Soft: a greeting, not a notice.
     return [s / peak * 0.18 * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
 
 
