@@ -45,7 +45,7 @@ import { applyKept } from "./suggest.js";
 import { merge3 } from "./merge3.js";
 import { libraryFileSha, removeLibraryFile, writeLibraryFile } from "./sync-files.js";
 import { writeWallpaper } from "./wallpapers.js";
-import { setSettings, settingsOf as pluginSettingsShown } from "./plugins.js";
+import { applyPluginState, applyRunner, setSettings, settingsOf as pluginSettingsShown } from "./plugins.js";
 
 // ------------------------------------------------------------ clocks
 
@@ -124,7 +124,7 @@ export function replacedFor(of?: string): Replaced[] {
 // ------------------------------------------------------------ applying
 
 /** Whether this Talaris knows what a record is about: one from a newer Talaris may not be, yet (sync-folder.ts keeps it). */
-const KINDS = ["plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
+const KINDS = ["runner:", "pstate:", "plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
 export function known(r: Rec): boolean {
   return KINDS.some((k) => r.of.startsWith(k)) || ["merged", "suggest", "prefs"].includes(r.of);
 }
@@ -525,6 +525,8 @@ export function apply(r: Rec): boolean {
         if (r.of === "suggest") { applyKept((r.add ?? {}) as never, (r.remove ?? {}) as never); return true; }
         if (r.of === "prefs") return applyPrefs(r);
         if (r.of.startsWith("plugin:")) return applyPluginSettings(r);
+        if (r.of.startsWith("runner:")) return applyRunner(r);
+        if (r.of.startsWith("pstate:")) return applyPluginState(r);
         if (r.of.startsWith("wallpaper:")) {
           const ok = typeof r.set?.sha === "string" && writeWallpaper(r.of.slice("wallpaper:".length), r.set.sha);
           // A wallpaper the settings named before its picture had come: the settings taken again, now it is here.

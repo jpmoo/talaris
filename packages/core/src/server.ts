@@ -788,6 +788,12 @@ route("POST", "/plugins/:id/enable", async (req, [id]) => {
   return { ok: true };
 });
 route("POST", "/plugins/:id/restart", (_r, [id]) => { plugins.restart(id!); return { ok: true }; });
+// A one-at-a-time plugin run on this machine (plugins.ts, `runHere`): `now` without waiting for the other's state.
+route("POST", "/plugins/:id/run-here", async (req, [id]) => {
+  const b = await json<{ now?: boolean }>(req);
+  plugins.runHere(id!, b.now === true);
+  return { ok: true };
+});
 route("PUT", "/plugins/:id/settings", async (req, [id]) => {
   plugins.setSettings(id!, (await json<{ values?: Record<string, unknown> }>(req)).values ?? {});
   return { ok: true };

@@ -27,7 +27,7 @@ import { unseal } from "./seal.js";
 import { machine, syncing, type Rec } from "./records.js";
 import { apply, known, tellScreens } from "./sync-apply.js";
 import { blobsAt, getBlob, scanFiles } from "./sync-files.js";
-import { isInstalled } from "./plugins.js";
+import { isInstalled, pluginStateBlobs } from "./plugins.js";
 
 const STATE = () => join(DATA_DIR, "sync");
 const FOLDER_FILE = () => join(STATE(), "folder");
@@ -133,6 +133,10 @@ function pull(folder: string): number {
   let n = 0;
   for (const r of recs) {
     if ((r.of.startsWith("file:") || r.of.startsWith("wallpaper:")) && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
+    // A plugin's state handed over (plugins.ts): once all its files' bytes have come.
+    if (r.of.startsWith("pstate:") && pluginStateBlobs(r).some((sha) => !getBlob(sha))) { still.push(r); continue; }
+    // About a plugin not installed here yet: kept until it is.
+    if ((r.of.startsWith("runner:") || r.of.startsWith("pstate:")) && !isInstalled(r.of.slice(r.of.indexOf(":") + 1))) { still.push(r); continue; }
     // About something this Talaris does not know yet — written by a newer one: kept, and applied once this is updated.
     if (!known(r)) { still.push(r); continue; }
     // A plugin's settings, for a plugin not installed here yet: kept, and given to it once it is.

@@ -2508,7 +2508,20 @@ async function loadPlugins() {
           redraw();
         } }, a.label)) : []),
         pel("button", { class: "t-btn", onclick: () => { if (open) plOpen.delete(r.id); else plOpen.add(r.id); redraw(); } }, open ? "Less" : "More"), sw));
-    const block = pel("div", { class: "mg-server" }, head, asking, plDecisions(r, redraw));
+    // One machine at a time (docs/SYNC.md): which runs it, and moving it here.
+    const runHere = (now) => async () => {
+      try { await core("POST", `/plugins/${encodeURIComponent(r.id)}/run-here`, { now }); say(now ? `${m.name} runs here now` : `${m.name} will run here once its state has come`); }
+      catch (e) { say(e.message, true); }
+      setTimeout(redraw, 800);
+    };
+    const one = r.one ? pel("div", { class: "row" },
+      pel("span", { class: "name" }, "Runs on", pel("small", {}, r.one.waiting ? `Here, once ${m.name} has handed over what it knows from the other machine`
+        : r.one.here ? "This machine. Your other machines keep it idle" : r.one.on ? `${r.one.on}. Here it is kept idle, so the two never both run it` : "No machine yet")),
+      pel("span", { class: "what" },
+        r.one.here && !r.one.waiting ? pel("span", { class: "pl-state running" }, "here")
+          : pel("button", { class: "t-btn", onclick: runHere(false) }, "Run it here"),
+        r.one.waiting ? pel("button", { class: "t-btn", title: "Start it now, without waiting for the other machine (asleep or off)", onclick: runHere(true) }, "Start now") : null)) : null;
+    const block = pel("div", { class: "mg-server" }, head, one, asking, plDecisions(r, redraw));
     if (!open) return block;
     const body = pel("div", { class: "pl-body" });
     body.append(pel("h3", {}, "It adds"),

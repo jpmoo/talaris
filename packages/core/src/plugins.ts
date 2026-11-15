@@ -17,7 +17,10 @@ import { Conflict, NotFound } from "./projects.js";
 import { readJson, writeJson } from "./store.js";
 import { parseToml } from "./toml.js";
 import { forgetSecret, getSecret, setSecret } from "./vault.js";
-import { write as writeRecord } from "./records.js";
+import { machine, syncing, write as writeRecord, type Rec } from "./records.js";
+import { getBlob, putBlob } from "./sync-files.js";
+import { DATA_DIR } from "./vault.js";
+import { createHash } from "node:crypto";
 
 /**
  * Plugins (DESIGN, *Plugins*). A plugin is **its own process**, any language,
@@ -123,6 +126,12 @@ export interface Manifest {
    * it. Its settings go too, always, but never a secret.
    */
   backup: { state: string[] };
+  /**
+   * `[sync] one = true`: it talks to something outside and must not run on two machines at once (docs/SYNC.md,
+   * *Who runs a one-at-a-time plugin*). It runs on one machine, which Settings names and can move; the rest keep it
+   * idle, and what it knows (`backup.state`) goes with it when it moves.
+   */
+  sync?: { one: boolean };
   permissions: {
     read: string[];
     write: string[];
@@ -213,6 +222,7 @@ export function readManifest(dir: string): Manifest {
     ...(typeof t.license === "string" ? { license: t.license } : {}),
     ...(typeof t.homepage === "string" ? { homepage: t.homepage } : {}),
     command, tools, apps, actions, ...(calendar ? { calendar } : {}), settings, backup: { state },
+    ...((t.sync as Record<string, unknown> | undefined)?.one === true ? { sync: { one: true } } : {}),
     // Changing a kind means reading it: a write permission brings the read with it.
     permissions: { read: [...new Set([...read, ...write])], write, notify: p.notify === true, network: strs(p.network), files: strs(p.files) },
   };
@@ -220,13 +230,21 @@ export function readManifest(dir: string): Manifest {
 
 // ------------------------------------------------------------ what is kept
 
-interface Kept { enabled: Record<string, boolean>; settings: Record<string, Record<string, unknown>> }
+interface Runner { machine: string; name: string }
+interface Kept {
+  enabled: Record<string, boolean>;
+  settings: Record<string, Record<string, unknown>>;
+  /** A one-at-a-time plugin's machine, as the machines agree on it (`runner:<id>` records). */
+  runsOn?: Record<string, Runner>;
+  /** Moved here and waiting for what it knows from the machine it was on (`pstate:<id>`). */
+  handover?: Record<string, boolean>;
+}
 const kept = (): Kept => {
   try {
     const k = readJson<Partial<Kept>>(STATE());
-    return { enabled: k.enabled ?? {}, settings: k.settings ?? {} };
+    return { enabled: k.enabled ?? {}, settings: k.settings ?? {}, runsOn: k.runsOn ?? {}, handover: k.handover ?? {} };
   } catch {
-    return { enabled: {}, settings: {} };
+    return { enabled: {}, settings: {}, runsOn: {}, handover: {} };
   }
 };
 const keep = (k: Kept) => writeJson(STATE(), k);
@@ -443,6 +461,114 @@ export function enable(id: string, on: boolean): void {
   k.enabled[id] = on;
   keep(k);
   if (on) start(id); else stop(id);
+}
+
+// ------------------------------------------------------------ one machine at a time
+
+const me = () => machine();
+const first = () => existsSync(join(DATA_DIR, "sync", "first"));
+const oneAtATime = (m: Manifest) => Boolean(m.sync?.one);
+
+/** The machine a one-at-a-time plugin runs on, as the machines agree; null if none has been named yet. */
+export function runnerOf(id: string): Runner | null { return kept().runsOn?.[id] ?? null; }
+
+/**
+ * Whether it may run here now. Not one at a time, or not syncing: yes. Otherwise only on its machine, and not while
+ * it waits for what it knows. With none named, the first machine (the one the others joined) takes it — the one it
+ * was running on before there were two.
+ */
+function runsHere(m: Manifest, claim = true): boolean {
+  if (!oneAtATime(m) || !syncing()) return true;
+  const k = kept();
+  const r = k.runsOn?.[m.id];
+  if (!r) {
+    if (!first()) return false;
+    if (claim) nameRunner(m.id);
+    return true;
+  }
+  return r.machine === me().id && !k.handover?.[m.id];
+}
+
+function nameRunner(id: string, waiting = false): void {
+  const k = kept();
+  k.runsOn = { ...k.runsOn, [id]: { machine: me().id, name: me().name } };
+  k.handover = { ...k.handover };
+  if (waiting) k.handover[id] = true; else delete k.handover[id];
+  keep(k);
+  writeRecord({ of: `runner:${id}`, set: { machine: me().id, name: me().name } });
+}
+
+/**
+ * Run it here, from Settings. The machine it was on stops it and sends what it knows; it starts here when that has
+ * come. `now`: started at once, without — for a machine that is away (asleep, off). Things it makes outside have ids
+ * worked out from Talaris's, so a second run makes nothing twice.
+ */
+export function runHere(id: string, now = false): void {
+  const m = installed().find((x) => x.manifest.id === id)?.manifest;
+  if (!m) throw new NotFound(`no plugin ${id}`);
+  const r = runnerOf(id);
+  const already = r?.machine === me().id;
+  if (!already) nameRunner(id, !now && Boolean(r));
+  else if (now) { const k = kept(); k.handover = { ...k.handover }; delete k.handover[id]; keep(k); }
+  if (kept().enabled[id]) start(id);
+}
+
+/** Another machine took it (`runner:<id>`): kept as agreed; here, stopped, and what it knows sent to the new one. */
+export function applyRunner(r: Rec): boolean {
+  const id = r.of.slice("runner:".length);
+  const machineId = typeof r.set?.machine === "string" ? r.set.machine : "";
+  if (!machineId) return false;
+  const k = kept();
+  const was = k.runsOn?.[id];
+  k.runsOn = { ...k.runsOn, [id]: { machine: machineId, name: typeof r.set?.name === "string" ? r.set.name : machineId } };
+  if (machineId !== me().id && k.handover?.[id]) { k.handover = { ...k.handover }; delete k.handover[id]; }
+  keep(k);
+  if (machineId === me().id) return true;
+  const wasHere = running.has(id) || was?.machine === me().id;
+  stop(id);
+  if (wasHere) handOver(id, machineId);
+  return true;
+}
+
+/** What it knows (`[backup] state`), sent to the machine it moved to: by hash, through the folder's blobs. */
+function handOver(id: string, to: string): void {
+  const m = installed().find((x) => x.manifest.id === id)?.manifest;
+  const root = pluginStateDir(id);
+  const files: Record<string, string> = {};
+  for (const name of m?.backup.state ?? []) {
+    const path = join(root, name);
+    if (!existsSync(path) || !statSync(path).isFile()) continue;
+    const bytes = readFileSync(path);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    putBlob(sha, bytes);
+    files[name] = sha;
+  }
+  writeRecord({ of: `pstate:${id}`, set: { for: to, files } });
+}
+
+/** The hashes a handed-over state names, for the folder to wait on until their bytes have come (sync-folder.ts). */
+export function pluginStateBlobs(r: Rec): string[] {
+  const files = r.set?.files;
+  return files && typeof files === "object" ? Object.values(files as Record<string, unknown>).filter((x): x is string => typeof x === "string") : [];
+}
+
+/** What it knows, from the machine it was on: written here, and it starts. For another machine: nothing. */
+export function applyPluginState(r: Rec): boolean {
+  const id = r.of.slice("pstate:".length);
+  if (r.set?.for !== me().id) return false;
+  const root = pluginStateDir(id);
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  for (const [name, sha] of Object.entries((r.set?.files ?? {}) as Record<string, string>)) {
+    if (name.includes("..") || name.startsWith("/")) continue;
+    const bytes = getBlob(sha);
+    if (bytes) writeFileSync(join(root, name), bytes, { mode: 0o600 });
+  }
+  const k = kept();
+  k.handover = { ...k.handover };
+  delete k.handover[id];
+  keep(k);
+  if (k.enabled[id] && k.runsOn?.[id]?.machine === me().id) start(id);
+  return true;
 }
 
 // ------------------------------------------------------------ running
@@ -703,6 +829,8 @@ function start(id: string): void {
   const p = installed().find((x) => x.manifest.id === id);
   if (!p) throw new NotFound(`no plugin ${id}`);
   stop(id);
+  // One at a time: only on its machine, and there only once what it knows has come.
+  if (!runsHere(p.manifest)) return;
   const r = new Running(p.dir, p.manifest);
   running.set(id, r);
   r.start();
@@ -823,12 +951,13 @@ export interface PluginRow {
   manifest?: Manifest;
   error?: string;
   enabled: boolean;
-  state: State | "disabled";
+  state: State | "disabled" | "elsewhere";
   status: string;
   problem: string;
   tools: McpTool[];
   settings: Record<string, unknown>;
   decisions: Decision[];
+  one?: { on: string | null; here: boolean; waiting: boolean };
 }
 
 export function listPlugins(): PluginRow[] {
@@ -840,7 +969,9 @@ export function listPlugins(): PluginRow[] {
       id, dir: x.dir,
       ...(x.manifest ? { manifest: x.manifest } : { error: x.error }),
       enabled: Boolean(k.enabled[id]),
-      state: r ? r.state : k.enabled[id] ? "stopped" : "disabled",
+      state: r ? r.state : k.enabled[id] ? (x.manifest && oneAtATime(x.manifest) && syncing() && !runsHere(x.manifest, false) ? "elsewhere" : "stopped") : "disabled",
+      // One at a time (docs/SYNC.md): which machine it runs on, whether that is this one, and whether it waits here.
+      ...(x.manifest && oneAtATime(x.manifest) && syncing() ? { one: { on: k.runsOn?.[id]?.name ?? null, here: k.runsOn?.[id]?.machine === me().id, waiting: Boolean(k.handover?.[id]) } } : {}),
       status: r?.status ?? "",
       problem: r?.error ?? "",
       tools: r?.tools ?? [],
