@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 #
-# Swap the focused window with the one that way (l, r, u, d) — places traded,
+# Tiles: swap the focused window with the one that way (l, r, u, d) — places traded,
 # the layout as it was; if nothing is that way, turn its split so it lands on
 # that side instead — two windows side
 # by side become one above the other (up: this one on top; down: below), and
@@ -16,6 +16,16 @@
 # (dwindle) is the only way to stack two. This is `swapwindow`, then that.
 set -euo pipefail
 dir="${1:?a direction: l, r, u or d}"
+
+# In the carousel (Settings, Windows, Tiling: surfaces/tiling.py, Hyprland's scrolling layout): left and right
+# slide the strip a column, the window there coming to the middle; up and down do nothing.
+if hyprctl getoption general:layout -j 2>/dev/null | grep -q '"scrolling"'; then
+  case "$dir" in
+    l) hyprctl dispatch layoutmsg move -col >/dev/null ;;
+    r) hyprctl dispatch layoutmsg move +col >/dev/null ;;
+  esac
+  exit 0
+fi
 me() { hyprctl activewindow -j; }
 before="$(me | jq -c '[.at, .size]')"
 hyprctl dispatch swapwindow "$dir" >/dev/null

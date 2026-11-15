@@ -343,6 +343,10 @@ class Desktop(QObject):
         self.corners = Corners(self)
         # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
         self.rotation = Rotation(self)
+        # Three fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
+        import gestures  # noqa: PLC0415
+        import tiling  # noqa: PLC0415
+        self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide)
         self.rotation.apply()
         # The on-screen keyboard, where there is a touchscreen and Squeekboard: up only when a field's button asks.
         self.keyboard = Keyboard(self)
@@ -553,6 +557,9 @@ class Desktop(QObject):
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
         self.gaps = sides
+        # How windows are laid out on this machine: Tiles or Carousel (tiling.py).
+        import tiling  # noqa: PLC0415
+        tiling.apply(str(win.get("tiling", "tiles")))
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""

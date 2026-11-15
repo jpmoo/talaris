@@ -621,6 +621,8 @@ class Settings(Overlay):
                 "blueBubbles": bluebubbles.server() is not None,
                 # Whether this machine can say which way up it is: Look's "Turn with the device" only where it can.
                 "canRotate": rotation.available(),
+                # Whether Carousel can be had here (tiling.py): the scrolling layout's plugin installed.
+                "canCarousel": __import__("tiling").available(),
                 # Where you are, as Settings, Location shows it (location.py).
                 **({"location": self.desktop.location.describe()} if getattr(self.desktop, "location", None) else {})}
 

@@ -200,6 +200,12 @@ function draw() {
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
+  // Tiles or Carousel (tiling.py): this machine's own. Carousel only where its plugin is installed.
+  seg("win-tiling", [["tiles", "Tiles"], ["carousel", "Carousel"]], cfg.windows.tiling || "tiles", (tiling) => save({ windows: { tiling } }));
+  $("tiling-note").textContent = (cfg.windows.tiling || "tiles") === "carousel"
+    ? (canCarousel ? "A strip of windows, the ones beside showing at the edges. Super+Shift+Left and Right, or three fingers across the screen, slide it"
+      : "Carousel needs hyprland-plugin-hyprscrolling installed: sudo apt install hyprland-plugin-hyprscrolling. Tiles until then")
+    : "This machine's own: each new window splits the space of the one in use";
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   seg("win-outline", [["focus", "Accent in use"], ["accent", "Accent"], ["line", "Line"], ["none", "None"]], cfg.windows.outline || "focus",
@@ -300,6 +306,7 @@ function drawClipboard() {
 let blueBubbles = false;
 // Whether this machine can say which way up it is (rotation.py): Look's "Turn with the device" only where it can.
 let canRotate = false;
+let canCarousel = false;
 $("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
 $("cb-codes").addEventListener("click", () => save({ clipboard: { codes: cb().codes !== true } }));
 // ---------------------------------------------------------------- activity
@@ -2311,6 +2318,7 @@ Surface.connect({
     showMorgan();
     if (had !== morganHere && $("morgan").classList.contains("on")) loadMorgan();
     if (canRotate !== !!s.canRotate) { canRotate = !!s.canRotate; if (cfg) draw(); }
+    if (canCarousel !== !!s.canCarousel) { canCarousel = !!s.canCarousel; if (cfg) draw(); }
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
     if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };

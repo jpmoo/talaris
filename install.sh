@@ -81,6 +81,7 @@ OPTIONALS=(
   "libreoffice-common|reading office documents (large)"
   "fprintd|fingerprints"
   "pkexec|setting where you are for the whole system (Location)"
+  "hyprland-plugin-hyprscrolling|Carousel tiling (Settings, Windows), the windows in a sliding strip"
 )
 
 missing() {  # the packages of a list not installed, one a line: name|what for
@@ -160,6 +161,18 @@ if [ "$DEPS" = 1 ]; then
         | sudo tee /etc/udev/rules.d/70-talaris-tablet.rules >/dev/null
       sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
       echo "    Set. In effect after the next restart of the machine (or reload intel_hid now)."
+    fi
+  fi
+  # A touchscreen: three fingers across it slide the Carousel (gestures.py). Its events are readable only by the
+  # input group, which reads every keyboard too; this rule gives whoever is at the screen the touchscreens alone.
+  if grep -q 'ID_INPUT_TOUCHSCREEN=1' /run/udev/data/c13:* 2>/dev/null && [ ! -e /etc/udev/rules.d/70-talaris-touch.rules ]; then
+    echo "    This machine has a touchscreen. For swiping the Carousel, Talaris reads it, given one system setting:"
+    echo "      /etc/udev/rules.d/70-talaris-touch.rules  touchscreens readable by whoever is at the screen"
+    if [ "$YES" = 1 ] || ask "    Set it now (sudo)? [Y/n]" y; then
+      printf '%s\n' 'SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHSCREEN}=="1", TAG+="uaccess"' \
+        | sudo tee /etc/udev/rules.d/70-talaris-touch.rules >/dev/null
+      sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
+      echo "    Set."
     fi
   fi
   BL="$(backlight_group || true)"
