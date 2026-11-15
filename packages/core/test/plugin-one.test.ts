@@ -67,3 +67,27 @@ test("it runs on the machine named, the others keep it idle, and moving it sends
   assert.equal(row().one?.waiting, false);
   assert.notEqual(row().state, "elsewhere");
 });
+
+test("on another machine, it says where it runs; Start now begins from the runner's latest standby copy", () => {
+  // The other machine runs it, and has left a standby copy of what it knows.
+  const me = records.machine();
+  plugins.applyRunner({ of: "runner:outside", set: { machine: "m_other", name: "Mini" }, at: { t: 3, c: 0, m: "m_other" } } as never);
+  assert.match(plugins.notRunning("outside"), /runs on Mini, not on this machine/);
+  writeFileSync(join(plugins.pluginStateDir("outside"), "state.json"), JSON.stringify({ links: ["fresh"] }));
+  // Its bytes as the other machine left them (here, by this machine's own putBlob, as the folder would bring them).
+  const sync = await_import();
+  const bytes = Buffer.from(JSON.stringify({ links: ["standby"] }));
+  const sha = sync.sha(bytes);
+  sync.put(sha, bytes);
+  assert.equal(plugins.applyPluginState({ of: "pstate:outside", set: { standby: true, from: "m_other", files: { "state.json": sha } }, at: { t: 4, c: 0, m: "m_other" } } as never), true);
+  assert.deepEqual(plugins.pluginStateBlobs({ of: "pstate:outside", set: { standby: true, files: { "state.json": sha } } } as never), [], "a standby copy is never waited on");
+  plugins.runHere("outside", true);
+  assert.equal(readFileSync(join(plugins.pluginStateDir("outside"), "state.json"), "utf8"), JSON.stringify({ links: ["standby"] }));
+  assert.equal(plugins.runnerOf("outside")?.machine, me.id);
+});
+
+import { createHash } from "node:crypto";
+const filesMod = await import("../src/sync-files.js");
+function await_import() {
+  return { sha: (b: Buffer) => createHash("sha256").update(b).digest("hex"), put: (s: string, b: Buffer) => filesMod.putBlob(s, b) };
+}

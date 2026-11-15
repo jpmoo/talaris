@@ -18,7 +18,7 @@ import { readJson, writeJson } from "./store.js";
 import { parseToml } from "./toml.js";
 import { forgetSecret, getSecret, setSecret } from "./vault.js";
 import { machine, syncing, write as writeRecord, type Rec } from "./records.js";
-import { getBlob, putBlob } from "./sync-files.js";
+import { dropBlob, getBlob, putBlob } from "./sync-files.js";
 import { DATA_DIR } from "./vault.js";
 import { createHash } from "node:crypto";
 
@@ -238,11 +238,15 @@ interface Kept {
   runsOn?: Record<string, Runner>;
   /** Moved here and waiting for what it knows from the machine it was on (`pstate:<id>`). */
   handover?: Record<string, boolean>;
+  /** Its machine's latest standby copy of what it knows (`pstate:<id>`, standby): for Start now, here. */
+  standby?: Record<string, Record<string, string>>;
+  /** The standby copy this machine last left, while it ran it here: replaced, its old bytes dropped. */
+  standbyOut?: Record<string, Record<string, string>>;
 }
 const kept = (): Kept => {
   try {
     const k = readJson<Partial<Kept>>(STATE());
-    return { enabled: k.enabled ?? {}, settings: k.settings ?? {}, runsOn: k.runsOn ?? {}, handover: k.handover ?? {} };
+    return { enabled: k.enabled ?? {}, settings: k.settings ?? {}, runsOn: k.runsOn ?? {}, handover: k.handover ?? {}, standby: k.standby ?? {}, standbyOut: k.standbyOut ?? {} };
   } catch {
     return { enabled: {}, settings: {}, runsOn: {}, handover: {} };
   }
@@ -469,6 +473,19 @@ const me = () => machine();
 const first = () => existsSync(join(DATA_DIR, "sync", "first"));
 const oneAtATime = (m: Manifest) => Boolean(m.sync?.one);
 
+/**
+ * Why it cannot be asked now, said plainly: running on another machine (one at a time) — "Hermes Notes sync runs on
+ * XPS 13" — or simply not running here.
+ */
+export function notRunning(id: string): string {
+  const m = installed().find((x) => x.manifest.id === id)?.manifest;
+  const name = m?.name ?? id;
+  const r = runnerOf(id);
+  if (m && oneAtATime(m) && syncing() && r && r.machine !== me().id) return `${name} runs on ${r.name}, not on this machine. To run it here: Settings, Plugins, Run it here.`;
+  if (m && oneAtATime(m) && syncing() && kept().handover?.[id]) return `${name} is waiting for what it knows from the machine it ran on.`;
+  return `${name} is not running`;
+}
+
 /** The machine a one-at-a-time plugin runs on, as the machines agree; null if none has been named yet. */
 export function runnerOf(id: string): Runner | null { return kept().runsOn?.[id] ?? null; }
 
@@ -510,6 +527,16 @@ export function runHere(id: string, now = false): void {
   const already = r?.machine === me().id;
   if (!already) nameRunner(id, !now && Boolean(r));
   else if (now) { const k = kept(); k.handover = { ...k.handover }; delete k.handover[id]; keep(k); }
+  // At once, without the other machine: from its latest standby copy, where one has come (`leaveStandby`).
+  if (now) {
+    const files = kept().standby?.[id] ?? {};
+    const root = pluginStateDir(id);
+    for (const [name, sha] of Object.entries(files)) {
+      if (name.includes("..") || name.startsWith("/")) continue;
+      const bytes = getBlob(sha);
+      if (bytes) { mkdirSync(root, { recursive: true, mode: 0o700 }); writeFileSync(join(root, name), bytes, { mode: 0o600 }); }
+    }
+  }
   if (kept().enabled[id]) start(id);
 }
 
@@ -530,8 +557,8 @@ export function applyRunner(r: Rec): boolean {
   return true;
 }
 
-/** What it knows (`[backup] state`), sent to the machine it moved to: by hash, through the folder's blobs. */
-function handOver(id: string, to: string): void {
+/** What it knows (`[backup] state`), its files kept by hash in the folder's blobs: name → hash. */
+function stateFiles(id: string): Record<string, string> {
   const m = installed().find((x) => x.manifest.id === id)?.manifest;
   const root = pluginStateDir(id);
   const files: Record<string, string> = {};
@@ -543,11 +570,43 @@ function handOver(id: string, to: string): void {
     putBlob(sha, bytes);
     files[name] = sha;
   }
-  writeRecord({ of: `pstate:${id}`, set: { for: to, files } });
+  return files;
 }
+
+/** What it knows, sent to the machine it moved to. */
+function handOver(id: string, to: string): void {
+  writeRecord({ of: `pstate:${id}`, set: { for: to, files: stateFiles(id) } });
+}
+
+/**
+ * Now and then, while it runs here, a standby copy of what it knows left for the others: should this machine be
+ * away when another takes it (Start now), that one starts from pairings at most an hour old rather than none. Only
+ * when it has changed; the copy before it dropped, so the folder keeps one. The log carries a line, the blobs the bytes.
+ */
+const STANDBY_EVERY_MS = 60 * 60 * 1000;
+let standbyTimer: NodeJS.Timeout | null = null;
+export function leaveStandby(): void {
+  if (!syncing()) return;
+  for (const p of installed()) {
+    const id = p.manifest.id;
+    if (!oneAtATime(p.manifest) || !running.has(id) || runnerOf(id)?.machine !== me().id) continue;
+    const k = kept();
+    const before = k.standbyOut?.[id] ?? {};
+    const files = stateFiles(id);
+    if (JSON.stringify(files) === JSON.stringify(before)) continue;
+    writeRecord({ of: `pstate:${id}`, set: { standby: true, from: me().id, files } });
+    const keep = new Set(Object.values(files));
+    for (const sha of Object.values(before)) if (!keep.has(sha)) dropBlob(sha);
+    k.standbyOut = { ...k.standbyOut, [id]: files };
+    keep_(k);
+  }
+}
+const keep_ = (k: Kept) => keep(k);
 
 /** The hashes a handed-over state names, for the folder to wait on until their bytes have come (sync-folder.ts). */
 export function pluginStateBlobs(r: Rec): string[] {
+  // A standby copy is only noted, never waited on: its bytes are read when it is used, and may be replaced by then.
+  if (r.set?.standby) return [];
   const files = r.set?.files;
   return files && typeof files === "object" ? Object.values(files as Record<string, unknown>).filter((x): x is string => typeof x === "string") : [];
 }
@@ -555,6 +614,14 @@ export function pluginStateBlobs(r: Rec): string[] {
 /** What it knows, from the machine it was on: written here, and it starts. For another machine: nothing. */
 export function applyPluginState(r: Rec): boolean {
   const id = r.of.slice("pstate:".length);
+  if (r.set?.standby) {
+    // Another machine's standby copy: noted, for Start now here.
+    if (r.set.from === me().id) return false;
+    const k = kept();
+    k.standby = { ...k.standby, [id]: (r.set.files ?? {}) as Record<string, string> };
+    keep(k);
+    return true;
+  }
   if (r.set?.for !== me().id) return false;
   const root = pluginStateDir(id);
   mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -792,7 +859,7 @@ function checkedDecisions(v: unknown): Decision[] {
 /** An answer, given in Settings: sent to the plugin, which acts on it and says its list again. */
 export async function decide(id: string, item: string, choice: string, value?: string, on?: string): Promise<unknown> {
   const r = running.get(id);
-  if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
+  if (!r || r.state !== "running") throw new Conflict(notRunning(id));
   const d = r.decisions.find((x) => x.id === item);
   if (!d) throw new NotFound("that has been decided already, or is no longer asked");
   // Answered from a place (Tasks): only what is asked there.
@@ -850,6 +917,7 @@ export function restart(id: string): void {
 
 /** At the core's start: every enabled plugin, started. */
 export function startPlugins(): void {
+  if (!standbyTimer) { standbyTimer = setInterval(() => { try { leaveStandby(); } catch (e) { console.error(`talaris-core: plugin standby: ${(e as Error).message}`); } }, STANDBY_EVERY_MS); standbyTimer.unref(); }
   const k = kept();
   for (const p of installed()) {
     if (!k.enabled[p.manifest.id]) continue;
@@ -1070,7 +1138,7 @@ export function pluginActions(kind: string, entity?: string): { plugin: string; 
 export async function runAction(id: string, action: string, entity: string | undefined, kind: string): Promise<{ text: string; error: boolean; decisions: number; here: number }> {
   if (!entity && !LISTS.includes(kind)) throw new Conflict("pressed on what?");
   const r = running.get(id);
-  if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
+  if (!r || r.state !== "running") throw new Conflict(notRunning(id));
   const a = (r.manifest.actions ?? []).find((x) => x.id === action);
   if (!a) throw new NotFound(`${r.manifest.name} offers no ${action}`);
   const res = await callPluginTool(id, a.tool, { ...(entity ? { entity } : {}), kind: kindOf(kind) }) as { content?: { type: string; text?: string }[]; isError?: boolean };
@@ -1093,7 +1161,7 @@ export function pluginTools(): { plugin: string; pluginName: string; tool: McpTo
 
 export async function callPluginTool(id: string, tool: string, args: Record<string, unknown>): Promise<unknown> {
   const r = running.get(id);
-  if (!r || r.state !== "running") throw new Conflict(`${id} is not running`);
+  if (!r || r.state !== "running") throw new Conflict(notRunning(id));
   if (!r.tools.some((t) => t.name === tool)) throw new NotFound(`${r.manifest.name} offers no ${tool}`);
   return r.request("tools/call", { name: tool, arguments: args ?? {} });
 }

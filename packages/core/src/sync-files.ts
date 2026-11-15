@@ -47,6 +47,12 @@ let blobPlace = () => join(DATA_DIR, "sync", "blobs");
 export function blobsAt(place: () => string): void { blobPlace = place; }
 const LOCAL_BLOBS = () => join(DATA_DIR, "sync", "blobs");
 
+/** Bytes no longer wanted (a plugin's older standby state): gone from the folder and from here. */
+export function dropBlob(sha: string): void {
+  if (!/^[0-9a-f]{64}$/.test(sha)) return;
+  for (const dir of [blobPlace(), LOCAL_BLOBS()]) rmSync(join(dir, sha), { force: true });
+}
+
 export function putBlob(sha: string, bytes: Buffer): void {
   const dir = blobPlace();
   const path = join(dir, sha);
