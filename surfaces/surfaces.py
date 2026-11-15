@@ -1353,6 +1353,14 @@ def main() -> int:
         return send("quit")
 
     register_scheme()
+    # Where there is an on-screen keyboard: Talaris's surfaces never say to it "a field has the keys" (Wayland's
+    # text-input) — Qt's web views said so for a moment whenever they were given the keys, and in a tablet Squeekboard
+    # came up with nothing to type in. Talaris's fields ask for it themselves (keyboard.py, `field`), and it types into
+    # them as keys; other programs' fields bring it as they say so.
+    import keyboard as _osk  # noqa: PLC0415
+    if _osk.available():
+        os.environ.setdefault("QT_WAYLAND_DISABLED_INTERFACES",
+                              "zwp_text_input_manager_v1,zwp_text_input_manager_v2,zwp_text_input_manager_v3,qt_text_input_method_manager_v1")
     app = QApplication(sys.argv)
     # The name Hyprland and the dock know Talaris's ordinary windows by (a
     # panel made a window), rather than python3.

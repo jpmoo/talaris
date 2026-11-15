@@ -119,9 +119,11 @@ const Surface = (() => {
       const f = e.target && e.target.closest ? e.target.closest("input, textarea, [contenteditable=''], [contenteditable=true]") : null;
       if (f && editable(f)) taken(true);
     }, true);
+    // And a field given the keys as its panel opens (the launcher's search): in a tablet, the keyboard with it.
     addEventListener("focusin", (e) => {
       if (!editable(e.target)) return;
       field = e.target; place();
+      taken(true);
     }, true);
     addEventListener("focusout", () => setTimeout(() => {
       if (editable(document.activeElement)) { field = document.activeElement; place(); return; }
