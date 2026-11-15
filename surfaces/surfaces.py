@@ -1353,12 +1353,6 @@ def main() -> int:
         return send("quit")
 
     register_scheme()
-    # The pen, into Talaris's own surfaces as the pointer, not as a pen: Qt dropped its presses (no "proximity
-    # surface") as it went from one of Talaris's many layer surfaces to another — buttons that worked one time in
-    # two, and a toggle pressed twice (the mini, 2026-11-15). Without the tablet interface Hyprland gives the pen as
-    # the pointer, as reliable as a mouse. Other programs keep the pen as a pen. The canvas's ink is drawn by the
-    # pointer, at an even width — its pressure is what this costs.
-    os.environ.setdefault("QT_WAYLAND_DISABLED_INTERFACES", "zwp_tablet_manager_v2")
     app = QApplication(sys.argv)
     # The name Hyprland and the dock know Talaris's ordinary windows by (a
     # panel made a window), rather than python3.
