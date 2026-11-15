@@ -770,9 +770,9 @@ async function drawEditor() {
 
 // ---------------------------------------------------------------- the page's map
 //
-// The page in small, upper right of the writing (as the canvas has its map, lower left): each line a bar as long as it is, a
-// heading in the accent, and the part on screen as a frame. A press or a drag on it scrolls there. Opened and closed
-// by its corner button, as each machine likes it.
+// The page in small, inside the writing at its upper right (as the canvas has its map, lower left): each line a bar as
+// long as it is, a heading in the accent, and the part on screen marked. A press or a drag on it scrolls there. Shown
+// and put away by the page bar's Map, as each machine likes it.
 const pageMap = (() => {
   const KEPT = "talaris-page-map";
   let open = (() => { try { return localStorage.getItem(KEPT) !== "closed"; } catch { return true; } })();
@@ -787,16 +787,13 @@ const pageMap = (() => {
   };
   const build = () => {
     const host = $("editorHost");
-    if (!host || !host.parentElement) return false;
-    if (box && box.isConnected) return true;
-    host.parentElement.style.position = "relative";
+    if (!host) return false;
+    if (box && box.isConnected && box.parentElement === host) return true;
     box = el("div", { class: "page-map" });
     canvas = document.createElement("canvas");
     frame = el("div", { class: "page-map-frame" });
-    const shut = el("button", { class: "page-map-close", title: "Hide the page's map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
-    const opener = el("button", { class: "page-map-open", title: "Show the page's map", onclick: () => set(true) }, "≡");
-    box.append(canvas, frame, shut);
-    host.parentElement.append(box, opener);
+    box.append(canvas, frame);
+    host.append(box);
     let dragging = false;
     const go = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -806,10 +803,11 @@ const pageMap = (() => {
       // The line pressed brought to the middle of what is shown.
       sc.scrollTop = (row / Math.max(1, drawn.rows)) * sc.scrollHeight - sc.clientHeight / 2;
     };
-    box.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; dragging = true; box.setPointerCapture(e.pointerId); go(e); e.preventDefault(); });
+    const stop = () => { dragging = false; box.classList.remove("dragging"); };
+    box.addEventListener("pointerdown", (e) => { dragging = true; box.classList.add("dragging"); box.setPointerCapture(e.pointerId); go(e); e.preventDefault(); e.stopPropagation(); });
     box.addEventListener("pointermove", (e) => { if (dragging) go(e); });
-    box.addEventListener("pointerup", () => { dragging = false; });
-    box.addEventListener("pointercancel", () => { dragging = false; });
+    box.addEventListener("pointerup", stop);
+    box.addEventListener("pointercancel", stop);
     return true;
   };
   const set = (on) => {
@@ -826,9 +824,10 @@ const pageMap = (() => {
   function draw() {
     const writing = state.drawer === "writing" && !!$("editorHost") && mode !== "preview";
     if (!build()) return;
-    const opener = box.parentElement.querySelector(".page-map-open");
     box.hidden = !writing || !open;
-    if (opener) opener.hidden = !writing || open;
+    box.parentElement.classList.toggle("mapped", !box.hidden);
+    const sw = $("mapSwitch");
+    if (sw) sw.classList.toggle("on", open);
     if (box.hidden) return;
     lines = String(text || "").split("\n");
     const row = Math.max(1, Math.min(3, MAX_H / Math.max(1, lines.length)));
@@ -861,7 +860,7 @@ const pageMap = (() => {
     place();
   }
   addEventListener("resize", () => draw());
-  return { draw };
+  return { draw, toggle: () => set(!open), get open() { return open; } };
 })();
 
 function setMode(next) {
@@ -1054,7 +1053,8 @@ async function loadWriting() {
     });
   } }, "Attach");
   const pane = el("div", { class: "pane" },
-    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
+    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }),
+      el("button", { class: `t-btn small${pageMap.open ? " on" : ""}`, id: "mapSwitch", title: "The page's map", onclick: () => pageMap.toggle() }, "Map"), attach, modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
