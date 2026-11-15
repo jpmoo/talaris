@@ -41,7 +41,7 @@ TARGET = {"thick": 6, "length": 100}
 #: How long the pointer must be away before a revealed thing goes again.
 AWAY_MS = 700
 #: Brought out by a finger: how long it stays after the last touch on it.
-FINGER_STAY_MS = 4000
+FINGER_STAY_MS = 1500
 
 
 class SensorBridge(Bridge):
