@@ -540,8 +540,10 @@ class Popup(QObject):
             want = min(want, screen.availableGeometry().height() - 60)
         placed = self.surface.placement
         if placed and abs(placed.height - want) > 1:
-            self.surface.placement = None
-            self.surface.apply(dataclasses.replace(placed, height=want))
+            # Resized where it stands, not made anew: its list arrives in steps, and each one made anew was a jump
+            # and a redraw as it opened — on the mini, the projects popup stuttered (2026-11-15).
+            self.surface.asked = dataclasses.replace(self.surface.asked or placed, height=want)
+            self.surface.reflow()
 
     def fit_width(self, width: int) -> None:
         """As wide as asked, and centered again under the button it belongs to."""
@@ -553,8 +555,8 @@ class Popup(QObject):
             return
         screen = QApplication.primaryScreen().geometry()
         left = max(4, min(int(self.at - want / 2), screen.width() - want - 4))
-        self.surface.placement = None
-        self.surface.apply(dataclasses.replace(placed, width=want, margins=(left, 0, 0, 0)))
+        self.surface.asked = dataclasses.replace(self.surface.asked or placed, width=want, margins=(left, 0, 0, 0))
+        self.surface.reflow()
 
     def file_away(self) -> None:
         """From the page — Escape, or the pointer gone elsewhere."""
