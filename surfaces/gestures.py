@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-A two-finger swipe across the touchscreen, for the carousel (tiling.py):
+A three-finger swipe across the touchscreen, for the carousel (tiling.py):
 left brings the next window in, right the one before — the strip following
 the fingers, as a page is turned.
 
 **Read beside, never taken.** The touchscreen's event device is read as it is
-(no grab): every touch still reaches the window under it, so one finger is the
-apps' own, and two going sideways is read here as well. An app that also takes
-a sideways two-finger swipe (a browser's back and forward) hears it too. Hyprland's
+(no grab): every touch still reaches the window under it, so one finger and two
+are the apps' own, and three going sideways is read here as well. Hyprland's
 own gestures are for touchpads; a touchscreen's would need a plugin Ubuntu
 does not package.
 
@@ -38,7 +37,7 @@ EV_SYN, EV_ABS = 0, 3
 SYN_REPORT = 0
 ABS_MT_SLOT, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID = 0x2F, 0x35, 0x36, 0x39
 EVENT = struct.Struct("qqHHi")  # struct input_event on 64-bit: time, type, code, value
-FINGERS = 2
+FINGERS = 3
 #: How far across, as a share of the screen's width, a swipe must go to count.
 ACROSS = 0.15
 
@@ -119,7 +118,7 @@ class Gestures:
         slot = 0
         at: dict[int, list[int]] = {}
         live: set[int] = set()
-        start = None  # where the fingers were, together, when the second came down
+        start = None  # where the fingers were, together, when the third came down
         most = 0
         now = (0.0, 0.0)
         while True:
@@ -155,7 +154,7 @@ class Gestures:
             elif n == FINGERS and start is not None:
                 now = self._middle(at, live)
             if n == 0:
-                # All lifted: a swipe if two went far enough sideways, and only two.
+                # All lifted: a swipe if three went far enough sideways, and only three.
                 if start is not None and most == FINGERS and self.wanted():
                     self._ended(start, now, xr, yr)
                 start, most = None, 0

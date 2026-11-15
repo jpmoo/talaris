@@ -203,7 +203,7 @@ function draw() {
   // Tiles or Carousel (tiling.py): this machine's own. Carousel only where its plugin is installed.
   seg("win-tiling", [["tiles", "Tiles"], ["carousel", "Carousel"]], cfg.windows.tiling || "tiles", (tiling) => save({ windows: { tiling } }));
   $("tiling-note").textContent = (cfg.windows.tiling || "tiles") === "carousel"
-    ? (canCarousel ? "A strip of windows, the ones beside showing at the edges. Super+Shift+Left and Right, or two fingers across the screen, slide it"
+    ? (canCarousel ? "A strip of windows, the ones beside showing at the edges. Super+Shift+Left and Right, or three fingers across the screen, slide it"
       : "Carousel needs hyprland-plugin-hyprscrolling installed: sudo apt install hyprland-plugin-hyprscrolling. Tiles until then")
     : "This machine's own: each new window splits the space of the one in use";
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
