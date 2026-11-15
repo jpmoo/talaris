@@ -9,7 +9,8 @@ ExecStart=/usr/bin/python3 -I /usr/local/lib/talaris/talaris-pen
 Restart=always
 RestartSec=3
 # Root for the pen's device and uinput, and nothing else.
-ProtectHome=yes
+# Read-only home and /run/user: Talaris's word on the screen's turn (talaris-turn) is read there.
+ProtectHome=read-only
 ProtectSystem=strict
 PrivateTmp=yes
 NoNewPrivileges=yes

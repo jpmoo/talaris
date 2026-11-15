@@ -129,9 +129,28 @@ def _built_in() -> dict | None:
     return next((m for m in mons if BUILT_IN.match(m.get("name", ""))), None)
 
 
+
+def say_turn(transform: int) -> None:
+    """
+    The screen's turn, written where the pen helper reads it (setup/pen/talaris-pen): it gives the pen as a pointer,
+    which Hyprland does not turn as it turns a pen, so it turns it itself.
+    """
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "talaris-turn")
+    try:
+        with open(path + ".tmp", "w") as f:
+            f.write(str(int(transform) % 4))
+        os.chmod(path + ".tmp", 0o644)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
 class Rotation(QObject):
     def __init__(self, desktop) -> None:
         super().__init__(desktop)
+        # Said at once, as the screen is now: the pen helper turns the pen by it (`say_turn`).
+        mon = _built_in()
+        if mon is not None:
+            say_turn(int(mon.get("transform", 0)))
         self.desktop = desktop
         self.process: QProcess | None = None
         #: The way up the sensor last said.
@@ -320,4 +339,5 @@ class Rotation(QObject):
         for device in ("touchdevice", "tablet"):
             hypr.keyword(f"input:{device}:output", name)
             hypr.keyword(f"input:{device}:transform", str(transform))
+        say_turn(transform)
         log(f"rotation: {self.orientation or 'back'} (transform {transform})")

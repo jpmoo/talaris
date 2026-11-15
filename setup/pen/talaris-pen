@@ -23,7 +23,14 @@ Runs as root (a system service: talaris-pen.service), from a root-owned copy
 (setup/pen/install.sh puts it in /usr/local/lib/talaris), since taking a
 device and making one both need it. Standard library only.
 
-    talaris-pen [/dev/input/eventN]     the pen; found by its name when not given
+    talaris-pen [--pen] [/dev/input/eventN]     the pen; found when not given
+
+**As a pointer** (the default, since the reordering alone did not do it): the
+pen becomes a plain absolute pointer — hovering moves it, touching is its left
+button, its own buttons the right and middle — turned as the screen is
+(Talaris says which way, in $XDG_RUNTIME_DIR/talaris-turn). Every program takes
+a pointer's presses; Hyprland took the pen's only now and then. Its pressure
+is what that costs. `--pen` keeps it a pen, with the reordering above.
 """
 
 from __future__ import annotations
@@ -41,7 +48,13 @@ HOLD = 0.015
 
 EV_SYN, EV_KEY, EV_ABS, EV_MSC = 0x00, 0x01, 0x03, 0x04
 SYN_REPORT = 0
-BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER = 0x14A, 0x140, 0x141
+BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS, BTN_STYLUS2 = 0x14A, 0x140, 0x141, 0x14B, 0x14C
+BTN_LEFT, BTN_RIGHT, BTN_MIDDLE = 0x110, 0x111, 0x112
+ABS_X, ABS_Y = 0x00, 0x01
+#: Where Talaris says which way the screen is turned (surfaces/rotation.py): Hyprland's transform, 0–3.
+TURN = "/run/user/{uid}/talaris-turn"
+#: The pointer's own range, each axis.
+SPAN = 65535
 ABS_CNT, KEY_CNT, MSC_CNT, PROP_CNT = 0x40, 0x300, 0x08, 0x20
 EVENT = struct.Struct("qqHHi")  # struct input_event, 64-bit
 
@@ -121,6 +134,103 @@ def copy_of(src: int) -> int:
     return ui
 
 
+def pointer_device() -> int:
+    """A plain absolute pointer — a mouse that is told where it is — with three buttons: what the pen becomes."""
+    ui = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+    for t in (EV_KEY, EV_ABS, EV_SYN):
+        fcntl.ioctl(ui, UI_SET_EVBIT, t)
+    for k in (BTN_LEFT, BTN_RIGHT, BTN_MIDDLE):
+        fcntl.ioctl(ui, UI_SET_KEYBIT, k)
+    for a in (ABS_X, ABS_Y):
+        fcntl.ioctl(ui, UI_SET_ABSBIT, a)
+        fcntl.ioctl(ui, UI_ABS_SETUP, struct.pack("HH6i", a, 0, 0, 0, SPAN, 0, 0, 0))
+    name = b"Talaris pen pointer".ljust(80, b"\0")
+    fcntl.ioctl(ui, UI_DEV_SETUP, struct.pack("HHHH", 0x06, 0x1d6b, 0x0104, 1) + name + struct.pack("I", 0))
+    fcntl.ioctl(ui, UI_DEV_CREATE)
+    return ui
+
+
+_turn = {"at": 0.0, "value": 0}
+
+
+def turn() -> int:
+    """The screen's turn as Talaris last said it; looked at again at most twice a second."""
+    now = time.monotonic()
+    if now - _turn["at"] > 0.5:
+        _turn["at"] = now
+        for uid in sorted(os.listdir("/run/user")) if os.path.isdir("/run/user") else []:
+            try:
+                _turn["value"] = int(open(TURN.format(uid=uid)).read().strip()) % 4
+                break
+            except (OSError, ValueError):
+                continue
+    return _turn["value"]
+
+
+def place(u: float, v: float, t: int) -> tuple[float, float]:
+    """The pen's point (shares of its own axes) as the screen is seen, turned a quarter at a time (as Talaris's gestures.py)."""
+    if t == 1:
+        return 1 - v, u
+    if t == 2:
+        return 1 - u, 1 - v
+    if t == 3:
+        return v, 1 - u
+    return u, v
+
+
+def run_pointer(path: str) -> None:
+    """
+    The pen as a pointer told where it is: hovering moves it, touching is its left button, the pen's buttons the
+    right and the middle. Hyprland took the pen's touches as a pen only now and then (only in text fields, at the
+    last, 2026-11-15); a pointer's presses it always takes. Its pressure is what this costs.
+    """
+    src = os.open(path, os.O_RDONLY)
+    info = {}
+    for a in (ABS_X, ABS_Y):
+        buf = bytearray(24)
+        fcntl.ioctl(src, EVIOCGABS(a), buf)
+        _v, lo, hi, *_ = struct.unpack("6i", buf)
+        info[a] = (lo, max(lo + 1, hi))
+    ui = pointer_device()
+    time.sleep(0.3)
+    fcntl.ioctl(src, EVIOCGRAB, 1)
+    log(f"taking {path}: the pen as a pointer, its touch the left button")
+    raw = {ABS_X: 0, ABS_Y: 0}
+    keys: dict[int, int] = {}
+    batch: list[bytes] = []
+    def emit(kind: int, code: int, value: int) -> None:
+        batch.append(EVENT.pack(0, 0, kind, code, value))
+    try:
+        while True:
+            select.select([src], [], [])
+            data = os.read(src, EVENT.size * 64)
+            for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
+                _s, _u, kind, code, value = EVENT.unpack_from(data, off)
+                if kind == EV_ABS and code in raw:
+                    raw[code] = value
+                elif kind == EV_KEY and code in (BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2):
+                    keys[code] = value
+                elif kind == EV_SYN and code == SYN_REPORT:
+                    (xl, xh), (yl, yh) = info[ABS_X], info[ABS_Y]
+                    u, v = place((raw[ABS_X] - xl) / (xh - xl), (raw[ABS_Y] - yl) / (yh - yl), turn())
+                    # Where first, on its own: the press then lands where the pen is.
+                    emit(EV_ABS, ABS_X, round(max(0.0, min(1.0, u)) * SPAN))
+                    emit(EV_ABS, ABS_Y, round(max(0.0, min(1.0, v)) * SPAN))
+                    emit(EV_SYN, SYN_REPORT, 0)
+                    for pen, button in ((BTN_TOUCH, BTN_LEFT), (BTN_STYLUS, BTN_RIGHT), (BTN_STYLUS2, BTN_MIDDLE)):
+                        if pen in keys:
+                            emit(EV_KEY, button, keys.pop(pen))
+                    emit(EV_SYN, SYN_REPORT, 0)
+                    os.write(ui, b"".join(batch))
+                    batch.clear()
+    finally:
+        try:
+            fcntl.ioctl(src, EVIOCGRAB, 0)
+            fcntl.ioctl(ui, UI_DEV_DESTROY)
+        except OSError:
+            pass
+
+
 def run(path: str) -> None:
     src = os.open(path, os.O_RDONLY)
     ui = copy_of(src)
@@ -161,7 +271,8 @@ def run(path: str) -> None:
 
 
 def main() -> int:
-    path = sys.argv[1] if len(sys.argv) > 1 else ""
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    path = args[0] if args else ""
     while True:
         path = path or find()
         if not path:
@@ -169,11 +280,12 @@ def main() -> int:
             time.sleep(60)
             continue
         try:
-            run(path)
+            # As a pointer, unless asked to stay a pen (--pen: the touch only held after the coming near).
+            (run if "--pen" in sys.argv else run_pointer)(path)
         except OSError as e:
             # The pen gone (asleep, unplugged): found again.
             log(f"{path}: {e}; looking again")
-            path = sys.argv[1] if len(sys.argv) > 1 else ""
+            path = args[0] if args else ""
             time.sleep(2)
 
 
