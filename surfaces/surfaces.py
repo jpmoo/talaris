@@ -220,6 +220,8 @@ class Files(QWebEngineUrlSchemeHandler):
 class Desktop(QObject):
     #: One finger drawn in from an edge of the touchscreen (gestures.py, on its reader's thread): which edge.
     _edge_swiped = Signal(str)
+    #: A finger come down on the touchscreen, where (shares of the screen across and down; gestures.py's thread).
+    _finger_down = Signal(float, float)
 
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
@@ -349,10 +351,13 @@ class Desktop(QObject):
         # Three fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
         import gestures  # noqa: PLC0415
         import tiling  # noqa: PLC0415
-        # One finger in from an edge brings out a hidden dock or bar there: heard on the reader's thread, acted on here.
+        # One finger in from an edge: a hidden dock or bar there brought out, or in the carousel, from a side, the
+        # window that way. Heard on the reader's thread, acted on here. (Three fingers across, its first way, also
+        # zoomed a browser, which hears every touch too: not used.)
         self._edge_swiped.connect(self._from_edge)
-        self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide,
-                                          on_edge=self._edge_swiped.emit)
+        # And any finger down, off a dock or bar that is out, puts it away, as a click off it does (sensor.py).
+        self._finger_down.connect(self._tapped)
+        self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit)
         # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
         self.centering = tiling.Centering(self.events, self.carousel)
         self.rotation.apply()
@@ -503,8 +508,32 @@ class Desktop(QObject):
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
 
+    def _tapped(self, across: float, down: float) -> None:
+        """A finger down somewhere: off the dock or the bar while either is out, it goes (sensor.py, `tapped_at`)."""
+        try:
+            mon = next(iter(json.loads(hypr.ask("j/monitors") or "[]")), None)
+        except ValueError:
+            return
+        if not mon:
+            return
+        turned = int(mon.get("transform", 0)) % 2 == 1
+        scale = mon.get("scale") or 1
+        w = (mon["height"] if turned else mon["width"]) / scale
+        h = (mon["width"] if turned else mon["height"]) / scale
+        x, y = mon.get("x", 0) + across * w, mon.get("y", 0) + down * h
+        self.dock.hider.tapped_at(x, y)
+        self.bar.hider.tapped_at(x, y)
+
     def _from_edge(self, edge: str) -> None:
-        """A finger in from an edge: the dock or the bar there, if it hides itself, brought out (sensor.py, `swiped`)."""
+        """
+        A finger in from an edge: the dock or the bar there, if it hides itself, brought out (sensor.py, `swiped`).
+        In the carousel, in from a side (where neither is) goes to the window that way: from the right, the next.
+        """
+        if edge in ("left", "right") and self.carousel() and not any(it.edge == edge for it in (self.dock, self.bar)):
+            import tiling  # noqa: PLC0415
+            log(f"gestures: in from the {edge} edge: the {'next' if edge == 'right' else 'previous'} window")
+            tiling.slide(1 if edge == "right" else -1)
+            return
         for it in (self.dock, self.bar):
             if it.edge == edge and it.hider.on:
                 log(f"gestures: in from the {edge} edge: the {'dock' if it is self.dock else 'bar'} out")

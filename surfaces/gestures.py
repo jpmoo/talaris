@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-A three-finger swipe across the touchscreen, for the carousel (tiling.py):
-left brings the next window in, right the one before — the strip following
-the fingers, as a page is turned.
+Swipes on the touchscreen: one finger drawn in from an edge (surfaces.py,
+`_from_edge`) — the dock or bar there, or in the carousel (tiling.py), from a
+side, the window that way. A three-finger swipe across is read too, but not
+used: a browser, hearing the same fingers, zoomed.
 
 **Read beside, never taken.** The touchscreen's event device is read as it is
 (no grab): every touch still reaches the window under it, so one finger and two
@@ -110,7 +111,7 @@ EDGE_NEAR, EDGE_IN = 0.035, 0.04
 
 
 class Gestures:
-    def __init__(self, wanted, slide, on_edge=None) -> None:
+    def __init__(self, wanted, slide, on_edge=None, on_down=None) -> None:
         """
         `wanted()`: whether to act (the carousel is in use). `slide(way)`: +1 the next window, -1 the one before.
         `on_edge(edge)`: one finger drawn in from an edge ("top", "bottom", "left", "right") — a hidden dock or bar
@@ -119,6 +120,9 @@ class Gestures:
         self.wanted = wanted
         self.slide = slide
         self.on_edge = on_edge
+        #: `on_down(across, down)`: a finger come down, where on the screen (shares of it, 0–1) — off a dock or bar
+        #: that is out, it goes (surfaces.py). On this reader's thread too.
+        self.on_down = on_down
         self.path = touchscreen()
         if not self.path:
             return
@@ -180,6 +184,8 @@ class Gestures:
                 p = self._middle(at, live)
                 one = {"at": place((p[0] - xr[0]) / max(1, xr[1] - xr[0]), (p[1] - yr[0]) / max(1, yr[1] - yr[0]), turn), "done": False}
                 u0, v0 = one["at"]
+                if self.on_down:
+                    self.on_down(u0, v0)
                 near = [e for e, ok in (("top", v0 <= EDGE_NEAR), ("bottom", v0 >= 1 - EDGE_NEAR), ("left", u0 <= EDGE_NEAR), ("right", u0 >= 1 - EDGE_NEAR)) if ok]
                 if near:
                     log(f"gestures: a finger down at the {near[0]} edge ({u0:.3f}, {v0:.3f}; turn {turn})")

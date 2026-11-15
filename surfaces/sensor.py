@@ -19,6 +19,7 @@ nothing, so the windows keep the space); left for a moment, it goes again.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Callable
 
@@ -475,6 +476,29 @@ class Autohide(QObject):
             self._away.stop()
             self._out(False)
             self._put_away()
+
+    def tapped_at(self, x: float, y: float) -> None:
+        """
+        A finger down at (x, y) on the screen (Hyprland's pixels; gestures.py): off the surface while it is out, it
+        goes now — as a click off it does (`clicked`); a finger never reaches away.py's click.
+        """
+        if not (self.on and self.out) or self._busy():
+            return
+        try:
+            layers = json.loads(hypr.ask("j/layers") or "{}")
+        except ValueError:
+            return
+        for monitor in layers.values():
+            for level in monitor.get("levels", {}).values():
+                for layer in level:
+                    if layer.get("namespace") == f"talaris-{self.name}":
+                        lx, ly, w, h = layer.get("x", 0), layer.get("y", 0), layer.get("w", 0), layer.get("h", 0)
+                        if lx <= x < lx + w and ly <= y < ly + h:
+                            return  # on it: its own touch (`_touched_on_it`)
+        self._away.stop()
+        self._by_finger = False
+        self._out(False)
+        self._put_away()
 
     def clicked(self) -> None:
         """

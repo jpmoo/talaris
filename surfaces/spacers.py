@@ -16,7 +16,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QWidget
 
-from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, BOTTOM, KEYBOARD_NONE, LayerSurface, Placement
+from layershell import ANCHOR_BOTTOM, ANCHOR_LEFT, ANCHOR_RIGHT, ANCHOR_TOP, KEYBOARD_NONE, OVERLAY, LayerSurface, Placement
 
 #: Each edge, and the edges a spacer along it spans.
 ALONG = {"top": ANCHOR_TOP | ANCHOR_LEFT | ANCHOR_RIGHT, "bottom": ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT,
@@ -46,7 +46,7 @@ class _Spacer:
         across = self.edge in ("left", "right")
         w, h = (1, screen.height()) if across else (screen.width(), 1)
         self.surface.placement = None
-        self.surface.apply(Placement(BOTTOM, ALONG[self.edge], w, h, KEYBOARD_NONE, exclusive=gap))
+        self.surface.apply(Placement(OVERLAY, ALONG[self.edge], w, h, KEYBOARD_NONE, exclusive=gap))
 
 
 _spacers: dict[str, _Spacer] = {}

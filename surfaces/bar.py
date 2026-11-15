@@ -681,7 +681,7 @@ class Bar(QObject):
         self.room = room
         self.surface.placement = None
         self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
-                                     KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall + self.desktop.edge_gap("bar")))
+                                     KEYBOARD_ON_DEMAND, exclusive=-1 if hide else tall + self.desktop.edge_gap("bar")))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def _hide(self) -> None:
