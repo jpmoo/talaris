@@ -112,13 +112,16 @@ const Surface = (() => {
     btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); set(!up); });
     // In a tablet the keyboard comes with a field by itself (keyboard.py, `field`) — one tapped, not one given the
     // keys by a page as it opened: a press just before says which.
-    let pressed = 0;
-    addEventListener("pointerdown", () => { pressed = performance.now(); }, true);
+    // A tap on a field asks for it, focused already or not: the launcher's search, say, has the keys as it opens, so
+    // a tap on it gives it nothing new and was never heard (2026-11-15).
     const taken = (on) => { if (bridge.field) bridge.field(on); };
+    addEventListener("pointerdown", (e) => {
+      const f = e.target && e.target.closest ? e.target.closest("input, textarea, [contenteditable=''], [contenteditable=true]") : null;
+      if (f && editable(f)) taken(true);
+    }, true);
     addEventListener("focusin", (e) => {
       if (!editable(e.target)) return;
       field = e.target; place();
-      if (performance.now() - pressed < 700) taken(true);
     }, true);
     addEventListener("focusout", () => setTimeout(() => {
       if (editable(document.activeElement)) { field = document.activeElement; place(); return; }
