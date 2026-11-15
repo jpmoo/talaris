@@ -777,7 +777,7 @@ const pageMap = (() => {
   const KEPT = "talaris-page-map";
   let open = (() => { try { return localStorage.getItem(KEPT) !== "closed"; } catch { return true; } })();
   let box = null, canvas = null, frame = null, scroller = null, lines = [], drawn = { rows: 0, row: 1 };
-  const MAX_H = 220, W = 76;
+  const MAX_H = 350, W = 96;
   const scrollerOf = () => {
     const host = $("editorHost");
     if (!host) return null;
@@ -792,7 +792,8 @@ const pageMap = (() => {
     box = el("div", { class: "page-map" });
     canvas = document.createElement("canvas");
     frame = el("div", { class: "page-map-frame" });
-    box.append(canvas, frame);
+    const shut = el("button", { class: "page-map-close", title: "Close the map", onclick: (e) => { e.stopPropagation(); set(false); } }, "×");
+    box.append(canvas, frame, shut);
     host.append(box);
     let dragging = false;
     const go = (e) => {
@@ -804,7 +805,7 @@ const pageMap = (() => {
       sc.scrollTop = (row / Math.max(1, drawn.rows)) * sc.scrollHeight - sc.clientHeight / 2;
     };
     const stop = () => { dragging = false; box.classList.remove("dragging"); };
-    box.addEventListener("pointerdown", (e) => { dragging = true; box.classList.add("dragging"); box.setPointerCapture(e.pointerId); go(e); e.preventDefault(); e.stopPropagation(); });
+    box.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; dragging = true; box.classList.add("dragging"); box.setPointerCapture(e.pointerId); go(e); e.preventDefault(); e.stopPropagation(); });
     box.addEventListener("pointermove", (e) => { if (dragging) go(e); });
     box.addEventListener("pointerup", stop);
     box.addEventListener("pointercancel", stop);

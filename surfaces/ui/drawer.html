@@ -189,7 +189,7 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
 
 /* The page's map (drawer.js, pageMap): inside the writing, upper right, quiet until used. Its switch is the page bar's Map. */
 .editor { position: relative; }
-.page-map { position: absolute; right: 16px; top: 10px; z-index: 5; width: 60px; max-height: 230px; overflow: hidden; padding: 5px;
+.page-map { position: absolute; right: 16px; top: 10px; z-index: 5; width: 96px; max-height: 360px; overflow: hidden; padding: 5px;
   border-radius: 6px; background: color-mix(in srgb, var(--text) 5%, var(--surface)); opacity: .7; cursor: pointer; touch-action: none;
   transition: opacity .15s; }
 .page-map:hover, .page-map.dragging { opacity: 1; }
@@ -197,8 +197,12 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
 .page-map-frame { position: absolute; left: 2px; right: 2px; margin-top: 5px; top: 0; border-radius: 3px;
   background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 2px 0 0 var(--accent); pointer-events: none; }
 /* Text runs clear of the map. */
-.editor.mapped .cm-content { padding-right: 84px !important; }
-.editor.mapped > .preview { padding-right: 84px; }
+.editor.mapped .cm-content { padding-right: 124px !important; }
+.editor.mapped > .preview { padding-right: 124px; }
+/* Its close, in its own corner. */
+.page-map-close { position: absolute; top: 2px; right: 2px; z-index: 1; width: 20px; height: 20px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 4px; background: var(--surface); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; opacity: .85; }
+.page-map-close:hover { color: var(--accent); opacity: 1; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>
