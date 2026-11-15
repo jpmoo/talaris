@@ -232,6 +232,13 @@ def end_session(verb: str) -> list[str]:
     left = _gone(CLOSE_S) if left else []
     if left:
         return sorted({str(c.get("class") or c.get("title") or "an app") for c in left})
+    # The wallpaper and the password prompt stopped while the display is still there: left to the end, each lost the
+    # display under it and aborted (an assertion in their toolkit), and Ubuntu reported a crash at every restart
+    # (the mini, 2026-11-14).
+    try:
+        subprocess.run(["systemctl", "--user", "stop", "hyprpaper.service", "hyprpolkitagent.service"], capture_output=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass
     _detach(*POWER[verb])
     return []
 
