@@ -676,6 +676,26 @@ document.querySelector("main").addEventListener("wheel", (e) => {
   swiped += e.deltaX;
   if (Math.abs(swiped) >= SWIPE_PX) { step(swiped > 0 ? 1 : -1); swipeDone = true; }
 }, { passive: false });
+// A finger's swipe on a touchscreen, the same: left is on, right is back. Touch events, not pointer ones — the
+// engine's own scrolling of a long day takes the pointer (pointercancel) but still says where the touch ended. A swipe
+// is mostly sideways and long enough; one that starts on an event (dragged to move it) is the event's.
+let touchFrom = null;
+const SWIPE_TOUCH_PX = 70;
+document.querySelector("main").addEventListener("touchstart", (e) => {
+  touchFrom = null;
+  if (editing || e.touches.length !== 1) return;
+  if (e.target.closest && e.target.closest(".tbar, .ev, .event, input, textarea, button, [draggable=true]")) return;
+  const t = e.touches[0];
+  touchFrom = { x: t.clientX, y: t.clientY, at: Date.now() };
+}, { passive: true });
+document.querySelector("main").addEventListener("touchend", (e) => {
+  const from = touchFrom;
+  touchFrom = null;
+  if (!from || editing || Date.now() - from.at > 800) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - from.x, dy = t.clientY - from.y;
+  if (Math.abs(dx) >= SWIPE_TOUCH_PX && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+}, { passive: true });
 $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(0, 0, 0); at.setHours(at.getHours() + 1); create(mode === "month" && !sameDay(focus, new Date()) ? (() => { const d = new Date(focus); d.setHours(9); return d; })() : at, false); });
 // A panel's one button makes it a window (the expand corners); a window's one
 // button closes it.

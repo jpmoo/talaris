@@ -65,6 +65,7 @@ REQUIRED=(
   "procps|pgrep"
   "zenity|file choosers (attachments, backups, settings)"
   "curl|asking the core"
+  "jq|moving windows by Super+Shift and the arrows (bin/move-or-split)"
   "hypridle|locking and screens off when idle"
   "hyprlock|the lock screen"
   "hyprpaper|the wallpaper"
