@@ -110,11 +110,21 @@ const Surface = (() => {
     const set = (on) => { up = on; btn.classList.toggle("on", on); bridge.keyboard(on); };
     // The field keeps its focus, and the panel stays: a press on the button is kept from the page (above).
     btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); set(!up); });
-    addEventListener("focusin", (e) => { if (editable(e.target)) { field = e.target; place(); } }, true);
+    // In a tablet the keyboard comes with a field by itself (keyboard.py, `field`) — one tapped, not one given the
+    // keys by a page as it opened: a press just before says which.
+    let pressed = 0;
+    addEventListener("pointerdown", () => { pressed = performance.now(); }, true);
+    const taken = (on) => { if (bridge.field) bridge.field(on); };
+    addEventListener("focusin", (e) => {
+      if (!editable(e.target)) return;
+      field = e.target; place();
+      if (performance.now() - pressed < 700) taken(true);
+    }, true);
     addEventListener("focusout", () => setTimeout(() => {
       if (editable(document.activeElement)) { field = document.activeElement; place(); return; }
       field = null; btn.style.display = "none";
       if (up) set(false);
+      taken(false);
     }, 150), true);
     addEventListener("scroll", () => field && place(), true);
     addEventListener("resize", () => field && place());

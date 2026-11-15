@@ -112,15 +112,25 @@ class Keyboard(QObject):
             self.theme()
 
     def set_auto(self, on: bool) -> None:
-        """A tablet (the keyboard by itself in any field), or a laptop again (only from a field's button)."""
+        """
+        A tablet (the keyboard up by itself in a field of Talaris's), or a laptop again (only from a button).
+
+        Not Squeekboard's own coming up by itself: it comes whenever a program says a field has the keys, and Qt's
+        web views say so for a moment whenever they are given the keys — choosing the canvas brought the keyboard
+        up, and the screen's bottom lifted, with nothing to type in (the mini, 2026-11-15). Talaris's pages know
+        when a field is tapped and ask (`field`); other programs use the bar's keyboard button.
+        """
         if not available() or on == self.auto:
             return
         self.auto = on
-        subprocess.run(["gsettings", "set", "org.gnome.desktop.a11y.applications", "screen-keyboard-enabled", "true" if on else "false"],
-                       capture_output=True, timeout=3, check=False)
         if not on and self.up:
             self.show(False)
-        log(f"keyboard: {'up by itself in a field (a tablet)' if on else 'only from a field’s button'}")
+        log(f"keyboard: {'up by itself in a field of Talaris’s (a tablet)' if on else 'only from a field’s button'}")
+
+    def field(self, focused: bool) -> None:
+        """A field of Talaris's taken (or left), in a tablet: the keyboard up (or away) by itself."""
+        if self.auto:
+            self.show(focused)
 
     def _layer(self, namespace: str, opened: bool) -> None:
         if namespace != "osk":
