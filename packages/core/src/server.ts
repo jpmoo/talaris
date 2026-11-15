@@ -80,7 +80,7 @@ import { addClip, clearClips, clipPicture, keepClips, listClips, pinClip, remove
 import { setFolder as setSyncFolder, syncStatus, tick as syncTick } from "./sync-folder.js";
 import { seed } from "./sync-seed.js";
 import { setSyncing } from "./records.js";
-import { prefs, setPrefs } from "./sync-apply.js";
+import { prefs, replacedFor, setPrefs } from "./sync-apply.js";
 import { keepWallpaper } from "./wallpapers.js";
 
 /**
@@ -172,6 +172,20 @@ function need(query: URLSearchParams, key: string): string {
 // Sync with other machines (sync-folder.ts, docs/SYNC.md): its state, and this machine made the first — sync turned
 // on with a folder, and everything it has written there as records for others to join from.
 route("GET", "/sync", () => ({ ...syncStatus(), first: existsSync(join(DATA_DIR, "sync", "first")) }));
+// What another machine's change replaced here (sync-apply.ts, the replaced log), newest first, with what it was on —
+// for Settings, Sync: nothing is lost to a conflict without being kept here.
+route("GET", "/sync/replaced", (_r, _p, q) => {
+  const limit = Math.min(200, Number(q.get("limit") ?? 50) || 50);
+  return replacedFor().slice(0, limit).map((r) => {
+    let what = r.of;
+    if (r.of.startsWith("e:")) { try { what = entities.titleOf(entities.getEntity(r.of.slice(2))); } catch { what = "something since deleted"; } }
+    else if (r.of.startsWith("page:")) what = `the page ${r.of.slice(5).split("/").pop()}`;
+    else if (r.of === "prefs") what = "your settings";
+    else if (r.of.startsWith("plugin:")) what = `the ${r.of.slice(7)} plugin's settings`;
+    const value = typeof r.value === "string" ? r.value.slice(0, 300) : JSON.stringify(r.value)?.slice(0, 300);
+    return { of: r.of, what, field: r.field, value, when: r.when };
+  });
+});
 // Your settings, as the machines agree on them (sync-apply.ts): read by the screens as they start and when told,
 // and a change made here given to them to keep and record.
 route("GET", "/sync/prefs", () => prefs());

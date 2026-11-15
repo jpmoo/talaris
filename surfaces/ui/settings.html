@@ -294,6 +294,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <button data-page="location-page">Location</button>
     <span class="group">Your data</span>
     <button data-page="data">Data</button>
+    <button data-page="sync-page">Sync</button>
     <button data-page="types">Types</button>
     <span class="group">Add-ons</span>
     <button data-page="morgan">Morgan</button>
@@ -534,6 +535,18 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">From a folder<small>One with a plugin.toml</small></span><span class="what"><button class="t-btn" id="plugin-folder">Choose…</button></span></div>
       <div class="row"><span class="name">From a git address</span><span class="what"><input id="plugin-git" spellcheck="false" autocomplete="off" placeholder="https://…"><button class="t-btn" id="plugin-clone">Install</button></span></div>
       <p class="note" id="plugin-msg"></p>
+    </section>
+    <section id="sync-page">
+      <h2>Sync</h2>
+      <div class="row"><span class="name">This machine<small id="sy-me"></small></span><span class="what" id="sy-state"></span></div>
+      <div class="row"><span class="name">Folder<small id="sy-folder"></small></span><span class="what" id="sy-round"></span></div>
+      <div id="sy-others"></div>
+      <p class="note bad" id="sy-error" hidden></p>
+      <p class="note" id="sy-waiting" hidden></p>
+      <h3>Replaced by another machine</h3>
+      <p class="note">When the same thing was changed on two machines, the later change won on both. What it replaced is kept here.</p>
+      <div id="sy-replaced"></div>
+      <p class="note">Talaris syncs through a folder the machines share (Syncthing keeps it the same on each). Your projects, pages, canvases, people, tasks and files go to every machine; the bar, the dock, the look and the rest of these settings stay each machine's, except the wallpapers and plugins' settings.</p>
     </section>
     <section id="data">
       <h2>Data</h2>

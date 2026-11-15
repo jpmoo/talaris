@@ -2216,6 +2216,35 @@ function drawBarShown() {
   ]));
 }
 
+// ------------------------------------------------------------ Sync (sync-folder.ts, docs/SYNC.md)
+
+const ago = (iso) => {
+  if (!iso) return "never";
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+};
+async function loadSync() {
+  let st;
+  try { st = await core("GET", "/sync"); } catch (e) { $("sy-state").textContent = "The core is away"; return; }
+  $("sy-me").textContent = `${st.machine.name}${st.first ? " — the first machine; the others joined it" : ""}`;
+  $("sy-state").textContent = st.on ? "Syncing" : "Not syncing";
+  $("sy-folder").textContent = st.folder || "None set";
+  $("sy-round").textContent = st.on ? `Checked ${ago(st.last)}${st.came ? ` · last change in ${ago(st.came)}` : ""}` : "";
+  $("sy-others").replaceChildren(...(st.others || []).map((o) => el("div", { class: "row" },
+    el("span", { class: "name" }, o.name, el("small", {}, `${o.records} change${o.records === 1 ? "" : "s"} taken from it`)),
+    el("span", { class: "what" }, `Last wrote ${ago(o.wrote)}`))));
+  if (st.on && !(st.others || []).length) $("sy-others").replaceChildren(el("p", { class: "note" }, "No other machine has joined yet."));
+  $("sy-error").hidden = !st.error;
+  $("sy-error").textContent = st.error ? `The last round failed: ${st.error}` : "";
+  $("sy-waiting").hidden = !st.waiting;
+  $("sy-waiting").textContent = st.waiting ? `${st.waiting} change${st.waiting === 1 ? "" : "s"} waiting: from a newer Talaris, or a plugin not installed here. They are taken once this machine can.` : "";
+  let gone = [];
+  try { gone = await core("GET", "/sync/replaced?limit=40"); } catch { /* none */ }
+  $("sy-replaced").replaceChildren(...(gone.length ? gone.map((r) => el("div", { class: "row" },
+    el("span", { class: "name" }, `${r.what} — ${r.field}`, el("small", { title: r.value || "" }, (r.value || "(empty)").slice(0, 120))),
+    el("span", { class: "what" }, ago(r.when)))) : [el("p", { class: "note" }, "Nothing has been replaced.")]));
+}
+
 function show(page) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.page === page);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("on", s.id === page);
@@ -2229,6 +2258,7 @@ function show(page) {
     powerNote();
   }
   if (page === "data") loadData();
+  if (page === "sync-page") loadSync();
   if (page === "plugins") loadPlugins();
   if (page === "types") loadTypes();
   if (page === "look") bridge.wallpaper(wallScope || "", (text) => drawWallpaper(JSON.parse(text)));

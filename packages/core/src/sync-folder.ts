@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { DATA_DIR, ENTITIES_DIR, readVault, storeKey } from "./vault.js";
 import { unseal } from "./seal.js";
 import { machine, syncing, type Rec } from "./records.js";
-import { apply, known } from "./sync-apply.js";
+import { apply, known, tellScreens } from "./sync-apply.js";
 import { blobsAt, getBlob, scanFiles } from "./sync-files.js";
 import { isInstalled } from "./plugins.js";
 
@@ -150,6 +150,9 @@ let timer: NodeJS.Timeout | null = null;
 let busy = false;
 
 /** One round: in, the projects looked over, out. Says how many changes came in. */
+/** The last round, for Settings, Sync: when, how many changes came in it and the last that did, and what went wrong. */
+const last = { at: null as string | null, came: null as string | null, error: null as string | null };
+
 export function tick(): number {
   const folder = syncFolder();
   if (!folder || !syncing() || busy) return 0;
@@ -159,7 +162,13 @@ export function tick(): number {
     const n = pull(folder);
     scanFiles();
     push(folder);
+    last.at = new Date().toISOString();
+    if (n) last.came = last.at;
+    last.error = null;
     return n;
+  } catch (e) {
+    last.error = (e as Error).message;
+    throw e;
   } finally {
     busy = false;
   }
@@ -172,24 +181,35 @@ export function startSync(): void {
   timer = setInterval(() => {
     try {
       const n = tick();
-      if (n) console.log(`talaris-core: sync: ${n} change(s) from elsewhere`);
+      if (n) {
+        console.log(`talaris-core: sync: ${n} change(s) from elsewhere`);
+        // The screens told, for whatever they have out to read again (surfaces.py, `synced`).
+        tellScreens("synced");
+      }
     } catch (e) { console.log(`talaris-core: sync: ${(e as Error).message}`); }
   }, 5000);
   timer.unref();
 }
 
 /** What Settings, Sync shows: the folder, this machine, the others seen there, what waits. */
-export function syncStatus(): { on: boolean; folder: string | null; machine: { id: string; name: string }; others: { id: string; name: string; records: number }[]; waiting: number } {
+type Other = { id: string; name: string; records: number; wrote: string | null };
+export function syncStatus(): { on: boolean; folder: string | null; machine: { id: string; name: string }; others: Other[]; waiting: number;
+  last: string | null; came: string | null; error: string | null } {
   const folder = syncFolder();
   const me = machine();
-  const others: { id: string; name: string; records: number }[] = [];
+  const others: Other[] = [];
   if (folder && existsSync(folder)) {
     const seen = readState<Seen>(SEEN(), {});
     for (const id of readdirSync(folder).filter((n) => n.startsWith("m_") && n !== me.id)) {
       let name = id;
       try { name = (JSON.parse(readFileSync(join(folder, id, "machine.json"), "utf8")) as { name: string }).name; } catch { /* named by id */ }
-      others.push({ id, name, records: seen[id]?.line ?? 0 });
+      // When it last wrote anything to the folder (its newest log file): the last that could have come from it.
+      let wrote: number | null = null;
+      try {
+        for (const f of readdirSync(join(folder, id, "log"))) wrote = Math.max(wrote ?? 0, statSync(join(folder, id, "log", f)).mtimeMs);
+      } catch { /* nothing yet */ }
+      others.push({ id, name, records: seen[id]?.line ?? 0, wrote: wrote ? new Date(wrote).toISOString() : null });
     }
   }
-  return { on: syncing(), folder, machine: me, others, waiting: readState<Rec[]>(WAITING(), []).length };
+  return { on: syncing(), folder, machine: me, others, waiting: readState<Rec[]>(WAITING(), []).length, last: last.at, came: last.came, error: last.error };
 }
