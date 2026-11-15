@@ -28,7 +28,7 @@ import re
 import subprocess
 import sys
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebEngineCore import (
     QWebEngineProfile,
@@ -218,6 +218,9 @@ class Files(QWebEngineUrlSchemeHandler):
 
 
 class Desktop(QObject):
+    #: One finger drawn in from an edge of the touchscreen (gestures.py, on its reader's thread): which edge.
+    _edge_swiped = Signal(str)
+
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
         self.config = load_config()
@@ -346,7 +349,10 @@ class Desktop(QObject):
         # Three fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
         import gestures  # noqa: PLC0415
         import tiling  # noqa: PLC0415
-        self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide)
+        # One finger in from an edge brings out a hidden dock or bar there: heard on the reader's thread, acted on here.
+        self._edge_swiped.connect(self._from_edge)
+        self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide,
+                                          on_edge=self._edge_swiped.emit)
         # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
         self.centering = tiling.Centering(self.events, self.carousel)
         self.rotation.apply()
@@ -496,6 +502,14 @@ class Desktop(QObject):
         for w in hypr.windows()["windows"]:
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
+
+    def _from_edge(self, edge: str) -> None:
+        """A finger in from an edge: the dock or the bar there, if it hides itself, brought out (sensor.py, `swiped`)."""
+        for it in (self.dock, self.bar):
+            if it.edge == edge and it.hider.on:
+                log(f"gestures: in from the {edge} edge: the {'dock' if it is self.dock else 'bar'} out")
+                it.hider.swiped()
+                return
 
     def carousel(self) -> bool:
         """Whether this machine lays its windows out as the carousel (tiling.py), and can."""

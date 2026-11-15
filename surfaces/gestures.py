@@ -91,11 +91,32 @@ def across(dx: float, dy: float, transform: int) -> tuple[float, float]:
     return -dy, dx
 
 
+def place(u: float, v: float, transform: int) -> tuple[float, float]:
+    """A point in the panel's axes (shares of each, 0–1), as the screen is seen: (across, down), each 0–1."""
+    t = transform % 4
+    if t == 0:
+        return u, v
+    if t == 1:
+        return v, 1 - u
+    if t == 2:
+        return 1 - u, 1 - v
+    return 1 - v, u
+
+
+#: A finger come down this near an edge (a share of the screen) and drawn this far in: the edge's bar or dock out.
+EDGE_NEAR, EDGE_IN = 0.035, 0.04
+
+
 class Gestures:
-    def __init__(self, wanted, slide) -> None:
-        """`wanted()`: whether to act (the carousel is in use). `slide(way)`: +1 the next window, -1 the one before."""
+    def __init__(self, wanted, slide, on_edge=None) -> None:
+        """
+        `wanted()`: whether to act (the carousel is in use). `slide(way)`: +1 the next window, -1 the one before.
+        `on_edge(edge)`: one finger drawn in from an edge ("top", "bottom", "left", "right") — a hidden dock or bar
+        brought out (surfaces.py). Called on this reader's own thread: the caller passes it to the screens' own.
+        """
         self.wanted = wanted
         self.slide = slide
+        self.on_edge = on_edge
         self.path = touchscreen()
         if not self.path:
             return
@@ -121,6 +142,8 @@ class Gestures:
         start = None  # where the fingers were, together, when the third came down
         most = 0
         now = (0.0, 0.0)
+        one = None  # one finger: where it came down, as the screen is seen, the screen's turn then, and whether it has acted
+        turn = 0
         while True:
             try:
                 data = f.read(EVENT.size)
@@ -147,7 +170,26 @@ class Gestures:
             if kind != EV_SYN or code != SYN_REPORT:
                 continue
             n = len(live)
+            was_most = most
             most = max(most, n)
+            # One finger, from an edge (the edge's bar or dock): looked at as it moves, acting once it is far enough in.
+            if n == 1 and was_most == 0 and self.on_edge:
+                turn = _transform()
+                p = self._middle(at, live)
+                one = {"at": place((p[0] - xr[0]) / max(1, xr[1] - xr[0]), (p[1] - yr[0]) / max(1, yr[1] - yr[0]), turn), "done": False}
+                u0, v0 = one["at"]
+                near = [e for e, ok in (("top", v0 <= EDGE_NEAR), ("bottom", v0 >= 1 - EDGE_NEAR), ("left", u0 <= EDGE_NEAR), ("right", u0 >= 1 - EDGE_NEAR)) if ok]
+                if near:
+                    log(f"gestures: a finger down at the {near[0]} edge ({u0:.3f}, {v0:.3f}; turn {turn})")
+            elif n == 1 and most == 1 and one and not one["done"]:
+                p = self._middle(at, live)
+                u, v = place((p[0] - xr[0]) / max(1, xr[1] - xr[0]), (p[1] - yr[0]) / max(1, yr[1] - yr[0]), turn)
+                edge = self._from_edge(one["at"], (u, v))
+                if edge:
+                    one["done"] = True
+                    self.on_edge(edge)
+            if n == 0:
+                one = None
             if n == FINGERS and start is None:
                 start = self._middle(at, live)
                 now = start
@@ -158,6 +200,20 @@ class Gestures:
                 if start is not None and most == FINGERS and self.wanted():
                     self._ended(start, now, xr, yr)
                 start, most = None, 0
+
+    @staticmethod
+    def _from_edge(start: tuple[float, float], now: tuple[float, float]) -> str:
+        """The edge a finger came in from — begun near it, and drawn in from it far enough and more than along it — or ""."""
+        (u0, v0), (u, v) = start, now
+        if v0 >= 1 - EDGE_NEAR and v0 - v >= EDGE_IN and v0 - v > abs(u - u0):
+            return "bottom"
+        if v0 <= EDGE_NEAR and v - v0 >= EDGE_IN and v - v0 > abs(u - u0):
+            return "top"
+        if u0 <= EDGE_NEAR and u - u0 >= EDGE_IN and u - u0 > abs(v - v0):
+            return "left"
+        if u0 >= 1 - EDGE_NEAR and u0 - u >= EDGE_IN and u0 - u > abs(v - v0):
+            return "right"
+        return ""
 
     @staticmethod
     def _middle(at: dict[int, list[int]], live: set[int]) -> tuple[float, float]:
