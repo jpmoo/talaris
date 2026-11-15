@@ -186,6 +186,7 @@ import {
   putDocument,
   type CanvasDocument,
   type CanvasItem,
+  type InkItem,
   type CanvasLink,
   type CanvasRegion,
 } from "./document.ts";
@@ -205,6 +206,18 @@ export function hold(doc: CanvasDocument, written: () => void) {
   onWritten = written;
 }
 export const document_ = () => held;
+
+/** The canvas's ink (ink.ts): its strokes, in the order they were drawn. */
+export function inkOf(): InkItem[] {
+  return held.items.filter((i) => i.kind === "ink") as unknown as InkItem[];
+}
+
+/** Strokes added and taken away, and kept. */
+export function changeInk(add: InkItem[], remove: string[]) {
+  const gone = new Set(remove);
+  held = { ...held, items: [...held.items.filter((i) => !gone.has(i.id)), ...(add as unknown as CanvasItem[])] };
+  save();
+}
 
 /**
  * The canvas's own background color, kept on its document as `background`
@@ -439,7 +452,9 @@ function patchProperties(props: Record<string, unknown>) {
     const listed = new Set(notes.map((i) => i.id));
     const children = held.items.filter((i) => !i.blockId && i.kind === "canvas" && !listed.has(i.id));
     if (children.length) rereadAfterSave = true;
-    held.items = [...blocks, ...notes, ...children];
+    // Ink is never among the notes (document.ts, `notesOf`): kept as it is, or every note's save dropped it.
+    const ink = held.items.filter((i) => i.kind === "ink");
+    held.items = [...blocks, ...notes.filter((i) => i.kind !== "ink"), ...children, ...ink];
   }
   if (Array.isArray(props.canvas_edges)) {
     held.links = (props.canvas_edges as Record<string, unknown>[]).map(linkFromEdge);

@@ -18,7 +18,9 @@
  * having to know anything else about the surface it sits on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Calendar, CheckSquare, FileText, Hash, Image as ImageIcon, Network, Search, SquareDashed, StickyNote, Type, User } from "lucide-react";
+import { Calendar, CheckSquare, Eraser, FileText, Hash, Highlighter, Image as ImageIcon, Network, PenLine, Redo2, Search, SquareDashed, StickyNote, Trash2, Type, Undo2, User } from "lucide-react";
+import { canRedo, canUndo, chooseColor, chooseSize, chooseTool, clearInk, inkState, INK_COLORS, INK_SIZES, onInk, redo, resolveColor, setInk, undo } from "../ink.ts";
+import { CustomColor } from "./CustomColor.tsx";
 import { ask, document_, keep, keepResized, pictureAt } from "../api.ts";
 import { exportCanvas } from "../export.ts";
 import { putDocument, type CanvasItem } from "../document.ts";
@@ -129,6 +131,10 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
    * without either owning the other.
    */
   const [selecting, setSelecting] = useState(false);
+  // Ink (ink.ts): its tool, color and size, drawn again as they change.
+  const [, inkChanged] = useState(0);
+  useEffect(() => onInk(() => inkChanged((n) => n + 1)), []);
+  const ink = inkState();
   useEffect(() => {
     if (selecting) window.document.documentElement.dataset.select = "on";
     else delete window.document.documentElement.dataset.select;
@@ -585,10 +591,55 @@ export function CanvasTools({ onPlaced }: { onPlaced: () => void | Promise<void>
       <button
         className={`tool${selecting ? " armed" : ""}`}
         title={selecting ? "Selecting — drag to sweep, Escape to stop" : "Select: drag to sweep without holding Shift"}
-        onClick={() => setSelecting((on) => !on)}
+        onClick={() => { setInk(false); setSelecting((on) => !on); }}
       >
         <SquareDashed size={15} />
       </button>
+
+      {/* Ink (ink.ts): the pen, the highlighter and the eraser, with a color and a width. The pen and the mouse
+          draw; a finger still pans and zooms. */}
+      <button
+        className={`tool${ink.on ? " armed" : ""}`}
+        title={ink.on ? "Drawing — the pen draws, a finger pans; Escape to stop" : "Draw with the pen"}
+        onClick={() => { if (selecting) setSelecting(false); setInk(!ink.on); }}
+      >
+        <PenLine size={15} />
+      </button>
+      {ink.on && (
+        <div className="tool-menu ink-bar">
+          <div className="ink-row">
+            {([["pen", "Pen", <PenLine size={15} key="p" />], ["highlighter", "Highlighter", <Highlighter size={15} key="h" />],
+              ["eraser", "Eraser — touch a stroke to take it off", <Eraser size={15} key="e" />]] as const).map(([key, name, icon]) => (
+              <button key={key} className={`ink-pick${ink.tool === key ? " on" : ""}`} title={name} aria-label={name}
+                onClick={() => chooseTool(key)}>{icon}</button>
+            ))}
+          </div>
+          <div className="ink-row ink-colors">
+            {INK_COLORS.map((c) => (
+              <button key={c} className={`ink-swatch${ink.color === c ? " on" : ""}`} title={c === "text" ? "The text's color" : c}
+                style={{ background: resolveColor(c) }} onClick={() => chooseColor(c)} />
+            ))}
+            <CustomColor value={INK_COLORS.includes(ink.color) ? null : ink.color} onPick={(c) => chooseColor(c)} title="Another color…" />
+          </div>
+          <div className="ink-row">
+            {[0, 1, 2].map((i) => {
+              const w = INK_SIZES[ink.tool === "highlighter" ? "highlighter" : "pen"][i]!;
+              return (
+                <button key={i} className={`ink-pick${ink.size === i ? " on" : ""}`} title={["Fine", "Medium", "Broad"][i]}
+                  onClick={() => chooseSize(i)}>
+                  <span className="ink-dot" style={{ width: Math.min(16, 3 + w / 2), height: Math.min(16, 3 + w / 2),
+                    background: resolveColor(ink.color), opacity: ink.tool === "highlighter" ? 0.5 : 1 }} />
+                </button>
+              );
+            })}
+          </div>
+          <div className="ink-row">
+            <button className="ink-pick" title="Undo (Ctrl+Z)" disabled={!canUndo()} onClick={() => undo()}><Undo2 size={15} /></button>
+            <button className="ink-pick" title="Redo (Ctrl+Shift+Z)" disabled={!canRedo()} onClick={() => redo()}><Redo2 size={15} /></button>
+            <button className="ink-pick" title="Clear all ink (undo brings it back)" onClick={() => clearInk()}><Trash2 size={15} /></button>
+          </div>
+        </div>
+      )}
 
       {LATER && tool("image", "A picture on the canvas", <ImageIcon size={15} />, () => picture.current?.click())}
 

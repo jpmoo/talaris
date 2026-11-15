@@ -146,7 +146,7 @@ if (forExport) {
     // so a window sized on the nodes alone is a window the drawing does not fit
     // in — and the fit then has to shrink everything to compensate.
     const boxes = [...document.querySelectorAll<HTMLElement | SVGGraphicsElement>(
-      ".cv-node, .cv-region, .cv-svg path",
+      ".cv-node, .cv-region, .cv-svg path, .cv-ink path",
     )].filter((el) => !el.closest("defs"));
     if (!boxes.length) return { w: 900, h: 600 };
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

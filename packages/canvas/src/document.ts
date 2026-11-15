@@ -17,6 +17,25 @@ function mimeOf(name: string): string {
            webp: "image/webp", heic: "image/heic", tiff: "image/tiff" }[ext] ?? "image/png";
 }
 
+/**
+ * A stroke of ink (ink.ts): an item like any other, so it syncs between machines on its own, one record each.
+ * Its box (`x`, `y`, `w`, `h`) bounds it; its points are relative to `x`, `y`, each [x, y, pressure 0–1].
+ */
+export interface InkItem {
+  id: string;
+  kind: "ink";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  points: [number, number, number][];
+  color: string;
+  /** The width at full pressure, in canvas units. */
+  width: number;
+  /** A highlighter's: wide, see-through, drawn beneath the pen's. */
+  tool?: "pen" | "highlighter";
+}
+
 export interface CanvasItem {
   id: string;
   x: number;
@@ -137,7 +156,8 @@ export const noteIdOf = (id: string) => (isNoteId(id) ? id.slice(2) : id);
  * around nothing; getting the second wrong drew every sticky white.
  */
 function notesOf(doc: CanvasDocument) {
-  return doc.items.filter((item) => !item.blockId).map(noteOf);
+  // Ink is drawn by the canvas itself (ink.ts), not handed to the component as a note.
+  return doc.items.filter((item) => !item.blockId && item.kind !== "ink").map(noteOf);
 }
 
 /**

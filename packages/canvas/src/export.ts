@@ -34,7 +34,7 @@ function extent(wrap: HTMLElement, layer: HTMLElement) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   // The connections as well as the things they connect: a curve bows outside
   // both of its ends. Not the arrowheads in <defs>, whose boxes sit at 0,0.
-  const parts = [...layer.querySelectorAll<HTMLElement | SVGGraphicsElement>(".cv-node, .cv-region, .cv-svg path")]
+  const parts = [...layer.querySelectorAll<HTMLElement | SVGGraphicsElement>(".cv-node, .cv-region, .cv-svg path, .cv-ink path")]
     .filter((el) => !el.closest("defs"));
   for (const el of parts) {
     const r = el.getBoundingClientRect();

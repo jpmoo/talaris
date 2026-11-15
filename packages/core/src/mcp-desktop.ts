@@ -120,7 +120,15 @@ export function desktopTools(core: Core): DesktopTool[] {
   /** A canvas in words: every item with its id, where it is and what it says; then the links. */
   function describeCanvas(doc: CanvasDocument, node: CanvasNode): string {
     const out = [`Canvas "${doc.title}" [${doc.id}] — ${doc.items.length} item(s), ${doc.links.length} link(s). Positions are x,y of the top left; sizes w×h.`];
+    // Ink (the canvas's pen strokes) said once, as a whole: a stroke is lines, with nothing to read.
+    const ink = doc.items.filter((i) => i.kind === "ink");
+    if (ink.length) {
+      const x0 = Math.min(...ink.map((i) => i.x)), y0 = Math.min(...ink.map((i) => i.y));
+      const x1 = Math.max(...ink.map((i) => i.x + i.w)), y1 = Math.max(...ink.map((i) => i.y + i.h));
+      out.push(`- ink: ${ink.length} pen stroke(s), drawn across ${Math.round(x0)},${Math.round(y0)} to ${Math.round(x1)},${Math.round(y1)}`);
+    }
     for (const i of doc.items) {
+      if (i.kind === "ink") continue;
       const kind = i.kind === "card" ? `card for ${i.seen?.kind ?? "entity"} ${i.entity}` : i.kind === "canvas" ? `child canvas ${i.canvas}` : i.kind === "canvas-link" ? `link to canvas ${i.canvas}` : (i.shape as string) ?? "note";
       const words = i.kind === "card" || i.kind?.startsWith("canvas") ? i.seen?.title ?? "" : String(i.text ?? "");
       out.push(`- [${i.id}] ${kind} at ${Math.round(i.x)},${Math.round(i.y)} ${Math.round(i.w)}×${Math.round(i.h)}${i.fill ? ` fill ${i.fill}` : ""}: ${JSON.stringify(words.length > 400 ? words.slice(0, 400) + "…" : words)}`);

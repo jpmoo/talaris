@@ -784,3 +784,19 @@ li.task.is-done > span { text-decoration: line-through; color: var(--muted); }
 .cv-find-n { min-width: 48px; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .cv-find button { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 0 4px; }
 .cv-find button:hover { color: var(--accent); }
+
+/* Ink (ink.ts, InkLayer.tsx): over the cards, taking no pointer of its own. */
+.cv-ink { position: absolute; overflow: visible; pointer-events: none; }
+/* With a pen chosen, a crosshair over the canvas; the eraser, a cell. */
+:root[data-ink="pen"] .cv-wrap, :root[data-ink="highlighter"] .cv-wrap { cursor: crosshair; }
+:root[data-ink="eraser"] .cv-wrap { cursor: cell; }
+.ink-bar { gap: 4px; min-width: 0; }
+.ink-row { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+.ink-pick { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--text); cursor: pointer; padding: 0; }
+.ink-pick:hover { background: var(--surface-2); }
+.ink-pick.on { border-color: var(--accent); background: var(--surface-2); }
+.ink-pick:disabled { opacity: .35; cursor: default; }
+.ink-swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer; padding: 0; }
+.ink-swatch.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ink-dot { display: block; border-radius: 50%; }

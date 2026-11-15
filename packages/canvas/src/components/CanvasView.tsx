@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
+import { InkLayer } from "./InkLayer.tsx";
 import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Grid3x3, Grip, GripHorizontal, Square, Image as ImageIcon, Minus, Plus, Lock, Unlock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -3826,6 +3827,8 @@ export function CanvasView({
             true,
           );
         })}
+        {/* Ink (ink.ts), over the cards: written on top of things, as on paper. */}
+        <InkLayer span={EDGE_SPAN} />
       </div>
 
       {/* inline add search (top left) */}

@@ -55,10 +55,13 @@ export interface ProjectSummary {
  *   what it was once the entity is gone.
  * - `plugin` — a plugin's thing; `plugin` names it, `seen` keeps its last-known
  *   picture so it can be drawn honestly when the plugin is missing.
+ * - `ink` — a pen stroke (the canvas's ink.ts): `points` [x, y, pressure] from
+ *   its box's corner, `color`, `width`, `tool` (pen or highlighter). Its own
+ *   item, so strokes sync one by one.
  *
  * Absent means `note`, which keeps Talaria-era canvases readable unchanged.
  */
-export type ItemKind = "note" | "canvas" | "canvas-link" | "card" | "plugin";
+export type ItemKind = "note" | "canvas" | "canvas-link" | "card" | "plugin" | "ink";
 
 export interface CanvasItem {
   id: string;
