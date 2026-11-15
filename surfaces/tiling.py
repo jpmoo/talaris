@@ -196,5 +196,16 @@ def slide(way: int) -> None:
     leaves the keys where they were.
     """
     global _quiet_until
+    # At the strip's end, nothing: the layout's focus goes round to the other end (it went from the last window to
+    # the first — a "bounce" back across the whole strip).
+    try:
+        w = json.loads(hypr.ask("j/activewindow") or "{}")
+        others = [c for c in json.loads(hypr.ask("j/clients") or "[]")
+                  if c.get("workspace", {}).get("id") == w.get("workspace", {}).get("id") and not c.get("floating")
+                  and c.get("address") != w.get("address") and c.get("mapped", True) and not c.get("hidden")]
+    except ValueError:
+        return
+    if w and not any((c["at"][0] > w["at"][0]) if way > 0 else (c["at"][0] < w["at"][0]) for c in others):
+        return
     _quiet_until = time.monotonic() + 0.8
     hypr.ask(f"/dispatch layoutmsg focus {'r' if way > 0 else 'l'}")
