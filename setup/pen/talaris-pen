@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 Jeff Moore
+"""
+The pen, in an order Hyprland does not drop.
+
+Some screen pens (the mini's ELAN, an MPP pen) sense the screen only a hair
+above it: a tap says the pen has come near and that it is touching in the
+same instant, often in the same report. Hyprland drops a touch that comes
+before the pen's coming near has given it a window to go to, and a quick tap
+did nothing — in every program, Firefox as much as Talaris — while one that
+hovered first (the pointer become a hand) worked. Traced with
+`libinput debug-events` on the mini, 2026-11-15.
+
+So this takes the pen for itself (EVIOCGRAB) and passes everything it says
+on, unchanged, through a copy of it made with uinput — same name, same ids, so
+libinput's quirks and Hyprland's settings for it still apply — with one
+difference: a touch that comes less than HOLD after the pen came near waits
+until HOLD has passed. Its pressure, its tilt, its buttons, its hovering: as
+the pen gave them.
+
+Runs as root (a system service: talaris-pen.service), from a root-owned copy
+(setup/pen/install.sh puts it in /usr/local/lib/talaris), since taking a
+device and making one both need it. Standard library only.
+
+    talaris-pen [/dev/input/eventN]     the pen; found by its name when not given
+"""
+
+from __future__ import annotations
+
+import fcntl
+import os
+import re
+import select
+import struct
+import sys
+import time
+
+#: How long after coming near a touch is held: long enough for the compositor to have taken the pen's coming near.
+HOLD = 0.015
+
+EV_SYN, EV_KEY, EV_ABS, EV_MSC = 0x00, 0x01, 0x03, 0x04
+SYN_REPORT = 0
+BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER = 0x14A, 0x140, 0x141
+ABS_CNT, KEY_CNT, MSC_CNT, PROP_CNT = 0x40, 0x300, 0x08, 0x20
+EVENT = struct.Struct("qqHHi")  # struct input_event, 64-bit
+
+
+def _ioc(direction: int, kind: str, nr: int, size: int) -> int:
+    return (direction << 30) | (size << 16) | (ord(kind) << 8) | nr
+
+
+R, W = 2, 1
+EVIOCGID = _ioc(R, "E", 0x02, 8)
+EVIOCGNAME = lambda n: _ioc(R, "E", 0x06, n)  # noqa: E731
+EVIOCGPROP = lambda n: _ioc(R, "E", 0x09, n)  # noqa: E731
+EVIOCGBIT = lambda ev, n: _ioc(R, "E", 0x20 + ev, n)  # noqa: E731
+EVIOCGABS = lambda a: _ioc(R, "E", 0x40 + a, 24)  # noqa: E731
+EVIOCGRAB = _ioc(W, "E", 0x90, 4)
+UI_SET_EVBIT, UI_SET_KEYBIT, UI_SET_ABSBIT, UI_SET_MSCBIT, UI_SET_PROPBIT = (_ioc(W, "U", n, 4) for n in (100, 101, 103, 104, 110))
+UI_DEV_SETUP = _ioc(W, "U", 3, 92)
+UI_ABS_SETUP = _ioc(W, "U", 4, 28)
+UI_DEV_CREATE = _ioc(0, "U", 1, 0)
+UI_DEV_DESTROY = _ioc(0, "U", 2, 0)
+
+
+def log(text: str) -> None:
+    print(f"talaris-pen: {text}", flush=True)
+
+
+def find() -> str:
+    """The pen: a direct (on-screen) device with a pen tool, by the kernel's list."""
+    text = open("/proc/bus/input/devices").read()
+    for block in text.split("\n\n"):
+        name = re.search(r'N: Name="([^"]*)"', block)
+        handler = re.search(r"H: Handlers=.*?(event\d+)", block)
+        keys = re.search(r"B: KEY=([0-9a-f ]+)", block)
+        # Not a made device (this one's own copy, which bears the pen's name): only what the kernel found.
+        if not (name and handler and keys) or "/devices/virtual/" in block:
+            continue
+        words = keys.group(1).split()
+        # BTN_TOOL_PEN (0x140): word 0x140 // 64 from the right.
+        bits = int(words[-1 - BTN_TOOL_PEN // 64], 16) if len(words) > BTN_TOOL_PEN // 64 else 0
+        if bits & (1 << (BTN_TOOL_PEN % 64)):
+            return f"/dev/input/{handler.group(1)}"
+    return ""
+
+
+def bits(fd: int, request: int, count: int) -> list[int]:
+    buf = bytearray((count + 7) // 8)
+    fcntl.ioctl(fd, request, buf)
+    return [i for i in range(count) if buf[i // 8] & (1 << (i % 8))]
+
+
+def copy_of(src: int) -> int:
+    """A uinput device saying what the pen says it can: its events, keys, axes (with their ranges), properties, ids."""
+    ui = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+    types = bits(src, EVIOCGBIT(0, 4), 0x20)
+    for t in types:
+        fcntl.ioctl(ui, UI_SET_EVBIT, t)
+    if EV_KEY in types:
+        for k in bits(src, EVIOCGBIT(EV_KEY, KEY_CNT // 8), KEY_CNT):
+            fcntl.ioctl(ui, UI_SET_KEYBIT, k)
+    if EV_MSC in types:
+        for m in bits(src, EVIOCGBIT(EV_MSC, 1), MSC_CNT):
+            fcntl.ioctl(ui, UI_SET_MSCBIT, m)
+    for p in bits(src, EVIOCGPROP(PROP_CNT // 8), PROP_CNT):
+        fcntl.ioctl(ui, UI_SET_PROPBIT, p)
+    if EV_ABS in types:
+        for a in bits(src, EVIOCGBIT(EV_ABS, ABS_CNT // 8), ABS_CNT):
+            fcntl.ioctl(ui, UI_SET_ABSBIT, a)
+            info = bytearray(24)
+            fcntl.ioctl(src, EVIOCGABS(a), info)
+            fcntl.ioctl(ui, UI_ABS_SETUP, struct.pack("HH", a, 0) + bytes(info))
+    ident = bytearray(8)
+    fcntl.ioctl(src, EVIOCGID, ident)
+    name = bytearray(80)
+    fcntl.ioctl(src, EVIOCGNAME(80), name)
+    fcntl.ioctl(ui, UI_DEV_SETUP, bytes(ident) + bytes(name) + struct.pack("I", 0))
+    fcntl.ioctl(ui, UI_DEV_CREATE)
+    return ui
+
+
+def run(path: str) -> None:
+    src = os.open(path, os.O_RDONLY)
+    ui = copy_of(src)
+    time.sleep(0.3)  # the copy announced before the pen is taken, so nothing falls between
+    fcntl.ioctl(src, EVIOCGRAB, 1)
+    log(f"taking {path}: a touch within {int(HOLD * 1000)} ms of the pen coming near waits that long")
+    near_at = 0.0
+    frame: list[bytes] = []
+    try:
+        while True:
+            select.select([src], [], [])
+            data = os.read(src, EVENT.size * 64)
+            for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
+                _s, _u, kind, code, value = EVENT.unpack_from(data, off)
+                frame.append(EVENT.pack(0, 0, kind, code, value))
+                if kind != EV_SYN or code != SYN_REPORT:
+                    continue
+                # A whole report: passed on, or split so the coming near goes first.
+                now = time.monotonic()
+                came = any(EVENT.unpack(e)[2:5] in ((EV_KEY, BTN_TOOL_PEN, 1), (EV_KEY, BTN_TOOL_RUBBER, 1)) for e in frame)
+                if came:
+                    near_at = now
+                touch = [e for e in frame if EVENT.unpack(e)[2:5] == (EV_KEY, BTN_TOUCH, 1)]
+                if touch and now - near_at < HOLD:
+                    rest = [e for e in frame if e not in touch]
+                    os.write(ui, b"".join(rest))  # the coming near (and where), on its own
+                    time.sleep(HOLD - (now - near_at))
+                    os.write(ui, b"".join(touch) + EVENT.pack(0, 0, EV_SYN, SYN_REPORT, 0))
+                else:
+                    os.write(ui, b"".join(frame))
+                frame = []
+    finally:
+        try:
+            fcntl.ioctl(src, EVIOCGRAB, 0)
+            fcntl.ioctl(ui, UI_DEV_DESTROY)
+        except OSError:
+            pass
+
+
+def main() -> int:
+    path = sys.argv[1] if len(sys.argv) > 1 else ""
+    while True:
+        path = path or find()
+        if not path:
+            log("no pen found; looking again in a minute")
+            time.sleep(60)
+            continue
+        try:
+            run(path)
+        except OSError as e:
+            # The pen gone (asleep, unplugged): found again.
+            log(f"{path}: {e}; looking again")
+            path = sys.argv[1] if len(sys.argv) > 1 else ""
+            time.sleep(2)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

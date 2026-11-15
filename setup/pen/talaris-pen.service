@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# The pen, in an order Hyprland does not drop (talaris-pen; setup/pen/install.sh).
+[Unit]
+Description=Talaris pen: a touch held until the pen's coming near has been said
+After=systemd-udevd.service
+
+[Service]
+ExecStart=/usr/bin/python3 -I /usr/local/lib/talaris/talaris-pen
+Restart=always
+RestartSec=3
+# Root for the pen's device and uinput, and nothing else.
+ProtectHome=yes
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

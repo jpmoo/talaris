@@ -175,6 +175,17 @@ if [ "$DEPS" = 1 ]; then
       echo "    Set."
     fi
   fi
+  # A screen pen whose quick taps were lost: it says it is near and touching at once, and Hyprland drops the touch.
+  # setup/pen/talaris-pen holds such a touch back until the coming near has been said.
+  if [ ! -e /etc/systemd/system/talaris-pen.service ] && python3 -I -c "
+import runpy, sys
+sys.exit(0 if runpy.run_path('$ROOT/setup/pen/talaris-pen', run_name='talaris_pen')['find']() else 1)" 2>/dev/null; then
+    echo "    This machine has a screen pen. Talaris has a helper so its quick taps register (a system service):"
+    echo "      setup/pen/install.sh  copies it to /usr/local/lib/talaris and runs it as talaris-pen.service"
+    if [ "$YES" = 1 ] || ask "    Put it in now (sudo)? [Y/n]" y; then
+      sudo "$ROOT/setup/pen/install.sh"
+    fi
+  fi
   BL="$(backlight_group || true)"
   if [ -n "$BL" ]; then
     echo "    The brightness keys need you in the $BL group, which owns the screen's backlight."
