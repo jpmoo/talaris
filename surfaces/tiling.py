@@ -18,7 +18,9 @@ three-finger swipe across the touchscreen does the same (gestures.py).
 
 Runtime keywords, so hyprland.conf is untouched; a reload puts its own layout
 back, and the surfaces apply this again when it does (surfaces.py,
-`style_compositor`).
+`style_compositor`). Applied before the gaps are set: the scrolling layout
+reads the gaps round the screen only when they are set after it took over —
+before, its windows ran up under the bar.
 """
 
 from __future__ import annotations
@@ -57,14 +59,16 @@ def available() -> bool:
     return bool(plugin_path())
 
 
-def _layout(name: str) -> None:
-    """The layout set, only when it is not already: told again, Hyprland may lay every window out afresh."""
+def _layout(name: str) -> bool:
+    """The layout set, only when it is not already: told again, Hyprland may lay every window out afresh. Whether it changed."""
     try:
         now = json.loads(hypr.ask("j/getoption general:layout") or "{}").get("str", "")
     except ValueError:
         now = ""
     if now != name:
         hypr.keyword("general:layout", name)
+        return True
+    return False
 
 
 def _loaded() -> bool:
@@ -88,8 +92,11 @@ def apply(mode: str) -> str:
                 log(f"tiling: the scrolling layout did not load ({out.strip()[:120]})")
                 _layout("dwindle")
                 return "dwindle"
-        _layout("scrolling")
+        switched = _layout("scrolling")
         hypr.keyword("plugin:hyprscrolling:column_width", COLUMN)
+        # The windows already out keep the widths they had as tiles (a half each); the new width is for new columns.
+        if switched:
+            hypr.ask(f"/dispatch layoutmsg colresize all {COLUMN}")
         # One window alone fills the screen, rather than sitting in a column with nothing beside it.
         hypr.keyword("plugin:hyprscrolling:fullscreen_on_one_column", "true")
         # The window moved to is put in the middle, the strip sliding under it.

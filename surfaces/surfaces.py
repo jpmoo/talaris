@@ -539,6 +539,10 @@ class Desktop(QObject):
         active = f"rgba({line}aa)" if outline == "line" else f"rgba({accent}ee)"
         hypr.keyword("general:col.inactive_border", active if all_active else f"rgba({accent}ee)" if outline == "accent" else f"rgba({line}aa)")
         self.window_motion()
+        # How windows are laid out on this machine: Tiles or Carousel (tiling.py). Before the gaps: the scrolling
+        # layout takes the gaps round the screen only when they are set after it.
+        import tiling  # noqa: PLC0415
+        tiling.apply(str(win.get("tiling", "tiles")))
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
         # A floating bar's margin on the side away from its edge is the space
@@ -557,9 +561,6 @@ class Desktop(QObject):
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
         hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
         self.gaps = sides
-        # How windows are laid out on this machine: Tiles or Carousel (tiling.py).
-        import tiling  # noqa: PLC0415
-        tiling.apply(str(win.get("tiling", "tiles")))
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""
