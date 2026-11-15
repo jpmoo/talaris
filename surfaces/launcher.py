@@ -35,7 +35,7 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 import hypr
 from apps import Apps, keeps_one_window, opens_new_windows
 from core import Bridge, call, get_json, projects as core_projects
-from layershell import KEYBOARD_EXCLUSIVE
+from layershell import KEYBOARD_EXCLUSIVE, KEYBOARD_ON_DEMAND
 from morgan import command as morgan_command
 from overlay import Overlay
 from views import log
@@ -241,6 +241,11 @@ class Launcher(Overlay):
     KEYBOARD = KEYBOARD_EXCLUSIVE
 
     def __init__(self, profile: QWebEngineProfile, desktop, apps: Apps) -> None:
+        # Where there is an on-screen keyboard, the keys only when it is pressed, as the other panels: holding the
+        # keyboard to itself, it was never typed into by Squeekboard — the keyboard up, and no letters (2026-11-14).
+        import keyboard as osk  # noqa: PLC0415
+        if osk.available():
+            self.KEYBOARD = KEYBOARD_ON_DEMAND
         super().__init__(profile, desktop, "talaris-ui://ui/launcher.html", LauncherBridge(None, None), area="launcher")
         self.bridge.owner = self
         self.bridge.setParent(self)
