@@ -427,6 +427,11 @@ class Autohide(QObject):
             self._by_finger = True
             self._away.start(FINGER_STAY_MS)
 
+    def lifted(self) -> None:
+        """Every finger off the glass: out by a finger, its time to go counts from now, not from the swipe."""
+        if self.on and self.out and self._by_finger:
+            self._away.start(FINGER_STAY_MS)
+
     def _touched_on_it(self) -> None:
         """A finger on it while it is out: it stays a while longer."""
         if self.on and self.out:

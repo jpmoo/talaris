@@ -222,6 +222,8 @@ class Desktop(QObject):
     _edge_swiped = Signal(str)
     #: A finger come down on the touchscreen, where (shares of the screen across and down; gestures.py's thread).
     _finger_down = Signal(float, float)
+    #: Every finger off the touchscreen (gestures.py's thread).
+    _fingers_up = Signal()
 
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
@@ -357,7 +359,10 @@ class Desktop(QObject):
         self._edge_swiped.connect(self._from_edge)
         # And any finger down, off a dock or bar that is out, puts it away, as a click off it does (sensor.py).
         self._finger_down.connect(self._tapped)
-        self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit)
+        # A dock or bar a finger brought out goes a while after the finger lifts, not after the swipe began.
+        self._fingers_up.connect(lambda: (self.dock.hider.lifted(), self.bar.hider.lifted()))
+        self.gestures = gestures.Gestures(lambda: False, tiling.slide, on_edge=self._edge_swiped.emit, on_down=self._finger_down.emit,
+                                          on_lift=self._fingers_up.emit)
         # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
         self.centering = tiling.Centering(self.events, self.carousel)
         self.rotation.apply()

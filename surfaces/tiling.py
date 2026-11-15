@@ -135,7 +135,9 @@ class Centering(QObject):
         self._quiet_until = 0.0
         self._later = QTimer(self)
         self._later.setSingleShot(True)
-        self._later.setInterval(150)
+        # Once the strip has slid: looked at mid-slide, the window gone to looked off the middle, was "centered" by
+        # going away and back — and at the strip's end came back to the wrong one (2026-11-15).
+        self._later.setInterval(700)
         self._later.timeout.connect(self.center)
         events.focus.connect(lambda _a: self._later.start())
         events.opened.connect(lambda _a: self._later.start())

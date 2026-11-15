@@ -111,7 +111,7 @@ EDGE_NEAR, EDGE_IN = 0.035, 0.04
 
 
 class Gestures:
-    def __init__(self, wanted, slide, on_edge=None, on_down=None) -> None:
+    def __init__(self, wanted, slide, on_edge=None, on_down=None, on_lift=None) -> None:
         """
         `wanted()`: whether to act (the carousel is in use). `slide(way)`: +1 the next window, -1 the one before.
         `on_edge(edge)`: one finger drawn in from an edge ("top", "bottom", "left", "right") — a hidden dock or bar
@@ -123,6 +123,8 @@ class Gestures:
         #: `on_down(across, down)`: a finger come down, where on the screen (shares of it, 0–1) — off a dock or bar
         #: that is out, it goes (surfaces.py). On this reader's thread too.
         self.on_down = on_down
+        #: `on_lift()`: every finger off the glass (surfaces.py: a dock brought out by a swipe counts its time from here).
+        self.on_lift = on_lift
         self.path = touchscreen()
         if not self.path:
             return
@@ -197,6 +199,8 @@ class Gestures:
                     one["done"] = True
                     self.on_edge(edge)
             if n == 0:
+                if was_most and self.on_lift:
+                    self.on_lift()
                 one = None
             if n == FINGERS and start is None:
                 start = self._middle(at, live)
