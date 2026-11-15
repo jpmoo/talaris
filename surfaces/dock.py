@@ -725,6 +725,8 @@ class Dock(QObject):
         if (not items) != self.empty:
             self.empty = not items
             self.place()
+            # In the carousel, the space it held is held by a spacer while it is gone (surfaces.py, `hold_spaces`).
+            self.desktop.hold_spaces()
 
     def _project_name(self, key: str) -> str:
         """A project's name, from its id (a desktop is named by its project's id); the key itself for none."""

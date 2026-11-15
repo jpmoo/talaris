@@ -511,6 +511,24 @@ class Desktop(QObject):
                 it.hider.swiped()
                 return
 
+    def hold_spaces(self) -> None:
+        """
+        In the carousel, a spacer reserving the gap at each edge the bar or the dock does not hold (spacers.py): the
+        sides, and the bar's or the dock's edge while it hides or is not there. None in Tiles.
+        """
+        import spacers  # noqa: PLC0415
+        if not self.carousel():
+            spacers.hold({})
+            return
+        gap = round(int(self.config["windows"]["gap"]) / QT_SCALE)
+        holds = {}
+        bar_edge = getattr(getattr(self, "bar", None), "edge", "top")
+        dock = getattr(self, "dock", None)
+        holds[bar_edge] = not self.hides("bar")
+        if dock is not None:
+            holds[dock.edge] = bool(self.config["dock"].get("enabled", True)) and not self.hides("dock") and not getattr(dock, "empty", False)
+        spacers.hold({edge: 0 if holds.get(edge) else gap for edge in ("top", "bottom", "left", "right")})
+
     def carousel(self) -> bool:
         """Whether this machine lays its windows out as the carousel (tiling.py), and can."""
         import tiling  # noqa: PLC0415
@@ -592,12 +610,14 @@ class Desktop(QObject):
         # Between two windows Hyprland leaves its inner gap on each side, so the
         # space seen is twice the number: the setting is the space seen.
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
-        # In the carousel the bar and the dock hold the space round the windows (`edge_gap`): no gaps of Hyprland's.
+        # In the carousel the bar and the dock hold the space round the windows (`edge_gap`), and spacers the edges
+        # neither holds (`hold_spaces`): no gaps of Hyprland's.
         if self.carousel():
             hypr.keyword("general:gaps_out", "0,0,0,0")
         else:
             hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
         self.gaps = sides
+        self.hold_spaces()
 
     def _bind(self) -> None:
         """Compositor binds, so the way back works whatever is covering the screen."""

@@ -84,11 +84,13 @@ def across(dx: float, dy: float, transform: int) -> tuple[float, float]:
     t = transform % 4
     if t == 0:
         return dx, dy
+    # Read off the mini (2026-11-15): turned to 3, a finger up from the screen's bottom read as the panel's
+    # u falling from 1 — the quarter-turns are the other way round from the first guess.
     if t == 1:
-        return dy, -dx
+        return -dy, dx
     if t == 2:
         return -dx, -dy
-    return -dy, dx
+    return dy, -dx
 
 
 def place(u: float, v: float, transform: int) -> tuple[float, float]:
@@ -97,10 +99,10 @@ def place(u: float, v: float, transform: int) -> tuple[float, float]:
     if t == 0:
         return u, v
     if t == 1:
-        return v, 1 - u
+        return 1 - v, u
     if t == 2:
         return 1 - u, 1 - v
-    return 1 - v, u
+    return v, 1 - u
 
 
 #: A finger come down this near an edge (a share of the screen) and drawn this far in: the edge's bar or dock out.
