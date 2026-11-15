@@ -62,29 +62,30 @@ def plug() -> list[float]:
 
 
 def opening() -> list[float]:
-    """Talaris come up: three glassy bell notes rising (a major sixth's pentatonic: E6, G#6, B6, then E7 above), ringing together."""
-    n = int(RATE * 1.6)
+    """
+    Talaris come up: a soft chord, gently strummed — A major with a ninth (A4, C#5, E5, B5), each note a warm bell,
+    a few hundredths of a second apart, swelling in rather than struck, and ringing out.
+    """
+    n = int(RATE * 2.2)
     out = [0.0] * n
-    notes = [(1318.5, 0.0, 0.9), (1661.2, 0.11, 0.8), (1975.5, 0.22, 0.75), (2637.0, 0.36, 0.45)]
+    notes = [(440.0, 0.000, 0.9), (554.4, 0.025, 0.75), (659.3, 0.050, 0.7), (987.8, 0.080, 0.4)]
     for f, at, gain in notes:
         start = int(RATE * at)
         for i in range(n - start):
             t = i / RATE
-            attack = min(1.0, t / 0.004)
-            decay = math.exp(-t * 3.2)
-            # A bell: its fundamental and a slightly detuned twin, a soft inharmonic partial above, gone quickly.
-            s = (math.sin(2 * math.pi * f * t) + 0.8 * math.sin(2 * math.pi * (f * 1.0021) * t)) * 0.55
-            s += 0.22 * math.sin(2 * math.pi * f * 2.76 * t) * math.exp(-t * 11)
-            s += 0.08 * math.sin(2 * math.pi * f * 5.4 * t) * math.exp(-t * 20)
+            attack = min(1.0, t / 0.03) ** 2  # a swell, not a strike
+            decay = math.exp(-t * 2.2)
+            s = (math.sin(2 * math.pi * f * t) + 0.6 * math.sin(2 * math.pi * f * 1.0015 * t)) * 0.6
+            s += 0.18 * math.sin(2 * math.pi * f * 2 * t) * math.exp(-t * 5)  # a little body, gone soon
+            s += 0.05 * math.sin(2 * math.pi * f * 3.01 * t) * math.exp(-t * 9)
             out[start + i] += gain * attack * decay * s
-    # The room: two faint echoes.
-    for delay, g in ((int(RATE * 0.09), 0.25), (int(RATE * 0.19), 0.12)):
+    for delay, g in ((int(RATE * 0.11), 0.2), (int(RATE * 0.23), 0.1)):
         for i in range(n - 1, delay - 1, -1):
             out[i] += g * out[i - delay]
     peak = max(abs(s) for s in out) or 1.0
-    fade = int(RATE * 0.25)
-    # Quiet, as the plug's: the system volume is the loudest it gets.
-    return [s / peak * 0.26 * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
+    fade = int(RATE * 0.4)
+    # Softer than the plug's: a greeting, not a notice.
+    return [s / peak * 0.18 * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
 
 
 if __name__ == "__main__":
