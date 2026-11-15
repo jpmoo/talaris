@@ -90,7 +90,7 @@ from machine import Machine
 from views import AREAS, log, set_zoom, zoom
 import core
 from core import call
-from layershell import to_compositor
+from layershell import QT_SCALE, to_compositor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UI = os.path.join(HERE, "ui")
@@ -495,6 +495,23 @@ class Desktop(QObject):
             if w["class"] in added:
                 hypr.ask(f"/dispatch setprop address:{w['address']} opaque 1")
 
+    def carousel(self) -> bool:
+        """Whether this machine lays its windows out as the carousel (tiling.py), and can."""
+        import tiling  # noqa: PLC0415
+        return self.config["windows"].get("tiling") == "carousel" and tiling.available()
+
+    def edge_gap(self, which: str) -> int:
+        """
+        In the carousel, the space the bar or the dock reserves beyond itself (Qt's units): the windows' gap from it,
+        which the scrolling layout keeps clear where it does not keep Hyprland's gaps (tiling.py). None in Tiles.
+        """
+        if not self.carousel():
+            return 0
+        gap = int(self.config["windows"]["gap"])
+        if which == "dock":
+            gap = max(0, gap - to_compositor(self.DOCK_SHORT))
+        return round(gap / QT_SCALE)
+
     def hides(self, which: str) -> bool:
         """Whether the bar or the dock is away until its edge is touched: set to by Settings, or tucked for now."""
         return bool(self.config[which].get("autohide")) or self.tucked[which]
@@ -559,7 +576,11 @@ class Desktop(QObject):
         # Between two windows Hyprland leaves its inner gap on each side, so the
         # space seen is twice the number: the setting is the space seen.
         hypr.keyword("general:gaps_in", str(round(int(self.config["windows"].get("between", 10)) / 2)))
-        hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
+        # In the carousel the bar and the dock hold the space round the windows (`edge_gap`): no gaps of Hyprland's.
+        if self.carousel():
+            hypr.keyword("general:gaps_out", "0,0,0,0")
+        else:
+            hypr.keyword("general:gaps_out", f"{sides['top']},{sides['right']},{sides['bottom']},{sides['left']}")
         self.gaps = sides
 
     def _bind(self) -> None:
@@ -690,6 +711,10 @@ class Desktop(QObject):
                 self.bar._tray_changed()
         if after["dock"] != before["dock"]:
             self.dock.edge = after["dock"]["edge"]
+            self.dock.place()
+        # Tiles or Carousel, or the gap: the space the bar and the dock hold back changes with them (`edge_gap`).
+        if any(after["windows"].get(k) != before["windows"].get(k) for k in ("tiling", "gap")):
+            self.bar.place()
             self.dock.place()
         changed = set_zoom(self.text_sizes())
         if "bar" in changed:

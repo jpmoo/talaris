@@ -12,15 +12,19 @@ layout, a plugin (`hyprland-plugin-hyprscrolling`, built for the Hyprland
 installed), loaded here when chosen.
 
 **Moving through it**: Super and the arrows move to the window that way, as in
-Tiles. Super+Shift and Left or Right slide the strip a column
+Tiles. Super+Shift and Left or Right go to the next window or the one before
 (bin/move-or-split asks which layout it is in); Up and Down do nothing. A
 three-finger swipe across the touchscreen does the same (gestures.py).
 
 Runtime keywords, so hyprland.conf is untouched; a reload puts its own layout
 back, and the surfaces apply this again when it does (surfaces.py,
-`style_compositor`). Applied before the gaps are set: the scrolling layout
-reads the gaps round the screen only when they are set after it took over —
-before, its windows ran up under the bar.
+`style_compositor`).
+
+**The space round the windows** is not Hyprland's gaps in the carousel: the
+scrolling layout took them only now and then (and once slid every window off
+the screen when they were set again). The bar and the dock reserve it instead,
+each its gap beyond its own edge (`edge_gap`), which the layout always keeps
+clear; the gaps themselves are none.
 """
 
 from __future__ import annotations
@@ -41,7 +45,7 @@ PLUGIN_GLOBS = (
 PACKAGE = "hyprland-plugin-hyprscrolling"
 
 #: How much of the screen a column takes: the rest shows the edges of the windows on either side.
-COLUMN = "0.8"
+COLUMN = "0.9"
 
 _said = ""
 
@@ -113,5 +117,9 @@ def apply(mode: str) -> str:
 
 
 def slide(way: int) -> None:
-    """The strip a column on (+1) or back (-1): the window there comes to the middle."""
-    hypr.ask(f"/dispatch layoutmsg move {'+col' if way > 0 else '-col'}")
+    """
+    To the next window (+1) or the one before (-1): it takes the keys, and the strip brings it to the middle. The
+    layout's `focus`, not its `move`: `move` slides the view alone, past the last window into empty screen, and
+    leaves the keys where they were.
+    """
+    hypr.ask(f"/dispatch layoutmsg focus {'r' if way > 0 else 'l'}")

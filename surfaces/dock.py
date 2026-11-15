@@ -586,7 +586,7 @@ class Dock(QObject):
         # and Ctrl-press need them — they come with the keyboard. Focus follows the mouse, so
         # it is the dock's while the pointer is on it, and the window's again once it leaves.
         self.surface.apply(Placement(OVERLAY if self.covered else TOP, edge | ANCHOR_LEFT | ANCHOR_RIGHT, screen.width(), tall + room,
-                                     KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall))
+                                     KEYBOARD_ON_DEMAND, exclusive=0 if hide else tall + self.desktop.edge_gap("dock")))
         self.bridge.state.emit(json.dumps({**self.describe(), "arrived": hide}))
 
     def span(self, left: float, right: float) -> None:
