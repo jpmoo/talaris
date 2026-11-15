@@ -456,7 +456,9 @@ class Location(QObject):
         if not net.get("ssid"):
             return None
         for p in self.settings().get("places") or []:
-            if p.get("ssid") == net["ssid"] and set(p.get("bssids") or []) & set(net.get("bssids") or []):
+            # Its name and a router of its in reach — or its name alone when the scan saw no routers at all: one came
+            # back empty now and then, and the laptop left home for GeoClue's guess, in Louisiana (2026-11-15).
+            if p.get("ssid") == net["ssid"] and (set(p.get("bssids") or []) & set(net.get("bssids") or []) or not net.get("bssids")):
                 return p
         return None
 
@@ -501,8 +503,17 @@ class Location(QObject):
     def _got_network(self, text: str) -> None:
         was = (self.known_place() or {}).get("name")
         ignored = self.ignoring()
+        before = self.network
         self.network = json.loads(text)
         now = (self.known_place() or {}).get("name")
+        # Left a known place only when two looks running say so: one scan missing its routers, on the same network,
+        # is a scan, not a journey.
+        if was and not now and self.network.get("ssid") == before.get("ssid"):
+            self._missed = getattr(self, "_missed", 0) + 1
+            if self._missed < 2:
+                self.network = before
+                return
+        self._missed = 0
         first = not self.network_checked
         self.network_checked = True
         # The first look since starting: where you are, acted on now — known place or not.
