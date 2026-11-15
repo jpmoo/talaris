@@ -130,7 +130,10 @@ class Keyboard(QObject):
             self.up = opened
             self._tell_bar()
         if opened:
-            self._room.start(150)
+            # Measured once it has stayed up a moment: in a tablet it comes and goes by itself as the keys move from
+            # field to field, and kept clear of at once, every panel rose and fell with it — the screen's bottom
+            # lifting for a keyboard that never came (2026-11-15). Gone again by then, nothing moves (`_measure`).
+            self._room.start(450)
         else:
             self._room.stop()
             self._again.stop()

@@ -31,6 +31,17 @@ export function InkLayer({ span }: { span: number }) {
     const wrap = svg.current?.closest(".cv-wrap") as HTMLElement | null;
     if (!wrap) return;
     let drawing: number | null = null;
+    // The pen near (hovering or drawing — as the pointer, since Talaris takes the pen as one; and a mouse alike):
+    // while it is, and a moment after, a finger on the canvas is ignored outright — a hand resting on the screen
+    // neither pans, taps nor pinches. With the pen away, fingers pan and zoom as ever.
+    let penNear = 0;
+    const PEN_NEAR_MS = 900;
+    const near = () => inkState().on && performance.now() - penNear < PEN_NEAR_MS;
+    const hovered = (e: PointerEvent) => { if (e.pointerType !== "touch") penNear = performance.now(); };
+    const palm = (e: Event) => {
+      const touch = e instanceof PointerEvent ? e.pointerType === "touch" : true;
+      if (touch && near()) { e.preventDefault(); e.stopPropagation(); }
+    };
     const point = (e: PointerEvent) => {
       const c = toCanvas(wrap, e.clientX, e.clientY);
       // A mouse says no pressure (0, or 0.5 while pressed): drawn at the middle.
@@ -38,7 +49,9 @@ export function InkLayer({ span }: { span: number }) {
       return { p: [c.x, c.y, pr] as [number, number, number], z: c.z };
     };
     const down = (e: PointerEvent) => {
-      if (!inkState().on || e.pointerType === "touch" || e.button !== 0) return;
+      if (e.pointerType === "touch") { palm(e); return; }
+      penNear = performance.now();
+      if (!inkState().on || e.button !== 0) return;
       // Over the canvas's own controls (a card's menu, a field): theirs.
       const t = e.target as HTMLElement;
       if (t.closest("input, textarea, [contenteditable=true], .menu, .ctx-menu, button")) return;
@@ -50,6 +63,8 @@ export function InkLayer({ span }: { span: number }) {
       begin(p, z);
     };
     const move = (e: PointerEvent) => {
+      hovered(e);
+      if (e.pointerType === "touch") { palm(e); return; }
       if (drawing !== e.pointerId) return;
       e.preventDefault();
       e.stopPropagation();
@@ -73,11 +88,16 @@ export function InkLayer({ span }: { span: number }) {
       end();
     };
     wrap.addEventListener("pointerdown", down, true);
+    // The canvas pinches and pans with touch events of its own (CanvasView): kept from them too while the pen is near.
+    wrap.addEventListener("touchstart", palm, { capture: true, passive: false });
+    wrap.addEventListener("touchmove", palm, { capture: true, passive: false });
     wrap.addEventListener("pointermove", move, true);
     wrap.addEventListener("pointerup", up, true);
     wrap.addEventListener("pointercancel", lost, true);
     return () => {
       wrap.removeEventListener("pointerdown", down, true);
+      wrap.removeEventListener("touchstart", palm, true);
+      wrap.removeEventListener("touchmove", palm, true);
       wrap.removeEventListener("pointermove", move, true);
       wrap.removeEventListener("pointerup", up, true);
       wrap.removeEventListener("pointercancel", lost, true);
