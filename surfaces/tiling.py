@@ -31,6 +31,9 @@ from __future__ import annotations
 
 import glob
 import json
+import time
+
+from PySide6.QtCore import QObject, QTimer
 
 import hypr
 from views import log
@@ -114,6 +117,60 @@ def apply(mode: str) -> str:
         log("tiling: tiles")
     _said = "tiles"
     return "dwindle"
+
+
+class Centering(QObject):
+    """
+    In the carousel, the window with the keys always in the middle. The layout centers a window only when it is gone
+    to by its own `focus` (the keys, the swipe: `slide`); one that took the keys any other way — clicked, just opened,
+    the one in use as the carousel was chosen — stayed at the screen's edge. So, a moment after the keys move, the
+    window with them is looked at, and one off the middle is gone from and back to by the layout's `focus`, which
+    centers it. What that does itself is not looked at again.
+    """
+
+    def __init__(self, events, wanted) -> None:
+        super().__init__(events)
+        self.wanted = wanted
+        self._quiet_until = 0.0
+        self._later = QTimer(self)
+        self._later.setSingleShot(True)
+        self._later.setInterval(150)
+        self._later.timeout.connect(self.center)
+        events.focus.connect(lambda _a: self._later.start())
+        events.opened.connect(lambda _a: self._later.start())
+        events.closed.connect(lambda _a: self._later.start())
+
+    def center(self) -> None:
+        if time.monotonic() < self._quiet_until or not self.wanted():
+            return
+        try:
+            if json.loads(hypr.ask("j/getoption general:layout") or "{}").get("str") != "scrolling":
+                return
+            w = json.loads(hypr.ask("j/activewindow") or "{}")
+            mons = json.loads(hypr.ask("j/monitors") or "[]")
+        except ValueError:
+            return
+        if not w or w.get("floating") or w.get("fullscreen"):
+            return
+        mon = next((m for m in mons if m.get("id") == w.get("monitor")), None)
+        if not mon:
+            return
+        turned = int(mon.get("transform", 0)) % 2 == 1
+        width = (mon["height"] if turned else mon["width"]) / (mon.get("scale") or 1)
+        middle = mon["x"] + width / 2
+        here = w["at"][0] + w["size"][0] / 2
+        if abs(here - middle) <= 24 or w["size"][0] >= width - 40:
+            return  # in the middle already, or alone and filling the screen
+        self._quiet_until = time.monotonic() + 0.6
+        was = w.get("address")
+        active = lambda: json.loads(hypr.ask("j/activewindow") or "{}").get("address")  # noqa: E731
+        hypr.ask("/dispatch layoutmsg focus r")
+        if active() != was:
+            hypr.ask("/dispatch layoutmsg focus l")
+            return
+        hypr.ask("/dispatch layoutmsg focus l")
+        if active() != was:
+            hypr.ask("/dispatch layoutmsg focus r")
 
 
 def slide(way: int) -> None:

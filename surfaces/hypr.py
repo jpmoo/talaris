@@ -388,6 +388,8 @@ class Events(QObject):
     workspace = Signal(str)
     #: A window asked to be brought forward (an application started again raises the one it has): its address.
     urgent = Signal(str)
+    #: The window with the keys, by address (0x…): any way it got them — a click, a key, a new window (tiling.py).
+    focus = Signal(str)
     #: A window opened, or closed: its address (as `j/clients` writes it, 0x…).
     opened = Signal(str)
     closed = Signal(str)
@@ -427,6 +429,8 @@ class Events(QObject):
             if name == "pin":
                 addr, _, state = line.split(b">>", 1)[1].decode("ascii", "replace").partition(",")
                 self.pinned.emit("0x" + addr.strip(), state.strip() == "1")
+            if name == "activewindowv2":
+                self.focus.emit("0x" + line.split(b">>", 1)[1].decode("ascii", "replace").strip())
             if name in ("openwindow", "closewindow"):
                 address = "0x" + line.split(b">>", 1)[1].split(b",", 1)[0].decode("ascii", "replace")
                 (self.opened if name == "openwindow" else self.closed).emit(address)

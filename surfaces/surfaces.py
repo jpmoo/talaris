@@ -347,6 +347,8 @@ class Desktop(QObject):
         import gestures  # noqa: PLC0415
         import tiling  # noqa: PLC0415
         self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide)
+        # In the carousel, the window with the keys kept in the middle, however it got them (tiling.py).
+        self.centering = tiling.Centering(self.events, self.carousel)
         self.rotation.apply()
         # The on-screen keyboard, where there is a touchscreen and Squeekboard: up only when a field's button asks.
         self.keyboard = Keyboard(self)
