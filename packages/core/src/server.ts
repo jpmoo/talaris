@@ -629,7 +629,8 @@ route("GET", "/entities/:id", (_r, [asked], q) => {
   // socket (the desktop's tools) need not know the type's field names.
   const kinds = entities.profilesOf(entity);
   const when = kinds.includes("event") ? eventTimes(entity) : null;
-  return { entity, title: entities.titleOf(entity), kinds, out, in: incoming, ...(when ? { when } : {}), ...(hidden.length ? { hidden } : {}), ...(id !== asked ? { mergedFrom: asked } : {}) };
+  // Its links that are another machine's, said so (links.ts, `shownHere`): shown as there, not opened here.
+  return { entity: links.shownHere(entity), title: entities.titleOf(entity), kinds, out, in: incoming, ...(when ? { when } : {}), ...(hidden.length ? { hidden } : {}), ...(id !== asked ? { mergedFrom: asked } : {}) };
 });
 // Two of one kind made one (merge.ts): this one into `into`.
 route("POST", "/entities/:id/merge", async (req, [id]) => {

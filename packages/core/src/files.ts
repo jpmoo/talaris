@@ -31,7 +31,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, titleOf, trusted, typeFor, updateEntity, profilesOf, type Entity } from "./entities.js";
-import { LINK, homeHolds, linkFile, linkFileAsync, real, refreshLinks, toLink } from "./links.js";
+import { LINK, elsewhere, homeHolds, linkFile, linkFileAsync, real, refreshLinks, toLink } from "./links.js";
 import { seal, unseal } from "./seal.js";
 import { DATA_DIR, storeKey } from "./vault.js";
 import { FILES, MACHINERY, WRITING } from "./paths.js";
@@ -363,7 +363,9 @@ function rowsNow(only?: string): FileRow[] {
         ...(lives ? { livesIn: { project: lives.project, path: lives.rel } } : {}),
         ...(others.length || lives ? { alsoIn: [...new Set([...(lives ? [lives.project] : []), ...others])] } : {}),
         type: typeOfName(v?.filename ?? titleOf(o)), ...(link ? { size: link.size, mtime: new Date(link.mtime).toISOString() } : {}),
-        status: v?.[MISSING] ? ["shortcut", "missing"] : ["shortcut"], on: [], tags: o.tags ?? [], entity: o.id });
+        // Another machine's (docs/SYNC.md, *Shortcuts*): kept, and said to be there — not opened here.
+        ...(elsewhere(link) ? { elsewhere: elsewhere(link)! } : {}),
+        status: v?.[MISSING] || elsewhere(link) ? ["shortcut", "missing"] : ["shortcut"], on: [], tags: o.tags ?? [], entity: o.id });
       continue;
     }
     // Anything else with files: each is on it.
@@ -380,7 +382,8 @@ function rowsNow(only?: string): FileRow[] {
           if (!at && only && project !== only) continue;
           const key = `l:${project}|${link.path}`;
           const row = rows.get(key) ?? { key, project, name: a.filename, abs: link.path, type: typeOfName(a.filename), size: link.size,
-            mtime: new Date(link.mtime).toISOString(), status: a[MISSING] ? ["linked", "missing"] as Status[] : ["linked"] as Status[], on: [], tags: [] };
+            mtime: new Date(link.mtime).toISOString(), status: a[MISSING] || elsewhere(link) ? ["linked", "missing"] as Status[] : ["linked"] as Status[], on: [], tags: [],
+            ...(elsewhere(link) ? { elsewhere: elsewhere(link)! } : {}) };
           row.on.push(on);
           rows.set(key, row);
         } else {

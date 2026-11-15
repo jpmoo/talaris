@@ -336,7 +336,7 @@ window.TaskCard = (() => {
       const askMove = (x, y, a) => confirmAt(x, y, `Move “${a.filename}” from ${dirOf(a["talaris:link"].path)} into ${projectName}'s folder`, () => attachment(a, "move"));
       const askTrash = (x, y, a) => confirmAt(x, y, `Delete “${a.filename}” from ${dirOf(a["talaris:link"].path)} (to the Trash)`, () => attachment(a, "trash"));
       const offerMove = () => {
-        const away = files.filter((a) => placeOf(a) === "elsewhere" && !a["talaris:missing"]);
+        const away = files.filter((a) => placeOf(a) === "elsewhere" && !(a["talaris:missing"] || a["talaris:elsewhere"]));
         if (!away.length) return;
         const b = el("button", { class: "t-btn", onclick: (e) => {
           const r = e.currentTarget.getBoundingClientRect();
@@ -351,8 +351,8 @@ window.TaskCard = (() => {
         const link = a["talaris:link"];
         const toTask = { label: "Store on this task only", act: () => attachment(a, "snapshot") };
         menuAt(e.clientX, e.clientY, link ? [
-          ...(a["talaris:missing"] ? [] : [toTask]),
-          ...(placeOf(a) === "elsewhere" && !a["talaris:missing"] ? [{ label: "Move into this project's folder…", act: () => askMove(e.clientX, e.clientY, a) }] : []),
+          ...((a["talaris:missing"] || a["talaris:elsewhere"]) ? [] : [toTask]),
+          ...(placeOf(a) === "elsewhere" && !(a["talaris:missing"] || a["talaris:elsewhere"]) ? [{ label: "Move into this project's folder…", act: () => askMove(e.clientX, e.clientY, a) }] : []),
           { label: "Show in its folder", act: () => bridge && bridge.showLinked(link.path) },
         ] : [
           { label: "Save to this project's folder", act: () => api("POST", `/entities/${enc(id)}/attachments/${enc(a.sha256)}/link`, {}).then(after).catch(failed) },
@@ -362,8 +362,11 @@ window.TaskCard = (() => {
       const icon = (svg) => { const s = el("span", { class: "fic" }); s.innerHTML = svg(); return s; };
       filesRow = row("Files", el("div", { class: "chips t-files" },
         files.map((a) => {
-          const link = a["talaris:link"], missing = a["talaris:missing"], where = placeOf(a);
-          const said = missing ? `${a.filename} — missing from ${dirOf(link.path)}. Restore missing files puts it back`
+          // Another machine's link (docs/SYNC.md, *Shortcuts*): shown as on that machine, and not opened here.
+          const away = a["talaris:elsewhere"];
+          const link = a["talaris:link"], missing = a["talaris:missing"] || away, where = placeOf(a);
+          const said = away ? `${a.filename} — on ${away}; it opens there, not on this machine`
+            : missing ? `${a.filename} — missing from ${dirOf(link.path)}. Restore missing files puts it back`
             : where === "task" ? `${a.filename} — stored on this task only. Right-click to save it to this project's folder`
             : where === "project" ? `${a.filename} — in this project's folder (${dirOf(link.path)})`
             : `${a.filename} — linked from ${dirOf(link.path)}`;
@@ -387,7 +390,7 @@ window.TaskCard = (() => {
           return el("span", { class: `chip at-${where}` + (missing ? " missing" : ""), title: said,
             onclick: () => { if (!bridge) return; if (link) { if (!missing) bridge.openLinked(link.path); } else bridge.openFile(a.sha256, a.filename); },
             oncontextmenu: (e) => fileMenu(e, a) },
-            missing ? el("span", { class: "warn-mark" }, "⚠") : icon(ICON[where]),
+            away ? el("span", { class: "warn-mark", title: `On ${away}` }, "⇄") : missing ? el("span", { class: "warn-mark" }, "⚠") : icon(ICON[where]),
             el("span", { class: "lbl" }, a.filename),
             x);
         }),

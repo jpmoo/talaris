@@ -32,11 +32,53 @@ import { allRecords, forgetFiles, getEntity, getFile, putFile, trusted, types, u
 /** Every write here makes or keeps links, which only this file and its callers may (entities.ts, `trusted`). */
 const updateEntity: typeof storeUpdate = (id, patch) => trusted(() => storeUpdate(id, patch));
 import { Conflict, NotFound } from "./projects.js";
+import { machine, syncing } from "./records.js";
+import { DATA_DIR } from "./vault.js";
 
 export const LINK = "talaris:link";
 const MISSING = "talaris:missing";
 
-type Value = { kind: "attachment"; filename: string; mediaType?: string; sha256: string; [LINK]?: { path: string; size: number; mtime: number }; [MISSING]?: boolean; [k: string]: unknown };
+/** Where a linked file is: its path, size and time, and the machine it is on (its id, and its name to show). */
+type Link = { path: string; size: number; mtime: number; machine?: string; on?: string };
+type Value = { kind: "attachment"; filename: string; mediaType?: string; sha256: string; [LINK]?: Link; [MISSING]?: boolean; [k: string]: unknown };
+
+/**
+ * A link made here: on this machine (docs/SYNC.md, *Shortcuts*). A path is a path on one machine; between machines
+ * the record travels and the file does not, so a link says whose it is.
+ */
+const here = (path: string, size: number, mtime: number): Link => ({ path, size, mtime, machine: machine().id, on: machine().name });
+
+/**
+ * Whether a link is this machine's to look after — to mark missing, or read again. One made elsewhere is not:
+ * looked at here, its file is not there, and marking it missing went back to the machine it is on. A link from
+ * before links said their machine is the first machine's (the one the others joined), or this one's while it is
+ * the only one.
+ */
+export function mine(link: Link): boolean {
+  if (link.machine) return link.machine === machine().id;
+  return !syncing() || existsSync(join(DATA_DIR, "sync", "first"));
+}
+
+/** For a link not usable here — another machine's, its file not at its path here — the name of the machine it is on. */
+export function elsewhere(link: Link | undefined): string | null {
+  if (!link || mine(link)) return null;
+  if (homeHolds(link.path) && existsSync(link.path)) return null; // the same file at the same path here: it works here too
+  return link.on ?? "another machine";
+}
+
+/** An entity as shown here: each link that is another machine's, said so (`talaris:elsewhere`, its name). Never kept. */
+export function shownHere(o: Entity): Entity {
+  let any = false;
+  const properties: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(o.properties ?? {})) {
+    const list = valuesIn(v);
+    if (!list.some((a) => elsewhere(a[LINK]))) { properties[key] = v; continue; }
+    any = true;
+    const next = list.map((a) => { const on = elsewhere(a[LINK]); return on ? { ...a, "talaris:elsewhere": on } : a; });
+    properties[key] = Array.isArray(v) ? next : next[0];
+  }
+  return any ? { ...o, properties } : o;
+}
 
 const home = () => resolve(process.env.TALARIS_LINK_HOME ?? homedir());
 
@@ -116,7 +158,7 @@ function asField(o: Entity, key: string, list: Value[]): Value[] | Value | null 
 
 function linked(entityId: string, full: string, sha256: string, size: number, mtime: number): Value {
   const filename = basename(full);
-  const value: Value = { kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256, [LINK]: { path: full, size, mtime } };
+  const value: Value = { kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256, [LINK]: here(full, size, mtime) };
   const o = getEntity(entityId);
   const key = filesField(o);
   const now = valuesIn(o.properties[key]);
@@ -150,7 +192,7 @@ export function refreshLinks(ids?: string[]): number {
       if (!list.some((a) => a[LINK])) continue;
       const next = list.map((a) => {
         const link = a[LINK];
-        if (!link) return a;
+        if (!link || !mine(link)) return a;
         // A path outside the home folder (however it got there) is never read: taken as missing.
         if (!homeHolds(link.path) || !existsSync(link.path)) { if (a[MISSING]) return a; dirty = true; return { ...a, [MISSING]: true }; }
         const st = statSync(link.path);
@@ -184,7 +226,7 @@ function rehash(entityId: string, path: string): void {
       for (const [key, v] of Object.entries(o.properties ?? {})) {
         const list = valuesIn(v);
         if (!list.some((a) => a[LINK]?.path === path)) continue;
-        const next = list.map((a) => (a[LINK]?.path === path ? { ...a, sha256, [LINK]: { path, size: st.size, mtime: st.mtimeMs } } : a));
+        const next = list.map((a) => (a[LINK]?.path === path ? { ...a, sha256, [LINK]: here(path, st.size, st.mtimeMs) } : a));
         props[key] = Array.isArray(v) ? next : next[0];
       }
       if (Object.keys(props).length) updateEntity(entityId, { properties: props });
@@ -210,7 +252,7 @@ export function setPageLinks(entityId: string, key: string, paths: string[]): bo
     const was = now.find((a) => a[LINK]?.path === full);
     if (was && !was[MISSING] && was[LINK]!.size === st.size && was[LINK]!.mtime === st.mtimeMs) { next.push(was); continue; }
     const filename = basename(full);
-    next.push({ kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256: hashOf(readFileSync(full)), [LINK]: { path: full, size: st.size, mtime: st.mtimeMs } });
+    next.push({ kind: "attachment", filename, ...(typeOf(filename) ? { mediaType: typeOf(filename) } : {}), sha256: hashOf(readFileSync(full)), [LINK]: here(full, st.size, st.mtimeMs) });
   }
   if (JSON.stringify(next) === JSON.stringify(now)) return false;
   updateEntity(entityId, { properties: { [key]: next.length ? next : null } });
@@ -279,7 +321,7 @@ function relink(from: string, to: string): void {
       const list = valuesIn(v);
       if (!list.some((a) => a[LINK]?.path === from)) continue;
       updateEntity(o.id, { properties: { [key]: asField(o, key, list.map((a) => (a[LINK]?.path === from
-        ? { ...a, filename: basename(to), [LINK]: { path: to, size: st.size, mtime: st.mtimeMs } } : a))) } });
+        ? { ...a, filename: basename(to), [LINK]: here(to, st.size, st.mtimeMs) } : a))) } });
     }
   }
 }
@@ -358,7 +400,7 @@ export function toLink(entityId: string, sha256: string, folder: string): Value 
   writeFileSync(path, bytes);
   const st = statSync(path);
   const linked: Value = { kind: "attachment", filename: basename(path), ...(a.mediaType ? { mediaType: a.mediaType } : {}), sha256: a.sha256,
-    [LINK]: { path, size: st.size, mtime: st.mtimeMs } };
+    [LINK]: here(path, st.size, st.mtimeMs) };
   const next = [...list];
   next[at] = linked;
   updateEntity(entityId, { properties: { [key]: asField(getEntity(entityId), key, next) } });
@@ -407,7 +449,7 @@ export function restoreLinks(entityId: string): { restored: number; still: strin
       restored++;
       freed.push(a.sha256);
       const { [MISSING]: _gone, ...rest } = a;
-      return { ...rest, filename: basename(path), [LINK]: { path, size: st.size, mtime: st.mtimeMs } } as Value;
+      return { ...rest, filename: basename(path), [LINK]: here(path, st.size, st.mtimeMs) } as Value;
     });
     if (!Array.isArray(v)) props[key] = (props[key] as Value[])[0];
   }

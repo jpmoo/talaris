@@ -364,7 +364,8 @@
       el("span", { class: "ic", style: `background:${TYPE_COLOR[r.type] || TYPE_COLOR.other}` }, MARK_OF[r.type] || (r.name.split(".").pop() || "").slice(0, 3).toUpperCase()),
       el("span", { class: "nm", title: r.abs || r.name }, r.name, where ? el("span", { class: "where" }, where) : null),
       el("span", { class: "marks" },
-        ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, MARK[s])),
+        // Another machine's shortcut (docs/SYNC.md, *Shortcuts*): "on XPS 13", not "missing".
+        ...r.status.filter((s) => MARK[s]).map((s) => el("span", { class: `mk ${s}` }, s === "missing" && r.elsewhere ? `on ${r.elsewhere}` : MARK[s])),
         r.alsoIn && r.alsoIn.length ? el("span", { class: "mk on", title: r.alsoIn.map(projectName).join(", ") }, `also in ${r.alsoIn.length === 1 ? projectName(r.alsoIn[0]) : `${r.alsoIn.length} projects`}`) : null,
         ...r.tags.slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
       book(r),
@@ -778,7 +779,8 @@
     if (r.alsoIn && r.alsoIn.length) said.push(el("span", {}, el("b", {}, "Also in"), ` ${r.alsoIn.map(projectName).join(", ")}${r.status.includes("folder") ? ", through a shortcut" : ""}.`));
     if (s.includes("linked")) said.push(el("span", {}, el("b", {}, "Linked from a task."), " The file itself is outside every project."));
     if (s.includes("snapshot")) said.push(el("span", {}, el("b", {}, "Stored on a task"), `${r.fromHermes ? ", from Hermes Notes" : ""}. It isn't in any folder until you save it to the project's.`));
-    if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing:"), " moved or deleted from its folder."));
+    if (r.elsewhere) said.push(el("span", { class: "bad" }, el("b", {}, `On ${r.elsewhere}:`), " its file is on that machine, not this one. It opens there."));
+    else if (s.includes("missing")) said.push(el("span", { class: "bad" }, el("b", {}, "Missing:"), " moved or deleted from its folder."));
     if (r.sealed) said.push(el("span", {}, el("b", {}, "Encrypted."), " It opens as a copy, since only Talaris can read it."));
     // What search knows of what it says.
     const rs = readState[r.key];

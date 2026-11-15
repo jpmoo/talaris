@@ -105,6 +105,26 @@ test("renamed or moved, its tags and the links to it follow; a writing page is W
   assert.throws(() => files.renameFile(alpha.id, "Writing/Camp rules.md", "x.md"), /Writing/);
 });
 
+test("another machine's shortcut is shown as on it, and never marked missing here", () => {
+  const away = { kind: "attachment", filename: "Contract.pdf", sha256: "0".repeat(64),
+    "talaris:link": { path: join(sandbox, "elsewhere-only", "Contract.pdf"), size: 9, mtime: 1, machine: "m_other", on: "XPS 13" } };
+  const e = entities.trusted(() => entities.createEntity({ type: entities.typeFor("file").id, properties: { title: "Contract.pdf", file: away }, "talaris:shortcut": alpha.id }));
+  links.refreshLinks([e.id]);
+  const kept = entities.getEntity(e.id).properties.file as Record<string, unknown>;
+  assert.ok(!kept["talaris:missing"], "not this machine's to mark: marked, it went back to the one it is on");
+  const row = find(alpha.id, "Contract.pdf")!;
+  assert.deepEqual(row.status, ["shortcut", "missing"]);
+  assert.equal((row as { elsewhere?: string }).elsewhere, "XPS 13");
+  assert.equal((links.shownHere(entities.getEntity(e.id)).properties.file as Record<string, unknown>)["talaris:elsewhere"], "XPS 13");
+  // One made here says so.
+  const mine = join(sandbox, "Docs", "Mine.txt");
+  write(mine, "mine");
+  const t = tasks.createTask({ title: "Read mine" });
+  const v = links.linkFile(t.id, mine) as { "talaris:link": { machine?: string } };
+  assert.ok(v["talaris:link"].machine, "a link made here names this machine");
+  assert.equal(links.elsewhere(v["talaris:link"] as never), null);
+});
+
 test("from elsewhere: a shortcut is a record, never a file; a link outside every project shows on its task's project; a snapshot too", async () => {
   const outside = join(sandbox, "Downloads", "Receipt.pdf");
   write(outside, "receipt");
