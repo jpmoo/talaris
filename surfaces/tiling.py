@@ -14,7 +14,7 @@ installed), loaded here when chosen.
 **Moving through it**: Super and the arrows move to the window that way, as in
 Tiles. Super+Shift and Left or Right slide the strip a column
 (bin/move-or-split asks which layout it is in); Up and Down do nothing. A
-three-finger swipe across the touchscreen does the same (gestures.py).
+two-finger swipe across the touchscreen does the same (gestures.py).
 
 Runtime keywords, so hyprland.conf is untouched; a reload puts its own layout
 back, and the surfaces apply this again when it does (surfaces.py,

@@ -343,7 +343,7 @@ class Desktop(QObject):
         self.corners = Corners(self)
         # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
         self.rotation = Rotation(self)
-        # Three fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
+        # Two fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
         import gestures  # noqa: PLC0415
         import tiling  # noqa: PLC0415
         self.gestures = gestures.Gestures(lambda: self.config["windows"].get("tiling") == "carousel", tiling.slide)
