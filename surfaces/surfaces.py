@@ -1371,6 +1371,9 @@ def main() -> int:
     tick.start(250)
     app.aboutToQuit.connect(desktop.unbind)
     log("up")
+    # A little chime, once a session (machine.py).
+    import machine as _machine  # noqa: PLC0415
+    _machine.chime_opening()
     code = app.exec()
     # Only if the loop ended some other way than leave(): nothing torn down, for the same reason.
     desktop.leave(code)

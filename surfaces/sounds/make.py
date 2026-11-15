@@ -61,5 +61,32 @@ def plug() -> list[float]:
     return [s / peak * 0.3 * (min(1.0, (n - i) / fade)) for i, s in enumerate(out)]
 
 
+def opening() -> list[float]:
+    """Talaris come up: three glassy bell notes rising (a major sixth's pentatonic: E6, G#6, B6, then E7 above), ringing together."""
+    n = int(RATE * 1.6)
+    out = [0.0] * n
+    notes = [(1318.5, 0.0, 0.9), (1661.2, 0.11, 0.8), (1975.5, 0.22, 0.75), (2637.0, 0.36, 0.45)]
+    for f, at, gain in notes:
+        start = int(RATE * at)
+        for i in range(n - start):
+            t = i / RATE
+            attack = min(1.0, t / 0.004)
+            decay = math.exp(-t * 3.2)
+            # A bell: its fundamental and a slightly detuned twin, a soft inharmonic partial above, gone quickly.
+            s = (math.sin(2 * math.pi * f * t) + 0.8 * math.sin(2 * math.pi * (f * 1.0021) * t)) * 0.55
+            s += 0.22 * math.sin(2 * math.pi * f * 2.76 * t) * math.exp(-t * 11)
+            s += 0.08 * math.sin(2 * math.pi * f * 5.4 * t) * math.exp(-t * 20)
+            out[start + i] += gain * attack * decay * s
+    # The room: two faint echoes.
+    for delay, g in ((int(RATE * 0.09), 0.25), (int(RATE * 0.19), 0.12)):
+        for i in range(n - 1, delay - 1, -1):
+            out[i] += g * out[i - delay]
+    peak = max(abs(s) for s in out) or 1.0
+    fade = int(RATE * 0.25)
+    # Quiet, as the plug's: the system volume is the loudest it gets.
+    return [s / peak * 0.26 * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
+
+
 if __name__ == "__main__":
     write("plug.wav", plug())
+    write("open.wav", opening())

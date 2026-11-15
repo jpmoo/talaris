@@ -41,6 +41,25 @@ PLUG_MS = 1500
 IDLE_S = 15
 #: Played when power is plugged in.
 PLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "plug.wav")
+OPEN_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "open.wav")
+
+
+def chime_opening() -> None:
+    """
+    Talaris come up (sounds/make.py, `opening`): once a session — once each time Hyprland starts, which is a login —
+    not at every restart of the surfaces. Marked by the Hyprland instance, so a session folder kept alive (an SSH
+    login) does not keep the next login silent.
+    """
+    run = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    who = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") or "session"
+    mark = os.path.join(run, f"talaris-opened-{who}")
+    if os.path.exists(mark):
+        return
+    try:
+        open(mark, "w").close()
+    except OSError:
+        return
+    threading.Thread(target=_run, args=("pw-play", "--volume", "0.7", OPEN_SOUND), kwargs={"timeout": 5.0}, daemon=True).start()
 
 
 def _run(*cmd: str, timeout: float = 2.0) -> str:
