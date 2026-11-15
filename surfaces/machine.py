@@ -134,7 +134,9 @@ def _battery() -> dict:
 
 def battery_state() -> dict:
     """The battery at length, for its panel: upower's reading, the charging mode and limits, the power mode."""
-    found = [p for p in _run("upower", "-e").splitlines() if "battery" in p.lower()]
+    # The machine's own battery (BAT…): a pen's or a mouse's is listed apart (`devices`).
+    found = [p for p in _run("upower", "-e").splitlines() if "battery_bat" in p.lower()] \
+        or [p for p in _run("upower", "-e").splitlines() if "battery" in p.lower() and "hid" not in p.lower()]
     info = {}
     for line in (_run("upower", "-i", found[0]) if found else "").splitlines():
         key, sep, value = line.partition(":")
@@ -154,7 +156,28 @@ def battery_state() -> dict:
         "upowerState": info.get("state", ""), "untilFull": info.get("time to full", ""), "untilEmpty": info.get("time to empty", ""),
         "rate": round(num("energy-rate"), 1), "health": round(100 * full / design) if design else None,
         "cycles": int(num("charge-cycles")) or None, "profiles": profiles,
+        "devices": device_batteries(),
     }
+
+
+def device_batteries() -> list[dict]:
+    """
+    The batteries of things that are not the machine: a screen pen (its HID battery, read while it is near and has
+    said), a mouse, a keyboard — as the kernel lists them (scope Device). A touchscreen's is its pen's.
+    """
+    out = []
+    for d in sorted(glob.glob("/sys/class/power_supply/*")):
+        read = lambda name: (open(os.path.join(d, name)).read().strip() if os.path.exists(os.path.join(d, name)) else "")  # noqa: E731
+        try:
+            if read("type") != "Battery" or read("scope") != "Device":
+                continue
+            model = read("model_name")
+            level = read("capacity")
+        except OSError:
+            continue
+        name = "Pen" if re.search(r"touch\s*screen|stylus|pen", model, re.I) else (model or "Device")
+        out.append({"name": name, "level": int(level) if level.isdigit() else None, "status": read("status").lower()})
+    return out
 
 
 def _brightness() -> dict:

@@ -480,6 +480,8 @@ function drawBattery(b, error) {
   add("Charging", ch.mode ? (ch.mode === "Custom" && ch.start != null ? `Custom, ${ch.start}–${ch.stop}%` : ch.mode) : "");
   add("Health", b.health != null ? `${Math.min(100, b.health)}% of new` : "");
   add("Cycles", b.cycles != null ? String(b.cycles) : "");
+  // A pen's battery (or a mouse's): as it last said — a pen says only while near, and some only once used a moment.
+  for (const d of b.devices || []) add(d.name, d.level != null ? `${d.level}%${d.status === "charging" ? ", charging" : ""}` : "not said yet");
   if (error) add("", error);
   $("bat-rows").replaceChildren(...rows);
   // Balanced, performance, power saver — where the machine has a power mode to set.
