@@ -220,6 +220,10 @@ class Location(QObject):
         self._forecast_fetched.connect(self._fetched_forecast)
         #: The Wi-Fi in use and the routers in reach, as last looked at (look_at_network).
         self.network: dict = {"ssid": "", "bssids": []}
+        #: Whether the Wi-Fi has been looked at since starting. Until it has, where you are is not acted on: a fix, or
+        #: the last one kept, came before the known place it is on — and on the mini GeoClue put it in Louisiana, so
+        #: the time zone went to Chicago and back at every start (2026-11-15).
+        self.network_checked = False
         self._network_seen.connect(self._got_network)
         self._outlook: dict | None = None
         self._start()
@@ -499,6 +503,11 @@ class Location(QObject):
         ignored = self.ignoring()
         self.network = json.loads(text)
         now = (self.known_place() or {}).get("name")
+        first = not self.network_checked
+        self.network_checked = True
+        # The first look since starting: where you are, acted on now — known place or not.
+        if first and now == was:
+            self.fetch()
         # Off a network that told nothing: where you are, asked at once.
         if ignored and not self.ignoring():
             self.locate()
@@ -568,6 +577,8 @@ class Location(QObject):
 
     def fetch(self) -> None:
         """The weather where you are, and its time zone: asked of Open-Meteo off the screen's thread."""
+        if not self.network_checked:
+            return  # asked again once the Wi-Fi has been looked at (`_got_network`)
         s = self.settings()
         fix = self.last()
         if not s["on"] or not fix or not (s["weather"] or s["zone"]):
