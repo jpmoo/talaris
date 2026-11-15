@@ -1,9 +1,9 @@
 # Talaris — sync between machines
 
-**Status: design, not built.** Worked out on 2026-11-14, after Talaris went
-onto a second machine (a mini laptop) beside the first, and the two were each
-syncing with Hermes Notes on their own. Read before building any of it; argue
-with it here, not in the code.
+**Status: built, but for the relay** (steps 1–7, 2026-11-14 and 15; see *Order
+of work*). Worked out on 2026-11-14, after Talaris went onto a second machine
+(a mini laptop) beside the first, and the two were each syncing with Hermes
+Notes on their own. Argue with it here, not in the code.
 
 ## What it is for
 
@@ -346,12 +346,29 @@ Each step leaves Talaris working on one machine as it does now.
    attachments and Library bytes through the folder; a machine joins with
    `join.js --folder`, what it had moved aside and the store key taken with the
    recovery key. Tested as two processes through one folder.
-   Left: snapshots (the logs are not trimmed yet), and Settings, Sync.
-5. **Plugins**: synced storage, `one`, ids from an outside key; Hermes sync
-   moved onto them, its Hermes ids from Talaris ids.
-6. **Mirrors** keyed by provider ids.
-7. **Shortcuts flagged** on machines without their file.
-8. **The relay**, and its lease.
+   Then (2026-11-15): Settings, Sync (this machine, the folder, the others and
+   when they last wrote, what a conflict replaced); what is out read again when
+   changes come (`talarisSynced`); and trimming. Trimming is compaction, not a
+   snapshot: each machine says how far it has read the others (`seen.json`), and
+   a machine folds its own old log files that all have read into one — per
+   field the latest value, per member the latest add or remove, every delete,
+   each with its own moment — which applied comes to what they all did. A
+   machine joining later reads it and the rest, as before; nothing new in
+   *Joining*.
+5. **Plugins** — done 2026-11-15: `[sync] one = true` runs a plugin on one
+   machine (`runner:<id>`, the first machine taking it when none is named),
+   moved with Settings, Plugins' *Run it here*: the machine it was on stops it
+   and hands over its `[backup] state` by hash (`pstate:<id>`), and it starts
+   on the new one when that has come (or at once, *Start now*, when the other is
+   away). Ids from an outside key: `create` with `{source}`. Hermes sync declares
+   `one`, and makes Hermes ids from Talaris ids (a UUID v5).
+   Synced storage as designed (keys under `plugin:<id>/…`) is not built: the
+   handover of the state files covers what Hermes sync needed.
+6. **Mirrors** keyed by provider ids — done 2026-11-15: a mirrored event is
+   made at its iCalendar UID's id, a person at its card uid's (`idFromKey`).
+7. **Shortcuts flagged** — done 2026-11-15: a link says its machine; only that
+   machine marks it missing or reads it again; elsewhere it shows "on XPS 13".
+8. **The relay**, and its lease. Not built.
 
 ## Open questions
 
