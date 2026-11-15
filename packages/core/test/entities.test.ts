@@ -104,6 +104,18 @@ test("one meeting seen through two accounts is one entity, known by both", () =>
   assert.equal(entities.bySource({ kind: "eds-event", key: "m365/u-77" })?.id, a.id);
 });
 
+test("a mirrored event, card or import has the id its outside key gives, the same on every machine", () => {
+  const id = entities.idFromKey("ical-uid", "u-sync-1");
+  assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(entities.idFromKey("ical-uid", "u-sync-1"), id, "the same key, the same id");
+  assert.notEqual(entities.idFromKey("eds-contact", "u-sync-1"), id, "another kind, another id");
+  const e = entities.mirrorEvent({ source: { kind: "eds-event", key: "machine-a-source/u-sync-1" }, also: [{ kind: "ical-uid", key: "u-sync-1" }], title: "Planning" });
+  assert.equal(e.id, id, "made at its iCalendar UID's id, whatever this machine calls the calendar");
+  const p = entities.createEntity({ source: { kind: "plugin:demo", key: "row-9" }, properties: { title: "Imported" } });
+  assert.equal(p.id, entities.idFromKey("plugin:demo", "row-9"));
+  assert.equal(entities.createEntity({ source: { kind: "plugin:demo", key: "row-9" }, properties: { title: "Again" } }).id, p.id, "asked again, the same one");
+});
+
 test("connecting a note to a person uses the note's declared field; with none, an edge", () => {
   const note = entities.createEntity({ role: "note", properties: { body: "Asked about the engine" } });
   const grace = entities.byEmail("grace@example.com")!;

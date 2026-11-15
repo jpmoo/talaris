@@ -743,6 +743,8 @@ function withoutNewLinks(props: Record<string, unknown> | undefined, before: Rec
 
 export interface NewEntity {
   id?: string;
+  /** What outside thing it is, its id worked out from that (`idFromKey`): two machines importing it make one. */
+  source?: Source;
   type?: string;
   role?: Role;
   stub?: boolean;
@@ -755,11 +757,30 @@ export interface NewEntity {
 }
 
 /**
+ * The id of the entity an outside thing becomes, the same on every machine: a UUID (v5's shape) from its kind and
+ * key. Two machines mirroring one calendar event, one address-book card, or a plugin's one import, before either
+ * has seen the other's, make one entity, whose fields sync then merges — not two (docs/SYNC.md, *Mirrors*, *Ids*).
+ */
+export function idFromKey(kind: string, key: string): string {
+  const h = createHash("sha1").update(`talaris\0${kind}\0${key}`).digest();
+  h[6] = (h[6]! & 0x0f) | 0x50;
+  h[8] = (h[8]! & 0x3f) | 0x80;
+  const x = h.subarray(0, 16).toString("hex");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
+}
+
+/**
  * Make an entity. A caller may name it (`id`): asked again with the same id,
- * it answers with the one already made rather than making a second.
+ * it answers with the one already made rather than making a second. Or it may say what outside thing it is
+ * (`source`): its id is then that thing's (`idFromKey`), and the source is kept with it.
  */
 export function createEntity(input: NewEntity): Entity {
   const ix = load();
+  if (input.source && !input.id) {
+    const { source, ...restOf } = input;
+    const sources = [source, ...(input.sources ?? []).filter((s) => sourceKey(s) !== sourceKey(source))];
+    return createEntity({ ...restOf, id: idFromKey(source.kind, source.key), sources });
+  }
   if (input.id && ix.records.has(input.id)) return ix.records.get(input.id)!.object;
   const { id, role, sources, properties: given, ...rest } = input;
   const properties = withoutNewLinks(given, undefined);
@@ -1070,7 +1091,9 @@ export function mirrorEvent(e: MirroredEvent): Entity {
   }
   if (!known) {
     const clean = Object.fromEntries(Object.entries(properties).filter(([, v]) => v !== null));
-    return createEntity({ type: type.id, properties: clean, sources, ...(attendees.length ? { "talaris:attendance": attendance } : {}), ...(recurring ? { "talaris:recurring": true } : {}) });
+    // At the event's own id (its iCalendar UID), so a machine mirroring the same calendar makes the same entity.
+    const uid = sources.find((s) => s.kind === "ical-uid");
+    return createEntity({ ...(uid ? { id: idFromKey(uid.kind, uid.key) } : {}), type: type.id, properties: clean, sources, ...(attendees.length ? { "talaris:attendance": attendance } : {}), ...(recurring ? { "talaris:recurring": true } : {}) });
   }
   const newSource = sources.some((s) => !sourcesOf(known).some((x) => sourceKey(x) === sourceKey(s)));
   const changed = newSource || Object.entries(properties).some(([k, v]) => JSON.stringify(known.properties[k] ?? null) !== JSON.stringify(v))
@@ -1390,7 +1413,9 @@ export function personFromCard(card: Card): Entity | null {
     const sources = ((found["talaris:sources"] as Source[] | undefined) ?? []);
     return updateEntity(found.id, { properties: fill(found), "talaris:sources": [...sources, source] });
   }
-  return createEntity({ type: type.id, properties: fill(null), sources: [source] });
+  // At the card's own id (its uid, without the book it is in), so a machine with the same address book makes the
+  // same person.
+  return createEntity({ id: idFromKey("eds-contact", cardId), type: type.id, properties: fill(null), sources: [source] });
 }
 
 /** A person deleted: the cards they were tied to are not to make them again. */
