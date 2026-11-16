@@ -219,7 +219,7 @@ class Location(QObject):
             "Touch the fingerprint reader", "The password window is waiting for your finger first.", [], lambda _k: None))
         self._forecast_fetched.connect(self._fetched_forecast)
         #: The Wi-Fi in use and the routers in reach, as last looked at (look_at_network).
-        self.network: dict = {"ssid": "", "bssids": []}
+        self.network: dict = {"ssid": "", "bssids": [], "online": False}
         #: Whether the Wi-Fi has been looked at since starting. Until it has, where you are is not acted on: a fix, or
         #: the last one kept, came before the known place it is on — and on the mini GeoClue put it in Louisiana, so
         #: the time zone went to Chicago and back at every start (2026-11-15).
@@ -479,7 +479,12 @@ class Location(QObject):
                 bssids.append(bssid)
                 if parts[0] == "*":
                     ssid = ":".join(parts[1:-1]).replace("\x00", ":")
-            self._network_seen.emit(json.dumps({"ssid": ssid, "bssids": bssids}))
+            try:
+                online = subprocess.run(["nmcli", "-t", "-f", "CONNECTIVITY", "general"], capture_output=True, text=True, timeout=10).stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                online = ""
+            # Online by any way (Wi-Fi, a cable, a phone): "full" or "limited" (a portal); "none" is not, nor unknown.
+            self._network_seen.emit(json.dumps({"ssid": ssid, "bssids": bssids, "online": online in ("full", "limited", "portal")}))
         threading.Thread(target=run, daemon=True).start()
 
     def ignoring(self) -> bool:
@@ -505,6 +510,14 @@ class Location(QObject):
         ignored = self.ignoring()
         before = self.network
         self.network = json.loads(text)
+        # Not connected (asleep, waking, Wi-Fi off): nowhere new, so still where you were. Dropping the known place here
+        # fell back to a fix kept from an earlier unconnected moment — Louisiana — and the clock went to Chicago (2026-11-16).
+        if not self.network.get("online") and before.get("ssid"):
+            self.network = before
+            if not self.network_checked:
+                self.network_checked = True
+                self.fetch()
+            return
         now = (self.known_place() or {}).get("name")
         # Left a known place only when two looks running say so: one scan missing its routers, on the same network,
         # is a scan, not a journey.
@@ -519,6 +532,9 @@ class Location(QObject):
         # The first look since starting: where you are, acted on now — known place or not.
         if first and now == was:
             self.fetch()
+        # Online and at no known place: a fix asked now (one that came before this look was not kept, being unconnected).
+        if first and self.network.get("online") and not now:
+            self.locate()
         # Off a network that told nothing: where you are, asked at once.
         if ignored and not self.ignoring():
             self.locate()
@@ -559,6 +575,10 @@ class Location(QObject):
 
     def _fixed(self, fix: dict) -> None:
         if self.ignoring():
+            return
+        # Not connected: GeoClue has nothing to go on but what it had, and such a fix is not where you are. Not kept.
+        if not self.network.get("online"):
+            log("location: a fix while not connected, not kept")
             return
         # Kept to about a kilometre: all the sun and the weather need, and no more.
         net = self.network.get("ssid", "")
