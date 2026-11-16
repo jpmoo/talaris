@@ -533,8 +533,9 @@ class Machine(QObject):
         self._plugged = now
         self.refresh()
         if now:
-            # Talaris' own (sounds/make.py), kept quiet, through the default output: silent if that is muted.
-            threading.Thread(target=_run, args=("pw-play", "--volume", "0.7", str(PLUG_SOUND)), kwargs={"timeout": 5.0}, daemon=True).start()
+            # Talaris' own (sounds/make.py), kept quiet — low and soft, for the dogs' sake — through the default output:
+            # silent if that is muted.
+            threading.Thread(target=_run, args=("pw-play", "--volume", "0.4", str(PLUG_SOUND)), kwargs={"timeout": 5.0}, daemon=True).start()
 
     def _tick(self) -> None:
         if self.watched() or time.monotonic() - self._read_at >= IDLE_S:

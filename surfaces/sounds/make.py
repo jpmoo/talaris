@@ -24,41 +24,26 @@ def write(name: str, samples: list[float]) -> None:
 
 
 def plug() -> list[float]:
-    """Power connected: a soft upward glide that settles into a glassy, detuned chime."""
-    n = int(RATE * 0.75)
+    """
+    Power connected: two low, round notes, a soft fourth apart (D4, G4), each eased in. Nothing high, nothing sudden,
+    no glide and no noise: the first one, a bright glide to 1260 Hz with a sharp attack, set the dogs off (2026-11-16).
+    """
+    n = int(RATE * 0.55)
     out = [0.0] * n
-    # The glide: 420 → 1260 Hz over 140 ms, eased, with a quick swell in and out.
-    phase = 0.0
-    glide = int(RATE * 0.14)
-    for i in range(glide):
-        t = i / glide
-        f = 420 * (3 ** (t * t * (3 - 2 * t)))
-        phase += 2 * math.pi * f / RATE
-        env = math.sin(math.pi * t) ** 2
-        out[i] += 0.35 * env * (math.sin(phase) + 0.25 * math.sin(2 * phase))
-    # The chime: two slightly detuned partials and a fifth, ringing out.
-    start = int(RATE * 0.11)
-    for i in range(n - start):
-        t = i / RATE
-        attack = min(1.0, t / 0.006)
-        decay = math.exp(-t * 6.5)
-        shimmer = 1 + 0.04 * math.sin(2 * math.pi * 7 * t)
-        s = (math.sin(2 * math.pi * 1260 * t) + math.sin(2 * math.pi * 1263.5 * t)) * 0.5
-        s += 0.35 * math.sin(2 * math.pi * 1890 * t) * math.exp(-t * 9)
-        s += 0.12 * math.sin(2 * math.pi * 2520 * t) * math.exp(-t * 14)
-        out[start + i] += 0.42 * attack * decay * shimmer * s
-    # A faint echo, a room the sound is in.
-    for delay, gain in ((int(RATE * 0.085), 0.22), (int(RATE * 0.17), 0.1)):
-        for i in range(n - 1, delay - 1, -1):
-            out[i] += gain * out[i - delay]
-    # A breath of air on the attack, so it is not a pure test tone.
-    rnd = random.Random(7)
-    for i in range(int(RATE * 0.05)):
-        out[start + i] += 0.02 * (rnd.random() * 2 - 1) * (1 - i / (RATE * 0.05))
-    # Quiet on purpose: well under full scale, so the system volume is the loudest it gets.
+    for at, f, gain in ((0.0, 293.66, 1.0), (0.12, 392.0, 0.8)):
+        start = int(RATE * at)
+        for i in range(n - start):
+            t = i / RATE
+            # A slow swell in (40 ms) and a gentle fall: no edge to it.
+            attack = math.sin(min(1.0, t / 0.04) * math.pi / 2) ** 2
+            decay = math.exp(-t * 7.0)
+            # Round, like a soft mallet on wood: the note, a little of its octave, nothing above.
+            v = math.sin(2 * math.pi * f * t) + 0.18 * math.sin(2 * math.pi * 2 * f * t) * math.exp(-t * 12)
+            out[start + i] += gain * attack * decay * v
+    # Quieter still than before: the system's volume, and well under it.
     peak = max(abs(s) for s in out) or 1.0
-    fade = int(RATE * 0.05)
-    return [s / peak * 0.3 * (min(1.0, (n - i) / fade)) for i, s in enumerate(out)]
+    fade = int(RATE * 0.08)
+    return [s / peak * 0.22 * (min(1.0, (n - i) / fade)) for i, s in enumerate(out)]
 
 
 def opening() -> list[float]:
