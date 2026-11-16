@@ -118,3 +118,42 @@ test("a day made through the binding with a file has it filed and linked", () =>
   assert.equal(readFileSync(dayFile("2026-11-11"), "utf8"), "Rain.\n\n[rain.jpg](talaris-file:Files/rain.jpg)\n");
   assert.deepEqual(filesOf("2026-11-11").map((f) => f.sha256), [sha(photo)]);
 });
+
+// A project's page: its files are its project's, linked in it, as a day's are Home's.
+const notesOf = () => (interchange.readEnvelope().objects ?? []).filter((o) => o.type === "t_note");
+const budget = projects.createProject("Budget");
+const budgetPage = (name: string) => join(budget.folder, "Writing", `${name}.md`);
+const noteFiles = (title: string) => ((notesOf().find((o) => o.properties!.title === title)?.properties?.files ?? []) as { filename: string; sha256: string }[]);
+
+test("a project's page carries the files it links, from its project's Files", () => {
+  const sheet = Buffer.from("Robert's budget sheet");
+  mkdirSync(join(budget.folder, "Files"), { recursive: true });
+  writeFileSync(join(budget.folder, "Files", "Robert.pdf"), sheet);
+  const page = pages.createPage(budget.id, null, "Budget Notes");
+  pages.writePage(budget.id, page.path, "He will send his sheet [Robert.pdf](talaris-file:Files/Robert.pdf)\n");
+  assert.deepEqual(noteFiles("Budget Notes").map((f) => [f.filename, f.sha256]), [["Robert.pdf", sha(sheet)]]);
+  assert.equal(interchange.getInterchangeFile(sha(sheet)).ok, true);
+});
+
+test("a file brought to a project's page is filed in that project's Files and linked in the page", () => {
+  const n = notesOf().find((o) => o.properties!.title === "Budget Notes")!;
+  const pdf = Buffer.from("Lorraine's notes");
+  const keep = noteFiles("Budget Notes").map((f) => ({ kind: "attachment", filename: f.filename, sha256: f.sha256 }));
+  const r = interchange.patchObject(n.id, { set: { files: [...keep, { kind: "attachment", filename: "Lorraine.pdf", bytes: pdf.toString("base64") }] } });
+  assert.equal(r.ok, true, r.reports.join(", "));
+  assert.deepEqual(readFileSync(join(budget.folder, "Files", "Lorraine.pdf")), pdf);
+  assert.equal(readFileSync(budgetPage("Budget Notes"), "utf8"),
+    "He will send his sheet [Robert.pdf](talaris-file:Files/Robert.pdf)\n\n[Lorraine.pdf](talaris-file:Files/Lorraine.pdf)\n");
+  assert.deepEqual(noteFiles("Budget Notes").map((f) => f.filename).sort(), ["Lorraine.pdf", "Robert.pdf"]);
+});
+
+test("a note made through the binding with a file, on a project, has it filed there and linked", () => {
+  const proj = (interchange.readEnvelope().objects ?? []).find((o) => o.type === "t_project" && o.properties!.title === "Budget")!;
+  const pdf = Buffer.from("Suzanne's numbers");
+  const made = interchange.createObject("00000000-0000-4000-8000-0000000000e1", { type: "t_note",
+    properties: { title: "Numbers", body: "From Suzanne.", project: [proj.id], files: [{ kind: "attachment", filename: "Suzanne.pdf", bytes: pdf.toString("base64") }] } });
+  assert.equal(made.ok, true, made.reports.join(", "));
+  assert.deepEqual(readFileSync(join(budget.folder, "Files", "Suzanne.pdf")), pdf);
+  assert.equal(readFileSync(budgetPage("Numbers"), "utf8"), "From Suzanne.\n\n[Suzanne.pdf](talaris-file:Files/Suzanne.pdf)\n");
+  assert.deepEqual(noteFiles("Numbers").map((f) => f.sha256), [sha(pdf)]);
+});

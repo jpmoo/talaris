@@ -134,19 +134,19 @@ function mirror(at: Place, id?: string): Entity {
     const words = wordsAt(type.id, text);
     const pk = projectKey(type.id);
     const project = projectsOf(at, null, pk);
-    return createEntity({ ...(id ? { id } : {}), type: type.id,
+    return placeFiles(createEntity({ ...(id ? { id } : {}), type: type.id,
       properties: { [titleKey(type.id)]: title, ...(words.properties ?? {}), ...(pk && project ? { [pk]: project } : {}) },
       ...(words.content !== undefined ? { content: words.content } : {}), sources: [sourceOf(at)], "talaris:textElsewhere": true, [MARK]: true,
-      [LIVES]: here });
+      [LIVES]: here }), at, text);
   }
   const key = titleKey(e.type);
   const pk = projectKey(e.type);
   const project = projectsOf(at, e, pk);
   const sameProject = !pk || JSON.stringify(e.properties[pk] ?? null) === JSON.stringify(project);
-  if (e.properties[key] === title && wordsOf(e) === text && e[MARK] === true && sameProject && (e[LIVES] ?? null) === here) return e;
+  if (e.properties[key] === title && wordsOf(e) === text && e[MARK] === true && sameProject && (e[LIVES] ?? null) === here) return placeFiles(e, at, text);
   const words = wordsAt(e.type, text);
-  return updateEntity(e.id, { properties: { [key]: title, ...(words.properties ?? {}), ...(pk ? { [pk]: project } : {}) },
-    ...(words.content !== undefined ? { content: words.content } : {}), [MARK]: true, [LIVES]: here });
+  return placeFiles(updateEntity(e.id, { properties: { [key]: title, ...(words.properties ?? {}), ...(pk ? { [pk]: project } : {}) },
+    ...(words.content !== undefined ? { content: words.content } : {}), [MARK]: true, [LIVES]: here }), at, text);
 }
 
 // ------------------------------------------------------------ daily notes
@@ -197,29 +197,37 @@ function mirrorDay(date: string, id?: string): Entity {
 /** Where a type keeps its files: its first attachment field, by kind. */
 const filesKey = (typeId: string | undefined): string | null => types().find((t) => t.id === typeId)?.fields.find((f) => f.kind === "attachment")?.key ?? null;
 
-/** A day's files, as its page links them: each a link to the file where it is (links.ts), so a sync can carry it. */
-function dayFiles(e: Entity, text: string): Entity {
+/** A day's page, as a place. */
+const dayPlace = (date: string): Place => ({ project: homeId()!, path: `${DAILY}/${date}` });
+
+/**
+ * A page's files, as it links them — a day's, or any note's from its project's Files: each a link to the file where
+ * it is (links.ts), so a sync can carry it.
+ */
+function placeFiles(e: Entity, at: Place, text: string): Entity {
   const key = filesKey(e.type);
   if (!key) return e;
   const paths: string[] = [];
   for (const rel of pageFiles(text)) {
-    try { const f = attachedFile(homeId()!, rel); if (!f.sealed) paths.push(f.abs); } catch { /* gone, or not a file: not one of its files */ }
+    try { const f = attachedFile(at.project, rel); if (!f.sealed) paths.push(f.abs); } catch { /* gone, or not a file: not one of its files */ }
   }
   return setPageLinks(e.id, key, paths) ? getEntity(e.id) : e;
 }
+const dayFiles = (e: Entity, text: string) => placeFiles(e, dayPlace(String(e[DAY_MARK])), text);
 
 /**
- * The files a write says a day has: one it lacks filed in Home's Files and linked at the end of its page, as attaching
- * there does; one it has and the write does not name, its link taken out of the page — the file itself stays.
+ * The files a write says a page has (a day's, or a note's): one it lacks filed in its project's Files (Home's, for a
+ * day or one of Home's Pages) and linked at the end of its page, as attaching there does; one it has and the write
+ * does not name, its link taken out of the page — the file itself stays.
  */
-function takeDayFiles(date: string, e: Entity, wanted: unknown): void {
+function takeFiles(at: Place, e: Entity, wanted: unknown): void {
   const key = filesKey(e.type);
   if (!key) return;
   const want = (Array.isArray(wanted) ? wanted : wanted ? [wanted] : [])
     .filter((a): a is { kind: string; sha256: string; filename?: string } => Boolean(a) && typeof a === "object" && (a as { kind?: string }).kind === "attachment" && typeof (a as { sha256?: unknown }).sha256 === "string");
   const wantSha = new Set(want.map((a) => a.sha256));
   let text = "";
-  try { text = readPage(homeId(), `${DAILY}/${date}`); } catch { /* none yet */ }
+  try { text = readPage(at.project, at.path); } catch { /* none yet */ }
   // Which file each link is, by the hash its link on the entity holds.
   const shaAt = new Map<string, string>();
   for (const v of (Array.isArray(e.properties[key]) ? e.properties[key] : []) as { sha256?: string; "talaris:link"?: { path: string } }[]) {
@@ -228,7 +236,7 @@ function takeDayFiles(date: string, e: Entity, wanted: unknown): void {
   const have = new Set<string>();
   for (const rel of pageFiles(text)) {
     let sha: string | undefined;
-    try { sha = shaAt.get(attachedFile(homeId()!, rel).abs); } catch { /* gone */ }
+    try { sha = shaAt.get(attachedFile(at.project, rel).abs); } catch { /* gone */ }
     if (!sha) continue;
     if (wantSha.has(sha)) have.add(sha);
     else text = withoutFileLink(text, rel);
@@ -239,11 +247,11 @@ function takeDayFiles(date: string, e: Entity, wanted: unknown): void {
     have.add(a.sha256);
     const bytes = getFile(a.sha256) ?? linkedBytes(a.sha256);
     if (!bytes) continue;
-    const put = putProjectFile(homeId()!, a.filename || "file", bytes);
+    const put = putProjectFile(at.project, a.filename || "file", bytes);
     added.push(fileLinkText(put.name, put.path));
   }
   if (added.length) text = `${text.replace(/\s+$/, "")}${text.trim() ? "\n\n" : ""}${added.join(" ")}\n`;
-  writePage(homeId(), `${DAILY}/${date}`, text);
+  writePage(at.project, at.path, text);
 }
 
 /** Every daily note's entity as its page is; one whose page is gone, gone. */
@@ -266,7 +274,7 @@ export function writeDay(id: string, set: Record<string, unknown>, content: stri
   const words = typeof set.body === "string" ? set.body : "body" in set && set.body === null ? "" : content;
   if (words !== undefined) writePage(homeId(), `${DAILY}/${date}`, words);
   const key = filesKey(getEntity(id).type);
-  if (key && key in set) takeDayFiles(date, mirrorDay(date), set[key]);
+  if (key && key in set) takeFiles(dayPlace(date), mirrorDay(date), set[key]);
   return mirrorDay(date);
 }
 
@@ -281,7 +289,7 @@ export function createDay(id: string, date: string, words: string, properties: R
   // Its files, as a write to it brings them: filed and linked in its page.
   const key = filesKey(e.type);
   if (!key || properties[key] === undefined) return e;
-  takeDayFiles(date, e, properties[key]);
+  takeFiles(dayPlace(date), e, properties[key]);
   return mirrorDay(date);
 }
 
@@ -383,6 +391,9 @@ export function writeNote(id: string, set: Record<string, unknown>, content: str
   const k = bodyKey(e.type);
   const words = k === "content" ? content : typeof set[k] === "string" ? (set[k] as string) : k in set && set[k] === null ? "" : undefined;
   if (words !== undefined) writePage(at.project, at.path, words);
+  // Its files, as a write names them: filed in its project's Files and linked in its page.
+  const fk = filesKey(e.type);
+  if (fk && fk in set) takeFiles(at, mirror(at), set[fk]);
   return mirror(at);
 }
 
@@ -416,7 +427,7 @@ export function ensurePagesFolder(): void {
  * A note made through the binding: at the top of its project's writing — `project`, the entity standing for one —
  * or, with none, of Home's Pages; at the id asked for.
  */
-export function createNote(id: string, title: string, content: string, project?: string | null): Entity {
+export function createNote(id: string, title: string, content: string, project?: string | null, files?: unknown): Entity {
   let to: string | null = null;
   if (project) { try { to = projectIdOf(getEntity(project)) ?? null; } catch { to = null; } }
   if (!to) ensurePagesFolder();
@@ -427,5 +438,9 @@ export function createNote(id: string, title: string, content: string, project?:
   // Made by the page calls above with an id of their own, if it mentions anything: given the one asked for instead.
   const made = bySource(sourceOf(at));
   if (made && made.id !== id) deleteEntity(made.id);
-  return mirror(at, id);
+  const e = mirror(at, id);
+  // Its files, as the write brings them: filed in its project's Files and linked in its page.
+  if (files === undefined || !filesKey(e.type)) return e;
+  takeFiles(at, e, files);
+  return mirror(at);
 }

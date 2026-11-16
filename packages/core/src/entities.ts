@@ -185,14 +185,16 @@ export const BUILT_IN: EntityType[] = [
   },
   {
     // Version 2: the note profile says which field is its project (pkm-interchange: note.project), so a sync carries
-    // a project's pages as its notes (notes.ts).
-    id: "t_note", name: "Note", "talaris:role": "note", "talaris:version": 2,
+    // a project's pages as its notes (notes.ts). Version 3: its files — the ones its page links, as links (notes.ts,
+    // placeFiles), as a day's are — so a sync carries them, and one brought to it is filed in its project and linked.
+    id: "t_note", name: "Note", "talaris:role": "note", "talaris:version": 3,
     fields: [
       { key: "title", kind: "text" },
       { key: "body", kind: "richtext" },
       { key: "people", kind: "reference", targetType: "t_person", many: true },
       { key: "events", kind: "reference", targetType: "t_event", many: true },
       { key: "project", kind: "reference", targetType: "t_project", many: true },
+      { key: "files", kind: "attachment", many: true },
     ],
     // The body is a declared field, not the reserved `content`: a mention
     // found in it has to name a field the type declares (the format's

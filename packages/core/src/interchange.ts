@@ -641,9 +641,11 @@ export function createObject(at: string, body: { id?: string; type?: string; pro
     const words = bodyField === "content" || typeof bodyField !== "string" ? body.content ?? "" : String(properties[bodyField] ?? "");
     const asked = typeof projectField === "string" ? properties[projectField] : undefined;
     const project = (Array.isArray(asked) ? asked : asked ? [asked] : []).map(String)[0] ?? null;
-    const made = createNote(at, String(properties[noteTitle] ?? "").trim(), words, project);
-    // Everything else it came with stays on it, known or not: the file holds the title, the words and the project, the entity the rest.
-    const rest = Object.fromEntries(Object.entries(properties).filter(([k]) => k !== noteTitle && k !== bodyField && k !== projectField));
+    // Its files: filed in its project's Files and linked in its page, which is where a page's files are kept.
+    const filesField = types().find((t) => t.id === body.type)?.fields.find((f) => f.kind === "attachment")?.key;
+    const made = createNote(at, String(properties[noteTitle] ?? "").trim(), words, project, filesField ? properties[filesField] : undefined);
+    // Everything else it came with stays on it, known or not: the file holds the title, the words, the project and the files, the entity the rest.
+    const rest = Object.fromEntries(Object.entries(properties).filter(([k]) => k !== noteTitle && k !== bodyField && k !== projectField && k !== filesField));
     if (Object.keys(rest).length || body.tags?.length) updateEntity(made.id, { ...(Object.keys(rest).length ? { properties: rest } : {}), ...(body.tags?.length ? { tags: body.tags } : {}) });
     return { ok: true, created: true, object: getEntity(made.id) as unknown as WriteAnswer["object"], fidelity: reports.length ? "reduced" : "full", reports, cursor: cursor() };
   }
