@@ -486,7 +486,11 @@ window.ThingCard = (() => {
       else if (f.kind === "datetime") lines.push([label, Kit.stamp(Kit.fromClock(String(v), p["talaris:timezone"]))]);
       else if (f.kind === "boolean") { if (v === true) lines.push([label, "Yes"]); }
       else if (f.kind === "enum") lines.push([label, (f["talaris:labels"] || {})[v] || String(v)]);
-      else if (typeof v !== "object" || Array.isArray(v)) lines.push([label, list.join(", ")]);
+      else if (typeof v !== "object" || Array.isArray(v)) {
+        // Words with a web address in them (an event's place with its meeting link): the address pressable.
+        const said = list.join(", ");
+        lines.push([label, window.Kit && Kit.links(said).length && bridge.openUrl ? Kit.linked(said, (u) => bridge.openUrl(u)) : said]);
+      }
     }
     const acts = [];
     const act = (label, fn) => acts.push(el("button", { class: "t-btn small", onclick: fn }, label));

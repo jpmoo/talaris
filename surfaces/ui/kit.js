@@ -650,7 +650,44 @@ const Kit = (() => {
     return { ready() { ready = true; if (held) { const p = held; held = null; go(p); } } };
   }
 
+  // ---------------------------------------------------------------- links in words
+
+  /** The web addresses in a text, as written (a meeting's link in its place, say): each once, in order. */
+  const URL_RE = () => /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+  function links(text) { return [...new Set(String(text || "").match(URL_RE()) || [])]; }
+  /** A text with its web addresses pressable: each opens with `open(url)` (the desktop's browser); the rest as words. */
+  function linked(text, open, cls = "") {
+    const span = document.createElement("span");
+    if (cls) span.className = cls;
+    const t = String(text || "");
+    let at = 0;
+    for (const m of t.matchAll(URL_RE())) {
+      if (m.index > at) span.append(t.slice(at, m.index));
+      const a = document.createElement("a");
+      a.href = m[0];
+      a.textContent = m[0];
+      a.className = "kit-link";
+      a.title = `Open ${m[0]}`;
+      a.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); open(m[0]); });
+      span.append(a);
+      at = m.index + m[0].length;
+    }
+    if (at < t.length) span.append(t.slice(at));
+    return span;
+  }
+  /** What a link is, in a word or two for its button: the meeting service it is, or its site. */
+  function linkName(url) {
+    let host = "";
+    try { host = new URL(url).hostname.replace(/^www\./, ""); } catch { return "Open link"; }
+    if (/(^|\.)zoom\.(us|com)$/.test(host)) return "Join Zoom";
+    if (host === "meet.google.com") return "Join Meet";
+    if (/(^|\.)teams\.(microsoft|live)\.com$/.test(host)) return "Join Teams";
+    if (/(^|\.)webex\.com$/.test(host)) return "Join Webex";
+    return `Open ${host}`;
+  }
+
   return {
+    links, linked, linkName,
     place, el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
     onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,

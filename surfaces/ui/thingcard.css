@@ -145,3 +145,10 @@ input.field.bad { border-color: var(--danger) !important; }
 .ev-from-account p { margin: 0 0 6px; }
 .ev-notes .cm-content { padding: 4px 8px; min-height: 62px; }
 .ev-card .acts { flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
+/* Where: the field with a button under it for each link in it; read-only, the words with their links (eventcard.js). */
+.ev-card .ev-where-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.ev-card .ev-where-edit input[type=text] { width: 100%; }
+.ev-card .ev-links { display: flex; flex-wrap: wrap; gap: 5px; }
+.ev-card .ev-links:empty { display: none; }
+.ev-card .ev-where { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.ev-card .ev-where.none { color: var(--muted); }

@@ -144,6 +144,17 @@ window.EventCard = (() => {
 
     const title = dis(el("input", { type: "text", class: "field ev-title", value: e.title || "", placeholder: "Title" }));
     const where = dis(el("input", { type: "text", class: "field", value: e.location || "" }));
+    // Its place with what can be opened in it — a meeting's link, a map — pressable (kit.js): read-only (a feed's, an
+    // account's that cannot be written to), the words with their links; else the field, a button for each link under it.
+    const openUrl = (u) => bridge && bridge.openUrl && bridge.openUrl(u);
+    const whereLinks = el("div", { class: "ev-links" });
+    const drawLinks = () => whereLinks.replaceChildren(...Kit.links(where.value).map((u) =>
+      el("button", { class: "t-btn small", title: u, onclick: (ev) => { ev.stopPropagation(); openUrl(u); } }, Kit.linkName(u))));
+    where.addEventListener("input", drawLinks);
+    drawLinks();
+    const whereShown = editing.readOnly
+      ? (e.location ? Kit.linked(e.location, openUrl, "ev-where") : el("span", { class: "ev-where none" }, "—"))
+      : el("div", { class: "ev-where-edit" }, where, whereLinks);
     const calBtn = dis(el("button", { class: "pick", onclick: (ev) => {
       ev.stopPropagation();
       if (Kit.openedBy() === calBtn) { popAway(); return; }
@@ -597,7 +608,7 @@ window.EventCard = (() => {
     const projectsRow = row("Projects", el("div", { class: "who" }, projects, projectAdd));
     projectsRow.hidden = feedEvent;
     const card = el("div", { class: "ev-card" },
-      row("Title", title), row("Calendar", calBtn), row("All day", allDay), row("Starts", sd, st), row("Ends", ed, et), row("Where", where),
+      row("Title", title), row("Calendar", calBtn), row("All day", allDay), row("Starts", sd, st), row("Ends", ed, et), row("Where", whereShown),
       projectsRow, filesRow, mineRow, detailsRow, fromAccountRow,
       freqRow, daysRow, endsRow, whoRow, whoNote, answerRow, whichRow, acts, connectedHost);
     card.save = save;
