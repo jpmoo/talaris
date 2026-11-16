@@ -44,6 +44,10 @@ PLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", 
 #: …and when it is taken away: the same notes, coming down.
 UNPLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "unplug.wav")
 OPEN_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "open.wav")
+#: Played on coming back from the lock screen: the opening, short.
+UNLOCK_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "unlock.wav")
+#: How often the lock screen is looked for (hyprlock's process), while it is up and while it is not.
+LOCK_UP_MS, LOCK_DOWN_MS = 700, 2000
 #: Played as the session ends (log out, restart, shut down): the opening, coming down.
 CLOSE_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "close.wav")
 
@@ -57,13 +61,44 @@ def chime_opening() -> None:
     run = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
     who = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") or "session"
     mark = os.path.join(run, f"talaris-opened-{who}")
+    global _open_on_unlock
     if os.path.exists(mark):
         return
     try:
         open(mark, "w").close()
     except OSError:
         return
+    # The session begun behind the lock screen (a login that locks at once): the opening waits for the unlock, and is
+    # that unlock's sound — one chime, not the opening now and the short one after (Machine._lock_check).
+    if _hyprlock():
+        _open_on_unlock = True
+        return
     threading.Thread(target=_run, args=("pw-play", "--volume", "0.7", OPEN_SOUND), kwargs={"timeout": 5.0}, daemon=True).start()
+
+
+#: The session's opening chime held for the first unlock (chime_opening).
+_open_on_unlock = False
+
+
+def _hyprlock() -> int | None:
+    """The lock screen's process (hyprlock), if it is up: read from /proc, nothing started to ask."""
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return None
+    uid = os.getuid()
+    for d in names:
+        if not d.isdigit():
+            continue
+        try:
+            if os.stat(f"/proc/{d}").st_uid != uid:
+                continue
+            with open(f"/proc/{d}/comm") as f:
+                if f.read().strip() == "hyprlock":
+                    return int(d)
+        except OSError:
+            continue
+    return None
 
 
 def _run(*cmd: str, timeout: float = 2.0) -> str:
@@ -530,7 +565,28 @@ class Machine(QObject):
         self._plug_timer = QTimer(self)
         self._plug_timer.timeout.connect(self._plug_check)
         self._plug_timer.start(PLUG_MS)
+        # Back from the lock screen, heard (`_lock_check`): hyprlock however it was started — a key, idle, sleep.
+        self._lock_pid = _hyprlock()
+        self._lock_timer = QTimer(self)
+        self._lock_timer.timeout.connect(self._lock_check)
+        self._lock_timer.start(LOCK_UP_MS if self._lock_pid else LOCK_DOWN_MS)
         self.refresh()
+
+    def _lock_check(self) -> None:
+        """The lock screen gone, after being up: unlocked — the opening's short chime (sounds/make.py, `unlocking`)."""
+        if self._lock_pid:
+            if os.path.exists(f"/proc/{self._lock_pid}"):
+                return
+            global _open_on_unlock
+            self._lock_pid = None
+            self._lock_timer.setInterval(LOCK_DOWN_MS)
+            # The session's first unlock, its opening held for it (chime_opening): the opening, and only that.
+            sound, _open_on_unlock = (OPEN_SOUND if _open_on_unlock else UNLOCK_SOUND), False
+            threading.Thread(target=_run, args=("pw-play", "--volume", "0.7", sound), kwargs={"timeout": 5.0}, daemon=True).start()
+            return
+        self._lock_pid = _hyprlock()
+        if self._lock_pid:
+            self._lock_timer.setInterval(LOCK_UP_MS)
 
     def _plug_check(self) -> None:
         now = on_mains()

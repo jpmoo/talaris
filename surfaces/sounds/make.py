@@ -88,6 +88,11 @@ def opening() -> list[float]:
     return _run_of([440.0, 493.9, 554.4, 659.3, 740.0, 880.0], 0.07, 2.6, 0.18)
 
 
+def unlocking() -> list[float]:
+    """Back from the lock screen: the opening, short — four of its notes (A4 C#5 E5 A5), quicker, quieter."""
+    return _run_of([440.0, 554.4, 659.3, 880.0], 0.06, 1.3, 0.14)
+
+
 def closing() -> list[float]:
     """Talaris going (log out, restart, shut down): the opening's run coming down (A5 to A4), settling low."""
     return _run_of([880.0, 740.0, 659.3, 554.4, 493.9, 440.0], 0.07, 2.2, 0.18)
@@ -98,3 +103,4 @@ if __name__ == "__main__":
     write("unplug.wav", unplug())
     write("open.wav", opening())
     write("close.wav", closing())
+    write("unlock.wav", unlocking())
