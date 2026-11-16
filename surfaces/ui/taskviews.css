@@ -173,3 +173,10 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-more { font-size: 11px; color: var(--muted); padding: 0 6px; cursor: pointer; }
 .tv-more:hover { color: var(--accent); }
 .tv-day .tv-add input { padding: 2px 6px; font-size: 12px; }
+
+/* What a title names by @ (mentionchips.js): a chip in the line of words, opening that thing's card. */
+.m-chip { display: inline-flex; align-items: center; vertical-align: baseline; max-width: 100%; margin: 0 1px; padding: 0 7px;
+  border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-wash); color: var(--accent);
+  font: inherit; font-size: .92em; line-height: 1.45; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-chip:hover { background: var(--accent-strong); }
+.done .m-chip { opacity: var(--done); }

@@ -926,7 +926,9 @@ window.GlanceView = (o) => {
         : sugg.quiet ? Kit.empty("Not suggesting for this")
         : !n ? Kit.empty("Nothing more to suggest")
         : sugg.list.map(srow));
-    box.replaceChildren(head, body);
+    // What the page puts below (Glance's: the project's chat), kept as it is while the suggestions change above it.
+    box.classList.toggle("with-side", !!o.side);
+    box.replaceChildren(...(o.side ? [el("div", { class: "ssec" }, head, body), o.side] : [head, body]));
   }
   function srow(s) {
     const ki = el("span", { class: "ki" });

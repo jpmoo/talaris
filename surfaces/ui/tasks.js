@@ -610,7 +610,8 @@
       fmt === "numbered" ? el("span", { class: "num" }, `${n}.`) : null,
       control,
       el("div", { class: "r-main" },
-        el("div", { class: "r-title" }, r.title || "Untitled"),
+        // Its title, what it names by @ as chips (mentionchips.js): each opens that thing's card.
+        window.MentionChips ? MentionChips.title(r, { cls: "r-title" }) : el("div", { class: "r-title" }, r.title || "Untitled"),
         fmt === "cards" && r.body ? el("div", { class: "r-body" }, excerpt(r.body)) : null,
         metaEl(r)));
     if (plain) return row;

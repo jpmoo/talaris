@@ -25,13 +25,17 @@
   const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.core(id, method, path, body), true));
   const api = (method, path, body) => asked.call(method, path, body);
 
-  // The project's chat (below): what it is for and whether it is out, known before the glance first draws.
-  const CHAT_KEPT = "talaris-glance-chat";
-  let shown = null, chat = null, chatFor = null, side = null;
-  let chatOpen = (() => { try { return localStorage.getItem(CHAT_KEPT) === "open"; } catch { return false; } })();
+  // The project's chat (projectchat.js), in the side panel below the possible connections (glanceview.js, `side`):
+  // the project Glance shows, followed to another.
+  const side = el("div", "gv-side-chat");
+  const sideHost = el("div");
+  sideHost.style.cssText = "display:flex;flex-direction:column;flex:1;min-height:0";
+  side.append(el("div", "shead", "Chat"), sideHost);
+  let shown = null, chat = null, chatFor = null;
 
   const view = GlanceView({
     api,
+    side,
     // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
     say: (text, error = false) => Kit.say($("msg"), text, error, 0),
     project: () => surface.project,
@@ -59,32 +63,15 @@
   $("trail-slot").replaceWith(view.trail);
   document.querySelector("main").append(view.main);
 
-  // ---------------------------------------------------------------- the project's chat
-  //
-  // Beside the glance, by the header's Chat: a conversation with the project Glance shows (projectchat.js), following
-  // it to another. Open or shut as this machine left it.
-  side = document.createElement("aside");
-  side.id = "chatside";
-  side.hidden = true;
-  document.querySelector("main").append(side);
   function drawChat() {
-    if (!side) return; // the glance drawn once while being made, before the pane is
     const can = !!(window.ProjectChat && bridge && typeof bridge.projectChat === "function" && shown);
-    $("chat-btn").hidden = !can;
-    $("chat-btn").classList.toggle("on", chatOpen);
-    side.hidden = !can || !chatOpen;
-    if (side.hidden) { if (chat) { chat.destroy(); chat = null; chatFor = null; } return; }
+    side.hidden = !can;
+    if (!can) { if (chat) { chat.destroy(); chat = null; chatFor = null; } return; }
     if (chat && chatFor === shown.id) return;
     if (chat) chat.destroy();
     chatFor = shown.id;
-    chat = ProjectChat.mount(side, { bridge, id: shown.id, name: shown.name });
+    chat = ProjectChat.mount(sideHost, { bridge, id: shown.id, name: shown.name });
   }
-  $("chat-btn").addEventListener("click", () => {
-    chatOpen = !chatOpen;
-    try { localStorage.setItem(CHAT_KEPT, chatOpen ? "open" : "shut"); } catch { /* private */ }
-    drawChat();
-    if (chatOpen && chat) chat.focus();
-  });
 
   // ---------------------------------------------------------------- keys and buttons
 

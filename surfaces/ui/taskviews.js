@@ -235,6 +235,12 @@ const TaskViews = (() => {
 
   // ---------------------------------------------------------------- a card (board and matrix)
 
+  /** A title, with what it names by @ as chips that open their cards (mentionchips.js); its words alone without it. */
+  function titled(row, cls, on = {}) {
+    if (window.MentionChips) return MentionChips.title(row, { cls, attrs: on });
+    return el("span", { class: cls, ...on }, row.title || "Untitled");
+  }
+
   function card(ctx, sh, row, opts = {}) {
     // Its title on one line (the whole of it on hover); under it, when it is available and when due.
     const meta = [];
@@ -248,7 +254,7 @@ const TaskViews = (() => {
       ...(opts.color ? { style: `--rc:${opts.color}` } : {}) },
       statusDot(ctx, sh, row),
       el("div", { class: "tv-card-body" },
-        el("span", { class: "tv-title" }, row.title || "Untitled"),
+        titled(row, "tv-title"),
         meta.length ? el("div", { class: "tv-meta" }, ...meta) : ""),
       opts.remove ? xBtn({ class: "x-btn tv-x", title: "To drawer", onclick: (e) => { e.stopPropagation(); opts.remove(); } }) : "");
     if (opts.menu) node.addEventListener("contextmenu", (e) => { e.preventDefault(); openPop({ x: e.clientX, y: e.clientY }, ...opts.menu()); });
@@ -435,8 +441,8 @@ const TaskViews = (() => {
         const pen = el("button", { class: "tv-pen", title: "Rename" }, ICON.pen());
         const edit = () => editInPlace(td, row.title || "", (v) => v.trim() && props(c.fk, v.trim()));
         pen.addEventListener("click", (e) => { e.stopPropagation(); edit(); });
-        td.append(el("span", { class: "tv-title", onclick: (e) => { e.stopPropagation(); ctx.openTask(row.id); },
-          ondblclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${row.id}`); } }, row.title || "Untitled"), pen);
+        td.append(titled(row, "tv-title", { onclick: (e) => { e.stopPropagation(); ctx.openTask(row.id); },
+          ondblclick: (e) => { e.stopPropagation(); if (window.Peek) Peek.openCard(`e:${row.id}`); } }), pen);
         td.addEventListener("click", (e) => { if (e.target === td) edit(); });
         break;
       }
@@ -765,7 +771,7 @@ const TaskViews = (() => {
     const s = row.status != null ? ctx.status(row.status) || {} : null;
     const node = el("div", { class: "tv-chip" + (row.overdue ? " late" : "") + (row.complete ? " done" : ""), "data-card": row.id, title: row.title || "" },
       statusDot(ctx, sh, row),
-      el("span", { class: "tv-title", onclick: () => ctx.openTask(row.id), ondblclick: () => window.Peek && Peek.openCard(`e:${row.id}`) }, row.title || "Untitled"));
+      titled(row, "tv-title", { onclick: () => ctx.openTask(row.id), ondblclick: () => window.Peek && Peek.openCard(`e:${row.id}`) }));
     if (s && sh.options.length) node.addEventListener("contextmenu", (e) => { e.preventDefault(); openPop({ x: e.clientX, y: e.clientY }, hint("Status"), ...statusItems(ctx, sh, row)); });
     return draggable(node, { id: row.id, row, day, from: "calendar" });
   }

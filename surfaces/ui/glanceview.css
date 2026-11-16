@@ -99,6 +99,16 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
 .gv-sugg .shead button { letter-spacing: 0; text-transform: none; }
 .gv-sugg.folded .sbody, .gv-sugg.folded .shead button { display: none; }
 .gv-sugg.folded .shead { writing-mode: vertical-rl; padding: 10px 6px; }
+/* With something below (Glance's chat): the panel keeps its width; the suggestions above it, folding to their heading. */
+.gv-sugg.with-side { width: 340px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.gv-sugg.with-side[hidden] { display: none; }
+.gv-sugg.with-side .ssec { flex: 0 1 auto; max-height: 45%; overflow: auto; }
+.gv-sugg.with-side.folded .shead { writing-mode: horizontal-tb; padding: 4px 12px 6px; }
+.gv-side-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); padding: 8px 12px 12px; }
+.gv-side-chat[hidden] { display: none; }
+.gv-side-chat .shead { padding: 0 0 6px; }
+.gv-side-chat .pchat { flex: 1; min-height: 0; }
+.gv-side-chat .pchat-log { flex: 1; max-height: none; }
 .gv-main .srow { padding: 6px 12px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .gv-main .srow .top { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .gv-main .srow .ki { flex: none; width: 14px; height: 14px; color: var(--muted); display: inline-flex; }
