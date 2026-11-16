@@ -283,6 +283,8 @@ class Desktop(QObject):
         self.morgan = Panel(profile, self, self.morgan_link)
         # The calendar: its data in a process of its own, its panel up from the bar's clock.
         self.calendar_service = CalendarService(self)
+        # Today's calendar for a project chat's brief (core.py, Bridge.projectChat).
+        core.project_day = self.calendar_service.today_text
         core.find_people = self.calendar_service.find_people
         core.find_cards = self.calendar_service.find_cards
         self.calendar = Calendar(profile, self, self.calendar_service)

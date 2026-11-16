@@ -772,10 +772,13 @@
     const key = p.workspace ? `project:${p.workspace}` : `e:${p.id}`;
     $("p-acts").replaceChildren(...(window.Peek ? [Peek.glanceButton(key, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null),
       Peek.actionButtons("project", p.id, api, "t-btn", () => loadSide())].filter(Boolean) : []));
-    // Its chat (projectchat.js): a conversation with the project itself, on Morgan's brain, found there by its name.
+    // Its chat (projectchat.js): a conversation with the project itself, kept on Morgan's brain by the Talaris project's id.
     if (fresh || !projectChat) {
       if (projectChat) projectChat.destroy();
-      projectChat = window.ProjectChat && bridge ? ProjectChat.mount($("p-chat"), { bridge, name: p.title }) : null;
+      // A project with no Talaris project (no folder of its own) has nothing to brief it from: no chat.
+      projectChat = window.ProjectChat && bridge && p.workspace ? ProjectChat.mount($("p-chat"), { bridge, id: p.workspace, name: p.title }) : null;
+      $("p-chat").hidden = !projectChat;
+      document.querySelector(".p-chat-label").hidden = !projectChat;
     }
     if (window.Peek && projectSuggFor !== id) {
       projectSuggFor = id;

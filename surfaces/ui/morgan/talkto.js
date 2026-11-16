@@ -21,7 +21,7 @@ window.TalkTo = (() => {
     current = project;
     document.body.classList.toggle("talking-to-project", !!project);
     if (project) {
-      chat = ProjectChat.mount($("pchat-host"), { bridge, name: project.name });
+      chat = ProjectChat.mount($("pchat-host"), { bridge, id: project.id, name: project.name });
       setTimeout(() => chat && chat.focus(), 50);
     }
     label();
@@ -29,15 +29,15 @@ window.TalkTo = (() => {
 
   async function open(anchor) {
     if (Kit.openedBy() === anchor) { Kit.popAway(); return; }
-    // The list as Hermes has it, asked each time: projects come and go.
+    // Talaris's projects, asked each time: they come and go.
     const got = await ProjectChat.list(bridge);
     if (got.length) projects = got;
-    const byOpen = [...projects].sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
+    const byOpen = [...projects].sort((a, b) => (Number(b.home) - Number(a.home)) || (b.open - a.open) || a.name.localeCompare(b.name));
     Kit.menu(anchor, [
       { label: "Morgan", on: !current, act: () => choose(null) },
       ...(byOpen.length ? ["sep"] : []),
       ...byOpen.map((p) => ({ label: p.open ? `${p.name} · ${p.open}` : p.name, on: current?.id === p.id, act: () => choose(p) })),
-      ...(byOpen.length ? [] : [{ label: "No projects (is Hermes connected?)", act: () => {} }]),
+      ...(byOpen.length ? [] : [{ label: "No projects", act: () => {} }]),
     ]);
   }
 

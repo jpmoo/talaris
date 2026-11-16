@@ -56,6 +56,7 @@ import {
 import * as entities from "./entities.js";
 import * as tasks from "./tasks.js";
 import * as lists from "./lists.js";
+import { projectBrief } from "./project-brief.js";
 import * as tagsM from "./tags.js";
 import * as links from "./links.js";
 import * as files from "./files.js";
@@ -318,6 +319,8 @@ route("POST", "/projects/summarize", () => summarizeProjects());
 route("GET", "/projects/:id/profile", (_r, [id]) => projectProfile(id!));
 // A project's description, as the Library shows and edits it (project-describe.ts).
 route("GET", "/projects/:id/about", (_r, [id]) => projectAbout(id!));
+// What a project chat is told of the project at each turn (project-brief.ts): plain text, from Talaris's own things.
+route("GET", "/projects/:id/brief", (_r, [id]) => projectBrief(id!));
 route("PUT", "/projects/:id/about", async (req, [id]) => setProjectAbout(id!, String((await json<{ about?: string }>(req)).about ?? "")));
 // One thread, by its id (one merged away leads to where it went): what a canvas card of it shows.
 route("GET", "/threads/:id", (_r, [id]) => {

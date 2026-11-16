@@ -185,6 +185,29 @@ def reply_data(status: int, text: str, text_ok: bool = False):
         return text if text_ok and status == 200 else {"error": text}
 
 
+#: Today's calendar, as lines (CalendarService.today_text): set by the surfaces once the calendar is made.
+project_day = None
+
+
+def project_choices(rows: list, counts_text: str, entities_text: str) -> list:
+    """Talaris's projects for a chat's pulldown, each with its open tasks (counted by its entity, `/tasks/projects`)."""
+    def parsed(text, kind):
+        try:
+            v = json.loads(text)
+        except (ValueError, TypeError):
+            return kind()
+        return v if isinstance(v, kind) else kind()
+    counts = parsed(counts_text, dict)
+    entity_of = {e.get("workspace"): e.get("id") for e in parsed(entities_text, list) if isinstance(e, dict) and e.get("workspace")}
+    out = []
+    for p in rows:
+        if not isinstance(p, dict) or not p.get("id"):
+            continue
+        n = counts.get(entity_of.get(p["id"], ""), 0)
+        out.append({"id": p["id"], "name": p.get("name", ""), "open": n if isinstance(n, int) else 0, "home": bool(p.get("home"))})
+    return out
+
+
 class Bridge(QObject):
     """
     What a page may ask of the process that holds it.
@@ -245,18 +268,36 @@ class Bridge(QObject):
     def projectChat(self, ident: str, ask: str) -> None:
         """
         A project chat's request (projectchat.js), to Morgan's brain: a conversation with one project, kept there so it is
-        the same on every machine. Only the `project` command, and only its four ops; on a thread of its own, since a
-        turn takes seconds and the pool is the core's.
+        the same on every machine. Talaris is what it knows of the project: each turn carries the project's brief (the
+        core's `/projects/:id/brief`, with today's calendar added here), and the projects to choose from are Talaris's.
+        Only the `project` command, and only its four ops; on a thread of its own, since a turn takes seconds.
         """
         def run() -> None:
             try:
                 body = json.loads(ask)
                 if not isinstance(body, dict) or body.get("op") not in self.PROJECT_OPS:
                     raise ValueError
-                import morgan
-                answer = morgan.command("project " + json.dumps(body), timeout=215)
+                if body["op"] == "list":
+                    status, text = call("GET", "/projects")
+                    rows = json.loads(text) if status == 200 else []
+                    _, counts = call("GET", "/tasks/open-counts")
+                    _, entities = call("GET", "/tasks/projects")
+                    answer = json.dumps({"ok": True, "projects": project_choices(rows, counts, entities)})
+                else:
+                    if body["op"] == "chat":
+                        status, text = call("GET", f"/projects/{body.get('project', '')}/brief", timeout=30)
+                        if status != 200:
+                            raise LookupError(text[:200])
+                        brief = json.loads(text)
+                        body["name"] = brief.get("name") or body.get("name", "")
+                        day = project_day() if project_day else ""
+                        body["context"] = brief.get("text", "") + "\n\nToday's calendar:\n" + (day or "(nothing, or the calendar isn't up)")
+                    import morgan
+                    answer = morgan.command("project " + json.dumps(body), timeout=215)
             except ValueError:
                 answer = json.dumps({"ok": False, "error": "not a project chat request"})
+            except LookupError as error:
+                answer = json.dumps({"ok": False, "error": f"Talaris couldn't read the project ({error})"})
             self.projectReply.emit(json.dumps({"id": ident, "answer": answer}))
         threading.Thread(target=run, daemon=True).start()
 

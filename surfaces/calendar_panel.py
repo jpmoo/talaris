@@ -380,6 +380,37 @@ class CalendarService(QObject):
         self._finding.pop(req, None)
         return waiting[1]
 
+    def today_text(self, wait: float = 4.0) -> str:
+        """
+        Today's events in the calendars shown, as lines for a model to read (a project chat's brief, core.py): from a
+        worker thread, waited for here. Empty when the calendar is not up or does not answer in time.
+        """
+        if not self.state.get("ready"):
+            return ""
+        with self._lock:
+            self._find_req += 1
+            req = self._find_req
+        waiting = [threading.Event(), []]
+        self._finding[req] = waiting
+        midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start = int(midnight.timestamp() * 1000)
+        self._ask.emit(json.dumps({"do": "range", "req": req, "from": start, "to": start + 24 * 60 * 60 * 1000}))
+        waiting[0].wait(wait)
+        self._finding.pop(req, None)
+        hidden = set(getattr(self.parent(), "config", {}).get("calendar", {}).get("hidden", []))
+        lines = []
+        for e in waiting[1]:
+            if e.get("calendar") in hidden:
+                continue
+            if e.get("allDay"):
+                when = "all day"
+            else:
+                fmt = lambda ms: datetime.fromtimestamp(ms / 1000).strftime("%-I:%M %p")  # noqa: E731
+                when = f"{fmt(e['start'])}–{fmt(e['end'])}"
+            where = f" ({e['location']})" if e.get("location") else ""
+            lines.append(f"- {when}: {e.get('title') or 'Busy'}{where}")
+        return "\n".join(lines)
+
     def make_event(self, calendar: str, event: dict) -> int:
         """An event written to a calendar, for New: the answer comes as `made`, under the number given back."""
         self._make_req += 1

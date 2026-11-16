@@ -9,10 +9,11 @@
 // A project answers as itself, and always weighs itself against the day: its standing (now, soon, later, and why) is
 // shown above what was said, as it last said it.
 //
-//   ProjectChat.mount(host, { bridge, name })   → { focus(), destroy() }
-//   ProjectChat.list(bridge)                    → Promise<[{ id, name, open }]>  (the projects Hermes has)
+//   ProjectChat.mount(host, { bridge, id, name })   → { focus(), destroy() }
+//   ProjectChat.list(bridge)                        → Promise<[{ id, name, open, home }]>  (Talaris's projects)
 //
-// `name` is the project's name, as Hermes knows it too: the brain finds the project by it.
+// `id` is the Talaris project's: its conversation is kept by it on the brain, and each turn carries the project's brief
+// from Talaris (core.py adds it) — its pages, canvases, files, tasks, people, what is tied to it, and the day.
 
 (() => {
   const waiting = new Map();
@@ -57,7 +58,7 @@
 
   const WHEN = { now: "Today", soon: "This week", later: "Can wait" };
 
-  function mount(host, { bridge, name }) {
+  function mount(host, { bridge, id, name }) {
     const standing = el("div", { class: "pchat-standing", hidden: true });
     const log = el("div", { class: "pchat-log" });
     const box = el("textarea", { class: "pchat-box", rows: "2", placeholder: `Talk with ${name}…` });
@@ -92,12 +93,12 @@
     const load = async () => {
       log.replaceChildren(el("div", { class: "pchat-note" }, "…"));
       await rendering().then((r) => { render = r; });
-      const got = await call(bridge, { op: "history", project: name });
+      const got = await call(bridge, { op: "history", project: id, name });
       if (gone) return;
       log.replaceChildren();
       if (!got.ok) { note(got.error || "Couldn't reach the project"); box.disabled = send.disabled = clear.disabled = true; return; }
       showStanding(got.standing);
-      if (!got.messages?.length) note(`Ask ${got.name || name} anything — it knows its tasks and today's calendar.`);
+      if (!got.messages?.length) note(`Ask ${got.name || name} anything — it knows its pages, canvases, tasks, people and today.`);
       for (const m of got.messages ?? []) bubble(m.role, m.content);
     };
 
@@ -110,7 +111,7 @@
       log.querySelector(".pchat-note:only-child")?.remove();
       bubble("user", text);
       const thinking = bubble("assistant", "…", "thinking");
-      const got = await call(bridge, { op: "chat", project: name, text });
+      const got = await call(bridge, { op: "chat", project: id, name, text });
       if (gone) return;
       thinking.remove();
       sending = false;
@@ -127,7 +128,7 @@
     });
     send.addEventListener("click", go);
     clear.addEventListener("click", async () => {
-      const got = await call(bridge, { op: "clear", project: name });
+      const got = await call(bridge, { op: "clear", project: id, name });
       if (got.ok && !gone) { log.replaceChildren(); note("Forgotten. Start again whenever you like."); }
     });
     load();
