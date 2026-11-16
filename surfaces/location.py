@@ -688,7 +688,37 @@ class Location(QObject):
                         "sky": sky, "icon": icon, "day": bool(now.get("is_day", 1)), "at": int(time.time())}
         self.changed.emit()
         if self.settings()["zone"] and got.get("timezone"):
-            self._zone(str(got["timezone"]))
+            zone = str(got["timezone"])
+            fix = self.last() or {}
+            # A place you set or named is sure; so is a close fix. A coarse one is a guess from the network's address —
+            # GeoClue put this laptop in Louisiana, on HOME5 and on the phone's hotspot alike, and the clock went to
+            # Chicago (2026-11-16). On a guess the zone is asked, never changed.
+            sure = fix.get("hand") or fix.get("known") or 0 < float(fix.get("accuracy") or 0) < COARSE_M
+            if sure:
+                self._zone(zone)
+            else:
+                self._ask_zone(zone, fix)
+
+    def _ask_zone(self, zone: str, fix: dict) -> None:
+        """A coarse fix in another zone: asked once (a "no" kept for that guess), never changed unasked."""
+        if not zone or zone in ("GMT", "UTC") or zone == _system_zone() or getattr(self, "_asking_zone", "") == zone:
+            return
+        guess = {"zone": zone, "lat": fix.get("lat"), "lon": fix.get("lon")}
+        if self.settings().get("declined_zone") == guess:
+            return
+        self._asking_zone = zone
+
+        def answered(key: str) -> None:
+            self._asking_zone = ""
+            if key == "change":
+                self._zone(zone)
+            elif key == "keep":
+                self._keep(declined_zone=guess)
+        where = (fix.get("name") or "").strip()
+        self.desktop.notifications.own(
+            f"Change the time zone to {zone.replace('_', ' ')}?",
+            f"Your location is only a rough guess{f' ({where})' if where else ''}, about {round(float(fix.get('accuracy') or 0) / 1000)} km.",
+            [("change", "Change it"), ("keep", f"Keep {_system_zone().replace('_', ' ')}")], answered)
 
     def _zone(self, zone: str) -> None:
         """The zone where you are made the system's, if it is not already: off the screen's thread (timedated)."""
