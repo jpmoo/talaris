@@ -754,7 +754,7 @@
   // connected to (suggest.ts, by what its description says), Glance, and
   // archiving it. Each kept as it is changed. Closed, it stays closed until a
   // project is chosen again.
-  let projectOn = null, projectAbout = "", projectEd = null, projectShut = false, projectSuggFor = null;
+  let projectOn = null, projectAbout = "", projectEd = null, projectShut = false, projectSuggFor = null, projectChat = null;
   function openProject(id) {
     const p = projects.find((x) => x.id === id);
     if (!p) { closeProject(); return; }
@@ -772,6 +772,11 @@
     const key = p.workspace ? `project:${p.workspace}` : `e:${p.id}`;
     $("p-acts").replaceChildren(...(window.Peek ? [Peek.glanceButton(key, bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null),
       Peek.actionButtons("project", p.id, api, "t-btn", () => loadSide())].filter(Boolean) : []));
+    // Its chat (projectchat.js): a conversation with the project itself, on Morgan's brain, found there by its name.
+    if (fresh || !projectChat) {
+      if (projectChat) projectChat.destroy();
+      projectChat = window.ProjectChat && bridge ? ProjectChat.mount($("p-chat"), { bridge, name: p.title }) : null;
+    }
     if (window.Peek && projectSuggFor !== id) {
       projectSuggFor = id;
       $("p-sugg").replaceChildren(Peek.suggestions(key, api, { open: (eid) => openMention(eid), openPlace: (x) => bridge && bridge.openPlace(x.kind, x.project, x.where),

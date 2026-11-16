@@ -206,6 +206,8 @@ class Bridge(QObject):
     projectFiles = Signal(str)
     #: The core's answer to a panel's `core` slot (`answer_core`): {id, status, data}.
     coreReply = Signal(str)
+    #: A project chat's answer (projectchat.js, `projectChat`): {id, answer} — the brain's own line of JSON.
+    projectReply = Signal(str)
 
     def __init__(self, owner, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -235,6 +237,28 @@ class Bridge(QObject):
             if then is not None:
                 then(status)
         ask_core(routes, method, path, body, answer, timeout=timeout, writes=writes, who=who)
+
+    #: What a project chat may ask Morgan's brain (heymorgan's `project`): these, and nothing else on its socket.
+    PROJECT_OPS = ("list", "history", "chat", "clear")
+
+    @Slot(str, str)
+    def projectChat(self, ident: str, ask: str) -> None:
+        """
+        A project chat's request (projectchat.js), to Morgan's brain: a conversation with one project, kept there so it is
+        the same on every machine. Only the `project` command, and only its four ops; on a thread of its own, since a
+        turn takes seconds and the pool is the core's.
+        """
+        def run() -> None:
+            try:
+                body = json.loads(ask)
+                if not isinstance(body, dict) or body.get("op") not in self.PROJECT_OPS:
+                    raise ValueError
+                import morgan
+                answer = morgan.command("project " + json.dumps(body), timeout=215)
+            except ValueError:
+                answer = json.dumps({"ok": False, "error": "not a project chat request"})
+            self.projectReply.emit(json.dumps({"id": ident, "answer": answer}))
+        threading.Thread(target=run, daemon=True).start()
 
     @Slot()
     def toggle(self) -> None:

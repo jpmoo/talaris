@@ -558,6 +558,7 @@
    * edited here), what is in it, and what it might be connected to (suggest.ts, by its description), with Glance a
    * press away.
    */
+  let libraryChat = null;
   function drawProject() {
     const id = project;
     const key = `project:${id}`;
@@ -591,6 +592,15 @@
       openPlace: (x) => bridge.openPlace(x.kind, x.project, x.where),
       changed: (res) => { say(res.said || "Done"); reload(); },
     }) : null;
+    // Its chat (projectchat.js): the project itself to talk with, on Morgan's brain, found there by its name. Home is
+    // Talaris's own, with nothing of it in Hermes: none.
+    // Drawn again (the Library reloads): the same chat kept, with what is being typed and a reply on its way.
+    if (libraryChat && libraryChat.id !== id) { libraryChat.chat.destroy(); libraryChat = null; }
+    if (!libraryChat && !p.home && window.ProjectChat && p.name) {
+      const host = el("div", { class: "d-chat" });
+      libraryChat = { id, host, chat: ProjectChat.mount(host, { bridge, name: p.name }) };
+    }
+    const chatHost = libraryChat ? libraryChat.host : null;
     $("detail").replaceChildren(...[
       el("h2", {}, p.name || "A project"),
       el("div", { class: "d-status" }, el("span", {}, el("b", {}, "A project"), whole() ? "" : (c.projects[id] ?? 0) ? ` — ${c.projects[id]} here in the Library; choose one to see it.` : " — nothing of it in the Library yet.")),
@@ -599,6 +609,8 @@
       linkedHost,
       acts.length ? el("div", { class: "d-sub" }, "Do") : null,
       acts.length ? el("div", { class: "d-acts" }, ...acts) : null,
+      libraryChat ? el("div", { class: "d-sub" }, "Chat") : null,
+      libraryChat ? chatHost : null,
       sugg,
     ].filter(Boolean));
   }

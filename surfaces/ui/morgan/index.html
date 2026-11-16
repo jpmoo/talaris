@@ -191,12 +191,30 @@
 .timer:not(.soon) .bar { display: none; }
 </style>
 <link rel="stylesheet" href="../kit.css">
+<link rel="stylesheet" href="../projectchat.css">
+<style>
+  /* Who the panel talks to (talkto.js): Morgan, or a project. */
+  .talkto { display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent; background: none; color: var(--text);
+    font: inherit; font-size: 13px; padding: 2px 8px; border-radius: var(--radius-control); cursor: pointer; max-width: 220px; }
+  .talkto span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .talkto:hover { border-color: var(--line); background: var(--accent-hover); }
+  .talkto .chev { color: var(--dim); font-size: 10px; }
+  #pchat-main { display: none; }
+  body.talking-to-project #pchat-main { display: flex; flex: 1; min-height: 0; overflow: hidden; padding: 10px 0; }
+  body.talking-to-project #pchat-main .column { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  body.talking-to-project #pchat-host, body.talking-to-project #pchat-host .pchat { flex: 1; min-height: 0; }
+  body.talking-to-project #pchat-host .pchat-log { flex: 1; max-height: none; }
+  body.talking-to-project #scroll, body.talking-to-project footer, body.talking-to-project #timers, body.talking-to-project #unkept,
+  body.talking-to-project #calendar, body.talking-to-project #state, body.talking-to-project #meter,
+  body.talking-to-project #incognito, body.talking-to-project #history, body.talking-to-project #new { display: none !important; }
+</style>
 </head>
 <body data-arrives>
 <header><div class="column" style="gap:0">
   <div class="controls">
     <i class="ti" id="stateicon"></i>
     <span class="name" id="name">Morgan</span>
+    <button id="talkto" class="talkto" type="button"></button>
     <span class="state" id="state"></span>
     <div id="meter"></div>
     <span class="spacer"></span>
@@ -211,6 +229,7 @@
 <div id="unkept" hidden>Incognito: Morgan reads as usual, and nothing here is kept</div>
 <div id="timers" hidden></div>
 <main id="scroll"><div class="column" id="log"></div></main>
+<main id="pchat-main"><div class="column" id="pchat-host"></div></main>
 <div id="calendar" hidden>
   <div class="kit-mini-head"><button id="prev" class="icon-btn" title="The month before"></button>
     <span id="monthname" class="m"></span><button id="next" class="icon-btn" title="The month after"></button></div>
@@ -244,6 +263,8 @@
 <script src="../icons.js"></script>
 <script src="../peek.js"></script>
 <script src="../mentions.js"></script>
+<script src="../projectchat.js"></script>
+<script src="talkto.js"></script>
 <script>
 "use strict";
 const md = window.markdownit({ html: false, linkify: true, breaks: true });
@@ -823,6 +844,8 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   // Connected: the process may count on this page to hear presses and keys (sensor.py, Presses).
   window.talarisAlive = true;
   bridge = channel.objects.bridge;
+  // Who to talk to: Morgan, or a project (talkto.js).
+  TalkTo.init(bridge);
   // The on-screen keyboard's button on its fields, as every other page has it (surface.js).
   Surface.keyboard(bridge);
   // `bridge.call(line, then)` as it always was, answered later off the process's own thread (morgan.py, callLater).
