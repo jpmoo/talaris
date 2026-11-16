@@ -290,8 +290,9 @@ class Bridge(QObject):
                             raise LookupError(text[:200])
                         brief = json.loads(text)
                         body["name"] = brief.get("name") or body.get("name", "")
-                        day = project_day() if project_day else ""
-                        body["context"] = brief.get("text", "") + "\n\nToday's calendar:\n" + (day or "(nothing, or the calendar isn't up)")
+                        day = project_day() if project_day else None
+                        said = day if day else "(nothing on it today)" if day == "" else "(not available just now: say so, don't call it empty)"
+                        body["context"] = brief.get("text", "") + "\n\nToday's calendar:\n" + said
                     import morgan
                     answer = morgan.command("project " + json.dumps(body), timeout=215)
             except ValueError:
