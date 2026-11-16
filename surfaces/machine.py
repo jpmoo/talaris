@@ -41,7 +41,11 @@ PLUG_MS = 1500
 IDLE_S = 15
 #: Played when power is plugged in.
 PLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "plug.wav")
+#: …and when it is taken away: the same notes, coming down.
+UNPLUG_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "unplug.wav")
 OPEN_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "open.wav")
+#: Played as the session ends (log out, restart, shut down): the opening, coming down.
+CLOSE_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "close.wav")
 
 
 def chime_opening() -> None:
@@ -278,6 +282,8 @@ def end_session(verb: str) -> list[str]:
     left = _gone(CLOSE_S) if left else []
     if left:
         return sorted({str(c.get("class") or c.get("title") or "an app") for c in left})
+    # Every app gone: the session's closing sound, heard to its end before anything else goes (sounds/make.py).
+    _run("pw-play", "--volume", "0.7", CLOSE_SOUND, timeout=4.0)
     # The wallpaper and the password prompt stopped while the display is still there: left to the end, each lost the
     # display under it and aborted (an assertion in their toolkit), and Ubuntu reported a crash at every restart
     # (the mini, 2026-11-14).
@@ -532,10 +538,9 @@ class Machine(QObject):
             return
         self._plugged = now
         self.refresh()
-        if now:
-            # Talaris' own (sounds/make.py), kept quiet — low and soft, for the dogs' sake — through the default output:
-            # silent if that is muted.
-            threading.Thread(target=_run, args=("pw-play", "--volume", "0.4", str(PLUG_SOUND)), kwargs={"timeout": 5.0}, daemon=True).start()
+        # Talaris' own (sounds/make.py), kept quiet — low and soft, for the dogs' sake — through the default output:
+        # silent if that is muted. Plugged in, up; on the battery again, down.
+        threading.Thread(target=_run, args=("pw-play", "--volume", "0.4", str(PLUG_SOUND if now else UNPLUG_SOUND)), kwargs={"timeout": 5.0}, daemon=True).start()
 
     def _tick(self) -> None:
         if self.watched() or time.monotonic() - self._read_at >= IDLE_S:

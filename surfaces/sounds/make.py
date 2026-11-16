@@ -23,14 +23,11 @@ def write(name: str, samples: list[float]) -> None:
         w.writeframes(b"".join(struct.pack("<h", int(max(-1.0, min(1.0, s)) * 32767)) for s in samples))
 
 
-def plug() -> list[float]:
-    """
-    Power connected: two low, round notes, a soft fourth apart (D4, G4), each eased in. Nothing high, nothing sudden,
-    no glide and no noise: the first one, a bright glide to 1260 Hz with a sharp attack, set the dogs off (2026-11-16).
-    """
+def _two(notes: list[float]) -> list[float]:
+    """Two low, round notes, a soft fourth apart, each eased in: nothing high, nothing sudden, no glide, no noise."""
     n = int(RATE * 0.55)
     out = [0.0] * n
-    for at, f, gain in ((0.0, 293.66, 1.0), (0.12, 392.0, 0.8)):
+    for (at, gain), f in zip(((0.0, 1.0), (0.12, 0.8)), notes):
         start = int(RATE * at)
         for i in range(n - start):
             t = i / RATE
@@ -40,22 +37,31 @@ def plug() -> list[float]:
             # Round, like a soft mallet on wood: the note, a little of its octave, nothing above.
             v = math.sin(2 * math.pi * f * t) + 0.18 * math.sin(2 * math.pi * 2 * f * t) * math.exp(-t * 12)
             out[start + i] += gain * attack * decay * v
-    # Quieter still than before: the system's volume, and well under it.
+    # Quiet: well under the system's volume.
     peak = max(abs(s) for s in out) or 1.0
     fade = int(RATE * 0.08)
     return [s / peak * 0.22 * (min(1.0, (n - i) / fade)) for i, s in enumerate(out)]
 
 
-def opening() -> list[float]:
+def plug() -> list[float]:
     """
-    Talaris come up: a soft run up the A major pentatonic (A4 B4 C#5 E5 F#5 A5), a note every 70 ms, each a warm
-    bell that swells in and rings on — so the run blooms into a chord as it ends.
+    Power connected: up a fourth, D4 to G4. The first, a bright glide to 1260 Hz with a sharp attack, set the dogs off
+    (2026-11-16).
     """
-    n = int(RATE * 2.6)
+    return _two([293.66, 392.0])
+
+
+def unplug() -> list[float]:
+    """Power taken away, on the battery now: the same two notes coming down, G4 to D4."""
+    return _two([392.0, 293.66])
+
+
+def _run_of(scale: list[float], every: float, seconds: float, level: float) -> list[float]:
+    """Warm bells in turn, each swelling in and ringing on, so the run blooms into a chord as it ends."""
+    n = int(RATE * seconds)
     out = [0.0] * n
-    scale = [440.0, 493.9, 554.4, 659.3, 740.0, 880.0]
     for k, f in enumerate(scale):
-        start = int(RATE * 0.07 * k)
+        start = int(RATE * every * k)
         gain = 0.85 - 0.07 * k
         for i in range(n - start):
             t = i / RATE
@@ -70,10 +76,25 @@ def opening() -> list[float]:
             out[i] += g * out[i - delay]
     peak = max(abs(s) for s in out) or 1.0
     fade = int(RATE * 0.5)
+    return [s / peak * level * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
+
+
+def opening() -> list[float]:
+    """
+    Talaris come up: a soft run up the A major pentatonic (A4 B4 C#5 E5 F#5 A5), a note every 70 ms, each a warm
+    bell that swells in and rings on — so the run blooms into a chord as it ends.
+    """
     # Soft: a greeting, not a notice.
-    return [s / peak * 0.18 * min(1.0, (n - i) / fade) for i, s in enumerate(out)]
+    return _run_of([440.0, 493.9, 554.4, 659.3, 740.0, 880.0], 0.07, 2.6, 0.18)
+
+
+def closing() -> list[float]:
+    """Talaris going (log out, restart, shut down): the opening's run coming down (A5 to A4), settling low."""
+    return _run_of([880.0, 740.0, 659.3, 554.4, 493.9, 440.0], 0.07, 2.2, 0.18)
 
 
 if __name__ == "__main__":
     write("plug.wav", plug())
+    write("unplug.wav", unplug())
     write("open.wav", opening())
+    write("close.wav", closing())
