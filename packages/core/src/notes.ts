@@ -34,7 +34,7 @@ import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { allRecords, bySource, createEntity, deleteEntity, getEntity, getFile, typeFor, types, updateEntity, type Entity } from "./entities.js";
 import { Conflict, PAGES, UNDATED, allProjects, attachedFile, ensureHome, findProject, pagesPlace, putProjectFile } from "./projects.js";
-import { DAILY, createPage, fileLinkText, movePage, pageFiles, pageTree, readPage, transferPage, withoutFileLink, writePage } from "./pages.js";
+import { DAILY, createPage, fileLinkText, linkOf, movePage, pageFiles, pageTree, readPage, transferPage, withoutFileLink, writePage } from "./pages.js";
 import { linkedBytes, setPageLinks } from "./links.js";
 import { movedText } from "./mentions.js";
 import { ensureProjectEntity, projectIdOf } from "./filing.js";
@@ -234,12 +234,16 @@ function takeFiles(at: Place, e: Entity, wanted: unknown): void {
     if (v?.sha256 && v["talaris:link"]?.path) shaAt.set(v["talaris:link"].path, v.sha256);
   }
   const have = new Set<string>();
+  const known = new Set<string>();
   for (const rel of pageFiles(text)) {
     let sha: string | undefined;
     try { sha = shaAt.get(attachedFile(at.project, rel).abs); } catch { /* gone */ }
     if (!sha) continue;
-    if (wantSha.has(sha)) have.add(sha);
-    else text = withoutFileLink(text, rel);
+    if (wantSha.has(sha)) { have.add(sha); known.add(rel); continue; }
+    // Another file by the name of one arriving, linked by the words that came with it: that link is the arriving one's.
+    if (want.some((x) => `Files/${x.filename || "file"}` === rel && ![...shaAt.values()].includes(x.sha256))) continue;
+    known.add(rel);
+    text = withoutFileLink(text, rel);
   }
   const added: string[] = [];
   for (const a of want) {
@@ -248,6 +252,12 @@ function takeFiles(at: Place, e: Entity, wanted: unknown): void {
     const bytes = getFile(a.sha256) ?? linkedBytes(a.sha256);
     if (!bytes) continue;
     const put = putProjectFile(at.project, a.filename || "file", bytes);
+    // Linked already by the words that came with it (a sync writes a link to a file it brings, where it will be
+    // filed): that link is the file's — moved to where it was filed, if its name was taken there.
+    const meant = `Files/${a.filename || "file"}`;
+    const linked = pageFiles(text);
+    if (linked.includes(put.path)) continue;
+    if (linked.includes(meant) && !known.has(meant)) { text = text.split(`](talaris-file:${linkOf(meant)})`).join(`](talaris-file:${linkOf(put.path)})`); continue; }
     added.push(fileLinkText(put.name, put.path));
   }
   if (added.length) text = `${text.replace(/\s+$/, "")}${text.trim() ? "\n\n" : ""}${added.join(" ")}\n`;

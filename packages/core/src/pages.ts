@@ -484,7 +484,7 @@ export function transferPage(fromProject: string, path: string, toProject: strin
 
 /** A page's link to one of its project's files, as the editor writes it (files.js): `](talaris-file:Files/a%20b.pdf)`. */
 const FILE_LINK = /\]\(talaris-file:([^)\s]+)\)/g;
-const linkOf = (rel: string) => encodeURI(rel).replace(/\(/g, "%28").replace(/\)/g, "%29");
+export const linkOf = (rel: string) => encodeURI(rel).replace(/\(/g, "%28").replace(/\)/g, "%29");
 const relOf = (link: string) => { try { return decodeURI(link.replace(/%28/g, "(").replace(/%29/g, ")")); } catch { return link; } };
 /** The files a page's words link, each as the link says it (`Files/…`, or `@<project>/Files/…`), in order, once each. */
 export function pageFiles(text: string): string[] {

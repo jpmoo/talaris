@@ -157,3 +157,16 @@ test("a note made through the binding with a file, on a project, has it filed th
   assert.equal(readFileSync(budgetPage("Numbers"), "utf8"), "From Suzanne.\n\n[Suzanne.pdf](talaris-file:Files/Suzanne.pdf)\n");
   assert.deepEqual(noteFiles("Numbers").map((f) => f.sha256), [sha(pdf)]);
 });
+
+test("a file brought to a page with words already linking it is linked once, where it was filed", () => {
+  const n = notesOf().find((o) => o.properties!.title === "Numbers")!;
+  const sheet = Buffer.from("a second sheet");
+  const files = [...noteFiles("Numbers").map((f) => ({ kind: "attachment", filename: f.filename, sha256: f.sha256 })),
+    { kind: "attachment", filename: "Robert.pdf", bytes: sheet.toString("base64") }];
+  // Robert.pdf is taken in Files by another file: this one is filed beside it, and the words' link follows it.
+  const r = interchange.patchObject(n.id, { set: { body: "From Suzanne.\n\n[Suzanne.pdf](talaris-file:Files/Suzanne.pdf)\nAnd [Robert.pdf](talaris-file:Files/Robert.pdf)\n", files } });
+  assert.equal(r.ok, true, r.reports.join(", "));
+  const text = readFileSync(budgetPage("Numbers"), "utf8");
+  assert.equal(text, "From Suzanne.\n\n[Suzanne.pdf](talaris-file:Files/Suzanne.pdf)\nAnd [Robert.pdf](talaris-file:Files/Robert%202.pdf)\n");
+  assert.deepEqual(readFileSync(join(budget.folder, "Files", "Robert 2.pdf")), sheet);
+});
