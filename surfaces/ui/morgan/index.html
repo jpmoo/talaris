@@ -155,6 +155,10 @@
   .act .icon .ti { font-size: 15px; }
   .act b { font-weight: 500; } .act span { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .act .words { min-width: 0; display: flex; flex-direction: column; flex: 1; }
+  /* What the camera saw, under its card: small, and larger on a click. */
+  img.seen { display: block; max-width: min(260px, calc(100% - 46px)); max-height: 200px; margin: 4px 0 2px 46px; border-radius: var(--radius-control);
+             border: 1px solid var(--accent-line); cursor: zoom-in; object-fit: contain; background: var(--panel); }
+  img.seen.big { max-width: calc(100% - 46px); max-height: none; cursor: zoom-out; }
   details.actfold > summary { list-style: none; cursor: pointer; }
   details.actfold > summary::-webkit-details-marker { display: none; }
   details.actfold .act > .ti { color: var(--dim); font-size: 14px; transform: rotate(-90deg); transition: transform var(--dur); }
@@ -422,6 +426,8 @@ function message(who, text, oracle, record, at) {
 }
 
 let lastTool = null; // the latest tool card, for what the tool returns to be put under
+let lookCard = null; // the latest "Looked at" card, for the picture taken to be shown under
+let seenImg = null;  // the picture shown under it: a second taken (the first too dark) takes its place
 function act(icon, title, detail, body) { // icon: its name in the shell's font
   const row = el("div", "act");
   const words = el("div", "words");
@@ -664,7 +670,23 @@ function hear(line) {
     case "tool": lastTool = act(...toolCard(e.name, e.args)); break;
     case "result": if (lastTool?.isConnected && e.text) { const card = lastTool; const spot = document.createComment(""); card.replaceWith(spot); spot.replaceWith(fold(card, e.text)); lastTool = null; } break;
     case "recall": act("book", "Read from memory", String(e.topic ?? ""), e.body); break;
-    case "look": act(e.source === "camera" ? "camera" : e.source === "clipboard" ? "clipboard" : "device-desktop", `Looked at the ${e.source}`, ""); break;
+    case "look": seenImg = null; lookCard = act(e.source === "camera" ? "camera" : e.source === "clipboard" ? "clipboard" : "device-desktop", `Looked at the ${e.source}`, ""); break;
+    case "picture": {
+      // What the camera saw (live only: never kept with the conversation), under the card that says it looked.
+      if (typeof e.data !== "string" || !/^[A-Za-z0-9+/]+=*$/.test(e.data)) break;
+      const src = `data:${e.mime === "image/png" ? "image/png" : "image/jpeg"};base64,${e.data}`;
+      if (seenImg?.isConnected) { seenImg.src = src; break; }
+      const img = el("img", "seen");
+      img.alt = "What Morgan saw";
+      img.title = "What Morgan saw";
+      img.addEventListener("click", () => img.classList.toggle("big"));
+      const follow = atBottom();
+      img.addEventListener("load", () => { if (follow) $("scroll").scrollTop = $("scroll").scrollHeight; });
+      img.src = src;
+      if (lookCard?.isConnected) lookCard.after(img); else add(img);
+      seenImg = img;
+      break;
+    }
     case "memory": if (e.removed) { act("eraser", `Taken out of ${e.topic}`, String(e.note ?? "")); break; }
       if (e.corrected) { act("pencil", `Corrected in ${e.topic}`, String(e.note ?? "")); break; }
       act(e.rewritten ? "brain" : "bookmark", e.rewritten ? "Tidied memory" : `Remembered in ${e.topic}`, e.rewritten ? String(e.topic ?? "") : String(e.note ?? ""), e.body); break;
