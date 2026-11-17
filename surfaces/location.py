@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import locale
+import math
 import os
 import shutil
 import subprocess
@@ -64,6 +65,11 @@ DEFAULTS = {"on": False, "apps": {}, "weather": True, "units": "auto", "zone": T
 NETWORK_EVERY_MS = 2 * 60 * 1000
 #: A fix this rough came from the internet address, not from Wi-Fi: said so, not taken as a distance.
 COARSE_M = 15000
+#: How far a rough fix may be from the last place Talaris was sure of: this, and as far as a car goes in the time since.
+#: Farther is the internet address's guess, not a journey — GeoClue put this laptop in Louisiana from home in New Jersey
+#: at every wake, and asked to change the clock to Chicago each time (2026-11-16).
+SURE_SLACK_KM = 80
+TRAVEL_KMH = 130
 FIX_EVERY_MS = 30 * 60 * 1000
 WEATHER_EVERY_MS = 20 * 60 * 1000
 TICK_MS = 60 * 1000
@@ -169,6 +175,13 @@ def find_places(query: str) -> list[dict]:
     return [{"name": ", ".join(says(p)), "lat": round(float(p["latitude"]), 2), "lon": round(float(p["longitude"]), 2)} for p in found]
 
 
+def _km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """The distance between two places on the ground, in kilometres."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 6371 * 2 * math.asin(math.sqrt(a))
+
+
 def _system_zone() -> str:
     try:
         return os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
@@ -262,7 +275,13 @@ class Location(QObject):
         if known:
             return {"lat": known["lat"], "lon": known["lon"], "accuracy": 1000, "at": int(time.time()), "name": known.get("name", ""), "known": True}
         fix = self.desktop.config.get("location", {}).get("last")
-        return fix if isinstance(fix, dict) and "lat" in fix else None
+        if not isinstance(fix, dict) or "lat" not in fix:
+            return None
+        # A rough fix kept from before this was looked for (Louisiana, from New Jersey): where you surely were instead.
+        sure = s.get("sure")
+        if float(fix.get("accuracy") or 0) >= COARSE_M and isinstance(sure, dict) and "lat" in sure and self._too_far(float(fix["lat"]), float(fix["lon"])):
+            return {"lat": sure["lat"], "lon": sure["lon"], "accuracy": 1000, "at": sure.get("at", 0), "name": "", "sure": True}
+        return fix
 
     def _keep(self, **values) -> None:
         loc = self.desktop.config.setdefault("location", {})
@@ -527,6 +546,10 @@ class Location(QObject):
                 self.network = before
                 return
         self._missed = 0
+        if now:
+            known = self.known_place() or {}
+            if "lat" in known:
+                self._keep_sure(float(known["lat"]), float(known["lon"]))
         first = not self.network_checked
         self.network_checked = True
         # The first look since starting: where you are, acted on now — known place or not.
@@ -562,6 +585,28 @@ class Location(QObject):
             places.pop(index)
             self.desktop.settings.apply({"location": {"places": places}})
 
+    def _keep_sure(self, lat: float, lon: float) -> None:
+        """Where Talaris was last sure you were — a known place, one set by hand, a close fix — and when: what a rough fix is held against."""
+        was = self.settings().get("sure") or {}
+        lat, lon = round(lat, 2), round(lon, 2)
+        # Written when it moves, or a quarter of an hour on: not at every look at the Wi-Fi.
+        if was.get("lat") == lat and was.get("lon") == lon and time.time() - float(was.get("at") or 0) < 15 * 60:
+            return
+        self._keep(sure={"lat": lat, "lon": lon, "at": int(time.time())})
+
+    def _too_far(self, lat: float, lon: float) -> bool:
+        """Whether a place is farther from where you last surely were than you could have gone since."""
+        s = self.settings()
+        place = s.get("place")
+        if s.get("by") == "hand" and isinstance(place, dict) and "lat" in place:
+            sure = {"lat": place["lat"], "lon": place["lon"], "at": int(time.time())}
+        else:
+            sure = s.get("sure")
+        if not isinstance(sure, dict) or "lat" not in sure:
+            return False
+        hours = max(0.0, (time.time() - float(sure.get("at") or 0)) / 3600)
+        return _km(lat, lon, float(sure["lat"]), float(sure["lon"])) > SURE_SLACK_KM + TRAVEL_KMH * hours
+
     def locate(self) -> None:
         # Set by hand: nothing to find.
         if not self.on() or self.locating or self.settings().get("by") == "hand":
@@ -580,6 +625,12 @@ class Location(QObject):
         if not self.network.get("online"):
             log("location: a fix while not connected, not kept")
             return
+        rough = float(fix.get("accuracy") or 0) >= COARSE_M
+        if rough and self._too_far(float(fix["lat"]), float(fix["lon"])):
+            log("location: a rough fix far from where you last surely were, not kept")
+            return
+        if not rough:
+            self._keep_sure(float(fix["lat"]), float(fix["lon"]))
         # Kept to about a kilometre: all the sun and the weather need, and no more.
         net = self.network.get("ssid", "")
         kept = {"lat": round(float(fix["lat"]), 2), "lon": round(float(fix["lon"]), 2),
@@ -723,8 +774,10 @@ class Location(QObject):
         """A coarse fix in another zone: asked once (a "no" kept for that guess), never changed unasked."""
         if not zone or zone in ("GMT", "UTC") or zone == _system_zone() or getattr(self, "_asking_zone", "") == zone:
             return
+        # A "keep" is for that zone, whatever rough guess put you in it: GeoClue's wanders, and asked again it was.
         guess = {"zone": zone, "lat": fix.get("lat"), "lon": fix.get("lon")}
-        if self.settings().get("declined_zone") == guess:
+        declined = self.settings().get("declined_zone")
+        if isinstance(declined, dict) and declined.get("zone") == zone:
             return
         self._asking_zone = zone
 
