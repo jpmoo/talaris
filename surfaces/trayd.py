@@ -199,12 +199,24 @@ class Tray:
         key = f"{service}{path}"
         if key in self.items:
             return
-        self.items[key] = {"id": key, "service": service, "path": path}
+        self.items[key] = {"id": key, "service": service, "path": path, **self._process(service)}
         self.bus.emit_signal(None, "/StatusNotifierWatcher", WATCHER, "StatusNotifierItemRegistered", GLib.Variant("(s)", (key,)))
         if service not in self.watches:
             self.watches[service] = Gio.bus_watch_name_on_connection(
                 self.bus, service, Gio.BusNameWatcherFlags.NONE, None, lambda _c, name: self._gone(name))
         self._read(key)
+
+    def _process(self, service: str) -> dict:
+        """The process behind an item, and the program it runs: an application's tray icon told from its windows' absence."""
+        try:
+            pid = self.bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetConnectionUnixProcessID",
+                                     GLib.Variant("(s)", (service,)), GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, 1000, None).unpack()[0]
+        except GLib.Error:
+            return {}
+        try:
+            return {"pid": pid, "exe": os.readlink(f"/proc/{pid}/exe")}
+        except OSError:
+            return {"pid": pid}
 
     def _gone(self, service: str) -> None:
         for key in [k for k, v in self.items.items() if v["service"] == service]:

@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import shutil
 import subprocess
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
@@ -59,6 +60,18 @@ def _read_entry(path: str) -> dict:
     except OSError:
         pass
     return entry
+
+
+def _program(exec_line: str) -> str:
+    """The program a desktop file's Exec runs, as the file it really is (a link followed); "" for one run through env, flatpak, a shell."""
+    try:
+        first = shlex.split(exec_line)[0] if exec_line.strip() else ""
+    except ValueError:
+        return ""
+    if not first or os.path.basename(first) in ("env", "flatpak", "snap", "sh", "bash", "gtk-launch"):
+        return ""
+    path = first if os.path.isabs(first) else (shutil.which(first) or "")
+    return os.path.realpath(path) if path else ""
 
 
 def keeps_one_window(app_id: str) -> bool:
@@ -181,7 +194,7 @@ class Apps:
                     stem = name[: -len(".desktop")]
                     desktop_id = os.path.relpath(os.path.join(root, name), apps)[: -len(".desktop")].replace("/", "-")
                     # `id` is what gtk-launch starts it by: a dock pin keeps it.
-                    app = {"name": entry["Name"], "icon": entry.get("Icon", ""), "id": desktop_id}
+                    app = {"name": entry["Name"], "icon": entry.get("Icon", ""), "id": desktop_id, "bin": _program(entry.get("Exec", ""))}
                     keys = [stem.lower()]
                     # A snap's file is `<snap>_<app>.desktop`; its windows say `<app>`.
                     if "_" in stem:
@@ -193,7 +206,7 @@ class Apps:
                     # What the launcher offers: everything a menu would show.
                     if entry.get("NoDisplay") != "true" and entry.get("Hidden") != "true":
                         listed.setdefault(desktop_id, {
-                            "id": desktop_id, "name": entry["Name"], "icon": app["icon"],
+                            "id": desktop_id, "name": entry["Name"], "icon": app["icon"], "bin": app["bin"],
                             "also": " ".join(x for x in (entry.get("GenericName", ""),
                                                          entry.get("Keywords", "").replace(";", " ")) if x),
                         })

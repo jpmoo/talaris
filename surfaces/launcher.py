@@ -474,9 +474,20 @@ class Launcher(Overlay):
                 self._bring(app_id, here, go)
             return
         before = {w["address"] for w in mine}
-        # One that says it keeps a single window is brought here, not started again.
-        if mine and keeps_one_window(app_id):
-            self._bring(app_id, here, go)
+        # Open here already: its window, in front — not started again, unless it is one that opens a new window.
+        if mine and (how != "new" or keeps_one_window(app_id)):
+            window = next(w for w in mine if w["workspace"] == now["active"])
+            hypr.focus(window["address"])
+            log(f"launcher: {app_id} already open here, in front")
+            return
+        # Running with no window, only its tray icon (closed to the tray): opened from there, as a press on the icon
+        # does — started again, most such applications only wake the one running and show nothing.
+        item = None if mine else self._in_tray(app_id)
+        if item:
+            self.desktop.tray.do(do="activate", id=item["id"])
+            log(f"launcher: {app_id} opened from its tray icon")
+            self._pending[app_id] = (before, here, go)
+            self._look(app_id, FOLLOW_MS)
             return
         # Through the compositor, so it starts with the session's environment
         # and on the workspace in front of you.
@@ -524,6 +535,25 @@ class Launcher(Overlay):
             hypr.ask(f"/dispatch exec gtk-launch {app_id}")
         log(f"launcher: {app_id} opened in its own project")
         return True
+
+    def _in_tray(self, app_id: str) -> dict | None:
+        """
+        The application's tray icon, if it has one: the icon's id names it (as a window's class would), or the
+        process behind the icon runs from the same folder as the program its desktop file starts (Zoom's
+        /usr/bin/zoom is /opt/zoom/ZoomLauncher, which starts /opt/zoom/zoom). A folder every program shares tells
+        nothing, so it is not taken as a match.
+        """
+        app = self.apps.by_id(app_id) or {}
+        home = os.path.dirname(app.get("bin", ""))
+        shared = home in ("", "/usr/bin", "/bin", "/usr/local/bin", "/usr/lib", "/usr/libexec", "/usr/sbin")
+        for item in self.desktop.tray.known.values():
+            named = item.get("appId", "")
+            if named and self.apps.lookup(named).get("id") == app_id:
+                return item
+            exe = item.get("exe", "")
+            if not shared and exe and os.path.dirname(exe) == home:
+                return item
+        return None
 
     def _app_windows(self, app_id: str) -> list:
         """An application's windows, most recently used first — told apart as the dock tells them (apps.windows_of)."""
