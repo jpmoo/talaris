@@ -29,6 +29,8 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 /* A tray item's own menu: its entries as it gives them, a tick or a dot for
    a toggle, a submenu's entries under its name, set in. */
 #tray-menu .menu-item { justify-content: flex-start; gap: 8px; }
+/* A long one scrolls inside the popup, which is never taller than the screen below the bar. */
+#tray-menu { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* The battery's panel: the level large, then what is worth knowing, in pairs. */
 .bat-big { display: flex; align-items: baseline; gap: 10px; padding: 2px 10px 6px; }
 #bat-level { font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
