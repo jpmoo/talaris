@@ -79,7 +79,9 @@ DEFAULTS = {
                  "hoursAhead": 12, "nightLight": False, "warmth": 4000, "morgan": False, "ignored": []},
     # The calendar: the calendars not shown (Evolution's ids), whichever
     # account they belong to — set in Settings, Accounts; the calendar shows only the rest.
-    "calendar": {"hidden": []},
+    # muted: set aside in the calendar's list (a press on a swatch), its events not on show.
+    # Either way, its reminders are off (calendard.py, quiet).
+    "calendar": {"hidden": [], "muted": []},
     # pinned: launcher ids pinned in every project; pinnedIn: {project id: ids}
     # pinned in that project only; order: every item's place, as dragged;
     # scope: the windows of "desktop" (this one) or "all"; docs: documents pinned

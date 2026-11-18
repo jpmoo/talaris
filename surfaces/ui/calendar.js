@@ -50,9 +50,12 @@ if (WINDOW) document.documentElement.dataset.window = "1";
 // The calendars not shown: Talaris's setting (Settings, Accounts, or the list here).
 let hidden = new Set();
 // Set aside here, by a press on its swatch: still in the list, its events not
-// on show — unlike one turned off in Settings, which is not here at all.
+// on show — unlike one turned off in Settings, which is not here at all. Kept in
+// Talaris's configuration (calendar.muted), and its reminders are off with it.
 let muted = new Set();
-try { muted = new Set(JSON.parse(localStorage.getItem("talaris.calendar.muted") || "[]")); } catch { /* fine */ }
+// Once kept by this page alone: what it had, handed to the configuration once.
+let mutedHere = [];
+try { mutedHere = JSON.parse(localStorage.getItem("talaris.calendar.muted") || "[]"); muted = new Set(mutedHere); } catch { /* fine */ }
 // Invitations declined: shown faded, or not at all.
 let declinedShown = true;
 try { declinedShown = localStorage.getItem("talaris.calendar.declined") !== "0"; } catch { /* fine */ }
@@ -72,8 +75,9 @@ function showTasks(which, on) {
   drawSide();
 }
 function mute(id) {
-  if (muted.has(id)) muted.delete(id); else muted.add(id);
-  try { localStorage.setItem("talaris.calendar.muted", JSON.stringify([...muted])); } catch { /* fine */ }
+  const on = !muted.has(id);
+  if (on) muted.add(id); else muted.delete(id);
+  if (bridge && typeof bridge.mute === "function") bridge.mute(id, on);
   drawSide();
   draw();
 }
@@ -730,6 +734,12 @@ function onState(s) {
   const was = surface;
   surface = s;
   if (s.hidden) { hidden = new Set(s.hidden); if (s.up || WINDOW) draw(); }
+  if (s.muted) {
+    if (!s.muted.length && mutedHere.length && bridge && typeof bridge.mute === "function") for (const id of mutedHere) bridge.mute(id, true);
+    else muted = new Set(s.muted);
+    if (mutedHere.length) { mutedHere = []; try { localStorage.removeItem("talaris.calendar.muted"); } catch { /* fine */ } }
+    if (s.up || WINDOW) { drawSide(); draw(); }
+  }
   if (WINDOW) return;
   if (s.up && !was.up) {
     Motion.arrive(document.body, how());

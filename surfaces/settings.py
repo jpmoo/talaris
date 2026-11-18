@@ -133,7 +133,7 @@ def _checked(c: dict) -> str:
         return "The bar shows the project's name, its code, or both"
     if not isinstance(c["bar"].get("trayFold", False), bool) or not isinstance(c["bar"].get("tray", True), bool) or not all(isinstance(x, str) for x in c["bar"].get("trayHidden", [])):
         return "Not a tray setting"
-    if not all(isinstance(x, str) for x in c.get("calendar", {}).get("hidden", [])):
+    if not all(isinstance(x, str) for k in ("hidden", "muted") for x in c.get("calendar", {}).get(k, [])):
         return "Not a calendar"
     if any(c.get("overlays", {}).get(k, "windows") not in ("windows", "drawers") for k in ("launcher", "new", "jump", "people", "files", "glance", "archive", "shot", "morgan", "settings", "calendar", "tasks", "canvas", "writing")):
         return "What opens from the bar moves as windows or as panels"

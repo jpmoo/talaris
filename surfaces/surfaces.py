@@ -854,6 +854,8 @@ class Desktop(QObject):
         if after.get("calendar") != before.get("calendar"):
             # Which calendars show: the calendar's page draws again with them.
             self.calendar.bridge.state.emit(json.dumps(self.calendar.describe()))
+            # And their reminders: off for those hidden or muted.
+            self.calendar_service.quiet()
         if after["power"] != before["power"]:
             self.power.apply()
         if after["theme"] != before["theme"]:

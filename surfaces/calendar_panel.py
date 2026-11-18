@@ -219,6 +219,7 @@ class CalendarService(QObject):
                 # Accounts connect one by one after ready: give them a moment.
                 if msg["ready"]:
                     self._mirror_soon.start(20_000)
+                    self.quiet()
             elif "calendars" in msg:
                 self.last_calendars = json.dumps(msg["calendars"])
                 self.calendars.emit(self.last_calendars)
@@ -256,6 +257,11 @@ class CalendarService(QObject):
                         {**found, "items": with_talaris_people(query, found.get("items", []))})), daemon=True).start()
             elif msg.get("changed"):
                 self.changed.emit()
+
+    def quiet(self) -> None:
+        """The calendars hidden or muted: their reminders off (calendard `quiet`); the rest's as they were."""
+        cal = getattr(self.parent(), "config", {}).get("calendar", {})
+        self.send({"do": "quiet", "req": 0, "calendars": sorted(set(cal.get("hidden", [])) | set(cal.get("muted", [])))})
 
     def mirror(self) -> None:
         """Ask for the wide range; its answer goes to the core, not the page."""
@@ -468,6 +474,14 @@ class CalendarBridge(Bridge):
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             self.owner.service.send(msg)
 
+    @Slot(str, bool)
+    def mute(self, calendar: str, on: bool) -> None:
+        """A calendar set aside in the list, or brought back: kept in the configuration, its reminders with it."""
+        muted = [c for c in self.owner.desktop.config.get("calendar", {}).get("muted", []) if c != calendar] + ([calendar] if on else [])
+        error = self.owner.desktop.settings.apply({"calendar": {"muted": muted}})
+        if error:
+            log(f"calendar: not muted: {error}")
+
     @Slot(str, str, str, str)
     def core(self, ident: str, method: str, path: str, body: str) -> None:
         """Tasks above the day's events, and @ in an event's notes: only the routes for them (TASK_ROUTES), answered later on `coreReply`."""
@@ -521,7 +535,8 @@ class Calendar(Overlay):
     IDLE_MS = 5 * 60 * 1000
 
     def describe(self) -> dict:
-        return {**super().describe(), "hidden": self.desktop.config.get("calendar", {}).get("hidden", [])}
+        cal = self.desktop.config.get("calendar", {})
+        return {**super().describe(), "hidden": cal.get("hidden", []), "muted": cal.get("muted", [])}
 
     def __init__(self, profile: QWebEngineProfile, desktop, service: CalendarService) -> None:
         super().__init__(profile, desktop, "talaris-ui://ui/calendar.html", CalendarBridge(None, None))

@@ -122,6 +122,8 @@ def time_of(ms: int, all_day: bool):
 
 #: Where the feeds brought in are listed (Talaris's config), and where each one's last reading is kept, for offline.
 FEEDS_FILE = os.path.join(os.environ.get("TALARIS_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".config", "talaris"), "feeds.json")
+#: The calendars whose reminders Talaris turned off (hidden or muted here): only these are turned back on.
+QUIETED_FILE = os.path.join(os.path.dirname(FEEDS_FILE), "calendar-quieted.json")
 FEEDS_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache"), "talaris", "feeds")
 #: How often a feed is read again.
 FEED_EVERY_S = 30 * 60
@@ -401,6 +403,13 @@ class Calendars:
         self.registry.connect("source-enabled", lambda *_: self._sources())
         self.registry.connect("source-disabled", lambda *_: self._sources())
         self.feeds = Feeds(self._changed, self._tell_calendars)
+        #: The calendars kept quiet (no reminders): None until the surfaces say.
+        self.quiet: set | None = None
+        try:
+            with open(QUIETED_FILE, encoding="utf-8") as f:
+                self.quieted = {x for x in json.load(f) if isinstance(x, str)}
+        except (OSError, ValueError):
+            self.quieted = set()
         self._sources()
         self._books()
 
@@ -425,7 +434,42 @@ class Calendars:
             if uid not in self.clients and uid not in self.connecting:
                 self.connecting.add(uid)
                 ECal.Client.connect(source, ECal.ClientSourceType.EVENTS, 30, None, self._connected, uid)
+        self._quieten()
         self._tell_calendars()
+
+    def _quieten(self) -> None:
+        """
+        A calendar hidden or muted in Talaris has no reminders (Evolution's
+        alarm notifier reads each calendar's Alarms "include me"); shown again,
+        they come back — but only where Talaris turned them off, never one
+        turned off in Evolution itself. Writing a source says it changed, and
+        this runs again: by then there is nothing left to do.
+        """
+        if self.quiet is None:
+            return
+        before = set(self.quieted)
+        for uid, source in self.wanted.items():
+            ext = source.get_extension(EDataServer.SOURCE_EXTENSION_ALARMS)
+            want = uid in self.quiet
+            if want and ext.get_include_me():
+                ext.set_include_me(False)
+                self.quieted.add(uid)
+            elif not want and uid in self.quieted:
+                if not ext.get_include_me():
+                    ext.set_include_me(True)
+                self.quieted.discard(uid)
+            else:
+                continue
+            try:
+                source.write_sync(None)
+            except GLib.Error as e:
+                sys.stderr.write(f"calendar {uid}: its reminders were not changed: {e.message}\n")
+        if self.quieted != before:
+            os.makedirs(os.path.dirname(QUIETED_FILE), exist_ok=True)
+            tmp = QUIETED_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(sorted(self.quieted), f)
+            os.replace(tmp, QUIETED_FILE)
 
     def _connected(self, _source, result, uid) -> None:
         self.connecting.discard(uid)
@@ -888,6 +932,9 @@ class Calendars:
             self.color(req, str(msg["calendar"]), str(msg["color"]))
         elif verb == "refresh":
             self.refresh(req)
+        elif verb == "quiet":
+            self.quiet = {str(x) for x in msg.get("calendars", []) if not str(x).startswith("feed:")}
+            self._quieten()
         elif verb == "delete":
             self.delete(req, str(msg["calendar"]), str(msg["uid"]), str(msg.get("rid", "")), msg.get("which", "all"))
 
