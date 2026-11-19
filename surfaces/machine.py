@@ -391,7 +391,8 @@ def wifi_state(rescan: bool = False) -> dict:
         if n and n["signal"] >= signal and not f[0] == "*":
             continue
         seen[ssid] = {
-            "ssid": ssid, "signal": signal, "secure": bool(security and security != "--"),
+            # Enhanced Open (OWE, and OWE-TM, its transition mode) is encrypted but has no password: joined as an open one is.
+            "ssid": ssid, "signal": signal, "secure": any(x not in ("--", "OWE", "OWE-TM") for x in security.split()),
             # A network this panel cannot join with a password alone.
             "enterprise": "802.1X" in security, "known": ssid in known,
             "connected": f[0] == "*" or (n or {}).get("connected", False),
