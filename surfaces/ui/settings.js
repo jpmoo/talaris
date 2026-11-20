@@ -206,6 +206,15 @@ function draw() {
     ? (canCarousel ? "A strip of windows, the ones beside showing at the edges. Super+Shift+Left and Right, or a finger in from the side of the screen, go window to window"
       : "Carousel needs hyprland-plugin-hyprscrolling installed: sudo apt install hyprland-plugin-hyprscrolling. Tiles until then")
     : "This machine's own: each new window splits the space of the one in use";
+  // The project in front: its own layout, or the default. Changed, its desktop is laid out again at once.
+  const within = cfg.windows.tilingIn || {};
+  $("tiling-here-name").textContent = projectNow.name || "This project";
+  $("win-tiling-here").closest(".row").hidden = !projectNow.id;
+  seg("win-tiling-here", [["", "Default"], ["tiles", "Tiles"], ["carousel", "Carousel"]], within[projectNow.id] || "", (mode) => {
+    const next = { ...within };
+    if (mode) next[projectNow.id] = mode; else delete next[projectNow.id];
+    save({ windows: { tilingIn: next } });
+  }, (mode) => mode === "carousel" && !canCarousel);
   slider("gap", cfg.windows.gap, (v) => `${v}px`, (v) => save({ windows: { gap: v } }));
   slider("between", cfg.windows.between ?? 10, (v) => `${v}px`, (v) => save({ windows: { between: v } }));
   seg("win-outline", [["focus", "Accent in use"], ["accent", "Accent"], ["line", "Line"], ["none", "None"]], cfg.windows.outline || "focus",
@@ -307,6 +316,8 @@ let blueBubbles = false;
 // Whether this machine can say which way up it is (rotation.py): Look's "Turn with the device" only where it can.
 let canRotate = false;
 let canCarousel = false;
+// The project in front ({id, name}): its own tiling is set beside the default.
+let projectNow = { id: "", name: "" };
 $("cb-on").addEventListener("click", () => save({ clipboard: { enabled: cb().enabled === false } }));
 $("cb-codes").addEventListener("click", () => save({ clipboard: { codes: cb().codes !== true } }));
 // ---------------------------------------------------------------- activity
@@ -2319,6 +2330,7 @@ Surface.connect({
     if (had !== morganHere && $("morgan").classList.contains("on")) loadMorgan();
     if (canRotate !== !!s.canRotate) { canRotate = !!s.canRotate; if (cfg) draw(); }
     if (canCarousel !== !!s.canCarousel) { canCarousel = !!s.canCarousel; if (cfg) draw(); }
+    if (s.project && s.project.id !== projectNow.id) { projectNow = s.project; if (cfg) draw(); }
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
     if (s.location && JSON.stringify(s.location) !== JSON.stringify(whereNow)) { whereNow = s.location; if (cfg) drawLocation(); }
     if (s.motion) motionNow = { ...s.motion, viewport: s.viewport };

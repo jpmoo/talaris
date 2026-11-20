@@ -429,7 +429,9 @@ class Desktop(QObject):
         if not home.get("id"):
             return
         self._home_asked.stop()
+        was = self.tiling_mode()
         self.project = home
+        self._retile(was)
         for w in getattr(self, "workspaces", {}).values():
             w.bridge.state.emit(json.dumps(w.describe()))
         self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
@@ -605,10 +607,31 @@ class Desktop(QObject):
             holds[dock.edge] = bool(self.config["dock"].get("enabled", True)) and not self.hides("dock") and not getattr(dock, "empty", False)
         spacers.hold({edge: 0 if holds.get(edge) else gap for edge in ("top", "bottom", "left", "right")})
 
+    def tiling_mode(self, project_id: str | None = None) -> str:
+        """
+        Tiles or Carousel for a project (the one in front, unless named): its own, if it has one (Settings, Windows,
+        "This project"), else the machine's. Hyprland lays out every desktop one way at a time, so the layout is set
+        again as each project is gone to (`go_to_project`).
+        """
+        win = self.config["windows"]
+        pid = self.project.get("id", "") if project_id is None else project_id
+        return win.get("tilingIn", {}).get(pid) or win.get("tiling", "tiles")
+
     def carousel(self) -> bool:
-        """Whether this machine lays its windows out as the carousel (tiling.py), and can."""
+        """Whether the project in front lays its windows out as the carousel (tiling.py), and can."""
         import tiling  # noqa: PLC0415
-        return self.config["windows"].get("tiling") == "carousel" and tiling.available()
+        return self.tiling_mode() == "carousel" and tiling.available()
+
+    def _retile(self, was: str) -> None:
+        """The layout, the gaps and the space the bar and the dock hold, set again when the project in front lays out differently."""
+        if self.tiling_mode() == was:
+            return
+        self.style_compositor()
+        self.bar.place()
+        self.dock.place()
+        if getattr(self, "centering", None):
+            self.centering.soon()
+        log(f"tiling: {self.tiling_mode()} in {self.project.get('name', 'Home')}")
 
     def edge_gap(self, which: str) -> int:
         """
@@ -669,7 +692,7 @@ class Desktop(QObject):
         # How windows are laid out on this machine: Tiles or Carousel (tiling.py). Before the gaps: the scrolling
         # layout takes the gaps round the screen only when they are set after it.
         import tiling  # noqa: PLC0415
-        tiling.apply(str(win.get("tiling", "tiles")))
+        tiling.apply(self.tiling_mode())
         gap = int(self.config["windows"]["gap"])
         sides = {"top": gap, "right": gap, "bottom": gap, "left": gap}
         # A floating bar's margin on the side away from its edge is the space
@@ -825,7 +848,7 @@ class Desktop(QObject):
             self.dock.edge = after["dock"]["edge"]
             self.dock.place()
         # Tiles or Carousel, or the gap: the space the bar and the dock hold back changes with them (`edge_gap`).
-        if any(after["windows"].get(k) != before["windows"].get(k) for k in ("tiling", "gap")):
+        if any(after["windows"].get(k) != before["windows"].get(k) for k in ("tiling", "tilingIn", "gap")):
             self.bar.place()
             self.dock.place()
             if getattr(self, "centering", None):
@@ -945,7 +968,9 @@ class Desktop(QObject):
         if found["id"] == self.project.get("id"):
             return
         self.activity.record("project.go", to=found["id"])
+        was = self.tiling_mode()
         self.project = found
+        self._retile(was)
         self.jump.went(found["id"])
         for w in self.workspaces.values():
             w.bridge.state.emit(json.dumps(w.describe()))

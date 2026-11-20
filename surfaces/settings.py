@@ -176,6 +176,9 @@ def _checked(c: dict) -> str:
         return "A window's outline is the accent, a line or none, 1 to 6 pixels wide"
     if not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9._ -]{1,120}", x) for x in c["windows"].get("solid", [])):
         return "Not an application's window class"
+    within = c["windows"].get("tilingIn", {})
+    if not isinstance(within, dict) or not all(isinstance(k, str) and v in ("tiles", "carousel") for k, v in within.items()):
+        return "A project's tiling is Tiles or Carousel"
     if c["windows"].get("motion", "pop") not in ("slide", "pop", "fade", "draw", "none") or c["windows"].get("speed", "normal") not in speeds:
         return "Windows slide, pop, fade or neither"
     if not 15 <= int(c["idleSeconds"]) <= 600:
@@ -623,6 +626,8 @@ class Settings(Overlay):
                 "canRotate": rotation.available(),
                 # Whether Carousel can be had here (tiling.py): the scrolling layout's plugin installed.
                 "canCarousel": __import__("tiling").available(),
+                # The project in front: its own tiling is set beside the machine's default.
+                "project": {"id": self.desktop.project.get("id", ""), "name": self.desktop.project.get("name", "Home")},
                 # Where you are, as Settings, Location shows it (location.py).
                 **({"location": self.desktop.location.describe()} if getattr(self.desktop, "location", None) else {})}
 

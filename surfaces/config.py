@@ -136,7 +136,7 @@ DEFAULTS = {
     # motion: how windows open and close — "slide", "pop", "fade", "draw" or "none" —
     # at a speed, as everything else comes and goes.
     # solid: window classes always drawn solid, whatever Hyprland does to windows not in use.
-    "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2, "motion": "pop", "speed": "normal", "solid": [], "tiling": "tiles"},
+    "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2, "motion": "pop", "speed": "normal", "solid": [], "tiling": "tiles", "tilingIn": {}},
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.
     "idleSeconds": 45,
