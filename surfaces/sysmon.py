@@ -158,8 +158,10 @@ LIMITS = {
     "swap": (50, 85),
     # Work stalled on memory, % of the last ten seconds (thrashing).
     "pressure": (10, 30),
-    # Degrees short of the point the processor cuts itself back at.
-    "temperature": (15, 5),
+    # Degrees short of the point the processor cuts itself back at. A laptop's processor runs to 90°C and more in
+    # its bursts as a matter of course (this one, 86–96°C on an ordinary morning, 2026-11-20): only one held at
+    # its limit is a concern.
+    "temperature": (5, 2),
     # The 1-minute load, in processors' worth.
     "load": (2, 4),
 }

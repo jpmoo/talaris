@@ -382,6 +382,8 @@ class Events(QObject):
     changed = Signal()
     #: The config was reloaded, which drops runtime binds.
     reloaded = Signal()
+    #: A display plugged in or taken away (displays.py).
+    monitors = Signal()
     #: Something the dock shows changed: a window, its title, focus, a workspace.
     windows = Signal()
     #: The workspace gone to, by name: "3", or a project's id.
@@ -418,6 +420,8 @@ class Events(QObject):
             name = line.split(b">>", 1)[0].decode("ascii", "replace")
             if name == "configreloaded":
                 self.reloaded.emit()
+            if name in ("monitoradded", "monitoraddedv2", "monitorremoved", "monitorremovedv2"):
+                self.monitors.emit()
             if name == "urgent":
                 self.urgent.emit("0x" + line.split(b">>", 1)[1].decode("ascii", "replace").strip())
             if name == "workspace":

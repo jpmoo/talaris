@@ -193,6 +193,8 @@ def _checked(c: dict) -> str:
             or int(a.get("keep", 90)) not in (30, 90, 365) or a.get("suggest", "morgan") not in ("morgan", "notify", "asked") \
             or a.get("share", "summary") not in ("summary", "raw", "local"):
         return "Not an activity setting"
+    if c.get("screen", {}).get("external", "extend") not in ("extend", "mirror"):
+        return "A display plugged in is beside the screen or a copy of it"
     if not 0 <= int(c.get("screen", {}).get("corners", 0)) <= 32:
         return "Screen corners are 0 to 32 pixels"
     cb = c.get("clipboard", {})

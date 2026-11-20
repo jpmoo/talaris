@@ -39,13 +39,20 @@ function onState(s) {
   const folded = !!(state.look || {}).trayFold;
   state = s;
   // A button whose popup is out shows it, as a pressed button would.
-  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where", notifications: "bell", clipboard: "clipboard", weather: "weather" };
+  const out = { network: "net", bluetooth: "bt", volume: "vol", power: "power", battery: "bat", projects: "where", notifications: "bell", clipboard: "clipboard", weather: "weather", display: "display" };
   for (const [kind, id] of Object.entries(out)) $(id).classList.toggle("on", s.popup === kind);
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
   for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
+  // A display plugged in (displays.py): its button, while there is one; what it shows, in its tip.
+  const shown = (s.displays || {}).external || [];
+  $("display").hidden = !shown.length;
+  if (shown.length) {
+    if (!$("display").firstChild) $("display").innerHTML = Icons.display();
+    $("display").title = `${shown.map((d) => d.label).join(", ")} — ${(s.displays.mode === "mirror") ? "a copy of this screen" : "beside this screen"}`;
+  }
   // The machine's health: the power button's dot, and what it is about in the button's tip.
   const health = s.health || { level: 0, issues: [] };
   if (!$("power").querySelector(".health-dot")) $("power").append(Object.assign(document.createElement("span"), { className: "health-dot" }));
@@ -232,6 +239,7 @@ $("bright").addEventListener("wheel", (e) => {
 }, { passive: false });
 $("power").addEventListener("click", () => bridge && bridge.popup("power"));
 $("bat").addEventListener("click", () => bridge && bridge.popupAt("battery", under("bat")));
+$("display").addEventListener("click", () => bridge && bridge.popupAt("display", under("display")));
 // The project's pill, drawn again only when what it shows changes: the bar's state comes often (Morgan, the
 // machine, a popup), and a pill emptied and refilled between a press and its release loses that click.
 let whereDrawn = "";

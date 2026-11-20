@@ -63,7 +63,7 @@ BAR = 34
 #: Each popup's surface: the panel, and room round it for its shadow (popup.html .panel's inset).
 POPUPS = {"power": (242, 224), "volume": (272, 126), "network": (332, 442), "bluetooth": (332, 422), "tray": (292, 222),
           "trayicons": (252, 102), "battery": (312, 304), "projects": (308, 164), "notifications": (388, 464),
-          "clipboard": (468, 564), "weather": (376, 484)}
+          "clipboard": (468, 564), "weather": (376, 484), "display": (292, 200)}
 
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
@@ -312,6 +312,14 @@ class BarBridge(Bridge):
         self.owner.desktop.machine.power_profile(name)
 
     @Slot(str)
+    def displayMode(self, mode: str) -> None:  # noqa: N802 — called from the page by this name
+        """A display plugged in, beside the screen or a copy of it: kept as the setting (Settings, Look) and applied."""
+        if mode in ("extend", "mirror"):
+            error = self.owner.desktop.settings.apply({"screen": {"external": mode}})
+            if error:
+                log(f"displays: {error}")
+
+    @Slot(str)
     def openSettings(self, page: str) -> None:  # noqa: N802 — called from the page by this name
         """A panel's way on: Settings, at its page (the battery's Power, Wi-Fi's own)."""
         self.owner.desktop.bar.close_popup()
@@ -476,7 +484,9 @@ class Popup(QObject):
         return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"],
                 "clock": self.desktop.config.get("clock", {}),
                 # The power menu's "Task manager…", where one is installed.
-                "taskManager": task_manager() if self.kind == "power" else None}
+                "taskManager": task_manager() if self.kind == "power" else None,
+                # The display popup's: what is plugged in, and how it is shown (displays.py).
+                "displays": self.desktop.displays.describe() if self.kind == "display" and getattr(self.desktop, "displays", None) else None}
 
     def show(self, kind: str) -> None:
         self.kind = kind
@@ -538,7 +548,7 @@ class Popup(QObject):
 
     #: Popups sized by what is in them, so no text size or typeface cuts them
     #: off or leaves them half empty; the lists scroll, and keep their size.
-    FITTED = ("power", "volume", "tray", "trayicons", "battery", "projects")
+    FITTED = ("power", "volume", "tray", "trayicons", "battery", "projects", "display")
 
     def fit(self, height: int) -> None:
         if self.kind not in self.FITTED or height <= 0:
@@ -764,6 +774,8 @@ class Bar(QObject):
             "keyboard": _keyboard_state(),
             # The power button's badge: 0 none, 1 yellow, 2 red, and why (sysmon.health).
             "health": self.health,
+            # Displays plugged in, and how they are shown (displays.py): the display button, while there is one.
+            "displays": self.desktop.displays.describe() if getattr(self.desktop, "displays", None) else {"external": []},
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),

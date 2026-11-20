@@ -138,6 +138,30 @@ def set_keyboard(height: int) -> None:
             surface.reflow()
 
 
+def rescreen() -> int:
+    """
+    The screens changed (one plugged in or taken away, the built-in one turned off for it): every surface that was up
+    made anew on the screen Qt now calls primary. A screen gone takes its surfaces with it — Qt moves their windows
+    to a placeholder with no output, and nothing brings them back — so the bar and the dock were lost until a restart
+    (2026-11-20, HDMI). Answers how many were made again.
+    """
+    screen = QApplication.primaryScreen()
+    if screen is None:
+        return 0
+    n = 0
+    for surface in list(_surfaces):
+        if surface.asked is None or surface.placement is None:
+            continue
+        handle = surface.widget.windowHandle()
+        if handle is not None and handle.screen() is not screen:
+            surface.widget.hide()
+            handle.setScreen(screen)
+        surface.placement = None
+        surface.apply(surface.asked)
+        n += 1
+    return n
+
+
 def fitted(placement: Placement) -> Placement:
     """
     No larger than the screen it is on. Sizes are fixed lengths times the

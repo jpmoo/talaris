@@ -91,6 +91,7 @@ from winfx import WindowDraw
 import wallpaper
 from wallpaper import current as wallpaper_current
 from power import Power
+from displays import Displays
 from rotation import Rotation
 from keyboard import Keyboard
 import prefsync
@@ -101,6 +102,7 @@ from machine import Machine
 from views import AREAS, log, set_zoom, zoom
 import core
 from core import call
+import layershell
 from layershell import QT_SCALE, to_compositor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -363,6 +365,9 @@ class Desktop(QObject):
         self.corners = Corners(self)
         # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
         self.rotation = Rotation(self)
+        # A display plugged in: beside the screen or a copy of it, as Settings says; the bar's display button while one is.
+        self.displays = Displays(self)
+        self.displays.changed.connect(self._displays_changed)
         # Three fingers across the touchscreen slide the carousel (gestures.py, tiling.py), where there is one.
         import gestures  # noqa: PLC0415
         import tiling  # noqa: PLC0415
@@ -398,9 +403,16 @@ class Desktop(QObject):
         # Wallpapers set before they were copied in: copied in now, once, so they are Talaris's own and travel.
         QTimer.singleShot(5000, self._keep_wallpapers)
         # The screen a new size — turned, or its mode changed: what spans it is placed across it again.
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            screen.geometryChanged.connect(lambda _g: QTimer.singleShot(150, self.screen_changed))
+        self._watched_screen = None
+        self._watch_screen()
+        # A screen plugged in or taken away (HDMI; the built-in one turned off while docked): once they have settled,
+        # every surface made again on the screen there is now (`outputs_changed`).
+        self._outputs_soon = QTimer(self)
+        self._outputs_soon.setSingleShot(True)
+        self._outputs_soon.timeout.connect(self.outputs_changed)
+        app = QApplication.instance()
+        for signal in (app.screenAdded, app.screenRemoved, app.primaryScreenChanged):
+            signal.connect(lambda *_: self._outputs_soon.start(1000))
         # What is done through Talaris, kept as Settings says (activity.py); off until turned on.
         self.activity = Activity(self)
         # Started on a project's desktop, that project is the current one; on an ordinary one, it is the last.
@@ -817,6 +829,36 @@ class Desktop(QObject):
         return [self.bar, self.bar.popup, self.dock, self.launcher, self.morgan, self.voice,
                 self.osd, self.settings, self.desk, *self.overlays()]
 
+    def _displays_changed(self) -> None:
+        """The bar's display button, and its popup if it is out, told what is plugged in now."""
+        self.bar.bridge.state.emit(json.dumps(self.bar.describe()))
+        if self.bar.popup.kind == "display":
+            self.bar.popup.bridge.state.emit(json.dumps(self.bar.popup.describe()))
+
+    def _watch_screen(self) -> None:
+        """The primary screen's size followed — the one there is now, not the one there was at start."""
+        screen = QApplication.primaryScreen()
+        if screen is None or screen is self._watched_screen:
+            return
+        self._watched_screen = screen
+        screen.geometryChanged.connect(lambda _g: QTimer.singleShot(150, self.screen_changed))
+
+    def outputs_changed(self) -> None:
+        """Screens come or gone: every surface that was up made again on the screen there is, and placed across it."""
+        screens = QApplication.screens()
+        names = ", ".join(s.name() or "?" for s in screens)
+        if not screens or (len(screens) == 1 and not screens[0].name()):
+            # Only Qt's placeholder: nothing to draw on yet; asked again when a screen comes.
+            log("screen: none for now")
+            return
+        self._watch_screen()
+        made = layershell.rescreen()
+        self.screen_changed()
+        self.desk.place()
+        self.corners.apply()
+        self.hold_spaces()
+        log(f"screen: the screens are {names}; {made} surfaces made again on {QApplication.primaryScreen().name()}")
+
     def screen_changed(self) -> None:
         """The screen is another shape: the bar and the dock, which span it, placed again, and what was open over it put away."""
         self.bar.close_popup()
@@ -835,6 +877,7 @@ class Desktop(QObject):
         if after.get("screen") != before.get("screen"):
             self.corners.apply()
             self.rotation.apply()
+            self.displays.apply()
         if after.get("clipboard") != before.get("clipboard"):
             self.clipboard.apply()
             if after.get("clipboard", {}).get("keep") != before.get("clipboard", {}).get("keep"):

@@ -150,6 +150,8 @@ const Icons = (() => {
   const go = () => svg('<path d="M3 8h9M9 4.5 12.5 8 9 11.5"/>');
   // Leaving: a door's frame, and the way out of it.
   const logout = () => svg('<path d="M9.5 3H4.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h5"/><path d="M7 8h7M11.5 5.5 14 8l-2.5 2.5"/>');
+  // A display: a screen on its stand.
+  const display = () => svg('<rect x="2" y="2.5" width="12" height="8.5" rx="1"/><path d="M6 14h4M8 11v3"/>');
   // How the machine is doing: a pulse.
   const activity = () => svg('<path d="M1.5 8.5h3l1.8-4.5 3.4 8 1.8-3.5h3"/>');
   const said = () => svg('<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>');
@@ -167,5 +169,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power, logout, activity };
+  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power, logout, activity, display };
 })();

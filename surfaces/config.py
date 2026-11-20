@@ -70,7 +70,7 @@ DEFAULTS = {
     # half-drawn corners behind.
     # rotate: turn with the device, where it has an accelerometer (rotation.py); rotateLocked: held where it started
     # (the bar's button), kept across restarts.
-    "screen": {"corners": 12, "rotate": False, "rotateLocked": False},
+    "screen": {"corners": 12, "rotate": False, "rotateLocked": False, "external": "extend"},
     # What is done through Talaris, kept for suggestions about how you work
     # (activity.py): off until turned on; each choice is yours (Settings, Activity).
     "activity": {"enabled": False, "grain": "actions", "keep": 90, "suggest": "morgan", "share": "summary"},

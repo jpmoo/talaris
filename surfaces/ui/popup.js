@@ -230,6 +230,7 @@ let clipsShown = null;
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   watchSys(s.popup === "power");
+  if (s.popup === "display" && s.displays) drawDisplays(s.displays);
   if (s.popup === "power") {
     $("task-manager").hidden = !s.taskManager;
     $("task-manager").title = s.taskManager ? `Open ${s.taskManager.name}` : "";
@@ -513,6 +514,27 @@ function drawBattery(b, error) {
   refit();
 }
 $("bat-settings").addEventListener("click", () => bridge.openSettings("power"));
+
+// ---------------------------------------------------------------- displays
+// Each display plugged in, and whether it is beside this screen or a copy of it (displays.py).
+function drawDisplays(d) {
+  const row = (x) => {
+    const r = document.createElement("div");
+    r.className = "disp";
+    r.append(Object.assign(document.createElement("span"), { textContent: x.label }),
+      Object.assign(document.createElement("span"), { className: "k", textContent: `${x.size}${x.hz ? ` · ${x.hz} Hz` : ""}` }));
+    return r;
+  };
+  $("disp-list").replaceChildren(...(d.external.length ? d.external.map(row) : [note("None plugged in")]));
+  $("disp-mode").replaceChildren(...[["extend", "Extend"], ["mirror", "Mirror"]].map(([k, label]) => {
+    const b = Object.assign(document.createElement("button"), { className: d.mode === k ? "on" : "", textContent: label,
+      title: k === "mirror" ? "The display shows a copy of this screen" : "The display is a screen of its own, beside this one" });
+    b.addEventListener("click", () => { if (d.mode !== k && bridge) bridge.displayMode(k); });
+    return b;
+  }));
+  refit();
+}
+$("disp-settings").addEventListener("click", () => bridge.openSettings("look"));
 
 $("wifi-on").addEventListener("click", () => wifi && sendNet({ verb: "power", on: !wifi.on }, ""));
 $("bt-on").addEventListener("click", () => blue && sendBt({ verb: "power", on: !blue.on }, ""));
