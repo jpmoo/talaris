@@ -317,6 +317,18 @@ window.GlanceView = (o) => {
     // close together, a light push, ties drawn heavy, small type.
     const DISPLAY = { size: 1.1, distance: 55, repel: 50, gravity: 9, labels: "hubs", text: 9, line: 2.25 };
     let gs = { ...DISPLAY, ...store.get("talaris.glance.display", {}) };
+    // Set aside, as in Obsidian's graph: a thing dragged and let go stays where it was put, held out of the
+    // flow — remembered for the thing at the middle it was set aside round, where the middle is 0,0.
+    // Right-click lets one go back in; the Display panel lets them all go.
+    let aside = store.get("talaris.glance.aside", {});
+    const asideHere = () => (data && aside[data.root]) || {};
+    function keepAside(n, put) {
+      if (!data) return;
+      const here = { ...asideHere() };
+      if (put) here[n.key] = [Math.round(n.fx), Math.round(n.fy)]; else delete here[n.key];
+      if (Object.keys(here).length) aside[data.root] = here; else delete aside[data.root];
+      store.set("talaris.glance.aside", aside);
+    }
     const SPRING = 0.08, DAMP = 0.6, CUT2 = 520 * 520;
     const DECAY = 0.015, ALPHA_MIN = 0.002, WARM_TICKS = 300;
 
@@ -346,6 +358,10 @@ window.GlanceView = (o) => {
         const n = { ...src, x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null, deg: 0, fresh: !was };
         if (was) { n.x = was.x - ox; n.y = was.y - oy; } else seed(n);
         if (isRoot(n)) { n.fx = 0; n.fy = 0; n.x = 0; n.y = 0; }
+        else {
+          const put = (aside[d.root] || {})[n.key];
+          if (put) { n.fx = n.x = put[0]; n.fy = n.y = put[1]; }
+        }
         byKey.set(n.key, n);
         return n;
       });
@@ -620,6 +636,13 @@ window.GlanceView = (o) => {
           ctx.arc(n.x, n.y, r + 3.5 / cam.s, 0, Math.PI * 2);
           ctx.lineWidth = 2 / cam.s; ctx.strokeStyle = pal.accent; ctx.stroke();
         }
+        // Set aside: a faint dashed ring, so it reads as held where it was put.
+        if (!isRoot(n) && n.fx != null && !(press && press.node === n)) {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 3 / cam.s, 0, Math.PI * 2);
+          ctx.lineWidth = 1 / cam.s; ctx.strokeStyle = pal.muted;
+          ctx.setLineDash([2 / cam.s, 2 / cam.s]); ctx.stroke(); ctx.setLineDash([]);
+        }
         if (n === hover) {
           ctx.beginPath();
           ctx.arc(n.x, n.y, r + 2.5 / cam.s, 0, Math.PI * 2);
@@ -745,7 +768,8 @@ window.GlanceView = (o) => {
       const p = press;
       press = null;
       cv.classList.remove("dragging", "panning");
-      if (p.node && !isRoot(p.node) && p.moved) { p.node.fx = null; p.node.fy = null; target = 0; }
+      // Dragged and let go: set aside where it was put, and kept so.
+      if (p.node && !isRoot(p.node) && p.moved) { keepAside(p.node, true); target = 0; }
       // One click centres it, to walk the graph from it; a second, soon after on the same, opens it.
       // The second click is counted where the pointer is, not what is under it now: the first
       // set the view gliding, and the thing has moved from under the pointer since.
@@ -768,6 +792,18 @@ window.GlanceView = (o) => {
     cv.addEventListener("pointerup", release);
     cv.addEventListener("pointercancel", release);
     cv.addEventListener("pointerleave", () => { if (!press) setHover(null); });
+    // Right-click on one set aside: let go, back into the flow.
+    cv.addEventListener("contextmenu", (e) => {
+      const [x, y] = at(e);
+      const n = hit(x, y);
+      if (!n || isRoot(n) || n.fx == null) return;
+      e.preventDefault();
+      n.fx = null; n.fy = null;
+      keepAside(n, false);
+      // Warm enough to come all the way back into its place.
+      heat(1);
+      need();
+    });
     cv.addEventListener("wheel", (e) => {
       e.preventDefault();
       const [x, y] = at(e);
@@ -816,6 +852,8 @@ window.GlanceView = (o) => {
           el("span", { class: "seg dseg" }, ...[["all", "All"], ["hubs", "Main"], ["hover", "Hover"]].map(([k, l]) =>
             el("button", { class: gs.labels === k ? "on" : "", onclick: () => { setDisplay("labels", k); drawDisplay(); } }, l)))),
         el("div", { class: "drow dacts" },
+          Object.keys(asideHere()).length ? el("button", { class: "t-btn", title: "Every thing set aside here back into the flow (or right-click one)",
+            onclick: () => { for (const p of nodes) if (!isRoot(p) && p.fx != null) { p.fx = null; p.fy = null; } if (data) { delete aside[data.root]; store.set("talaris.glance.aside", aside); } heat(1); drawDisplay(); need(); } }, "Let all go") : null,
           el("button", { class: "t-btn", title: "Lay it all out again from the start", onclick: () => { for (const p of nodes) if (!isRoot(p)) { p.x = (Math.random() - 0.5) * 300; p.y = (Math.random() - 0.5) * 300; } heat(1); } }, "Lay out again"),
           el("button", { class: "t-btn", title: "Back to how it came", onclick: () => { gs = { ...DISPLAY }; store.set("talaris.glance.display", gs); suggestedShown(true); heat(0.35); drawDisplay(); need(); } }, "Reset")));
     }
