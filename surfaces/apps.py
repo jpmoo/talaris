@@ -74,6 +74,34 @@ def _program(exec_line: str) -> str:
     return os.path.realpath(path) if path else ""
 
 
+def task_manager() -> dict | None:
+    """
+    The task manager installed, if any — for the power menu's "Task manager…": the application whose desktop file says
+    it is one, by its keywords (a "Task" and a "Manager", or "Processes"), not by its name, so whichever is installed
+    (Resources, GNOME's System Monitor, Mission Center) is the one. Its desktop id and name; None if there is none.
+    """
+    best = None
+    for d in _data_dirs():
+        apps = os.path.join(d, "applications")
+        if not os.path.isdir(apps):
+            continue
+        for root, _dirs, files in os.walk(apps):
+            for name in sorted(files):
+                if not name.endswith(".desktop"):
+                    continue
+                path = os.path.join(root, name)
+                entry = _read_entry(path)
+                if entry.get("NoDisplay") == "true" or entry.get("Hidden") == "true" or "Name" not in entry:
+                    continue
+                words = {w.strip().lower() for w in entry.get("Keywords", "").split(";") if w.strip()}
+                says = ("task" in words and "manager" in words) or "task manager" in words
+                processes = bool(words & {"process", "processes"})
+                score = 2 * says + processes
+                if score >= 2 and (best is None or score > best[0]):
+                    best = (score, {"id": os.path.relpath(path, apps)[: -len(".desktop")].replace("/", "-"), "name": entry["Name"]})
+    return best[1] if best else None
+
+
 def keeps_one_window(app_id: str) -> bool:
     """Whether an application's desktop file says it has a single main window (`SingleMainWindow=true`)."""
     for d in _data_dirs():

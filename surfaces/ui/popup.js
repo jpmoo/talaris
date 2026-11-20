@@ -224,6 +224,10 @@ let clipsShown = null;
 function onState(s) {
   const opening = s.popup && s.popup !== document.body.dataset.popup;
   watchSys(s.popup === "power");
+  if (s.popup === "power") {
+    $("task-manager").hidden = !s.taskManager;
+    $("task-manager").title = s.taskManager ? `Open ${s.taskManager.name}` : "";
+  }
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }

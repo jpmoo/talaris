@@ -82,12 +82,17 @@ OPTIONALS=(
   "fprintd|fingerprints"
   "pkexec|setting where you are for the whole system (Location)"
   "hyprland-plugin-hyprscrolling|Carousel tiling (Settings, Windows), the windows in a sliding strip"
+  "resources/gnome-system-monitor/mission-center|a task manager, opened from the power menu (any one of these)"
 )
 
-missing() {  # the packages of a list not installed, one a line: name|what for
-  local entry
+missing() {  # the packages of a list not installed, one a line: name|what for. a/b/c: any one of them will do
+  local entry pkg have names
   for entry in "$@"; do
-    dpkg-query -W -f='${Status}' "${entry%%|*}" 2>/dev/null | grep -q "install ok installed" || echo "$entry"
+    have=0 names="${entry%%|*}"
+    for pkg in ${names//\// }; do
+      dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed" && have=1
+    done
+    [ "$have" = 1 ] || echo "$entry"
   done
 }
 ask() {  # yes or no, Enter giving the default
@@ -139,7 +144,8 @@ if [ "$DEPS" = 1 ]; then
   fi
   if [ ${#COULD[@]} -gt 0 ]; then
     if [ "$OPTIONAL" = 1 ] || { [ "$YES" = 0 ] && ask "    Install the optional ones too? [y/N]" n; }; then
-      for entry in "${COULD[@]}"; do TO+=("${entry%%|*}"); done
+      # Of alternatives (a/b/c), the first.
+      for entry in "${COULD[@]}"; do names="${entry%%|*}"; TO+=("${names%%/*}"); done
     fi
   fi
   if [ ${#TO[@]} -gt 0 ]; then

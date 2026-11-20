@@ -45,6 +45,7 @@ from layershell import (
 )
 from machine import Machine
 from morgan import command as morgan_command
+from apps import task_manager
 from sysmon import health, monitor
 from sensor import Autohide, ClickAway
 from views import log, make_view, zoom, zoom_of
@@ -339,6 +340,11 @@ class BarBridge(Bridge):
         self.owner.desktop.bar.close_popup()
         if verb == "settings":
             self.owner.desktop.settings.open()
+        elif verb == "taskmanager":
+            # The task manager installed (apps.task_manager): brought here, gone to or started, as the launcher would.
+            found = task_manager()
+            if found:
+                self.owner.desktop.launcher.call_app(found["id"])
         else:
             self.owner.desktop.machine.power(verb)
 
@@ -468,7 +474,9 @@ class Popup(QObject):
     def describe(self) -> dict:
         # `shown`: which showing this is — a popup opened again on the same kind is a new one to its page.
         return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"],
-                "clock": self.desktop.config.get("clock", {})}
+                "clock": self.desktop.config.get("clock", {}),
+                # The power menu's "Task manager…", where one is installed.
+                "taskManager": task_manager() if self.kind == "power" else None}
 
     def show(self, kind: str) -> None:
         self.kind = kind
