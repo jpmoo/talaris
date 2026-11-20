@@ -422,35 +422,55 @@ window.GlanceView = (o) => {
       g.textContent = data && !things().length ? "Nothing in this project yet" : "Nothing of those kinds";
     }
 
+    // The layout's arithmetic in typed arrays: written into a node's own x and vx for every pair, each new
+    // value was a fresh number on the heap — ~4 GB thrown away in ten seconds for a glance of 400 things,
+    // which Chromium let pile up to 500 MB before collecting (2026-11-20, Home in the Library). A node's
+    // own fields are written once a step now.
+    let PX = new Float64Array(0), PY = new Float64Array(0), VX = new Float64Array(0), VY = new Float64Array(0);
+    let tickGen = 0;
     function tick() {
       const n = vis.length, a = alpha;
+      if (PX.length < n) { const m = n * 2; PX = new Float64Array(m); PY = new Float64Array(m); VX = new Float64Array(m); VY = new Float64Array(m); }
+      const gen = ++tickGen;
       for (let i = 0; i < n; i++) {
         const p = vis[i];
+        p._i = i; p._t = gen;
+        PX[i] = p.x; PY[i] = p.y; VX[i] = p.vx; VY[i] = p.vy;
+      }
+      const repel = gs.repel * a;
+      for (let i = 0; i < n; i++) {
+        const px = PX[i], py = PY[i];
+        let vx = 0, vy = 0;
         for (let j = i + 1; j < n; j++) {
-          const q = vis[j];
-          let dx = q.x - p.x, dy = q.y - p.y, d2 = dx * dx + dy * dy;
+          let dx = PX[j] - px, dy = PY[j] - py, d2 = dx * dx + dy * dy;
           if (d2 > CUT2) continue;
           if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1; }
-          const f = (gs.repel * a) / d2;
-          p.vx -= dx * f; p.vy -= dy * f;
-          q.vx += dx * f; q.vy += dy * f;
+          const f = repel / d2;
+          vx -= dx * f; vy -= dy * f;
+          VX[j] += dx * f; VY[j] += dy * f;
         }
+        VX[i] += vx; VY[i] += vy;
       }
       for (const e of visEdges) {
-        const dx = e.t.x - e.s.x, dy = e.t.y - e.s.y;
+        // Only between things on show: the rest are not moved this step.
+        if (e.s._t !== gen || e.t._t !== gen) continue;
+        const si = e.s._i, ti = e.t._i;
+        const dx = PX[ti] - PX[si], dy = PY[ti] - PY[si];
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
         // The busier end moves less, so hubs hold still and their leaves come to them.
         const l = ((d - gs.distance) / d) * a * SPRING;
         const ws = e.t.deg / (e.s.deg + e.t.deg || 1);
-        e.t.vx -= dx * l * (1 - ws); e.t.vy -= dy * l * (1 - ws);
-        e.s.vx += dx * l * ws; e.s.vy += dy * l * ws;
+        VX[ti] -= dx * l * (1 - ws); VY[ti] -= dy * l * (1 - ws);
+        VX[si] += dx * l * ws; VY[si] += dy * l * ws;
       }
-      for (const p of vis) {
-        if (p.fx != null) { p.x = p.fx; p.y = p.fy; p.vx = p.vy = 0; continue; }
+      const pull = gs.gravity * 0.001 * a;
+      for (let i = 0; i < n; i++) {
+        const p = vis[i];
+        if (p.fx != null) { p.x = p.fx; p.y = p.fy; p.vx = 0; p.vy = 0; continue; }
         // Gravity, set as a whole number for the slider: 12 is a pull of 0.012.
-        p.vx -= p.x * gs.gravity * 0.001 * a; p.vy -= p.y * gs.gravity * 0.001 * a;
-        p.vx *= DAMP; p.vy *= DAMP;
-        p.x += p.vx; p.y += p.vy;
+        const vx = (VX[i] - PX[i] * pull) * DAMP, vy = (VY[i] - PY[i] * pull) * DAMP;
+        p.vx = vx; p.vy = vy;
+        p.x = PX[i] + vx; p.y = PY[i] + vy;
       }
       alpha += (target - alpha) * DECAY;
     }
@@ -673,6 +693,7 @@ window.GlanceView = (o) => {
     }
 
     const MOST_SPIKES = 7;
+    const SPIKE_STEPS = 3;
     const fade = (c, a) => { const m = String(c).match(/[\d.]+/g) || [0, 0, 0]; return `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${a})`; };
     function spikes(n, alpha) {
       const kinds = Object.entries(n.beyond).map(([k, c]) => [KNOWN.has(k) ? k : "other", c]).filter(([k]) => !off.has(k));
@@ -690,12 +711,17 @@ window.GlanceView = (o) => {
         const a = out + (lines.length === 1 ? 0 : (isRoot(n) ? (i / lines.length) * spread : -spread / 2 + (i / (lines.length - 1)) * spread));
         const x0 = n.x + Math.cos(a) * r, y0 = n.y + Math.sin(a) * r;
         const x1 = n.x + Math.cos(a) * (r + len), y1 = n.y + Math.sin(a) * (r + len);
-        const g = ctx.createLinearGradient(x0, y0, x1, y1);
+        // Fading out in steps, not a gradient: a gradient made anew for every spike on every frame was kept by
+        // Chromium's drawing, ~500 MB for a glance of 400 things (2026-11-20, Home in Files).
         const c = pal[k] || pal.muted;
-        g.addColorStop(0, fade(c, 0.9));
-        g.addColorStop(1, fade(c, 0));
-        ctx.strokeStyle = g;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        for (let s = 0; s < SPIKE_STEPS; s++) {
+          const f0 = s / SPIKE_STEPS, f1 = (s + 1) / SPIKE_STEPS;
+          ctx.strokeStyle = fade(c, 0.9 * (1 - f0));
+          ctx.beginPath();
+          ctx.moveTo(x0 + (x1 - x0) * f0, y0 + (y1 - y0) * f0);
+          ctx.lineTo(x0 + (x1 - x0) * f1, y0 + (y1 - y0) * f1);
+          ctx.stroke();
+        }
       });
     }
 
