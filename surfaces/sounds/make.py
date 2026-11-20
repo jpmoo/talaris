@@ -56,21 +56,47 @@ def unplug() -> list[float]:
     return _two([392.0, 293.66])
 
 
+def _saw(phase: float, dt: float) -> float:
+    """A sawtooth, its jump smoothed (polyBLEP) so it does not alias into a hiss."""
+    v = 2.0 * phase - 1.0
+    if phase < dt:
+        x = phase / dt
+        v -= x + x - x * x - 1.0
+    elif phase > 1.0 - dt:
+        x = (phase - 1.0) / dt
+        v -= x * x + x + x + 1.0
+    return v
+
+
 def _run_of(scale: list[float], every: float, seconds: float, level: float) -> list[float]:
-    """Warm bells in turn, each swelling in and ringing on, so the run blooms into a chord as it ends."""
+    """
+    A synth's run, as an analog one plays it: each note two sawtooths a few cents apart and a soft square an octave
+    down, through a resonant low-pass that opens at the note and closes as it rings — bright at the start, round by
+    the end — so the run still blooms into a chord, warmer than a bell. (It was a bell until 2026-11-20.)
+    """
     n = int(RATE * seconds)
     out = [0.0] * n
     for k, f in enumerate(scale):
         start = int(RATE * every * k)
         gain = 0.85 - 0.07 * k
+        p1, p2, p3 = 0.0, random.Random(k).random(), 0.0
+        d1, d2, d3 = f / RATE, f * 1.006 / RATE, f * 0.5 / RATE
+        low = band = 0.0
         for i in range(n - start):
             t = i / RATE
-            attack = min(1.0, t / 0.025) ** 2
-            decay = math.exp(-t * 1.9)
-            s = (math.sin(2 * math.pi * f * t) + 0.6 * math.sin(2 * math.pi * f * 1.0015 * t)) * 0.6
-            s += 0.16 * math.sin(2 * math.pi * f * 2 * t) * math.exp(-t * 5)
-            s += 0.04 * math.sin(2 * math.pi * f * 3.01 * t) * math.exp(-t * 9)
-            out[start + i] += gain * attack * decay * s
+            p1 = (p1 + d1) % 1.0
+            p2 = (p2 + d2) % 1.0
+            p3 = (p3 + d3) % 1.0
+            sub = 1.0 if p3 < 0.5 else -1.0
+            x = 0.5 * _saw(p1, d1) + 0.5 * _saw(p2, d2) + 0.18 * sub
+            # The filter: a two-pole state-variable low-pass, its cutoff falling from bright to warm as the note rings.
+            cutoff = 450.0 + 2600.0 * math.exp(-t * 7.0)
+            c = 2.0 * math.sin(math.pi * min(cutoff, RATE / 6) / RATE)
+            low += c * band
+            band += c * (x - low - 0.55 * band)
+            attack = min(1.0, t / 0.012)
+            decay = math.exp(-t * 2.3)
+            out[start + i] += gain * attack * decay * low
     for delay, g in ((int(RATE * 0.11), 0.18), (int(RATE * 0.23), 0.09)):
         for i in range(n - 1, delay - 1, -1):
             out[i] += g * out[i - delay]
@@ -81,21 +107,21 @@ def _run_of(scale: list[float], every: float, seconds: float, level: float) -> l
 
 def opening() -> list[float]:
     """
-    Talaris come up: a soft run up the A major pentatonic (A4 B4 C#5 E5 F#5 A5), a note every 70 ms, each a warm
-    bell that swells in and rings on — so the run blooms into a chord as it ends.
+    Talaris come up: a soft run up the A major pentatonic (A4 B4 C#5 E5 F#5 A5), a note every 70 ms, each a synth note
+    that opens bright and rings on — so the run blooms into a chord as it ends.
     """
-    # Soft: a greeting, not a notice.
-    return _run_of([440.0, 493.9, 554.4, 659.3, 740.0, 880.0], 0.07, 2.6, 0.18)
+    # Soft: a greeting, not a notice. Quieter still since it became a synth (2026-11-20).
+    return _run_of([440.0, 493.9, 554.4, 659.3, 740.0, 880.0], 0.07, 2.6, 0.14)
 
 
 def unlocking() -> list[float]:
     """Back from the lock screen: the opening, short — four of its notes (A4 C#5 E5 A5), quicker, quieter."""
-    return _run_of([440.0, 554.4, 659.3, 880.0], 0.06, 1.3, 0.14)
+    return _run_of([440.0, 554.4, 659.3, 880.0], 0.06, 1.3, 0.11)
 
 
 def closing() -> list[float]:
     """Talaris going (log out, restart, shut down): the opening's run coming down (A5 to A4), settling low."""
-    return _run_of([880.0, 740.0, 659.3, 554.4, 493.9, 440.0], 0.07, 2.2, 0.18)
+    return _run_of([880.0, 740.0, 659.3, 554.4, 493.9, 440.0], 0.07, 2.2, 0.14)
 
 
 if __name__ == "__main__":
