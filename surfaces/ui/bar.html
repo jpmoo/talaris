@@ -147,6 +147,12 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
    button, not the bar, so a strip and a floating bar, top or bottom, put it
    in the same place on the icon; ringed in the bar's color to stand clear. */
 #bell { position: relative; }
+/* The machine's health (sysmon.health): a dot at the power button's shoulder, yellow for a concern, red for trouble. */
+#power { position: relative; }
+#power .health-dot { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none; }
+#power[data-health="1"] .health-dot { display: block; background: var(--warn); }
+#power[data-health="2"] .health-dot { display: block; background: var(--danger); }
 #bell .dot {
   position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;

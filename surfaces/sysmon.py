@@ -86,8 +86,113 @@ class SysMon:
             "mem": {"used": mem_total - mem_free, "total": mem_total},
             "swap": {"used": swap_total - swap_free, "total": swap_total},
             "top": [{"name": n, "cpu": round(c, 1), "mem": int(r)} for n, (c, r) in top],
+            # Temperature, thrashing, and what is a concern now: the menu's rows marked by it.
+            "health": health(),
         }
 
 
 #: One for the bar's pages: readings a second apart are compared with the one before.
 monitor = SysMon()
+
+
+def temperature() -> tuple[float, float] | None:
+    """
+    The processor's temperature and the point it is cut back at, in °C: its package sensor (coretemp, k10temp, zenpower
+    — whichever the kernel has for it), else its hottest. None where there is none to read.
+    """
+    base = "/sys/class/hwmon"
+    try:
+        hwmons = os.listdir(base)
+    except OSError:
+        return None
+    best = None
+    for h in hwmons:
+        d = os.path.join(base, h)
+        try:
+            with open(os.path.join(d, "name")) as f:
+                if f.read().strip() not in ("coretemp", "k10temp", "zenpower", "cpu_thermal"):
+                    continue
+            inputs = [n for n in os.listdir(d) if n.startswith("temp") and n.endswith("_input")]
+        except OSError:
+            continue
+        for n in inputs:
+            b = n[: -len("_input")]
+            try:
+                with open(os.path.join(d, n)) as f:
+                    t = int(f.read()) / 1000
+                label = ""
+                if os.path.exists(os.path.join(d, b + "_label")):
+                    with open(os.path.join(d, b + "_label")) as f:
+                        label = f.read().strip()
+                crit = 100.0
+                for k in ("_crit", "_max"):
+                    if os.path.exists(os.path.join(d, b + k)):
+                        with open(os.path.join(d, b + k)) as f:
+                            crit = int(f.read()) / 1000 or crit
+                        break
+            except (OSError, ValueError):
+                continue
+            package = label.startswith(("Package", "Tctl", "Tdie"))
+            if best is None or package > best[2] or (package == best[2] and t > best[0]):
+                best = (t, crit, package)
+    return (best[0], best[1]) if best else None
+
+
+def _pressure() -> float | None:
+    """How much of the last ten seconds work stalled waiting for memory (%), the kernel's own measure of thrashing."""
+    try:
+        with open("/proc/pressure/memory") as f:
+            for line in f:
+                if line.startswith("some"):
+                    return float(line.split("avg10=")[1].split()[0])
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+#: Each reading's line: concern (1, yellow) and trouble (2, red).
+LIMITS = {
+    # Memory left for programs, % of all of it.
+    "memory": (12, 6),
+    # Swap in use, % of it.
+    "swap": (50, 85),
+    # Work stalled on memory, % of the last ten seconds (thrashing).
+    "pressure": (10, 30),
+    # Degrees short of the point the processor cuts itself back at.
+    "temperature": (15, 5),
+    # The 1-minute load, in processors' worth.
+    "load": (2, 4),
+}
+
+
+def health() -> dict:
+    """
+    Whether anything the power menu shows is a concern (1) or trouble (2), and what: cheap — /proc and /sys, no
+    process list — for reading every few seconds whether or not the menu is open.
+    """
+    m = _meminfo()
+    issues: list[dict] = []
+
+    def judge(what: str, value: float, lo_is_bad: bool, text: str) -> None:
+        concern, trouble = LIMITS[what]
+        bad = (lambda line: value <= line) if lo_is_bad else (lambda line: value >= line)
+        level = 2 if bad(trouble) else 1 if bad(concern) else 0
+        if level:
+            issues.append({"what": what, "level": level, "text": text})
+
+    total, avail = m.get("MemTotal", 0), m.get("MemAvailable", 0)
+    if total:
+        judge("memory", 100 * avail / total, True, f"Memory low: {avail / 1073741824:.1f} GB left")
+    st, sf = m.get("SwapTotal", 0), m.get("SwapFree", 0)
+    if st:
+        judge("swap", 100 * (st - sf) / st, False, f"Swap {100 * (st - sf) / st:.0f}% used")
+    p = _pressure()
+    if p is not None:
+        judge("pressure", p, False, f"Memory thrashing: {p:.0f}% of the time stalled")
+    t = temperature()
+    if t:
+        judge("temperature", t[1] - t[0], True, f"Processor hot: {t[0]:.0f}°C")
+    load = os.getloadavg()[0] / CORES
+    judge("load", load, False, f"Overloaded: {os.getloadavg()[0]:.1f} load on {CORES} cores")
+    return {"level": max((i["level"] for i in issues), default=0), "issues": issues,
+            "temperature": t[0] if t else None, "pressure": p}

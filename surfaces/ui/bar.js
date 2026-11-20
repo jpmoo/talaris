@@ -46,6 +46,11 @@ function onState(s) {
   $("settings").classList.toggle("on", !!s.settingsOpen);
   for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   markTray();
+  // The machine's health: the power button's dot, and what it is about in the button's tip.
+  const health = s.health || { level: 0, issues: [] };
+  if (!$("power").querySelector(".health-dot")) $("power").append(Object.assign(document.createElement("span"), { className: "health-dot" }));
+  $("power").dataset.health = String(health.level || 0);
+  $("power").title = health.level ? `Power — ${health.issues.map((i) => i.text).join("; ")}` : "Power";
   const look = s.look || {};
   if (!!look.trayFold !== folded) drawTray(trayNow);
   document.body.dataset.shape = look.shape || "strip";

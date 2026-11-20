@@ -45,7 +45,7 @@ from layershell import (
 )
 from machine import Machine
 from morgan import command as morgan_command
-from sysmon import monitor
+from sysmon import health, monitor
 from sensor import Autohide, ClickAway
 from views import log, make_view, zoom, zoom_of
 
@@ -67,6 +67,8 @@ POPUPS = {"power": (242, 224), "volume": (272, 126), "network": (332, 442), "blu
 #: A popup nobody touches puts itself away — later for the ones where a
 #: password is typed or a scan is waited on.
 POPUP_IDLE_MS = 12000
+#: How often the machine's health is read for the power button's badge.
+HEALTH_EVERY_MS = 5000
 POPUP_IDLE_LONG_MS = 45000
 
 
@@ -630,6 +632,14 @@ class Bar(QObject):
         self._timers_poll.timeout.connect(self.read_reminders)
         self._timers_poll.start()
         QTimer.singleShot(3000, self.read_reminders)
+        # The machine's health (sysmon.py), read every few seconds whatever is open: the power button's badge, yellow
+        # for a concern and red for trouble. A level is shown once two readings in a row agree, so a moment's spike
+        # (a build, a page loading) does not flash it.
+        self.health = {"level": 0, "issues": []}
+        self._health_seen: list[int] = []
+        self._health_poll = QTimer(self)
+        self._health_poll.timeout.connect(self._read_health)
+        self._health_poll.start(HEALTH_EVERY_MS)
 
     def went(self) -> None:
         """A project gone to: the bar's name of it flashes — the bar brought out a moment first, if it hides."""
@@ -704,6 +714,20 @@ class Bar(QObject):
         g = screen.geometry() if screen is not None else None
         return bool(g and g.height() > g.width())
 
+    def _read_health(self) -> None:
+        try:
+            now = health()
+        except OSError:
+            return
+        self._health_seen = (self._health_seen + [now["level"]])[-2:]
+        level = now["level"] if len(set(self._health_seen)) == 1 else self.health["level"]
+        shown = {"level": level, "issues": now["issues"] if level else []}
+        if shown != self.health:
+            if level != self.health["level"]:
+                log(f"health: {['fine', 'a concern', 'trouble'][level]}" + (f" ({'; '.join(i['text'] for i in now['issues'])})" if level else ""))
+            self.health = shown
+            self.bridge.state.emit(json.dumps(self.describe()))
+
     def describe(self) -> dict:
         return {
             "edge": self.edge,
@@ -730,6 +754,8 @@ class Bar(QObject):
             "rotation": self.desktop.rotation.describe() if getattr(self.desktop, "rotation", None) else {},
             # The on-screen keyboard (keyboard.py): its button, wherever there is one, and whether it is up.
             "keyboard": _keyboard_state(),
+            # The power button's badge: 0 none, 1 yellow, 2 red, and why (sysmon.health).
+            "health": self.health,
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),

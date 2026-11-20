@@ -197,6 +197,14 @@ function drawSys(r) {
   // The load beside the cores it is shared among: above that, things wait.
   $("sys-load-v").textContent = `${r.load[0].toFixed(2)} · ${r.cores} cores`;
   $("sys-load-v").title = `Over 1, 5 and 15 minutes: ${r.load.join(", ")}`;
+  // Temperature, and each reading that is a concern (yellow) or trouble (red), marked, with why beneath.
+  const h = r.health || { issues: [] };
+  $("sys-temp-v").textContent = h.temperature != null ? `${Math.round(h.temperature)}°C` : "Can't read";
+  const rowOf = { memory: "sys-mem-v", pressure: "sys-mem-v", swap: "sys-swap-v", load: "sys-load-v", temperature: "sys-temp-v" };
+  for (const id of new Set(Object.values(rowOf))) $(id).classList.remove("lvl-1", "lvl-2");
+  // Two on one row (memory low, and thrashing): the worse shows, lvl-2 being written after lvl-1.
+  for (const i of h.issues) $(rowOf[i.what]).classList.add(`lvl-${i.level}`);
+  $("sys-issues").replaceChildren(...h.issues.map((i) => Object.assign(document.createElement("div"), { className: `lvl-${i.level}`, textContent: i.text })));
   spark("sys-cpu", sysSeen.cpu);
   spark("sys-mem", sysSeen.mem);
   const cell = (cls, text) => { const d = document.createElement("span"); d.className = cls; d.textContent = text; return d; };

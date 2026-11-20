@@ -32,6 +32,8 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --accent-wash: rgba(201, 138, 91, .14);
   /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
   --danger: #c26b6b;
+  /* A concern, short of trouble: the power button's yellow (sysmon.health). Muted too. */
+  --warn: #c9a74d;
   /* Muted tints, for telling kinds apart (people by id, Glance's kinds, Library's file types) beside the accent and danger. */
   --tint-1: #6f93ad;
   --tint-2: #7d9c6c;
