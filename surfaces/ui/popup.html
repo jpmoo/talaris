@@ -36,7 +36,7 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #bat-level { font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
 #bat-when { font-size: 12px; color: var(--muted); }
 .sys { padding: 0 10px 4px; font-size: 12px; }
-.sys-row { display: flex; justify-content: space-between; margin-top: 4px; }
+.sys-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; }
 .sys-l { color: var(--muted); }
 .sys-v { font-variant-numeric: tabular-nums; }
 /* A reading that is a concern or trouble (sysmon.health): its value in yellow or red, and why, under the readings. */
@@ -91,6 +91,8 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #tray-icons img { width: 20px; height: 20px; display: block; }
 #tray-menu .sub { padding-left: 14px; }
 .list .menu-item .ic { width: 16px; height: 16px; flex: none; }
+/* The power menu's items, each with its icon. */
+#power .menu-item .ic { width: 15px; height: 15px; flex: none; }
 .list .menu-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .menu-item .meta { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; flex: none; }
 .list .menu-item.busy { opacity: .6; cursor: progress; }
@@ -204,15 +206,14 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
     <div class="sys-top" id="sys-top"></div>
   </div>
   <!-- The task manager installed (apps.task_manager), to end or look into what is busy; hidden where there is none. -->
-  <button class="menu-item" data-verb="taskmanager" id="task-manager" hidden>Task manager…</button>
+  <button class="menu-item" data-verb="taskmanager" data-icon="activity" id="task-manager" hidden>Task manager…</button>
   <div class="menu-sep"></div>
   <div class="hint"><span>Power</span></div>
-  <button class="menu-item" data-verb="lock">Lock</button>
-  <button class="menu-item" data-verb="suspend">Suspend</button>
-  <div class="menu-sep"></div>
-  <button class="menu-item" data-verb="logout" data-ask="Log out?">Log out</button>
-  <button class="menu-item" data-verb="restart" data-ask="Restart?">Restart</button>
-  <button class="menu-item" data-verb="shutdown" data-ask="Shut down?">Shut down</button>
+  <button class="menu-item" data-verb="lock" data-icon="lock">Lock</button>
+  <button class="menu-item" data-verb="suspend" data-icon="moon">Suspend</button>
+  <button class="menu-item" data-verb="logout" data-icon="logout" data-ask="Log out?">Log out</button>
+  <button class="menu-item" data-verb="restart" data-icon="refresh" data-ask="Restart?">Restart</button>
+  <button class="menu-item" data-verb="shutdown" data-icon="power" data-ask="Shut down?">Shut down</button>
 </div>
 <div class="panel menu" id="projects">
   <button class="menu-item" id="glance-here">Glance at current project</button>

@@ -360,7 +360,9 @@ const Kit = (() => {
     if (!labels.has(button)) labels.set(button, button.innerHTML);
     const on = live(k);
     button.classList.toggle("armed", on);
-    if (on) button.textContent = ask; else button.innerHTML = labels.get(button);
+    // Asking, the question in place of its words — its icon kept, so the row does not jump.
+    const icon = button.querySelector(":scope > svg.ic");
+    if (on) button.replaceChildren(...(icon ? [icon] : []), ask); else button.innerHTML = labels.get(button);
   }
   /**
    * Inside a press's own handler: false the first time (the button now asks),

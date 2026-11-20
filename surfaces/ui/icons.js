@@ -148,6 +148,10 @@ const Icons = (() => {
   // The launcher's kinds: a sum (=), something to do (an arrow), something said, an event.
   const sum = () => svg('<path d="M3.5 6h9M3.5 10h9"/>');
   const go = () => svg('<path d="M3 8h9M9 4.5 12.5 8 9 11.5"/>');
+  // Leaving: a door's frame, and the way out of it.
+  const logout = () => svg('<path d="M9.5 3H4.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h5"/><path d="M7 8h7M11.5 5.5 14 8l-2.5 2.5"/>');
+  // How the machine is doing: a pulse.
+  const activity = () => svg('<path d="M1.5 8.5h3l1.8-4.5 3.4 8 1.8-3.5h3"/>');
   const said = () => svg('<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>');
   const event = () => svg('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/>');
   // Clipboard history: a board with its clip, and a line written on it. Its
@@ -163,5 +167,5 @@ const Icons = (() => {
   // A timer: a stopwatch. A reminder: a clock face.
   const timer = () => svg('<circle cx="8" cy="9" r="5"/><path d="M8 9V6.5M6.5 2.5h3M8 2.5V4"/>');
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
-  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power };
+  return { sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power, logout, activity };
 })();

@@ -264,6 +264,8 @@ function onMachine(m) {
  * and says what the second will do.
  */
 for (const b of document.querySelectorAll("#power .menu-item")) {
+  // Each with its icon (icons.js), ahead of its words.
+  if (b.dataset.icon && Icons[b.dataset.icon]) b.insertAdjacentHTML("afterbegin", Icons[b.dataset.icon]());
   b.addEventListener("click", () => {
     if (!bridge) return;
     // Asked as everything is asked (kit.js): the row says what a second press will do.
