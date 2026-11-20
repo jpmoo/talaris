@@ -89,6 +89,7 @@ button.bar-item:hover:not(.on) { border-color: transparent; }
 .bar-item.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
 .bar-item.static { cursor: default; }
 .bar-item.low { color: var(--danger); }
+.bar-item.warn { color: var(--warn); }
 .bar-item[hidden] { display: none; }
 
 /* ---- text buttons ------------------------------------------------------- */

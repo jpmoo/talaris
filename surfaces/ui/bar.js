@@ -177,7 +177,9 @@ function onMachine(m) {
     const plugged = !!bat.plugged || charging || bat.state === "full";
     drawn($("bat-ic"), Icons.battery(bat.level, charging, plugged));
     $("bat-n").textContent = `${bat.level}%`;
-    $("bat").classList.toggle("low", bat.level <= 15 && !plugged);
+    // On the battery: yellow under 40%, red under 20%. Plugged in, it is filling, and plain again.
+    $("bat").classList.toggle("warn", bat.level < 40 && bat.level >= 20 && !plugged);
+    $("bat").classList.toggle("low", bat.level < 20 && !plugged);
     $("bat").title = `Battery ${bat.level}% · ${charging ? "charging" : plugged ? "plugged in" : "on battery"}`;
   }
 }
