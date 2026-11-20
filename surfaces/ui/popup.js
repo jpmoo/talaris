@@ -85,11 +85,17 @@ function drawProjects() {
   });
 }
 
-// The bell's list, newest first. Opening it reads none of them: one is read
-// when it is pressed (or opened, or answered), all of them by Mark all read.
+// The bell's list, newest first. Opening it reads them all — the bell's count
+// goes — but clears none; those new this time stay marked as new while it is out.
 let noticesShown = null;
+let newThisTime = new Set();
 function drawNotices() {
-  bridge.notifications((text) => showNotices(JSON.parse(text)));
+  bridge.notifications((text) => {
+    const list = JSON.parse(text);
+    newThisTime = new Set(list.filter((n) => !n.read).map((n) => n.id));
+    showNotices(list);
+    if (newThisTime.size) bridge.readNotices();
+  });
 }
 /** When it came, as the kit says when anything happened. */
 const noticeWhen = (at) => Kit.ago(at);
@@ -102,7 +108,7 @@ function showNotices(list) {
   $("notice-clear").hidden = !list.length;
   $("notice-read").hidden = !list.some((n) => !n.read);
   $("notice-list").replaceChildren(...(list.length ? list.map((n) => {
-    const d = Object.assign(document.createElement("div"), { className: "notice" + (n.read ? "" : " unread") });
+    const d = Object.assign(document.createElement("div"), { className: "notice" + (n.read && !newThisTime.has(n.id) ? "" : " unread") });
     if (!n.read) d.addEventListener("click", (e) => { if (!e.target.closest("button")) bridge.readNotice(n.id); });
     const top = Object.assign(document.createElement("div"), { className: "top" });
     if (n.icon) top.append(Object.assign(document.createElement("img"), { src: n.icon, alt: "" }));
