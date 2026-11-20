@@ -29,6 +29,16 @@ import subprocess
 import sys
 import time
 
+# The C allocator: an allocation of 256 KB or more is its own mapping, given back to the system when freed. glibc
+# otherwise raises that line after the first large free, and serves the next large ones from its heap, where freed
+# memory stays: the screen grabbed (9 MB) at each window opened or closed (thumbs.py) was kept so, ~20 MB a window,
+# never given back (2026-11-20, memdebug.py: in use flat, "free in heap" growing). Set before Qt allocates anything.
+try:
+    import ctypes
+    ctypes.CDLL("libc.so.6").mallopt(-3, 256 * 1024)  # M_MMAP_THRESHOLD
+except (OSError, AttributeError):
+    pass
+
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebEngineCore import (
@@ -1324,6 +1334,10 @@ class Desktop(QObject):
                 self.bar.toggle_popup(arg)
             elif verb == "quit":
                 self.leave()
+            elif verb == "mem":
+                # Finding a leak (memdebug.py): `mem start`, then `mem report` after whatever grows it.
+                import memdebug  # noqa: PLC0415
+                {"start": memdebug.start, "stop": memdebug.stop}.get(arg, memdebug.report)()
             conn.write(b"ok\n")
             conn.flush()
             conn.disconnectFromServer()

@@ -24,6 +24,7 @@ as it last looked, since a window not on screen cannot be pictured.
 from __future__ import annotations
 
 import base64
+import ctypes
 import json
 import os
 import re
@@ -45,6 +46,14 @@ EVERY_MS = 60 * 1000
 RESIDENT = ("talaris-bar", "talaris-dock", "talaris-edge-dock", "talaris-desk", "talaris-edge", "talaris-corner-")
 #: A window opened, closed or moved: this long for the screen to settle before it is looked at.
 SETTLE_MS = 1500
+
+
+def _give_back() -> None:
+    """What the grab freed, handed back to the system: glibc keeps a thread's freed memory for its next use otherwise."""
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
 
 
 def path_for(project: str) -> str:
@@ -212,4 +221,5 @@ class Thumbs(QObject):
             except (StopIteration, ValueError, OSError, subprocess.SubprocessError) as e:
                 log(f"thumbs: {e}")
             self._picture_windows()
+            _give_back()
         threading.Thread(target=run, daemon=True).start()
