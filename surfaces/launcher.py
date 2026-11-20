@@ -45,6 +45,8 @@ from views import log
 #: browser, is never moved, so this need not wait for a slow one); and how
 #: often it is looked for meanwhile.
 FOLLOW_MS = 1800
+#: After a press on an application's tray icon, how long to wait for its window before starting it again instead.
+TRAY_WAIT_MS = 1500
 LOOK_MS = 250
 
 #: How far into a project folder files are looked for, and how many at most —
@@ -481,14 +483,27 @@ class Launcher(Overlay):
             log(f"launcher: {app_id} already open here, in front")
             return
         # Running with no window, only its tray icon (closed to the tray): opened from there, as a press on the icon
-        # does — started again, most such applications only wake the one running and show nothing.
-        item = None if mine else self._in_tray(app_id)
+        # does — started again, most such applications only wake the one running and show nothing (Zoom). Not one that
+        # opens new windows: a browser left running in the background (Chrome's background apps) shows no window for
+        # a press on its icon, and opens one when started again (2026-11-20).
+        item = None if mine or opens_new_windows(app_id) else self._in_tray(app_id)
         if item:
             self.desktop.tray.do(do="activate", id=item["id"])
             log(f"launcher: {app_id} opened from its tray icon")
             self._pending[app_id] = (before, here, go)
             self._look(app_id, FOLLOW_MS)
+            # No window for the press on its icon: started again after all.
+            QTimer.singleShot(TRAY_WAIT_MS, lambda: self._launch(app_id, here, go, from_tray=True))
             return
+        self._launch(app_id, here, go)
+
+    def _launch(self, app_id: str, here: tuple, go: bool, from_tray: bool = False) -> None:
+        """Started (again), and watched for the window it raises or opens; after a press on its tray icon, only if that showed none."""
+        before = {w["address"] for w in self._app_windows(app_id)}
+        if from_tray:
+            if before:
+                return
+            log(f"launcher: {app_id} showed no window from its tray icon; started again")
         # Through the compositor, so it starts with the session's environment
         # and on the workspace in front of you.
         hypr.ask(f"/dispatch exec gtk-launch {app_id}")
