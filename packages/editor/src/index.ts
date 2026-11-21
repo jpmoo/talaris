@@ -322,29 +322,37 @@ const livePreview = ViewPlugin.fromClass(
  * paragraph as the writer sees it — Enter's new line, an empty one being started. Judged by the line's own start,
  * not by Markdown's reading of its neighbors, so starting or ending a list never changes the lines round it (a `-`
  * under a line made it a heading; a line after a list was the list's). A heading, a list item, a quote, a table, a
- * rule, an indented line are not prose; nor is code (asked of the parse). The first paragraph of the page, and the
- * first after a heading, is marked `cm-para-first` as well: a book sets it flush. The text is untouched.
+ * rule, an indented line are not prose; nor is code (asked of the parse).
+ *
+ * An empty line between others, outside code and away from the cursor, is marked `cm-gap`: a page setting prose as
+ * a book may make it a sliver rather than a line. The one the cursor is on is left whole, to write in. The text is
+ * untouched.
  */
 const NOT_PROSE_LINE = /^(\s|[-*+]\s|\d+[.)]\s|#{1,6}(\s|$)|>|\||```|~~~|(-{3,}|\*{3,}|_{3,}|={3,})\s*$|\[[^\]]*\]:)/;
-const HEADING_LINE = /^#{1,6}(\s|$)/;
 const CODE = new Set(["FencedCode", "CodeBlock", "HTMLBlock"]);
 function paragraphs(view: EditorView): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const doc = view.state.doc;
   const tree = syntaxTree(view.state);
+  const cursorLines = new Set(view.state.selection.ranges.map((r) => doc.lineAt(r.head).number));
+  const inCodeAt = (at: number) => {
+    for (let n: SyntaxNode | null = tree.resolveInner(at, 1); n; n = n.parent) if (CODE.has(n.name)) return true;
+    return false;
+  };
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to;) {
       const line = doc.lineAt(pos);
       pos = line.to + 1;
-      if (NOT_PROSE_LINE.test(line.text)) continue;
-      let code = false;
-      for (let n: SyntaxNode | null = tree.resolveInner(line.from, 1); n && !code; n = n.parent) code = CODE.has(n.name);
-      if (code) continue;
-      // The nearest line above with words on it: none, or a heading, and this one opens the page or the section.
-      let above = line.number - 1;
-      while (above >= 1 && !doc.line(above).text.trim()) above--;
-      const first = above < 1 || HEADING_LINE.test(doc.line(above).text);
-      ranges.push(Decoration.line({ class: first ? "cm-para cm-para-first" : "cm-para" }).range(line.from));
+      if (!line.text.trim()) {
+        if (line.number > 1 && line.number < doc.lines && !cursorLines.has(line.number) && !inCodeAt(line.from)) {
+          ranges.push(Decoration.line({ class: "cm-gap" }).range(line.from));
+        } else if (!inCodeAt(line.from)) {
+          ranges.push(Decoration.line({ class: "cm-para" }).range(line.from));
+        }
+        continue;
+      }
+      if (NOT_PROSE_LINE.test(line.text) || inCodeAt(line.from)) continue;
+      ranges.push(Decoration.line({ class: "cm-para" }).range(line.from));
     }
   }
   return Decoration.set(ranges, true);
@@ -355,7 +363,7 @@ const paragraphMarks = ViewPlugin.fromClass(
     decorations: DecorationSet;
     constructor(view: EditorView) { this.decorations = paragraphs(view); }
     update(u: ViewUpdate): void {
-      if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = paragraphs(u.view);
+      if (u.docChanged || u.selectionSet || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = paragraphs(u.view);
     }
   },
   { decorations: (v) => v.decorations },
