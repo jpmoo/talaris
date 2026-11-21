@@ -1476,7 +1476,9 @@ function zenBar() {
   // A daily page is Home's, whichever project it is opened from: said by itself.
   $("zenWhere").textContent = [daily ? "" : here().name || "", ...path.split("/")].filter(Boolean).join(" / ");
   const words = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) || []).length;
-  $("zenCount").textContent = `${words.toLocaleString("en-US")} word${words === 1 ? "" : "s"} · ${text.length.toLocaleString("en-US")} character${text.length === 1 ? "" : "s"}`;
+  // Characters as a word processor counts them: spaces yes, line breaks no — the file's own last newline was one too many.
+  const chars = [...text.replace(/\r?\n/g, "")].length;
+  $("zenCount").textContent = `${words.toLocaleString("en-US")} word${words === 1 ? "" : "s"} · ${chars.toLocaleString("en-US")} character${chars === 1 ? "" : "s"}`;
 }
 
 // The page put away, or another opened in its place: out of zen.
