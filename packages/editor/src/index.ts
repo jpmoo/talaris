@@ -318,27 +318,33 @@ const livePreview = ViewPlugin.fromClass(
 );
 
 /*
- * Each line of prose — in a paragraph standing by itself, or an empty line between them, where the next is
- * started — is marked (`cm-para`), for a page that indents them (the drawer's zen): Enter starts a new line, and a
- * line is a paragraph as the writer sees it, whatever Markdown makes of lines with no blank between. A heading, a
- * list, a quote, code, a table, a rule are not. Nothing changes in the text; it looks no different unless the page
- * says so.
+ * Each line of prose is marked (`cm-para`), for a page that sets it as a book does (the drawer's zen): a line is a
+ * paragraph as the writer sees it — Enter's new line, an empty one being started. Judged by the line's own start,
+ * not by Markdown's reading of its neighbors, so starting or ending a list never changes the lines round it (a `-`
+ * under a line made it a heading; a line after a list was the list's). A heading, a list item, a quote, a table, a
+ * rule, an indented line are not prose; nor is code (asked of the parse). The first paragraph of the page, and the
+ * first after a heading, is marked `cm-para-first` as well: a book sets it flush. The text is untouched.
  */
-const NOT_PROSE = new Set(["ATXHeading1", "ATXHeading2", "ATXHeading3", "ATXHeading4", "ATXHeading5", "ATXHeading6",
-  "SetextHeading1", "SetextHeading2", "BulletList", "OrderedList", "ListItem", "Blockquote", "FencedCode", "CodeBlock",
-  "HTMLBlock", "Table", "HorizontalRule", "LinkReference", "CommentBlock", "ProcessingInstructionBlock"]);
+const NOT_PROSE_LINE = /^(\s|[-*+]\s|\d+[.)]\s|#{1,6}(\s|$)|>|\||```|~~~|(-{3,}|\*{3,}|_{3,}|={3,})\s*$|\[[^\]]*\]:)/;
+const HEADING_LINE = /^#{1,6}(\s|$)/;
+const CODE = new Set(["FencedCode", "CodeBlock", "HTMLBlock"]);
 function paragraphs(view: EditorView): DecorationSet {
   const ranges: Range<Decoration>[] = [];
+  const doc = view.state.doc;
   const tree = syntaxTree(view.state);
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to;) {
-      const line = view.state.doc.lineAt(pos);
-      let prose = true;
-      for (let n: SyntaxNode | null = tree.resolveInner(line.from, 1); n; n = n.parent) {
-        if (NOT_PROSE.has(n.name)) { prose = false; break; }
-      }
-      if (prose) ranges.push(Decoration.line({ class: "cm-para" }).range(line.from));
+      const line = doc.lineAt(pos);
       pos = line.to + 1;
+      if (NOT_PROSE_LINE.test(line.text)) continue;
+      let code = false;
+      for (let n: SyntaxNode | null = tree.resolveInner(line.from, 1); n && !code; n = n.parent) code = CODE.has(n.name);
+      if (code) continue;
+      // The nearest line above with words on it: none, or a heading, and this one opens the page or the section.
+      let above = line.number - 1;
+      while (above >= 1 && !doc.line(above).text.trim()) above--;
+      const first = above < 1 || HEADING_LINE.test(doc.line(above).text);
+      ranges.push(Decoration.line({ class: first ? "cm-para cm-para-first" : "cm-para" }).range(line.from));
     }
   }
   return Decoration.set(ranges, true);

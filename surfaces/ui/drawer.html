@@ -216,10 +216,20 @@ body[data-zen] main { gap: 0; }
 body[data-zen] .editor { border: 0; border-radius: 0; font-size: calc(16px * var(--type-scale, 1)); }
 body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: none; margin: 0; box-sizing: border-box;
   padding: 3vh 3vw 30vh !important; }
-/* A little larger than the panel's writing (the editor sets its own size, so said on it). */
-body[data-zen] .editor .cm-editor { font-size: calc(16px * var(--type-scale, 1)); }
+/* Set as a book is, after Brigid's Book view: a Palatino serif (P052 is URW's, on Linux) a little larger than the
+   panel's writing, the lines well apart, paragraphs justified and hyphenated, each indented with no space between —
+   the first of the page and the first after a heading flush. (The editor sets its own size and face, so said on it.) */
+body[data-zen] .editor .cm-editor { font-size: calc(17px * var(--type-scale, 1)); }
+body[data-zen] .editor .cm-scroller { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, P052, "TeX Gyre Pagella", Georgia, serif;
+  line-height: 1.62; font-variant-ligatures: common-ligatures; font-kerning: normal; }
+body[data-zen] .editor .cm-para { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+body[data-zen] .editor .preview { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, P052, "TeX Gyre Pagella", Georgia, serif;
+  line-height: 1.62; }
+body[data-zen] .editor .preview > p { margin: 0; text-align: justify; hyphens: auto; }
+body[data-zen] .editor .preview > :is(h1, h2, h3, h4, h5, h6) + p, body[data-zen] .editor .preview > p:first-child { text-indent: 0; }
 /* Each paragraph's first line indented, as a book's are (the editor marks them: cm-para); Preview's too. */
-body[data-zen] .editor .cm-para, body[data-zen] .editor .preview > p { text-indent: 2em; }
+body[data-zen] .editor .cm-para, body[data-zen] .editor .preview > p { text-indent: 1.4em; }
+body[data-zen] .editor .cm-para-first { text-indent: 0; }
 /* Zen's one line at the foot: which page, and how long it is — muted, small, out of the way. */
 #zenbar { display: none; }
 body[data-zen] #zenbar { display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; gap: 16px; justify-content: space-between;
