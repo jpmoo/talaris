@@ -55,7 +55,8 @@
   header { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) var(--alpha, 100%), transparent); padding: 6px 0; flex: none; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
   .controls .name { display: none; }
-  .controls .state { color: var(--dim); font-size: 12px; }
+  /* Always one line ("Consulting the Oracle" is long): the talk-to name and the meter give way instead. */
+  .controls .state { color: var(--dim); font-size: 12px; white-space: nowrap; flex: none; }
   .controls .spacer { flex: 1; }
 
   /* Earlier conversations, a month at a time: a dot for each conversation on a day. */
@@ -112,7 +113,7 @@
   #similar .menu-item small { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
   /* Sound is a waveform; thinking is a light going back and forth. */
-  #meter { display: flex; align-items: center; gap: 2px; height: 20px; width: 110px; }
+  #meter { display: flex; align-items: center; gap: 2px; height: 20px; width: 110px; flex: 0 1 110px; min-width: 40px; overflow: hidden; }
   #meter i { display: block; width: 3px; min-height: 3px; border-radius: 2px; background: var(--accent); }
   #meter.scan i { width: 8px; height: 5px; border-radius: 3px; opacity: .1; }
 
@@ -199,7 +200,7 @@
 <style>
   /* Who the panel talks to (talkto.js): Morgan, or a project. */
   .talkto { display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent; background: none; color: var(--text);
-    font: inherit; font-size: 13px; padding: 2px 8px; border-radius: var(--radius-control); cursor: pointer; max-width: 220px; }
+    font: inherit; font-size: 13px; padding: 2px 8px; border-radius: var(--radius-control); cursor: pointer; max-width: 220px; min-width: 0; flex: 0 1 auto; }
   .talkto span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .talkto:hover { border-color: var(--line); background: var(--accent-hover); }
   .talkto .chev { color: var(--dim); font-size: 10px; }
