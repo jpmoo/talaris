@@ -157,8 +157,12 @@ const hangingIndent = ViewPlugin.fromClass(class {
         if (m && tree.resolveInner(line.from + m[1]!.length, 1).name === "ListMark") {
           const key = this.keyOf(view, m);
           const w = this.widths.get(key);
-          if (w !== undefined) ranges.push(Decoration.line({ attributes: { style: `padding-left:${w + 2}px;text-indent:-${w}px` } }).range(line.from));
-          else unknown.push({ key, from: line.from, words: line.from + m[0].length });
+          // Marked a list line (`cm-list`) whether or not its start is measured yet: a page may set lists in (the drawer's zen).
+          if (w !== undefined) ranges.push(Decoration.line({ class: "cm-list", attributes: { style: `padding-left:${w + 2}px;text-indent:-${w}px` } }).range(line.from));
+          else {
+            ranges.push(Decoration.line({ class: "cm-list" }).range(line.from));
+            unknown.push({ key, from: line.from, words: line.from + m[0].length });
+          }
         }
         pos = line.to + 1;
       }
