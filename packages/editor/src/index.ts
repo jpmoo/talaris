@@ -27,7 +27,7 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@codemirror/language";
-import type { StateCommand } from "@codemirror/state";
+import type { Range, StateCommand } from "@codemirror/state";
 import { findInText, openFind } from "./find.ts";
 import { listItemAt, moveListItem } from "./lists.ts";
 import { inCode, quoteLevel, quoted, toggleCodeBlock } from "./quote.ts";
@@ -317,6 +317,40 @@ const livePreview = ViewPlugin.fromClass(
 );
 
 /*
+ * Each paragraph of prose — one standing by itself, not in a list or a quote — has its first line marked
+ * (`cm-para`), for a page that indents them (the drawer's zen). Nothing changes in the text; it looks no different
+ * unless the page says so.
+ */
+function paragraphs(view: EditorView): DecorationSet {
+  const ranges: Range<Decoration>[] = [];
+  const tree = syntaxTree(view.state);
+  for (const { from, to } of view.visibleRanges) {
+    tree.iterate({
+      from, to,
+      enter: (n) => {
+        if (n.name === "Paragraph") {
+          if (n.node.parent?.name === "Document") ranges.push(Decoration.line({ class: "cm-para" }).range(view.state.doc.lineAt(n.from).from));
+          return false;
+        }
+        return n.name === "Document";
+      },
+    });
+  }
+  return Decoration.set(ranges, true);
+}
+
+const paragraphMarks = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = paragraphs(view); }
+    update(u: ViewUpdate): void {
+      if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = paragraphs(u.view);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+/*
  * The look, from the theme's own variables — so the editor follows the
  * accent, the typeface and light or dark without being told.
  */
@@ -539,6 +573,7 @@ export function createEditor(host: HTMLElement, text: string, options: EditorOpt
         options.singleLine ? Prec.highest(keymap.of([{ key: "Enter", run: () => { options.onEnter?.(); return true; } }])) : findInText(),
         listFolding,
         hangingIndent,
+        paragraphMarks,
         codeFolding({ placeholderText: "…" }),
         options.compact ? [] : [foldGutter({ markerDOM: chevron }), listDrag],
         options.compact ? compactLook : [],

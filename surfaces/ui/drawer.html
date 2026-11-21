@@ -214,8 +214,10 @@ body[data-zen] header, body[data-zen] footer, body[data-zen] .tree, body[data-ze
 body[data-zen] .page-tags, body[data-zen] .page-map, body[data-zen] .page-map-open, body[data-zen] .xh, body[data-zen] #tuck { display: none !important; }
 body[data-zen] main { gap: 0; }
 body[data-zen] .editor { border: 0; border-radius: 0; font-size: calc(16px * var(--type-scale, 1)); }
-body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: 52em; margin: 0 auto; box-sizing: border-box;
-  padding: 5vh 20px 30vh !important; }
+body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: 72em; margin: 0 auto; box-sizing: border-box;
+  padding: 4vh 4vw 30vh !important; }
+/* Each paragraph's first line indented, as a book's are (the editor marks them: cm-para); Preview's too. */
+body[data-zen] .editor .cm-para, body[data-zen] .editor .preview > p { text-indent: 2em; }
 /* Zen's one line at the foot: which page, and how long it is — muted, small, out of the way. */
 #zenbar { display: none; }
 body[data-zen] #zenbar { display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; gap: 16px; justify-content: space-between;
