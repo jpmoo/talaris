@@ -27,6 +27,7 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { codeFolding, foldGutter, foldKeymap, foldService, syntaxTree } from "@codemirror/language";
+import type { SyntaxNode } from "@lezer/common";
 import type { Range, StateCommand } from "@codemirror/state";
 import { findInText, openFind } from "./find.ts";
 import { listItemAt, moveListItem } from "./lists.ts";
@@ -317,24 +318,28 @@ const livePreview = ViewPlugin.fromClass(
 );
 
 /*
- * Each paragraph of prose — one standing by itself, not in a list or a quote — has its first line marked
- * (`cm-para`), for a page that indents them (the drawer's zen). Nothing changes in the text; it looks no different
- * unless the page says so.
+ * Each line of prose — in a paragraph standing by itself, or an empty line between them, where the next is
+ * started — is marked (`cm-para`), for a page that indents them (the drawer's zen): Enter starts a new line, and a
+ * line is a paragraph as the writer sees it, whatever Markdown makes of lines with no blank between. A heading, a
+ * list, a quote, code, a table, a rule are not. Nothing changes in the text; it looks no different unless the page
+ * says so.
  */
+const NOT_PROSE = new Set(["ATXHeading1", "ATXHeading2", "ATXHeading3", "ATXHeading4", "ATXHeading5", "ATXHeading6",
+  "SetextHeading1", "SetextHeading2", "BulletList", "OrderedList", "ListItem", "Blockquote", "FencedCode", "CodeBlock",
+  "HTMLBlock", "Table", "HorizontalRule", "LinkReference", "CommentBlock", "ProcessingInstructionBlock"]);
 function paragraphs(view: EditorView): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const tree = syntaxTree(view.state);
   for (const { from, to } of view.visibleRanges) {
-    tree.iterate({
-      from, to,
-      enter: (n) => {
-        if (n.name === "Paragraph") {
-          if (n.node.parent?.name === "Document") ranges.push(Decoration.line({ class: "cm-para" }).range(view.state.doc.lineAt(n.from).from));
-          return false;
-        }
-        return n.name === "Document";
-      },
-    });
+    for (let pos = from; pos <= to;) {
+      const line = view.state.doc.lineAt(pos);
+      let prose = true;
+      for (let n: SyntaxNode | null = tree.resolveInner(line.from, 1); n; n = n.parent) {
+        if (NOT_PROSE.has(n.name)) { prose = false; break; }
+      }
+      if (prose) ranges.push(Decoration.line({ class: "cm-para" }).range(line.from));
+      pos = line.to + 1;
+    }
   }
   return Decoration.set(ranges, true);
 }
