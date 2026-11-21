@@ -596,6 +596,10 @@ class Settings(Overlay):
     NAME = "settings"
     TITLE = "Settings"
     LAZY = True
+    # Heavy (its page held ~185 MB) and opened now and then: let go of a little after it is put away, and loaded
+    # again (about a second) when next opened. It keeps nothing of its own: each change is applied as it is made,
+    # and it opens on Look each time anyway.
+    UNLOAD_AFTER_MS = 10_000
     IDLE_MS = 3 * 60 * 1000
     # Its own box, so the pointer is its page's, and given back as the compositor shows it.
     HAND = False

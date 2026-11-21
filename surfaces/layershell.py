@@ -266,6 +266,13 @@ class LayerSurface:
         self.asked: Placement | None = None
         _surfaces.add(self)
 
+    def forget(self) -> None:
+        """Its widget is about to be let go of (a panel's page unloaded, overlay.py): never placed or re-placed again."""
+        _surfaces.discard(self)
+        self._window = None
+        self._exposed = None
+        self.placement = None
+
     def _attach(self) -> QObject:
         if self._window is None:
             ptr = _get(shiboken6.getCppPointer(self.widget.windowHandle())[0])

@@ -98,6 +98,9 @@ class Overlay(QObject):
     #: The pointing hand as it arrives: over the whole screen, the dim under the pointer is a button
     #: (`point_at`). A box in the middle of the screen (Settings) leaves the pointer to its page.
     HAND = True
+    #: Its page let go of once it has been away this long (ms), and made again when next wanted: its memory given
+    #: back, for one opened now and then whose page is heavy (Settings). 0: kept. Only for a LAZY one.
+    UNLOAD_AFTER_MS = 0
     #: Its surface gives the pointer back once the compositor shows it (layershell's nudge). A page that
     #: says when it has drawn (`pointer_back`) is given it back then instead: nudged before, it showed an arrow.
     NUDGE = False
@@ -119,6 +122,9 @@ class Overlay(QObject):
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._idle)
+        self._unload_soon = QTimer(self)
+        self._unload_soon.setSingleShot(True)
+        self._unload_soon.timeout.connect(self._unload)
 
     def _make(self) -> None:
         self._view = make_view(self.profile, self.NAME, self.url, self.bridge, self, area=self.area)
@@ -176,6 +182,7 @@ class Overlay(QObject):
             self.focus_window()
             return
         self.leaving = False
+        self._unload_soon.stop()
         if not self.up:
             self.up = True
             if self.HAND:
@@ -345,6 +352,25 @@ class Overlay(QObject):
         # Gone, said: a page that arrives only from away (the canvas's, the
         # writing's) hears that it is away, so that the next time it arrives.
         self.bridge.state.emit(json.dumps(self.describe()))
+        if self.UNLOAD_AFTER_MS and self.LAZY:
+            self._unload_soon.start(self.UNLOAD_AFTER_MS)
+
+    def _unload(self) -> None:
+        """Away a while: its page let go of — view, page, channel and surface — to be made afresh when next wanted."""
+        if self.up or self.leaving or self.windowed or getattr(self, "_aside", False) or self._view is None:
+            return
+        from views import forget_view  # noqa: PLC0415
+        view, surface = self._view, self._surface
+        self._view = self._surface = None
+        if surface is not None:
+            surface.forget()
+        forget_view(view)
+        channel = view.page().webChannel() if view.page() is not None else None
+        view.close()
+        view.deleteLater()
+        if channel is not None:
+            channel.deleteLater()
+        log(f"{self.NAME}: page let go of, away")
 
     def _dead(self) -> None:
         """Its page did not get far enough to put it away itself (Presses): put away from here."""

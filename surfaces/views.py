@@ -90,6 +90,11 @@ def set_zoom(sizes: dict) -> set[str]:
     return changed
 
 
+def forget_view(view: QWebEngineView) -> None:
+    """A page let go of (overlay.py, unload): no longer zoomed with its area."""
+    _views[:] = [(v, a) for v, a in _views if v is not view]
+
+
 def type_scale(area: str) -> float:
     """Writing's or the canvas's type size, as a scale on the type itself."""
     return _zoom.get(area, 1.0)
