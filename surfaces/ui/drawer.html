@@ -214,8 +214,16 @@ body[data-zen] header, body[data-zen] footer, body[data-zen] .tree, body[data-ze
 body[data-zen] .page-tags, body[data-zen] .page-map, body[data-zen] .page-map-open, body[data-zen] .xh, body[data-zen] #tuck { display: none !important; }
 body[data-zen] main { gap: 0; }
 body[data-zen] .editor { border: 0; border-radius: 0; font-size: calc(16px * var(--type-scale, 1)); }
-body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: 40em; margin: 0 auto; box-sizing: border-box;
-  padding: 16vh 24px 45vh !important; }
+body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: 52em; margin: 0 auto; box-sizing: border-box;
+  padding: 5vh 20px 30vh !important; }
+/* Zen's one line at the foot: which page, and how long it is — muted, small, out of the way. */
+#zenbar { display: none; }
+body[data-zen] #zenbar { display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; gap: 16px; justify-content: space-between;
+  padding: 5px 16px 6px; font-size: 11px; letter-spacing: .3px; color: var(--muted); opacity: .7;
+  background: var(--page-paper, var(--paper)); border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+#zenbar .where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#zenbar .count { flex: none; font-variant-numeric: tabular-nums; }
+body[data-zen] main { padding-bottom: 26px; }
 body[data-zen] .editor .preview { width: 100%; }
 body[data-zen][data-typing], body[data-zen][data-typing] * { cursor: none !important; }
 </style>
@@ -234,6 +242,7 @@ body[data-zen][data-typing], body[data-zen][data-typing] * { cursor: none !impor
     <span class="ends"><span class="label" id="count"></span><button class="icon-btn" id="grow" title="Make this the desktop"></button></span>
   </header>
   <main id="body"></main>
+  <div id="zenbar"><span class="where" id="zenWhere"></span><span class="count" id="zenCount"></span></div>
   <footer>
     <span id="actions"></span>
     <span class="kit-msg" id="status"></span>

@@ -715,6 +715,7 @@ function changed(next) {
   clearTimeout(changed.mapTimer);
   changed.mapTimer = setTimeout(() => pageMap.draw(), 300);
   drawPageFiles();
+  zenBar();
   clearTimeout(saveTimer);
   status("Editing");
   saveTimer = setTimeout(save, 600);
@@ -1103,6 +1104,7 @@ async function loadWriting() {
   if (bridge) bridge.seen(JSON.stringify({ page: open ? { path: open } : null }));
   drawEditor();
   drawPageTags();
+  zenBar();
 }
 
 /*
@@ -1445,6 +1447,7 @@ function zen(on) {
   on = !!on && state.drawer === "writing" && !!open && !!$("editorHost");
   if (on === document.body.hasAttribute("data-zen")) return;
   if (on) document.body.dataset.zen = "1"; else { delete document.body.dataset.zen; delete document.body.dataset.typing; }
+  if (on) zenBar();
   if (WINDOW && bridge && bridge.zen) bridge.zen(on);
   if (editor) editor.focus();
   if (!on) pageMap.draw();
@@ -1458,6 +1461,17 @@ addEventListener("keydown", (e) => {
   if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key !== "Shift") document.body.dataset.typing = "1";
 });
 addEventListener("pointermove", () => { if (document.body.dataset.typing) delete document.body.dataset.typing; }, { passive: true });
+/** Zen's foot: the page's project and path, and its characters and words — as it is now. */
+function zenBar() {
+  if (!document.body.hasAttribute("data-zen")) return;
+  const daily = scope === "daily" && isDaily(open);
+  const path = !open ? "" : daily ? open : (inHome() && open.startsWith(`${PAGES}/`) ? open.slice(PAGES.length + 1) : open);
+  // A daily page is Home's, whichever project it is opened from: said by itself.
+  $("zenWhere").textContent = [daily ? "" : here().name || "", ...path.split("/")].filter(Boolean).join(" / ");
+  const words = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) || []).length;
+  $("zenCount").textContent = `${words.toLocaleString("en-US")} word${words === 1 ? "" : "s"} · ${text.length.toLocaleString("en-US")} character${text.length === 1 ? "" : "s"}`;
+}
+
 // The page put away, or another opened in its place: out of zen.
 function unzen() { zen(false); }
 
