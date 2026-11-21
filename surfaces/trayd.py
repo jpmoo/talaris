@@ -19,6 +19,7 @@ changed; when the item's owner leaves the bus, the item goes.
 **Out** (stdout), one JSON object a line:
   {"items": [{id, title, tooltip, status, icon, menu, itemIsMenu}]}
   {"menu": {"id": …, "items": [{id, label, enabled, type, toggle, state, children}]}}
+  {"activated": {"id": …, "ok": true|false}}  — what came of an `activate` (false: the item has no such call)
 **In** (stdin):
   {"do": "activate"|"secondary"|"context", "id": …, "x": …, "y": …}
   {"do": "menu", "id": …}                       — read the item's menu
@@ -291,8 +292,19 @@ class Tray:
         verb = msg.get("do")
         if verb in ("activate", "secondary", "context"):
             method = {"activate": "Activate", "secondary": "SecondaryActivate", "context": "ContextMenu"}[verb]
+            def done(conn, res) -> None:
+                try:
+                    conn.call_finish(res)
+                    ok = True
+                except GLib.Error as e:
+                    ok = False
+                    print(f"{item.get('appId') or item['id']}: {method} refused: {e.message}", file=sys.stderr, flush=True)
+                if verb == "activate":
+                    say({"activated": {"id": item["id"], "ok": ok}})
+
+            # Many have no Activate at all (every Ayatana indicator — Steam, BlueBubbles): the answer says so.
             self.bus.call(item["service"], item["path"], ITEM_IFACE, method, GLib.Variant("(ii)", (x, y)),
-                          None, Gio.DBusCallFlags.NONE, 3000, None, None)
+                          None, Gio.DBusCallFlags.NONE, 3000, None, done)
         elif verb == "menu" and item.get("menu"):
             self._menu(item)
         elif verb == "click" and item.get("menu"):

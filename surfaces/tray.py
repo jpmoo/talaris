@@ -31,6 +31,8 @@ class Tray(QObject):
     items = Signal(str)
     #: A menu asked for: `{id, items}`.
     menu = Signal(str)
+    #: What came of a press: the item's id, and whether it took the Activate.
+    activated = Signal(str, bool)
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
@@ -72,6 +74,8 @@ class Tray(QObject):
                 self.known = {i["id"]: i for i in msg["items"]}
                 self.last = json.dumps(msg["items"])
                 self.items.emit(self.last)
+            elif "activated" in msg:
+                self.activated.emit(msg["activated"]["id"], bool(msg["activated"]["ok"]))
             elif "menu" in msg:
                 self.menu.emit(json.dumps(msg["menu"]))
             elif msg.get("watcher") is False:

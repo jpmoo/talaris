@@ -29,6 +29,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
+import hypr
 from core import Bridge, call, get_json, projects as core_projects
 from layershell import (
     ANCHOR_BOTTOM,
@@ -636,6 +637,7 @@ class Bar(QObject):
         desktop.machine.panel.connect(self.popup.bridge.panel.emit)
         desktop.tray.items.connect(lambda _text: self._tray_changed())
         desktop.tray.menu.connect(self._tray_menu)
+        desktop.tray.activated.connect(self._tray_activated)
         # Morgan's state, from the stream the process follows: the button wears it.
         desktop.morgan_link.state.connect(lambda _now: self.bridge.state.emit(json.dumps(self.describe())))
         # Morgan's timers and reminders: beside the bell, and in its list. Asked when Morgan says one was set, changed
@@ -905,7 +907,49 @@ class Bar(QObject):
                 self.desktop.tray.do(do="context", id=item, x=at, y=0)
         else:
             self.popup.close()
+            if verb == "activate":
+                # Kept until the answer comes: refused, the menu opens here instead (_tray_activated).
+                self.popup.tray_item, self.popup.at = item, at
             self.desktop.tray.do(do=verb, id=item, x=at, y=0)
+
+    def _tray_activated(self, item: str, ok: bool) -> None:
+        """A press answered. Refused (no Activate), the item's menu instead; taken, its window brought forward —
+        an application asked to show itself cannot take the focus under Wayland, so it is given it."""
+        known = self.desktop.tray.known.get(item)
+        if not known or self.popup.tray_item != item:
+            return
+        if not ok:
+            if known.get("menu"):
+                self.desktop.tray.do(do="menu", id=item)
+            else:
+                self.desktop.tray.do(do="context", id=item, x=self.popup.at, y=0)
+            return
+        self.popup.tray_item = ""
+        QTimer.singleShot(350, lambda: self._tray_window(known))
+
+    def _tray_window(self, known: dict) -> None:
+        """The tray item's application's own window, focused if it is not already: the item's process, or one running
+        the same program (an Electron app's window may be another of its processes)."""
+        pid, exe = known.get("pid"), known.get("exe")
+        try:
+            clients = json.loads(hypr.ask("j/clients") or "[]")
+            active = json.loads(hypr.ask("j/activewindow") or "{}")
+        except (OSError, ValueError):
+            return
+
+        def ours(c: dict) -> bool:
+            if c.get("pid") == pid:
+                return True
+            try:
+                return bool(exe) and os.readlink(f"/proc/{c.get('pid')}/exe") == exe
+            except OSError:
+                return False
+
+        mine = [c for c in clients if c.get("mapped", True) and ours(c)]
+        if not mine or any(c.get("address") == active.get("address") for c in mine):
+            return
+        # The one used last, as Hyprland counts it.
+        hypr.focus(min(mine, key=lambda c: c.get("focusHistoryID", 99))["address"])
 
     #: What a bar item is called in its menu (Settings, Bar has the same names).
     ITEM_NAMES = {"where": "Project", "ask": "Launcher", "morgan": "Morgan", "new": "New", "tasks": "Tasks", "people": "People",
