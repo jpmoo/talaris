@@ -1062,7 +1062,9 @@ async function loadWriting() {
   } }, "Attach");
   const pane = el("div", { class: "pane" },
     el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach,
-      el("button", { class: "t-btn small attach", title: "Just the page, full screen (F11; Esc to leave)", onclick: () => zen(true) }, "Zen"), modes),
+      // Zen is a page's: with none open it is shown dimmed, and says why.
+      (() => { const b = el("button", { class: "t-btn small attach", title: open ? "Just the page, full screen (F11; Esc to leave)" : "Open a page first", onclick: () => zen(true) }, "Zen");
+        if (!open) b.disabled = true; return b; })(), modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
@@ -1454,7 +1456,12 @@ function zen(on) {
 }
 addEventListener("keydown", (e) => {
   const inZen = document.body.hasAttribute("data-zen");
-  if (e.key === "F11" && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); zen(!inZen); return; }
+  if (e.key === "F11" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    if (!inZen && state.drawer === "writing" && !open) { status("Open a page first"); return; }
+    zen(!inZen);
+    return;
+  }
   if (!inZen) return;
   // A pop-up or a sheet takes its own Escape first (kit.js); one nothing else wanted leaves zen.
   if (e.key === "Escape" && !e.defaultPrevented && !(e.target.closest && e.target.closest(".kit-scrim"))) { e.preventDefault(); zen(false); return; }
