@@ -934,6 +934,7 @@ class Bar(QObject):
         try:
             clients = json.loads(hypr.ask("j/clients") or "[]")
             active = json.loads(hypr.ask("j/activewindow") or "{}")
+            here = json.loads(hypr.ask("j/activeworkspace") or "{}").get("name")
         except (OSError, ValueError):
             return
 
@@ -946,10 +947,14 @@ class Bar(QObject):
                 return False
 
         mine = [c for c in clients if c.get("mapped", True) and ours(c)]
-        if not mine or any(c.get("address") == active.get("address") for c in mine):
+        # Already in front: the active window, on the workspace shown. (Moved to an empty workspace, Hyprland still
+        # names the window left behind as the active one.)
+        if not mine or any(c.get("address") == active.get("address") and c.get("workspace", {}).get("name") == here for c in mine):
             return
         # The one used last, as Hyprland counts it.
-        hypr.focus(min(mine, key=lambda c: c.get("focusHistoryID", 99))["address"])
+        win = min(mine, key=lambda c: c.get("focusHistoryID", 99))
+        log(f"tray: {known.get('appId') or known['id']}'s window brought forward ({win.get('workspace', {}).get('name')})")
+        hypr.focus(win["address"])
 
     #: What a bar item is called in its menu (Settings, Bar has the same names).
     ITEM_NAMES = {"where": "Project", "ask": "Launcher", "morgan": "Morgan", "new": "New", "tasks": "Tasks", "people": "People",
