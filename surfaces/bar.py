@@ -925,11 +925,12 @@ class Bar(QObject):
                 self.desktop.tray.do(do="context", id=item, x=self.popup.at, y=0)
             return
         self.popup.tray_item = ""
-        QTimer.singleShot(350, lambda: self._tray_window(known))
+        QTimer.singleShot(350, lambda: self._tray_window(known, 3))
 
-    def _tray_window(self, known: dict) -> None:
+    def _tray_window(self, known: dict, tries: int) -> None:
         """The tray item's application's own window, focused if it is not already: the item's process, or one running
-        the same program (an Electron app's window may be another of its processes)."""
+        the same program (an Electron app's window may be another of its processes). None after a second or so — an
+        app that takes the press and does nothing with it, as Claude's does with its window closed — its menu instead."""
         pid, exe = known.get("pid"), known.get("exe")
         try:
             clients = json.loads(hypr.ask("j/clients") or "[]")
@@ -947,6 +948,14 @@ class Bar(QObject):
                 return False
 
         mine = [c for c in clients if c.get("mapped", True) and ours(c)]
+        if not mine:
+            if tries > 1:
+                QTimer.singleShot(400, lambda: self._tray_window(known, tries - 1))
+            elif known.get("menu") and not self.popup.kind:
+                log(f"tray: {known.get('appId') or known['id']} showed no window; its menu instead")
+                self.popup.tray_item = known["id"]
+                self.desktop.tray.do(do="menu", id=known["id"])
+            return
         # Already in front: the active window, on the workspace shown. (Moved to an empty workspace, Hyprland still
         # names the window left behind as the active one.)
         if not mine or any(c.get("address") == active.get("address") and c.get("workspace", {}).get("name") == here for c in mine):
