@@ -25,6 +25,7 @@ from PySide6.QtCore import Slot
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWidgets import QApplication
 
+import hypr
 from config import DEFAULTS
 from core import Bridge
 from overlay import Overlay
@@ -54,6 +55,21 @@ class DrawerBridge(Bridge):
         # Back at the plain size is Medium again, as Settings says it.
         error = desktop.settings.apply({"text": {self.owner.NAME: "medium" if abs(scale - 1) < 0.001 else scale}})
         return type_scale(self.owner.NAME) if error else scale
+
+    @Slot(bool)
+    def zen(self, on: bool) -> None:
+        """Notes' zen, as a window: the window full screen too, or not. A panel already covers the screen."""
+        owner = self.owner
+        if not owner.windowed:
+            return
+        address = owner._address()
+        try:
+            found = next((c for c in json.loads(hypr.ask("j/clients") or "[]") if c.get("address") == address), None)
+        except ValueError:
+            found = None
+        if found and bool(found.get("fullscreen")) != on:
+            hypr.ask(f"/dispatch focuswindow address:{address}")
+            hypr.ask("/dispatch fullscreen 0")
 
 class Workspace(Overlay):
     def __init__(self, name: str, profile: QWebEngineProfile, desktop) -> None:

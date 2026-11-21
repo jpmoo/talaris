@@ -101,6 +101,7 @@ function arrive() {
  * drawn out. Then the process is told, and moves the surface to its handle.
  */
 function leave() {
+  unzen();
   if (saveTimer) save();
   // The panel's leaving; a window is not going anywhere.
   if (WINDOW) return;
@@ -1059,7 +1060,8 @@ async function loadWriting() {
     });
   } }, "Attach");
   const pane = el("div", { class: "pane" },
-    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach, modes),
+    el("div", { class: "pane-bar" }, el("span", { class: "label", id: "heading" }, pageHeading()), el("span", { class: "spacer" }), attach,
+      el("button", { class: "t-btn small attach", title: "Just the page, full screen (F11; Esc to leave)", onclick: () => zen(true) }, "Zen"), modes),
     el("div", { class: "editor", id: "editorHost" }),
     el("div", { class: "page-files", id: "pageFiles" }),
     el("div", { class: "page-tags", id: "pageTags" }));
@@ -1434,6 +1436,31 @@ addEventListener("keydown", (e) => {
   if (saveTimer) save();
   bridge.file();
 });
+/*
+ * Zen: the page open and nothing else, over the whole screen — no header, list, toolbar or footer; the words in one
+ * column down the middle; the pointer hidden while typing, back when it moves. F11 or the pane's Zen button; Esc or
+ * F11 again leaves. As a window, Hyprland makes the window full screen too (workspace.py, zen).
+ */
+function zen(on) {
+  on = !!on && state.drawer === "writing" && !!open && !!$("editorHost");
+  if (on === document.body.hasAttribute("data-zen")) return;
+  if (on) document.body.dataset.zen = "1"; else { delete document.body.dataset.zen; delete document.body.dataset.typing; }
+  if (WINDOW && bridge && bridge.zen) bridge.zen(on);
+  if (editor) editor.focus();
+  if (!on) pageMap.draw();
+}
+addEventListener("keydown", (e) => {
+  const inZen = document.body.hasAttribute("data-zen");
+  if (e.key === "F11" && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); zen(!inZen); return; }
+  if (!inZen) return;
+  // A pop-up or a sheet takes its own Escape first (kit.js); one nothing else wanted leaves zen.
+  if (e.key === "Escape" && !e.defaultPrevented && !(e.target.closest && e.target.closest(".kit-scrim"))) { e.preventDefault(); zen(false); return; }
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key !== "Shift") document.body.dataset.typing = "1";
+});
+addEventListener("pointermove", () => { if (document.body.dataset.typing) delete document.body.dataset.typing; }, { passive: true });
+// The page put away, or another opened in its place: out of zen.
+function unzen() { zen(false); }
+
 // The Super key of a compositor bind arrives as a stray keydown; it means nothing here.
 addEventListener("keydown", (e) => { if (e.key === "Meta") e.stopImmediatePropagation(); }, { capture: true });
 $("handle").addEventListener("click", () => bridge && bridge.toggle());

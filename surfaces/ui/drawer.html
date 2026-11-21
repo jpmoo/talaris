@@ -206,6 +206,18 @@ footer { display: flex; justify-content: space-between; align-items: center; mar
 /* Text runs clear of the map (or its button). */
 .editor.mapped .cm-content { padding-right: 242px !important; }
 .editor.map-shut .cm-content { padding-right: 48px !important; }
+/* Zen (drawer.js, zen): the page and nothing else — no header, list, toolbar or footer, the whole screen the paper,
+   the words in one column down the middle, the pointer gone while typing. Esc or F11 back. */
+body[data-zen] #panel { inset: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 0;
+  background: var(--page-paper, var(--paper)) !important; }
+body[data-zen] header, body[data-zen] footer, body[data-zen] .tree, body[data-zen] .pane-bar, body[data-zen] .page-files,
+body[data-zen] .page-tags, body[data-zen] .page-map, body[data-zen] .page-map-open, body[data-zen] .xh, body[data-zen] #tuck { display: none !important; }
+body[data-zen] main { gap: 0; }
+body[data-zen] .editor { border: 0; border-radius: 0; font-size: calc(16px * var(--type-scale, 1)); }
+body[data-zen] .editor .cm-content, body[data-zen] .editor .preview { max-width: 40em; margin: 0 auto; box-sizing: border-box;
+  padding: 16vh 24px 45vh !important; }
+body[data-zen] .editor .preview { width: 100%; }
+body[data-zen][data-typing], body[data-zen][data-typing] * { cursor: none !important; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>
