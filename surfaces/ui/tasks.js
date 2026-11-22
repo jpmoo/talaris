@@ -78,7 +78,13 @@
 
   // Asked of the core as every page asks it (kit.js): one book of what waits, 2xx the answer, given up on if none comes.
   const asked = Kit.core((id, method, path, body) => !!bridge && (bridge.core(id, method, path, body), true));
-  const api = (method, path, body) => asked.call(method, path, body);
+  // The core not answering is said until it answers again: at login this page can ask a moment before the core
+  // is listening, and that one failure stayed up all day.
+  const api = (method, path, body) => asked.call(method, path, body).then((r) => {
+    const msg = $("msg");
+    if (msg && msg.classList.contains("err") && msg.textContent.startsWith("the core is not answering")) say("");
+    return r;
+  });
   const enc = encodeURIComponent;
 
   // Said as every page says it (kit.js): one line, sentence case, an error in the danger color.
