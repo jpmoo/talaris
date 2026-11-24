@@ -52,6 +52,8 @@ class PeopleBridge(Bridge):
 class People(Overlay):
     NAME = "people"
     LAZY = True
+    # Nothing of its own to keep: let go of a minute after it is put away, loaded again when next opened.
+    UNLOAD_AFTER_MS = 60_000
     TITLE = "People"
     IDLE_MS = 10 * 60 * 1000
 

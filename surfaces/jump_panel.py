@@ -47,6 +47,8 @@ class JumpBridge(Bridge):
 class Jump(Overlay):
     NAME = "jump"
     LAZY = True
+    # Nothing of its own to keep: let go of a minute after it is put away, loaded again when next opened.
+    UNLOAD_AFTER_MS = 60_000
     TITLE = "Projects"
     IDLE_MS = 60 * 1000
     # The keyboard is the carousel's while it is out: it was opened by a key, to be answered by keys.
