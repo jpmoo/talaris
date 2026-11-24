@@ -181,6 +181,9 @@ class FilesPanel(Overlay):
     LAZY = True
     TITLE = "Library"
     IDLE_MS = 10 * 60 * 1000
+    # Its page holds a few hundred MB once it has drawn the projects' files: let go of a minute after it is put away
+    # (a quick look back finds it as it was), loaded again when next opened.
+    UNLOAD_AFTER_MS = 60_000
 
     def __init__(self, profile: QWebEngineProfile, desktop) -> None:
         super().__init__(profile, desktop, "talaris-ui://ui/filespanel.html", FilesBridge(None, None))
