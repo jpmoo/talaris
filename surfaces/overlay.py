@@ -265,7 +265,25 @@ class Overlay(QObject):
         if self.window is not None:
             self._carry(self.window, self.view, False)
             self.window.hide()
+            # After the place is carried across (it is asked of the window's page).
+            QTimer.singleShot(1000, self._let_window_go)
         self.open()
+
+    def _let_window_go(self) -> None:
+        """A window closed, or made a panel again: its page let go of, made afresh if it is wanted again. Kept, a
+        closed window held a whole second copy of its page all day (the Tasks window: 300 MB, 2026-11-24)."""
+        window = self.window
+        if window is None or self.windowed:
+            return
+        from views import forget_view  # noqa: PLC0415
+        self.window = None
+        window.removeEventFilter(self)
+        forget_view(window)
+        channel = window.page().webChannel() if window.page() is not None else None
+        window.deleteLater()
+        if channel is not None:
+            channel.deleteLater()
+        log(f"{self.NAME}: window let go of")
 
     def _address(self) -> str:
         """This window's address in Hyprland: this process's window with its title."""
@@ -293,6 +311,7 @@ class Overlay(QObject):
             self.bridge.state.emit(json.dumps(self.describe()))
             self.closed()
             log(f"{self.NAME}: window closed")
+            QTimer.singleShot(0, self._let_window_go)
         return False
 
     def windows_changed(self, _now: dict) -> None:
