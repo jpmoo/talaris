@@ -248,6 +248,7 @@ function onState(s) {
   if (opening && s.popup === "weather") { forecast = null; wxMode = "hours"; drawWeather(); }
   if (opening && (s.popup === "network" || s.popup === "bluetooth")) {
     open = { key: "", busy: "", armed: "", scanning: false };
+    typedPw = { key: "", value: "" };
     $(s.popup === "network" ? "nets" : "devs").replaceChildren(note("Reading…"));
     $("net-err").textContent = $("bt-err").textContent = "";
   }
@@ -344,6 +345,7 @@ function sendBt(request, busyKey) {
   drawBlue();
 }
 
+let typedPw = { key: "", value: "" };
 function drawWifi() {
   if (!wifi) return;
   $("wifi-on").classList.toggle("on", wifi.on);
@@ -370,11 +372,13 @@ function drawWifi() {
       d.append(note("Needs a sign-in this panel cannot ask for"),
         button("Sign in…", () => bridge.openSettings("wifi")));
     } else {
-      const pw = Object.assign(document.createElement("input"), { type: "password", placeholder: "Password" });
+      // What is typed survives the list being drawn again (a scan coming in).
+      const pw = Object.assign(document.createElement("input"), { type: "password", placeholder: "Password", value: typedPw.key === key ? typedPw.value : "" });
+      pw.addEventListener("input", () => { typedPw = { key, value: pw.value }; });
       const join = () => { if (pw.value) sendNet({ verb: "join", ssid: n.ssid, password: pw.value }, key); };
       pw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.stopPropagation(); join(); } });
       d.append(pw, button("Join", join));
-      setTimeout(() => pw.focus(), 0);
+      setTimeout(() => { pw.focus(); pw.setSelectionRange(pw.value.length, pw.value.length); }, 0);
     }
     if (n.known) d.append(twice("Forget", `forget:${key}`, () => sendNet({ verb: "forget", ssid: n.ssid }, key)));
     rows.push(d);
@@ -423,9 +427,11 @@ function drawBlue() {
 function onPanel(p) {
   if (p.kind === "network") {
     wifi = p.state;
+    // A row closed after what was done in it (joined, forgotten), not by a scan coming in while a password is typed.
+    const did = open.busy;
     open.busy = "";
     $("net-err").textContent = p.error || "";
-    if (!p.error) open.key = "";
+    if (!p.error && did) open.key = "";
     drawWifi();
   } else if (p.kind === "battery") {
     drawBattery(p.state, p.error);

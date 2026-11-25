@@ -659,11 +659,12 @@ class Machine(QObject):
 
     # ------------------------------------------------------------ the panels
 
-    def panel_read(self, kind: str, deep: bool = False) -> None:
-        """Read a panel's state — `deep` rescans Wi-Fi, or scans for Bluetooth devices."""
+    def panel_read(self, kind: str, deep: bool = False, unjoined: bool = False) -> None:
+        """Read a panel's state — `deep` rescans Wi-Fi, or scans for Bluetooth devices; `unjoined` rescans Wi-Fi
+        only if no Wi-Fi network is joined (the menu opened when there is one to find)."""
         def work() -> str:
             # The scan's own result is read again by `_Panel`; this only makes it happen.
-            if deep and kind == "network":
+            if kind == "network" and (deep or (unjoined and _network().get("kind") != "wifi")):
                 wifi_state(rescan=True)
             elif deep and kind == "bluetooth":
                 bluetooth_state(scan_seconds=8)

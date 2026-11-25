@@ -507,6 +507,9 @@ class Popup(QObject):
         self.bridge.state.emit(json.dumps(self.describe()))
         if kind in ("network", "bluetooth", "battery"):
             self.desktop.machine.panel_read(kind)
+            # Not on Wi-Fi: what is known shown at once, then looked for again — the list redrawn when the scan is in.
+            if kind == "network":
+                self.desktop.machine.panel_read(kind, unjoined=True)
         elif kind == "weather":
             # The forecast asked for each time it opens: an hour old is old (location.py).
             self.desktop.location.forecast()
