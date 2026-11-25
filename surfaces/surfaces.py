@@ -129,6 +129,8 @@ def register_scheme() -> None:
 
 
 #: The project carousel (jump_panel.py), and putting every panel away.
+#: How often the pages' garbage is collected in full (Desktop, `_collecting`).
+GC_EVERY_MS = 10 * 60 * 1000
 PROJECTS_KEYS = "SUPER, TAB"
 FILE_ALL_KEYS = "SUPER, ESCAPE"
 HIDE_KEYS = "SUPER, H"
@@ -332,6 +334,15 @@ class Desktop(QObject):
         # The empty desktop, under the windows: its right-click menu (the wallpaper).
         self.desk = Desk(profile, self)
         self.desk.place()
+        # A full collection, every ten minutes. Talaris's pages sit idle while changing a little (the clock, the bar's
+        # readouts, the dock), and Chromium, judging by how busy a page is, never got round to a full one: what they
+        # threw away piled up — 50 MB an hour — until the system put it in swap. One collected 338 MB to 201
+        # (2026-11-25). All the pages share one heap, so asking in one page collects them all; `gc` is there by the
+        # flag set before the application starts (main).
+        self._collecting = QTimer(self)
+        self._collecting.setInterval(GC_EVERY_MS)
+        self._collecting.timeout.connect(lambda: self.desk.view.page().runJavaScript("typeof gc === 'function' && gc()"))
+        self._collecting.start()
         # Each project's likeness, for the project menus.
         self.thumbs = thumbs.Thumbs(self)
         self.thumbs.arrived()
@@ -1467,6 +1478,10 @@ def main() -> int:
     if _osk.available():
         os.environ.setdefault("QT_WAYLAND_DISABLED_INTERFACES",
                               "zwp_text_input_manager_v1,zwp_text_input_manager_v2,zwp_text_input_manager_v3,qt_text_input_method_manager_v1")
+    # `gc` for the pages, which Desktop calls every ten minutes: Chromium left to itself let garbage pile up.
+    flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    if "--expose-gc" not in flags:
+        os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (flags + " --js-flags=--expose-gc").strip()
     app = QApplication(sys.argv)
     # The name Hyprland and the dock know Talaris's ordinary windows by (a
     # panel made a window), rather than python3.
