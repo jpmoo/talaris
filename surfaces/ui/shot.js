@@ -448,7 +448,18 @@
   /** Closed without saving: asked once first if it has been neither saved nor copied since it last changed. */
   function close(button) {
     if (!kept && img && !Kit.ask(button || closeBtn, { ask: "Discard it?" })) return;
+    discarding = true;
     if (bridge) bridge.discard();
+  }
+  let discarding = false;
+  /** The shot discarded and out of sight: its picture and canvases let go of (a few dozen MB a shot, held until
+   *  the next one otherwise). A shot only put away, not discarded, is kept: it comes back as it was. */
+  function letGo() {
+    discarding = false;
+    for (const c of [base, ink]) if (c) { c.width = 0; c.height = 0; }
+    img = base = ink = inkCtx = draft = null;
+    marks = []; undone = [];
+    board().replaceChildren();
   }
 
   // ---------------------------------------------------------------- keys
@@ -519,7 +530,8 @@
       surface = { ...surface, up: false };
       cancelText();
       const going = Motion.leave(document.body, how());
-      if (going) going.onfinish = () => bridge.left(); else bridge.left();
+      const gone = () => { if (discarding) letGo(); bridge.left(); };
+      if (going) going.onfinish = gone; else gone();
     });
     if (surface.up && mode === "view") loadShot();
   });
