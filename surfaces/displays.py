@@ -89,8 +89,8 @@ class Displays(QObject):
         self._said: dict | None = None
 
     def mode(self) -> str:
-        m = self.desktop.config.get("screen", {}).get("external", "extend")
-        return m if m in MODES else "extend"
+        m = self.desktop.config.get("screen", {}).get("external", "mirror")
+        return m if m in MODES else "mirror"
 
     def apply(self) -> None:
         """Each display plugged in shown as the setting says; only what differs from now is changed."""

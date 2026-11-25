@@ -108,7 +108,7 @@ function draw() {
   slider("panels-op", p.opacity, pct, (v) => save({ panels: { opacity: v } }));
   $("rotate-row").hidden = !canRotate;
   $("rotate-on").classList.toggle("on", !!(cfg.screen || {}).rotate);
-  seg("screen-external", [["extend", "Extend"], ["mirror", "Mirror"]], (cfg.screen || {}).external || "extend", (external) => save({ screen: { external } }));
+  seg("screen-external", [["extend", "Extend"], ["mirror", "Mirror"]], (cfg.screen || {}).external || "mirror", (external) => save({ screen: { external } }));
   slider("screen-corners", (cfg.screen || {}).corners ?? 12, (v) => (Number(v) ? `${v}px` : "Square"), (corners) => save({ screen: { corners } }));
   const sh = cfg.shown || {};
   $("shown-done").classList.toggle("on", !!sh.done);
