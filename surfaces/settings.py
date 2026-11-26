@@ -52,7 +52,10 @@ from overlay import Overlay
 from views import TYPE_AREAS, TYPE_MAX, TYPE_MIN, ZOOMS, log, zoom
 
 #: What Settings may ask the core for.
-SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)")
+SETTINGS_ROUTES = re.compile(r"^/(vault|backups|entities|entity-types|projects|plugins|tasks/statuses|meaning)(/|$|\?)"
+                             # The Sync page's two readings: the machines, and what was replaced. It never had them, and
+                             # showed nothing past "This machine" until 2026-11-26.
+                             r"|^/sync(/replaced)?(\?|$)")
 
 #: The panel and the room round it for its shadow (ui/settings.html #win's inset): 860 × 620 of panel.
 SIZE = (888, 648)
