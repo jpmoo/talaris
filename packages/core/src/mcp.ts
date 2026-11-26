@@ -5,6 +5,7 @@ import { request } from "node:http";
 import { createInterface } from "node:readline";
 import { SOCKET } from "./paths.js";
 import { desktopTools } from "./mcp-desktop.js";
+import { hermesTools } from "./mcp-hermes.js";
 import { logSaid, mayRead, patternsSaid, type Act, type ActivitySettings, type Summary as ActivitySummary } from "./activity.js";
 
 /**
@@ -294,9 +295,11 @@ async function taskStatuses(): Promise<string[]> {
 function withStatuses<T extends { name: string; inputSchema: Record<string, unknown> }>(t: T, statuses: string[]): T {
   const props = t.inputSchema.properties as Record<string, Record<string, unknown>> | undefined;
   if (!statuses.length || !props?.status) return t;
-  // Finding takes open, complete or several; a task is given exactly one.
-  const status = t.name === "talaris_tasks"
-    ? { ...props.status, description: `One of ${statuses.join(", ")}; or open; or complete; or several, separated by commas.` }
+  // Finding takes open, complete or several; a task is given exactly one. Hermes' tools by their names (mcp-hermes.ts)
+  // take the words Hermes took — "open", "finished" — and say their statuses rather than fence them in.
+  const loose = t.name === "talaris_tasks" || HERMES_NAMES.has(t.name);
+  const status = loose
+    ? { ...props.status, description: `${String(props.status.description ?? "").trim()} Statuses here: ${statuses.join(", ")}.`.trim() }
     : { ...props.status, enum: statuses };
   return { ...t, inputSchema: { ...t.inputSchema, properties: { ...props, status } } };
 }
@@ -401,6 +404,9 @@ TOOLS.push(
 
 // What is on the screen, the verbs, pages and canvases (mcp-desktop.ts).
 TOOLS.push(...desktopTools(core));
+TOOLS.push(...hermesTools(core));
+/** Hermes' tools by their names: their arguments as Hermes took them (withStatuses). */
+const HERMES_NAMES = new Set(hermesTools(core).map((t) => t.name));
 
 // ------------------------------------------------------------ activity
 
@@ -468,6 +474,12 @@ TOOLS.push({
 /** The tools a client is offered: the activity tools to Morgan alone (by `clientInfo.name`), the rest to any. */
 export function toolsFor(client: string): Tool[] {
   return client === MORGAN_CLIENT ? TOOLS : TOOLS.filter((t) => !MORGANS_ONLY.has(t.name));
+}
+
+/** The tools a client is offered as `tools/list` says them, without how each runs: for the web's MCP (packages/web). */
+export async function listTools(client: string): Promise<Omit<Tool, "run">[]> {
+  const statuses = await taskStatuses();
+  return toolsFor(client).map(({ run: _run, ...t }) => withStatuses(t, statuses));
 }
 
 /** One of Talaris's own tools, run for a client — null when it is none it is offered. */
