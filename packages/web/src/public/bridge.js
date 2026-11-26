@@ -39,6 +39,18 @@
         .catch((e) => emit("coreReply", JSON.stringify({ id, status: 503, data: { error: e.message } })));
       return;
     }
+    // A link (the desktop opens it in the browser, so its pages hand every link to the bridge — the Notes drawer does,
+    // for every <a> — the modules' bar's too, and on the web nothing then happened): here, one of Talaris's own pages
+    // is gone to, anything else opened in a tab of its own.
+    if (name === "openUrl") {
+      const [href] = args;
+      try {
+        const u = new URL(href, location.href);
+        if (u.origin === location.origin && u.pathname.startsWith(`${WEB.prefix}/`)) location.assign(u.href);
+        else window.open(u.href, "_blank", "noopener");
+      } catch { /* not an address */ }
+      return;
+    }
     if (name === "request") {
       // The drawers' way (core.py, `request`): answered on `replied` with the status and the text as it came.
       const [id, method, path, body] = args;
