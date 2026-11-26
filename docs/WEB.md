@@ -231,7 +231,13 @@ Each step works on its own; nothing is broken while the next is built.
    Library files. Plugins' records wait there (51), as they do on any machine
    without the plugin; the web side will decide what of them it runs.
 2. **The web side**: Caddy, `/talaris`, passkeys, the web bridge, the Library
-   and the five modules at a browser's size. Talaris in a browser.
+   and the five modules at a browser's size. Talaris in a browser. **Begun
+   2026-11-26**: `packages/web` (`server.mjs`, `auth.mjs`, `public/bridge.js`),
+   run on home-server as `talaris-web.service` on 127.0.0.1:8091, Caddy's
+   `handle /talaris*` passing to it. The Library works whole in a browser on
+   the core's own data; the five modules follow, each a page added to `PAGES`
+   with its panel's routes. A page's desktop verbs (open in an application,
+   the file manager, the dock) answer nothing yet.
 3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.
 4. **The weekly review**, in Talaris on the desktop and the web.
 5. **The Talaris MCP server**; Claude, Morgan and the Gmail sweep moved to it.
