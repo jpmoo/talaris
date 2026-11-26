@@ -11,17 +11,21 @@
 #   ./install.sh --yes      install what is required without asking (the optional, only if asked for too)
 #   ./install.sh --optional install the optional packages as well
 #   ./install.sh --no-deps  skip the check (another distribution, or you have seen to it)
+#   ./install.sh --one-desktop / --own-desktops
+#                           projects on one desktop, or each on its own (asked, the first time, if not said)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
-CHECK_ONLY=0 YES=0 OPTIONAL=0 DEPS=1
+CHECK_ONLY=0 YES=0 OPTIONAL=0 DEPS=1 DESKTOPS=""
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK_ONLY=1 ;;
     --yes|-y) YES=1 ;;
     --optional) OPTIONAL=1 ;;
     --no-deps) DEPS=0 ;;
-    *) echo "install: unknown option $arg (--check, --yes, --optional, --no-deps)" >&2; exit 2 ;;
+    --one-desktop) DESKTOPS=one ;;
+    --own-desktops) DESKTOPS=own ;;
+    *) echo "install: unknown option $arg (--check, --yes, --optional, --no-deps, --one-desktop, --own-desktops)" >&2; exit 2 ;;
   esac
 done
 
@@ -102,6 +106,21 @@ ask() {  # yes or no, Enter giving the default
   reply="${reply:-$default}"
   [[ "$reply" =~ ^[Yy] ]]
 }
+# Projects on their own desktops, or all on one (docs/DESIGN.md, *One desktop*): asked the first time only —
+# afterwards it is Settings, Windows, "Projects". One desktop is always the carousel, so its plugin is required.
+CONFIG_FILE="${TALARIS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/talaris}/config.json"
+if [ -z "$DESKTOPS" ] && [ "$CHECK_ONLY" = 0 ] && [ -t 0 ] && ! grep -qs '"desktops"' "$CONFIG_FILE"; then
+  echo "==> Projects: each on its own desktop, or all on one?"
+  echo "    Own desktops: going to a project goes to its desktop, its windows waiting there."
+  echo "    One desktop:  every window stays in one place; choosing a project changes what the panels show."
+  read -r -p "    Own or one? [own] " reply || reply=""
+  [[ "${reply:-own}" =~ ^[Oo][Nn][Ee] ]] && DESKTOPS=one || DESKTOPS=own
+fi
+if [ "$DESKTOPS" = one ]; then
+  REQUIRED+=("hyprland-plugin-hyprscrolling|One desktop: its windows in a sliding strip, the carousel")
+  KEEP=(); for entry in "${OPTIONALS[@]}"; do [[ "$entry" == hyprland-plugin-hyprscrolling\|* ]] || KEEP+=("$entry"); done
+  OPTIONALS=("${KEEP[@]}")
+fi
 show() { local entry; for entry in "$@"; do printf '    %-38s %s\n' "${entry%%|*}" "${entry#*|}"; done; }
 
 # The screen's brightness: brightnessctl writes the backlight's file, which
@@ -269,6 +288,27 @@ CONF
     echo "      source = $HYPR/talaris.conf"
     echo "    What to leave out of it, because Talaris does it: $ROOT/examples/hyprland.conf"
   fi
+fi
+
+# The choice of desktops, kept in Talaris's settings beside what is there (config.py reads it).
+if [ -n "$DESKTOPS" ] && [ "$CHECK_ONLY" = 0 ]; then
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  python3 - "$CONFIG_FILE" "$DESKTOPS" <<'PY'
+import json, os, sys
+path, mode = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8") as f:
+        config = json.load(f)
+except (OSError, ValueError):
+    config = {}
+config.setdefault("projects", {})["desktops"] = mode
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(config, f, indent=2)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+  echo "==> Projects: $([ "$DESKTOPS" = one ] && echo "one desktop" || echo "each its own desktop") (Settings, Windows, to change)"
 fi
 
 # Talaris's own desktop file: its windows (a panel made a window) are known by

@@ -226,7 +226,7 @@ class DockMenu(QObject):
                 "keptName": self.dock._project_name(item["keptIn"]) if item.get("keptIn") and not item.get("keptHere") else "",
                 # Pinned nowhere, and open: its window can be sent to another project (chosen in the carousel).
                 # One pinned anywhere already has a place, and goes by that.
-                "canSend": bool(item) and not item.get("doc") and bool(self.everywhere) and not self._placed(item)}
+                "canSend": not self.desktop.one_desktop() and bool(item) and not item.get("doc") and bool(self.everywhere) and not self._placed(item)}
 
     #: The item's windows on every desktop, each with its project's name: the menu's list, to go to one.
     everywhere: list = []

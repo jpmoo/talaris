@@ -212,6 +212,30 @@ the difference visible: "note on this canvas" and "thing from Hermes" are not
 the same, and a line drawn between two things stays on the canvas unless the
 plugin offers *make it a relation*.
 
+### One desktop (2026-11-26)
+
+A machine can keep every project on **one desktop** instead (Settings,
+Windows, "Projects": Own desktops · One desktop; asked by `install.sh` the
+first time, or `--one-desktop`). Made for a small touchscreen — a Pi
+cyberdeck — where one place is easier to live in than a dozen. It is a mode
+of the same Talaris, not a second one: nothing else is pruned.
+
+- **A project is chosen, not gone to.** The bar's menu, Super+Tab and the
+  Library's "Go to this project" change the current project; the panels, New,
+  the dock's pins and the wallpaper follow it. No workspace changes, and a
+  workspace gone to by its keys changes no project.
+- **Home is no place either**: chosen, it is "no project in particular" —
+  and in Notes, as everywhere, where notes in no project live.
+- **Always the carousel.** The Tiles/Carousel rows leave Settings; the
+  hyprscrolling plugin is required.
+- **What only a desktop could do is gone:** sending a window to a project
+  (Super+G, the dock's Send to…), and each project's likeness in the
+  switcher, which shows its wallpaper instead.
+- **Switched to**, every project's windows are gathered onto the desktop you
+  are on; switched back, they stay there and the chosen project's desktop is
+  gone to, empty the first time as any project's is.
+- **The machine's own**, as the screen is: it does not sync (prefsync.py).
+
 ### Two kinds of card, chosen when the card is made
 
 - **Bookmark** — always opens to the target it was made with. The snapshot is

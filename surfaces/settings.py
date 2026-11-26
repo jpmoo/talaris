@@ -193,6 +193,8 @@ def _checked(c: dict) -> str:
             or int(a.get("keep", 90)) not in (30, 90, 365) or a.get("suggest", "morgan") not in ("morgan", "notify", "asked") \
             or a.get("share", "summary") not in ("summary", "raw", "local"):
         return "Not an activity setting"
+    if c.get("projects", {}).get("desktops", "own") not in ("own", "one"):
+        return "Projects are on their own desktops or on one"
     if c.get("screen", {}).get("external", "extend") not in ("extend", "mirror"):
         return "A display plugged in is beside the screen or a copy of it"
     if not 0 <= int(c.get("screen", {}).get("corners", 0)) <= 32:
@@ -744,7 +746,7 @@ class Settings(Overlay):
         """Take a whole configuration, check it, keep it, and make the screen match it."""
         before = self.desktop.config
         after = copy.deepcopy(before)
-        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "activity", "meaning", "shown", "location"):
+        for key in ("theme", "bar", "dock", "launcher", "overlays", "calendar", "windows", "clock", "panels", "touch", "text", "power", "data", "notifications", "clipboard", "screen", "activity", "meaning", "shown", "location", "projects"):
             after.setdefault(key, copy.deepcopy(DEFAULTS.get(key, {})))
             after[key].update(wanted.get(key, {}))
         if "idleSeconds" in wanted:

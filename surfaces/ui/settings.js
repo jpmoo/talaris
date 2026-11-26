@@ -201,6 +201,13 @@ function draw() {
   needs(["dock-motion", "dock-speed"], cfg.dock.enabled !== false && !!cfg.dock.autohide);
   needs(["power-profile", "power-dim", "power-lock", "power-off", "power-suspend", "lid-ac", "lid-battery", "lid-docked"], !!pw.managed);
   needs(["power-dimto"], !!pw.managed && (pw.ac?.dim > 0 || pw.battery?.dim > 0));
+  // Projects on their own desktops, or all on one (DESIGN, One desktop): there, chosen rather than gone to, and always the carousel.
+  const one = (cfg.projects || {}).desktops === "one";
+  seg("win-desktops", [["own", "Own desktops"], ["one", "One desktop"]], one ? "one" : "own", (desktops) => save({ projects: { desktops } }),
+    (mode) => mode === "one" && !canCarousel);
+  $("desktops-note").textContent = one ? "Choosing a project changes what the panels show; windows stay put"
+    : canCarousel ? "Each its own desktop" : "One desktop needs hyprland-plugin-hyprscrolling";
+  $("win-tiling").closest(".row").hidden = one;
   // Tiles or Carousel (tiling.py): this machine's own. Carousel only where its plugin is installed.
   seg("win-tiling", [["tiles", "Tiles"], ["carousel", "Carousel"]], cfg.windows.tiling || "tiles", (tiling) => save({ windows: { tiling } }));
   $("tiling-note").textContent = (cfg.windows.tiling || "tiles") === "carousel"
@@ -210,7 +217,7 @@ function draw() {
   // The project in front: its own layout, or the default. Changed, its desktop is laid out again at once.
   const within = cfg.windows.tilingIn || {};
   $("tiling-here-name").textContent = projectNow.name || "This project";
-  $("win-tiling-here").closest(".row").hidden = !projectNow.id;
+  $("win-tiling-here").closest(".row").hidden = !projectNow.id || one;
   seg("win-tiling-here", [["", "Default"], ["tiles", "Tiles"], ["carousel", "Carousel"]], within[projectNow.id] || "", (mode) => {
     const next = { ...within };
     if (mode) next[projectNow.id] = mode; else delete next[projectNow.id];

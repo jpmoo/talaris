@@ -199,7 +199,8 @@ class Thumbs(QObject):
 
     def take(self, only_if_changed: bool = False) -> None:
         project = self.desktop.project.get("id", "")
-        if not project or not self._clear():
+        # On one desktop every project would have the same likeness: none is taken, and each shows its wallpaper.
+        if not project or self.desktop.one_desktop() or not self._clear():
             return
         looks = self._looks()
         if only_if_changed and looks and self._seen.get(project) == looks and os.path.exists(path_for(project)):

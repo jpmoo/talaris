@@ -176,7 +176,8 @@ class Files(QWebEngineUrlSchemeHandler):
         # looked like (thumbs.py), or its wallpaper if it has not been seen.
         if url.host() == "thumb":
             project = QUrlQuery(url).queryItemValue("project")
-            shot = thumbs.path_for(project) if project else ""
+            one = getattr(self.parent(), "one_desktop", lambda: False)()
+            shot = thumbs.path_for(project) if project and not one else ""
             if shot and os.path.isfile(shot):
                 with open(shot, "rb") as f:
                     self._reply(job, f.read(), "image/png")
@@ -433,7 +434,7 @@ class Desktop(QObject):
             active = ""
         if hypr.is_ordinary(active):
             self._ordinary = active
-        elif hypr.project_of(active, ""):
+        elif hypr.project_of(active, "") and not self.one_desktop():
             QTimer.singleShot(0, lambda: self._workspace_changed(active))
         self._bind()
 
@@ -640,15 +641,51 @@ class Desktop(QObject):
             holds[dock.edge] = bool(self.config["dock"].get("enabled", True)) and not self.hides("dock") and not getattr(dock, "empty", False)
         spacers.hold({edge: 0 if holds.get(edge) else gap for edge in ("top", "bottom", "left", "right")})
 
+    def one_desktop(self) -> bool:
+        """
+        Projects on one desktop (Settings, Windows, "Projects"; DESIGN, *One desktop*): a project is chosen, not gone
+        to. The panels, New, the dock's pins and the wallpaper follow the choice; every window stays where it is,
+        laid out as the carousel.
+        """
+        return self.config.get("projects", {}).get("desktops") == "one"
+
     def tiling_mode(self, project_id: str | None = None) -> str:
         """
         Tiles or Carousel for a project (the one in front, unless named): its own, if it has one (Settings, Windows,
         "This project"), else the machine's. Hyprland lays out every desktop one way at a time, so the layout is set
         again as each project is gone to (`go_to_project`).
         """
+        if self.one_desktop():
+            return "carousel"
         win = self.config["windows"]
         pid = self.project.get("id", "") if project_id is None else project_id
         return win.get("tilingIn", {}).get(pid) or win.get("tiling", "tiles")
+
+    def _desktops_changed(self) -> None:
+        """
+        Projects on one desktop now, or on their own again. To one: every project's windows gathered onto the
+        desktop you are on, laid out as the carousel. Back: they stay where they are, and the project you have
+        chosen is gone to — its desktop, empty the first time, as any project's is.
+        """
+        if self.one_desktop():
+            here = str(json.loads(hypr.ask("j/activeworkspace") or "{}").get("name", ""))
+            if not hypr.is_ordinary(here):
+                here = self._ordinary
+                hypr.ask(f"/dispatch workspace {hypr.target(here)}")
+            now = hypr.windows()
+            names = {w["id"]: w["name"] for w in now["workspaces"]}
+            for w in now["windows"]:
+                name = names.get(w["workspace"], "")
+                if not w["hidden"] and name and not hypr.is_special(name) and not hypr.is_ordinary(name):
+                    hypr.carry(w["address"], hypr.target(here))
+        else:
+            self.go_to_project(self.project.get("id", ""))
+        self.style_compositor()
+        self.bar.place()
+        self.dock.place()
+        self.dock.refresh()
+        self.bar.changed()
+        log(f"projects: {'one desktop' if self.one_desktop() else 'own desktops'}")
 
     def carousel(self) -> bool:
         """Whether the project in front lays its windows out as the carousel (tiling.py), and can."""
@@ -912,6 +949,8 @@ class Desktop(QObject):
             self.dock.edge = after["dock"]["edge"]
             self.dock.place()
         # Tiles or Carousel, or the gap: the space the bar and the dock hold back changes with them (`edge_gap`).
+        if after.get("projects") != before.get("projects"):
+            self._desktops_changed()
         if any(after["windows"].get(k) != before["windows"].get(k) for k in ("tiling", "tilingIn", "gap")):
             self.bar.place()
             self.dock.place()
@@ -1024,7 +1063,7 @@ class Desktop(QObject):
         found = next((p for p in core.projects() if p.get("id") == project_id), None)
         if not found:
             return
-        if move:
+        if move and not self.one_desktop():
             # Slid in from its side of the carousel's ring, as every change of project is (`_slide_toward`).
             self._slide_toward(found["id"])
             hypr.ask(f"/dispatch workspace {self.workspace_for(found['id'])}")
@@ -1125,6 +1164,9 @@ class Desktop(QObject):
         if hypr.is_ordinary(name):
             # Home's desktop is the ordinary one last used: going Home goes back to it.
             self._ordinary = name
+        # On one desktop a workspace says nothing about the project: that is only ever chosen.
+        if self.one_desktop():
+            return
         pid = hypr.project_of(name, self._home().get("id", ""))
         if pid and pid != self.project.get("id"):
             self.go_to_project(pid, move=False, announce=True)
@@ -1211,6 +1253,8 @@ class Desktop(QObject):
 
     def send_window(self, follow: bool = False) -> None:
         """The window with focus, sent to a project chosen in the carousel; and, following, you with it."""
+        if self.one_desktop():
+            return
         now = hypr.windows()
         window = next((w for w in now["windows"] if w["address"] == now["focused"]), None)
         if not window:
