@@ -69,7 +69,7 @@ import { mergeEntities, mergedInto } from "./merge.js";
 import * as suggest from "./suggest.js";
 import { aboutIsYours, keptAbout, saveFileText } from "./filetext.js";
 import "./mentions.js";
-import { liveManifest, createObject, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
+import { liveManifest, createObject, defineCollection, exportEnvelope, getInterchangeFile, patchObject, putInterchangeFile, readEnvelope, type WritePatch } from "./interchange.js";
 import { Gone } from "./feed.js";
 import { joinAccountTwins, ownCalendar, ownEvents, setOwnColor, takenElsewhere } from "./own-calendar.js";
 import * as plugins from "./plugins.js";
@@ -974,6 +974,9 @@ route("DELETE", "/lists/:id", (_r, [id]) => {
   return { ok: true };
 });
 route("POST", "/lists/:id/refresh", (_r, [id]) => lists.refresh(id!));
+// A collection a plugin kept in step (Hermes Notes' sync, now off) made Talaris's own: the mark taken off, the
+// collection kept as it stands — its rule, regions and order — and editable as any other (interchange.ts).
+route("POST", "/lists/:id/own", (_r, [id]) => defineCollection(id!, { synced: false }, { id: "", name: "" }));
 route("POST", "/lists/:id/members", async (req, [id]) => {
   const b = await json<{ object?: string; region?: string; after?: string | null; before?: string | null }>(req);
   if (!b.object) throw new BadRequest("which object?");
