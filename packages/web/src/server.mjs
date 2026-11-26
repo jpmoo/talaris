@@ -198,7 +198,7 @@ function pageHtml(name) {
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css">${APP_HEAD}</head>`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
-  if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
+  if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1">`);
   if (p.phone) html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/${p.phone}"></script></body>`);
   html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script></body>`);
   return html;

@@ -4,6 +4,9 @@
 html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important; height: 100dvh !important;
   max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
 html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }
+/* Behind every page, the panel's own ground: the drawers (Notes, Canvas) are see-through on the desktop, over the
+   screen, and showed the browser's white above and below them. */
+html.web, html.web body { background: var(--surface, #24282c) !important; }
 
 /* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows). The Library's one-pane layout is the Library's alone (page-library)
    One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
