@@ -54,6 +54,9 @@
   }
 
   document.addEventListener("pointerover", (e) => {
+    // A finger has no hovering: no tip, and nothing changed under it — on an iPhone a change on the first touch
+    // (the title moved aside) makes that touch a hover, and the press needs a second.
+    if (e.pointerType === "touch") return;
     const el = e.target.closest && e.target.closest("[title], [data-page-tip]");
     if (el === over) return;
     release(over);

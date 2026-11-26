@@ -84,3 +84,21 @@ html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(
   html.page-notes .editor.mapped .cm-content { padding-right: 8px !important; }
   html.page-notes .pane-bar { flex-wrap: wrap; }
 }
+
+/* A finger has no hover. On an iPhone a touch that reveals something on hover counts as the hover, and the press needs
+   a second touch: what the desktop shows on hover (a page's star in Notes) is simply shown, or not, here. */
+@media (hover: none) {
+  html.page-notes .row .star { visibility: hidden; }
+  html.page-notes .row .star.on { visibility: visible; }
+  html.page-notes .row:hover .star:not(.on) { visibility: hidden; }
+  /* The same in Tasks (a list's ⋯, a row's pen, a day's +) and the Library (a saved search's ✕): shown always rather than
+     on hover, so the first touch is the press. */
+  html.page-tasks #side .item .more { visibility: visible; }
+  html.page-tasks .tv-row .tv-pen { display: none !important; }
+  html.page-tasks .tv-day .tv-dayplus { visibility: visible; }
+  html.page-library .s-item .x-btn { visibility: visible; }
+}
+/* On a phone the list is a pane of its own, with Back: the drawers' list button has nothing to do there. */
+@media (max-width: 760px) {
+  html.page-notes .side-toggle, html.page-canvas .side-toggle { display: none !important; }
+}

@@ -17,8 +17,8 @@
     const back = Object.assign(document.createElement("button"), { className: "t-btn dr-back", textContent: "‹ Back" });
     back.addEventListener("click", () => root.classList.remove("dr-open"));
     document.body.append(back);
-    // The drawer's own list button (the side column's): on a phone the list is one of the two panes, so the button
-    // goes to it from a page — and never hides it, which would leave nothing to choose from.
+    // The drawer's own list button (the side column's), hidden on a phone (web.css): should it be pressed all the same,
+    // it goes to the list — never hides it, which would leave nothing to choose from.
     document.addEventListener("click", (e) => {
       if (!phone() || !e.target.closest(".side-toggle")) return;
       e.preventDefault(); e.stopImmediatePropagation();
