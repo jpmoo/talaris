@@ -2260,6 +2260,18 @@ async function loadSync() {
     el("span", { class: "name" }, o.name, el("small", {}, `${o.records} change${o.records === 1 ? "" : "s"} taken from it`)),
     el("span", { class: "what" }, `Last wrote ${ago(o.wrote)}`))));
   if (st.on && !(st.others || []).length) $("sy-others").replaceChildren(el("p", { class: "note" }, "No other machine has joined yet."));
+  // What carries the folder (syncthing.py): each device sharing it, reachable or not, and how much it has.
+  bridge.syncCarriers(st.folder || "", (text) => {
+    const sh = JSON.parse(text || "{}");
+    $("sy-carried").hidden = !(sh.devices || sh.error);
+    if (sh.error) { $("sy-devices").replaceChildren(el("p", { class: "note" }, sh.error)); return; }
+    $("sy-devices").replaceChildren(...(sh.devices || []).map((d) => el("div", { class: "row" },
+      el("span", { class: "name" }, d.me ? `${d.name} (this one)` : d.name,
+        el("small", {}, d.me ? (sh.type === "receiveonly" ? "Receives only" : "Sends and receives")
+          : d.connected ? `Connected${d.address ? ` · ${d.address.replace(/:\d+$/, "")}` : ""}`
+          : `Away · last seen ${ago(d.seen && !d.seen.startsWith("1969") ? d.seen : "")}`)),
+      el("span", { class: "what" }, d.me ? "" : d.have == null ? "" : d.have >= 100 ? "Up to date" : `Has ${d.have}%`))));
+  });
   $("sy-error").hidden = !st.error;
   $("sy-error").textContent = st.error ? `The last round failed: ${st.error}` : "";
   $("sy-waiting").hidden = !st.waiting;

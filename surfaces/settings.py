@@ -326,6 +326,12 @@ class SettingsBridge(Bridge):
         return json.dumps([{"id": a["id"], "name": a["name"]} for a in self.owner.desktop.apps.launchable()])
 
     # ---- demo mode (demo.py): a made-up world to show Talaris off; each of these starts Talaris again
+    @Slot(str, result=str)
+    def syncCarriers(self, folder: str) -> str:  # noqa: N802 — called from the page by this name
+        """The devices carrying the sync folder, where Syncthing does (syncthing.py): for Settings, Sync."""
+        import syncthing  # noqa: PLC0415
+        return json.dumps(syncthing.share(folder))
+
     @Slot(result=str)
     def demo(self) -> str:
         import demo
