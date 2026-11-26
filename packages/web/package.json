@@ -1,0 +1,18 @@
+{
+  "name": "@talaris/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Talaris on the web: its pages, a browser's bridge to the core, and passkey sign-in (docs/WEB.md)",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "bin": {
+    "talaris-web": "src/cli.mjs"
+  },
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "13.1.1",
+    "@simplewebauthn/browser": "13.1.0"
+  }
+}

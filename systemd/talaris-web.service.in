@@ -1,0 +1,14 @@
+# A template: filled in on the machine that serves Talaris on the web (docs/WEB.md), beside its talaris-core.
+[Unit]
+Description=Talaris on the web — its pages, the browser's bridge, passkeys
+After=talaris-core.service
+Wants=talaris-core.service
+
+[Service]
+Type=simple
+ExecStart=__NODE__ __ROOT__/packages/web/src/server.mjs
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

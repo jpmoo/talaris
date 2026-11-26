@@ -1,0 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The desktop's pages in a browser (docs/WEB.md): the panel is the whole window, and what only the desktop does is not
+   offered — making it a window, closing it, the file manager, bringing files in from the machine's home folder. */
+html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important;
+  max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
+html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }

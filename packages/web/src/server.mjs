@@ -1,0 +1,276 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 Jeff Moore
+
+/**
+ * Talaris on the web (docs/WEB.md): the desktop's own pages, served under `/talaris` to a signed-in browser, with a
+ * bridge of the browser's (`public/bridge.js`) in place of the desktop's Qt one. Beside this machine's core, which
+ * answers on its socket; reached from outside only through Caddy, which passes `/talaris*` here.
+ *
+ * - `/talaris/` and `/talaris/library`: the Library, the hub (WEB.md, *What it shows*).
+ * - `/talaris/ui/…`: the pages and what they load, from `surfaces/ui`, as the desktop has them; a page has the
+ *   browser's bridge put in where the desktop's Qt channel was.
+ * - `/talaris/api/core`: a page's request of the core, checked against that page's own routes — the same `ALLOWED`
+ *   the desktop's panel checks (read from its Python, so there is one list).
+ * - `/talaris/api/state`, `/talaris/api/call`, `/talaris/api/events`: the rest of a page's bridge.
+ * - `/talaris/auth/…`, `/talaris/login`: passkeys (auth.mjs).
+ *
+ * Everything but the sign-in page and what it needs answers only to a signed-in session.
+ */
+
+import { createServer, request } from "node:http";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { dirname, extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import * as auth from "./auth.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "..", "..", "..");
+const UI = join(ROOT, "surfaces", "ui");
+const PUBLIC = join(HERE, "public");
+const BROWSER_PASSKEYS = join(HERE, "..", "node_modules", "@simplewebauthn", "browser", "dist", "bundle", "index.umd.min.js");
+const PREFIX = "/talaris";
+const PORT = Number(process.env.TALARIS_WEB_PORT ?? 8091);
+const HOST = process.env.TALARIS_WEB_HOST ?? "127.0.0.1";
+const SOCKET = join(process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid()}`, "talaris.sock");
+
+// ------------------------------------------------------------ the pages on the web
+
+/**
+ * Each page the web offers: its file, and the desktop panel whose routes it keeps to (its Python's `ALLOWED`).
+ * Only these; a page not here is not served.
+ */
+const PAGES = {
+  library: { file: "filespanel.html", panel: "files_panel.py", title: "Library" },
+};
+
+/** A panel's `ALLOWED`, read from its Python: the raw string(s) of `re.compile(r"…")`, as one JavaScript pattern. */
+function allowedOf(panel) {
+  const src = readFileSync(join(ROOT, "surfaces", panel), "utf8");
+  const m = src.match(/^ALLOWED\s*=\s*re\.compile\(([\s\S]*?)\)\s*$/m);
+  if (!m) throw new Error(`${panel}: no ALLOWED`);
+  const parts = [...m[1].matchAll(/r"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]);
+  return new RegExp(parts.join(""));
+}
+for (const p of Object.values(PAGES)) p.allowed = allowedOf(p.panel);
+
+/** The desktop's defaults for the look (surfaces/config.py): read once, so the web looks as Talaris does. */
+const LOOK = (() => {
+  try {
+    const out = execFileSync("python3", ["-c", "import sys,json;sys.path.insert(0,sys.argv[1]);from config import DEFAULTS as D;print(json.dumps({'theme':D['theme'],'clock':D.get('clock',{})}))", join(ROOT, "surfaces")], { encoding: "utf8" });
+    return JSON.parse(out);
+  } catch { return { theme: { mode: "dark", accent: "#c98a5b" }, clock: {} }; }
+})();
+
+// ------------------------------------------------------------ the core
+
+function core(method, path, body) {
+  return new Promise((ok) => {
+    const data = body == null || body === "" ? undefined : Buffer.from(typeof body === "string" ? body : JSON.stringify(body));
+    const req = request({ socketPath: SOCKET, method, path, headers: data ? { "content-type": "application/json", "content-length": data.length } : {} }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => ok({ status: res.statusCode ?? 500, text: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.setTimeout(60_000, () => req.destroy(new Error("timeout")));
+    req.on("error", () => ok({ status: 503, text: JSON.stringify({ error: "the core is not answering" }) }));
+    if (data) req.write(data);
+    req.end();
+  });
+}
+/** As the desktop tells a page a reply was (core.py, `reply_data`): its JSON, nothing, or `{error}`. */
+function replyData(text) {
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return { error: text }; }
+}
+
+// ------------------------------------------------------------ a page's state, as its desktop panel would say it
+
+let home = null;
+async function homeProject() {
+  if (home) return home;
+  const r = await core("GET", "/projects");
+  const list = replyData(r.text);
+  const projects = Array.isArray(list) ? list : list?.projects ?? [];
+  home = projects.find((p) => p.home) ?? { id: "", name: "Home" };
+  return home;
+}
+async function stateOf(page) {
+  const project = await homeProject();
+  return {
+    up: true, windowed: true, web: true, theme: LOOK.theme, clock: LOOK.clock, motion: "none", viewport: null,
+    morganHere: false, project: project.id ?? "", start: {}, page,
+  };
+}
+
+/**
+ * The rest of a page's bridge: what the desktop's verbs become on the web. A verb with nothing to do here (open in an
+ * application, show in the file manager, pin to the dock) is answered `{web: false}`, and the page carries on.
+ */
+const CALLS = {
+  current: async (page) => JSON.stringify(await stateOf(page)),
+  calendarList: async () => "[]",
+};
+
+// ------------------------------------------------------------ serving
+
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+  ".json": "application/json", ".woff2": "font/woff2", ".ttf": "font/ttf", ".ico": "image/x-icon" };
+
+const SECURITY = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "same-origin",
+  "x-frame-options": "DENY",
+  "cache-control": "no-store",
+};
+
+function send(res, status, body, type = "application/json", extra = {}) {
+  const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
+  res.writeHead(status, { ...SECURITY, "content-type": type, ...extra });
+  res.end(data);
+}
+
+/** A file from a folder, never outside it. */
+function fileFrom(base, rel) {
+  const full = normalize(join(base, rel));
+  if (!full.startsWith(base + "/") || !existsSync(full) || !statSync(full).isFile()) return null;
+  return full;
+}
+
+/** A page as the browser gets it: the desktop's Qt channel replaced by the browser's bridge, told which page it is. */
+function pageHtml(name) {
+  const p = PAGES[name];
+  let html = readFileSync(join(UI, p.file), "utf8");
+  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title })};</script>` +
+    `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
+  html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
+  html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
+  html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css"></head>`);
+  return html;
+}
+
+function cookies(req) {
+  const out = {};
+  for (const part of (req.headers.cookie ?? "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+const addrOf = (req) => String(req.headers["cf-connecting-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
+
+async function bodyOf(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) { size += c.length; if (size > 25 * 1024 * 1024) throw new Error("too large"); chunks.push(c); }
+  const text = Buffer.concat(chunks).toString("utf8");
+  return text ? JSON.parse(text) : {};
+}
+
+const sessionCookie = (token, maxAge) =>
+  `${auth.COOKIE}=${token}; Path=${PREFIX}; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+
+// Pages kept up to date: a change from elsewhere told to every open page (as the surfaces' `synced` is).
+const listeners = new Set();
+let lastCame = null;
+setInterval(async () => {
+  if (!listeners.size) return;
+  const r = await core("GET", "/sync");
+  const came = replyData(r.text)?.came ?? null;
+  if (came && came !== lastCame) {
+    if (lastCame !== null) for (const res of listeners) res.write(`event: synced\ndata: ${JSON.stringify({ came })}\n\n`);
+    lastCame = came;
+  }
+}, 5000).unref();
+
+async function handle(req, res) {
+  const url = new URL(req.url ?? "/", "http://talaris");
+  let path = url.pathname;
+  if (path === PREFIX) return send(res, 302, "", "text/plain", { location: `${PREFIX}/` });
+  if (!path.startsWith(PREFIX + "/")) return send(res, 404, { error: "not here" });
+  path = path.slice(PREFIX.length);
+  const addr = addrOf(req);
+
+  // The sign-in page and what it needs: open to anyone.
+  if (path === "/login") return send(res, 200, readFileSync(join(PUBLIC, "login.html"), "utf8"), TYPES[".html"]);
+  if (path === "/web/passkeys.js") return send(res, 200, readFileSync(BROWSER_PASSKEYS), TYPES[".js"], { "cache-control": "max-age=86400" });
+  if (path.startsWith("/web/login")) {
+    const f = fileFrom(PUBLIC, path.slice(5));
+    return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });
+  }
+
+  const token = cookies(req)[auth.COOKIE];
+  const me = auth.session(token);
+
+  // Passkeys: asked for by the sign-in page with a JSON body; a header only a page of ours sets, against forms posted from elsewhere.
+  if (path.startsWith("/auth/")) {
+    if (req.method !== "POST" || req.headers["x-talaris"] !== "1") return send(res, 400, { error: "not like that" });
+    const b = await bodyOf(req);
+    const answer = (r) => (r.error ? send(res, r.status ?? 400, { error: r.error }) : null);
+    if (path === "/auth/register/options") { const r = await auth.registerOptions({ code: b.code, signedIn: !!me, addr }); return answer(r) ?? send(res, 200, r); }
+    if (path === "/auth/register") { const r = await auth.register(b); return answer(r) ?? send(res, 200, r); }
+    if (path === "/auth/signin/options") { const r = await auth.signInOptions({ addr }); return answer(r) ?? send(res, 200, r); }
+    if (path === "/auth/signin") {
+      const r = await auth.signIn({ ...b, addr, device: req.headers["user-agent"] });
+      return answer(r) ?? send(res, 200, { ok: true }, "application/json", { "set-cookie": sessionCookie(r.token, 30 * 86400) });
+    }
+    if (path === "/auth/signout") { auth.signOut(token); return send(res, 200, { ok: true }, "application/json", { "set-cookie": sessionCookie("", 0) }); }
+    return send(res, 404, { error: "not here" });
+  }
+
+  // Everything else: signed in, or to the sign-in page.
+  if (!me) {
+    if (path.startsWith("/api/")) return send(res, 401, { error: "signed out" });
+    return send(res, 302, "", "text/plain", { location: `${PREFIX}/login?then=${encodeURIComponent(url.pathname)}` });
+  }
+
+  if (path === "/" || path === "/library") return send(res, 200, pageHtml("library"), TYPES[".html"]);
+  if (path === "/web/bridge.js") return send(res, 200, readFileSync(join(PUBLIC, "bridge.js")), TYPES[".js"]);
+  if (path.startsWith("/web/")) {
+    const f = fileFrom(PUBLIC, path.slice(5));
+    return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });
+  }
+  if (path.startsWith("/ui/")) {
+    const rel = decodeURIComponent(path.slice(4));
+    const named = Object.entries(PAGES).find(([, p]) => p.file === rel);
+    if (named) return send(res, 200, pageHtml(named[0]), TYPES[".html"]);
+    if (rel.endsWith(".html")) return send(res, 404, { error: "not a page on the web yet" });
+    const f = fileFrom(UI, rel);
+    return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });
+  }
+
+  if (path.startsWith("/api/")) {
+    if (path === "/api/events" && req.method === "GET") {
+      res.writeHead(200, { ...SECURITY, "content-type": "text/event-stream", connection: "keep-alive" });
+      res.write(": connected\n\n");
+      listeners.add(res);
+      const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
+      req.on("close", () => { clearInterval(ping); listeners.delete(res); });
+      return;
+    }
+    if (req.method !== "POST" || req.headers["x-talaris"] !== "1") return send(res, 400, { error: "not like that" });
+    const b = await bodyOf(req);
+    const page = PAGES[b.page];
+    if (!page) return send(res, 400, { error: "not a page on the web" });
+    if (path === "/api/core") {
+      const method = String(b.method || "GET").toUpperCase();
+      const p = String(b.path || "");
+      if (!p.startsWith("/") || !page.allowed.test(p)) return send(res, 200, { status: 400, data: { error: `not a route the ${page.title} uses` } });
+      const r = await core(method, p, b.body);
+      return send(res, 200, { status: r.status, data: replyData(r.text) });
+    }
+    if (path === "/api/call") {
+      const fn = CALLS[b.name];
+      if (!fn) return send(res, 200, { web: false });
+      return send(res, 200, { web: true, result: await fn(b.page, ...(Array.isArray(b.args) ? b.args : [])) });
+    }
+    if (path === "/api/me") return send(res, 200, auth.listed(me));
+    return send(res, 404, { error: "not here" });
+  }
+  return send(res, 404, { error: "not here" });
+}
+
+createServer((req, res) => {
+  handle(req, res).catch((e) => { try { send(res, 500, { error: e.message }); } catch { /* gone */ } });
+}).listen(PORT, HOST, () => console.log(`talaris-web: ${PREFIX} on http://${HOST}:${PORT}, the core on ${SOCKET}, passkeys for ${auth.ORIGIN}`));

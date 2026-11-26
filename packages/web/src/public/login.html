@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Talaris</title>
+<style>
+  :root { --bg: #1c1f22; --surface: #24282c; --line: #3a3f44; --text: #e6e8ea; --muted: #9aa1a8; --accent: #c98a5b; --bad: #e07a6a; }
+  @media (prefers-color-scheme: light) { :root { --bg: #f2f3f4; --surface: #fff; --line: #d5d9dd; --text: #1d2125; --muted: #5d656d; --bad: #b4483a; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+    font: 15px/1.45 "Barlow Semi Condensed", system-ui, sans-serif; padding: 16px; }
+  main { width: min(360px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; }
+  h1 { margin: 0 0 4px; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  p { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+  button { width: 100%; padding: 11px 14px; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: #1c1f22;
+    font: inherit; font-weight: 600; cursor: pointer; }
+  button.quiet { background: none; color: var(--muted); border-color: var(--line); font-weight: 500; margin-top: 10px; }
+  input { width: 100%; padding: 10px 12px; margin-bottom: 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--text); font: inherit; }
+  .say { min-height: 20px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .say.bad { color: var(--bad); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Talaris</h1>
+  <section id="signin">
+    <p>Sign in with your passkey.</p>
+    <button id="go">Sign in</button>
+    <button class="quiet" id="to-add">Add a passkey</button>
+  </section>
+  <section id="add" hidden>
+    <p>A passkey for this device. The code comes from <code>talaris-web passkey</code> on home-server.</p>
+    <input id="code" autocomplete="one-time-code" placeholder="Code" spellcheck="false">
+    <input id="name" placeholder="This device's name (iPhone, the XPS…)" spellcheck="false">
+    <button id="add-go">Add it</button>
+    <button class="quiet" id="to-signin">Back</button>
+  </section>
+  <div class="say" id="say"></div>
+</main>
+<script src="web/passkeys.js"></script>
+<script src="web/login.js"></script>
+</body>
+</html>
