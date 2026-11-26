@@ -56,6 +56,9 @@ button.armed, .armed > button { color: var(--danger) !important; border-color: v
 /* Dragging (Kit.draggable): a copy follows the pointer; where it lands, the one drop line every list has. */
 body > .kit-ghost { position: fixed; z-index: var(--z-ghost); pointer-events: none; opacity: .92; box-shadow: var(--menu-shadow); margin: 0 !important; }
 .kit-dragging { opacity: .4; }
+/* What can be dragged, under a finger (kit.js, draggable): no selecting its words and no long-press menu, which on an
+   iPhone take the held finger before the item is picked up. */
+@media (hover: none) { .kit-draggable { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
 body.kit-drag-on, body.kit-drag-on * { cursor: grabbing !important; user-select: none !important; }
 .drop-above { box-shadow: inset 0 2px 0 var(--accent) !important; }
 .drop-below { box-shadow: inset 0 -2px 0 var(--accent) !important; }

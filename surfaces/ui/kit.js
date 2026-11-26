@@ -488,6 +488,10 @@ const Kit = (() => {
     // scrolls what is under it, as it would anywhere — these items fill whole lists. Picked up, the page is kept
     // from scrolling (a touchmove not passive, its default prevented), or the engine took the drag back.
     let held = false;
+    // On an iPhone a finger held still is also Safari's own long press — selecting the words, its menu — which takes
+    // the touch away (pointercancel) before the item is picked up: neither, on what can be dragged (kit.css).
+    node.classList.add("kit-draggable");
+    node.addEventListener("contextmenu", (e) => { if (held) e.preventDefault(); });
     node.addEventListener("touchmove", (e) => { if (held) e.preventDefault(); }, { passive: false });
     node.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || (ignore && e.target.closest(ignore))) return;
