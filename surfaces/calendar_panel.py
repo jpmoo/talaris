@@ -37,6 +37,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 #: How far round today the calendars are mirrored into entities (DESIGN, Entities).
 MIRROR_BACK_DAYS, MIRROR_AHEAD_DAYS = 90, 180
+#: How far back the calendars are shared (calendar-view.ts): the weeks behind are looked back at; further, not on the web.
+VIEW_BACK_DAYS = 30
 #: The mirror's own requests, numbered where the page's never reach, so the page ignores their answers.
 MIRROR_REQ = 1_000_000_000
 
@@ -282,8 +284,25 @@ class CalendarService(QObject):
         except (ValueError, TypeError, KeyError):
             pass
         events = mirrored(items, hidden)
+        # The same reading, shared whole (calendar-view.ts): every calendar's name and color and every occurrence over
+        # a window, for the machines with no accounts of their own — home-server, and the web (docs/WEB.md, Calendar).
+        now = time.time() * 1000
+        day = 24 * 60 * 60 * 1000
+        try:
+            calendars = [c for c in json.loads(self.last_calendars or "[]") if c.get("id") not in hidden]
+        except (ValueError, TypeError):
+            calendars = []
+        view = {"from": now - VIEW_BACK_DAYS * day, "to": now + MIRROR_AHEAD_DAYS * day, "calendars": calendars,
+                "items": [e for e in items if e.get("calendar") not in hidden and e.get("end", 0) >= now - VIEW_BACK_DAYS * day]}
 
         def send() -> None:
+            status, text = core_call("PUT", "/calendar/view", json.dumps(view), timeout=60)
+            if status == 200:
+                said = json.loads(text)
+                if said.get("changed"):
+                    log(f"calendar: shared, {said.get('events', 0)} occurrences")
+            else:
+                log(f"calendar: not shared ({status}): {text[:200]}")
             done = 0
             for i in range(0, len(events), 100):
                 status, text = core_call("POST", "/entities/mirror/events", json.dumps({"events": events[i:i + 100]}), timeout=60)

@@ -27,6 +27,7 @@
  * skips the hooks a change made here runs.
  */
 
+import { applyView } from "./calendar-view.js";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -124,7 +125,7 @@ export function replacedFor(of?: string): Replaced[] {
 // ------------------------------------------------------------ applying
 
 /** Whether this Talaris knows what a record is about: one from a newer Talaris may not be, yet (sync-folder.ts keeps it). */
-const KINDS = ["runner:", "pstate:", "plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:"];
+const KINDS = ["runner:", "pstate:", "plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:", "calview:"];
 export function known(r: Rec): boolean {
   return KINDS.some((k) => r.of.startsWith(k)) || ["merged", "suggest", "prefs"].includes(r.of);
 }
@@ -527,6 +528,8 @@ export function apply(r: Rec): boolean {
         if (r.of.startsWith("plugin:")) return applyPluginSettings(r);
         if (r.of.startsWith("runner:")) return applyRunner(r);
         if (r.of.startsWith("pstate:")) return applyPluginState(r);
+        // The accounts' calendars as a desktop machine read them (calendar-view.ts).
+        if (r.of === "calview:") return applyView(r);
         if (r.of.startsWith("wallpaper:")) {
           const ok = typeof r.set?.sha === "string" && writeWallpaper(r.of.slice("wallpaper:".length), r.set.sha);
           // A wallpaper the settings named before its picture had come: the settings taken again, now it is here.

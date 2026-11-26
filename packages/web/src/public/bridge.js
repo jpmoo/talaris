@@ -48,7 +48,10 @@
       return;
     }
     post("/api/call", { name, args })
-      .then((r) => { if (r.web && cb) cb(r.result); })
+      .then((r) => {
+        for (const [signal, ...said] of r.emit || []) emit(signal, ...said);
+        if (r.web && cb && !r.emit) cb(r.result);
+      })
       .catch(() => {});
   }
 

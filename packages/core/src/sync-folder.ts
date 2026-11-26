@@ -20,6 +20,7 @@
  * A file's record that arrives before its bytes waits, and is tried again.
  */
 
+import { viewBlob } from "./calendar-view.js";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DATA_DIR, ENTITIES_DIR, readVault, storeKey } from "./vault.js";
@@ -139,6 +140,8 @@ function pull(folder: string): number {
     if ((r.of.startsWith("file:") || r.of.startsWith("wallpaper:")) && !r.gone && typeof r.set?.sha === "string" && !getBlob(r.set.sha)) { still.push(r); continue; }
     // A plugin's state handed over (plugins.ts): once all its files' bytes have come.
     if (r.of.startsWith("pstate:") && pluginStateBlobs(r).some((sha) => !getBlob(sha))) { still.push(r); continue; }
+    // The calendars' view (calendar-view.ts): once its bytes have come.
+    if (r.of === "calview:" && viewBlob(r) && !getBlob(viewBlob(r)!)) { still.push(r); continue; }
     // About a plugin not installed here yet: kept until it is.
     if ((r.of.startsWith("runner:") || r.of.startsWith("pstate:")) && !isInstalled(r.of.slice(r.of.indexOf(":") + 1))) { still.push(r); continue; }
     // About something this Talaris does not know yet — written by a newer one: kept, and applied once this is updated.

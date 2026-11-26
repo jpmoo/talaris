@@ -10,7 +10,7 @@
   const WEB = window.TALARIS_WEB || {};
   // The pages' own icons (icons.js, a `const` of the page's, so not on `window`).
   const icon = (name) => (typeof Icons !== "undefined" && typeof Icons[name] === "function" ? Icons[name]() : "");
-  const ICONS = { library: "library", tasks: "tasks", notes: "writing", people: "people", canvas: "canvas" };
+  const ICONS = { library: "library", tasks: "tasks", notes: "writing", people: "people", canvas: "canvas", calendar: "event" };
   const nav = document.createElement("nav");
   nav.className = "web-modules";
   for (const m of WEB.modules || []) {

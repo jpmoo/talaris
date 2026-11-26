@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { publish as publishView, viewRange } from "./calendar-view.js";
 import * as notesM from "./notes.js";
 import { leavesOut, leftOut, shownSettings } from "./shown.js";
 import { describeProjects, projectAbout, projectProfile, setProjectAbout, summarizeProjects } from "./project-describe.js";
@@ -766,6 +767,9 @@ route("GET", "/plugins/calendars/events", (_r, _p, q) => {
 });
 // The occurrences elsewhere that Talaris's own events stand for — a feed's made yours, an account's joined — not shown twice.
 route("GET", "/plugins/calendars/taken", () => takenElsewhere());
+// The accounts' calendars, shared (calendar-view.ts): published by a desktop machine's calendar, read where there are none.
+route("PUT", "/calendar/view", async (req) => publishView(await json<Parameters<typeof publishView>[0]>(req)));
+route("GET", "/calendar/view", (_r, _p, q) => viewRange(Number(q.get("from") ?? 0), Number(q.get("to") ?? 0)));
 // Talaris's own calendar's color (its row's right-click, in the calendar).
 route("PUT", "/plugins/calendars/talaris", async (req) => {
   const b = await json<{ color?: string }>(req);

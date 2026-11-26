@@ -43,6 +43,7 @@ const SOCKET = join(process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid()
 const PAGES = {
   library: { file: "filespanel.html", panel: "files_panel.py", title: "Library", phone: "phone.js" },
   tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks" },
+  calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar" },
   notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes" },
   people: { file: "people.html", panel: "people_panel.py", title: "People" },
   canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas" },
@@ -117,7 +118,37 @@ async function stateOf(page) {
  */
 const CALLS = {
   current: async (page) => JSON.stringify(await stateOf(page)),
-  calendarList: async () => "[]",
+  calendarList: async () => JSON.stringify(replyData((await core("GET", "/calendar/view?from=0&to=0")).text)?.calendars ?? []),
+  // The Calendar (calendar_panel.py's bridge, its calendar process's answers): the accounts' calendars as a desktop
+  // machine last shared them (the core's /calendar/view), read-only here; Talaris's own calendar the page asks the core
+  // for itself, and changes as on the desktop.
+  hello: async () => {
+    const v = replyData((await core("GET", "/calendar/view?from=0&to=0")).text) ?? {};
+    const shared = v.by ? `As ${v.by} last read them, ${v.at ? new Date(v.at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : ""}` : "";
+    return JSON.stringify({ status: { ready: true, error: "", needs: "", shared }, calendars: (v.calendars ?? []).map((c) => ({ ...c, writable: false })) });
+  },
+  ask: async (_page, request) => {
+    const msg = JSON.parse(request || "{}");
+    if (msg.do === "range") {
+      const v = replyData((await core("GET", `/calendar/view?from=${Number(msg.from) || 0}&to=${Number(msg.to) || 0}`)).text) ?? {};
+      return { emit: [["events", JSON.stringify({ req: msg.req, items: v.items ?? [] })]] };
+    }
+    if (msg.do === "search") {
+      const now = Date.now(), year = 365 * 86_400_000;
+      const v = replyData((await core("GET", `/calendar/view?from=${now - year}&to=${now + year}`)).text) ?? {};
+      const words = String(msg.q || "").toLowerCase().split(/\s+/).filter(Boolean);
+      const seen = new Set();
+      const items = (v.items ?? []).filter((e) => words.every((w) => `${e.title} ${e.location ?? ""} ${e.notes ?? ""}`.toLowerCase().includes(w)))
+        .sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now))
+        .filter((e) => (seen.has(`${e.calendar}/${e.uid}`) ? false : seen.add(`${e.calendar}/${e.uid}`)));
+      return { emit: [["events", JSON.stringify({ req: msg.req, items })]] };
+    }
+    if (msg.do === "people") return { emit: [["people", JSON.stringify({ req: msg.req, items: [] })]] };
+    if (["create", "update", "delete", "respond", "color", "subscribe", "unsubscribe"].includes(msg.do)) {
+      return { emit: [["done", JSON.stringify({ req: msg.req, error: "An account's calendar is changed on a desktop machine, not on the web yet" })]] };
+    }
+    return null;
+  },
 };
 
 // ------------------------------------------------------------ serving
@@ -280,7 +311,10 @@ async function handle(req, res) {
     if (path === "/api/call") {
       const fn = CALLS[b.name];
       if (!fn) return send(res, 200, { web: false });
-      return send(res, 200, { web: true, result: await fn(b.page, ...(Array.isArray(b.args) ? b.args : [])) });
+      const result = await fn(b.page, ...(Array.isArray(b.args) ? b.args : []));
+      // A call whose answer comes on signals (the Calendar's `ask`): told back as `emit`, which the bridge gives the page.
+      if (result && typeof result === "object" && Array.isArray(result.emit)) return send(res, 200, { web: true, emit: result.emit });
+      return send(res, 200, { web: true, result });
     }
     if (path === "/api/me") return send(res, 200, auth.listed(me));
     return send(res, 404, { error: "not here" });
