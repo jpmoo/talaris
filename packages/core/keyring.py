@@ -17,10 +17,67 @@ in that moment would leave everything already sealed unreadable — Morgan lost
 its history exactly that way on 21 October 2026.
 """
 import base64
+import json
 import os
 import sys
 
-import gi
+
+def _file_keyring(path):
+    """
+    A machine with no screen and so no login keyring (home-server, the web node: docs/WEB.md) keeps its keys in a
+    file of its own instead, readable by this user alone, as the keys of the other services on such a machine are.
+    Named by TALARIS_KEYRING_FILE; the same verbs, the same exits. Always "open": there is nothing to unlock.
+    """
+    def read():
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+        except ValueError:
+            print(f"{path} is not a keyring file Talaris can read", file=sys.stderr)
+            sys.exit(2)
+
+    def write(keys):
+        os.makedirs(os.path.dirname(path) or ".", mode=0o700, exist_ok=True)
+        tmp = path + ".new"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(keys, f)
+        os.replace(tmp, path)
+
+    if len(sys.argv) != 3:
+        sys.exit("usage: keyring.py get|make|set|forget|open <name>")
+    verb, name = sys.argv[1], sys.argv[2]
+    keys = read()
+    if verb == "get":
+        if name not in keys:
+            sys.exit(1)
+        print(keys[name])
+    elif verb == "make":
+        if name in keys:
+            print("the keyring already has that key", file=sys.stderr)
+            sys.exit(3)
+        keys[name] = base64.b64encode(os.urandom(32)).decode()
+        write(keys)
+        print(keys[name])
+    elif verb == "set":
+        keys[name] = sys.stdin.readline().strip()
+        write(keys)
+    elif verb == "forget":
+        keys.pop(name, None)
+        write(keys)
+    elif verb == "open":
+        sys.exit(0)
+    else:
+        sys.exit("usage: keyring.py get|make|set|forget|open <name>")
+    sys.exit(0)
+
+
+if os.environ.get("TALARIS_KEYRING_FILE"):
+    _file_keyring(os.path.expanduser(os.environ["TALARIS_KEYRING_FILE"]))
+
+import gi  # noqa: E402
 
 gi.require_version("Secret", "1")
 from gi.repository import GLib, Secret  # noqa: E402
