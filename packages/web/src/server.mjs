@@ -158,7 +158,7 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
   ".json": "application/json", ".woff2": "font/woff2", ".ttf": "font/ttf", ".ico": "image/x-icon" };
 
 /** What makes the pages one home-screen app on a phone: the manifest, the icon, its standalone look. */
-const APP_HEAD = `<link rel="manifest" href="${PREFIX}/manifest.webmanifest"><link rel="apple-touch-icon" href="${PREFIX}/web/icon-180.png">` +
+const APP_HEAD = `<link rel="manifest" href="${PREFIX}/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="${PREFIX}/web/icon-180.png"><link rel="icon" type="image/png" sizes="192x192" href="${PREFIX}/web/icon-192.png">` +
   `<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">` +
   `<meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Talaris">` +
   `<meta name="theme-color" content="#1c1f22">`;
@@ -196,8 +196,7 @@ function pageHtml(name) {
     `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
-  html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css"></head>`);
-  html = html.replace(/<head>/i, `<head>${APP_HEAD}`);
+  html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css">${APP_HEAD}</head>`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
   if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
   if (p.phone) html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/${p.phone}"></script></body>`);
