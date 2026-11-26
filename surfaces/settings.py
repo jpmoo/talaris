@@ -121,6 +121,8 @@ def _checked(c: dict) -> str:
         return "Not something the bar shows"
     if c["bar"].get("weatherShows", "both") not in ("sky", "temp", "both"):
         return "The weather shows its conditions, its temperature, or both"
+    if c["bar"].get("reviewShows", "always") not in ("always", "open"):
+        return "The weekly review's button shows always, or while a review is open"
     if c["bar"].get("badge", "dot") not in ("dot", "count", "none"):
         return "The notifications' badge is a dot, a dot and a number, or none"
     # The order of each region (ui/barlayout.js): only its own items, each once.

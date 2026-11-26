@@ -97,6 +97,8 @@ function onState(s) {
   if (s.morganHere === false) hidden.add("morgan");
   // On one desktop the panels are in the Talaris menu (the pill), not each a button: Morgan and New stay.
   if (s.oneDesktop) for (const id of ["tasks", "people", "files", "canvas", "writing"]) hidden.add(id);
+  // The weekly review's button only while a review is open and not done, if Settings, Bar says so — or while it is out.
+  if ((s.look || {}).reviewShows === "open" && !s.reviewWaiting && !(s.panelsOpen || {}).review) hidden.add("review");
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
   // Where you are (location.py): the weather after the clock, and a pin while anything else looks.
   const where = s.location || {};

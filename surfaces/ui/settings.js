@@ -2207,6 +2207,8 @@ function drawBarShown() {
       parts.push(trayOn, el("small", { class: "note" + (on ? "" : " off"), style: "margin:0" }, "Folded"), fold);
     }
     // The bell's badge while anything is unread: a dot, the dot with how many, or none.
+    // The weekly review's button: always, or only while a review is open and not done (bar.js).
+    if (unit === "review") parts.unshift(segOf([["always", "Always"], ["open", "While one is open"]], cfg.bar.reviewShows || "always", (reviewShows) => save({ bar: { reviewShows } })));
     if (unit === "weather") parts.unshift(segOf([["sky", "Conditions"], ["temp", "Temperature"], ["both", "Both"]], cfg.bar.weatherShows || "both", (weatherShows) => save({ bar: { weatherShows } })));
     if (unit === "bell") parts.unshift(segOf([["dot", "Dot"], ["count", "Dot and number"], ["none", "No badge"]], cfg.bar.badge || "dot", (badge) => save({ bar: { badge } })));
     if (opens) {
