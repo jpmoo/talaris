@@ -104,7 +104,7 @@ async function homeProject() {
 }
 async function stateOf(page) {
   const project = await homeProject();
-  const base = { up: true, windowed: true, web: true, theme: LOOK.theme, clock: LOOK.clock, motion: "none", viewport: null,
+  const base = { up: true, windowed: true, web: true, theme: LOOK.theme, clock: LOOK.clock, motion: { motion: "none", speed: "normal" }, viewport: null,
     morganHere: false, project: project.id ?? "", start: {}, page };
   // A drawer (Notes, Canvas: workspace.py's describe) has the project whole, and is out, at the top, at its own size.
   const drawer = { notes: "writing", canvas: "canvas" }[page];
@@ -188,7 +188,11 @@ function pageHtml(name) {
   const p = PAGES[name];
   let html = readFileSync(join(UI, p.file), "utf8");
   const modules = Object.entries(PAGES).map(([id, q]) => ({ id, title: q.title }));
-  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules })};</script>` +
+  // Every page as the desktop's window of it (`?window`): there all along, not arriving from the top as a panel over a
+  // dimmed screen, and nothing pressed beside it putting it away. A drawer is told which (its query) in the same way.
+  const query = [p.query, "window=1"].filter(Boolean).join("&");
+  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules })};` +
+    `history.replaceState(null, "", location.pathname + "?${query}");</script>` +
     `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
@@ -286,7 +290,7 @@ async function handle(req, res) {
   if (path === "/" || path === "/library") return send(res, 200, pageHtml("library"), TYPES[".html"]);
   // Each module at its own address; one that is a drawer is its file with its query, which the page reads.
   const mod = PAGES[path.slice(1)];
-  if (mod) return mod.query ? send(res, 302, "", "text/plain", { location: `${PREFIX}/ui/${mod.file}?${mod.query}` }) : send(res, 200, pageHtml(path.slice(1)), TYPES[".html"]);
+  if (mod) return send(res, 200, pageHtml(path.slice(1)), TYPES[".html"]);
   if (path === "/web/bridge.js") return send(res, 200, readFileSync(join(PUBLIC, "bridge.js")), TYPES[".js"]);
   if (path.startsWith("/web/")) {
     const f = fileFrom(PUBLIC, path.slice(5));
