@@ -1,6 +1,6 @@
 # Talaris on the web
 
-**Status: designed, not built** (2026-11-26). Argue with it here, not in the
+**Status: designed; step 1 done** (2026-11-26). Argue with it here, not in the
 code.
 
 **The goal.** Retire Hermes Notes and the hermes-sync plugin. In their place,
@@ -223,7 +223,13 @@ it anything any more.
 Each step works on its own; nothing is broken while the next is built.
 
 1. **The core on home-server**, joined as a machine, over Syncthing. Seen in
-   the laptop's Settings, Sync, as a machine rather than a carrier.
+   the laptop's Settings, Sync, as a machine rather than a carrier. **Done
+   2026-11-26**: `~/Documents/Scripts/talaris` on home-server, only the core
+   and the model built; `talaris-core.service` (user, lingering) with
+   `TALARIS_KEYRING_FILE=~/.config/talaris/keyring.json`; joined with
+   `join.js --folder ~/TalarisSync`. It holds the same 16 projects and 393
+   Library files. Plugins' records wait there (51), as they do on any machine
+   without the plugin; the web side will decide what of them it runs.
 2. **The web side**: Caddy, `/talaris`, passkeys, the web bridge, the Library
    and the five modules at a browser's size. Talaris in a browser.
 3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.

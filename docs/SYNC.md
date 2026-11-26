@@ -258,25 +258,25 @@ writes `<machine>/log-<n>` and reads the others'. Since no file has two
 writers, the folder-syncing service never has a conflict to resolve. Files'
 bytes go in `blobs/<sha256>`, sealed, once.
 
-**An always-on carrier** (set up 2026-11-26). Syncthing passes files only
-between machines that are on together, so a change made on the mini waited for
-the XPS to be on too. Home-server now holds the share as a third Syncthing
-device: `talaris-sync` at `~/TalarisSync`, *receive only* (it keeps what the
-machines write and changes nothing), run by the packaged
-`syncthing@jpmoo.service`. Every machine syncs with it whenever it is up —
-at home over the LAN, away over Tailscale (each device is given its peer's
-Tailscale address beside `dynamic`), and failing both through Syncthing's own
-discovery and relays.
-**It is not a Talaris machine** and must not become one: trimming drops a
-record only once every machine has applied it, and a member that never applies
-would keep every log forever. It cannot read what it holds — everything is
-sealed. A new machine: install Syncthing, pair it with home-server, accept
+**Home-server, always on** (2026-11-26). Syncthing passes files only between
+machines that are on together, so home-server holds the share as a third
+Syncthing device (`talaris-sync` at `~/TalarisSync`, send and receive,
+`syncthing@jpmoo.service`) — and since the same day it is **a Talaris machine
+itself**, the start of the web node (WEB.md): `talaris-core` as a user service,
+no surfaces, joined with the recovery key, its keys in a file of its own
+(`TALARIS_KEYRING_FILE`, keyring.py) for want of a login keyring. Every machine
+syncs with it whenever that machine is up — at home over the LAN, away over
+Tailscale (each device is given its peer's Tailscale address beside `dynamic`),
+failing both through Syncthing's own discovery and relays. For a day it was a
+carrier only, receive-only; a carrier must never be listed as a machine, since
+trimming waits for every machine to apply a record.
+
+A new machine: install Syncthing, pair it with home-server, accept
 `talaris-sync` at `~/TalarisSync`, then join in Talaris's Settings, *Sync*,
 with the recovery key (*Keys and joining*).
 
-**Next: a web node** (WEB.md). Home-server is to run Talaris itself — a full
-machine, always on, with the web side for the phone — and then to carry sync
-over HTTPS in place of Syncthing. The carrier above is the step before it.
+**Next** (WEB.md): the web side on home-server for the phone, then sync over
+HTTPS in place of Syncthing.
 
 **The relay** — optional, for those with an always-on machine: a small service
 (Node, a few hundred lines, a SQLite file and a blob folder) that stores the
