@@ -257,7 +257,12 @@ Each step works on its own; nothing is broken while the next is built.
    `handle /talaris*` passing to it. The Library works whole in a browser on
    the core's own data; the five modules follow, each a page added to `PAGES`
    with its panel's routes. A page's desktop verbs (open in an application,
-   the file manager, the dock) answer nothing yet.
+   the file manager, the dock) answer nothing yet. **Deploying** on
+   home-server: `git pull`, then build the core, the editor and the canvas
+   (`pnpm --filter "@talaris/core..." --filter @talaris/editor --filter
+   @talaris/canvas build` — Notes and Canvas load the last two, built into
+   `surfaces/ui`, which git does not carry), then restart `talaris-core` and
+   `talaris-web`.
 3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.
 4. **The weekly review**, in Talaris on the desktop and the web.
 5. **The Talaris MCP server**; Claude, Morgan and the Gmail sweep moved to it.

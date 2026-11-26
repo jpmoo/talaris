@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The desktop's pages in a browser (docs/WEB.md): the panel is the whole window, and what only the desktop does is not
    offered — making it a window, closing it, the file manager, bringing files in from the machine's home folder. */
-html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important;
+html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important; height: 100dvh !important;
   max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
 html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }
 
@@ -9,7 +9,7 @@ html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: no
    One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
    everything when one is chosen, with Back. The type a little larger, for fingers. phone.js says which is out. */
 @media (max-width: 760px) {
-  html.web body { zoom: 1.18; height: calc(100vh / 1.18) !important; }
+  html.web body { zoom: 1.18; height: calc(100vh / 1.18) !important; height: calc(100dvh / 1.18) !important; }
   html.page-library header { flex-wrap: wrap; padding: 8px 10px; }
   html.page-library header .tools { gap: 6px; }
   html.page-library #q { flex: 1 1 140px; width: auto; }
@@ -45,8 +45,10 @@ html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: no
     background: var(--surface, #24282c); box-shadow: 8px 0 24px rgba(0,0,0,.35); }
 }
 
-/* The modules' bar (modules.js): along the bottom, the page above it. */
-html.web.has-modules body { height: calc(100vh - 56px) !important; }
+/* The modules' bar (modules.js): along the bottom, the page above it. Heights in dvh where the browser has them: on the
+   iPhone 100vh is taller than what shows (Safari's own bars), and the pages ran past the bottom. Nothing scrolls but the page's own panes. */
+html.web, html.web body { overflow: hidden; overscroll-behavior: none; }
+html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(100dvh - 56px) !important; }
 .web-modules { position: fixed; left: 0; right: 0; bottom: 0; height: 56px; display: flex; justify-content: center; gap: 4px;
   padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); background: var(--surface, #24282c); border-top: 1px solid var(--line, #3a3f44);
   z-index: 2147483000; zoom: 1; }
@@ -55,6 +57,21 @@ html.web.has-modules body { height: calc(100vh - 56px) !important; }
 .web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
 .web-modules a.on { color: var(--accent, #c98a5b); background: color-mix(in srgb, var(--accent, #c98a5b) 12%, transparent); }
 @media (max-width: 760px) {
-  html.web.has-modules body { height: calc((100vh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; }
+  html.web.has-modules body { height: calc((100vh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; height: calc((100dvh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; }
   .web-modules { zoom: 0.8475; height: 66px; }
+}
+
+/* Notes and Canvas on a phone (drawerphone.js): the list, or the one open, whole. */
+.dr-back { display: none; }
+@media (max-width: 760px) {
+  html.page-notes #body, html.page-canvas #body { gap: 0 !important; }
+  html.page-notes #body > .tree, html.page-canvas #body > .tree { flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
+  html.page-notes #body > .pane, html.page-canvas #body > .pane { display: none !important; }
+  html.dr-open #body > .tree { display: none !important; }
+  html.dr-open #body > .pane { display: flex !important; flex: 1 1 auto !important; flex-direction: column; min-width: 0; }
+  html.dr-open .dr-back { display: inline-block; position: fixed; top: 6px; right: 8px; z-index: 50; background: var(--surface, #24282c) !important; box-shadow: 0 0 0 6px var(--surface, #24282c); }
+  /* The page's map of its headings sits beside the text on a desktop; on a phone it would leave the text a sliver. */
+  html.page-notes .page-map, html.page-notes .page-map-open { display: none !important; }
+  html.page-notes .editor.mapped .cm-content { padding-right: 8px !important; }
+  html.page-notes .pane-bar { flex-wrap: wrap; }
 }

@@ -44,9 +44,9 @@ const PAGES = {
   library: { file: "filespanel.html", panel: "files_panel.py", title: "Library", phone: "phone.js" },
   tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks" },
   calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar" },
-  notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes" },
+  notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes", phone: "drawerphone.js" },
   people: { file: "people.html", panel: "people_panel.py", title: "People" },
-  canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas" },
+  canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas", phone: "drawerphone.js" },
 };
 /** The page a request for a file is, by its file and its query (the two drawers are one file). */
 const pageFor = (rel, search) => Object.entries(PAGES).find(([, p]) => p.file === rel && (!p.query || search.includes(p.query)))?.[0];
