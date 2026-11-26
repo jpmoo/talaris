@@ -88,7 +88,7 @@ phone, Talaris is what you do away from the desk:
 |---|---|
 | **Library** | The front page: search, the projects, and every thing's card. What is named anywhere opens here, as on the desktop (DESIGN, *The Library, what everything opens to*). |
 | **Tasks** | Today, upcoming, a project's; done, added, moved. |
-| **Calendar** | The day and the week; an event's card; made and changed as on the desktop, as far as the calendars that come through sync go (*What stays on the desktop*). |
+| **Calendar** | The desktop's page. The accounts' calendars as a desktop machine last shared them (*Calendar*, below), read-only; Talaris's own calendar, made and changed as on the desktop. |
 | **Notes** | Today's daily note, a project's pages; written in the same editor. |
 | **People** | A person's or an organization's card. |
 | **Canvas** | Seen whole and moved around; a note added or edited. Drawing and laying out are for a bigger screen and a pen. |
@@ -107,6 +107,26 @@ opening a file in an application (on the web a file is downloaded or shown);
 the desktop's calendar store and its accounts (on the web, calendars are what
 came through sync); the pen; Morgan's voice. Settings on the web is only what
 is the web's: passkeys, sessions, machines, and the recovery key.
+
+## Calendar
+
+**The laptop shares the calendars** (decided 2026-11-26). The accounts stay
+signed in on the desktop machines only. Each time a desktop machine's
+calendar reads them (calendard.py, the reading the event mirror already made:
+90 days back, 180 ahead), it also shares the reading whole — every calendar's
+name and color, every occurrence from 30 days back — through the core
+(`calendar-view.ts`, `PUT /calendar/view`): one sealed blob and a `calview:`
+record, only when it changed, the newest winning. Home-server keeps it and the
+web's Calendar draws it (`GET /calendar/view`), saying whose reading it is and
+when.
+
+- **As current as the last desktop machine awake.** A week with the laptop shut
+  is a week of invitations the web has not seen.
+- **Read-only for an account's calendar**: a change made on the web is said to
+  wait for a desktop machine. Talaris's own calendar is the core's, and changes
+  on the web as anywhere.
+- **Later, if wanted:** a calendar's private subscription link read by
+  home-server itself, current while the laptop sleeps, read-only.
 
 ## How the pages talk to it
 
