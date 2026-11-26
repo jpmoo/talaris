@@ -157,6 +157,12 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
   ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
   ".json": "application/json", ".woff2": "font/woff2", ".ttf": "font/ttf", ".ico": "image/x-icon" };
 
+/** What makes the pages one home-screen app on a phone: the manifest, the icon, its standalone look. */
+const APP_HEAD = `<link rel="manifest" href="${PREFIX}/manifest.webmanifest"><link rel="apple-touch-icon" href="${PREFIX}/web/icon-180.png">` +
+  `<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">` +
+  `<meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Talaris">` +
+  `<meta name="theme-color" content="#1c1f22">`;
+
 const SECURITY = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "same-origin",
@@ -187,6 +193,7 @@ function pageHtml(name) {
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css"></head>`);
+  html = html.replace(/<head>/i, `<head>${APP_HEAD}`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
   if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
   if (p.phone) html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/${p.phone}"></script></body>`);
@@ -237,7 +244,14 @@ async function handle(req, res) {
   const addr = addrOf(req);
 
   // The sign-in page and what it needs: open to anyone.
-  if (path === "/login") return send(res, 200, readFileSync(join(PUBLIC, "login.html"), "utf8"), TYPES[".html"]);
+  if (path === "/login") return send(res, 200, readFileSync(join(PUBLIC, "login.html"), "utf8").replace(/<head>/i, `<head>${APP_HEAD}`), TYPES[".html"]);
+  // A home-screen app (an iPhone's Add to Home Screen): its manifest and icons, open to anyone, as a browser asks for
+  // them without the session — one app, opening within /talaris, not a link that leaves for Safari at each press.
+  if (path === "/manifest.webmanifest") return send(res, 200, readFileSync(join(PUBLIC, "manifest.webmanifest")), "application/manifest+json", { "cache-control": "max-age=3600" });
+  if (/^\/web\/icon-\d+\.png$/.test(path)) {
+    const f = fileFrom(PUBLIC, path.slice(5));
+    return f ? send(res, 200, readFileSync(f), "image/png", { "cache-control": "max-age=86400" }) : send(res, 404, { error: "not here" });
+  }
   if (path === "/web/passkeys.js") return send(res, 200, readFileSync(BROWSER_PASSKEYS), TYPES[".js"], { "cache-control": "max-age=86400" });
   if (path.startsWith("/web/login")) {
     const f = fileFrom(PUBLIC, path.slice(5));

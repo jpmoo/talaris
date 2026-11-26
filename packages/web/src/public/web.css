@@ -57,8 +57,11 @@ html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(
 .web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
 .web-modules a.on { color: var(--accent, #c98a5b); background: color-mix(in srgb, var(--accent, #c98a5b) 12%, transparent); }
 @media (max-width: 760px) {
-  html.web.has-modules body { height: calc((100vh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; height: calc((100dvh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; }
-  .web-modules { zoom: 0.8475; height: 66px; }
+  html.web.has-modules body { height: calc((100vh - 64px - env(safe-area-inset-bottom)) / 1.18) !important; height: calc((100dvh - 64px - env(safe-area-inset-bottom)) / 1.18) !important; }
+  /* Undoing the page's own enlarging (zoom 1.18 above), then sized for a thumb: 64 high, the icons and names larger. */
+  .web-modules { zoom: 0.8475; box-sizing: border-box; height: calc(75.5px + env(safe-area-inset-bottom)); gap: 2px; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+  .web-modules a { flex: 1 1 0; font-size: 13px; gap: 4px; }
+  .web-modules a .ic, .web-modules a svg { width: 26px; height: 26px; }
 }
 
 /* Notes and Canvas on a phone (drawerphone.js): the list, or the one open, whole. */

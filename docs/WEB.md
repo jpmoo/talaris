@@ -206,8 +206,9 @@ beside what Talaris's MCP already offers on a machine (`talaris-core mcp`:
 `mcp.ts`, `mcp-desktop.ts`). Hermes' reaches Claude as a **claude.ai
 connector**, so in every Claude app, the phone's too; the web side's must as
 well, and a connector signs in by OAuth — the passkey sign-in is what its
-consent page asks for. Not built yet: after the core is on home-server. At the
-least:
+consent page asks for. Not built yet. Hermes' Today-sheet tools (`today_layout_*`) are not
+brought over (decided 2026-11-26): Talaris has no Today sheet, and the daily
+note and `daily_review` cover what it showed. At the least:
 
 | Reads | Writes |
 |---|---|
