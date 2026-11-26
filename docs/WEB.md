@@ -45,7 +45,8 @@ always-on Talaris you can reach from the phone.
 
 ## Signing in
 
-One person, so no accounts, no identity provider, no passwords.
+One person, so no accounts, no identity provider, no passwords. **Passkeys,
+decided 2026-11-26.**
 
 **You, in a browser: passkeys** (WebAuthn), in the web side itself. Face ID or
 Touch ID on the phone, a fingerprint or a security key on a laptop; nothing to
@@ -155,32 +156,52 @@ Hermes. What it is in Hermes (`packages/shared/src/weekly-review.ts`,
   the projects you choose. Its next occurrence opening is what starts a new
   review. Found by the task profile and a mark of its own, never by its title
   or type's name.
-- **The reflection.** A note for the week — "Review Reflection for Week Ending
-  …" — made when the review is opened and removed if it is left empty, in a
-  thread of its own beside the daily notes (each to the one before and after).
-  Kept out of the Library's lists unless written in, as Hermes keeps it out.
 - **Its settings**: the weekday, the days before, the projects, the template.
 - **Its look**: the picture Hermes gives the review's page (its banner) comes
   as the review's own picture.
-- **For Claude and Morgan**: the review read and its steps checked through the
-  Talaris MCP server, as the daily review (`daily_review`) is now.
-- **The Gmail sweep** (the weekly-review skill: the System label into inbox
-  tasks, then cleared) writes to Talaris through the MCP server.
+- **Not brought:** the weekly reflection note (decided 2026-11-26), and the
+  Gmail sweep, which is a Claude skill and stays one — it only needs to make
+  its inbox tasks in Talaris instead of Hermes (*Claude and Morgan*).
 
 Its state is yours, so it syncs: the template and the week's checks are
 records like any other (SYNC.md), so a step ticked on the phone is ticked on
 the laptop.
 
+## Claude and Morgan
+
+**Claude** (Claude Code and the desktop app) reaches Hermes today through
+Hermes' MCP server: to look things up when you ask ("what's due this week?",
+"find the note about…"), to make and change tasks, to read and add to the daily
+note, and for the Gmail sweep's inbox tasks. **Morgan** reads Talaris through
+whichever Talaris machine is about (a device's `talaris_*` tools), and falls
+back to Hermes where none is — for a project's details and the day (calendar,
+due and overdue) in project chat — so on the Echo, with no Talaris, Hermes is
+all it has.
+
+**A Talaris MCP server, in the web side**, covers both, and being always on,
+Morgan never needs a fallback. It offers only what is used:
+
+| Reads | Writes |
+|---|---|
+| search everything | make a task (in a project, or the inbox) |
+| tasks: find, one task's card | change a task: done, dates, title, project |
+| the calendar for a day or range | add to the daily note |
+| the daily note | |
+| a project's details and its day | |
+| the weekly review and its steps | tick a step of the review |
+
+Each client has a token of its own (Claude's, Morgan's), revocable like a
+machine's, and each is told which side it may use — Morgan reads only, as its
+project chat does now. More is added when something asks for it, not before.
+
 ## Retiring Hermes
 
 What reaches Hermes besides you must have a Talaris way first, or it breaks:
 
-- **Claude's and Morgan's Hermes tools** (tasks, daily notes, canvases,
-  collections — the MCP server Hermes offers): **a Talaris MCP server** on the
-  web side, with the same verbs over Talaris's core, signed in by a token of its
-  own.
-- **The weekly review**, in all its forms (*The weekly review, brought over
-  whole*).
+- **Claude's and Morgan's Hermes tools**: the Talaris MCP server (*Claude and
+  Morgan*).
+- **The weekly review** (*The weekly review, brought over whole*), and the
+  Gmail sweep's tasks made in Talaris.
 - **The pkm-interchange binding**: Talaris's own (`packages/core` already
   speaks the format's profiles); Hermes' becomes history.
 
@@ -206,7 +227,6 @@ Each step works on its own; nothing is broken while the next is built.
 
 ## Open questions
 
-- **Passkeys or Pocket ID** — passkeys in Talaris unless that is unwelcome.
 - **Tailscale as a second fence** from the start, or not.
 - **Morgan**: the web side could talk to Morgan's brain (home-server too) for
   typed conversation; voice stays the desktop's and the devices'.
