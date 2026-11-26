@@ -55,14 +55,16 @@ export function makeCode() {
   save(state);
   return code;
 }
-function takeCode(code) {
+/** A code still good: its hash, or null. Not used up yet — only a passkey actually added uses it (`register`). */
+function codeGood(code) {
   const want = hash(String(code || "").toUpperCase().replace(/[^0-9A-F]/g, ""));
+  const found = (load().codes || []).find((c) => c.until > Date.now() && timingSafeEqual(Buffer.from(c.hash), Buffer.from(want)));
+  return found ? found.hash : null;
+}
+function useCode(codeHash) {
   const state = load();
-  const found = (state.codes || []).find((c) => c.until > Date.now() && timingSafeEqual(Buffer.from(c.hash), Buffer.from(want)));
-  if (!found) return false;
-  state.codes = state.codes.filter((c) => c !== found);
+  state.codes = (state.codes || []).filter((c) => c.hash !== codeHash);
   save(state);
-  return true;
 }
 
 // ------------------------------------------------------------ slowing down failures
@@ -83,16 +85,16 @@ const succeeded = (addr) => failures.delete(addr);
 // ------------------------------------------------------------ challenges, held briefly
 
 const challenges = new Map(); // id → {challenge, until, kind}
-function hold(kind, challenge) {
+function hold(kind, challenge, code = null) {
   const id = randomBytes(16).toString("hex");
-  challenges.set(id, { challenge, kind, until: Date.now() + 5 * 60_000 });
+  challenges.set(id, { challenge, kind, code, until: Date.now() + 5 * 60_000 });
   for (const [k, v] of challenges) if (v.until < Date.now()) challenges.delete(k);
   return id;
 }
 function take(id, kind) {
   const c = challenges.get(id);
   challenges.delete(id);
-  return c && c.kind === kind && c.until > Date.now() ? c.challenge : null;
+  return c && c.kind === kind && c.until > Date.now() ? c : null;
 }
 
 // ------------------------------------------------------------ passkeys
@@ -102,7 +104,10 @@ export const hasPasskeys = () => (load().passkeys || []).length > 0;
 /** Adding a passkey: allowed with a fresh one-time code, or while signed in (and then asked again by the passkey). */
 export async function registerOptions({ code, signedIn, addr }) {
   if (waitFor(addr)) return { error: `Wait ${waitFor(addr)} s`, status: 429 };
-  if (!signedIn && !takeCode(code)) { failed(addr); return { error: "That code is not right, or it has run out", status: 403 }; }
+  // The code is checked here and used up only when a passkey is added with it: a browser that cannot make one, or a
+  // try given up, leaves it good for another (until its ten minutes are up).
+  const codeHash = signedIn ? null : codeGood(code);
+  if (!signedIn && !codeHash) { failed(addr); return { error: "That code is not right, or it has run out", status: 403 }; }
   succeeded(addr);
   const state = load();
   const options = await generateRegistrationOptions({
@@ -111,12 +116,13 @@ export async function registerOptions({ code, signedIn, addr }) {
     excludeCredentials: (state.passkeys || []).map((p) => ({ id: p.id, transports: p.transports })),
     authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
-  return { options, hold: hold("register", options.challenge) };
+  return { options, hold: hold("register", options.challenge, codeHash) };
 }
 
 export async function register({ hold: held, response, name }) {
-  const expectedChallenge = take(held, "register");
-  if (!expectedChallenge) return { error: "That took too long: start again", status: 400 };
+  const held_ = take(held, "register");
+  if (!held_) return { error: "That took too long: start again", status: 400 };
+  const expectedChallenge = held_.challenge;
   let v;
   try {
     v = await verifyRegistrationResponse({ response, expectedChallenge, expectedOrigin: ORIGIN, expectedRPID: RP_ID, requireUserVerification: true });
@@ -130,6 +136,7 @@ export async function register({ hold: held, response, name }) {
     transports: credential.transports || [], name: String(name || "A passkey").slice(0, 60), added: new Date().toISOString(), used: null,
   });
   save(state);
+  if (held_.code) useCode(held_.code);
   return { ok: true };
 }
 
@@ -141,7 +148,7 @@ export async function signInOptions({ addr }) {
 
 export async function signIn({ hold: held, response, addr, device }) {
   if (waitFor(addr)) return { error: `Wait ${waitFor(addr)} s`, status: 429 };
-  const expectedChallenge = take(held, "signin");
+  const expectedChallenge = take(held, "signin")?.challenge;
   const state = load();
   const key = (state.passkeys || []).find((p) => p.id === response?.id);
   if (!expectedChallenge || !key) { failed(addr); return { error: "That passkey is not one of Talaris's", status: 403 }; }

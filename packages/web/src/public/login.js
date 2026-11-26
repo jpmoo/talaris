@@ -40,6 +40,14 @@
     } catch (e) { say(e.name === "NotAllowedError" ? "No passkey was made." : e.message, true); }
   });
 
+  // A browser with no passkeys at all (Firefox and some others on the iPhone, an app's own browser): said at once,
+  // before a code is spent on it.
+  if (!window.SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+    say(/iPhone|iPad/.test(navigator.userAgent) && !/Version\/[\d.]+ Mobile\/\S+ Safari/.test(navigator.userAgent)
+      ? "This browser can't use passkeys. Open this page in Safari." : "This browser can't use passkeys. Try another.", true);
+    for (const id of ["go", "add-go"]) $(id).disabled = true;
+  }
+
   $("to-add").addEventListener("click", () => { $("signin").hidden = true; $("add").hidden = false; say(""); $("code").focus(); });
   $("to-signin").addEventListener("click", () => { $("add").hidden = true; $("signin").hidden = false; say(""); });
 })();
