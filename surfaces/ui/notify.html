@@ -26,7 +26,7 @@ top, the surface as tall as the page says.
 /* One Talaris means you not to miss (the weekly review opening): in the accent, larger, and staying until answered. */
 .toast.prominent { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--toast-bg)); padding: 12px 14px 14px; }
 .toast.prominent .summary { font-size: 17px; font-weight: 600; color: var(--accent); }
-.toast.prominent .body { font-size: 14px; }
+.toast.prominent .body { font-size: 14px; line-height: 1.5; max-height: none; padding-bottom: 3px; }
 .toast.prominent .buttons .t-btn:first-child { background: var(--accent) !important; color: var(--on-accent, #1c1f22) !important; border-color: var(--accent) !important; font-weight: 600; }
 .toast.prominent .buttons .t-btn { font-size: 13px; padding: 5px 14px; }
 .top { display: flex; align-items: center; gap: 7px; height: 18px; }
@@ -37,7 +37,8 @@ top, the surface as tall as the page says.
 .words { flex: 1; min-width: 0; }
 .summary { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 /* Apps send line breaks as newlines as often as <br>. */
-.body { color: var(--text); white-space: pre-line; overflow-wrap: anywhere; max-height: 8.4em; overflow: hidden; }
+/* A little room below the last line: its descenders are not cut by the clip that keeps a long one short. */
+.body { color: var(--text); white-space: pre-line; overflow-wrap: anywhere; max-height: 8.4em; overflow: hidden; padding-bottom: 2px; }
 .body .link { text-decoration: underline; }
 .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .buttons:empty { display: none; }
