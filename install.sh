@@ -107,7 +107,7 @@ ask() {  # yes or no, Enter giving the default
   [[ "$reply" =~ ^[Yy] ]]
 }
 # Projects on their own desktops, or all on one (docs/DESIGN.md, *One desktop*): asked the first time only —
-# afterwards it is Settings, Windows, "Projects". One desktop is always the carousel, so its plugin is required.
+# afterwards it is Settings, Look and feel, "Projects". One desktop is always the carousel, so its plugin is required.
 CONFIG_FILE="${TALARIS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/talaris}/config.json"
 if [ -z "$DESKTOPS" ] && [ "$CHECK_ONLY" = 0 ] && [ -t 0 ] && ! grep -qs '"desktops"' "$CONFIG_FILE"; then
   echo "==> Projects: each on its own desktop, or all on one?"
@@ -308,7 +308,7 @@ with open(tmp, "w", encoding="utf-8") as f:
     f.write("\n")
 os.replace(tmp, path)
 PY
-  echo "==> Projects: $([ "$DESKTOPS" = one ] && echo "one desktop" || echo "each its own desktop") (Settings, Windows, to change)"
+  echo "==> Projects: $([ "$DESKTOPS" = one ] && echo "one desktop" || echo "each its own desktop") (Settings, Look and feel, to change)"
 fi
 
 # Talaris's own desktop file: its windows (a panel made a window) are known by

@@ -71,7 +71,7 @@ up shown as it goes.
 One place for the whole desktop: its look, the bar, the dock, panels,
 windows, keys, connections, power, notifications, your data and add-ons.
 
-![Settings, Look](screenshots/settings-look.webp)
+![Settings, Look and feel](screenshots/settings-look.webp)
 
 The dock — pinned applications, grouped as pills — and its settings.
 

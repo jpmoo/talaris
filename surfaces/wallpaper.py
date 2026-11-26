@@ -96,7 +96,7 @@ def choose(path: str, fit: str) -> str:
         return "Not a fit"
     os.makedirs(os.path.dirname(FILE), exist_ok=True)
     with open(FILE, "w", encoding="utf-8") as f:
-        f.write("# Written by Talaris from Settings, Look, Wallpaper.\n"
+        f.write("# Written by Talaris from Settings, Look and feel, Wallpaper.\n"
                 f"wallpaper {{\n    monitor =\n    path = {path}\n    fit_mode = {fit}\n}}\nsplash = false\n")
     subprocess.Popen(["systemctl", "--user", "restart", "hyprpaper.service"],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (c) 2026 Jeff Moore
 """
-A display plugged in: beside the built-in screen (extend), or showing the same (mirror) — Settings, Look,
+A display plugged in: beside the built-in screen (extend), or showing the same (mirror) — Settings, Look and feel,
 "External display", and the bar's display button while one is connected.
 
 **Mirror is the external display copying the built-in screen**, never the other way round. The built-in screen

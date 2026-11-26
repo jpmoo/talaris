@@ -69,7 +69,7 @@ def pressed_on_button(widget, x: float, y: float) -> bool:
 #: Talaris's grays (ui/tokens.css), and a raised one for the keys that change what the keyboard shows.
 DARK = {"desk": "#16181a", "surface": "#222528", "raised": "#2b2f33", "line": "#3a3f44", "text": "#d5d9dc", "muted": "#868c92"}
 LIGHT = {"desk": "#d9dcdf", "surface": "#eceef0", "raised": "#e1e4e7", "line": "#c3c8cd", "text": "#25292d", "muted": "#6c7277"}
-BEGIN = "/* >>> Talaris: the on-screen keyboard's look (keyboard.py) — written from Settings, Look; replaced whole */"
+BEGIN = "/* >>> Talaris: the on-screen keyboard's look (keyboard.py) — written from Settings, Look and feel; replaced whole */"
 END = "/* <<< Talaris */"
 
 OSK = ["gdbus", "call", "--session", "--dest", "sm.puri.OSK0", "--object-path", "/sm/puri/OSK0", "--method", "sm.puri.OSK0.SetVisible"]
@@ -155,7 +155,7 @@ class Keyboard(QObject):
 
     def theme(self) -> None:
         """
-        The keyboard in Talaris's look: its grays, accent and font, dark or light, as Settings, Look has them.
+        The keyboard in Talaris's look: its grays, accent and font, dark or light, as Settings, Look and feel has them.
         Squeekboard is a GTK 3 program drawn as `sq_view` and `sq_button`, names no other program uses, so a
         block for them in the user's GTK stylesheet dresses it and nothing else. Talaris owns only its marked
         block; the rest of the file is left as it is. Squeekboard reads it as it starts, so it is started again.

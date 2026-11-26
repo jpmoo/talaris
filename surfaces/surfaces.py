@@ -375,7 +375,7 @@ class Desktop(QObject):
         self.stall = Stall(self)
         # The screen's corners, rounded: four small surfaces over everything (corners.py).
         self.corners = Corners(self)
-        # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look says.
+        # Turning with the device, where it can say which way up it is (rotation.py); off until Settings, Look and feel says.
         self.rotation = Rotation(self)
         # A display plugged in: beside the screen or a copy of it, as Settings says; the bar's display button while one is.
         self.displays = Displays(self)
@@ -643,7 +643,7 @@ class Desktop(QObject):
 
     def one_desktop(self) -> bool:
         """
-        Projects on one desktop (Settings, Windows, "Projects"; DESIGN, *One desktop*): a project is chosen, not gone
+        Projects on one desktop (Settings, Look and feel, "Projects"; DESIGN, *One desktop*): a project is chosen, not gone
         to. The panels, New, the dock's pins and the wallpaper follow the choice; every window stays where it is,
         laid out as the carousel.
         """

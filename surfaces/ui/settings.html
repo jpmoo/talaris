@@ -276,7 +276,7 @@ footer #msg.err, .note.err { color: var(--danger); }
     <span class="label">SETTINGS</span>
     <!-- The pages in a few groups: how the desktop looks and works, what it connects to, the machine, what is kept, and what adds to it. -->
     <span class="group">Desktop</span>
-    <button data-page="look">Look</button>
+    <button data-page="look">Look and feel</button>
     <button data-page="bar-page">Bar</button>
     <button data-page="dock-page">Dock</button>
     <button data-page="drawers">Panels</button>
@@ -304,7 +304,8 @@ footer #msg.err, .note.err { color: var(--danger); }
   </nav>
   <main>
     <section id="look">
-      <h2>Look</h2>
+      <h2>Look and feel</h2>
+      <div class="row"><span class="name">Projects<small id="desktops-note">Each its own desktop</small></span><span class="what"><span class="seg" id="win-desktops"></span></span></div>
       <div class="row"><span class="name">Mode</span><span class="what"><span class="seg" id="mode"></span></span></div>
       <div class="row"><span class="name">Accent<small>Each mode keeps its own</small></span><span class="what"><span class="seg" id="accent-for"></span></span></div>
       <div class="row"><span class="name"></span><span class="what"><span class="swatches" id="swatches"></span><input id="hex" spellcheck="false" maxlength="7"></span></div>
@@ -403,7 +404,6 @@ footer #msg.err, .note.err { color: var(--danger); }
     </section>
     <section id="windows">
       <h2>Windows</h2>
-      <div class="row"><span class="name">Projects<small id="desktops-note">Each its own desktop</small></span><span class="what"><span class="seg" id="win-desktops"></span></span></div>
       <div class="row"><span class="name">Tiling<small id="tiling-note">This machine's own</small></span><span class="what"><span class="seg" id="win-tiling"></span></span></div>
       <div class="row"><span class="name"><span id="tiling-here-name">This project</span><small>Its own, or the default above</small></span><span class="what"><span class="seg" id="win-tiling-here"></span></span></div>
       <div class="row"><span class="name">Space round them<small>From the bar, the dock and the screen's edges</small></span><span class="what"><input type="range" id="gap" min="0" max="30" step="1"><span class="n" id="gap-n"></span></span></div>

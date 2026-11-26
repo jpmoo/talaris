@@ -216,7 +216,7 @@ plugin offers *make it a relation*.
 
 A machine can keep every project on **one desktop** instead — a display
 option for smaller screens (Settings,
-Windows, "Projects": Own desktops · One desktop; asked by `install.sh` the
+Look and feel, "Projects", its first row: Own desktops · One desktop; asked by `install.sh` the
 first time, or `--one-desktop`). Made for a small touchscreen — a Pi
 cyberdeck — where one place is easier to live in than a dozen. It is a mode
 of the same Talaris, not a second one: nothing else is pruned.
@@ -445,7 +445,7 @@ plugin provides.
 | Charging | **The battery's own** `charge_types` and start/stop limits in sysfs, set from Settings, Power, Charging, whether or not Talaris manages power. Root's files, so `systemd/90-talaris-battery.rules` (installed once, with sudo) makes them writable by `users`. |
 | Polkit agent | **`hyprpolkitagent`**, started by `talaris.conf`. Without it password prompts quietly stop appearing. |
 | Notifications | **Talaris's own** (`notifications.py`, `notifyd.py`) since 2026-10-24: it stops `mako` and holds the bus; `mako`, still installed and D-Bus-activated, answers whenever Talaris is not running. |
-| Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |
+| Wallpaper | **`hyprpaper`**, started by `talaris.conf`; `install.sh` writes its file once when `TALARIS_WALLPAPER` names a picture; Settings, Look and feel, Wallpaper (`wallpaper.py`) reads that file, and a picture or fit chosen there rewrites it and restarts hyprpaper. |
 | Network and Bluetooth settings | `nmtui`, `bluetoothctl`, opened from the bar. |
 
 ## One routine for each thing (2026-10-27)
@@ -2052,7 +2052,7 @@ of it and comes out at the end.
    sit in a row under the composer, ending in Full screen and Close. It
    comes up as the launcher does: centered over the rest of the screen,
    dimmed, a press on the dim putting it away. The two share a motion and a
-   speed in Settings, Look (slide from the top, draw, or none), played by
+   speed in Settings, Look and feel (slide from the top, draw, or none), played by
    `ui/motion.js`, the drawers' own motions made shareable. A pulled drawer
    dims the rest of the screen too ("Dim behind", on by default), through the
    catcher, so a click there puts it away. Both drawers share a height (a

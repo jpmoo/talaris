@@ -314,7 +314,7 @@ class BarBridge(Bridge):
 
     @Slot(str)
     def displayMode(self, mode: str) -> None:  # noqa: N802 — called from the page by this name
-        """A display plugged in, beside the screen or a copy of it: kept as the setting (Settings, Look) and applied."""
+        """A display plugged in, beside the screen or a copy of it: kept as the setting (Settings, Look and feel) and applied."""
         if mode in ("extend", "mirror"):
             error = self.owner.desktop.settings.apply({"screen": {"external": mode}})
             if error:

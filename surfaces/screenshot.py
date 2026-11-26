@@ -7,7 +7,7 @@ the same panel, to look over (panned and zoomed), mark up, save, copy, or let
 go of.
 
 **The panel** (`ui/shot.html`) is a panel like the others (overlay.py), and so
-comes and goes as Settings, Look, says for it ("Screenshot"). It asks for a
+comes and goes as Settings, Look and feel, says for it ("Screenshot"). It asks for a
 kind (`choose`), goes, and comes back with the shot once there is one.
 
 **Taking one** is grim's, as everything else that reads the screen here is.
