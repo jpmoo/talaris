@@ -263,7 +263,10 @@ between machines that are on together, so a change made on the mini waited for
 the XPS to be on too. Home-server now holds the share as a third Syncthing
 device: `talaris-sync` at `~/TalarisSync`, *receive only* (it keeps what the
 machines write and changes nothing), run by the packaged
-`syncthing@jpmoo.service`. Every machine syncs with it whenever it is up.
+`syncthing@jpmoo.service`. Every machine syncs with it whenever it is up —
+at home over the LAN, away over Tailscale (each device is given its peer's
+Tailscale address beside `dynamic`), and failing both through Syncthing's own
+discovery and relays.
 **It is not a Talaris machine** and must not become one: trimming drops a
 record only once every machine has applied it, and a member that never applies
 would keep every log forever. It cannot read what it holds — everything is
