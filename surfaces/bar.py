@@ -496,6 +496,9 @@ class Popup(QObject):
         self.kind = kind
         self.shown_at = self.away.shown()
         w, h = POPUPS[kind]
+        # The Talaris menu (one desktop): five rows, no projects' pictures — narrower, and as tall as they are (fit).
+        if kind == "projects" and self.desktop.one_desktop():
+            w, h = 212, 200
         anchor = ANCHOR_BOTTOM if self.bar.edge == "bottom" else ANCHOR_TOP
         keys = KEYBOARD_ON_DEMAND
         # Respecting other surfaces' reserved space puts it just clear of the bar.

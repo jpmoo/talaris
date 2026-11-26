@@ -242,8 +242,9 @@ function onState(s) {
   }
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
-  if (s.popup === "projects") $("talaris-panels").hidden = !s.oneDesktop;
-  if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
+  // On one desktop this is the Talaris menu: the panels alone, no projects (DESIGN, One desktop), and as tall as they are.
+  if (s.popup === "projects") { $("talaris-panels").hidden = !s.oneDesktop; $("project-part").hidden = !!s.oneDesktop; }
+  if (s.popup === "projects" && !s.oneDesktop && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
   if (s.popup === "clipboard" && bridge && s.shown !== clipsShown) { clipsShown = s.shown; document.body.dataset.popup = s.popup; Clips.open(); }
   if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); bridge.remindersRead(); }
   document.body.dataset.popup = s.popup || "";

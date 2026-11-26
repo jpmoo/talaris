@@ -221,8 +221,8 @@ first time, or `--one-desktop`). Made for a small touchscreen — a Pi
 cyberdeck — where one place is easier to live in than a dozen. It is a mode
 of the same Talaris, not a second one: nothing else is pruned.
 
-- **A project is chosen, not gone to.** The Talaris menu and the Library's
-  "Go to this project" change the current project; the panels, New,
+- **A project is chosen, not gone to.** The Library's "Go to this project"
+  and the panels' own choosers change the current project; the panels, New,
   the dock's pins and the wallpaper follow it. No workspace changes, and a
   workspace gone to by its keys changes no project.
 - **Home is no place either**: chosen, it is "no project in particular" —
@@ -231,8 +231,8 @@ of the same Talaris, not a second one: nothing else is pruned.
   hyprscrolling plugin is required.
 - **The Talaris menu.** The bar's project name becomes Talaris's mark, on
   the accent's wash as the name was. Its menu holds Tasks, People, the
-  Library, the Canvas and Notes — off the bar now — and under them the
-  projects, to choose the one shown. Morgan and New stay on the bar.
+  Library, the Canvas and Notes — off the bar now — and nothing of projects:
+  each panel chooses its own, as it does anyway. Morgan and New stay on the bar.
 - **What only a desktop could do is gone:** the project switcher
   (Super+Tab), sending a window to a project (Super+G, the dock's Send to…),
   and each project's likeness, which shows its wallpaper instead.
