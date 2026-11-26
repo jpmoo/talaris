@@ -41,23 +41,29 @@ const SOCKET = join(process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid()
  * Only these; a page not here is not served.
  */
 const PAGES = {
-  library: { file: "filespanel.html", panel: "files_panel.py", title: "Library" },
+  library: { file: "filespanel.html", panel: "files_panel.py", title: "Library", phone: "phone.js" },
+  tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks" },
+  notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes" },
+  people: { file: "people.html", panel: "people_panel.py", title: "People" },
+  canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas" },
 };
+/** The page a request for a file is, by its file and its query (the two drawers are one file). */
+const pageFor = (rel, search) => Object.entries(PAGES).find(([, p]) => p.file === rel && (!p.query || search.includes(p.query)))?.[0];
 
-/** A panel's `ALLOWED`, read from its Python: the raw string(s) of `re.compile(r"…")`, as one JavaScript pattern. */
-function allowedOf(panel) {
+/** A panel's routes (`ALLOWED`, or the name given), read from its Python: the raw strings of `re.compile(r"…")`, as one pattern. */
+function allowedOf(panel, name = "ALLOWED") {
   const src = readFileSync(join(ROOT, "surfaces", panel), "utf8");
-  const m = src.match(/^ALLOWED\s*=\s*re\.compile\(([\s\S]*?)\)\s*$/m);
-  if (!m) throw new Error(`${panel}: no ALLOWED`);
+  const m = src.match(new RegExp(`^\\s*${name}\\s*=\\s*re\\.compile\\(([\\s\\S]*?)\\)\\s*$`, "m"));
+  if (!m) throw new Error(`${panel}: no ${name}`);
   const parts = [...m[1].matchAll(/r"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]);
   return new RegExp(parts.join(""));
 }
-for (const p of Object.values(PAGES)) p.allowed = allowedOf(p.panel);
+for (const p of Object.values(PAGES)) p.allowed = allowedOf(p.panel, p.routes);
 
 /** The desktop's defaults for the look (surfaces/config.py): read once, so the web looks as Talaris does. */
 const LOOK = (() => {
   try {
-    const out = execFileSync("python3", ["-c", "import sys,json;sys.path.insert(0,sys.argv[1]);from config import DEFAULTS as D;print(json.dumps({'theme':D['theme'],'clock':D.get('clock',{})}))", join(ROOT, "surfaces")], { encoding: "utf8" });
+    const out = execFileSync("python3", ["-c", "import sys,json;sys.path.insert(0,sys.argv[1]);from config import DEFAULTS as D;print(json.dumps({'theme':D['theme'],'clock':D.get('clock',{}),'panels':D.get('panels',{})}))", join(ROOT, "surfaces")], { encoding: "utf8" });
     return JSON.parse(out);
   } catch { return { theme: { mode: "dark", accent: "#c98a5b" }, clock: {} }; }
 })();
@@ -97,10 +103,12 @@ async function homeProject() {
 }
 async function stateOf(page) {
   const project = await homeProject();
-  return {
-    up: true, windowed: true, web: true, theme: LOOK.theme, clock: LOOK.clock, motion: "none", viewport: null,
-    morganHere: false, project: project.id ?? "", start: {}, page,
-  };
+  const base = { up: true, windowed: true, web: true, theme: LOOK.theme, clock: LOOK.clock, motion: "none", viewport: null,
+    morganHere: false, project: project.id ?? "", start: {}, page };
+  // A drawer (Notes, Canvas: workspace.py's describe) has the project whole, and is out, at the top, at its own size.
+  const drawer = { notes: "writing", canvas: "canvas" }[page];
+  if (drawer) return { ...base, drawer, edge: "top", mode: "expanded", project, look: LOOK.panels ?? {}, typeScale: 1, insets: { top: 0, bottom: 0, left: 0, right: 0 } };
+  return base;
 }
 
 /**
@@ -142,11 +150,16 @@ function fileFrom(base, rel) {
 function pageHtml(name) {
   const p = PAGES[name];
   let html = readFileSync(join(UI, p.file), "utf8");
-  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title })};</script>` +
+  const modules = Object.entries(PAGES).map(([id, q]) => ({ id, title: q.title }));
+  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules })};</script>` +
     `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css"></head>`);
+  // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
+  if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
+  if (p.phone) html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/${p.phone}"></script></body>`);
+  html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script></body>`);
   return html;
 }
 
@@ -226,6 +239,9 @@ async function handle(req, res) {
   }
 
   if (path === "/" || path === "/library") return send(res, 200, pageHtml("library"), TYPES[".html"]);
+  // Each module at its own address; one that is a drawer is its file with its query, which the page reads.
+  const mod = PAGES[path.slice(1)];
+  if (mod) return mod.query ? send(res, 302, "", "text/plain", { location: `${PREFIX}/ui/${mod.file}?${mod.query}` }) : send(res, 200, pageHtml(path.slice(1)), TYPES[".html"]);
   if (path === "/web/bridge.js") return send(res, 200, readFileSync(join(PUBLIC, "bridge.js")), TYPES[".js"]);
   if (path.startsWith("/web/")) {
     const f = fileFrom(PUBLIC, path.slice(5));
@@ -233,8 +249,8 @@ async function handle(req, res) {
   }
   if (path.startsWith("/ui/")) {
     const rel = decodeURIComponent(path.slice(4));
-    const named = Object.entries(PAGES).find(([, p]) => p.file === rel);
-    if (named) return send(res, 200, pageHtml(named[0]), TYPES[".html"]);
+    const named = pageFor(rel, url.search);
+    if (named) return send(res, 200, pageHtml(named), TYPES[".html"]);
     if (rel.endsWith(".html")) return send(res, 404, { error: "not a page on the web yet" });
     const f = fileFrom(UI, rel);
     return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });
@@ -258,7 +274,8 @@ async function handle(req, res) {
       const p = String(b.path || "");
       if (!p.startsWith("/") || !page.allowed.test(p)) return send(res, 200, { status: 400, data: { error: `not a route the ${page.title} uses` } });
       const r = await core(method, p, b.body);
-      return send(res, 200, { status: r.status, data: replyData(r.text) });
+      // Both as the desktop gives them: `core`'s answer as data (coreReply), the drawers' `request` as the text (replied).
+      return send(res, 200, { status: r.status, data: replyData(r.text), text: r.text });
     }
     if (path === "/api/call") {
       const fn = CALLS[b.name];

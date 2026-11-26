@@ -4,3 +4,47 @@
 html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important;
   max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
 html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }
+
+/* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows)
+   One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
+   everything when one is chosen, with Back. The type a little larger, for fingers. phone.js says which is out. */
+@media (max-width: 760px) {
+  html.web body { zoom: 1.18; height: calc(100vh / 1.18) !important; }
+  html.web header { flex-wrap: wrap; padding: 8px 10px; }
+  html.web header .tools { gap: 6px; }
+  html.web #q { flex: 1 1 140px; width: auto; }
+  html.web #days, html.web #readf, html.web #count, html.web #msg { display: none !important; }
+  html.web main { display: block; position: relative; }
+  html.web #middle { position: absolute; inset: 0; }
+  html.web #side { position: absolute; inset: 0 auto 0 0; width: 78%; max-width: 300px; z-index: 5; background: var(--surface, #24282c);
+    transform: translateX(-105%); transition: transform .2s ease; box-shadow: 8px 0 24px rgba(0,0,0,.35); }
+  html.web.ph-side #side { transform: none; }
+  html.web #detail { position: absolute; inset: 0; width: auto; z-index: 6; background: var(--surface, #24282c); border: 0;
+    transform: translateX(105%); transition: transform .2s ease; padding: 10px 14px 40px; }
+  html.web.ph-detail #detail { transform: none; }
+  html.web .row { grid-template-columns: 18px minmax(0, 1fr) auto !important; padding: 9px 12px; }
+  html.web .row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) auto !important; }
+  html.web .row > :nth-child(n+4) { display: none !important; }
+  html.web .row.tree > :nth-child(n+5) { display: none !important; }
+  .ph-bar { display: flex; gap: 8px; align-items: center; flex-basis: 100%; }
+  .ph-bar button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--line, #3a3f44);
+    background: none; color: var(--text, #e6e8ea); }
+  .ph-bar .where { color: var(--muted, #9aa1a8); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ph-back { display: none; margin-bottom: 8px; }
+  html.web.ph-detail .ph-back { display: inline-block; }
+}
+@media (min-width: 761px) { .ph-bar, .ph-back { display: none !important; } }
+
+/* The modules' bar (modules.js): along the bottom, the page above it. */
+html.web.has-modules body { height: calc(100vh - 56px) !important; }
+.web-modules { position: fixed; left: 0; right: 0; bottom: 0; height: 56px; display: flex; justify-content: center; gap: 4px;
+  padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); background: var(--surface, #24282c); border-top: 1px solid var(--line, #3a3f44);
+  z-index: 2147483000; zoom: 1; }
+.web-modules a { flex: 0 1 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 10px; color: var(--muted, #9aa1a8); text-decoration: none; font-size: 11px; letter-spacing: .3px; }
+.web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
+.web-modules a.on { color: var(--accent, #c98a5b); background: color-mix(in srgb, var(--accent, #c98a5b) 12%, transparent); }
+@media (max-width: 760px) {
+  html.web.has-modules body { height: calc((100vh - 56px - env(safe-area-inset-bottom)) / 1.18) !important; }
+  .web-modules { zoom: 0.8475; height: 66px; }
+}

@@ -39,6 +39,14 @@
         .catch((e) => emit("coreReply", JSON.stringify({ id, status: 503, data: { error: e.message } })));
       return;
     }
+    if (name === "request") {
+      // The drawers' way (core.py, `request`): answered on `replied` with the status and the text as it came.
+      const [id, method, path, body] = args;
+      post("/api/core", { method, path, body })
+        .then((r) => emit("replied", id, r.status, r.text ?? ""))
+        .catch((e) => emit("replied", id, 503, JSON.stringify({ error: e.message })));
+      return;
+    }
     post("/api/call", { name, args })
       .then((r) => { if (r.web && cb) cb(r.result); })
       .catch(() => {});
