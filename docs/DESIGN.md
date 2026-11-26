@@ -629,6 +629,13 @@ found related notes. Structured context answers the question it was for.
 
 **Renamed, 2026-10-23:** Morgan's repository, command, unit, socket and folders are all `heymorgan` now; the old `heyclaude` names still answer.
 
+## On the web (designed 2026-11-26)
+
+Talaris in a browser and on the phone, as a machine of its own on home-server
+that the others sync through, in place of Hermes Notes and its plugin: the
+Library as the hub, Tasks, Calendar, Notes, People and Canvas, and the weekly
+review brought over whole. Signed in by passkeys. See **WEB.md**.
+
 ## Plugins
 
 **The plugin surface is the core feature after the screen itself**, because

@@ -274,6 +274,10 @@ sealed. A new machine: install Syncthing, pair it with home-server, accept
 `talaris-sync` at `~/TalarisSync`, then join in Talaris's Settings, *Sync*,
 with the recovery key (*Keys and joining*).
 
+**Next: a web node** (WEB.md). Home-server is to run Talaris itself — a full
+machine, always on, with the web side for the phone — and then to carry sync
+over HTTPS in place of Syncthing. The carrier above is the step before it.
+
 **The relay** — optional, for those with an always-on machine: a small service
 (Node, a few hundred lines, a SQLite file and a blob folder) that stores the
 same sealed logs and hands out what a machine has not seen. Packaged as a

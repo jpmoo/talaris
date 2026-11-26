@@ -1,0 +1,214 @@
+# Talaris on the web
+
+**Status: designed, not built** (2026-11-26). Argue with it here, not in the
+code.
+
+**The goal.** Retire Hermes Notes and the hermes-sync plugin. In their place,
+Talaris itself on the web — `https://app.schoolahead.today/talaris`, served by
+home-server through Caddy — for the phone and for any browser. It is **a
+Talaris machine of its own**, joined like the laptop and the mini, and, being
+the one that is always on, the one the others sync through.
+
+Why not keep Hermes as the web side: two systems kept in step by a plugin is
+two models of the same things, a bridge that must run on one machine that is
+awake, and a second copy of every rule. Talaris already holds everything Hermes
+does (the plugin filled it), merges between machines by its own rules
+(SYNC.md), and draws everything as web pages. The web is one more machine.
+
+## The shape
+
+```
+  laptop ──┐                        ┌── phone (browser)
+  mini   ──┼── sync ── home-server ─┤
+  deck   ──┘        talaris-core    └── any browser
+                    + the web side
+                    behind Caddy
+```
+
+- **The core, with no screen.** `packages/core` is already a Node program
+  with no screen of its own; the screens are the surfaces (`surfaces/`), which
+  home-server does not run. It joins with the recovery key, as any machine
+  does (SYNC.md, *Keys and joining*), and applies every record, so it has the
+  whole of Talaris: its entities, pages, canvases, and a real `~/Projects` with
+  the Library's files.
+- **The web side.** A small server beside the core (Node): it serves the pages
+  under `/talaris`, signs you in (*Signing in*), and answers the pages' requests
+  — most by asking the core, as the surfaces do now.
+- **Caddy** terminates HTTPS and passes `/talaris*` to it. Nothing else of the
+  core is reachable from outside.
+
+**The key is on home-server.** A full machine reads what it holds: anyone who
+got into home-server as you could read your Talaris, where today they would
+find sealed files. What stands between the web and it is the sign-in and
+HTTPS; between the machine and it, the machine's own login. Accepted, for an
+always-on Talaris you can reach from the phone.
+
+## Signing in
+
+One person, so no accounts, no identity provider, no passwords.
+
+**You, in a browser: passkeys** (WebAuthn), in the web side itself. Face ID or
+Touch ID on the phone, a fingerprint or a security key on a laptop; nothing to
+type, nothing to phish, nothing on the server worth stealing (a passkey's public
+half). Two or three are registered — the phone, a laptop, a spare key — and
+listed, named and removable in Settings.
+
+- **The first passkey, and a lost one**, are never registered from the web:
+  `talaris-web passkey` run on home-server over SSH prints a one-time code,
+  good for ten minutes, that lets one new passkey be added. Nothing on the web
+  can reset access.
+- **A session** is a cookie — `HttpOnly`, `Secure`, `SameSite=Strict`, path
+  `/talaris` — good for 30 days from its last use, listed (which device, last
+  seen) and revocable in Settings.
+- **Asking again** for anything that cannot be undone or that reaches the keys:
+  revealing the recovery key, removing a passkey, revoking a machine.
+- **Failures slow down**: each failed sign-in from an address waits longer
+  before the next is heard.
+
+**Machines: a token each**, made when a machine joins and good only for sync
+(*Sync over HTTPS*), never for signing in. A lost laptop is one token revoked.
+
+**Not chosen:**
+- *Caddy's basic auth* — a password on every request, guessable, phishable.
+- *An identity provider* (Authelia, Authentik, Keycloak) — a second service to
+  run and keep current, for one person.
+- *Pocket ID* in front of Caddy — small and passkey-only, the best of these if
+  passkeys are not to be in Talaris's own code; still a second service.
+- *Tailscale only* — the safest and simplest, but the phone works only with
+  Tailscale on. Worth keeping as a second fence: the web side can be told to
+  answer only from the tailnet, later or at once.
+
+## What it shows
+
+**Five modules, and the Library as the hub.** On the web, and above all on the
+phone, Talaris is what you do away from the desk:
+
+| | |
+|---|---|
+| **Library** | The front page: search, the projects, and every thing's card. What is named anywhere opens here, as on the desktop (DESIGN, *The Library, what everything opens to*). |
+| **Tasks** | Today, upcoming, a project's; done, added, moved. |
+| **Calendar** | The day and the week; an event's card; made and changed as on the desktop, as far as the calendars that come through sync go (*What stays on the desktop*). |
+| **Notes** | Today's daily note, a project's pages; written in the same editor. |
+| **People** | A person's or an organization's card. |
+| **Canvas** | Seen whole and moved around; a note added or edited. Drawing and laying out are for a bigger screen and a pen. |
+
+**One card per thing**, the same cards as the desktop (`thingcard.js`,
+`taskcard.js`, `eventcard.js`): not a second set for the web.
+
+**The phone** has a bar along the bottom — Library, Tasks, Calendar, Notes,
+People — with Canvas reached from a project or a card, and **New** (the +) in
+the corner of each. **A browser on a larger screen** shows the same modules
+side by side as the desktop's panels do, without the desktop's bar, dock and
+windows.
+
+**What stays on the desktop**: windows, the dock, the bar and their settings;
+opening a file in an application (on the web a file is downloaded or shown);
+the desktop's calendar store and its accounts (on the web, calendars are what
+came through sync); the pen; Morgan's voice. Settings on the web is only what
+is the web's: passkeys, sessions, machines, and the recovery key.
+
+## How the pages talk to it
+
+The panels are web pages already; on the desktop they talk to Talaris through
+a Qt bridge (`QWebChannel`): `bridge.core(id, method, path, body)` for the
+core's routes, each panel allowed only its own (`ALLOWED` in each panel's
+Python), and a few verbs that are the desktop's (open a file, reveal it, pin it).
+
+**The web bridge** is the same object for the pages, over HTTPS: `core(...)`
+becomes a request to `/talaris/api/...`, which the web side checks against
+the same per-module routes and passes to the core; a change the core reports
+reaches open pages over a WebSocket, as the surfaces' `synced` does now. The
+desktop's verbs answer with what the web can do instead, or are not offered.
+One page, two bridges: a panel never asks which it is in, it asks what it can
+do.
+
+## Sync over HTTPS
+
+**First, Syncthing as now**: the web node's sync folder is home-server's
+Syncthing share, and it is one more machine in it. Nothing new to build for
+the transport; the carrier-only copy home-server holds today becomes this
+machine's own folder.
+
+**Then the relay, in the web side** (SYNC.md, *Transport*): each machine sends
+its sealed logs and blobs to `/talaris/sync` with its token and asks for what
+it has not seen. Then:
+
+- **Syncthing goes**, everywhere — laptop, mini, deck, home-server.
+- **Away from home it is plain HTTPS**: no Tailscale needed for sync.
+- **One-at-a-time plugins get a lease** (SYNC.md, *Who runs a one-at-a-time
+  plugin*): whichever machine is up runs them, never two.
+
+## The weekly review, brought over whole
+
+Hermes' weekly review comes to Talaris in every form it has there, on the
+desktop as a panel and on the web as a sixth module — not left behind with
+Hermes. What it is in Hermes (`packages/shared/src/weekly-review.ts`,
+`apps/server/src/review/routes.ts`, `ReviewPage.tsx`):
+
+- **The steps.** A template of steps that come every week, in an order you
+  set by dragging; steps added for this week only; each checked off as done,
+  the checks cleared when the next review opens. A step can point at a thing —
+  in Talaris, any thing's card or a list — or at nothing, for what is done
+  outside and only ticked here.
+- **The task that brings it.** A recurring "Do weekly review" task Talaris
+  keeps: due on the weekday you choose, available some days before, filed in
+  the projects you choose. Its next occurrence opening is what starts a new
+  review. Found by the task profile and a mark of its own, never by its title
+  or type's name.
+- **The reflection.** A note for the week — "Review Reflection for Week Ending
+  …" — made when the review is opened and removed if it is left empty, in a
+  thread of its own beside the daily notes (each to the one before and after).
+  Kept out of the Library's lists unless written in, as Hermes keeps it out.
+- **Its settings**: the weekday, the days before, the projects, the template.
+- **Its look**: the picture Hermes gives the review's page (its banner) comes
+  as the review's own picture.
+- **For Claude and Morgan**: the review read and its steps checked through the
+  Talaris MCP server, as the daily review (`daily_review`) is now.
+- **The Gmail sweep** (the weekly-review skill: the System label into inbox
+  tasks, then cleared) writes to Talaris through the MCP server.
+
+Its state is yours, so it syncs: the template and the week's checks are
+records like any other (SYNC.md), so a step ticked on the phone is ticked on
+the laptop.
+
+## Retiring Hermes
+
+What reaches Hermes besides you must have a Talaris way first, or it breaks:
+
+- **Claude's and Morgan's Hermes tools** (tasks, daily notes, canvases,
+  collections — the MCP server Hermes offers): **a Talaris MCP server** on the
+  web side, with the same verbs over Talaris's core, signed in by a token of its
+  own.
+- **The weekly review**, in all its forms (*The weekly review, brought over
+  whole*).
+- **The pkm-interchange binding**: Talaris's own (`packages/core` already
+  speaks the format's profiles); Hermes' becomes history.
+
+**Nothing to migrate**: everything Hermes holds came into Talaris through the
+plugin, with Hermes' ids kept. Hermes sync is switched off once the web side
+covers what the phone did in Hermes; Hermes is switched off when nothing asks
+it anything any more.
+
+## Order of work
+
+Each step works on its own; nothing is broken while the next is built.
+
+1. **The core on home-server**, joined as a machine, over Syncthing. Seen in
+   the laptop's Settings, Sync, as a machine rather than a carrier.
+2. **The web side**: Caddy, `/talaris`, passkeys, the web bridge, the Library
+   and the five modules at a browser's size. Talaris in a browser.
+3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.
+4. **The weekly review**, in Talaris on the desktop and the web.
+5. **The Talaris MCP server**; Claude, Morgan and the Gmail sweep moved to it.
+6. **Sync over HTTPS**, with machine tokens and the plugin lease; Syncthing
+   removed.
+7. **Hermes sync off, then Hermes.**
+
+## Open questions
+
+- **Passkeys or Pocket ID** — passkeys in Talaris unless that is unwelcome.
+- **Tailscale as a second fence** from the start, or not.
+- **Morgan**: the web side could talk to Morgan's brain (home-server too) for
+  typed conversation; voice stays the desktop's and the devices'.
+- **Backups of the web node**: it holds everything; Talaris's backups
+  (DESIGN, *Backups*) should run there, kept off home-server too.
