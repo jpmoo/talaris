@@ -30,6 +30,7 @@ const VERBS = [
   { name: "glance", title: "Glance", sub: "This project, all of it: a list, or a glance of how it is connected" },
   { name: "windows", title: "Open windows", sub: "Every one, by project: go to one, or close one, an app's, a project's or all" },
   { name: "archive", title: "Archive", sub: "Archived projects: browse them, search them, bring one back" },
+  { name: "review", title: "Weekly review", sub: "This week's steps, ticked one by one; when it comes, and its steps for every week" },
   { name: "settings", title: "Talaris Settings", sub: "Look, bar, dock, keys, connections, data" },
   { name: "network", title: "Wi-Fi", sub: "Networks in reach" },
   { name: "bluetooth", title: "Bluetooth", sub: "Devices" },

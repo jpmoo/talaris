@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import * as review from "./review.js";
 import { publish as publishView, viewRange } from "./calendar-view.js";
 import * as notesM from "./notes.js";
 import { leavesOut, leftOut, shownSettings } from "./shown.js";
@@ -770,6 +771,19 @@ route("GET", "/plugins/calendars/taken", () => takenElsewhere());
 // The accounts' calendars, shared (calendar-view.ts): published by a desktop machine's calendar, read where there are none.
 route("PUT", "/calendar/view", async (req) => publishView(await json<Parameters<typeof publishView>[0]>(req)));
 route("GET", "/calendar/view", (_r, _p, q) => viewRange(Number(q.get("from") ?? 0), Number(q.get("to") ?? 0)));
+// The weekly review (review.ts): its state, its schedule, its steps; adopting a task already there as its task.
+route("GET", "/review", () => review.state());
+route("PUT", "/review/config", async (req) => review.configure(await json<Parameters<typeof review.configure>[0]>(req)));
+route("POST", "/review/adopt", async (req) => {
+  const b = await json<{ task?: string; dueWeekday?: number; availableDaysPrior?: number; project?: string[] }>(req);
+  review.adopt(String(b.task ?? ""), b);
+  return review.state();
+});
+route("POST", "/review/steps", async (req) => review.addStep(await json<Parameters<typeof review.addStep>[0]>(req)));
+route("PUT", "/review/steps/order", async (req) => review.order((await json<{ ids?: string[] }>(req)).ids ?? []));
+route("PATCH", "/review/steps/:id", async (req, [id]) => review.changeStep(id!, await json<Parameters<typeof review.changeStep>[1]>(req)));
+route("DELETE", "/review/steps/:id", (_r, [id]) => review.removeStep(id!));
+route("POST", "/review/steps/:id/done", async (req, [id]) => review.tick(id!, (await json<{ done?: boolean }>(req)).done !== false));
 // Talaris's own calendar's color (its row's right-click, in the calendar).
 route("PUT", "/plugins/calendars/talaris", async (req) => {
   const b = await json<{ color?: string }>(req);

@@ -629,6 +629,25 @@ found related notes. Structured context answers the question it was for.
 
 **Renamed, 2026-10-23:** Morgan's repository, command, unit, socket and folders are all `heymorgan` now; the old `heyclaude` names still answer.
 
+## The weekly review (2026-11-26)
+
+Brought from Hermes Notes, its reflection note left behind; **the desktop's
+only**, not the web's. An ordered set of steps marched through once a week:
+a template that comes every week, in an order of your own, and steps for this
+week only; each ticked, the ticks cleared when the next review opens. A step
+may point at a thing (its card in the Library) or a collection (Tasks), or at
+nothing. A repeating "Do weekly review" task brings it — due on a weekday,
+available some days before, filed in projects chosen — found by its series,
+never by its title. Kept as one record of the small sealed stores, so it
+syncs (core: `review.ts`; `/review…`).
+
+**Brought to you.** When the task becomes available, a notification Talaris
+means you not to miss: in the accent, larger, staying until answered, its
+first button "Start the review" (notifications.py, `prominent`). Said once a
+review on each machine, looked for at start and every quarter hour. Also the
+launcher's "Weekly review", `talaris-surfaces --review`, and
+`--review-remind` to be told again now (review_panel.py).
+
 ## On the web (designed 2026-11-26)
 
 Talaris in a browser and on the phone, as a machine of its own on home-server

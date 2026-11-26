@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+SPDX-License-Identifier: GPL-3.0-only
+Copyright (c) 2026 Jeff Moore
+
+The weekly review (review_panel.py; the core's review.ts): this week's steps,
+ticked one by one; the steps for every week and for this week only; when it
+comes and where its task is filed. Up over a dimmed screen like the others; a
+window by its grow button. The desktop's only.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Talaris weekly review</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="controls.css">
+<link rel="stylesheet" href="motion.css">
+<style>
+html { background: var(--catch); overflow: hidden; height: 100%; }
+html:not([data-window]) { cursor: pointer; }
+body { cursor: default; position: relative; }
+body {
+  width: min(1040px, calc(100% - 32px)); height: 82vh; margin: 9vh auto 0; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+html[data-window] { background: var(--surface); }
+html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
+
+header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
+header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
+header .spacer { flex: 1; }
+header .icon-btn[hidden] { display: none !important; }
+#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#msg.err { color: var(--danger); }
+body { width: min(760px, calc(100% - 32px)); }
+main { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px 28px; }
+.when { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.when b { color: var(--accent); font-weight: 500; }
+.steps { display: flex; flex-direction: column; gap: 2px; margin: 0 0 12px; }
+.step { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-row); }
+.step:hover { background: var(--accent-hover); }
+.step input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.step .what { flex: 1; min-width: 0; font-size: 14px; }
+.step.done .what { color: var(--muted); text-decoration: line-through; }
+.step .link { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.step .tag { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.step .ctl { display: flex; gap: 2px; visibility: hidden; }
+.step:hover .ctl { visibility: visible; }
+.step .ctl button { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 2px 5px; border-radius: 5px; }
+.step .ctl button:hover { color: var(--text); background: var(--accent-hover); }
+.add { display: flex; gap: 8px; align-items: center; margin: 6px 0 4px; flex-wrap: wrap; }
+.add input[type=text] { flex: 1 1 260px; min-width: 0; font-size: 13px; }
+.found { display: flex; flex-direction: column; gap: 1px; margin: 4px 0 8px; }
+.found button { text-align: left; background: none; border: 0; color: var(--text); padding: 4px 8px; border-radius: var(--radius-row); cursor: pointer; font: inherit; font-size: 13px; }
+.found button:hover { background: var(--accent-hover); }
+.found small { color: var(--muted); margin-left: 6px; }
+.finish { margin: 14px 0 4px; display: flex; gap: 10px; align-items: center; }
+h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 26px 0 8px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; flex-wrap: wrap; }
+.row .name { width: 170px; color: var(--muted); }
+.projects { display: flex; gap: 6px; flex-wrap: wrap; }
+.projects button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: none; color: var(--text); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.projects button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+</style>
+<link rel="stylesheet" href="kit.css">
+</head>
+<body data-arrives>
+<header>
+  <h1>Weekly review</h1>
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <button class="icon-btn" id="grow"></button>
+  <button class="icon-btn" id="close"></button>
+</header>
+<main id="main"><div class="kit-empty">Reading…</div></main>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="pagetips.js"></script>
+<script src="icons.js"></script>
+<script src="surface.js"></script>
+<script src="kit.js"></script>
+<script src="motion.js"></script>
+<script src="review.js"></script>
+</body>
+</html>

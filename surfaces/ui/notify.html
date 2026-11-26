@@ -23,6 +23,12 @@ top, the surface as tall as the page says.
   font: 13px/1.4 var(--font); color: var(--text);
 }
 .toast.clickable { cursor: pointer; }
+/* One Talaris means you not to miss (the weekly review opening): in the accent, larger, and staying until answered. */
+.toast.prominent { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--toast-bg)); padding: 12px 14px 14px; }
+.toast.prominent .summary { font-size: 17px; font-weight: 600; color: var(--accent); }
+.toast.prominent .body { font-size: 14px; }
+.toast.prominent .buttons .t-btn:first-child { background: var(--accent) !important; color: var(--on-accent, #1c1f22) !important; border-color: var(--accent) !important; font-weight: 600; }
+.toast.prominent .buttons .t-btn { font-size: 13px; padding: 5px 14px; }
 .top { display: flex; align-items: center; gap: 7px; height: 18px; }
 .top .icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
 .top .app { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -241,7 +247,7 @@ function fill(card, t) {
     b.addEventListener("click", (e) => { e.stopPropagation(); done(t.id, "action", String(key)); });
     buttons.append(b);
   }
-  if (t.canOpen) {
+  if (t.canOpen && !t.prominent) {
     const text = t.app ? `Open ${t.app}` : "Open";
     const b = el("button", "t-btn small", { title: text });
     b.append(el("span", "", { textContent: text }));
@@ -255,7 +261,7 @@ function fill(card, t) {
 }
 
 function make(t) {
-  const card = el("div", "toast");
+  const card = el("div", "toast" + (t.prominent ? " prominent" : ""));
   card.dataset.id = String(t.id);
   card.bar = el("div", "track left", { hidden: true });
   card.bar.append(document.createElement("i"));

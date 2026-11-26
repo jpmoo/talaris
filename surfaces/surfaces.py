@@ -68,6 +68,7 @@ from people_panel import People
 from files_panel import FilesPanel
 from glance_panel import Glance
 from archive_panel import Archive
+from review_panel import Review
 from webapps import WebApps
 from desk import Desk
 from notifications import Notifications
@@ -314,6 +315,8 @@ class Desktop(QObject):
         # Plugins' windows: a desktop entry, a key, one window each (webapps.py).
         self.webapps = WebApps(self, LAUNCHER)
         self.archive = Archive(profile, self)
+        # The weekly review (review_panel.py): its panel, and the notification that brings it when it opens.
+        self.review = Review(profile, self)
         # New: a task, an event, a person, a note or a project, from Super+Shift+N.
         self.new = New(profile, self, self.calendar_service)
         # The project carousel: Super+Tab.
@@ -483,7 +486,7 @@ class Desktop(QObject):
 
     def overlays(self) -> list:
         """What opens from the bar, as a panel or a window: Morgan, the calendar, the canvas, the writing surface."""
-        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "files_panel", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "new", None), getattr(self, "jump", None),
+        return [p for p in (getattr(self, "morgan", None), getattr(self, "calendar", None), getattr(self, "tasks", None), getattr(self, "people", None), getattr(self, "files_panel", None), getattr(self, "glance", None), getattr(self, "archive", None), getattr(self, "review", None), getattr(self, "new", None), getattr(self, "jump", None),
                             getattr(self, "shot", None), *getattr(self, "workspaces", {}).values()) if p]
 
     #: How far the dock's panel stops short of the space it reserves (dock.html:
@@ -1326,6 +1329,8 @@ class Desktop(QObject):
             self.glance.open()
         elif name == "archive":
             self.archive.show("")
+        elif name == "review":
+            self.review.open()
         else:
             return "No such thing to do"
         return ""
@@ -1409,6 +1414,10 @@ class Desktop(QObject):
                 self.webapps.open(arg)
             elif verb == "archive":
                 self.archive.toggle()
+            elif verb == "review":
+                self.review.toggle()
+            elif verb == "review-remind":
+                self.review.look(now=True)
             elif verb == "new":
                 self.new.toggle()
             elif verb == "screenshot":
@@ -1490,6 +1499,10 @@ def main() -> int:
         return send(f"app {args[1]}")
     if args[:1] == ["--archive"]:
         return send("archive")
+    if args[:1] == ["--review"]:
+        return send("review")
+    if args[:1] == ["--review-remind"]:
+        return send("review-remind")
     if args[:1] == ["--new"]:
         return send("new")
     if args[:1] == ["--screenshot"]:

@@ -161,9 +161,11 @@ it has not seen. Then:
 
 ## The weekly review, brought over whole
 
-Hermes' weekly review comes to Talaris in every form it has there, on the
-desktop as a panel and on the web as a sixth module — not left behind with
-Hermes. What it is in Hermes (`packages/shared/src/weekly-review.ts`,
+**Built 2026-11-26 — on the desktop only** (decided: not a web module; DESIGN,
+*The weekly review*).
+
+Hermes' weekly review comes to Talaris in every form it has there, as a
+panel on the desktop — not left behind with Hermes. What it is in Hermes (`packages/shared/src/weekly-review.ts`,
 `apps/server/src/review/routes.ts`, `ReviewPage.tsx`):
 
 - **The steps.** A template of steps that come every week, in an order you
@@ -265,7 +267,7 @@ Each step works on its own; nothing is broken while the next is built.
    `surfaces/ui`, which git does not carry), then restart `talaris-core` and
    `talaris-web`.
 3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.
-4. **The weekly review**, in Talaris on the desktop and the web.
+4. **The weekly review**, in Talaris on the desktop — **done 2026-11-26**.
 5. **The Talaris MCP server**; Claude, Morgan and the Gmail sweep moved to it.
 6. **Sync over HTTPS**, with machine tokens and the plugin lease; Syncthing
    removed.

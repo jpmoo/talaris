@@ -161,7 +161,7 @@ class Notifications(QObject):
         self._keep()
         self.changed.emit()
 
-    def own(self, summary: str, body: str, actions: list[tuple[str, str]], answer) -> int:
+    def own(self, summary: str, body: str, actions: list[tuple[str, str]], answer, prominent: bool = False) -> int:
         """
         One of Talaris's own, shown and listed as any other: its buttons
         answered here (`answer(key)`), not over the bus — negative ids, which
@@ -171,7 +171,10 @@ class Notifications(QObject):
         self._answers = getattr(self, "_answers", {})
         self._answers[self._own_id] = answer
         self._came({"id": self._own_id, "app": "Talaris", "appId": "talaris", "summary": summary, "body": body,
-                    "actions": [[k, label] for k, label in actions], "icon": ""})
+                    "actions": [[k, label] for k, label in actions], "icon": "",
+                    # One not to be missed (the weekly review opening): urgent, so it stays until answered, and drawn
+                    # in the accent (notify.html, `prominent`).
+                    **({"urgency": 2, "prominent": True} if prominent else {})})
         return self._own_id
 
     def _gone(self, nid: int, told: bool = True, reason: int = 2) -> None:

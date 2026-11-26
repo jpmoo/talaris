@@ -51,7 +51,7 @@ DEFAULTS = {
     "launcher": {"keys": "SUPER, SPACE", "singleWindow": "bring"},
     # Whose motion each thing from the bar comes and goes with: the windows'
     # ("windows") or the panels' ("drawers", the theme's motion, as it was named).
-    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "files": "windows", "glance": "windows", "new": "windows", "jump": "windows", "archive": "windows", "shot": "windows",
+    "overlays": {"launcher": "windows", "morgan": "windows", "settings": "windows", "calendar": "windows", "tasks": "windows", "people": "windows", "files": "windows", "glance": "windows", "new": "windows", "jump": "windows", "archive": "windows", "review": "windows", "shot": "windows",
                  "canvas": "drawers", "writing": "drawers"},
     # Wallpapers of their own, by project id ({path, fit}); a project without
     # one shows the default, which is hyprpaper's own file (wallpaper.py).

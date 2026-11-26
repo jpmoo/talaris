@@ -63,7 +63,7 @@ export function allSeries(): Series[] {
   return sealedList<Series>(SERIES);
 }
 
-function seriesOf(id: string): Series | null {
+export function seriesOf(id: string): Series | null {
   return allSeries().find((s) => s.id === id) ?? null;
 }
 
