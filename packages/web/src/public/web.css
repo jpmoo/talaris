@@ -5,35 +5,45 @@ html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !im
   max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
 html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }
 
-/* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows)
+/* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows). The Library's one-pane layout is the Library's alone (page-library)
    One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
    everything when one is chosen, with Back. The type a little larger, for fingers. phone.js says which is out. */
 @media (max-width: 760px) {
   html.web body { zoom: 1.18; height: calc(100vh / 1.18) !important; }
-  html.web header { flex-wrap: wrap; padding: 8px 10px; }
-  html.web header .tools { gap: 6px; }
-  html.web #q { flex: 1 1 140px; width: auto; }
-  html.web #days, html.web #readf, html.web #count, html.web #msg { display: none !important; }
-  html.web main { display: block; position: relative; }
-  html.web #middle { position: absolute; inset: 0; }
-  html.web #side { position: absolute; inset: 0 auto 0 0; width: 78%; max-width: 300px; z-index: 5; background: var(--surface, #24282c);
+  html.page-library header { flex-wrap: wrap; padding: 8px 10px; }
+  html.page-library header .tools { gap: 6px; }
+  html.page-library #q { flex: 1 1 140px; width: auto; }
+  html.page-library #days, html.page-library #readf, html.page-library #count, html.page-library #msg { display: none !important; }
+  html.page-library main { display: block; position: relative; }
+  html.page-library #middle { position: absolute; inset: 0; }
+  html.page-library #side { position: absolute; inset: 0 auto 0 0; width: 78%; max-width: 300px; z-index: 5; background: var(--surface, #24282c);
     transform: translateX(-105%); transition: transform .2s ease; box-shadow: 8px 0 24px rgba(0,0,0,.35); }
-  html.web.ph-side #side { transform: none; }
-  html.web #detail { position: absolute; inset: 0; width: auto; z-index: 6; background: var(--surface, #24282c); border: 0;
+  html.page-library.ph-side #side { transform: none; }
+  html.page-library #detail { position: absolute; inset: 0; width: auto; z-index: 6; background: var(--surface, #24282c); border: 0;
     transform: translateX(105%); transition: transform .2s ease; padding: 10px 14px 40px; }
-  html.web.ph-detail #detail { transform: none; }
-  html.web .row { grid-template-columns: 18px minmax(0, 1fr) auto !important; padding: 9px 12px; }
-  html.web .row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) auto !important; }
-  html.web .row > :nth-child(n+4) { display: none !important; }
-  html.web .row.tree > :nth-child(n+5) { display: none !important; }
+  html.page-library.ph-detail #detail { transform: none; }
+  html.page-library .row { grid-template-columns: 18px minmax(0, 1fr) auto !important; padding: 9px 12px; }
+  html.page-library .row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) auto !important; }
+  html.page-library .row > :nth-child(n+4) { display: none !important; }
+  html.page-library .row.tree > :nth-child(n+5) { display: none !important; }
   .ph-bar { display: flex; gap: 8px; align-items: center; flex-basis: 100%; }
   .ph-bar button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--line, #3a3f44);
     background: none; color: var(--text, #e6e8ea); }
   .ph-bar .where { color: var(--muted, #9aa1a8); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ph-back { display: none; margin-bottom: 8px; }
-  html.web.ph-detail .ph-back { display: inline-block; }
+  html.page-library.ph-detail .ph-back { display: inline-block; }
 }
 @media (min-width: 761px) { .ph-bar, .ph-back { display: none !important; } }
+
+/* A page's left column on a phone (Tasks' lists, Calendar's calendars): over the page, not squeezing it, while out;
+   choosing in it puts it away (sidecolumn.js). */
+@media (max-width: 760px) {
+  html.page-tasks main, html.page-calendar main { position: relative; }
+  html.page-tasks header, html.page-calendar header { flex-wrap: wrap; row-gap: 6px; }
+  html.page-tasks header input[type="search"], html.page-calendar header input[type="search"] { flex: 1 1 120px; min-width: 0; width: auto; }
+  html.page-tasks #side, html.page-calendar #side { position: absolute; inset: 0 auto 0 0; width: 80%; max-width: 300px; z-index: 5;
+    background: var(--surface, #24282c); box-shadow: 8px 0 24px rgba(0,0,0,.35); }
+}
 
 /* The modules' bar (modules.js): along the bottom, the page above it. */
 html.web.has-modules body { height: calc(100vh - 56px) !important; }

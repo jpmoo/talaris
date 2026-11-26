@@ -71,8 +71,18 @@
     events.addEventListener("synced", (e) => emit("synced", e.data));
   } catch { /* no live changes; a reload shows them */ }
 
+  // A phone, the first time: what the desktop's pages start on suits a wide screen. Calendar opens on three days, and
+  // a page's left column (Tasks' lists, Calendar's calendars) starts put away. Only where nothing was chosen yet.
+  try {
+    if (matchMedia("(max-width: 760px)").matches) {
+      const first = (key, value) => { if (localStorage.getItem(key) === null) localStorage.setItem(key, value); };
+      if (WEB.page === "calendar") { first("talaris.calendar.mode", "three"); first("talaris.calendar.side", "0"); }
+      if (WEB.page === "tasks") first("talaris.tasks.side", "false");
+    }
+  } catch { /* no storage: the page's own defaults */ }
+
   window.qt = { webChannelTransport: {} };
   window.QWebChannel = function QWebChannel(_transport, ready) { setTimeout(() => ready({ objects: { bridge } }), 0); };
   window.talarisWeb = WEB;
-  document.documentElement.classList.add("web");
+  document.documentElement.classList.add("web", `page-${WEB.page || "none"}`);
 })();

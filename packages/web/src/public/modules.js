@@ -21,5 +21,14 @@
     nav.append(a);
   }
   document.body.append(nav);
+
+  // Tasks on a phone: a list chosen in the left column puts the column away, to show the list (web.css floats it).
+  if (WEB.page === "tasks") {
+    const side = document.getElementById("side"), toggle = document.getElementById("side-toggle");
+    side?.addEventListener("click", (e) => {
+      if (!matchMedia("(max-width: 760px)").matches || e.target.closest("input, .more, .new, button")) return;
+      if (e.target.closest(".item") && !document.body.classList.contains("no-side")) setTimeout(() => toggle?.click(), 120);
+    });
+  }
   document.documentElement.classList.add("has-modules");
 })();
