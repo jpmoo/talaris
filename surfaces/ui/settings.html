@@ -121,6 +121,20 @@ input[type="range"] { width: 200px; }
 .cal-palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 10px 22px; }
 .cal-palette[hidden] { display: none; }
 .cal-palette .hex { width: 90px; font-size: 12px; }
+/* A section folded under its heading (Sync's replaced list): the heading is what opens it. */
+details.fold > summary { list-style: none; cursor: pointer; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary h3::before { content: "▸"; display: inline-block; width: 14px; transition: transform .15s; }
+details.fold[open] > summary h3::before { transform: rotate(90deg); }
+details.fold > summary h3 span { margin-left: 8px; letter-spacing: 1px; }
+details.repl { border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+details.repl > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 9px 0; }
+details.repl > summary::-webkit-details-marker { display: none; }
+details.repl > summary .nm { flex: 1; min-width: 0; }
+details.repl > summary .nm small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+details.repl > summary .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+details.repl .was { margin: 0 0 10px 14px; font-size: 12px; color: var(--muted); display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+details.repl .was b { font-weight: 500; color: var(--text); }
 h3.with-btn { display: flex; align-items: center; justify-content: space-between; }
 h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .net .what { gap: 6px; }
@@ -546,16 +560,13 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">Folder<small id="sy-folder"></small></span><span class="what" id="sy-round"></span></div>
       <h3>Machines</h3>
       <div id="sy-others"></div>
-      <div id="sy-carried" hidden>
-        <h3>Carried by Syncthing</h3>
-        <p class="note">Every device the folder is shared with. One that is not a machine above only holds and passes it on — it cannot read it.</p>
-        <div id="sy-devices"></div>
-      </div>
       <p class="note bad" id="sy-error" hidden></p>
       <p class="note" id="sy-waiting" hidden></p>
-      <h3>Replaced by another machine</h3>
-      <p class="note">When the same thing was changed on two machines, the later change won on both. What it replaced is kept here.</p>
-      <div id="sy-replaced"></div>
+      <details class="fold" id="sy-replaced-fold">
+        <summary><h3>Replaced by another machine<span id="sy-replaced-n"></span></h3></summary>
+        <p class="note">When the same thing was changed on two machines, the later change won on both. What it replaced is kept here: open one to see it.</p>
+        <div id="sy-replaced"></div>
+      </details>
       <p class="note">Talaris syncs through a folder the machines share (Syncthing keeps it the same on each; home-server holds it for whichever machine is off). Your projects, pages, canvases, people, tasks and files go to every machine; the bar, the dock, the look and the rest of these settings stay each machine's, except the wallpapers and plugins' settings.</p>
     </section>
     <section id="data">

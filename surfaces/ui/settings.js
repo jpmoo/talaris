@@ -2256,31 +2256,101 @@ async function loadSync() {
   $("sy-state").textContent = st.on ? "Syncing" : "Not syncing";
   $("sy-folder").textContent = st.folder || "None set";
   $("sy-round").textContent = st.on ? `Checked ${ago(st.last)}${st.came ? ` · last change in ${ago(st.came)}` : ""}` : "";
-  $("sy-others").replaceChildren(...(st.others || []).map((o) => el("div", { class: "row" },
-    el("span", { class: "name" }, o.name, el("small", {}, `${o.records} change${o.records === 1 ? "" : "s"} taken from it`)),
-    el("span", { class: "what" }, `Last wrote ${ago(o.wrote)}`))));
-  if (st.on && !(st.others || []).length) $("sy-others").replaceChildren(el("p", { class: "note" }, "No other machine has joined yet."));
-  // What carries the folder (syncthing.py): each device sharing it, reachable or not, and how much it has.
-  bridge.syncCarriers(st.folder || "", (text) => {
-    const sh = JSON.parse(text || "{}");
-    $("sy-carried").hidden = !(sh.devices || sh.error);
-    if (sh.error) { $("sy-devices").replaceChildren(el("p", { class: "note" }, sh.error)); return; }
-    $("sy-devices").replaceChildren(...(sh.devices || []).map((d) => el("div", { class: "row" },
-      el("span", { class: "name" }, d.me ? `${d.name} (this one)` : d.name,
-        el("small", {}, d.me ? (sh.type === "receiveonly" ? "Receives only" : "Sends and receives")
-          : d.connected ? `Connected${d.address ? ` · ${d.address.replace(/:\d+$/, "")}` : ""}`
-          : `Away · last seen ${ago(d.seen && !d.seen.startsWith("1969") ? d.seen : "")}`)),
-      el("span", { class: "what" }, d.me ? "" : d.have == null ? "" : d.have >= 100 ? "Up to date" : `Has ${d.have}%`))));
-  });
+  // One list of everything in the sync: Talaris's machines, and what carries the folder between them (syncthing.py) —
+  // matched by name, as each machine's Syncthing device is named for it. A device that is no Talaris machine (home-server)
+  // only holds the folder and passes it on; a machine with no device here syncs some other way.
+  const drawMachines = (sh) => {
+    const devices = (sh && sh.devices) || [];
+    const byName = new Map(devices.map((d) => [d.name.toLowerCase(), d]));
+    const link = (d) => !d ? "" : d.me ? "" : d.connected ? `Connected${d.address ? ` · ${d.address.replace(/:\d+$/, "")}` : ""}`
+      : `Away · seen ${ago(d.seen && !d.seen.startsWith("1969") ? d.seen : "")}`;
+    const have = (d) => !d || d.me || d.have == null ? "" : d.have >= 100 ? "Up to date" : `Has ${d.have}%`;
+    const rows = [];
+    for (const o of st.others || []) {
+      const d = byName.get((o.name || "").toLowerCase());
+      if (d) byName.delete(d.name.toLowerCase());
+      rows.push(el("div", { class: "row" },
+        el("span", { class: "name" }, o.name, el("small", {}, [`Last wrote ${ago(o.wrote)} · ${o.records} change${o.records === 1 ? "" : "s"} taken`, link(d)].filter(Boolean).join(" · "))),
+        el("span", { class: "what" }, have(d))));
+    }
+    for (const d of byName.values()) {
+      if (d.me) continue;
+      rows.push(el("div", { class: "row" },
+        el("span", { class: "name" }, d.name, el("small", {}, ["Holds the folder for the others, unable to read it", link(d)].join(" · "))),
+        el("span", { class: "what" }, have(d))));
+    }
+    $("sy-others").replaceChildren(...(rows.length ? rows : st.on ? [el("p", { class: "note" }, "No other machine has joined yet.")] : []));
+    if (sh && sh.error) $("sy-others").append(el("p", { class: "note" }, sh.error));
+  };
+  drawMachines(null);
+  bridge.syncCarriers(st.folder || "", (text) => drawMachines(JSON.parse(text || "{}")));
   $("sy-error").hidden = !st.error;
   $("sy-error").textContent = st.error ? `The last round failed: ${st.error}` : "";
   $("sy-waiting").hidden = !st.waiting;
   $("sy-waiting").textContent = st.waiting ? `${st.waiting} change${st.waiting === 1 ? "" : "s"} waiting: from a newer Talaris, or a plugin not installed here. They are taken once this machine can.` : "";
   let gone = [];
-  try { gone = await core("GET", "/sync/replaced?limit=40"); } catch { /* none */ }
-  $("sy-replaced").replaceChildren(...(gone.length ? gone.map((r) => el("div", { class: "row" },
-    el("span", { class: "name" }, `${r.what} — ${r.field}`, el("small", { title: r.value || "" }, (r.value || "(empty)").slice(0, 120))),
-    el("span", { class: "what" }, ago(r.when)))) : [el("p", { class: "note" }, "Nothing has been replaced.")]));
+  try { gone = await core("GET", "/sync/replaced?limit=200"); } catch { /* none */ }
+  drawReplaced(gone);
+}
+
+// What another machine's later change replaced, readable: one row a thing and moment (an event's start and end together),
+// its fields in words and its old values as they would be shown, opened to see them.
+const REPL_FIELDS = { start: "start", end: "end", title: "title", name: "name", status: "status", due: "due date", notes: "notes", body: "text", "*": "the whole of it" };
+const ITEM_KINDS = { ink: "A drawing", note: "A note", text: "Some text", shape: "A shape", card: "A card", link: "A connection", region: "A region", image: "A picture", file: "A file" };
+function replacedField(f) {
+  const k = String(f || "").replace(/^[a-z]\./, "");
+  return REPL_FIELDS[k] || k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+}
+function replacedValue(v) {
+  if (v == null || v === "") return "(empty)";
+  const s = String(v);
+  if (/^\d{4}-\d\d-\d\d(T\d\d:\d\d)?/.test(s)) {
+    const d = new Date(s.length === 10 ? `${s}T00:00` : s);
+    if (!isNaN(d)) return s.length === 10 ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : Kit.stamp(d);
+  }
+  if (s.startsWith("{") || s.startsWith("[")) return "";
+  return s.length > 160 ? `${s.slice(0, 160)}…` : s;
+}
+// A canvas's item, by the kind its id starts with (ink-…, note-…) or says in what was kept.
+function itemKind(r) {
+  const id = String(r.of || "").split("/").pop() || "";
+  const m = id.match(/^([a-z]+)-/) || String(r.value || "").match(/"kind":"([a-z]+)"/);
+  return m ? m[1] : "";
+}
+const ITEM_PLURALS = { ink: "drawings", note: "notes", text: "pieces of text", shape: "shapes", card: "cards", link: "connections", region: "regions", image: "pictures", file: "files" };
+function drawReplaced(gone) {
+  // Together: one thing's fields changed in the same minute (an event's start and end), and a canvas's items of one
+  // kind replaced in the same minute (a drawing's strokes).
+  const keyOf = (r) => String(r.of || "").startsWith("item:") ? `${String(r.of).split("/")[0]}|${itemKind(r)}` : r.of;
+  const groups = [];
+  for (const r of gone) {
+    const last = groups[groups.length - 1];
+    if (last && last.key === keyOf(r) && Math.abs(Date.parse(last.when) - Date.parse(r.when)) < 60000) last.rows.push(r);
+    else groups.push({ key: keyOf(r), when: r.when, rows: [r] });
+  }
+  $("sy-replaced-n").textContent = gone.length ? `· ${groups.length}` : "";
+  $("sy-replaced").replaceChildren(...(groups.length ? groups.slice(0, 60).map((g) => {
+    const first = g.rows[0];
+    if (String(first.of || "").startsWith("item:")) {
+      // A canvas's items: what they were is drawing, not words — said, and kept, not shown.
+      const things = new Set(g.rows.map((r) => r.of)).size;
+      const kind = itemKind(first);
+      return el("div", { class: "row" },
+        el("span", { class: "name" }, things === 1 ? ITEM_KINDS[kind] || "Something" : `${things} ${ITEM_PLURALS[kind] || "things"}`,
+          el("small", {}, "On a canvas, replaced by a later change")),
+        el("span", { class: "what" }, ago(g.when)));
+    }
+    const order = (f) => ["title", "name", "start", "end"].indexOf(f) + 1 || 9;
+    const fields = [...new Set(g.rows.map((r) => replacedField(r.field)))].sort((x, y) => order(x) - order(y));
+    const said = fields.length > 1 ? `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}` : fields[0];
+    const shown = g.rows.map((r) => [replacedField(r.field), replacedValue(r.value)]).filter(([, v]) => v).sort(([x], [y]) => order(x) - order(y));
+    return el("details", { class: "repl" },
+      el("summary", {},
+        el("span", { class: "nm" }, first.what || first.of, el("small", {}, fields.includes("the whole of it") ? "Replaced whole" : `Its ${said}`)),
+        el("span", { class: "when" }, ago(g.when))),
+      el("div", { class: "was" }, ...(shown.length ? shown.flatMap(([f, v]) => [el("span", {}, `${f[0].toUpperCase()}${f.slice(1)} was`), el("b", {}, v)])
+        : [el("span", {}, "What it was"), el("b", {}, "kept, but not something to show as words")])));
+  }) : [el("p", { class: "note" }, "Nothing has been replaced.")]));
 }
 
 function show(page) {
