@@ -33,7 +33,7 @@ $("clipboard").innerHTML = Icons.clipboard();
 $("shot").innerHTML = Icons.camera();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n"];
+const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "review", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -44,7 +44,10 @@ function onState(s) {
   $("clock").classList.toggle("on", !!s.calendarOpen);
   $("ask").classList.toggle("on", !!s.launcherOpen);
   $("settings").classList.toggle("on", !!s.settingsOpen);
-  for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot", "review"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
+  // The weekly review's button wears a dot while a review is open and not yet done (review_panel.py, `waiting`).
+  $("review").classList.toggle("due", !!s.reviewWaiting);
+  $("review").title = s.reviewWaiting ? "Weekly review — open now" : "Weekly review";
   markTray();
   // A display plugged in (displays.py): its button, while there is one; what it shows, in its tip.
   const shown = (s.displays || {}).external || [];
@@ -305,6 +308,8 @@ $("people").addEventListener("click", () => bridge && bridge.openPanel("people")
 $("files").addEventListener("click", () => bridge && bridge.openPanel("files"));
 $("canvas").innerHTML = Icons.canvas();
 $("writing").innerHTML = Icons.writing();
+$("review").innerHTML = Icons.review();
+$("review").addEventListener("click", () => bridge && bridge.openPanel("review"));
 $("canvas").addEventListener("click", () => bridge && bridge.openPanel("canvas"));
 $("tasks").addEventListener("click", () => bridge && bridge.openPanel("tasks"));
 $("writing").addEventListener("click", () => bridge && bridge.openPanel("writing"));

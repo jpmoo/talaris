@@ -369,7 +369,7 @@ class BarBridge(Bridge):
     def openPanel(self, name: str) -> None:  # noqa: N802 — called from the page by this name (`panel` is the popups' signal)
         """The canvas, the writing surface or Tasks, from its button — or, on one desktop, the Talaris menu's row."""
         self.owner.desktop.bar.close_popup()
-        if name in ("tasks", "new", "people", "files"):
+        if name in ("tasks", "new", "people", "files", "review"):
             getattr(self.owner.desktop, "files_panel" if name == "files" else name).toggle()
             return
         w = self.owner.desktop.workspaces.get(name)
@@ -792,6 +792,8 @@ class Bar(QObject):
             "displays": self.desktop.displays.describe() if getattr(self.desktop, "displays", None) else {"external": []},
             "morganOpen": bool(getattr(self.desktop, "morgan", None) and self.desktop.morgan.up),
             "calendarOpen": bool(getattr(self.desktop, "calendar", None) and self.desktop.calendar.up),
+            # A weekly review open and not done: its button's dot (review_panel.py).
+            "reviewWaiting": bool(getattr(getattr(self.desktop, "review", None), "waiting", False)),
             "launcherOpen": bool(getattr(self.desktop, "launcher", None) and self.desktop.launcher.up),
             "settingsOpen": bool(getattr(self.desktop, "settings", None) and self.desktop.settings.up),
             "panelsOpen": {**{n: w.up for n, w in getattr(self.desktop, "workspaces", {}).items()},
@@ -799,6 +801,7 @@ class Bar(QObject):
                            "new": bool(getattr(self.desktop, "new", None) and self.desktop.new.up),
                            "people": bool(getattr(self.desktop, "people", None) and (self.desktop.people.up or self.desktop.people.windowed)),
                            "files": bool(getattr(self.desktop, "files_panel", None) and (self.desktop.files_panel.up or self.desktop.files_panel.windowed)),
+                           "review": bool(getattr(self.desktop, "review", None) and (self.desktop.review.up or self.desktop.review.windowed)),
                            "shot": bool(getattr(self.desktop, "shot", None) and self.desktop.shot.up)},
             # Morgan's timers and reminders, soonest first: the bell counts the next one down within the hour.
             "timers": getattr(self, "timers", []),

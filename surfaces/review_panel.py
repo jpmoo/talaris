@@ -69,12 +69,21 @@ class Review(Overlay):
         self._look.start()
         QTimer.singleShot(60_000, self.look)
 
+    #: A review open and not done: the bar's button wears a dot (bar.py, `reviewWaiting`).
+    waiting = False
+
+    def _waiting(self, state: dict) -> None:
+        was, self.waiting = self.waiting, bool(state.get("configured") and state.get("open") and state.get("task") and not state.get("allDone"))
+        if was != self.waiting:
+            self.desktop.bar.changed()
+
     def look(self, now: bool = False) -> None:
         """
         A review newly open, and not yet said on this machine: said, prominently. `now` (`talaris-surfaces
         --review-remind`): said whatever, open or not — to be reminded, or to see how it looks.
         """
         state = get_json("/review", {}) or {}
+        self._waiting(state)
         if not state.get("configured") or not state.get("task") or (not now and (not state.get("open") or state.get("allDone"))):
             return
         key = str(state.get("key") or "")
@@ -105,4 +114,6 @@ class Review(Overlay):
         self.desktop.bar.changed()
 
     def closed(self) -> None:
+        # Ticked while it was out: the bar's dot as the review now stands.
+        self._waiting(get_json("/review", {}) or {})
         self.desktop.bar.changed()

@@ -13,7 +13,7 @@
 
 const BarLayout = (() => {
   const REGIONS = {
-    start: ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing"],
+    start: ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "review"],
     middle: ["clock", "weather"],
     end: ["loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "bat", "settings", "bell", "power"],
   };

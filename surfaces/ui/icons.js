@@ -156,6 +156,8 @@ const Icons = (() => {
   const activity = () => svg('<path d="M1.5 8.5h3l1.8-4.5 3.4 8 1.8-3.5h3"/>');
   const said = () => svg('<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>');
   const event = () => svg('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/>');
+  /** The weekly review: a week's page, ticked. */
+  const review = () => svg('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5.5 1.5v3M10.5 1.5v3M5.5 9.5l1.8 1.8 3.4-3.6"/>');
   // Clipboard history: a board with its clip, and a line written on it. Its
   // tiles: a pin, an eye (looked at, not copied), a bin, a page (a file), a warning.
   const clipboard = () => svg('<path d="M5.5 3H4a1 1 0 0 0-1 1v9.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-1.5"/><rect x="5.5" y="1.8" width="5" height="2.4" rx=".8"/><path d="M5.5 8h5M5.5 10.8h3.4"/>');
@@ -171,5 +173,5 @@ const Icons = (() => {
   const clock = () => svg('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/>');
   // Talaris's mark, the feather wing (talaria.svg), in the color of what it is on: the Talaris menu's button.
   const talaris = () => '<svg class="ic" viewBox="0 0 32 32" fill="currentColor" stroke="none"><path d="M28.665 25.537c-1.966-1.094-3.116-2.962-3.232-4.673-0.619-9.164-15.889-10.357-23.662-19.509l-0 0c0.403 11.661 13.204 11.604 20.744 17.449-4.879-2.113-12.876-1.649-18.664-5.404 2.7 8.775 12.332 5.886 19.406 8.271-4.212-0.411-9.768 1.968-15.020 0.086 4.638 7.31 10.654 2.427 16.483 2.47-2.94 0.749-5.977 4.025-10.036 3.718 4.946 4.76 7.536 0.139 11.079-1.633-0.357 0.425-0.583 0.967-0.61 1.565-0.064 1.443 1.054 2.665 2.497 2.73s2.665-1.054 2.73-2.497c0.052-1.169-0.672-2.193-1.716-2.574z"/></svg>';
-  return { talaris, sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power, logout, activity, display };
+  return { review, talaris, sky, pin_place, windows, book, prev, next, lock, sum, go, said, event, clipboard, pin, eye, trash, file, camera, brightness, warn, timer, clock, sideList, folder, library, clip, linked, people, tasks, plus, refresh, keyboard, bell, canvas, writing, grow, shrink, close, tray, search, morgan, wifi, ethernet, offline, bluetooth, volume, battery, mic, sun, moon, launcher, settings, power, logout, activity, display };
 })();

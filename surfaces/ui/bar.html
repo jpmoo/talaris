@@ -155,6 +155,9 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
   box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none; }
 #power[data-health="1"] .health-dot { display: block; background: var(--warn); }
 #power[data-health="2"] .health-dot { display: block; background: var(--danger); }
+/* The weekly review's button while a review is open and not done: a dot in the accent at its corner. */
+#review { position: relative; }
+#review.due::after { content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 #bell .dot {
   position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); display: none; pointer-events: none;
@@ -190,6 +193,7 @@ body.bar-drag-on, body.bar-drag-on * { cursor: grabbing !important; }
     <button id="files" class="bar-item" title="Library"></button>
     <button id="canvas" class="bar-item" title="Canvas (Super+Shift+C)"></button>
     <button id="writing" class="bar-item" title="Notes (Super+Shift+W)"></button>
+    <button id="review" class="bar-item" title="Weekly review"></button>
   </div>
   <!-- The middle: the clock (the calendar), and beside it the weather (its own popup) — each its own button. -->
   <span id="middle" data-region="middle"><span id="clock"><span class="day" id="day"></span><span id="time"></span></span><span id="weather"></span></span>

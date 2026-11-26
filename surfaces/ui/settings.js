@@ -2153,13 +2153,13 @@ $("unlock-go").addEventListener("click", async () => {
 // What a bar item opens, and so whose coming and going sits beside its switch. The clock opens the calendar
 // from either half: its motion is on Time's row, and greyed only when neither half is shown.
 const BAR_OPENS = { where: ["jump", "The projects"], ask: ["launcher"], morgan: ["morgan"], new: ["new"], tasks: ["tasks"], people: ["people"],
-  files: ["files"], canvas: ["canvas"], writing: ["writing"], time: ["calendar", "Opens the calendar"],
+  files: ["files"], canvas: ["canvas"], writing: ["writing"], review: ["review"], time: ["calendar", "Opens the calendar"],
   shot: ["shot", "Print Screen too"], settings: ["settings"] };
 /** What each of the bar's items is called here, and what shows or hides it (its switches): an item may have two, or none. */
 const BAR_UNITS = {
   where: ["Project", [["where", ""]]], ask: ["Launcher", [["ask", ""]]], morgan: ["Morgan", [["morgan", ""]]], new: ["New", [["new", ""]]],
   tasks: ["Tasks", [["tasks", ""]]], people: ["People", [["people", ""]]], files: ["Library", [["files", ""]]],
-  canvas: ["Canvas", [["canvas", ""]]], writing: ["Notes", [["writing", ""]]],
+  canvas: ["Canvas", [["canvas", ""]]], writing: ["Notes", [["writing", ""]]], review: ["Weekly review", [["review", ""]]],
   clock: ["Date and time", [["day", "Date"], ["time", "Time"]]], weather: ["Weather", [["weather", ""]]],
   loc: ["Location in use", [["loc", ""]]], tray: ["Tray", []], shot: ["Screenshot", [["shot", ""]]], clipboard: ["Clipboard", [["clipboard", ""]]],
   theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""], ["net-n", "Percent"]]], bt: ["Bluetooth", [["bt", ""]]],

@@ -646,7 +646,10 @@ means you not to miss: in the accent, larger, staying until answered, its
 first button "Start the review" (notifications.py, `prominent`). Said once a
 review on each machine, looked for at start and every quarter hour. Also the
 launcher's "Weekly review", `talaris-surfaces --review`, and
-`--review-remind` to be told again now (review_panel.py).
+`--review-remind` to be told again now (review_panel.py). **On the bar**, at
+the end of its left side: its own button (a week's page, ticked), lit while
+the panel is out and wearing an accent dot while a review is open and not
+done; shown or hidden in Settings, Bar, as any item is.
 
 ## On the web (designed 2026-11-26)
 
