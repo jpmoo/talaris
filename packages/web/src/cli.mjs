@@ -6,7 +6,11 @@
  * `talaris-web`, run on the machine that serves Talaris on the web (docs/WEB.md, *Signing in*):
  *
  *   talaris-web passkey     a one-time code, good for ten minutes, to add one passkey from a browser
- *   talaris-web list        the passkeys and the sessions
+ *   talaris-web list        the passkeys, the sessions and the MCP keys
+ *   talaris-web token <name> [--read-only]
+ *                           a key for an MCP client that is not a browser (Morgan: `talaris-web token morgan --read-only`),
+ *                           printed once
+ *   talaris-web revoke <id> an MCP key taken back
  *
  * The only way to the first passkey, or to a new one when every other is lost: nothing on the web can reset access.
  */
@@ -25,7 +29,17 @@ if (verb === "passkey") {
   console.log("Sessions:");
   for (const s of sessions) console.log(`  ${s.passkey} — since ${s.started.slice(0, 10)}, last seen ${s.seen.slice(0, 16)} — ${s.device.slice(0, 60)}`);
   if (!sessions.length) console.log("  none");
+  console.log("MCP keys:");
+  for (const t of auth.tokens()) console.log(`  ${t.id}  ${t.name}${t.readOnly ? " (reading only)" : ""} — made ${t.made.slice(0, 10)}, last used ${t.used ? t.used.slice(0, 16) : "never"}`);
+  if (!auth.tokens().length) console.log("  none");
+} else if (verb === "token" && process.argv[3]) {
+  const name = process.argv[3];
+  const t = auth.makeToken({ client: name.toLowerCase().startsWith("morgan") ? "morgan" : name, name, readOnly: process.argv.includes("--read-only") });
+  console.log(`A key for ${name}${process.argv.includes("--read-only") ? " (reading only)" : ""} — shown this once:\n\n    ${t}\n\nIts MCP: ${auth.ORIGIN}/talaris/mcp, with Authorization: Bearer <key>.`);
+} else if (verb === "revoke" && process.argv[3]) {
+  auth.revokeToken(process.argv[3]);
+  console.log("Taken back.");
 } else {
-  console.log("usage: talaris-web passkey | list");
+  console.log("usage: talaris-web passkey | list | token <name> [--read-only] | revoke <id>");
   process.exit(2);
 }

@@ -219,5 +219,39 @@ export function endSession(id) {
   return { ok: true };
 }
 
+// ------------------------------------------------------------ tokens for what is not a browser (docs/WEB.md, Claude and Morgan)
+
+/**
+ * A token for an MCP client — Claude's connector (made by OAuth, oauth.mjs) or Morgan (made by `talaris-web token`) —
+ * kept as its hash, named, revocable; `readOnly` gives it only the tools that change nothing.
+ */
+export function makeToken({ client, name, readOnly = false }) {
+  const token = `tlrs_${randomBytes(32).toString("base64url")}`;
+  const state = load();
+  state.tokens = state.tokens || [];
+  state.tokens.push({ hash: hash(token), id: randomBytes(6).toString("hex"), client: String(client || "mcp"), name: String(name || client || "A client").slice(0, 80),
+    readOnly: !!readOnly, made: new Date().toISOString(), used: null });
+  save(state);
+  return token;
+}
+/** The token a bearer names, its use noted (at most hourly); or null. */
+export function tokenFor(bearer) {
+  if (!bearer) return null;
+  const state = load();
+  const t = (state.tokens || []).find((x) => x.hash === hash(bearer));
+  if (!t) return null;
+  if (!t.used || Date.now() - Date.parse(t.used) > 3_600_000) { t.used = new Date().toISOString(); save(state); }
+  return t;
+}
+export function tokens() {
+  return (load().tokens || []).map(({ id, client, name, readOnly, made, used }) => ({ id, client, name, readOnly, made, used }));
+}
+export function revokeToken(id) {
+  const state = load();
+  state.tokens = (state.tokens || []).filter((t) => t.id !== id);
+  save(state);
+  return { ok: true };
+}
+
 export const stateFile = () => FILE;
 export const stateExists = () => existsSync(FILE);

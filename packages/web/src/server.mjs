@@ -23,6 +23,8 @@ import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import * as auth from "./auth.mjs";
+import * as oauth from "./oauth.mjs";
+import * as mcp from "./mcp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..", "..");
@@ -215,12 +217,21 @@ function cookies(req) {
 }
 const addrOf = (req) => String(req.headers["cf-connecting-ip"] ?? req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
 
-async function bodyOf(req) {
+async function textOf(req) {
   const chunks = [];
   let size = 0;
   for await (const c of req) { size += c.length; if (size > 25 * 1024 * 1024) throw new Error("too large"); chunks.push(c); }
-  const text = Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString("utf8");
+}
+async function bodyOf(req) {
+  const text = await textOf(req);
   return text ? JSON.parse(text) : {};
+}
+/** A form (OAuth's), or JSON — whichever was sent. */
+async function formOf(req) {
+  const text = await textOf(req);
+  if (/json/.test(String(req.headers["content-type"] ?? ""))) { try { return JSON.parse(text || "{}"); } catch { return {}; } }
+  return Object.fromEntries(new URLSearchParams(text));
 }
 
 const sessionCookie = (token, maxAge) =>
@@ -242,6 +253,10 @@ setInterval(async () => {
 async function handle(req, res) {
   const url = new URL(req.url ?? "/", "http://talaris");
   let path = url.pathname;
+  // OAuth's documents, which a client finds by putting the well-known segment before Talaris's own path (RFC 9728
+  // §3.1, RFC 8414 §3.1): Caddy sends /.well-known/oauth-*/talaris… here (docs/WEB.md).
+  if (path === `/.well-known/oauth-protected-resource${PREFIX}/mcp` || path === `/.well-known/oauth-protected-resource${PREFIX}`) return send(res, 200, oauth.protectedResource(PREFIX));
+  if (path === `/.well-known/oauth-authorization-server${PREFIX}` || path === `/.well-known/openid-configuration${PREFIX}`) return send(res, 200, oauth.authServer(PREFIX));
   if (path === PREFIX) return send(res, 302, "", "text/plain", { location: `${PREFIX}/` });
   if (!path.startsWith(PREFIX + "/")) return send(res, 404, { error: "not here" });
   path = path.slice(PREFIX.length);
@@ -262,8 +277,27 @@ async function handle(req, res) {
     return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });
   }
 
+  // The MCP (mcp.mjs) and OAuth's own steps: a token or a code, not the browser's session — save approving, which is
+  // the person's, signed in by passkey.
+  if (path === "/mcp") {
+    if (req.method !== "POST") return send(res, 405, { error: "POST JSON-RPC here (streamable HTTP), with Authorization: Bearer <key>" });
+    let body;
+    try { body = await bodyOf(req); } catch { return send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "not JSON" } }); }
+    const r = await mcp.handle(req, body, PREFIX, oauth.resourceMetadataUrl(PREFIX));
+    return send(res, r.status, r.body, "application/json", r.headers ?? {});
+  }
+  if (path === "/oauth/register" && req.method === "POST") return send(res, 201, oauth.register(await formOf(req)));
+  if (path === "/oauth/token" && req.method === "POST") { const r = oauth.token(await formOf(req)); return send(res, r.status, r.body); }
+
   const token = cookies(req)[auth.COOKIE];
   const me = auth.session(token);
+  if (path === "/oauth/authorize" || path === "/oauth/approve") {
+    if (!me) return send(res, 302, "", "text/plain", { location: `${PREFIX}/login?then=${encodeURIComponent(url.pathname + url.search)}` });
+    if (path === "/oauth/authorize") { const r = oauth.consentPage(PREFIX, url.searchParams); return send(res, r.status, r.html, TYPES[".html"]); }
+    if (req.method !== "POST") return send(res, 405, { error: "not like that" });
+    const r = oauth.approve(await formOf(req));
+    return r.status === 302 ? send(res, 302, "", "text/plain", { location: r.location }) : send(res, r.status, { error: r.error });
+  }
 
   // Passkeys: asked for by the sign-in page with a JSON body; a header only a page of ours sets, against forms posted from elsewhere.
   if (path.startsWith("/auth/")) {
