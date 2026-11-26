@@ -7,6 +7,9 @@ html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: no
 /* Behind every page, the panel's own ground: the drawers (Notes, Canvas) are see-through on the desktop, over the
    screen, and showed the browser's white above and below them. */
 html.web, html.web body { background: var(--surface, #24282c) !important; }
+/* The page's panel placed within the body, not the whole window: the drawers' panel (Notes, Canvas) is placed absolutely,
+   and against the window it ran under the modules' bar — its own buttons (the list's button, New page…) with it. */
+html.web body { position: relative; }
 
 /* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows). The Library's one-pane layout is the Library's alone (page-library)
    One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
@@ -72,9 +75,9 @@ html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(
 @media (max-width: 760px) {
   html.page-notes #body, html.page-canvas #body { gap: 0 !important; }
   html.page-notes #body > .tree, html.page-canvas #body > .tree { flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
-  html.page-notes #body > .pane, html.page-canvas #body > .pane { display: none !important; }
+  html.page-notes #body > .pane, html.page-canvas #body > .pane, html.page-canvas #body > .canvas-pane { display: none !important; }
   html.dr-open #body > .tree { display: none !important; }
-  html.dr-open #body > .pane { display: flex !important; flex: 1 1 auto !important; flex-direction: column; min-width: 0; }
+  html.dr-open #body > .pane, html.dr-open #body > .canvas-pane { display: flex !important; flex: 1 1 auto !important; flex-direction: column; min-width: 0; }
   html.dr-open .dr-back { display: inline-block; position: fixed; top: 6px; right: 8px; z-index: 50; background: var(--surface, #24282c) !important; box-shadow: 0 0 0 6px var(--surface, #24282c); }
   /* The page's map of its headings sits beside the text on a desktop; on a phone it would leave the text a sliver. */
   html.page-notes .page-map, html.page-notes .page-map-open { display: none !important; }

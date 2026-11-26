@@ -166,7 +166,8 @@ const APP_HEAD = `<link rel="manifest" href="${PREFIX}/manifest.webmanifest"><li
 const SECURITY = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "same-origin",
-  "x-frame-options": "DENY",
+  // Framed only by Talaris's own pages: the Canvas drawer holds the canvas in a frame (canvas/index.html).
+  "x-frame-options": "SAMEORIGIN",
   "cache-control": "no-store",
 };
 
@@ -299,6 +300,8 @@ async function handle(req, res) {
     const rel = decodeURIComponent(path.slice(4));
     const named = pageFor(rel, url.search);
     if (named) return send(res, 200, pageHtml(named), TYPES[".html"]);
+    // The canvas itself, inside the Canvas drawer's frame: served as it is — it talks only to the drawer around it.
+    if (rel === "canvas/index.html") return send(res, 200, readFileSync(join(UI, rel)), TYPES[".html"]);
     if (rel.endsWith(".html")) return send(res, 404, { error: "not a page on the web yet" });
     const f = fileFrom(UI, rel);
     return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });

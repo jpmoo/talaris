@@ -17,6 +17,15 @@
     const back = Object.assign(document.createElement("button"), { className: "t-btn dr-back", textContent: "‹ Back" });
     back.addEventListener("click", () => root.classList.remove("dr-open"));
     document.body.append(back);
+    // The drawer's own list button (the side column's): on a phone the list is one of the two panes, so the button
+    // goes to it from a page — and never hides it, which would leave nothing to choose from.
+    document.addEventListener("click", (e) => {
+      if (!phone() || !e.target.closest(".side-toggle")) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      root.classList.remove("dr-open");
+    }, true);
+    // Hidden here before (the desktop's button hid it): shown again, or a phone would have no list to choose from.
+    try { for (const k of Object.keys(localStorage)) if (["talaris.canvas.tree", "talaris.writing.list"].includes(k) && localStorage.getItem(k) === "off" && phone()) localStorage.setItem(k, "on"); } catch { /* fine */ }
     // Heard on the document: the drawer may draw its list anew.
     document.addEventListener("click", (e) => {
       if (!phone() || !e.target.closest("#body > .tree") || e.target.closest("button, input, .seg, .tag, [contenteditable]")) return;
