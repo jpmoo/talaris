@@ -179,7 +179,15 @@ due and overdue) in project chat — so on the Echo, with no Talaris, Hermes is
 all it has.
 
 **A Talaris MCP server, in the web side**, covers both, and being always on,
-Morgan never needs a fallback. It offers only what is used:
+Morgan never needs a fallback. **It offers everything Claude gets from Hermes'
+MCP today** (decided 2026-11-26) — Hermes' 45 tools
+(`hermesnotes/apps/server/src/mcp/toolkit.ts`), each by Talaris's own means,
+beside what Talaris's MCP already offers on a machine (`talaris-core mcp`:
+`mcp.ts`, `mcp-desktop.ts`). Hermes' reaches Claude as a **claude.ai
+connector**, so in every Claude app, the phone's too; the web side's must as
+well, and a connector signs in by OAuth — the passkey sign-in is what its
+consent page asks for. Not built yet: after the core is on home-server. At the
+least:
 
 | Reads | Writes |
 |---|---|
@@ -192,7 +200,7 @@ Morgan never needs a fallback. It offers only what is used:
 
 Each client has a token of its own (Claude's, Morgan's), revocable like a
 machine's, and each is told which side it may use — Morgan reads only, as its
-project chat does now. More is added when something asks for it, not before.
+project chat does now.
 
 ## Retiring Hermes
 
