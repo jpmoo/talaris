@@ -54,6 +54,11 @@ if (window.ResizeObserver) {
 
 // The current project at a glance (Super+Shift+G): everything in it, as a list or a graph.
 document.getElementById("glance-here").addEventListener("click", () => bridge && bridge.glance());
+// On one desktop, the Talaris menu's panels (bar.py, openPanel), as their bar buttons are elsewhere.
+document.querySelectorAll("#talaris-panels [data-panel]").forEach((b) => {
+  if (Icons[b.dataset.icon]) b.insertAdjacentHTML("afterbegin", Icons[b.dataset.icon]());
+  b.addEventListener("click", () => bridge && bridge.openPanel(b.dataset.panel));
+});
 // The archive's browser: archived projects, out of every list but this one.
 document.getElementById("archive-open").addEventListener("click", () => bridge && bridge.archive());
 
@@ -237,6 +242,7 @@ function onState(s) {
   }
   // Drawn afresh each time it is shown: opened again on its own kind, it is not "opening" by kind,
   // and a list kept from before marks the project that was current then.
+  if (s.popup === "projects") $("talaris-panels").hidden = !s.oneDesktop;
   if (s.popup === "projects" && bridge && s.shown !== projectsShown) { projectsShown = s.shown; drawProjects(); }
   if (s.popup === "clipboard" && bridge && s.shown !== clipsShown) { clipsShown = s.shown; document.body.dataset.popup = s.popup; Clips.open(); }
   if (s.popup === "notifications" && bridge && s.shown !== noticesShown) { noticesShown = s.shown; drawNotices(); bridge.remindersRead(); }

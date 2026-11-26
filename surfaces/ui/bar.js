@@ -92,6 +92,8 @@ function onState(s) {
   const hidden = new Set(BAR_ITEMS.filter((id) => !BarLayout.isShown(id, s.look || {})));
   // Morgan's button only where Morgan is installed (morgan.py, installed): it is a companion of its own.
   if (s.morganHere === false) hidden.add("morgan");
+  // On one desktop the panels are in the Talaris menu (the pill), not each a button: Morgan and New stay.
+  if (s.oneDesktop) for (const id of ["tasks", "people", "files", "canvas", "writing"]) hidden.add(id);
   for (const id of BAR_ITEMS) $(id).classList.toggle("bar-hidden", hidden.has(id));
   // Where you are (location.py): the weather after the clock, and a pin while anything else looks.
   const where = s.location || {};
@@ -244,10 +246,17 @@ $("display").addEventListener("click", () => bridge && bridge.popupAt("display",
 // machine, a popup), and a pill emptied and refilled between a press and its release loses that click.
 let whereDrawn = "";
 function drawWhere(s, p, shows) {
-  const key = JSON.stringify([shows, p.name, p.code, !!s.demo, s.theme, (s.look || {}).font]);
+  const key = JSON.stringify([shows, p.name, p.code, !!s.demo, s.theme, (s.look || {}).font, !!s.oneDesktop]);
   if (key === whereDrawn) return;
   whereDrawn = key;
   $("where").innerHTML = "";
+  $("where").classList.toggle("mark", !!s.oneDesktop);
+  if (s.oneDesktop) {
+    // One desktop: Talaris's mark, its menu the panels and the project they show.
+    $("where").innerHTML = Icons.talaris();
+    $("where").title = `Talaris — ${p.name || "Home"}`;
+    return;
+  }
   if (shows !== "code" || !p.code) {
     // No longer than "Board of Education" in the bar's own type, measured as it is drawn, so a change of
     // typeface or size moves the limit with it; a longer name ends in an ellipsis (its tip says it whole).

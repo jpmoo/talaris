@@ -1418,7 +1418,9 @@ class Desktop(QObject):
                 else:
                     self.shot.start()
             elif verb == "projects":
-                self.jump.carousel()
+                # On one desktop there is no switching between places: projects are chosen from the Talaris menu.
+                if not self.one_desktop():
+                    self.jump.carousel()
             elif verb == "window":
                 # A panel as a window, or a window back to a panel: `--window calendar`.
                 panel = {p.NAME: p for p in self.overlays()}.get(arg)

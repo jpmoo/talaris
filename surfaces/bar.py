@@ -367,7 +367,8 @@ class BarBridge(Bridge):
 
     @Slot(str)
     def openPanel(self, name: str) -> None:  # noqa: N802 — called from the page by this name (`panel` is the popups' signal)
-        """The canvas, the writing surface or Tasks, from its button."""
+        """The canvas, the writing surface or Tasks, from its button — or, on one desktop, the Talaris menu's row."""
+        self.owner.desktop.bar.close_popup()
         if name in ("tasks", "new", "people", "files"):
             getattr(self.owner.desktop, "files_panel" if name == "files" else name).toggle()
             return
@@ -483,6 +484,8 @@ class Popup(QObject):
     def describe(self) -> dict:
         # `shown`: which showing this is — a popup opened again on the same kind is a new one to its page.
         return {"popup": self.kind, "shown": getattr(self, "shown_at", 0), "theme": self.desktop.config["theme"],
+                # On one desktop the projects' menu is the Talaris menu: the panels first, then the project to show.
+                "oneDesktop": self.desktop.one_desktop(),
                 "clock": self.desktop.config.get("clock", {}),
                 # The power menu's "Task manager…", where one is installed.
                 "taskManager": task_manager() if self.kind == "power" else None,
@@ -757,6 +760,9 @@ class Bar(QObject):
             # A screen taller than wide (turned, rotation.py): a short date and time, and no numbers beside the icons.
             "portrait": self._portrait(),
             "project": self.desktop.project,
+            # Projects on one desktop (DESIGN, One desktop): the Talaris menu in place of the project's name, and the
+            # panels it holds off the bar.
+            "oneDesktop": self.desktop.one_desktop(),
             # Demo mode (demo.py): the bar says so, so a made-up world is never taken for the real one.
             "demo": bool(os.environ.get("TALARIS_DEMO")),
             # Where you are (location.py): the weather by the clock, and whether anything else is looking.
