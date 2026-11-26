@@ -17,12 +17,14 @@
     const back = Object.assign(document.createElement("button"), { className: "t-btn dr-back", textContent: "‹ Back" });
     back.addEventListener("click", () => root.classList.remove("dr-open"));
     document.body.append(back);
-    // The drawer's own list button (the side column's), hidden on a phone (web.css): should it be pressed all the same,
-    // it goes to the list — never hides it, which would leave nothing to choose from.
+    // The drawer's own list button (the side column's): on a phone it goes between the two panes — to the list from a
+    // page, and back to the page last opened from the list — and never hides the list, which would leave nothing.
+    let opened = false;
     document.addEventListener("click", (e) => {
       if (!phone() || !e.target.closest(".side-toggle")) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      root.classList.remove("dr-open");
+      if (root.classList.contains("dr-open")) root.classList.remove("dr-open");
+      else if (opened) root.classList.add("dr-open");
     }, true);
     // Hidden here before (the desktop's button hid it): shown again, or a phone would have no list to choose from.
     try { for (const k of Object.keys(localStorage)) if (["talaris.canvas.tree", "talaris.writing.list"].includes(k) && localStorage.getItem(k) === "off" && phone()) localStorage.setItem(k, "on"); } catch { /* fine */ }
@@ -30,7 +32,7 @@
     document.addEventListener("click", (e) => {
       if (!phone() || !e.target.closest("#body > .tree") || e.target.closest("button, input, .seg, .tag, [contenteditable]")) return;
       // A page's or a canvas's row (its name), not the tree's own controls: shown whole.
-      if (e.target.closest(".node, .row, li, .item, .name, [data-path], [data-id]")) setTimeout(() => root.classList.add("dr-open"), 80);
+      if (e.target.closest(".node, .row, li, .item, .name, [data-path], [data-id]")) setTimeout(() => { opened = true; root.classList.add("dr-open"); }, 80);
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready); else ready();

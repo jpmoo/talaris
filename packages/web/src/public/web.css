@@ -98,7 +98,3 @@ html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(
   html.page-tasks .tv-day .tv-dayplus { visibility: visible; }
   html.page-library .s-item .x-btn { visibility: visible; }
 }
-/* On a phone the list is a pane of its own, with Back: the drawers' list button has nothing to do there. */
-@media (max-width: 760px) {
-  html.page-notes .side-toggle, html.page-canvas .side-toggle { display: none !important; }
-}
