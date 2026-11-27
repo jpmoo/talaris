@@ -139,6 +139,11 @@ class CalendarService(QObject):
         super().__init__(parent)
         self.process: QProcess | None = None
         self.last_calendars = "[]"
+        #: The calendars another machine shared (the core's /calendar/view), shown read-only where this one reads no
+        #: account of its own — the mini, a new machine — as the web shows them (docs/WEB.md, Calendar).
+        self.shared: list = []
+        #: The page's range and search requests, by number: what to add the shared calendars' events to.
+        self._asked: dict = {}
         self.state = {"ready": False, "error": "Starting", "needs": ""}
         self._buffer = b""
         self._errors = ""
@@ -224,7 +229,8 @@ class CalendarService(QObject):
                     self.quiet()
             elif "calendars" in msg:
                 self.last_calendars = json.dumps(msg["calendars"])
-                self.calendars.emit(self.last_calendars)
+                self.calendars.emit(self.calendars_now())
+                threading.Thread(target=self._read_shared, daemon=True).start()
             elif "events" in msg and msg["events"].get("req") in self._finding:
                 # A search asked from another thread (find_events): handed to it.
                 waiting = self._finding.get(msg["events"].get("req"))
@@ -235,7 +241,12 @@ class CalendarService(QObject):
                 if msg["events"].get("req") in self._mirror_waiting:
                     self._mirror_waiting.discard(msg["events"]["req"])
                     self._mirror_out(msg["events"].get("items", []))
+                elif not self.reads_accounts() and msg["events"].get("req") in self._asked:
+                    # No accounts here: the shared calendars' events beside this machine's own, read off this thread.
+                    asked = self._asked.pop(msg["events"]["req"])
+                    threading.Thread(target=lambda: self.events.emit(json.dumps(self._with_shared(msg["events"], asked))), daemon=True).start()
                 else:
+                    self._asked.pop(msg["events"].get("req"), None)
                     self.events.emit(json.dumps(msg["events"]))
             elif "done" in msg:
                 # New's own, and an event's card's in the Library, numbered from where the calendar page's never reach.
@@ -259,6 +270,64 @@ class CalendarService(QObject):
                         {**found, "items": with_talaris_people(query, found.get("items", []))})), daemon=True).start()
             elif msg.get("changed"):
                 self.changed.emit()
+
+    # ---------------------------------------------------------------- with no accounts: what another machine shared
+
+    def reads_accounts(self) -> bool:
+        """Whether this machine reads an account's calendar: one that is neither a feed nor only on this computer."""
+        try:
+            return any(not c.get("feed") and c.get("account") not in ("On this computer", "Feeds") for c in json.loads(self.last_calendars or "[]"))
+        except (ValueError, TypeError):
+            return False
+
+    def calendars_now(self) -> str:
+        """This machine's calendars, and the shared ones when it reads no account itself."""
+        mine = json.loads(self.last_calendars or "[]")
+        return json.dumps(mine if self.reads_accounts() else mine + self.shared)
+
+    def _read_shared(self) -> None:
+        """The shared calendars, read again (off the Qt thread); the page told if they changed."""
+        if self.reads_accounts():
+            if self.shared:
+                self.shared = []
+                self.calendars.emit(self.calendars_now())
+            return
+        status, text = core_call("GET", "/calendar/view?from=0&to=0", timeout=15)
+        if status != 200:
+            return
+        try:
+            v = json.loads(text)
+        except ValueError:
+            return
+        by = v.get("by") or "another machine"
+        at = ""
+        try:
+            at = datetime.fromisoformat(str(v.get("at", "")).replace("Z", "+00:00")).astimezone().strftime("%b %-d, %-I:%M %p")
+        except ValueError:
+            pass
+        shared = [{**c, "account": f"Shared by {by}" + (f" · {at}" if at else ""), "writable": False, "invites": False,
+                   "connected": True, "shared": True} for c in v.get("calendars", [])]
+        if shared != self.shared:
+            self.shared = shared
+            self.calendars.emit(self.calendars_now())
+
+    def _with_shared(self, events: dict, asked: dict) -> dict:
+        """A range or a search answered here, with the shared calendars' events in it too."""
+        if asked.get("do") == "range":
+            frm, to = int(asked.get("from") or 0), int(asked.get("to") or 0)
+        else:
+            now, year = int(time.time() * 1000), 365 * 24 * 60 * 60 * 1000
+            frm, to = now - year, now + year
+        status, text = core_call("GET", f"/calendar/view?from={frm}&to={to}", timeout=15)
+        try:
+            items = json.loads(text).get("items", []) if status == 200 else []
+        except ValueError:
+            items = []
+        if asked.get("do") == "search":
+            words = str(asked.get("q", "")).lower().split()
+            items = [e for e in items if all(w in f"{e.get('title', '')} {e.get('location', '')} {e.get('notes', '')}".lower() for w in words)]
+        self._read_shared()
+        return {**events, "items": list(events.get("items", [])) + items}
 
     def quiet(self) -> None:
         """The calendars hidden or muted: their reminders off (calendard `quiet`); the rest's as they were."""
@@ -295,13 +364,17 @@ class CalendarService(QObject):
         view = {"from": now - VIEW_BACK_DAYS * day, "to": now + MIRROR_AHEAD_DAYS * day, "calendars": calendars,
                 "items": [e for e in items if e.get("calendar") not in hidden and e.get("end", 0) >= now - VIEW_BACK_DAYS * day]}
 
+        # A machine that reads no account shares nothing: its reading would put an empty view over the one a machine
+        # with accounts shared, which is what this machine shows (`shared`) and what the web and Morgan read.
+        shares = self.reads_accounts()
+
         def send() -> None:
-            status, text = core_call("PUT", "/calendar/view", json.dumps(view), timeout=60)
+            status, text = core_call("PUT", "/calendar/view", json.dumps(view), timeout=60) if shares else (204, "{}")
             if status == 200:
                 said = json.loads(text)
                 if said.get("changed"):
                     log(f"calendar: shared, {said.get('events', 0)} occurrences")
-            else:
+            elif shares:
                 log(f"calendar: not shared ({status}): {text[:200]}")
             done = 0
             for i in range(0, len(events), 100):
@@ -482,7 +555,7 @@ class CalendarBridge(Bridge):
     def hello(self) -> str:
         """What there is now, for a page just loaded: the status and the calendars."""
         svc = self.owner.service
-        return json.dumps({"status": svc.state, "calendars": json.loads(svc.last_calendars)})
+        return json.dumps({"status": svc.state, "calendars": json.loads(svc.calendars_now())})
 
     @Slot(str)
     def ask(self, request: str) -> None:
@@ -491,6 +564,8 @@ class CalendarBridge(Bridge):
         if msg.get("do") in ("range", "search", "create", "update", "delete", "respond", "people", "subscribe", "unsubscribe", "color", "refresh"):
             if msg.get("do") == "people":
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
+            if msg.get("do") in ("range", "search"):
+                self.owner.service._asked[msg.get("req")] = msg
             self.owner.service.send(msg)
 
     @Slot(str, bool)
