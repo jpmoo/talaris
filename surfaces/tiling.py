@@ -100,6 +100,11 @@ def apply(mode: str) -> str:
                 log(f"tiling: the scrolling layout did not load ({out.strip()[:120]})")
                 _layout("dwindle")
                 return "dwindle"
+            # Loaded: the plugin says so in a green notice of Hyprland's own, at every fresh start of Hyprland. Not
+            # Talaris's to show — taken away at once, and again a moment after in case it came late. Only just after
+            # this load, when nothing else of Hyprland's is likely up.
+            hypr.ask("dismissnotify")
+            QTimer.singleShot(400, lambda: hypr.ask("dismissnotify"))
         switched = _layout("scrolling")
         hypr.keyword("plugin:hyprscrolling:column_width", COLUMN)
         # The windows already out keep the widths they had as tiles (a half each); the new width is for new columns.
