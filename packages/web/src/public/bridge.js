@@ -20,11 +20,15 @@
   const heard = new Map(); // signal → [fn]
   const emit = (name, ...args) => { for (const fn of heard.get(name) || []) { try { fn(...args); } catch (e) { console.error(e); } } };
 
+  // This tab, by a name of its own: a call whose answer comes later (a project chat's turn) is answered on this tab's
+  // live connection, not by holding the request open (server.mjs, `later`).
+  const TAB = (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   async function post(path, body) {
     const r = await fetch(`${WEB.prefix}${path}`, {
       method: "POST", credentials: "same-origin",
       headers: { "content-type": "application/json", "x-talaris": "1" },
-      body: JSON.stringify({ page: WEB.page, ...body }),
+      body: JSON.stringify({ page: WEB.page, tab: TAB, ...body }),
     });
     if (r.status === 401) { location.href = `${WEB.prefix}/login?then=${encodeURIComponent(location.pathname)}`; throw new Error("signed out"); }
     return r.json();
@@ -107,7 +111,9 @@
 
   // Changes from elsewhere, as the desktop's `synced`: the page reads again what it shows.
   try {
-    const events = new EventSource(`${WEB.prefix}/api/events?page=${encodeURIComponent(WEB.page)}`, { withCredentials: true });
+    const events = new EventSource(`${WEB.prefix}/api/events?page=${encodeURIComponent(WEB.page)}&tab=${encodeURIComponent(TAB)}`, { withCredentials: true });
+    // A call's answer that came later (server.mjs, `later`): a signal, as the desktop's bridge would send it.
+    events.addEventListener("signal", (e) => { try { const s = JSON.parse(e.data); emit(s.name, ...(s.args || [])); } catch { /* not ours */ } });
     events.addEventListener("synced", (e) => emit("synced", e.data));
     // Morgan's page: each of Morgan's events (`event`), and its state when that changes (`state`), as morgan.py's Link.
     // What the browser itself is doing for Morgan's voice (public/voice.js: listening, transcribing, speaking) is shown

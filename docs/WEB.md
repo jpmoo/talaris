@@ -127,6 +127,14 @@ page-wide `zoom` used to do, with its `100vh` and measuring trouble); and under
 sign-in and consent pages load `tokens.css` and the shipped typefaces (served to
 anyone, as nothing in them is anyone's) and use the kit's look.
 
+**Answers that take a while come on the live connection** (2026-11-27). The
+way in (Cloudflare's tunnel) closes a request it has waited on for about 100
+seconds, and a project chat's turn — Morgan's model, a few rounds of tools, a cold
+start — can take longer. So such a call answers at once, and its answer is sent
+on the asking tab's own connection (`/api/events`, a `signal`) when it is ready,
+kept ten minutes if the tab is between connections. Each tab names itself to
+both (`bridge.js`, `TAB`).
+
 **What stays on the desktop**: windows, the dock, the bar and their settings;
 opening a file in an application (on the web a file is downloaded or shown);
 the desktop's calendar store and its accounts (on the web, calendars are what

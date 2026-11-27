@@ -172,7 +172,7 @@ const CALLS = {
   // A project's chat (projectchat.js), as the desktop's core.py answers it: Talaris's projects to choose from, and each
   // turn briefed from the core — the project's brief, and today's calendar as the desktop machine shared it — then
   // Morgan's `project`, on its brain. Answered on `projectReply`.
-  projectChat: async (_page, ident, ask) => ({ emit: [["projectReply", JSON.stringify({ id: ident, answer: await projectChat(ask) })]] }),
+  projectChat: async (_page, ident, ask) => ({ later: projectChat(ask).then((answer) => [["projectReply", JSON.stringify({ id: ident, answer })]]) }),
   // Files from this device's disk, Morgan's settings, a window's title: the desktop's, not the web's.
   pick: async () => "[]",
   calendarList: async () => JSON.stringify(replyData((await core("GET", "/calendar/view?from=0&to=0")).text)?.calendars ?? []),
@@ -346,6 +346,24 @@ const sessionCookie = (token, maxAge) =>
 
 // Pages kept up to date: a change from elsewhere told to every open page (as the surfaces' `synced` is).
 const listeners = new Set();
+/**
+ * Answers that come later, to the tab that asked (`later` in a call's result): a project chat's turn can outlast what
+ * the way in (Cloudflare's tunnel, about 100 seconds) lets a request stay open, so the call is answered at once and
+ * its signals are written on the tab's live connection when they are ready — kept a while if the tab is between
+ * connections (a phone's page put away and brought back).
+ */
+const tabs = new Map();      // tab → its live connection
+const waitingFor = new Map(); // tab → [{name, args}], with when to give up
+function later(tab, signals) {
+  if (!tab) return;
+  const res = tabs.get(tab);
+  if (res) { for (const [name, ...args] of signals) res.write(`event: signal\ndata: ${JSON.stringify({ name, args })}\n\n`); return; }
+  const kept = waitingFor.get(tab) ?? { signals: [], until: 0 };
+  kept.signals.push(...signals);
+  kept.until = Date.now() + 10 * 60_000;
+  waitingFor.set(tab, kept);
+}
+setInterval(() => { for (const [tab, k] of waitingFor) if (k.until < Date.now()) waitingFor.delete(tab); }, 60_000).unref();
 let lastCame = null;
 setInterval(async () => {
   if (!listeners.size) return;
@@ -469,10 +487,16 @@ async function handle(req, res) {
       res.writeHead(200, { ...SECURITY, "content-type": "text/event-stream", connection: "keep-alive" });
       res.write(": connected\n\n");
       listeners.add(res);
+      const tab = url.searchParams.get("tab") || "";
+      if (tab) {
+        tabs.set(tab, res);
+        const kept = waitingFor.get(tab);
+        if (kept) { waitingFor.delete(tab); later(tab, kept.signals); }
+      }
       const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
       // Morgan's page also hears what Morgan is doing (morgan.mjs, `watch`), as the desktop's hears its Link.
       const unhear = url.searchParams.get("page") === "morgan" ? morgan.hear((line) => res.write(`event: morgan\ndata: ${line}\n\n`)) : null;
-      req.on("close", () => { clearInterval(ping); listeners.delete(res); if (unhear) unhear(); });
+      req.on("close", () => { clearInterval(ping); listeners.delete(res); if (tab && tabs.get(tab) === res) tabs.delete(tab); if (unhear) unhear(); });
       return;
     }
     if (req.method !== "POST" || req.headers["x-talaris"] !== "1") return send(res, 400, { error: "not like that" });
@@ -508,6 +532,12 @@ async function handle(req, res) {
       const fn = CALLS[b.name];
       if (!fn) return send(res, 200, { web: false });
       const result = await fn(b.page, ...(Array.isArray(b.args) ? b.args : []));
+      // An answer that will take a while: the call answered now, the answer sent on the tab's connection (`later`).
+      if (result && typeof result === "object" && result.later) {
+        const tab = String(b.tab || "");
+        result.later.then((signals) => later(tab, signals), (e) => console.error(`talaris-web: ${b.name}: ${e.message}`));
+        return send(res, 200, { web: true, emit: [] });
+      }
       // A call whose answer comes on signals (the Calendar's `ask`): told back as `emit`, which the bridge gives the page.
       if (result && typeof result === "object" && Array.isArray(result.emit)) return send(res, 200, { web: true, emit: result.emit });
       return send(res, 200, { web: true, result });
