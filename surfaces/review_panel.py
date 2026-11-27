@@ -42,14 +42,9 @@ class ReviewBridge(Bridge):
 
     @Slot(str)
     def openList(self, list_id: str) -> None:  # noqa: N802 — called from the page by this name
-        """A step's collection, in Tasks."""
+        """A step's collection, in the Library (filespanel.js, `l:` keys), where a collection of any kind is shown."""
         self.owner.file_away()
-        tasks = getattr(self.owner.desktop, "tasks", None)
-        if tasks is not None:
-            if hasattr(tasks, "show_list"):
-                tasks.show_list(list_id)
-            else:
-                tasks.open()
+        self.owner.desktop.files_panel.open_on(f"l:{list_id}")
 
 
 class Review(Overlay):

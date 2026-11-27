@@ -68,6 +68,14 @@
   let visiting = null;   // the chosen row when it is another project's: its card, with this project still on show
   let version = -1;
   let glanceOld = true;  // something changed since the glance was read
+  // Collections (the core's lists.ts): the same ones Tasks shows, of any kind of thing. One chosen is the whole of the
+  // middle, its members as rows, each opening its card; nothing is a project's while it is on show.
+  let collections = [];
+  let collection = null;   // the one on show, by id
+  let collShown = null;    // what the core says of it (GET /lists/:id): {list, rows, groups, manual}
+  let collOn = null;       // the member whose card is on show
+  const collCounts = new Map();
+  let collCounted = "";    // what the counts were taken of: taken again when the collections change
 
   // ---------------------------------------------------------------- the core
 
@@ -200,11 +208,12 @@
   }
   /** What the middle shows, and the buttons that are about it: none of them while finding. */
   function showFinding() {
-    const on = finding(), others = asProject();
+    const on = finding(), others = asProject(), coll = Boolean(collection);
     $("said").hidden = !on;
-    $("glance").hidden = on || !whole();
-    $("review").hidden = on || !reviewing();
-    $("rows").hidden = on || others;
+    $("coll").hidden = on || !coll;
+    $("glance").hidden = on || coll || !whole();
+    $("review").hidden = on || coll || !reviewing();
+    $("rows").hidden = on || coll || others;
     drawControls();
     if (on) $("count").textContent = "";
   }
@@ -221,11 +230,21 @@
     if (filters.list && inProject) q.set("list", filters.list);
     q.set("sort", view === "date" ? "date" : "name");
     // Asked together, not one after another.
-    const [got, c, l] = await Promise.all([
+    const [got, c, l, cl, shownNow] = await Promise.all([
       api("GET", `/files?${q}`),
       api("GET", `/files/counts${project ? `?project=${enc(project)}` : ""}`).catch(() => counts),
-      inProject ? api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : []]);
+      inProject ? api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [],
+      api("GET", "/lists").catch(() => collections),
+      collection ? api("GET", `/lists/${enc(collection)}`).catch(() => null) : null]);
     counts = c; lists = l;
+    collections = cl || [];
+    if (collection) {
+      collShown = shownNow;
+      if (collShown) collCounts.set(collection, collShown.rows.length);
+      // Gone (deleted in Tasks, say): back to what was there before it.
+      if (!collShown) { collection = null; collOn = null; }
+    }
+    countCollections();
     if (inProject) listsOf.set(project, lists);
     if (filters.list && !flat(lists).some((l) => l.id === filters.list)) filters.list = "";
     readState = got.read || {};
@@ -266,7 +285,9 @@
     showFinding();
     drawSide();
     drawRows();
+    drawColl();
     drawDetail();
+    if (collection) { $("count").textContent = finding() || !collShown ? "" : String(collRows().length); return; }
     if (asWhole && !finding() && (glanceOld || glance.loadedFor() !== project)) { glanceOld = false; glance.load(); }
     if (reviewing() && !finding()) review();
     // Each counts its own.
@@ -320,10 +341,15 @@
     if (oneProject()) walkLists(lists, 0);
     $("side").replaceChildren(...[
       ...section("projects", "Projects", [
-        item("All projects", project === "", () => setProject(""), null, c.all),
-        ...projects.map((p) => item(p.name, project === p.id, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
+        item("All projects", project === "" && !collection, () => setProject(""), null, c.all),
+        ...projects.map((p) => item(p.name, project === p.id && !collection, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
+      // Collections, Tasks' as well as any other: of any kind of thing, belonging to no project. Not the lists below,
+      // which are one project's grouping of its files.
+      ...section("collections", "Collections", collections.map((l) => item(l.name, collection === l.id, () => openCollection(l.id),
+        l["talaris:syncedBy"] ? el("span", { class: "here", title: `Synced by ${l["talaris:syncedBy"]}` }, "⇄") : null, collCounts.get(l.id))),
+        el("button", { class: "add", title: "A new collection", onclick: (e) => { e.stopPropagation(); editCollection(null); } }, "+")),
       // The project's lists, inside one another: one chosen shows what it holds; its own things, then its lists'.
-      ...(oneProject() ? section("lists", "Lists", listRows,
+      ...(oneProject() && !collection ? section("lists", "Lists", listRows,
         el("button", { class: "add", title: "A new list", onclick: (e) => { e.stopPropagation(); newList(null); } }, "+")) : []),
       ...(shown.length ? section("tags", "Tags", shown.map((t) => item(`#${t}`, filters.tags.includes(t), () => {
         filters.tags = filters.tags.includes(t) ? filters.tags.filter((x) => x !== t) : [...filters.tags, t];
@@ -655,7 +681,7 @@
     const home = (projects.find((p) => p.home) || {}).id;
     const lives = r.status.includes("shortcut") ? [...(r.alsoIn || []).slice(0, 1), r.project, ...(r.alsoIn || []).slice(1)] : [r.project, ...(r.alsoIn || [])];
     const ids = [...new Set(lives.filter(Boolean))];
-    const go = (id) => el("button", { class: "d-proj", title: `Show ${projectName(id)}'s`, onclick: () => { project = id; filters.list = ""; reload(); } }, projectName(id));
+    const go = (id) => el("button", { class: "d-proj", title: `Show ${projectName(id)}'s`, onclick: () => { project = id; collection = null; filters.list = ""; reload(); } }, projectName(id));
     if (ids.length === 1 && ids[0] === home) return el("span", {}, go(home), el("span", { class: "d-dim" }, " only — in no project"));
     return el("span", {}, ...ids.flatMap((id, i) => [i ? ", " : null, go(id)]).filter((x) => x !== null));
   }
@@ -675,6 +701,7 @@
   /** Whatever narrows the list, off: what was asked for is to be found in it. */
   function clearFilters() {
     filters = { q: "", status: "", type: "", days: 0, tags: [], list: "" };
+    collection = null; collOn = null;
     readFilter = "all";
     if ($("q")) $("q").value = "";
     saidSeq++;
@@ -703,6 +730,8 @@
     const kind = key.slice(0, at), body = key.slice(at + 1);
     const slash = body.indexOf("/");
     const inProject = slash > 0 ? body.slice(0, slash) : "", rest = slash > 0 ? body.slice(slash + 1) : "";
+    // A collection (`l:<id>`, files_panel.py `open_on`): it fills the middle, as when chosen in the side column.
+    if (kind === "l") { await openCollection(body); return; }
     if (kind === "e") {
       // One standing for a place or a project is shown as that; the rest have a card of their own.
       const place = await api("GET", `/entities/${enc(body)}/place`).catch(() => null);
@@ -714,6 +743,7 @@
       chosen = null;
       visiting = null;
       drawDetail();
+      markColl();
       return;
     }
     cardOf = null;
@@ -767,7 +797,8 @@
       saved: () => { glanceOld = true; },
       gone: () => { cardOf = null; cardDrawn = null; ThingCard.putAway(); glanceOld = true; reload(); } });
     if (seq !== cardSeq || cardOf !== id) return;
-    if (part) { $("detail").replaceChildren(...part); $("detail").scrollTop = again ? top : 0; }
+    // Which collections hold it, and putting it in one: the Library's, beside what the card says of itself.
+    if (part) { $("detail").replaceChildren(...part, holdingSection(id)); $("detail").scrollTop = again ? top : 0; }
     else { cardOf = null; cardDrawn = null; $("detail").replaceChildren(Kit.empty("It is not here now")); }
   }
 
@@ -778,6 +809,7 @@
     cardDrawn = null;
     ThingCard.putAway();
     if (picked.size > 1) { drawMany(rows.filter((x) => picked.has(x.key))); return; }
+    if (!r && collection) { drawCollection(); return; }
     if (!r && filters.list) { drawList(); return; }
     if (!r && oneProject()) { drawProject(); return; }
     if (!r) { $("detail").replaceChildren(Kit.empty("Choose a file to see what it is and what can be done with it")); return; }
@@ -817,10 +849,16 @@
     // A canvas or a conversation, in another project too: a shortcut there; one there already, gone to.
     if (r.thing && !s.includes("shortcut")) act("Also in another project…", () => inline("also-thing", r));
     if (r.thing && s.includes("shortcut") && r.alsoIn && r.alsoIn[0]) act(`Go to it in ${projectName(r.alsoIn[0])}`, () => {
-      project = r.alsoIn[0]; chosen = r.type === "conversation" ? `t:${r.thing.split("/").pop()}` : `v:${r.thing.slice(7)}`; filters.list = ""; reload();
+      project = r.alsoIn[0]; collection = null; chosen = r.type === "conversation" ? `t:${r.thing.split("/").pop()}` : `v:${r.thing.slice(7)}`; filters.list = ""; reload();
     });
     // In this project's lists (a list holds only what is in its project).
     if (!s.includes("missing")) act("Add to a list…", () => inline("list", r));
+    // In a collection, which holds things, not files: a page, a canvas, a conversation, or a shortcut, by the entity
+    // that stands for it (made the first time, as an @ makes it).
+    if (!s.includes("missing") && (r.entity || (gkeyPlace(r)))) act("Add to a collection…", () => {
+      const host = $("inline"); host.className = "inline";
+      collectionPicker(host, () => entityOfRow(r), r.name.replace(/\.md$/, ""), r.entity || null);
+    });
     if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs, r.project));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Pin to the dock", () => { bridge.pin(r.abs, r.name); say(`${r.name} pinned to the dock, in this project`); });
     if (s.includes("folder") && !s.includes("page")) {
@@ -833,7 +871,7 @@
       .then((x) => { say(`Saved as ${x.path}`); chosen = `p:${r.project}/${x.path}`; return load(); }).catch(failed));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Connect to a task…", () => inline("attach", r));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Also in another project…", () => inline("also", r));
-    if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
+    if (r.livesIn) act(`Go to it in ${projectName(r.livesIn.project)}`, () => { project = r.livesIn.project; collection = null; chosen = `p:${r.livesIn.project}/${r.livesIn.path}`; reload(); });
     if (s.includes("conversation") && !s.includes("shortcut")) act("Delete…", (e) => {
       // Asked as everything is asked (kit.js). For good, and Morgan's to do; notes that may have come from it are kept, and said.
       if (!Kit.ask(e.currentTarget, { key: `talk:${r.key}`, ask: "Delete it for good?" })) return;
@@ -1218,6 +1256,312 @@
     if (r.abs) bridge.open(r.abs, r.project);
   }
 
+  // ---------------------------------------------------------------- collections
+  //
+  // The core's lists (lists.ts), which Tasks calls collections: hand-made (members put in by hand) or by a rule (a
+  // query, of any kind of thing, by its profile — never its type's name). Shown here as Library rows, each opening its
+  // card on the right as any row does; made and edited in Tasks' own editor (listeditor.js), its view left to Tasks.
+
+  // The kinds a member can be, by profile, as the glance's chips are: in this order, each in its color. A daily note is
+  // also a note, so it is asked for first.
+  const COLL_KINDS = [["task", "Tasks"], ["journal", "Daily notes"], ["note", "Pages"], ["contact", "People"], ["organization", "Organizations"],
+    ["event", "Events"], ["project", "Projects"], ["other", "Other"]];
+  const COLL_ONE = { task: "task", journal: "daily note", note: "page", contact: "person", organization: "organization", event: "event", project: "project", other: "thing" };
+  const kindOfRow = (r) => (COLL_KINDS.find(([k]) => (r.kinds || []).includes(k)) || ["other"])[0];
+  const collOff = new Set();   // kinds left out of the one on show: for as long as it is
+  const collOf = (id) => collections.find((l) => l.id === id) || null;
+  /** Put in and taken out by hand: one with no rule, or a rule's snapshot. A matrix or a board places what is put in, so is Tasks' to fill. */
+  const byHand = (l) => l && (l.membership.mode === "explicit" || l.membership.materialized) && l.kind !== "matrix" && l.kind !== "board";
+  const collRows = () => (collShown ? collShown.rows.filter((r) => !collOff.has(kindOfRow(r))) : []);
+
+  /**
+   * How many each holds, beside its name. Read from the list for one filled by hand; asked of the core for a rule,
+   * one at a time and only when the collections have changed, so the left side never waits on it.
+   */
+  let countSeq = 0;
+  async function countCollections() {
+    const sig = JSON.stringify(collections.map((l) => [l.id, l.membership, l.members.length]));
+    if (sig === collCounted) return;
+    collCounted = sig;
+    const seq = ++countSeq;
+    for (const l of collections) {
+      // A matrix shows what is placed in it and still matches its rule: only showing it says how many.
+      const matrix = l.kind === "matrix" && l.membership.mode === "query";
+      if (!matrix && (l.membership.mode !== "query" || l.membership.materialized)) { collCounts.set(l.id, l.members.length); continue; }
+      try {
+        const n = matrix ? (await api("GET", `/lists/${enc(l.id)}`)).rows.length : (await api("POST", "/lists/preview", { query: l.membership.query })).count;
+        if (seq !== countSeq) return;
+        collCounts.set(l.id, n);
+      } catch { collCounts.delete(l.id); }
+    }
+    if (seq === countSeq) drawSide();
+  }
+  /** Counted again at the next load: something was put in, taken out, or the rule changed. */
+  const recount = () => { collCounted = ""; };
+
+  async function openCollection(id) {
+    if (finding()) { $("q").value = ""; saidSeq++; }
+    collection = id;
+    collOn = null; chosen = null; cardOf = null; visiting = null;
+    collOff.clear();
+    collAdd = null;
+    picked.clear();
+    collShown = null;
+    drawColl();
+    await load().catch(failed);
+  }
+
+  /** One member, as a Library row: its kind's dot, its name, what it is filed under and tagged, its kind, its date. */
+  function collRowEl(r, hand) {
+    const k = kindOfRow(r);
+    const when = r.due || r.start || "";
+    const row = el("div", { class: `row crow${r.id === collOn ? " on" : ""}${r.complete ? " done" : ""}`, "data-id": r.id,
+      onclick: () => { collOn = r.id; markColl(); showCard(`e:${r.id}`, "said").catch(failed); } },
+      el("span", { class: "kdot", style: `background: var(--k-${k === "journal" ? "page" : k})` }),
+      el("span", { class: "nm", title: r.title || "Untitled" }, r.title || "Untitled",
+        r.projects && r.projects.length ? el("span", { class: "where" }, r.projects.map((p) => p.title).join(", ")) : null),
+      el("span", { class: "marks" }, ...(r.tags || []).slice(0, 3).map((t) => el("span", { class: "mk tag" }, `#${t}`))),
+      el("span", { class: "type" }, COLL_ONE[k]),
+      // A task's due, or failing that when it is available: the day only, as near as it is ("Tomorrow", "Oct 30").
+      el("span", { class: `date${r.overdue ? " late" : ""}`, title: r.due ? "Due" : r.start ? "Available" : "" }, when ? Kit.relDay(`${when.slice(0, 10)}T12:00`) : ""),
+      hand ? xBtn("Take it out of this collection (nothing is deleted)", (e) => { e.stopPropagation(); takeOut(collection, r.id, r.title); }) : el("span", {}));
+    return row;
+  }
+  /** The member whose card is on show, lit; the rest not. */
+  function markColl() {
+    for (const x of document.querySelectorAll("#coll .row[data-id]")) x.classList.toggle("on", x.dataset.id === collOn);
+  }
+
+  /** The middle, while a collection is on show: its name and kinds above, its members below, in its own order and groups. */
+  function drawColl() {
+    const host = $("coll");
+    if (!collection) { host.replaceChildren(); return; }
+    const l = collShown ? collShown.list : collOf(collection);
+    if (!l) { host.replaceChildren(); return; }
+    const hand = byHand(l);
+    const edit = el("button", { class: "t-btn small", title: "Its name, and what is in it: by hand, or by a rule", onclick: () => editCollection(l) }, "Edit…");
+    const add = hand ? el("button", { class: `t-btn small${collAdd && collAdd.id === l.id ? " on" : ""}`, onclick: () => addToCollection(l) }, "Add…") : null;
+    const head = el("div", { class: "c-bar" }, el("span", { class: "c-name" }, l.name), el("span", { class: "c-how" }, ruleSaid(l)), el("span", { class: "sp" }), add, edit);
+    const adding = hand && collAdd && collAdd.id === l.id ? collAdd.node : null;
+    if (!collShown) { host.replaceChildren(head, Kit.empty("Reading it…")); return; }
+    const all = collShown.rows;
+    const kinds = {};
+    for (const r of all) kinds[kindOfRow(r)] = (kinds[kindOfRow(r)] || 0) + 1;
+    // As Find's and a glance's: a chip for each kind it has, pressed to leave that kind out; shown once there are two.
+    const present = COLL_KINDS.filter(([k]) => kinds[k]);
+    const chips = present.length > 1 ? el("div", { class: "gv-kinds" }, present.map(([k, name]) =>
+      el("button", { class: `chip kchip${collOff.has(k) ? "" : " on"}`, title: `${collOff.has(k) ? "Show" : "Hide"} ${name.toLowerCase()}`,
+        onclick: () => { if (collOff.has(k)) collOff.delete(k); else collOff.add(k); draw(); } },
+        el("span", { class: "dot", style: `background: var(--k-${k === "journal" ? "page" : k})` }), name, el("span", { class: "n" }, String(kinds[k]))))) : null;
+    const shown = collRows();
+    const body = el("div", { class: "c-rows" });
+    if (!all.length) body.append(Kit.empty(hand ? "Nothing in it yet. Add… finds something to put in, and any card's Add to a collection puts that thing in." : "Nothing matches its rule just now"));
+    else if (!shown.length) body.append(Kit.empty("Every kind in it is hidden"));
+    else if (collShown.groups && collShown.groups.length) {
+      const byId = new Map(shown.map((r) => [r.id, r]));
+      for (const g of collShown.groups) {
+        const inIt = g.rows.map((id) => byId.get(id)).filter(Boolean);
+        if (!inIt.length) continue;
+        body.append(el("div", { class: "g-head" }, g.label || "None", el("span", { class: "n" }, String(inIt.length))), ...inIt.map((r) => collRowEl(r, hand)));
+      }
+    } else body.append(...shown.map((r) => collRowEl(r, hand)));
+    Kit.keepScroll(host, () => host.replaceChildren(...[head, adding, chips, body].filter(Boolean)));
+  }
+
+  // The kinds in a rule's words: "people", "not tasks".
+  const KIND_MANY = { task: "tasks", journal: "daily notes", note: "pages", contact: "people", organization: "organizations", event: "events", project: "projects" };
+  /** What a rule asks, in a line: enough to know the collection by, not the editor's every word. */
+  function ruleWords(c, top = true) {
+    switch (c.kind) {
+      case "group": {
+        const parts = c.items.map((x) => ruleWords(x, false)).filter(Boolean);
+        if (!parts.length) return top ? "everything" : "";
+        const said = parts.join(c.match === "any" ? " or " : ", ");
+        return top || parts.length === 1 ? said : `(${said})`;
+      }
+      case "profile": return c.profile ? `${c.op === "isNot" ? "not " : ""}${KIND_MANY[c.profile] || c.profile}` : "a kind still to choose";
+      case "type": return c.op === "isNot" ? "not of one type" : "of one type";
+      case "state": return c.value === "complete" ? "done" : "open";
+      case "tag": return `${c.op === "exclude" ? "without" : "with"} #${c.tag}`;
+      case "text": return `saying “${c.value}”`;
+      case "created": case "edited": return `${c.kind} ${c.op} ${c.date}`;
+      case "hasAttachment": return c.has ? "with files" : "without files";
+      case "property": return `${c.key} ${({ eq: "is", neq: "is not", contains: "has", lt: "before", gt: "after", empty: "empty", notEmpty: "not empty" })[c.op] || c.op}${c.value !== undefined && c.value !== "" ? ` ${c.value}` : ""}`;
+      default: return "";
+    }
+  }
+  function ruleSaid(l) {
+    if (l.membership.mode !== "query") return "By hand";
+    return `${l.membership.materialized ? "A snapshot of" : "By a rule:"} ${ruleWords(l.membership.query)}`;
+  }
+
+  /** The collection itself, on the right while nothing in it is chosen: what it is, and what can be done with it. */
+  function drawCollection() {
+    const l = collShown ? collShown.list : collOf(collection);
+    if (!l) { $("detail").replaceChildren(Kit.empty("Reading it…")); return; }
+    const n = collShown ? collShown.rows.length : collCounts.get(l.id);
+    const acts = [];
+    const act = (label, fn, cls = "", title = "") => acts.push(el("button", { class: `t-btn small ${cls}`, title: title || null, onclick: fn }, label));
+    act("Edit…", () => editCollection(l), "", "Its name, and what is in it: by hand, or by a rule");
+    act("Rename", () => {
+      const host = $("inline"); host.className = "inline";
+      const name = el("input", { type: "text", value: l.name, spellcheck: "false" });
+      const go = () => name.value.trim() && api("PATCH", `/lists/${enc(l.id)}`, { name: name.value.trim() }).then(() => { say(`Renamed ${name.value.trim()}`); return load(); }).catch(failed);
+      name.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") { e.preventDefault(); drawDetail(); } });
+      host.replaceChildren(name, el("button", { class: "t-btn", onclick: go }, "Rename"));
+      name.focus(); name.select();
+    });
+    if (byHand(l)) act("Add…", () => addToCollection(l), "", "Find something to put in it");
+    if (l.membership.mode === "query" && l.membership.materialized) act("Refresh", () => api("POST", `/lists/${enc(l.id)}/refresh`)
+      .then(() => { say("Filled again from its rule"); recount(); return load(); }).catch(failed), "", "Filled again from its rule: what was put in or taken out by hand is replaced");
+    act("Delete…", (e) => {
+      // Asked as everything is asked (kit.js). The collection only: what is in it is untouched, in Tasks too.
+      if (!Kit.ask(e.currentTarget, { key: `coll:${l.id}`, ask: `Delete ${l.name}?` })) return;
+      api("DELETE", `/lists/${enc(l.id)}`).then(() => { say(`${l.name} deleted; what it held is where it was`); collection = null; collShown = null; recount(); return load(); }).catch(failed);
+    }, "danger");
+    const how = l.membership.mode !== "query" ? "Put together by hand: things are added to it, and taken out, one by one."
+      : l.membership.materialized ? "Filled from its rule when it was made or last refreshed, then changed by hand."
+      : "Whatever matches its rule, as it is now.";
+    $("detail").replaceChildren(...[
+      el("h2", {}, l.name),
+      el("div", { class: "d-status" }, el("b", {}, "A collection"), n !== undefined ? ` — ${n} thing${n === 1 ? "" : "s"}. ` : ". ", how,
+        " It is in Tasks too", l.kind !== "list" ? `, as a ${l.kind}` : "", ". Deleting it, or taking something out, deletes nothing."),
+      l.membership.mode === "query" ? el("div", { class: "d-line" }, el("span", { class: "k" }, "Rule"), el("span", { class: "v" }, ruleWords(l.membership.query))) : null,
+      l["talaris:syncedBy"] ? el("div", { class: "d-line" }, el("span", { class: "k" }, "Synced"), el("span", { class: "v" }, `by ${l["talaris:syncedBy"]}, whose it is`)) : null,
+      el("div", { class: "d-sub" }, "Do"),
+      el("div", { class: "d-acts" }, ...acts),
+      el("div", { id: "inline" })].filter(Boolean));
+  }
+
+  /** Taken out of a collection: the collection changes; the thing does not. */
+  function takeOut(id, object, title) {
+    const l = collOf(id);
+    return api("DELETE", `/lists/${enc(id)}/members/${enc(object)}`).then(async () => {
+      say(`${title || "It"} is out of ${l ? l.name : "the collection"}`);
+      await afterMembers();
+    }).catch(failed);
+  }
+  /** Read again after something is put in or taken out: the counts, the list on show, and a card's "In collections". */
+  async function afterMembers() {
+    recount();
+    await load();
+    if (cardOf) await drawCard(cardOf);
+  }
+
+  /** Put in a collection by hand, at its end. */
+  function putIn(l, object, title) {
+    return api("POST", `/lists/${enc(l.id)}/members`, { object }).then(() => {
+      say(`${title || "It"} is in ${l.name}`);
+      return afterMembers();
+    });
+  }
+
+  /**
+   * Finding something to put in the collection on show, as an @ finds it: people, notes, tasks, events, pages and
+   * canvases, by their names. A page or a canvas becomes an entity the first time, as it does when it is linked.
+   */
+  // Above its rows, not on the right: on a phone the right is not out while the list is. Kept as it is (what is typed,
+  // what was found) while the list is drawn again after each thing put in; pressed again, put away.
+  let collAdd = null;   // {id, node, q}
+  function addToCollection(l) {
+    if (collAdd && collAdd.id === l.id) { collAdd = null; drawColl(); return; }
+    const host = el("div", { class: "c-add inline" });
+    const q = Kit.searchBox(el("input", { type: "text", placeholder: "Find something to put in it", spellcheck: "false" }));
+    const found = el("div", { style: "width:100%" });
+    let timer = 0;
+    q.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const words = q.value.trim();
+        if (!words) { found.replaceChildren(); return; }
+        try {
+          const got = await api("GET", `/mentionables?q=${enc(words)}&limit=12`);
+          const have = new Set((collShown ? collShown.rows : []).map((r) => r.id));
+          found.replaceChildren(...(got.length ? got.map((m) => el("button", { class: "on-item", disabled: m.id && have.has(m.id) ? "" : null, onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            try {
+              const id = m.id || (await api("POST", "/entities/place", { kind: m.kind, project: m.project, where: m.where, title: m.title })).id;
+              await putIn(l, id, m.title);
+              q.dispatchEvent(new Event("input"));
+            } catch (x) { failed(x); }
+          } }, m.title || "Untitled", el("span", { class: "kind" }, [m.kind === "contact" ? "person" : m.kind, m.projectName].filter(Boolean).join(" · ")),
+          m.id && have.has(m.id) ? el("span", { class: "kind" }, "in it") : null)) : [el("span", { class: "hint" }, "Nothing by that name")]));
+        } catch (x) { failed(x); }
+      }, 200);
+    });
+    host.replaceChildren(q, found);
+    collAdd = { id: l.id, node: host };
+    drawColl();
+    q.focus();
+  }
+
+  /** What Glance knows a page, a canvas or a conversation by, as the place to make its entity for: null for a file. */
+  function gkeyPlace(r) {
+    const key = glanceKey(r);
+    const m = /^(page|canvas|thread):([^/]+)\/(.+)$/.exec(key || "");
+    return m ? { kind: m[1], project: m[2], where: m[3] } : null;
+  }
+  /** A row's entity, for a collection to hold: a shortcut's own; a page's, a canvas's or a conversation's, made if need be. */
+  async function entityOfRow(r) {
+    if (r.entity) return r.entity;
+    const p = gkeyPlace(r);
+    return (await api("POST", "/entities/place", { ...p, title: r.name.replace(/\.md$/, "") })).id;
+  }
+
+  /**
+   * The collections to put a thing in: each filled by hand a button, and a new one made by name with it in. `idOf`
+   * gives the thing's entity, asked only when one is chosen (a page's is made then).
+   */
+  function collectionPicker(host, idOf, title, known = null) {
+    const put = async (l) => {
+      try { await putIn(l, await idOf(), title); } catch (e) { failed(e); }
+    };
+    // Those it is in already are not offered again: `known`, its entity when that is known without making it.
+    const open = collections.filter((l) => byHand(l) && !(known && l.members.some((m) => m.object === known)));
+    const name = el("input", { type: "text", placeholder: "A new collection, then Enter", spellcheck: "false" });
+    name.addEventListener("keydown", async (e) => {
+      if (e.key !== "Enter" || !name.value.trim()) return;
+      try { const l = await api("POST", "/lists", { name: name.value.trim() }); collections.push(l); await put(l); } catch (err) { failed(err); }
+    });
+    host.replaceChildren(open.length ? el("div", { class: "pick-list" }, ...open.map((l) => el("button", { class: "t-btn small", onclick: () => put(l) }, l.name))) : null, name);
+    name.focus();
+  }
+
+  /** Under a thing's card: the collections it was put in by hand, each to take it out of, and putting it in another. */
+  function holdingSection(id) {
+    const holding = collections.filter((l) => l.members.some((m) => m.object === id));
+    const host = el("div", { class: "d-colls" });
+    const picker = el("div", {});
+    const add = el("button", { class: "t-btn small", onclick: () => { picker.className = "inline"; collectionPicker(picker, async () => id, null, id); } }, "Add to a collection…");
+    host.append(...[el("div", { class: "d-sub", title: "Collections it was put in; one made by a rule holds whatever matches it" }, "In collections"),
+      holding.length ? el("div", { class: "chips" }, ...holding.map((l) => el("span", { class: "chip" },
+        el("button", { class: "d-proj lbl", title: `Show ${l.name}`, onclick: () => openCollection(l.id) }, l.name),
+        byHand(l) ? xBtn("Take it out of this collection (nothing is deleted)", () => takeOut(l.id, id, null)) : null))) : null,
+      el("div", { class: "d-acts" }, add), picker].filter(Boolean));
+    return host;
+  }
+
+  /**
+   * Made or changed in Tasks' editor (listeditor.js), opened for any kind: its fields every type's, its projects
+   * Tasks' own. Saved, it is shown; deleted or archived, it goes.
+   */
+  async function editCollection(l) {
+    if (!window.ListEditor) return;
+    try {
+      const [types, taskProjects] = await Promise.all([api("GET", "/entity-types").catch(() => []), api("GET", "/tasks/projects").catch(() => [])]);
+      // Every field of every type, once by its key: what a rule's Field condition may name, whatever it holds.
+      const fields = [];
+      for (const t of types || []) for (const f of t.fields || []) if (!fields.some((x) => x.key === f.key)) fields.push(f);
+      const saved = await ListEditor.open({ list: l, anyKind: true, starter: { kind: "group", match: "all", items: [{ kind: "profile", profile: "", op: "is" }] } },
+        { api, taskType: { fields, profiles: {} }, projects: taskProjects || [] });
+      if (!saved) return;
+      recount();
+      if (saved.deleted || saved.archived) { if (collection === saved.id) { collection = null; collShown = null; } say(`${saved.name} ${saved.deleted ? "deleted" : "archived"}; what it held is where it was`); }
+      else { collection = saved.id; collOn = null; cardOf = null; chosen = null; visiting = null; say(l ? `${saved.name} saved` : `${saved.name} made`); }
+      await load();
+    } catch (e) { failed(e); }
+  }
+
   // ---------------------------------------------------------------- bringing in
 
   /** Files from elsewhere: shortcuts (nothing moved), or moved in after saying what that would disturb. */
@@ -1327,7 +1671,8 @@
 
   function setProject(id) {
     // The one on show, chosen again: back to it, from wherever the walk was.
-    if (id === project && whole()) glance.home();
+    if (id === project && whole() && !collection) glance.home();
+    collection = null; collOn = null;
     project = id;
     chosen = null;
     // A list is one project's: another project, no list.
@@ -1343,6 +1688,7 @@
   }
   function useKept(k) {
     // Kept when No project was a place of its own: what it held is Home's.
+    collection = null;
     project = k.project === "~none" ? (projects.find((p) => p.home) || {}).id || "" : k.project;
     view = k.view;
     filters = { ...k.filters, tags: [...k.filters.tags] };
@@ -1356,7 +1702,7 @@
 
   function drawControls() {
     const asWhole = whole(), looking = finding();
-    $("shape").hidden = !oneProject() || looking;
+    $("shape").hidden = !oneProject() || looking || Boolean(collection);
     seg("shape", [["whole", "Overview"], ["review", "Suggestions"], ["files", "Files"]], asProject() ? shape : "files", (v) => {
       shape = v;
       store.set("talaris.files.shape", v);
@@ -1364,7 +1710,7 @@
       chosen = null; cardOf = null; visiting = null; picked.clear();
       reload();
     });
-    for (const id of ["view", "days", "readf"]) $(id).hidden = asProject() || looking;
+    for (const id of ["view", "days", "readf"]) $(id).hidden = asProject() || looking || Boolean(collection);
     seg("view", [["tree", "Tree"], ["type", "Type"], ["date", "Date"]], view, (v) => { view = v; store.set("talaris.files.view", v); drawControls(); reload(); });
     seg("days", [["0", "Any"], ["1", "Today"], ["7", "Week"], ["31", "Month"]], String(filters.days), (v) => { filters.days = Number(v); drawControls(); reload(); });
     seg("readf", [["all", "All"], ["read", "Read"], ["unread", "Unread"]], readFilter, (v) => { readFilter = v; store.set("talaris.files.read", v); drawControls(); reload(); });
@@ -1409,7 +1755,13 @@
     const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "");
     if (e.key === "/" && !inField) { e.preventDefault(); $("q").focus(); $("q").select(); return; }
     if (inField) return;
-    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !asProject()) {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && collection) {
+      e.preventDefault();
+      const ids = [...document.querySelectorAll("#coll .row[data-id]")].map((x) => x.dataset.id);
+      const at = ids.indexOf(collOn);
+      const next = ids[Math.max(0, Math.min(ids.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))];
+      if (next) { collOn = next; showCard(`e:${next}`, "said").catch(failed); document.querySelector(`#coll .row[data-id="${CSS.escape(next)}"]`)?.scrollIntoView({ block: "nearest" }); }
+    } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !asProject()) {
       e.preventDefault();
       const order = [...document.querySelectorAll("#rows .row[data-key]")].map((x) => x.dataset.key);
       const at = order.indexOf(chosen);
@@ -1548,7 +1900,7 @@
       return;
     }
     if (s.up && !was.up) {
-      if (s.project) { project = s.project; chosen = null; cardOf = null; visiting = null; }
+      if (s.project) { project = s.project; chosen = null; cardOf = null; visiting = null; collection = null; collOn = null; }
       // Each opening shows everything, and what has changed anywhere since.
       glance.fresh();
       glanceOld = true;
@@ -1560,7 +1912,9 @@
 
   drawControls();
   // Where it is — the project, the row chosen, the card open — carried when it is made a window, or a panel again (kit.js).
-  const placeHere = Kit.place(() => ({ project, chosen, cardOf }), async (p) => {
+  const placeHere = Kit.place(() => ({ project, chosen, cardOf, collection }), async (p) => {
+    collection = p.collection ?? null;
+    if (p.cardOf && collection) { await load().catch(failed); await showCard(`e:${p.cardOf}`, "said").catch(failed); return; }
     if (p.cardOf) { await showCard(`e:${p.cardOf}`).catch(failed); return; }
     project = p.project ?? project;
     chosen = p.chosen ?? null;

@@ -95,7 +95,8 @@
   // What the type says it has, read from the fields' kinds — never their
   // names. A datespan is two dates, its halves under the labels it gives them.
 
-  const PROFILES = [["task", "Task"], ["note", "Page"], ["contact", "Person"], ["event", "Event"], ["project", "Project"]];
+  // Every kind the format names (measure.ts's V0): a collection in the Library may be of any of them.
+  const PROFILES = [["task", "Task"], ["note", "Page"], ["journal", "Daily note"], ["contact", "Person"], ["organization", "Organization"], ["event", "Event"], ["project", "Project"]];
   const fieldLabel = (f) => (f.label && String(f.label).trim()) || pretty(f.key);
   function kindOf(f) {
     if (["date", "datetime"].includes(f.kind)) return "date";
@@ -174,8 +175,9 @@
         opts.api("POST", "/lists/preview", { query: root }).then((r) => {
           if (n !== asked) return;
           const titles = (r.rows ?? []).slice(0, 4).map((x) => x.title || "Untitled");
-          count.replaceChildren(el("span", { class: "qb-n" }, `${r.count} match`),
-            titles.length ? el("span", { class: "qb-some" }, titles.join(" · ") + (r.count > titles.length ? " …" : "")) : null);
+          // No titles, nothing beside the count (replaceChildren would write a null out as text).
+          count.replaceChildren(...[el("span", { class: "qb-n" }, `${r.count} match`),
+            titles.length ? el("span", { class: "qb-some" }, titles.join(" · ") + (r.count > titles.length ? " …" : "")) : null].filter(Boolean));
         }).catch(() => { if (n === asked) count.replaceChildren(); });
       }, 400);
     }
@@ -334,8 +336,12 @@
   const VIEWS = [["list", "List"], ["table", "Table"], ["board", "Board"], ["matrix", "Matrix"], ["calendar", "Calendar"]];
   const FORMATS = [["checklist", "Checklist"], ["plain", "Plain"], ["numbered", "Numbered"], ["cards", "Cards"]];
 
+  // `args.anyKind`: opened from the Library, where a collection may hold any kind of thing and is drawn as rows. Its
+  // view (list, table, board, matrix, calendar) is Tasks' to choose, so it is neither shown nor written here; and a new
+  // one's rule starts from `args.starter`, a kind still to be chosen, rather than open tasks.
   function open(args = {}, ctx = {}) {
     const T = window.Tasks ?? {};
+    const lib = Boolean(args.anyKind);
     const api = ctx.api ?? T.api;
     const taskType = ctx.taskType ?? T.taskType;
     const projects = ctx.projects ?? T.projects ?? [];
@@ -350,11 +356,11 @@
     const starter = { kind: "group", match: "all", items: [{ kind: "profile", profile: "task", op: "is" }, { kind: "state", value: "open" },
       ...(projectId && refKey ? [{ kind: "property", key: refKey, op: "contains", value: projectId }] : [])] };
     const d = {
-      name: list?.name ?? "",
+      name: list?.name ?? args.name ?? "",
       kind: list?.kind ?? "list",
       mode: isQuery ? "query" : "explicit",
       materialized: isQuery ? Boolean(list.membership.materialized) : false,
-      query: isQuery ? asGroup(list.membership.query) : starter,
+      query: isQuery ? asGroup(list.membership.query) : asGroup(args.starter ?? starter),
       sort: clone(list?.order?.sort ?? []),
       groupBy: clone(list?.order?.groupBy ?? null),
       format: list?.["talaris:view"]?.format ?? "checklist",
@@ -401,6 +407,11 @@
       const qb = mountQuery(queryHost, d.query, { taskType, projects, api, onChange: (q) => { d.query = q; } });
 
       function paintView() {
+        if (lib) {
+          const word = VIEWS.find(([k]) => k === d.kind && k !== "list");
+          viewBox.replaceChildren(...(word ? [row("View", el("span", { class: "le-muted" }, `A ${word[1].toLowerCase()} in Tasks, where its view is set`))] : []));
+          return;
+        }
         viewBox.replaceChildren(row("View", seg(VIEWS, d.kind, (k) => { d.kind = k; paintView(); paintKind(); })));
       }
       function paintMembers() {
@@ -432,6 +443,7 @@
           row("Group", picker(groups, keyId(d.groupBy), (v) => { d.groupBy = v ? clone(groups.find((c) => c.value === v).by) : null; paintOrder(); })));
       }
       function paintKind() {
+        if (lib) { kindBox.replaceChildren(); return; }
         if (d.kind === "list") kindBox.replaceChildren(row("Format", seg(FORMATS, d.format, (f) => { d.format = f; paintKind(); })));
         else if (d.kind === "board") {
           const enums = (taskType?.fields ?? []).filter((f) => kindOf(f) === "enum").map((f) => ({ value: f.key, label: fieldLabel(f) }));
@@ -527,6 +539,8 @@
           const before = order(list.order?.sort ?? [], list.order?.groupBy ?? null);
           if (!same(o, before)) b.order = o;
         }
+        // The view is Tasks'; from the Library it is left as it is.
+        if (lib) return b;
         if (d.kind === "list" && d.format !== list?.["talaris:view"]?.format) b.view = { format: d.format };
         if (d.kind === "board" && d.bind !== list?.["talaris:bind"]) b.bind = d.bind;
         if (d.kind === "matrix") {

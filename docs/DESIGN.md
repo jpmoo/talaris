@@ -1634,6 +1634,33 @@ is saved all at once, with Save: it belongs to a calendar or to the plugin that 
 it, and saving it may send invitations. Its projects, which Talaris alone holds, are kept
 as they are chosen. One whose calendar cannot be asked just now is read on the card.
 
+### Collections in the Library (2026-11-26)
+
+**A collection is in the Library too**, of any kind of thing: the same ones Tasks
+shows (lists.ts), listed under Collections in the Library's left side with how
+many each holds, and a + to make one. They are not the Lists below them, which are
+one project's grouping of its files; a collection belongs to no project. One
+chosen is the whole of the middle: its members as rows of whatever they are —
+people, pages, daily notes, events, tasks, projects — each opening its card on the
+right as any row does, in the collection's own order and groups, with a chip for
+each kind it holds to leave that kind out. With nothing in it chosen, the right
+is the collection itself: what it holds by, Rename, Refresh for a snapshot, and
+Delete, asked twice; deleting it, or taking something out, deletes nothing.
+
+It is made and changed in Tasks' own editor (listeditor.js), opened for any kind:
+by hand, or by a rule whose Kind is any the format names (by profile, never a
+type's name), with tags, words, dates, state and any type's fields. How it is
+drawn (list, table, board, matrix, calendar) is Tasks' to say, so the Library
+neither shows nor writes it, and a task collection edited here is still the same
+board or matrix there. One made by hand, or a rule's snapshot, has Add… above its
+rows, finding things by name as an @ does, and every card says which collections
+it was put in, each to take it out of, with Add to a collection (a page, a canvas
+or a conversation by the entity that stands for it, made the first time, as an @
+makes it). A matrix or a board places what is put in it, so is filled in Tasks.
+What a live rule holds is not said on a card: only showing the collection runs it.
+A collection of other things still shows in Tasks, its non-tasks as plain rows,
+each pressed opening its card in the Library.
+
 ### Organizations (2026-11-03)
 
 An organization is a thing, with no surface or bar button of its own. Its home
