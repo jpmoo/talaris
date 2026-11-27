@@ -211,15 +211,49 @@ window.GlanceView = (o) => {
       onclick: () => { set.clear(); if (every) for (const k of keys) set.add(k); then(); } }, every ? "None" : "All");
   }
 
-  function drawKinds() {
+  /*
+   * The kinds shown: one pick, "Kinds ▾" (or "5 of 12 kinds ▾" when some are hidden), whose pop-up holds a row for
+   * each kind with its count, each on or off, and All or None (UX-AUDIT 5.2) — a row of twelve chips was a third row
+   * of controls before anything of the project showed. The pop-up stays up while kinds are turned on and off.
+   */
+  let kindsOpen = null; // the pop-up's list while it is up, drawn again as kinds change
+  let kindsShut = 0;
+  function kindCounts() {
     const counts = new Map();
     for (const n of things()) if (!mine || n.own) counts.set(groupOf(n), (counts.get(groupOf(n)) || 0) + 1);
-    ui.kinds.replaceChildren(...GROUPS.map(([k, name]) => {
-      const n = counts.get(k) || 0;
-      return el("button", { class: "chip kchip" + (off.has(k) ? "" : " on") + (n ? "" : " none"), title: off.has(k) ? `Show ${name.toLowerCase()}` : `Hide ${name.toLowerCase()}`,
-        onclick: () => { if (off.has(k)) off.delete(k); else off.add(k); filtered(); } },
-        el("span", { class: "dot", style: `background: var(--k-${k})` }), name, el("span", { class: "n" }, String(n)));
-    }), allOrNone(off, GROUPS.map(([k]) => k), filtered));
+    return counts;
+  }
+  function kindsList() {
+    const counts = kindCounts();
+    const list = el("div", { class: "menu-list gv-kinds-list" },
+      ...GROUPS.map(([k, name]) => {
+        const n = counts.get(k) || 0;
+        return el("button", { class: "menu-item" + (off.has(k) ? "" : " on") + (n ? "" : " none"), role: "menuitemcheckbox", "aria-checked": String(!off.has(k)),
+          onclick: (e) => { e.stopPropagation(); if (off.has(k)) off.delete(k); else off.add(k); filtered(); } },
+          el("span", { class: "tick" }, off.has(k) ? "" : "✓"), el("span", { class: "dot", style: `background: var(--k-${k})` }),
+          el("span", { class: "lbl" }, name), el("span", { class: "n" }, String(n)));
+      }),
+      el("div", { class: "menu-sep" }),
+      allOrNone(off, GROUPS.map(([k]) => k), filtered));
+    return list;
+  }
+  function drawKinds() {
+    const shown = GROUPS.length - GROUPS.filter(([k]) => off.has(k)).length;
+    const pick = el("button", { class: "t-btn small pick kpick" + (shown < GROUPS.length ? " on" : ""), "aria-haspopup": "true",
+      title: "Which kinds of thing are shown" },
+      shown === GROUPS.length ? "Kinds ▾" : `${shown} of ${GROUPS.length} kinds ▾`);
+    pick.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // A press on the pick while its pop-up is up puts it away (the press elsewhere did, a moment ago, if the pick was
+      // drawn anew under it): not out again at once.
+      if (Kit.openedBy() === pick || kindsOpen) { Kit.popAway(); return; }
+      if (Date.now() - kindsShut < 300) return;
+      kindsOpen = kindsList();
+      Kit.pop(pick, kindsOpen, { onClose: () => { kindsOpen = null; kindsShut = Date.now(); } });
+    });
+    ui.kinds.replaceChildren(pick);
+    // Up while a kind was turned on or off: the list drawn again where it is, under the pick drawn anew.
+    if (kindsOpen && kindsOpen.isConnected) { const next = kindsList(); kindsOpen.replaceWith(next); kindsOpen = next; }
     ui.mine.classList.toggle("on", mine);
   }
 
@@ -1063,9 +1097,12 @@ window.GlanceView = (o) => {
   // what that touches in turn (the core holds each step to a few hundred).
   let steps = Number(store.get("talaris.glance.steps", 1)) || 1;
   function drawSteps() {
-    ui.steps.replaceChildren(el("span", { class: "steps-l" }, "Steps"), ...[1, 2, 3].map((n) =>
+    // "Reach", in steps (UX-AUDIT 5.2): "Steps 1 2 3" did not say steps of what.
+    const why = "How far out it reaches: one step is what it touches; each more, what that touches in turn";
+    ui.steps.replaceChildren(el("span", { class: "steps-l", title: why }, "Reach"), ...[1, 2, 3].map((n) =>
       el("button", { class: n === steps ? "on" : "", title: n === 1 ? (from ? "What it is connected to" : "What the project's own things touch") : `${n} steps out`,
-        onclick: () => { if (n === steps) return; steps = n; store.set("talaris.glance.steps", n); drawSteps(); load(); } }, String(n))));
+        onclick: () => { if (n === steps) return; steps = n; store.set("talaris.glance.steps", n); drawSteps(); load(); } }, String(n))),
+      el("span", { class: "steps-l", title: why }, steps === 1 ? "step" : "steps"));
   }
   drawSteps();
   ui.refresh.innerHTML = REFRESH;
