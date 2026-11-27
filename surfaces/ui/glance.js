@@ -57,9 +57,9 @@
     },
   });
   $("view-slot").replaceWith(view.view);
-  $("q-slot").replaceWith(view.q, view.mine, view.steps);
+  // The kinds, one pick now (UX-AUDIT 5.2), on the header's row beside the reach rather than a row of their own.
+  $("q-slot").replaceWith(view.q, view.mine, view.steps, view.kinds);
   $("refresh-slot").replaceWith(view.refresh);
-  $("kinds-slot").replaceWith(view.kinds);
   $("trail-slot").replaceWith(view.trail);
   document.querySelector("main").append(view.main);
 
@@ -85,6 +85,9 @@
       view.focusFind();
     }
   });
+
+  // The list's rows gone through by the keys, as every list is (kit.js, listNav).
+  Kit.listNav(document.querySelector("main"), ".grow-row");
 
   // A panel's one button makes it a window (the expand corners); a window's one
   // button closes it.

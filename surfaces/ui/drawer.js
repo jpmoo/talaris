@@ -50,16 +50,10 @@ function xBtn(title, onclick) {
 // Said as every page says it (kit.js): sentence case; an error in the danger color, until something else is said.
 function status(text, error = false) { Kit.say($("status"), text, error, 0); }
 
+// The look as every page takes it (surface.js): the mode (on the web, the browser's), the accent and its words, the
+// typeface. The drawer's own opacity is set on its body (below), over the page-wide one.
 function applyTheme(theme) {
-  const root = document.documentElement;
-  root.dataset.mode = theme.mode === "light" ? "light" : "dark";
-  root.dataset.motion = theme.motion || "slide";
-  if (theme.accent) {
-    root.style.setProperty("--accent", theme.accent);
-    const n = parseInt(theme.accent.slice(1), 16);
-    root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
-  }
-  if (theme.font) root.style.setProperty("--font", `'${theme.font}', system-ui, sans-serif`);
+  Surface.applyTheme(theme);
   const frame = document.querySelector(".canvas-frame");
   if (frame) shareTheme(frame);
 }
@@ -324,7 +318,29 @@ function sortButton(list, reload) {
       ...SORTS.map(([k, l]) => el("button", { class: "menu-item" + (k === sortOf(list) ? " on" : ""), onclick: () => { closeMenu(); setSort(list, k); reload(); } }, l)),
       el("div", { class: "menu-sep" }), el("div", { class: "hint" }, "Drag to order by hand")));
   });
-  return el("div", { class: "list-head" }, b);
+  return el("div", { class: "list-head" }, findBox(list), b);
+}
+
+/*
+ * Finding in the list by typing (UX-AUDIT 4.8): the rows whose words match, the rest out of sight; Escape clears it.
+ * What was typed is kept for each list across a redraw — the list is drawn again whenever the drawer is told anything.
+ * It narrows what the list has drawn (an open fold's pages too); every page anywhere is the launcher's to find.
+ */
+const listFind = new Map();
+function findBox(list) {
+  const input = el("input", { type: "search", class: "list-find", spellcheck: "false",
+    placeholder: list === "canvas" ? "Find in Canvas" : "Find in Notes", "aria-label": list === "canvas" ? "Find a canvas" : "Find a page" });
+  input.value = listFind.get(list) || "";
+  const apply = () => {
+    const tree = input.closest(".tree");
+    if (!tree) return;
+    const q = input.value.trim();
+    for (const r of tree.querySelectorAll(".row")) r.classList.toggle("unfound", !!q && !Kit.matches(q, r.textContent));
+  };
+  input.addEventListener("input", () => { listFind.set(list, input.value); apply(); });
+  Kit.searchBox(input);
+  requestAnimationFrame(apply);
+  return input;
 }
 
 // ---------------------------------------------------------------- tags
@@ -531,7 +547,10 @@ async function loadCanvas() {
   scrollBack(treePane, listKey, top);
   $("count").textContent = `${here().code} · ${count} CANVAS${count === 1 ? "" : "ES"}`;
   // Making a canvas inside belongs with the tree it lands in: shown with it.
-  const inside = btn("New canvas inside", newCanvas);
+  // "New canvas", as Notes' is "New page" (UX-AUDIT 4.8): made inside the one open, which its tip says.
+  const inside = btn("New canvas", newCanvas);
+  inside.id = "new-canvas";
+  inside.title = "A new canvas, inside this one";
   const node = trail[trail.length - 1];
   const actions = [
     sideToggle(treePane, TREE_KEY, "tree", [inside]),
@@ -906,7 +925,9 @@ const DAILY = "Daily";
  */
 const PAGES = "Pages";
 const SCOPE_KEY = "talaris.writing.scope";
-let scope = (() => { try { return localStorage.getItem(SCOPE_KEY) === "daily" ? "daily" : "project"; } catch { return "project"; } })();
+// On a phone, Notes opens on today's daily page (WEB.md, *What it shows*): what is written away from the desk.
+const PHONE_NOTES = !!(window.TALARIS_WEB && window.TALARIS_WEB.page === "notes" && matchMedia("(max-width: 760px)").matches);
+let scope = (() => { if (PHONE_NOTES) return "daily"; try { return localStorage.getItem(SCOPE_KEY) === "daily" ? "daily" : "project"; } catch { return "project"; } })();
 let homeId = "";
 const openIn = { project: new Map() }; // the page last open in each project
 const wpid = () => (scope === "daily" ? homeId : here().id);
@@ -989,9 +1010,10 @@ function pageHeading() {
   if (scope === "daily" && isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
     // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
-    return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
+    // In capitals by its style (.label), not its words: a phone's sentence case is the same words (web.css).
+    return `Daily page for ${Kit.fullDay(new Date(y, m - 1, d))}${inHome() ? "" : " · in Home"}`;
   }
-  return (inHome() && open.startsWith(`${PAGES}/`) ? open.slice(PAGES.length + 1) : open).split("/").join(" / ").toUpperCase();
+  return (inHome() && open.startsWith(`${PAGES}/`) ? open.slice(PAGES.length + 1) : open).split("/").join(" / ");
 }
 
 // Which load is the latest: one overtaken (days clicked quickly) draws nothing, so the day last picked is the one shown.

@@ -655,8 +655,9 @@ done; shown or hidden in Settings, Bar, as any item is.
 
 Talaris in a browser and on the phone, as a machine of its own on home-server
 that the others sync through, in place of Hermes Notes and its plugin: the
-Library as the hub, Tasks, Calendar, Notes, People and Canvas, and the weekly
-review brought over whole. Signed in by passkeys. See **WEB.md**.
+Library as the hub, Tasks, Calendar, Notes, People and Canvas. The weekly
+review stays on the desktop (*The weekly review*, above). Signed in by
+passkeys. See **WEB.md**.
 
 ## Plugins
 

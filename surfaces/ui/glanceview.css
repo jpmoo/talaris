@@ -21,14 +21,15 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
   --k-event: var(--tint-5); --k-note: var(--tint-6); --k-project: var(--tint-7); --k-conversation: var(--tint-8); --k-other: var(--muted);
 }
 
-/* The kinds, each a toggle (a chip) with its count. */
-.gv-kinds { flex-wrap: wrap; gap: 4px; }
-.gv-kinds .kchip { gap: 5px; }
-.gv-kinds .kchip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.gv-kinds .kchip .n { font-variant-numeric: tabular-nums; opacity: .8; }
-.gv-kinds .kchip:not(.on) .dot { opacity: .35; }
-.gv-kinds .kchip.none { opacity: var(--disabled); }
-.gv-kinds .kall { margin-left: 4px; }
+/* The kinds: one pick, "Kinds ▾", and in its pop-up each kind on or off with its count (glanceview.js, drawKinds). */
+.gv-kinds { flex: none; gap: 4px; }
+.gv-kinds-list .menu-item { gap: 8px; }
+.gv-kinds-list .tick { width: 12px; flex: none; color: var(--accent-text); }
+.gv-kinds-list .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.gv-kinds-list .n { font-variant-numeric: tabular-nums; }
+.gv-kinds-list .menu-item:not(.on) .dot { opacity: .35; }
+.gv-kinds-list .menu-item.none { opacity: var(--disabled); }
+.gv-kinds-list .kall { margin: 2px 4px; align-self: flex-start; }
 
 /* The list: grouped by kind. */
 .gv-list { flex: 1; overflow: auto; padding-bottom: 10px; }

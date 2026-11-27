@@ -160,8 +160,8 @@
       ThingCard.avatar(api, p.id, p.title, p.image),
       el("div", { class: "p-main" }, el("div", { class: "p-name" }, p.title), sub ? el("div", { class: "p-sub" }, sub) : null),
       // Filled, tied to a card in your address books; a hollow ring, not yet; nothing, for one you said not to look for.
-      p.ties.length ? el("span", { class: "tie tied", title: "In your address books" })
-        : !p.noContact ? el("span", { class: "tie untied", title: "Not in your address books yet" }) : null);
+      p.ties.length ? el("span", { class: "tie tied", title: "In your address books", role: "img", "aria-label": "In your address books" })
+        : !p.noContact ? el("span", { class: "tie untied", title: "Not in your address books yet", role: "img", "aria-label": "Not in your address books yet" }) : null);
   }
   function toggleGroup(g) {
     if (shut.has(g)) shut.delete(g); else shut.add(g);
@@ -228,6 +228,12 @@
         if (l !== letter) { letter = l; out.push(el("div", { class: "letter" }, l)); }
         out.push(personRow(p));
       }
+    }
+    // What the marks at a row's end say, once, at the list's foot (UX-AUDIT 6): each has its tip, but a mark with no
+    // word anywhere is a guess.
+    if (rows.length) {
+      out.push(el("div", { class: "legend" }, el("span", { class: "tie tied" }), " In your address books", el("span", { class: "sep" }, "·"),
+        el("span", { class: "tie untied" }), " Not yet"));
     }
     const top = list.scrollTop;
     list.replaceChildren(...out);

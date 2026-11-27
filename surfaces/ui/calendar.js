@@ -129,10 +129,10 @@ function fetchRange() {
   bridge.ask(JSON.stringify({ do: "range", req: wanted, from: a.getTime(), to: b.getTime() }));
 }
 function title() {
-  if (mode === "day") return focus.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  if (mode === "day") return Kit.fullDay(focus);
   if (mode === "week" || mode === "three" || mode === "agenda") {
     const s = mode === "week" ? startOfWeek(focus) : startOfDay(focus), e = addDays(s, mode === "week" ? 6 : mode === "agenda" ? AGENDA_DAYS - 1 : 2);
-    return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    return Kit.range(s, e);
   }
   return Kit.month(focus);
 }
@@ -349,8 +349,8 @@ function drawAgenda(view) {
     const d = addDays(start, i);
     const day = onDay(d).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
     const due = tasksShown ? tasks.filter((t) => !t.complete && t.due && t.due.slice(0, 10) === iso(d)) : [];
-    const head = el("h3", { class: sameDay(d, today) ? "today" : "" }, sameDay(d, today) ? `Today · ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
-      : d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }));
+    const head = el("h3", { class: sameDay(d, today) ? "today" : "" }, sameDay(d, today) ? `Today · ${Kit.day(d)}`
+      : Kit.day(d, { weekday: "long" }));
     box.append(head, ...(day.length || due.length ? [...day.map(ev), ...due.map((t) => tk(t))] : [el("div", { class: "quiet" }, "Nothing")]));
   }
   view.replaceChildren(box);
@@ -504,7 +504,7 @@ function drawMonth(view) {
   const [start] = span();
   const today = new Date();
   const grid = el("div", { class: "month" });
-  for (let i = 0; i < 7; i++) grid.append(el("div", { class: "dow" }, addDays(start, i).toLocaleDateString("en-US", { weekday: "short" })));
+  for (let i = 0; i < 7; i++) grid.append(el("div", { class: "dow" }, Kit.dayName(addDays(start, i))));
   for (let i = 0; i < 42; i++) {
     const day = addDays(start, i);
     const cell = el("div", { class: "cell" + (day.getMonth() !== focus.getMonth() ? " other" : "") + (sameDay(day, today) ? " today" : ""),
@@ -567,7 +567,7 @@ function drawDays(view, cols) {
   const days = Array.from({ length: cols }, (_, i) => addDays(start, i));
   const wrap = el("div", { class: "days", style: `--cols:${cols}` });
   wrap.append(el("div", { class: "dayhead" }, el("div"), ...days.map((d) => el("div", { class: sameDay(d, today) ? "today" : "" },
-    d.toLocaleDateString("en-US", { weekday: "short", month: cols === 1 ? "long" : undefined, day: "numeric" }), wxDay(d)))));
+    (cols === 1 ? Kit.day(d, { month: "long" }) : `${Kit.dayName(d)} ${d.getDate()}`), wxDay(d)))));
   const taskBars = taskRow(days);
   if (taskBars) wrap.append(taskBars);
   wrap.append(el("div", { class: "allday" }, el("div", {}, "all day"), ...days.map((d) =>
@@ -739,6 +739,8 @@ $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(
 // button closes it.
 $("grow").addEventListener("click", () => bridge && bridge.grow());
 $("close").addEventListener("click", () => bridge && bridge.closeWindow());
+// The agenda's and the search's rows gone through by the keys, as every list is (kit.js, listNav): Enter opens one.
+Kit.listNav($("view"), ".hit");
 // Search (drawFound): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
 let searchTimer = 0;
 // Escape clears it first, as every box that narrows a list does (kit.js).

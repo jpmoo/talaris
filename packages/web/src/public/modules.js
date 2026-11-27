@@ -80,6 +80,28 @@
   const scrim = el("div", "sh-scrim");
   document.body.append(bar, scrim);
 
+  // New, in the corner (WEB.md, *What it shows*; UX-AUDIT 4.5): the + over the list, pressing the page's own primary
+  // ("New task", "New person", "New event", "New page" — `PAGES[…].panes.create`), which a phone's header then leaves
+  // out. Over the list only: a card or a page open is what is being worked on.
+  let fab = null;
+  if (P.create) {
+    css.push(`html.sh-phone ${is(P.create)} { display: none !important; }`);
+    style.textContent = css.join("\n");
+    fab = el("button", "sh-new", icon("plus"));
+    fab.type = "button";
+    fab.setAttribute("aria-label", "New");
+    fab.addEventListener("click", () => {
+      const made = any(P.create)[0];
+      if (made) made.click();
+    });
+    document.body.append(fab);
+    // Only while the page offers its New (Notes' dailies have none): looked at again as the page redraws.
+    let queued = false;
+    new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; showFab(); }); } })
+      .observe(document.body, { subtree: true, childList: true });
+  }
+  function showFab() { if (fab) fab.hidden = !phone() || state !== "list" || !any(P.create).length; }
+
   // Where it is: "list", "detail", "side" or "sheet". Every state but the list is one step on in the history.
   let state = "list";
   const openSheet = () => sheets.find((s) => s.node.isConnected && getComputedStyle(s.node).display !== "none");
@@ -94,6 +116,7 @@
     left.classList.toggle("on", state === "side");
     left.setAttribute("aria-label", back ? "Back" : state === "side" ? "Hide the side column" : "Show the side column");
     left.setAttribute("aria-expanded", String(state === "side"));
+    showFab();
     sayWhere();
   }
   function sayWhere() {
@@ -175,6 +198,9 @@
   }
   // Opened on one thing (`?card=…`, from another module: bridge.js `libraryAt`): its detail, once the page draws it.
   if (P.detail && new URLSearchParams(location.search).has("card")) expect(0);
+  // A page that opens on its detail on a phone (`start: "detail"`: Notes, on today's daily page — WEB.md): shown once
+  // the page has drawn it, with the list a step back.
+  else if (P.detail && P.start === "detail" && phone()) expect(0);
   // A sheet the page opens (a task's card) or closes itself: followed, so Back closes it and its closing is a step back.
   for (const s of sheets) {
     new MutationObserver(() => {

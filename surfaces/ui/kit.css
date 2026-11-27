@@ -47,6 +47,11 @@ button.armed, .armed > button { color: var(--danger) !important; border-color: v
 .menu-item.armed, .menu-item.armed:hover, .armed-row { color: var(--danger) !important; background: var(--danger-wash) !important; }
 /* A line said back (Kit.say): sentence case, muted; an error in the danger color. */
 .kit-msg { font-size: var(--t-sm); color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An error may take two lines, wherever a page put its line (UX-AUDIT 1.6): what went wrong is not cut to "Could no…".
+   Longer than two, its tip has the rest (Kit.say sets it, and it can be reached by Tab). */
+.kit-said.err { white-space: normal !important; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; line-height: 1.25; max-width: 48ch; }
+.kit-said.err:focus-visible { outline-offset: 2px; }
 .kit-empty { color: var(--muted); font-size: var(--t-md); padding: 10px 8px; }
 .err { color: var(--danger) !important; }
 /* "Connect to…" in the writing drawer: a box to find by, the things found under it. */

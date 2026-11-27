@@ -300,10 +300,13 @@
   function chooseCurrent() {
     const live = (c) => c && (c.kind === "project" ? projects.some((p) => p.id === c.id && !p.archived) : lists.some((l) => l.id === c.id && !l.archived));
     if (live(current)) return;
+    const open = lists.filter((l) => !l.archived);
+    const starter = open.find((l) => l["talaris:starter"] === "today");
+    // A phone opens on Today when there is one (WEB.md, *What it shows*: what is to be done, away from the desk).
+    if (starter && window.TALARIS_WEB && matchMedia("(max-width: 760px)").matches) { current = { kind: "list", id: starter.id }; return; }
     const kept = store.get("talaris.tasks.shown", null);
     if (live(kept)) { current = kept; return; }
-    const open = lists.filter((l) => !l.archived);
-    const today = open.find((l) => l["talaris:starter"] === "today") || open[0];
+    const today = starter || open[0];
     current = today ? { kind: "list", id: today.id } : null;
   }
   let showReq = 0;
@@ -420,7 +423,16 @@
       projHead,
       addingProject ? newProjectRow() : null,
       projectRows(isOn),
+      archivedRow(),
     ].flat().filter((x) => x != null));
+  }
+  // At the foot of the projects, the archived ones (UX-AUDIT 5.3): the Archive panel had no way in but the launcher.
+  // Not on the web, which has no Archive (bridge.can).
+  function archivedRow() {
+    const n = projects.filter((p) => p.archived).length;
+    if (!n || !bridge || (bridge.can && !bridge.can("openArchive"))) return null;
+    return el("div", { class: "item archived-foot", title: "Browse them, search them, bring one back", onclick: () => bridge.openArchive() },
+      el("span", { class: "name" }, "Archived projects"), el("span", { class: "n" }, String(n)));
   }
 
   function renameRow(l) {
@@ -1013,7 +1025,12 @@
 
   // ---------------------------------------------------------------- keys and buttons
 
-  const typing = (t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  // The collections and projects, and a list's rows, gone through by the keys as every list is (kit.js, listNav):
+  // Enter on a row opens its task, as a press on its title does.
+  Kit.listNav($("side"), ".item:not(.grp)");
+  Kit.listNav($("view"), ".tv-row", { open: (row) => (row.querySelector(".tv-title") || row).click() });
+
+  const typing =(t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
   document.addEventListener("keydown", (e) => {
     // The list editor and the views keep their own Escape, and say so.
     if (e.defaultPrevented) return;

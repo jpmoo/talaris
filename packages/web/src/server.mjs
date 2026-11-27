@@ -55,6 +55,8 @@ const SOCKET = join(process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid()
  *   it away again.
  * - `sheets`: what the page itself opens over the list and closes (a task's card, an event's editor): seen as it
  *   opens, so Back closes it, by `close` — a button of the page's, or `"Escape"` as the page hears it.
+ * - `create`: the page's one primary (its New), pressed by the + in the corner over the list; the header's own is not
+ *   shown on a phone. `start: "detail"`: on a phone the page opens on its detail (Notes, on today's daily page).
  * - `where`: what the bar says under the title (the project chosen). `hide`: what the bar says already, or a phone has
  *   no room or no use for. `listOnly`: what belongs to the list (its search, its ways of showing), not shown with the
  *   detail or a sheet.
@@ -66,15 +68,19 @@ const PAGES = {
       hide: "header h1, #count, #days, #readf, #msg", listOnly: "header" } },
   tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks",
     panes: { side: "#side", sideRows: "#side .item:not(.grp)",
-      sheets: [{ el: "#sheet", close: "Escape" }, { el: "#psheet", close: "#p-close" }], hide: "#side-toggle, #count", listOnly: "header" } },
+      sheets: [{ el: "#sheet", close: "Escape" }, { el: "#psheet", close: "#p-close" }], hide: "#side-toggle, #count", listOnly: "header",
+      create: "#add-task" } },
   calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar",
-    panes: { side: "#side", sheets: [{ el: "#editor", close: "Escape" }], hide: "#side-toggle" } },
+    panes: { side: "#side", sheets: [{ el: "#editor", close: "Escape" }], hide: "#side-toggle", create: "#new" } },
   notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes",
-    panes: { list: "#body > .tree", detail: "#body > .pane", rows: ".row, .cal-day", opens: "#new-page", hide: ".side-toggle, #count, #grow, .page-map, .page-map-open" } },
+    panes: { list: "#body > .tree", detail: "#body > .pane", rows: ".row, .cal-day", opens: "#new-page", hide: ".side-toggle, #count, #grow, .page-map, .page-map-open",
+      create: "#new-page", start: "detail" } },
   people: { file: "people.html", panel: "people_panel.py", title: "People",
-    panes: { list: "#list", detail: "#person", rows: ".prow", opens: "#add", hide: "header h1, #count, header .seg", listOnly: "header, #twice" } },
+    panes: { list: "#list", detail: "#person", rows: ".prow", opens: "#add", hide: "header h1, #count, header .seg", listOnly: "header, #twice",
+      create: "#add" } },
   canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas",
-    panes: { list: "#body > .tree", detail: "#body > .canvas-pane", rows: ".row", hide: ".side-toggle, #count, #grow" } },
+    panes: { list: "#body > .tree", detail: "#body > .canvas-pane", rows: ".row", opens: "#new-canvas", hide: ".side-toggle, #count, #grow",
+      create: "#new-canvas" } },
   // Morgan's conversation, typed or spoken (morgan.mjs, voice.mjs): the brain's own socket, on this machine.
   morgan: { file: "morgan/index.html", panel: "morgan.py", title: "Morgan" },
 };

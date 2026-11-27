@@ -48,7 +48,7 @@
   const failed = (e) => say(e.message, true);
 
   const day = (iso) => (iso ? Kit.day(iso, { weekday: false }) : "");
-  const MONTHS = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "long" });
+  const MONTHS = (iso) => Kit.monthName(iso);
 
   // ---------------------------------------------------------------- the list
 

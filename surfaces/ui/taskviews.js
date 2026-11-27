@@ -709,7 +709,7 @@ const TaskViews = (() => {
     let title;
     if (calMode === "week") {
       const s = startOfWeek(calFocus), e = addDays(s, 6);
-      title = `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+      title = Kit.range(s, e);
     } else title = Kit.month(calFocus);
     const modes = el("span", { class: "seg" }, ...[["month", "Month"], ["week", "Week"]].map(([m, label]) =>
       el("button", { class: m === calMode ? "on" : "", onclick: () => setMode(m) }, label)));
@@ -729,7 +729,7 @@ const TaskViews = (() => {
     for (let i = 0; i < 7; i++) {
       const d = addDays(start, i);
       grid.append(el("div", { class: "dow" + (week && +d === +today ? " today" : "") },
-        week ? d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" }) : d.toLocaleDateString("en-US", { weekday: "short" })));
+        week ? `${Kit.dayName(d)} ${d.getDate()}` : Kit.dayName(d)));
     }
     const room = 4;
     for (let i = 0; i < count; i++) {

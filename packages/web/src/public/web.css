@@ -29,6 +29,15 @@ html.web, html.web body { overflow: hidden; overscroll-behavior: none; }
 .web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
 .web-modules a.on { color: var(--accent-text); background: var(--accent-wash); }
 .web-modules a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Wider than a phone, the modules are a rail down the left (UX-AUDIT 4.5), as an app on a large screen keeps them: the
+   page has the window's whole height, and its width less the rail, rather than a phone's tab bar under it. */
+@media (min-width: 761px) {
+  html.web { --sh-bottom: 0px; --sh-rail: 76px; }
+  html.web body { margin-left: var(--sh-rail) !important; }
+  .web-modules { top: 0; right: auto; width: var(--sh-rail); height: auto; flex-direction: column; justify-content: flex-start;
+    gap: 4px; padding: 10px 6px; border-top: 0; border-right: 1px solid var(--line); }
+  .web-modules a { flex: none; height: 56px; }
+}
 
 /* ---------------------------------------------------------------- the phone's shell (modules.js; UX-AUDIT 4.2)
    One pane at a time — the list, the detail, a sheet, or the side column over the list — under a bar with Back on the
@@ -58,6 +67,13 @@ html.sh-phone .sh-bar { display: grid; grid-template-columns: minmax(44px, 1fr) 
 /* Behind the side column while it is out: a press on it puts the column away. */
 html.sh-phone.sh-side .sh-scrim { display: block; position: fixed; left: 0; right: 0; top: var(--sh-top); bottom: var(--sh-bottom);
   background: var(--scrim); z-index: calc(var(--z-sheet) - 1); }
+/* New (+), in the corner over the list (modules.js): the filled primary, round, clear of the modules' bar. */
+.sh-new { display: none; }
+html.sh-phone .sh-new:not([hidden]) { display: grid; place-items: center; position: fixed; right: 16px; bottom: calc(var(--sh-bottom) + 16px);
+  width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+  box-shadow: var(--menu-shadow); z-index: var(--z-sheet); cursor: pointer; }
+.sh-new svg { width: 24px; height: 24px; display: block; }
+.sh-new:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 /* Clear of the screen's rounded corners and its home bar (viewport-fit=cover makes the insets real): seven modules
    across, each a narrow column, their names a size down so "Calendar" fits. */
 html.sh-phone .web-modules { gap: 0; padding: 4px max(14px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
@@ -80,6 +96,11 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
   /* The drawers' list, whole, even where the desktop's button had put it away (it is hidden on a phone). */
   html.sh-phone:not(.sh-detail):is(.page-notes, .page-canvas) #body > .tree.hidden { display: block !important; }
   html.page-notes #body, html.page-canvas #body { gap: 0 !important; }
+  /* Their headings in sentence case (UX-AUDIT 4.8): spaced capitals wrapped to two lines on a phone. The module's name
+     is the shell's bar's already, so the header starts at whose (the project's menu), then where. */
+  html.sh-phone:is(.page-notes, .page-canvas) :is(header .title, #heading) { text-transform: none; letter-spacing: normal; }
+  html.sh-phone:is(.page-notes, .page-canvas) header .title { font-size: var(--t-md); }
+  html.sh-phone:is(.page-notes, .page-canvas) header :is(#mark, #where > .drawer-name, #where > .drawer-name + .slash) { display: none; }
   html.page-notes #body > .pane, html.page-canvas #body > .canvas-pane { flex-direction: column; }
   html.page-notes .editor.mapped .cm-content { padding-right: 8px !important; }
   html.page-notes .pane-bar { flex-wrap: wrap; }
@@ -140,10 +161,18 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
 /* A finger has no hover. What the desktop shows only under the pointer is simply shown: on a phone a touch that reveals
    something counts as the hover, and the press needs a second touch. One rule, for every such control. */
 @media (hover: none) {
-  html.web :is(.c-row .x-btn, .row.crow .x-btn, .s-item .x-btn, #side .item .more, .tv-day .tv-dayplus, .row .star, .step .ctl) { visibility: visible !important; opacity: 1 !important; }
+  html.web :is(.c-row .x-btn, .row.crow .x-btn, .s-item .x-btn, #side .item .more, .tv-day .tv-dayplus, .row .star) { visibility: visible !important; opacity: 1 !important; }
   /* A task row's pen opens what a press on the row opens: not shown, so the row is one target. */
   html.page-tasks .tv-row .tv-pen { display: none !important; }
 }
+
+/* A project in the Library on the web (UX-AUDIT 4.7): its "Do" is "Go to this project", the desktop's workspace — the
+   web has nothing for it (bridge.js, can), and Glance's button, the other that could be there, is not on the web. A
+   linked folder is a desktop machine's, so looking at it again is too; "not there now" is where it is, not an error.
+   Until filespanel.js asks bridge.can itself (and says "On the laptop"), these are hidden by what they are here. */
+html.page-library :is(.d-sub:has(+ .d-acts), .d-acts) { display: none !important; }
+html.page-library .d-link .t-btn[title^="Look at it now"] { display: none !important; }
+html.page-library .d-link small.bad { color: var(--muted) !important; }
 
 /* Calendar on the web: the accounts' calendars are a desktop machine's reading, not this page's to sync (WEB.md). */
 html.page-calendar #resync { display: none !important; }

@@ -139,6 +139,11 @@ SEND_KEYS = "SUPER, G"
 SEND_FOLLOW_KEYS = "SUPER CTRL, G"
 #: Clipboard history from the bar (clipboard.py); Ctrl+Shift is taken.
 CLIP_KEYS = "SUPER, V"
+#: Every bar panel by a key of its own, as Canvas (C), Notes (W), New (N) and Glance (G) were (UX-AUDIT 2.7): Super+Shift
+#: and a letter, said in each button's tip and on the Keys page. Calendar is K, its L being the Library's. The names
+#: are the CLI's (`--tasks`…).
+PANEL_KEYS = (("tasks", "SUPER SHIFT, T", "Tasks"), ("people", "SUPER SHIFT, P", "People"), ("files", "SUPER SHIFT, L", "The Library"),
+              ("calendar", "SUPER SHIFT, K", "The calendar"), ("review", "SUPER SHIFT, R", "The weekly review"))
 #: What Super+Alt was once bound to — the project jump, its letters, the old way
 #: to put everything away — unbound at start, so a crash's leftovers do not stay.
 RETIRED = (*(f"SUPER ALT, {chr(c)}" for c in range(ord("A"), ord("Z") + 1)),
@@ -814,6 +819,8 @@ class Desktop(QObject):
             hypr.unbind("SUPER SHIFT, M")
         hypr.bind("SUPER SHIFT, N", f"{LAUNCHER} --new")
         hypr.bind("SUPER SHIFT, G", f"{LAUNCHER} --glance")
+        for name, keys, _ in PANEL_KEYS:
+            hypr.bind(keys, f"{LAUNCHER} --{name}")
         hypr.bind(CLIP_KEYS, f"{LAUNCHER} --popup clipboard")
         # Print: Talaris's screenshots, in place of whatever the key did before (a config reload puts that back; this runs again then).
         # Hyprland matches a pressed key's name in any case, but takes a bind away only as it was spelled: hyprland.conf's
@@ -850,7 +857,7 @@ class Desktop(QObject):
         os._exit(code)
 
     def unbind(self) -> None:
-        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, SEND_KEYS, SEND_FOLLOW_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", CLIP_KEYS, SHOT_KEYS, ", switch:on:Lid Switch",
+        for keys in ("SUPER SHIFT, C", "SUPER SHIFT, W", PROJECTS_KEYS, FILE_ALL_KEYS, HIDE_KEYS, SEND_KEYS, SEND_FOLLOW_KEYS, "SUPER SHIFT, M", "SUPER SHIFT, N", "SUPER SHIFT, G", *(k for _, k, _ in PANEL_KEYS), CLIP_KEYS, SHOT_KEYS, ", switch:on:Lid Switch",
                      ", switch:off:Lid Switch", self.config["launcher"]["keys"]):
             hypr.unbind(keys)
         self.osd.unbind()
@@ -1012,6 +1019,7 @@ class Desktop(QObject):
             {"keys": "Print Screen", "does": "A screenshot: a region, scrolling, a window, or the whole screen"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
             {"keys": "Super + Shift + W", "does": "Notes"},
+            *({"keys": f"Super + Shift + {keys.split(',')[-1].strip()}", "does": does} for _, keys, does in PANEL_KEYS),
             {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
             {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
             {"keys": "Super + H", "does": "Hide this window; its dock item brings it back"},

@@ -398,6 +398,9 @@ function draw() {
     return row;
   }));
   if (kinds && !shown.length) list.replaceChildren(Kit.empty(query.trim() ? "None by that" : "Type to find them"));
+  // The footer says what the keys do for the row chosen (UX-AUDIT 2.7): Shift+Enter is Glance for a thing, and for an
+  // application open elsewhere, going to it there — said only in a row's tip before.
+  if (!viewing) $("hint").textContent = hintFor(shown[at]);
   const on = list.children[at];
   if (on) on.scrollIntoView({ block: "nearest" });
 }
@@ -413,6 +416,15 @@ function draw() {
 let viewing = null;
 let openWindows = [];
 const HINT = "↑↓ choose · Enter open · Esc close";
+/** The footer for the row chosen: what Enter, and Shift+Enter where it does something, will do. */
+function hintFor(x) {
+  if (!x) return HINT;
+  if (x.presses) return "↑↓ choose · Enter · Shift+Enter · Ctrl+Enter, as shown · Esc close";
+  if (x.kind === "morgan") return "↑↓ choose · Enter ask Morgan · Esc close";
+  if (x.act && x.act.kind === "app") return "↑↓ choose · Enter open · Shift+Enter go there · Esc close";
+  if (glanceKey(x)) return "↑↓ choose · Enter open · Shift+Enter Glance · Esc close";
+  return HINT;
+}
 
 $("show-windows").innerHTML = Icons.windows();
 // The button beside the box: to Open windows, and back.
