@@ -69,7 +69,9 @@ without editing four thousand lines of fork.
 }
 .icon-btn:active, .shape-pick:active, .tools .tool:active { transform: scale(.95); }
 .icon-btn:disabled { opacity: var(--disabled); cursor: default; }
-.icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; }
+/* Sized, not left to the browser: Chromium fills the button with an svg that has only a viewBox, Safari draws it
+   nothing wide (the phone's date arrows were empty boxes). The size Chromium gave them, now said. */
+.icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; width: 100%; height: 100%; flex: none; }
 
 /* ---- bar items --------------------------------------------------------- */
 
