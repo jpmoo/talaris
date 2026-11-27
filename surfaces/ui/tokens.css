@@ -106,6 +106,17 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --z-tip: 90;
   --z-ghost: 999;
 }
+/* Less motion, asked for by the system (UX-AUDIT 3.5): nothing slides, fades or turns. What moves by script asks the
+   same question itself (motion.js, the bar, the dock, toasts, Glance); this is everything drawn by CSS, on every page
+   and on the web — the hovers that go by --dur and the ones with a time of their own (a countdown's bar, a fold's
+   caret, a spinner). A hundredth of a millisecond rather than none, so an animation still says it ended. */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur: 0s; }
+  *, *::before, *::after {
+    transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
 :root[data-mode="light"] {
   --desk: #d9dcdf;
   --surface: #eceef0;

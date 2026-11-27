@@ -300,10 +300,13 @@
   function chooseCurrent() {
     const live = (c) => c && (c.kind === "project" ? projects.some((p) => p.id === c.id && !p.archived) : lists.some((l) => l.id === c.id && !l.archived));
     if (live(current)) return;
+    const open = lists.filter((l) => !l.archived);
+    const starter = open.find((l) => l["talaris:starter"] === "today");
+    // A phone opens on Today when there is one (WEB.md, *What it shows*: what is to be done, away from the desk).
+    if (starter && window.TALARIS_WEB && matchMedia("(max-width: 760px)").matches) { current = { kind: "list", id: starter.id }; return; }
     const kept = store.get("talaris.tasks.shown", null);
     if (live(kept)) { current = kept; return; }
-    const open = lists.filter((l) => !l.archived);
-    const today = open.find((l) => l["talaris:starter"] === "today") || open[0];
+    const today = starter || open[0];
     current = today ? { kind: "list", id: today.id } : null;
   }
   let showReq = 0;

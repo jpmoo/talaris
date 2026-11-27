@@ -111,7 +111,10 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; }
 .starred { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .starred-t { display: flex; flex-direction: column; min-width: 0; }
 .starred-t .where { font-size: var(--t-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list-head { display: flex; justify-content: flex-end; gap: 6px; margin: 0 0 4px; }
+.list-head { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 0 0 4px; flex-wrap: wrap; }
+/* The list's own find box (drawer.js, findBox): the room left beside its order and its tag. */
+.list-head .list-find { flex: 1 1 100%; min-width: 0; font-size: var(--t-sm); }
+.tree .row.unfound { display: none !important; }
 .kids.shut { display: none; }
 .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .editor { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px 12px; user-select: text; -webkit-user-select: text; }
