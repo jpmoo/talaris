@@ -151,6 +151,10 @@ html.page-calendar #resync { display: none !important; }
    dates. Today stays, to come back. */
 html.sh-phone.page-calendar :is(#prev, #next) { display: none !important; }
 
-/* Morgan on the web: typed (morgan.mjs). What hears and speaks, picks from this machine's disk, or is Morgan's
-   settings or a window's is the desktop's. */
-html.page-morgan :is(#mic, #attach, #settings, #grow, #close) { display: none !important; }
+/* Morgan on the web: typed, or spoken by pressing the microphone (morgan.mjs, voice.js). What picks from this
+   machine's disk, or is Morgan's settings or a window's, is the desktop's; the microphone goes too in a browser that
+   cannot record. */
+html.page-morgan :is(#attach, #settings, #grow, #close) { display: none !important; }
+html.page-morgan.no-voice #mic { display: none !important; }
+/* Held down to talk: no text picked, no callout, no zoom on a double tap. */
+html.page-morgan #mic { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

@@ -3,13 +3,14 @@
 
 /**
  * Morgan on the web (docs/WEB.md, *Morgan*): the desktop's conversation page, talking to Morgan's brain over the
- * brain's own socket — this machine is where the brain runs (home-server), so there is no device between. Text only:
- * nothing here listens or speaks.
+ * brain's own socket — this machine is where the brain runs (home-server), so there is no device between. Nothing
+ * here listens or speaks: a turn spoken on the web is recorded and played in the browser, and made words and sound by
+ * Morgan's speech service (voice.mjs); here it is only a line, `say`.
  *
  * **The socket can do anything** (heymorgan's docs/protocol.md, §1: whatever reaches it may add an MCP server, which
  * runs a program). So the page's lines are let through by name, and only those the conversation page sends: a turn
- * typed, the conversations and their record, reminders. `ask` loses any `files` (paths on this machine); `admin`
- * passes only cancelling a reminder. Anything else is answered as Morgan answers an unknown command.
+ * typed or spoken (`say`), the conversations and their record, reminders. `ask` loses any `files` (paths on this
+ * machine); `admin` passes only cancelling a reminder. Anything else is answered as Morgan answers an unknown command.
  *
  * **What Morgan is doing** (`watch`, §3) is followed on one connection while any page wants it, and handed to each
  * (server.mjs, the `morgan` events).
@@ -26,7 +27,7 @@ export const SOCKET = process.env.HEYMORGAN_SOCKET ?? [join(homedir(), "heymorga
   ?? join(homedir(), "heymorgan", "data", "heymorgan.sock");
 
 /** The commands the conversation page sends (ui/morgan/index.html), and nothing else. */
-const PLAIN = new Set(["status", "type", "new", "interview", "stop", "interrupt", "continue", "rate", "settle", "delete",
+const PLAIN = new Set(["status", "type", "say", "new", "interview", "stop", "interrupt", "continue", "rate", "settle", "delete",
   "reminders", "recent", "days", "conversation", "incognito"]);
 const ADMIN_OPS = new Set(["reminders.cancel"]);
 /** A project's chat (projectchat.js; the desktop's core.py `projectChat`): Morgan's `project`, these four ops only. */
@@ -54,9 +55,29 @@ export function allowed(line) {
 }
 
 /** One command, and its one line of answer (or Morgan's way of saying it is not there). */
-export function command(line, timeoutMs = 20_000) {
-  const ok = allowed(line);
-  if (!ok) return Promise.resolve(JSON.stringify({ ok: false, error: `not on the web: ${String(line).split(" ")[0]}` }));
+export async function command(line, timeoutMs = 20_000) {
+  let ok = allowed(line);
+  if (!ok) return JSON.stringify({ ok: false, error: `not on the web: ${String(line).split(" ")[0]}` });
+  // A turn spoken on the web (voice.js) is `say`: answered as spoken, in short plain sentences, which the browser
+  // speaks. To a brain that is all it is (a brain has no speaker). To a device's socket — a laptop running this for a
+  // trial — `say` would be spoken aloud there as well, so it goes as typed.
+  if (ok.startsWith("say ") && (await about()).role === "client") ok = `type ${ok.slice(4)}`;
+  return send(ok, timeoutMs);
+}
+
+let known = null;
+/** Who answers on the socket (`status`: its `name`, and `role: "client"` for a device), asked once while it answers. */
+export async function about() {
+  if (known) return known;
+  try {
+    const s = JSON.parse(await send("status", 5000));
+    if (s.ok) known = { name: String(s.name || "Morgan"), role: String(s.role || "") };
+    return known ?? { name: "Morgan", role: "" };
+  } catch { return { name: "Morgan", role: "" }; }
+}
+
+/** A line already allowed, and its answer. */
+function send(ok, timeoutMs) {
   return new Promise((resolve) => {
     let out = "";
     const s = createConnection(SOCKET);
@@ -90,6 +111,7 @@ function follow() {
   const lost = () => {
     if (stream !== s) return;
     stream = null;
+    known = null;
     for (const h of hearers) h(JSON.stringify({ type: "state", state: "absent" }));
     // The brain's unit brings it back within seconds; looked for again a little after.
     clearTimeout(retry);

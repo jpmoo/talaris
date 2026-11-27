@@ -12,6 +12,7 @@
  * - `/talaris/api/core`: a page's request of the core, checked against that page's own routes — the same `ALLOWED`
  *   the desktop's panel checks (read from its Python, so there is one list).
  * - `/talaris/api/state`, `/talaris/api/call`, `/talaris/api/events`: the rest of a page's bridge.
+ * - `/talaris/api/morgan/hear`, `/talaris/api/morgan/speak`: Morgan's voice on the web (voice.mjs, public/voice.js).
  * - `/talaris/auth/…`, `/talaris/login`: passkeys (auth.mjs).
  *
  * Everything but the sign-in page and what it needs answers only to a signed-in session.
@@ -26,6 +27,7 @@ import * as auth from "./auth.mjs";
 import * as oauth from "./oauth.mjs";
 import * as mcp from "./mcp.mjs";
 import * as morgan from "./morgan.mjs";
+import * as voice from "./voice.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..", "..");
@@ -73,7 +75,7 @@ const PAGES = {
     panes: { list: "#list", detail: "#person", rows: ".prow", opens: "#add", hide: "header h1, #count, header .seg", listOnly: "header, #twice" } },
   canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas",
     panes: { list: "#body > .tree", detail: "#body > .canvas-pane", rows: ".row", hide: ".side-toggle, #count, #grow" } },
-  // Morgan's conversation, typed (morgan.mjs): the brain's own socket, on this machine.
+  // Morgan's conversation, typed or spoken (morgan.mjs, voice.mjs): the brain's own socket, on this machine.
   morgan: { file: "morgan/index.html", panel: "morgan.py", title: "Morgan" },
 };
 /** The page a request for a file is, by its file and its query (the two drawers are one file). */
@@ -300,7 +302,9 @@ function pageHtml(name) {
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css">${APP_HEAD}</head>`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
   if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
-  html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script></body>`);
+  // Morgan's page: its microphone, and Morgan's voice, in the browser (public/voice.js).
+  const more = name === "morgan" ? `<script src="${PREFIX}/web/voice.js"></script>` : "";
+  html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script>${more}</body>`);
   return html;
 }
 
@@ -466,6 +470,23 @@ async function handle(req, res) {
       return;
     }
     if (req.method !== "POST" || req.headers["x-talaris"] !== "1") return send(res, 400, { error: "not like that" });
+    // Morgan's voice (voice.mjs): what the browser recorded, as words; a sentence of Morgan's, as sound.
+    if (path === "/api/morgan/hear") {
+      const chunks = [];
+      let size = 0;
+      for await (const c of req) {
+        size += c.length;
+        if (size > voice.MOST_BYTES) { send(res, 413, { ok: false, error: "That recording is too long" }); req.destroy(); return; }
+        chunks.push(c);
+      }
+      try { return send(res, 200, { ok: true, text: await voice.transcribe(Buffer.concat(chunks), (await morgan.about()).name) }); }
+      catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+    }
+    if (path === "/api/morgan/speak") {
+      let said;
+      try { said = await voice.speak((await bodyOf(req)).text); } catch (e) { return send(res, 502, { ok: false, error: e.message }); }
+      return said ? send(res, 200, said, "audio/wav") : send(res, 204, "");
+    }
     const b = await bodyOf(req);
     const page = PAGES[b.page];
     if (!page) return send(res, 400, { error: "not a page on the web" });

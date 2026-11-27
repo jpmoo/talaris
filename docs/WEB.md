@@ -269,11 +269,72 @@ answered on `answered`), and what Morgan is doing followed on one `watch` for
 every open page, handed on as the `morgan` event (`event`, and `state` when it
 changes). **The socket can do anything** — whatever reaches it may add an MCP
 server, which runs a program — so only the lines the conversation sends pass:
-a turn typed (`ask` without `files`), the conversations and their record,
-reminders, incognito; of `admin`, only cancelling a reminder. Not on the web:
-listening and speaking, files from this disk, Morgan's settings, and project
-chat (its brief comes from `core.py`). Voice is a step of its own: the
-browser's microphone to the speech service, and the voice back.
+a turn typed (`ask` without `files`) or spoken (`say`, below), the
+conversations and their record, reminders, incognito; of `admin`, only
+cancelling a reminder. Not on the web: the daemon's own listening (`toggle`),
+files from this disk, Morgan's settings, and project chat (its brief comes from
+`core.py`).
+
+### Morgan's voice on the web (2026-11-27)
+
+Press the microphone on Morgan's page, talk, and Morgan's answer is spoken
+back, in a browser and on the phone as an installed app (`voice.mjs` on the
+web side, `public/voice.js` in the browser; the page itself is the desktop's,
+unchanged).
+
+**Why the web side asks the speech service itself.** Morgan's socket has no
+command that takes sound or gives it: a brain does speech only for devices on
+its server link (protocol §6, the `speech` ops), and joining as a device takes
+an access key that can do everything (§6: there are no read-only keys) and
+16 kHz PCM both ways. So the web side does what the brain does for a device,
+with the same speech service (heymorgan's `speech.mjs serve` on home-ai,
+`speechUrl`), and hands Morgan only words — a turn as `say`, through the same
+list as everything else:
+
+1. **Press to talk.** A tap on the microphone starts listening and a second
+   tap sends; held down, it sends when let go. Pressed while Morgan works or
+   speaks, it stops (`stop`), as the desktop's does. Nothing listens otherwise:
+   the microphone is taken for the turn (`getUserMedia`, `MediaRecorder`) and
+   given back as soon as it ends, which is also what lets an iPhone play the
+   answer through its speaker rather than its earpiece.
+2. The recording goes as it was made — AAC in MP4 from an iPhone, Opus in WebM
+   or MP4 from Chrome, Opus in Ogg from Firefox — to `POST
+   /talaris/api/morgan/hear` (signed in, `x-talaris`, at most 8 MB). ffmpeg
+   makes it 16 kHz mono PCM (from a file: an MP4's index may be at its end; at
+   most two minutes; the file deleted at once), and the speech service's
+   `/transcribe` makes it words, told to expect Morgan's name and the brain's
+   `sttPrompt`. Nothing is kept.
+3. The words go to Morgan as **`say`**: a turn as spoken, so Morgan answers as
+   it does aloud — short, plain sentences. A brain has no speaker, so that is
+   all `say` does there; the devices speak only turns spoken to them (§6). On
+   a device's socket (a laptop trying the web side out, `status` saying
+   `role: "client"`) it goes as `type` instead, or the laptop would speak too.
+4. **The answer, spoken.** For the turn asked in this browser (from its `user`
+   event until Morgan is idle again), each `sentence` event is sent to `POST
+   /talaris/api/morgan/speak`, which asks the service's `/speak` and answers
+   WAV in the voice the brain keeps loaded there; the browser plays them one
+   after another as they come. Turns asked elsewhere, typed turns and reminders
+   are not spoken here.
+5. **iOS plays sound only after a press.** The press on the microphone makes
+   and resumes the page's audio (`AudioContext`, with a moment of silence
+   played) — on `pointerup` and `click` too, which are what WebKit counts as a
+   touch's press — and it stays unlocked for the answer.
+
+The page shows it as it shows the desktop's Morgan: the bridge
+(`WEB.morgan`, `bridge.js`) puts the browser's own listening, transcribing and
+speaking over the brain's state while they last, and its level meter follows
+the microphone and Morgan's voice. Morgan's state is read with `status` when
+the page connects and after a stop, since a turn stopped while thinking may
+send no state of its own after. A browser that cannot record (no
+`MediaRecorder`, or not over HTTPS) has no microphone button, as before.
+
+**Where the speech service is**: `TALARIS_WEB_SPEECH_URL` and
+`TALARIS_WEB_SPEECH_KEY` in the web side's environment, if set; otherwise the
+brain's own settings, `speechUrl` and `speechKey` in `HEYMORGAN_CONFIG` or
+`~/heymorgan/data/config.json` (on home-server the web side runs as the
+brain's user, so nothing needs setting). Read at each use, so a changed key is
+taken up; never logged, and never in an answer. home-server needs ffmpeg
+(it has it).
 
 ### Asking from Siri (2026-11-27)
 

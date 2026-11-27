@@ -95,14 +95,33 @@
     const events = new EventSource(`${WEB.prefix}/api/events?page=${encodeURIComponent(WEB.page)}`, { withCredentials: true });
     events.addEventListener("synced", (e) => emit("synced", e.data));
     // Morgan's page: each of Morgan's events (`event`), and its state when that changes (`state`), as morgan.py's Link.
-    let morganNow = "";
+    // What the browser itself is doing for Morgan's voice (public/voice.js: listening, transcribing, speaking) is shown
+    // over the brain's state while it lasts (`WEB.morgan.doing`), as a device's own listening and speaking are.
+    let morganNow = "", brainNow = "", doing = "";
+    const hearers = [];
+    const showState = (ev) => {
+      const now = doing || brainNow;
+      if (now && now !== morganNow) { morganNow = now; emit("state", now); }
+      emit("event", JSON.stringify({ ...ev, type: "state", state: now || "idle" }));
+    };
     events.addEventListener("morgan", (e) => {
-      try {
-        const ev = JSON.parse(e.data);
-        if (ev.type === "state" && ev.state && ev.state !== morganNow) { morganNow = ev.state; emit("state", ev.state); }
-      } catch { /* not JSON: passed on as it came */ }
+      let ev = null;
+      try { ev = JSON.parse(e.data); } catch { /* not JSON: passed on as it came */ }
+      for (const fn of hearers) { try { fn(ev ?? {}); } catch (error) { console.error(error); } }
+      if (ev?.type === "state" && ev.state) { brainNow = ev.state; showState(ev); return; }
       emit("event", e.data);
     });
+    WEB.morgan = {
+      /** Each of Morgan's events, as it comes, before the page has it. */
+      hear: (fn) => hearers.push(fn),
+      /** What the browser is doing for Morgan's voice, shown as Morgan's state; "" gives the brain's back. */
+      doing: (state) => { if (state === doing) return; doing = state || ""; showState({}); },
+      /** One of Morgan's events, made here (a level, an error), as if Morgan had said it. */
+      event: (ev) => emit("event", JSON.stringify(ev)),
+      /** Morgan's state as an answer said it (`status`): a turn stopped while thinking may send no state of its own. */
+      known: (state) => { if (!state || state === brainNow) return; brainNow = state; showState({}); },
+      get state() { return brainNow; },
+    };
   } catch { /* no live changes; a reload shows them */ }
 
   // A phone, the first time: what the desktop's pages start on suits a wide screen. Calendar opens on three days, and
