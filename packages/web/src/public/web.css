@@ -145,3 +145,7 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
 
 /* Calendar on the web: the accounts' calendars are a desktop machine's reading, not this page's to sync (WEB.md). */
 html.page-calendar #resync { display: none !important; }
+
+/* Morgan on the web: typed (morgan.mjs). What hears and speaks, picks from this machine's disk, or is Morgan's
+   settings or a window's is the desktop's. */
+html.page-morgan :is(#mic, #attach, #settings, #grow, #close) { display: none !important; }

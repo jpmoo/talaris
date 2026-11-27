@@ -25,6 +25,7 @@ import { execFileSync } from "node:child_process";
 import * as auth from "./auth.mjs";
 import * as oauth from "./oauth.mjs";
 import * as mcp from "./mcp.mjs";
+import * as morgan from "./morgan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..", "..");
@@ -72,6 +73,8 @@ const PAGES = {
     panes: { list: "#list", detail: "#person", rows: ".prow", opens: "#add", hide: "header h1, #count, header .seg", listOnly: "header, #twice" } },
   canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas",
     panes: { list: "#body > .tree", detail: "#body > .canvas-pane", rows: ".row", hide: ".side-toggle, #count, #grow" } },
+  // Morgan's conversation, typed (morgan.mjs): the brain's own socket, on this machine.
+  morgan: { file: "morgan/index.html", panel: "morgan.py", title: "Morgan" },
 };
 /** The page a request for a file is, by its file and its query (the two drawers are one file). */
 const pageFor = (rel, search) => Object.entries(PAGES).find(([, p]) => p.file === rel && (!p.query || search.includes(p.query)))?.[0];
@@ -80,6 +83,13 @@ const pageFor = (rel, search) => Object.entries(PAGES).find(([, p]) => p.file ==
 function allowedOf(panel, name = "ALLOWED") {
   const src = readFileSync(join(ROOT, "surfaces", panel), "utf8");
   const m = src.match(new RegExp(`^\\s*${name}\\s*=\\s*re\\.compile\\(([\\s\\S]*?)\\)\\s*$`, "m"));
+  // Or as Morgan's keeps them (morgan.py): a tuple of (method, pattern), each matched whole, by its method too.
+  const pairs = !m && src.match(new RegExp(`^${name}\\s*=\\s*tuple\\([\\s\\S]*?for method, path in \\(([\\s\\S]*?)\\n\\)\\)`, "m"));
+  if (pairs) {
+    const each = [...pairs[1].matchAll(/\("([A-Z]+)",\s*r"((?:[^"\\]|\\.)*)"\)/g)].map((x) => [x[1], new RegExp(`^(?:${x[2]})$`)]);
+    if (!each.length) throw new Error(`${panel}: no ${name}`);
+    return { test: (path, method = "GET") => each.some(([m2, re]) => m2 === method && re.test(path)) };
+  }
   if (!m) throw new Error(`${panel}: no ${name}`);
   const parts = [...m[1].matchAll(/r"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]);
   return new RegExp(parts.join(""));
@@ -143,6 +153,16 @@ async function stateOf(page) {
  */
 const CALLS = {
   current: async (page) => JSON.stringify(await stateOf(page)),
+  // Morgan's page (morgan.py's bridge): its lines to the brain, through morgan.mjs's list; answered on `answered`.
+  callLater: async (page, id, line) => (page === "morgan" ? { emit: [["answered", Number(id), await morgan.command(line)]] } : null),
+  look: async (page) => {
+    if (page !== "morgan") return null;
+    let glyphs = {};
+    try { glyphs = JSON.parse(readFileSync(join(UI, "morgan", "tabler.json"), "utf8")); } catch { /* none */ }
+    return JSON.stringify({ accent: "", font: `${PREFIX}/ui/fonts/tabler-icons-outline.woff2`, glyphs, theme: LOOK.theme });
+  },
+  // Files from this device's disk, Morgan's settings, a window's title: the desktop's, not the web's.
+  pick: async () => "[]",
   calendarList: async () => JSON.stringify(replyData((await core("GET", "/calendar/view?from=0&to=0")).text)?.calendars ?? []),
   // The Calendar (calendar_panel.py's bridge, its calendar process's answers): the accounts' calendars as a desktop
   // machine last shared them (the core's /calendar/view), read-only here; Talaris's own calendar the page asks the core
@@ -217,7 +237,9 @@ function pageHtml(name) {
   // Every page as the desktop's window of it (`?window`): there all along, not arriving from the top as a panel over a
   // dimmed screen, and nothing pressed beside it putting it away. A drawer is told which (its query) in the same way.
   const query = [p.query, "window=1"].filter(Boolean).join("&");
-  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules, ...(p.panes ? { panes: p.panes } : {}) })};` +
+  // Its folder, for what it names beside it (Morgan's page is one down: ../surface.js).
+  const dir = p.file.includes("/") ? `${p.file.slice(0, p.file.lastIndexOf("/") + 1)}` : "";
+  const ours = `<base href="${PREFIX}/ui/${dir}"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules, ...(p.panes ? { panes: p.panes } : {}) })};` +
     // What the address already asks (`?task=…`, `?card=…`: opened on one thing) is kept beside it.
     `{ const q = new URLSearchParams(location.search); for (const [k, v] of new URLSearchParams("${query}")) q.set(k, v); ` +
     `history.replaceState(null, "", location.pathname + "?" + q); }</script>` +
@@ -377,7 +399,9 @@ async function handle(req, res) {
       res.write(": connected\n\n");
       listeners.add(res);
       const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
-      req.on("close", () => { clearInterval(ping); listeners.delete(res); });
+      // Morgan's page also hears what Morgan is doing (morgan.mjs, `watch`), as the desktop's hears its Link.
+      const unhear = url.searchParams.get("page") === "morgan" ? morgan.hear((line) => res.write(`event: morgan\ndata: ${line}\n\n`)) : null;
+      req.on("close", () => { clearInterval(ping); listeners.delete(res); if (unhear) unhear(); });
       return;
     }
     if (req.method !== "POST" || req.headers["x-talaris"] !== "1") return send(res, 400, { error: "not like that" });
@@ -387,7 +411,7 @@ async function handle(req, res) {
     if (path === "/api/core") {
       const method = String(b.method || "GET").toUpperCase();
       const p = String(b.path || "");
-      if (!p.startsWith("/") || !page.allowed.test(p)) return send(res, 200, { status: 400, data: { error: `not a route the ${page.title} uses` } });
+      if (!p.startsWith("/") || !page.allowed.test(p, method)) return send(res, 200, { status: 400, data: { error: `not a route the ${page.title} uses` } });
       const r = await core(method, p, b.body);
       // Both as the desktop gives them: `core`'s answer as data (coreReply), the drawers' `request` as the text (replied).
       return send(res, 200, { status: r.status, data: replyData(r.text), text: r.text });

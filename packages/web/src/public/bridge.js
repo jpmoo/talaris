@@ -77,7 +77,11 @@
   }
 
   const bridge = new Proxy({}, {
-    get(_t, name) {
+    // What a page puts on its bridge is its own, as on a QWebChannel object (Morgan's page wraps `call` around
+    // `callLater`, morgan/index.html): kept, and given back, rather than taken for a call to the host.
+    set(t, name, value) { t[name] = value; return true; },
+    get(t, name) {
+      if (Object.prototype.hasOwnProperty.call(t, name)) return t[name];
       if (typeof name !== "string" || ABSENT.has(name)) return undefined;
       const fn = (...args) => call(name, args);
       fn.connect = (listener) => { if (!heard.has(name)) heard.set(name, []); heard.get(name).push(listener); };
@@ -88,8 +92,17 @@
 
   // Changes from elsewhere, as the desktop's `synced`: the page reads again what it shows.
   try {
-    const events = new EventSource(`${WEB.prefix}/api/events`, { withCredentials: true });
+    const events = new EventSource(`${WEB.prefix}/api/events?page=${encodeURIComponent(WEB.page)}`, { withCredentials: true });
     events.addEventListener("synced", (e) => emit("synced", e.data));
+    // Morgan's page: each of Morgan's events (`event`), and its state when that changes (`state`), as morgan.py's Link.
+    let morganNow = "";
+    events.addEventListener("morgan", (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "state" && ev.state && ev.state !== morganNow) { morganNow = ev.state; emit("state", ev.state); }
+      } catch { /* not JSON: passed on as it came */ }
+      emit("event", e.data);
+    });
   } catch { /* no live changes; a reload shows them */ }
 
   // A phone, the first time: what the desktop's pages start on suits a wide screen. Calendar opens on three days, and

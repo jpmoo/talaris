@@ -24,7 +24,7 @@
   if (WEB.title) document.title = `${WEB.title} · Talaris`;
 
   // ---------------------------------------------------------------- the modules, along the bottom
-  const ICONS = { library: "library", tasks: "tasks", notes: "writing", people: "people", canvas: "canvas", calendar: "event" };
+  const ICONS = { library: "library", tasks: "tasks", notes: "writing", people: "people", canvas: "canvas", calendar: "event", morgan: "morgan" };
   const nav = el("nav", "web-modules");
   nav.setAttribute("aria-label", "Modules");
   for (const m of WEB.modules || []) {

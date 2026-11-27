@@ -246,6 +246,35 @@ Each client has a token of its own (Claude's, Morgan's), revocable like a
 machine's, and each is told which side it may use — Morgan reads only, as its
 project chat does now.
 
+### Morgan's own Talaris, and Morgan on the web (2026-11-27)
+
+**The brain keeps a Talaris of its own.** Morgan's brain runs on home-server,
+which is a whole Talaris machine; it used to have Talaris only through a device
+that offered it (the laptop's `talaris-core mcp`), so with the laptop asleep a
+question about the calendar or tasks went unanswered. Now the brain has its own
+server, `talaris`: home-server's core, `talaris-core mcp --data` (everything
+but the screen), added with Morgan's `mcp.add`. The laptop offers
+`talaris-desktop`: `talaris-core mcp --desktop`, only what needs its screen —
+what is on it, its windows, going and opening and launching there
+(`SCREEN_TOOLS`, `mcp-desktop.ts`) — and its activity (`work_log`, `where`).
+Never the same tool twice. Home-server's calendar for the brain is the one the
+laptop shares (*Calendar*, above), on the user's clock (the brain's Talaris is
+started with `TZ`, until home-server's own zone is the user's).
+
+**Morgan on the web, typed** (`morgan.mjs`; the `morgan` module). Its page is
+the desktop's (`ui/morgan/index.html`), and it talks to the brain's own socket
+— `~/heymorgan/data/heymorgan.sock`, on this same machine — as the desktop's
+talks to its daemon through `morgan.py`: one line, one answer (`callLater`,
+answered on `answered`), and what Morgan is doing followed on one `watch` for
+every open page, handed on as the `morgan` event (`event`, and `state` when it
+changes). **The socket can do anything** — whatever reaches it may add an MCP
+server, which runs a program — so only the lines the conversation sends pass:
+a turn typed (`ask` without `files`), the conversations and their record,
+reminders, incognito; of `admin`, only cancelling a reminder. Not on the web:
+listening and speaking, files from this disk, Morgan's settings, and project
+chat (its brief comes from `core.py`). Voice is a step of its own: the
+browser's microphone to the speech service, and the voice back.
+
 ## Retiring Hermes
 
 What reaches Hermes besides you must have a Talaris way first, or it breaks:
