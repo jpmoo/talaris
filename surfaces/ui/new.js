@@ -221,7 +221,7 @@
   function repeatRow(forTask, dayOf) {
     const label = (REPEATS.find(([k]) => k === (v.repeat || "")) || REPEATS[0])[1];
     const btn = el("button", { class: "pick", "data-pops": "1", onclick: () => menu(btn, REPEATS.map(([k, l]) => ({
-      label: l + (k === "weekly" || k === "biweekly" ? ` on ${(dayOf() || new Date()).toLocaleDateString("en-US", { weekday: "long" })}` : ""),
+      label: l + (k === "weekly" || k === "biweekly" ? ` on ${Kit.dayName(dayOf() || new Date(), "long")}` : ""),
       on: (v.repeat || "") === k, act: () => { v.repeat = k; paint(); } }))) }, el("span", { class: "lbl" }, label));
     // A task can count from when it is done instead ("a week after I last did it").
     const after = forTask && v.repeat && v.repeat !== "weekdays"

@@ -947,7 +947,8 @@ function recent(done) {
 
 // ---------------------------------------------------------------- earlier conversations, by day
 
-const DAY = { weekday: "long", month: "long", day: "numeric" };
+// A day as the kit says one (kit.js): "Thursday, November 26", the year when it is not this one.
+const dayOf = (d) => Kit.day(d, { weekday: "long", month: "long" });
 const clock = (t) => Kit.clock(t);
 let shownMonth = new Date(); shownMonth.setDate(1);
 let monthDays = {};
@@ -1006,7 +1007,7 @@ function month() {
 // A day with several conversations: each, by its time and a few words of what it was about.
 function pick(date, held) {
   const list = $("daylist");
-  list.replaceChildren(el("div", "label", date.toLocaleDateString("en-US", DAY)));
+  list.replaceChildren(el("div", "label", dayOf(date)));
   for (const entry of held) {
     const row = el("button", "menu-item");
     row.append(el("small", "", clock(entry.t0)), el("span", "", entry.title));
@@ -1022,7 +1023,7 @@ function pick(date, held) {
   }
   const day = el("button", "menu-item");
   day.append(el("span", "", "Delete this day"));
-  day.onclick = () => askDelete(`day ${isoOf(date)} --zone=${ZONE}`, `all of ${date.toLocaleDateString("en-US", DAY)}`);
+  day.onclick = () => askDelete(`day ${isoOf(date)} --zone=${ZONE}`, `all of ${dayOf(date)}`);
   list.append(day);
   list.hidden = false;
 }
@@ -1041,7 +1042,7 @@ function load(entry) {
     viewing = found.id;
     $("log").replaceChildren(); writing = null; heldOracle = "";
     const bar = el("div", "past");
-    bar.append(icon("history"), el("span", "", `${new Date(found.t0).toLocaleDateString("en-US", DAY)}, ${clock(found.t0)} · `));
+    bar.append(icon("history"), el("span", "", `${dayOf(found.t0)}, ${clock(found.t0)} · `));
     bar.lastChild.append(el("b", "", found.title));
     const back = el("button", "t-btn small", "Back to now");
     back.onclick = () => recent();

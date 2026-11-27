@@ -6,7 +6,8 @@
 // wordings for "when was this", two answers to what "3" means as a time — and
 // they drifted (the audit of 2026-10-27). Here once, and the pages use it.
 //
-//   Kit.clock, day, relDay, ago, stamp, future, left, month — dates and times, worded one way
+//   Kit.clock, day, fullDay, dayName, monthName, range, relDay, ago, stamp, future, left, month — dates and times,
+//     worded one way (check-look fails on a page that words its own with toLocaleDateString)
 //   Kit.parseDay, parseTime — what is typed, read one way
 //   Kit.pop, popAway, menu — the one pop-up at a time, and a menu in it
 //   Kit.monthPicker, timeList — choosing a day, a time
@@ -54,9 +55,31 @@ const Kit = (() => {
   const hour = (h) => (hours === "24" ? `${pad(h)}:00` : new Date(2000, 0, 1, h).toLocaleTimeString("en-US", { hour: "numeric" }));
   /** A time of day given in minutes after midnight, as `clock` says it. */
   const minutes = (m) => clock(new Date(2000, 0, 1, Math.floor(m / 60), m % 60));
-  /** "Fri, Oct 30" — the year only when it is not this one; `weekday: false` for "Oct 30". */
-  function day(x, { weekday = true } = {}) {
-    return asDate(x).toLocaleDateString("en-US", { ...(weekday ? { weekday: "short" } : {}), month: "short", day: "numeric", ...yearIf(asDate(x)) });
+  /**
+   * "Fri, Oct 30" — the year only when it is not this one; `weekday: false` for "Oct 30", `weekday: "long"` for
+   * "Friday, Oct 30"; `month: "long"` for "Fri, October 30"; `year: true` for the year always.
+   */
+  function day(x, { weekday = true, month = "short", year = null } = {}) {
+    const d = asDate(x);
+    return d.toLocaleDateString("en-US", { ...(weekday ? { weekday: weekday === "long" ? "long" : "short" } : {}), month, day: "numeric",
+      ...(year ? { year: "numeric" } : year === false ? {} : yearIf(d)) });
+  }
+  /** A day said whole, for a heading or a tip: "Thursday, November 26, 2026". */
+  const fullDay = (x) => asDate(x).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  /** "Thu", or "Thursday" with "long". */
+  const dayName = (x, style = "short") => asDate(x).toLocaleDateString("en-US", { weekday: style === "long" ? "long" : "short" });
+  /** "November", or "Nov" with "short": of a date, or of a month's number (0 for January). */
+  const monthName = (x, style = "long") => (typeof x === "number" ? new Date(2000, x, 1) : asDate(x)).toLocaleDateString("en-US", { month: style === "short" ? "short" : "long" });
+  /**
+   * Two days as one stretch, with an en dash: "Nov 2 – 8, 2026" in one month, "Nov 30 – Dec 6, 2026" across two,
+   * "Dec 28, 2026 – Jan 3, 2027" across a year. Calendar's, a week's, a task view's — one wording.
+   */
+  function range(a, b) {
+    const s = asDate(a), e = asDate(b);
+    const md = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (s.getFullYear() !== e.getFullYear()) return `${md(s)}, ${s.getFullYear()} – ${md(e)}, ${e.getFullYear()}`;
+    if (s.getMonth() === e.getMonth()) return `${md(s)} – ${e.getDate()}, ${e.getFullYear()}`;
+    return `${md(s)} – ${md(e)}, ${e.getFullYear()}`;
   }
   /** A day as near as it is: "Today", "Tomorrow", "Yesterday", "Thu" in the coming week, else "Oct 30". */
   function relDay(x) {
@@ -633,9 +656,41 @@ const Kit = (() => {
   function say(target, text, error = false, ms = 5000) {
     if (!target) return;
     clearTimeout(sayTimers.get(target));
-    target.textContent = text || "";
+    // An error is said plainly, and may take two lines (kit.css): the core's own words, which were cut to one line
+    // and often said nothing a person could act on, stay in its tip, on hover and on focus (UX-AUDIT 1.6).
+    const said = error && text ? plain(text) : text || "";
+    target.textContent = said;
     target.classList.toggle("err", !!(text && error));
+    target.classList.add("kit-said");
+    if (error && text) {
+      target.title = said === text ? text : `${said}\n(${text})`;
+      target.tabIndex = 0;
+      if (!target.hasAttribute("role")) target.setAttribute("role", "status");
+    } else {
+      target.removeAttribute("title");
+      target.removeAttribute("tabindex");
+    }
     if (text && !error && ms) sayTimers.set(target, setTimeout(() => { if (target.textContent === text) target.textContent = ""; }, ms));
+  }
+  /*
+   * The errors that come up most, in words a person can act on. Everything a page asks goes through `core` above, so
+   * what fails is one of a few: no bridge or no answer (the core not running, or the web offline), the core's bare
+   * status, or its own sentence — which is kept when it is one, as it says what went wrong better than this could.
+   */
+  const PLAIN = [
+    [/^(Not connected|The core did not answer|Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed|The network connection was lost\.?|the core is not answering)$/i,
+      "Talaris's core is not answering. Try again in a moment"],
+    [/^The core answered 401$|^The core answered 403$/, "Not signed in here any more. Sign in again"],
+    [/^The core answered 404$|^not found$/i, "That is not there any more: it was deleted or moved"],
+    [/^The core answered 409$|^conflict$/i, "It changed somewhere else meanwhile. Look again, then try once more"],
+    [/^The core answered 413$/, "That is too large to send"],
+    [/^The core answered 5\d\d$/, "The core could not do that just now. Try again"],
+  ];
+  /** An error's words, plain: one of the common ones said for a person, or the core's own sentence as it is. */
+  function plain(text) {
+    const t = String(text || "").trim().replace(/^Error:\s*/, "");
+    for (const [re, said] of PLAIN) if (re.test(t)) return said;
+    return t;
   }
   /** A list drawn again where it was scrolled to: what `draw` does to `box`, without sending it back to the top. */
   function keepScroll(box, draw) { const top = box ? box.scrollTop : 0; const out = draw(); if (box && top) box.scrollTop = top; return out; }
@@ -742,9 +797,9 @@ const Kit = (() => {
   return {
     undoable, UNDO_MS,
     links, linked, linkName,
-    place, el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
+    place, el, setClock, clock, hour, minutes, day, fullDay, dayName, monthName, range, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
+    onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, plain, empty, caret, keepScroll,
   };
 })();
 

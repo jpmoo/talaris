@@ -83,24 +83,41 @@
       setTimeout(() => input.focus(), 0);
       return el("div", { class: "step" }, input, el("button", { class: "t-btn", onclick: save }, "Save"));
     }
-    const i = st.steps.findIndex((x) => x.id === s.id);
-    const move = (by) => {
-      const ids = st.steps.map((x) => x.id);
-      const j = i + by;
-      if (j < 0 || j >= ids.length) return;
-      [ids[i], ids[j]] = [ids[j], ids[i]];
-      take(api("PUT", "/review/steps/order", { ids }));
-    };
-    const link = s.link ? el("span", { class: "link", onclick: () => open(s.link) }, s.label || "Open") : null;
-    return el("div", { class: "step" + (s.done ? " done" : "") },
-      el("input", { type: "checkbox", checked: s.done, onchange: (e) => take(api("POST", `/review/steps/${enc(s.id)}/done`, { done: e.target.checked })) }),
-      el("span", { class: "what" }, s.description, s.description && link ? " — " : "", link),
+    const link = s.link ? el("span", { class: "link", onclick: (e) => { e.stopPropagation(); open(s.link); } }, s.label || "Open") : null;
+    // Its words pressed, changed in place (Enter keeps, Escape leaves them).
+    const edit = () => { editing = s.id; draw(); };
+    const what = el("span", { class: "what", title: "Change its words", tabindex: "0", role: "button", onclick: edit,
+      onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); edit(); } } },
+      s.description, s.description && link ? " — " : "", link);
+    // Taken out with the small × every row has. A step of this week only goes on one press; one of every week's
+    // asks first, since it leaves every review to come (UX-AUDIT 2.4).
+    const x = el("button", { class: "x-btn danger", title: s.template ? "Take it out of every week's review" : "Take it out" });
+    x.innerHTML = Icons.close();
+    const remove = () => take(api("DELETE", `/review/steps/${enc(s.id)}`));
+    if (s.template) Kit.twice(x, { key: `review-step-${s.id}`, ask: "Remove from every week?", act: remove });
+    else x.addEventListener("click", (e) => { e.stopPropagation(); remove(); });
+    const row = el("div", { class: "step" + (s.done ? " done" : ""), "data-id": s.id },
+      el("input", { type: "checkbox", checked: s.done, "aria-label": s.description || s.label || "Step",
+        onchange: (e) => take(api("POST", `/review/steps/${enc(s.id)}/done`, { done: e.target.checked })) }),
+      what,
       s.template ? null : el("span", { class: "tag", title: "For this week only" }, "this week"),
-      el("span", { class: "ctl" },
-        el("button", { title: "Up", onclick: () => move(-1) }, "↑"),
-        el("button", { title: "Down", onclick: () => move(1) }, "↓"),
-        el("button", { title: "Change its words", onclick: () => { editing = s.id; draw(); } }, "Edit"),
-        el("button", { title: s.template ? "Take it out of every week's review" : "Take it out", onclick: () => take(api("DELETE", `/review/steps/${enc(s.id)}`)) }, "✕")));
+      x);
+    sortable(row, s.id);
+    return row;
+  }
+
+  // Put in order by dragging, as every list is (kit.js): the one drop line above or below a neighbor, and the whole
+  // order given back to the core.
+  function sortable(row, id) {
+    Kit.draggable(row, { step: id }, { ignore: "button, input, .link" });
+    Kit.dropZone(row, {
+      accepts: (p) => !!(p && p.step) && p.step !== id,
+      drop: (p, where) => {
+        const ids = st.steps.map((x) => x.id).filter((x) => x !== p.step);
+        ids.splice(ids.indexOf(id) + (where === "below" ? 1 : 0), 0, p.step);
+        take(api("PUT", "/review/steps/order", { ids }));
+      },
+    });
   }
 
   function open(link) {
@@ -126,9 +143,14 @@
     };
     text.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { adding = null; draw(); } });
     setTimeout(() => text.focus(), 0);
+    const unpoint = () => {
+      const b = el("button", { class: "x-btn", title: "Point it at nothing", onclick: () => { adding.link = null; draw(); } });
+      b.innerHTML = Icons.close();
+      return b;
+    };
     return el("div", {},
       el("div", { class: "add" }, text),
-      el("div", { class: "add" }, adding.link ? el("span", {}, "Points at ", el("b", {}, adding.link.label), " ", el("button", { class: "t-btn", onclick: () => { adding.link = null; draw(); } }, "✕")) : find),
+      el("div", { class: "add" }, adding.link ? el("span", {}, "Points at ", el("b", {}, adding.link.label), " ", unpoint()) : find),
       adding.found ? el("div", { class: "found" }, ...adding.found.map((f) => el("button", { onclick: () => { adding.link = f; adding.found = null; draw(); } }, f.label, el("small", {}, f.what)))) : null,
       el("div", { class: "add" },
         el("button", { class: "t-btn primary", onclick: save }, "Add"),

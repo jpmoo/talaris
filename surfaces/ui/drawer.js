@@ -989,7 +989,7 @@ function pageHeading() {
   if (scope === "daily" && isDaily(open)) {
     const [y, m, d] = open.slice(DAILY.length + 1).split("-").map(Number);
     // Said for what it is, the day's own page: "Daily page for Sunday, October 25, 2026" — and, away from Home, whose.
-    return `Daily page for ${new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${inHome() ? "" : " · in Home"}`.toUpperCase();
+    return `Daily page for ${Kit.fullDay(new Date(y, m - 1, d))}${inHome() ? "" : " · in Home"}`.toUpperCase();
   }
   return (inHome() && open.startsWith(`${PAGES}/`) ? open.slice(PAGES.length + 1) : open).split("/").join(" / ").toUpperCase();
 }

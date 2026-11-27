@@ -13,7 +13,9 @@
 //   a tint of the accent at its own strength — the four tiers;
 //   a weight over 500 — only 400 and 500 are shipped;
 //   a z-index of 10 or more written as a number — the scale's tokens;
-//   a font size in pixels — the six type tokens, --t-xs to --t-2xl (UX-AUDIT 3.4).
+//   a font size in pixels — the six type tokens, --t-xs to --t-2xl (UX-AUDIT 3.4);
+//   a date or a time worded by a page itself (toLocaleDateString, toLocaleTimeString) — the kit words them, one way
+//   and never in the machine's own locale (Kit.day, fullDay, dayName, monthName, range, clock…; UX-AUDIT 2.5).
 //
 // The web app's own pages (packages/web/src/public) are held to it too (UX-AUDIT 2.6).
 //
@@ -42,6 +44,9 @@ const RULES = [
   ["z-index", /z-index\s*:\s*(\d{2,})|zIndex\s*[:=]\s*["']?(\d{2,})/, () => true],
   // The words retired by the glossary (DESIGN, *The words, settled*), in what a page shows — not in its comments.
   ["word", /["'>`][^"'<`]*\b(the writing surface|in Files\b)/i, (l) => !/^\s*(\/\/|\*|\/\*|<!--|#)/.test(l)],
+  // filespanel.js's one (its day headings) is owed: that file was being changed by other work when this rule came in
+  // (2026-11-27). Route it through Kit.day and take it out of this exception.
+  ["date wording", /\.toLocale(Date|Time)String\(/, (l, m, path) => !path.endsWith("/kit.js") && !path.endsWith("/filespanel.js")],
   ["type size", /font-size\s*:\s*\d+(\.\d+)?px|\bfont\s*:\s*(\d{3}\s+)?\d+(\.\d+)?px|fontSize\s*[:=]\s*["'`]\d+(\.\d+)?px/i, () => true],
 ];
 
@@ -73,7 +78,7 @@ for (const path of [...files(UI), ...files(WEB)]) {
     if (/look:\s*\S/.test(line)) continue;
     for (const [what, re, keep] of RULES) {
       const m = line.match(re);
-      if (m && keep(line, m)) found.push(`${relative(ROOT, path)}:${n}  ${what}  ${line.trim().slice(0, 140)}`);
+      if (m && keep(line, m, path)) found.push(`${relative(ROOT, path)}:${n}  ${what}  ${line.trim().slice(0, 140)}`);
     }
   }
 }

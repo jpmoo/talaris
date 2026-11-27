@@ -488,7 +488,7 @@ function drawWeather(error) {
     ? f.hours.map((h, i) => row(i === 0 ? "Now" : Kit.minutes(Number(h.at.slice(11, 13)) * 60), Icons.sky(h.icon, h.day), h.sky, `${h.temp}°`, h.rain))
     : f.days.map((d, i) => {
       const day = new Date(`${d.at}T12:00`);
-      const name = i === 0 ? "Today" : i === 1 ? "Tomorrow" : day.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const name = i === 0 ? "Today" : i === 1 ? "Tomorrow" : Kit.day(day);
       return row(name, Icons.sky(d.icon, true), d.sky, `${d.hi}°<span class="lo">${d.lo}°</span>`, d.rain);
     });
   $("wx-rows").replaceChildren(...rows);

@@ -154,7 +154,7 @@ function draw() {
   seg("hours", [["12", "12 hour"], ["24", "24 hour"]], k.hours, (hours) => save({ clock: { hours } }));
   $("seconds").classList.toggle("on", !!k.seconds);
   const day = new Date();
-  const wd = day.toLocaleDateString("en-US", { weekday: "short" }), mo = day.toLocaleDateString("en-US", { month: "short" }), d = day.getDate();
+  const wd = Kit.dayName(day), mo = Kit.monthName(day, "short"), d = day.getDate();
   seg("datestyle", [["weekday-month-day", `${wd}, ${mo} ${d}`], ["weekday-day-month", `${wd} ${d} ${mo}`], ["month-day", `${mo} ${d}`],
     ["day-month", `${d} ${mo}`], ["iso", `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`], ["off", "None"]],
     k.date, (date) => save({ clock: { date } }));
@@ -1193,7 +1193,7 @@ async function mgMemory() {
     for (const row of rows) {
       if (row.day !== day) {
         day = row.day;
-        out.push(el("div", { class: "mg-day" }, day ? new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "No date"));
+        out.push(el("div", { class: "mg-day" }, day ? Kit.day(`${day}T12:00:00`, { year: true }) : "No date"));
       }
       out.push(noteRow(row.t, row.note, true));
     }
@@ -2111,7 +2111,8 @@ function importing(path) {
         out.textContent = `Imported${r.hypr.length ? `, with ${r.hypr.length} Hyprland files` : ""}. What it replaced is in ${r.aside}. Talaris restarts now.`;
       });
     } });
-    const when = m.made ? new Date(m.made.replace(/([+-]\d\d)(\d\d)$/, "$1:$2")).toLocaleString() : "an unknown time";
+    // Worded as every moment is (kit.js), not in the machine's own locale.
+    const when = m.made ? Kit.stamp(new Date(m.made.replace(/([+-]\d\d)(\d\d)$/, "$1:$2"))) : "an unknown time";
     $("import").replaceChildren(
       el("p", { class: "note" }, `${path.split("/").pop()}: made ${when}${m.host ? ` on ${m.host}` : ""}. Talaris's settings: ${m.talaris.join(", ") || "none"}.`
         + (m.hypr.length ? ` Hyprland files: ${m.hypr.join(", ")}.` : " No Hyprland files.")),
@@ -2308,7 +2309,7 @@ function replacedValue(v) {
   const s = String(v);
   if (/^\d{4}-\d\d-\d\d(T\d\d:\d\d)?/.test(s)) {
     const d = new Date(s.length === 10 ? `${s}T00:00` : s);
-    if (!isNaN(d)) return s.length === 10 ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : Kit.stamp(d);
+    if (!isNaN(d)) return s.length === 10 ? Kit.day(d, { year: true }) : Kit.stamp(d);
   }
   if (s.startsWith("{") || s.startsWith("[")) return "";
   return s.length > 160 ? `${s.slice(0, 160)}…` : s;

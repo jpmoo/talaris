@@ -54,10 +54,13 @@ main { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px 28px; }
 .step.done .what { color: var(--muted); text-decoration: line-through; }
 .step .link { color: var(--accent-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .step .tag { font-size: var(--t-xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius-row); padding: 1px 6px; }
-.step .ctl { display: flex; gap: 2px; visibility: hidden; }
-.step:hover .ctl { visibility: visible; }
-.step .ctl button { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 2px 5px; border-radius: var(--radius-row); }
-.step .ctl button:hover { color: var(--text); background: var(--accent-hover); }
+.step { cursor: grab; }
+.step .what { cursor: text; }
+/* The × under the pointer, or when the row has the keyboard's focus; always under a finger. Faded, not hidden, so Tab
+   still reaches it (UX-AUDIT 3.2). */
+.step .x-btn { opacity: 0; transition: opacity var(--dur); }
+.step:hover .x-btn, .step:focus-within .x-btn, .step .x-btn.armed { opacity: 1; }
+@media (hover: none) { .step .x-btn { opacity: 1; } }
 .add { display: flex; gap: 8px; align-items: center; margin: 6px 0 4px; flex-wrap: wrap; }
 .add input[type=text] { flex: 1 1 260px; min-width: 0; font-size: var(--t-md); }
 .found { display: flex; flex-direction: column; gap: 1px; margin: 4px 0 8px; }

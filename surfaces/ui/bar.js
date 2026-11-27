@@ -204,8 +204,7 @@ function onMachine(m) {
 let clock = { hours: "12", seconds: false, date: "weekday-month-day" };
 let ticking = null;
 function dateText(now, style) {
-  const part = (o) => now.toLocaleDateString("en-US", o);
-  const wd = part({ weekday: "short" }), mo = part({ month: "short" }), d = now.getDate();
+  const wd = Kit.dayName(now), mo = Kit.monthName(now, "short"), d = now.getDate();
   switch (style) {
     case "weekday-day-month": return `${wd} ${d} ${mo}`;
     case "month-day": return `${mo} ${d}`;
@@ -223,11 +222,11 @@ function tick() {
   $("day").textContent = portrait && clock.date !== "off" ? `${now.getMonth() + 1}/${now.getDate()}` : dateText(now, clock.date);
   $("time").textContent = portrait
     ? (clock.hours === "24" ? `${now.getHours()}`.padStart(2, "0") : `${now.getHours() % 12 || 12}`) + `:${String(now.getMinutes()).padStart(2, "0")}`
-    : now.toLocaleTimeString("en-US", {
+    : now.toLocaleTimeString("en-US", { // look: the bar's clock keeps the shape Settings gives it (2-digit hours, seconds), not the kit's
       hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
       ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
     });
-  $("clock").title = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + " — calendar";
+  $("clock").title = `${Kit.fullDay(now)} — calendar`;
   const wait = clock.seconds && !portrait ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
   ticking = setTimeout(tick, wait + 20);
 }
