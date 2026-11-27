@@ -61,6 +61,8 @@ async function main(): Promise<void> {
   keepPrivate();
   // Nothing can be read until the key can: at login the keyring may not be open yet, and it is waited for.
   await untilStoreOpens();
+  // A machine nobody sits at answers in the user's zone (clock.ts), from the start.
+  (await import("./clock.js")).takeUp();
   const home = ensureHome();
   settleOrganizations();
   // The pages of no other project, once a place of their own, moved into Home's Pages (pages-home.ts); and that folder there.

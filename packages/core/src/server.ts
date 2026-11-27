@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import * as clock from "./clock.js";
 import * as review from "./review.js";
 import { publish as publishView, viewRange } from "./calendar-view.js";
 import * as notesM from "./notes.js";
@@ -1090,14 +1091,16 @@ route("PUT", "/location", async (req) => {
 // Wrapped: a bare null would go out as {ok: true}.
 route("GET", "/location", () => ({ location: whereabouts }));
 // The machine's time zone changed (location.py keeps it where you are): this process's dates follow it.
+// The zone where the user is (clock.ts): this machine's changed (location.py), taken up here — Node reads the zone
+// again when TZ is set — and shared, for the machines without a screen to answer in it.
 route("PUT", "/time/zone", async (req) => {
   const b = await json<{ zone?: unknown }>(req);
-  if (typeof b.zone !== "string") throw new BadRequest("a time zone");
-  try { new Intl.DateTimeFormat("en-US", { timeZone: b.zone }); } catch { throw new BadRequest(`not a time zone: ${b.zone}`); }
-  // Node reads the zone again when TZ is set.
-  process.env.TZ = b.zone;
+  if (!clock.validZone(b.zone)) throw new BadRequest(`not a time zone: ${String(b.zone)}`);
+  clock.share(b.zone);
   return { zone: b.zone, now: new Date().toString() };
 });
+// The zone this core answers in, and the shared one: asked by the MCP before it says a time (mcp.ts).
+route("GET", "/time/zone", () => { clock.takeUp(); return clock.describe(); });
 
 function safely<T>(f: () => T, fallback: T): T {
   try { return f(); } catch { return fallback; }

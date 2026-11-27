@@ -493,9 +493,22 @@ export async function listTools(client: string): Promise<Omit<Tool, "run">[]> {
 }
 
 /** One of Talaris's own tools, run for a client — null when it is none it is offered. */
+/**
+ * The zone to say times in: the core's (clock.ts — on a machine nobody sits at, where the user is, shared by the one
+ * that follows them). Asked before each tool runs, since this process formats the times itself; a core too old to
+ * say leaves this process's own.
+ */
+async function followZone(): Promise<void> {
+  try {
+    const { zone } = await core<{ zone?: string }>("GET", "/time/zone");
+    if (zone && zone !== process.env.TZ) process.env.TZ = zone;
+  } catch { /* the core's old, or away: the zone as it is */ }
+}
+
 export async function callTool(client: string, name: unknown, args: Record<string, unknown>): Promise<{ text: string; isError?: boolean } | null> {
   const tool = toolsFor(client).find((t) => t.name === name);
   if (!tool) return null;
+  await followZone();
   try {
     return { text: await tool.run(args) };
   } catch (e) {
