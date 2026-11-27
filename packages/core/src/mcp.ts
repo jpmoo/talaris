@@ -335,10 +335,7 @@ TOOLS.push(
       }
       q.set("limit", String(Number(a.limit) || 50));
       const rows = await core<TaskRow[]>("GET", `/tasks/find?${q}`);
-      // Today said with them: OVERDUE and due dates are read against it, not against a day the model supposes
-      // (Morgan once called the 25th "yesterday" on the 27th).
-      const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      return `Today is ${today} (${localDate()}).\n` + (rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.");
+      return (rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.");
     },
   },
   {
@@ -490,6 +487,16 @@ export function toolsFor(client: string): Tool[] {
   return (client === MORGAN_CLIENT ? TOOLS : TOOLS.filter((t) => !MORGANS_ONLY.has(t.name))).filter((t) => onSide(t.name));
 }
 
+/**
+ * The tools whose answers are read against today — due and overdue, a day's calendar or note, what is coming, what was
+ * done this morning — open with today's date, so the model reads them against the real day and not one it supposes
+ * (Morgan once called the 25th "yesterday" on the 27th). One rule here, for every client: Morgan, the web's MCP, a
+ * desktop's. Writes and lookups by name are left as they are. Said after followZone, on the user's clock.
+ */
+const DATED = new Set(["talaris_tasks", "task_find", "task_info", "calendar_events", "daily_review", "daily_note_get",
+  "talaris_context", "project_info", "work_log", "work_patterns", "where", "talaris_now"]);
+const todaySaid = () => `Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${localDate()}).`;
+
 /** The tools a client is offered as `tools/list` says them, without how each runs: for the web's MCP (packages/web). */
 export async function listTools(client: string): Promise<Omit<Tool, "run">[]> {
   const statuses = await taskStatuses();
@@ -514,7 +521,8 @@ export async function callTool(client: string, name: unknown, args: Record<strin
   if (!tool) return null;
   await followZone();
   try {
-    return { text: await tool.run(args) };
+    const text = await tool.run(args);
+    return { text: DATED.has(tool.name) ? `${todaySaid()}\n${text}` : text };
   } catch (e) {
     return { text: (e as Error).message, isError: true };
   }
