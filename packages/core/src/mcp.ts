@@ -4,7 +4,7 @@
 import { request } from "node:http";
 import { createInterface } from "node:readline";
 import { SOCKET } from "./paths.js";
-import { desktopTools } from "./mcp-desktop.js";
+import { desktopTools, SCREEN_TOOLS } from "./mcp-desktop.js";
 import { hermesTools } from "./mcp-hermes.js";
 import { logSaid, mayRead, patternsSaid, type Act, type ActivitySettings, type Summary as ActivitySummary } from "./activity.js";
 
@@ -471,9 +471,19 @@ TOOLS.push({
   },
 });
 
+/**
+ * Which of them this server offers (`talaris-core mcp --desktop` or `--data`; both, by default). Morgan's brain may run
+ * on a machine with no screen (home-server), beside a device that has one (the laptop): the brain keeps a Talaris of
+ * its own for the data — tasks, calendar, pages, people — there whether the laptop is on or not (`--data`), and the
+ * laptop offers only what is its own — its screen, its windows, its activity (`--desktop`). Two of the same never.
+ */
+const DESKTOP = new Set([...SCREEN_TOOLS, ...MORGANS_ONLY]);
+const SIDE = process.argv.includes("--desktop") ? "desktop" : process.argv.includes("--data") ? "data" : "all";
+const onSide = (name: string) => SIDE === "all" || (SIDE === "desktop") === DESKTOP.has(name);
+
 /** The tools a client is offered: the activity tools to Morgan alone (by `clientInfo.name`), the rest to any. */
 export function toolsFor(client: string): Tool[] {
-  return client === MORGAN_CLIENT ? TOOLS : TOOLS.filter((t) => !MORGANS_ONLY.has(t.name));
+  return (client === MORGAN_CLIENT ? TOOLS : TOOLS.filter((t) => !MORGANS_ONLY.has(t.name))).filter((t) => onSide(t.name));
 }
 
 /** The tools a client is offered as `tools/list` says them, without how each runs: for the web's MCP (packages/web). */
@@ -543,14 +553,16 @@ async function answer(m: Message): Promise<void> {
     case "tools/list":
     {
       const statuses = await taskStatuses();
-      return reply(m.id, { tools: [...toolsFor(client).map(({ run: _run, ...t }) => withStatuses(t, statuses)), ...(await pluginTools()).map((p) => p.listed)] });
+      // Plugins' tools run on the core, so they are the data side's.
+      const plugged = SIDE === "desktop" ? [] : (await pluginTools()).map((p) => p.listed);
+      return reply(m.id, { tools: [...toolsFor(client).map(({ run: _run, ...t }) => withStatuses(t, statuses)), ...plugged] });
     }
     case "tools/call": {
       const done = await callTool(client, m.params?.name, (m.params?.arguments as Record<string, unknown>) ?? {});
       if (done) return reply(m.id, { content: [{ type: "text", text: done.text }], ...(done.isError ? { isError: true } : {}) });
       if (MORGANS_ONLY.has(String(m.params?.name))) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
       // A plugin's tool, passed through to it as it was offered (plugins.ts): its answer is its own.
-      const p = (await pluginTools()).find((x) => x.listed.name === m.params?.name);
+      const p = SIDE === "desktop" ? undefined : (await pluginTools()).find((x) => x.listed.name === m.params?.name);
       if (!p) return error(m.id, -32602, `no tool ${String(m.params?.name)}`);
       try {
         return reply(m.id, await core("POST", `/plugins/${encodeURIComponent(p.plugin)}/call`, { tool: p.tool, arguments: m.params?.arguments ?? {} }));

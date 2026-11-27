@@ -25,8 +25,9 @@ async function core() {
   if (mod) return mod;
   const m = await import(join(CORE, "mcp.js"));
   const desk = await import(join(CORE, "mcp-desktop.js"));
-  // The desktop's own tools, by name: left out here.
-  const screen = new Set(desk.desktopTools(async () => null).map((t) => t.name));
+  // What needs a screen (mcp-desktop.ts, SCREEN_TOOLS): left out here. The rest of the desktop's tools — pages,
+  // canvases, files, tags — are any core's, this one's too.
+  const screen = new Set(desk.SCREEN_TOOLS);
   mod = { m, screen };
   return mod;
 }

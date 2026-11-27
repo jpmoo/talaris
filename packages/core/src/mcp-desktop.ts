@@ -66,6 +66,14 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const PANELS = ["canvas", "writing", "tasks", "calendar", "people", "glance", "morgan", "new"];
 
+/**
+ * The tools that need a screen: what is on it, its windows, going and opening and launching there. Offered only where
+ * there is one (`talaris-core mcp --desktop`, mcp.ts); the rest here read and write Talaris's data, any core's —
+ * the page tools fall back to the page on screen only when not told which.
+ */
+export const SCREEN_TOOLS = new Set(["talaris_now", "talaris_windows", "talaris_go", "talaris_open", "talaris_show", "talaris_glance",
+  "talaris_launch", "talaris_focus_window", "talaris_close_window", "talaris_archive_project"]);
+
 export function desktopTools(core: Core): DesktopTool[] {
   const now = async () => (await surfaces<{ now: Now }>({ do: "now" })).now;
 
