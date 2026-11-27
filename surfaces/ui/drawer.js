@@ -50,16 +50,10 @@ function xBtn(title, onclick) {
 // Said as every page says it (kit.js): sentence case; an error in the danger color, until something else is said.
 function status(text, error = false) { Kit.say($("status"), text, error, 0); }
 
+// The look as every page takes it (surface.js): the mode (on the web, the browser's), the accent and its words, the
+// typeface. The drawer's own opacity is set on its body (below), over the page-wide one.
 function applyTheme(theme) {
-  const root = document.documentElement;
-  root.dataset.mode = theme.mode === "light" ? "light" : "dark";
-  root.dataset.motion = theme.motion || "slide";
-  if (theme.accent) {
-    root.style.setProperty("--accent", theme.accent);
-    const n = parseInt(theme.accent.slice(1), 16);
-    root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
-  }
-  if (theme.font) root.style.setProperty("--font", `'${theme.font}', system-ui, sans-serif`);
+  Surface.applyTheme(theme);
   const frame = document.querySelector(".canvas-frame");
   if (frame) shareTheme(frame);
 }

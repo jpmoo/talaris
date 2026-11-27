@@ -49,14 +49,26 @@ const Surface = (() => {
     root.style.setProperty("--accent-text", `rgb(${mixed.join(",")})`);
   }
 
+  /*
+   * Light or dark. On the web, the browser's — the phone's own setting — as the sign-in page already follows it
+   * (UX-AUDIT 4.6): the desktop's Mode is the laptop's choice for its screen, and a phone in light mode signed in on a
+   * light page and landed in a dark one. Followed as it changes (a phone that turns dark at sunset).
+   */
+  const SYSTEM_LIGHT = matchMedia("(prefers-color-scheme: light)");
+  let lastTheme = null;
+  const modeOf = (theme) => (window.TALARIS_WEB || theme.mode === "system" ? (SYSTEM_LIGHT.matches ? "light" : "dark") : theme.mode === "light" ? "light" : "dark");
+  SYSTEM_LIGHT.addEventListener("change", () => { if (lastTheme && (window.TALARIS_WEB || lastTheme.mode === "system")) applyTheme(lastTheme); });
+
   function applyTheme(theme = {}) {
     const root = document.documentElement;
-    root.dataset.mode = theme.mode === "light" ? "light" : "dark";
+    lastTheme = theme;
+    const mode = modeOf(theme);
+    root.dataset.mode = mode;
     root.dataset.motion = theme.motion || "slide";
     if (theme.accent) {
       root.style.setProperty("--accent", theme.accent);
       const n = parseInt(theme.accent.slice(1), 16);
-      root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
+      root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${mode === "light" ? .16 : .14})`);
     }
     accentText(root);
     // How see-through the panel is (Settings, Panels); paper and bubbles stay solid.

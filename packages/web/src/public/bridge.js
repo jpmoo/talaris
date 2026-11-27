@@ -76,7 +76,22 @@
       .catch(() => {});
   }
 
-  const bridge = new Proxy({}, {
+  /*
+   * What the web cannot carry out (UX-AUDIT 4.7): the desktop's verbs that reach the machine itself — going to a
+   * project (its workspace), the file manager, a folder chosen on its disk, a file opened in an application, a window
+   * made or closed. Asked as `bridge.can(verb)` (the desktop's bridge has no `can`, so a page reads a missing one as
+   * yes) and leaves out what it would offer; and anything a page marks `data-verb="…"` with one of these is hidden here
+   * without asking.
+   */
+  const DESKTOP_ONLY = new Set(["goProject", "reveal", "showFolder", "openPath", "chooseFolder", "grow", "closeWindow"]);
+  const can = (verb) => !DESKTOP_ONLY.has(String(verb));
+  {
+    const style = document.createElement("style");
+    style.textContent = `${[...DESKTOP_ONLY].map((v) => `[data-verb="${v}"]`).join(", ")} { display: none !important; }`;
+    document.head.append(style);
+  }
+
+  const bridge = new Proxy({ can }, {
     // What a page puts on its bridge is its own, as on a QWebChannel object (Morgan's page wraps `call` around
     // `callLater`, morgan/index.html): kept, and given back, rather than taken for a call to the host.
     set(t, name, value) { t[name] = value; return true; },

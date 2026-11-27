@@ -164,6 +164,14 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
   html.page-tasks .tv-row .tv-pen { display: none !important; }
 }
 
+/* A project in the Library on the web (UX-AUDIT 4.7): its "Do" is "Go to this project", the desktop's workspace — the
+   web has nothing for it (bridge.js, can), and Glance's button, the other that could be there, is not on the web. A
+   linked folder is a desktop machine's, so looking at it again is too; "not there now" is where it is, not an error.
+   Until filespanel.js asks bridge.can itself (and says "On the laptop"), these are hidden by what they are here. */
+html.page-library :is(.d-sub:has(+ .d-acts), .d-acts) { display: none !important; }
+html.page-library .d-link .t-btn[title^="Look at it now"] { display: none !important; }
+html.page-library .d-link small.bad { color: var(--muted) !important; }
+
 /* Calendar on the web: the accounts' calendars are a desktop machine's reading, not this page's to sync (WEB.md). */
 html.page-calendar #resync { display: none !important; }
 /* On a phone the calendar is swiped, a day or a week on or back (calendar.js, the touch swipe): no arrows beside its
