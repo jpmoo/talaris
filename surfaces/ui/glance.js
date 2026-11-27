@@ -86,6 +86,9 @@
     }
   });
 
+  // The list's rows gone through by the keys, as every list is (kit.js, listNav).
+  Kit.listNav(document.querySelector("main"), ".grow-row");
+
   // A panel's one button makes it a window (the expand corners); a window's one
   // button closes it.
   $("grow").addEventListener("click", () => bridge && bridge.grow());

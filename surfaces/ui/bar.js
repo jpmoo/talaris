@@ -47,7 +47,7 @@ function onState(s) {
   for (const name of ["canvas", "writing", "tasks", "new", "people", "files", "shot", "review"]) $(name).classList.toggle("on", !!(s.panelsOpen || {})[name]);
   // The weekly review's button wears a dot while a review is open and not yet done (review_panel.py, `waiting`).
   $("review").classList.toggle("due", !!s.reviewWaiting);
-  $("review").title = s.reviewWaiting ? "Weekly review — open now" : "Weekly review";
+  $("review").title = s.reviewWaiting ? "Weekly review — open now (Super+Shift+R)" : "Weekly review (Super+Shift+R)";
   markTray();
   // A display plugged in (displays.py): its button, while there is one; what it shows, in its tip.
   const shown = (s.displays || {}).external || [];
@@ -226,7 +226,7 @@ function tick() {
       hour: clock.hours === "24" ? "2-digit" : "numeric", minute: "2-digit",
       ...(clock.seconds ? { second: "2-digit" } : {}), hour12: clock.hours !== "24",
     });
-  $("clock").title = `${Kit.fullDay(now)} — calendar`;
+  $("clock").title = `${Kit.fullDay(now)} — calendar (Super+Shift+K)`;
   const wait = clock.seconds && !portrait ? 1000 - now.getMilliseconds() : 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
   ticking = setTimeout(tick, wait + 20);
 }

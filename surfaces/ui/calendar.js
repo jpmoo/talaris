@@ -739,6 +739,8 @@ $("new").addEventListener("click", () => { const at = new Date(); at.setMinutes(
 // button closes it.
 $("grow").addEventListener("click", () => bridge && bridge.grow());
 $("close").addEventListener("click", () => bridge && bridge.closeWindow());
+// The agenda's and the search's rows gone through by the keys, as every list is (kit.js, listNav): Enter opens one.
+Kit.listNav($("view"), ".hit");
 // Search (drawFound): as it is typed, a moment after; Escape empties it; Ctrl+F comes to it.
 let searchTimer = 0;
 // Escape clears it first, as every box that narrows a list does (kit.js).

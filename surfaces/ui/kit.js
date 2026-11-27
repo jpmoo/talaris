@@ -469,6 +469,51 @@ const Kit = (() => {
     });
     return input;
   }
+  /*
+   * A list gone through by the keys (UX-AUDIT 2.7), the same in every panel: ↑ and ↓ row to row, Home and End to
+   * the ends, Enter does what a press on the row does. Tab reaches the list once — at its chosen row (`chosen`), else
+   * its first — and the arrows take it on from there (each row focusable, one at a time in the Tab order). `rows` is a
+   * selector inside `box`, read again at every key, so a list drawn anew is still the list; `open(row)` is Enter's,
+   * by default the row's own press. Keys in a field inside the list are the field's.
+   */
+  function listNav(box, rows, { chosen = ".on", open = (row) => row.click() } = {}) {
+    if (!box || box.dataset.kitListNav) return box;
+    box.dataset.kitListNav = "1";
+    const all = () => [...box.querySelectorAll(rows)].filter((r) => r.offsetParent !== null);
+    const roving = () => {
+      const list = all();
+      if (!list.length) return;
+      const now = list.find((r) => r === document.activeElement) || list.find((r) => r.matches(chosen)) || list[0];
+      for (const r of list) {
+        const want = r === now ? "0" : "-1";
+        if (r.getAttribute("tabindex") !== want) r.setAttribute("tabindex", want);
+      }
+    };
+    box.addEventListener("keydown", (e) => {
+      const t = e.target;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const list = all();
+      if (!list.length) return;
+      const here = t.closest && t.closest(rows);
+      const i = here ? list.indexOf(here) : -1;
+      let to = null;
+      if (e.key === "ArrowDown") to = list[Math.min(list.length - 1, i + 1)];
+      else if (e.key === "ArrowUp") to = list[Math.max(0, i < 0 ? 0 : i - 1)];
+      else if (e.key === "Home") to = list[0];
+      else if (e.key === "End") to = list[list.length - 1];
+      else if (e.key === "Enter" && here && t === here) { e.preventDefault(); open(here); return; }
+      if (!to) return;
+      e.preventDefault();
+      for (const r of list) r.setAttribute("tabindex", r === to ? "0" : "-1");
+      to.focus();
+      to.scrollIntoView({ block: "nearest" });
+    });
+    // Kept as the list is drawn again: once for each batch of changes (the tabindex set here is not one of them).
+    new MutationObserver(roving).observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+    roving();
+    return box;
+  }
+
   /** How long typing pauses before a search is asked of the core: the same everywhere. */
   const SEARCH_MS = 200;
   /** One call after typing has paused: the same pause everywhere. */
@@ -799,7 +844,7 @@ const Kit = (() => {
     links, linked, linkName,
     place, el, setClock, clock, hour, minutes, day, fullDay, dayName, monthName, range, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,
-    onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, plain, empty, caret, keepScroll,
+    onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, listNav, debounce, SEARCH_MS, say, plain, empty, caret, keepScroll,
   };
 })();
 

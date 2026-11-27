@@ -1025,7 +1025,12 @@
 
   // ---------------------------------------------------------------- keys and buttons
 
-  const typing = (t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  // The collections and projects, and a list's rows, gone through by the keys as every list is (kit.js, listNav):
+  // Enter on a row opens its task, as a press on its title does.
+  Kit.listNav($("side"), ".item:not(.grp)");
+  Kit.listNav($("view"), ".tv-row", { open: (row) => (row.querySelector(".tv-title") || row).click() });
+
+  const typing =(t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
   document.addEventListener("keydown", (e) => {
     // The list editor and the views keep their own Escape, and say so.
     if (e.defaultPrevented) return;
