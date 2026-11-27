@@ -1330,7 +1330,7 @@
   }
 
   /** One member, as a Library row: its kind's dot, its name, what it is filed under and tagged, its kind, its date. */
-  function collRowEl(r, hand) {
+  function collRowEl(r, hand, orderable = false) {
     const k = kindOfRow(r);
     const when = r.due || r.start || "";
     const row = el("div", { class: `row crow${r.id === collOn ? " on" : ""}${r.complete ? " done" : ""}`, "data-id": r.id,
@@ -1343,6 +1343,21 @@
       // A task's due, or failing that when it is available: the day only, as near as it is ("Tomorrow", "Oct 30").
       el("span", { class: `date${r.overdue ? " late" : ""}`, title: r.due ? "Due" : r.start ? "Available" : "" }, when ? Kit.relDay(`${when.slice(0, 10)}T12:00`) : ""),
       hand ? xBtn("Take it out of this collection (nothing is deleted)", (e) => { e.stopPropagation(); takeOut(collection, r.id, r.title); }) : el("span", {}));
+    if (orderable) {
+      // Its own order (no sort, no groups): carried above or below another, by the pointer or a held finger (kit.js).
+      const coll = collection;
+      Kit.draggable(row, { coll, member: r.id });
+      Kit.dropZone(row, {
+        accepts: (p) => p && p.coll === coll && p.member !== r.id,
+        drop: (p, where) => {
+          const order = [...document.querySelectorAll("#coll .row.crow[data-id]")].map((x) => x.dataset.id).filter((x) => x !== p.member);
+          const i = order.indexOf(r.id);
+          const after = where === "above" ? (order[i - 1] ?? null) : r.id;
+          const before = where === "above" ? r.id : (order[i + 1] ?? null);
+          api("POST", `/lists/${enc(coll)}/members`, { object: p.member, after, before }).then(() => load()).catch(failed);
+        },
+      });
+    }
     return row;
   }
   /** The member whose card is on show, lit; the rest not. */
@@ -1382,7 +1397,12 @@
         if (!inIt.length) continue;
         body.append(el("div", { class: "g-head" }, g.label || "None", el("span", { class: "n" }, String(inIt.length))), ...inIt.map((r) => collRowEl(r, hand)));
       }
-    } else body.append(...shown.map((r) => collRowEl(r, hand)));
+    } else {
+      // Put in order by hand, where nothing else orders it: no sort and no groups, and every kind on show.
+      const order = l.order || {};
+      const orderable = hand && !(order.sort && order.sort.length) && !order.groupBy && !collOff.size;
+      body.append(...shown.map((r) => collRowEl(r, hand, orderable)));
+    }
     Kit.keepScroll(host, () => host.replaceChildren(...[head, adding, chips, body].filter(Boolean)));
   }
 
@@ -1546,17 +1566,25 @@
     name.focus();
   }
 
-  /** Under a thing's card: the collections it was put in by hand, each to take it out of, and putting it in another. */
+  /**
+   * Under a thing's card: the collections it is in — put in by hand, each to take it out of, and those whose live rule
+   * holds it (the core's /lists/containing, the rule tested against this one thing), each marked so and with no ×,
+   * since only changing the rule, or the thing, takes it out — and putting it in another.
+   */
   function holdingSection(id) {
     const holding = collections.filter((l) => l.members.some((m) => m.object === id));
     const host = el("div", { class: "d-colls" });
     const picker = el("div", {});
     const add = el("button", { class: "t-btn small", onclick: () => { picker.className = "inline"; collectionPicker(picker, async () => id, null, id); } }, "Add to a collection…");
-    host.append(...[el("div", { class: "d-sub", title: "Collections it was put in; one made by a rule holds whatever matches it" }, "In collections"),
-      holding.length ? el("div", { class: "chips" }, ...holding.map((l) => el("span", { class: "chip" },
-        el("button", { class: "d-proj lbl", title: `Show ${l.name}`, onclick: () => openCollection(l.id) }, l.name),
-        byHand(l) ? xBtn("Take it out of this collection (nothing is deleted)", () => takeOut(l.id, id, null)) : null))) : null,
-      el("div", { class: "d-acts" }, add), picker].filter(Boolean));
+    const chip = (l, rule) => el("span", { class: "chip" + (rule ? " by-rule" : "") },
+      el("button", { class: "d-proj lbl", title: rule ? `Show ${l.name} — in it by its rule` : `Show ${l.name}`, onclick: () => openCollection(l.id) }, l.name),
+      rule ? el("span", { class: "chip-how" }, "by its rule") : byHand(l) ? xBtn("Take it out of this collection (nothing is deleted)", () => takeOut(l.id, id, null)) : null);
+    const chips = el("div", { class: "chips" }, ...holding.map((l) => chip(l, false)));
+    host.append(...[el("div", { class: "d-sub", title: "Collections it was put in, and those whose rule holds it" }, "In collections"),
+      chips, el("div", { class: "d-acts" }, add), picker].filter(Boolean));
+    api("GET", `/lists/containing?object=${enc(id)}`).then((found) => {
+      for (const f of found || []) if (f.how === "rule") chips.append(chip({ id: f.id, name: f.name }, true));
+    }).catch(() => { /* by hand only, as before */ });
     return host;
   }
 

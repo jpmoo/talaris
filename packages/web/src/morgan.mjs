@@ -29,6 +29,8 @@ export const SOCKET = process.env.HEYMORGAN_SOCKET ?? [join(homedir(), "heymorga
 const PLAIN = new Set(["status", "type", "new", "interview", "stop", "interrupt", "continue", "rate", "settle", "delete",
   "reminders", "recent", "days", "conversation", "incognito"]);
 const ADMIN_OPS = new Set(["reminders.cancel"]);
+/** A project's chat (projectchat.js; the desktop's core.py `projectChat`): Morgan's `project`, these four ops only. */
+const PROJECT_OPS = new Set(["list", "history", "chat", "clear"]);
 
 /** The line as it may go to the brain, or null. */
 export function allowed(line) {
@@ -41,6 +43,9 @@ export function allowed(line) {
       // Files are paths on the brain's machine, never the web's to name; what was attached travels as its content.
       return `ask ${JSON.stringify({ text: String(a.text ?? ""), attached: Array.isArray(a.attached) ? a.attached : [] })}`;
     } catch { return null; }
+  }
+  if (word === "project") {
+    try { return PROJECT_OPS.has(JSON.parse(text.slice(8)).op) ? text : null; } catch { return null; }
   }
   if (word === "admin") {
     try { return ADMIN_OPS.has(JSON.parse(text.slice(6)).op) ? text : null; } catch { return null; }

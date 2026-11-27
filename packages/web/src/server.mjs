@@ -161,6 +161,10 @@ const CALLS = {
     try { glyphs = JSON.parse(readFileSync(join(UI, "morgan", "tabler.json"), "utf8")); } catch { /* none */ }
     return JSON.stringify({ accent: "", font: `${PREFIX}/ui/fonts/tabler-icons-outline.woff2`, glyphs, theme: LOOK.theme });
   },
+  // A project's chat (projectchat.js), as the desktop's core.py answers it: Talaris's projects to choose from, and each
+  // turn briefed from the core — the project's brief, and today's calendar as the desktop machine shared it — then
+  // Morgan's `project`, on its brain. Answered on `projectReply`.
+  projectChat: async (_page, ident, ask) => ({ emit: [["projectReply", JSON.stringify({ id: ident, answer: await projectChat(ask) })]] }),
   // Files from this device's disk, Morgan's settings, a window's title: the desktop's, not the web's.
   pick: async () => "[]",
   calendarList: async () => JSON.stringify(replyData((await core("GET", "/calendar/view?from=0&to=0")).text)?.calendars ?? []),
@@ -195,6 +199,53 @@ const CALLS = {
     return null;
   },
 };
+
+/** One project chat request (CALLS.projectChat): its answer, as Morgan's line. */
+async function projectChat(ask) {
+  let body;
+  try { body = JSON.parse(ask || "{}"); } catch { body = null; }
+  if (!body || typeof body !== "object" || !["list", "history", "chat", "clear"].includes(body.op)) {
+    return JSON.stringify({ ok: false, error: "not a project chat request" });
+  }
+  if (body.op === "list") {
+    const [rows, counts, entities] = await Promise.all([core("GET", "/projects"), core("GET", "/tasks/open-counts"), core("GET", "/tasks/projects")]);
+    const entityOf = new Map((replyData(entities.text) ?? []).filter((e) => e?.workspace).map((e) => [e.workspace, e.id]));
+    const open = replyData(counts.text) ?? {};
+    const projects = (replyData(rows.text) ?? []).filter((p) => p?.id)
+      .map((p) => ({ id: p.id, name: p.name ?? "", open: Number(open[entityOf.get(p.id)] ?? 0) || 0, home: Boolean(p.home) }));
+    return JSON.stringify({ ok: true, projects });
+  }
+  if (body.op === "chat") {
+    const brief = await core("GET", `/projects/${encodeURIComponent(String(body.project ?? ""))}/brief`);
+    if (brief.status !== 200) return JSON.stringify({ ok: false, error: `Talaris couldn't read the project (${brief.text.slice(0, 200)})` });
+    const b = replyData(brief.text) ?? {};
+    body.name = b.name || body.name || "";
+    const day = await todayText();
+    const said = day === null ? "(not available just now: say so, don't call it empty)" : day || "(nothing on it today)";
+    body.context = `${b.text ?? ""}\n\nToday's calendar:\n${said}`;
+  }
+  return morgan.command(`project ${JSON.stringify(body)}`, 215_000);
+}
+
+/**
+ * Today's events, as lines for a model to read (as calendar_panel.py's today_text): from the calendars the desktop
+ * machine shared, in the zone this core answers in (clock.ts). "" for a day with nothing on it; null when not known.
+ */
+async function todayText() {
+  try {
+    const zone = replyData((await core("GET", "/time/zone")).text)?.zone || undefined;
+    const part = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date()).map((p) => [p.type, p.value]));
+    // Midnight where the user is: now, less the time of day already gone there.
+    const now = Date.now();
+    const start = now - ((Number(part.hour) * 60 + Number(part.minute)) * 60 + Number(part.second)) * 1000 - (now % 1000);
+    const v = replyData((await core("GET", `/calendar/view?from=${start}&to=${start + 86_400_000}`)).text);
+    if (!v || !v.covers) return null;
+    const time = (ms) => new Date(ms).toLocaleTimeString("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" });
+    return (v.items ?? []).sort((a, b) => a.start - b.start)
+      .map((e) => `- ${e.allDay ? "all day" : `${time(e.start)}–${time(e.end)}`} ${e.title ?? ""}${e.location ? ` (${e.location})` : ""}`).join("\n");
+  } catch { return null; }
+}
 
 // ------------------------------------------------------------ serving
 
@@ -248,7 +299,7 @@ function pageHtml(name) {
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css">${APP_HEAD}</head>`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
-  if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1">`);
+  if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`);
   html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script></body>`);
   return html;
 }

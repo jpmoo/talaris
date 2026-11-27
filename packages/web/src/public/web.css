@@ -58,8 +58,10 @@ html.sh-phone .sh-bar { display: grid; grid-template-columns: minmax(44px, 1fr) 
 /* Behind the side column while it is out: a press on it puts the column away. */
 html.sh-phone.sh-side .sh-scrim { display: block; position: fixed; left: 0; right: 0; top: var(--sh-top); bottom: var(--sh-bottom);
   background: var(--scrim); z-index: calc(var(--z-sheet) - 1); }
-html.sh-phone .web-modules { gap: 2px; padding: 6px 4px env(safe-area-inset-bottom); }
-html.sh-phone .web-modules a { flex: 1 1 0; font-size: var(--t-sm); gap: 4px; }
+/* Clear of the screen's rounded corners and its home bar (viewport-fit=cover makes the insets real): seven modules
+   across, each a narrow column, their names a size down so "Calendar" fits. */
+html.sh-phone .web-modules { gap: 0; padding: 4px max(14px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+html.sh-phone .web-modules a { flex: 1 1 0; min-width: 0; font-size: var(--t-xs); gap: 3px; letter-spacing: -.2px; }
 html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px; height: 26px; }
 
 /* What each page needs besides its panes, on a phone. */

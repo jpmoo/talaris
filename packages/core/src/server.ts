@@ -985,6 +985,8 @@ route("POST", "/lists/preview", async (req) => {
   const found = lists.runQuery(b.query);
   return { count: found.length, rows: found.slice(0, 50).map((o) => ({ id: o.id, title: entities.titleOf(o), kinds: entities.profilesOf(o) })) };
 });
+// The collections one thing is in, by hand or by rule (lists.ts, `containing`): before /lists/:id, which would take it.
+route("GET", "/lists/containing", (_r, _p, q) => lists.containing(need(q, "object")));
 route("GET", "/lists/:id", (_r, [id]) => lists.showList(id!));
 route("PATCH", "/lists/:id", async (req, [id]) => lists.updateList(id!, await json<lists.ListPatch>(req)));
 route("DELETE", "/lists/:id", (_r, [id]) => {

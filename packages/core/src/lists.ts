@@ -393,6 +393,25 @@ export function updateList(id: string, p: ListPatch): List {
 }
 
 /** A list gone, archived or not (the panel asks first). Only the list: its members are untouched, and a synced one's other side too. */
+/**
+ * The collections one thing is in, each with how (a card's "In collections", the Library): put in by hand (or kept
+ * in a snapshot), or held by a live rule — its rule tested against this one thing (`matches`), never run over all.
+ * The archived ones left out, and a live rule holds nothing archived, as `runQuery` does.
+ */
+export function containing(object: string, asOf = new Date()): { id: string; name: string; how: "hand" | "snapshot" | "rule"; kind: string }[] {
+  const o = getEntity(object);
+  const out: { id: string; name: string; how: "hand" | "snapshot" | "rule"; kind: string }[] = [];
+  for (const l of allLists()) {
+    const m = l.membership;
+    if (m.mode === "query" && !m.materialized) {
+      if (!o.archived && !o.stub && matches(o, m.query, asOf)) out.push({ id: l.id, name: l.name, how: "rule", kind: l.kind });
+    } else if ((l.members ?? []).some((x) => x.object === object)) {
+      out.push({ id: l.id, name: l.name, how: m.mode === "query" ? "snapshot" : "hand", kind: l.kind });
+    }
+  }
+  return out;
+}
+
 export function deleteList(id: string): void {
   getList(id);
   sealedDrop(LISTS, id);
