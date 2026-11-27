@@ -1106,7 +1106,11 @@
       const going = Motion.leave(document.body, how());
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
-    start().then(() => placeHere.ready(), () => placeHere.ready());
+    start().then(() => placeHere.ready(), () => placeHere.ready()).then(() => {
+      // Opened on one task (`?task=<id>`: the web app, from Calendar's agenda or a card — bridge.js `openTask`).
+      const taskAsked = new URLSearchParams(location.search).get("task");
+      if (taskAsked) openTask(taskAsked);
+    });
   });
 
   // Where it is — the list or project on show, the task open — carried when it is made a window, or a panel again (kit.js).

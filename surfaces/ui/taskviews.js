@@ -432,7 +432,8 @@ const TaskViews = (() => {
   }
 
   function cell(ctx, sh, c, row) {
-    const td = el("td", { class: `tv-c-${c.kind}` });
+    // Its column's name, for where the table is drawn as stacked rows (the web app on a phone: web.css).
+    const td = el("td", { class: `tv-c-${c.kind}`, "data-label": c.label || "" });
     const props = (fk, v) => act(ctx.update(row.id, { properties: { [fk]: v } }));
     const raw = c.fk ? (row.fields || {})[c.fk] : undefined;
     // A row that is not a task has no status or schedule to change.

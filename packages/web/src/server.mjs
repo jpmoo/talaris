@@ -218,7 +218,9 @@ function pageHtml(name) {
   // dimmed screen, and nothing pressed beside it putting it away. A drawer is told which (its query) in the same way.
   const query = [p.query, "window=1"].filter(Boolean).join("&");
   const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules, ...(p.panes ? { panes: p.panes } : {}) })};` +
-    `history.replaceState(null, "", location.pathname + "?${query}");</script>` +
+    // What the address already asks (`?task=…`, `?card=…`: opened on one thing) is kept beside it.
+    `{ const q = new URLSearchParams(location.search); for (const [k, v] of new URLSearchParams("${query}")) q.set(k, v); ` +
+    `history.replaceState(null, "", location.pathname + "?" + q); }</script>` +
     `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");
   html = html.replace(/<head>/i, `<head>${ours.replace(/<link[^>]*>/, "")}`);

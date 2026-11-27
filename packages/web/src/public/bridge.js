@@ -16,7 +16,7 @@
  */
 (() => {
   const WEB = window.TALARIS_WEB || { page: "", prefix: "/talaris" };
-  const ABSENT = new Set(["keyboard", "machine", "reading", "glanceAt", "libraryAt", "then", "toJSON"]);
+  const ABSENT = new Set(["keyboard", "machine", "reading", "glanceAt", "then", "toJSON"]);
   const heard = new Map(); // signal → [fn]
   const emit = (name, ...args) => { for (const fn of heard.get(name) || []) { try { fn(...args); } catch (e) { console.error(e); } } };
 
@@ -49,6 +49,15 @@
         if (u.origin === location.origin && u.pathname.startsWith(`${WEB.prefix}/`)) location.assign(u.href);
         else window.open(u.href, "_blank", "noopener");
       } catch { /* not an address */ }
+      return;
+    }
+    // A task, or a thing's card, asked for from another module (Calendar's agenda, a collection's row, a mention): the
+    // desktop opens it in its own panel; here, that module's page is gone to, opened on it — Back comes back.
+    if (name === "openTask" || name === "libraryAt") {
+      const [id] = args;
+      if (!id) return;
+      const to = name === "openTask" ? `tasks?task=${encodeURIComponent(id)}` : `library?card=${encodeURIComponent(id)}`;
+      location.assign(`${WEB.prefix}/${to}`);
       return;
     }
     if (name === "request") {

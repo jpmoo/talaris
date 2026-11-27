@@ -173,6 +173,8 @@
       }
     }).observe(document.body, { childList: true, subtree: true });
   }
+  // Opened on one thing (`?card=…`, from another module: bridge.js `libraryAt`): its detail, once the page draws it.
+  if (P.detail && new URLSearchParams(location.search).has("card")) expect(0);
   // A sheet the page opens (a task's card) or closes itself: followed, so Back closes it and its closing is a step back.
   for (const s of sheets) {
     new MutationObserver(() => {

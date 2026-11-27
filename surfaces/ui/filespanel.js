@@ -1979,6 +1979,8 @@
       if (going) going.onfinish = () => bridge.left(); else bridge.left();
     });
     if (project === null) project = surface.project || "";
-    loadProjects().then(load).catch(failed).finally(() => placeHere.ready());
+    // Opened on one thing's card (`?card=<key>`: the web app, from another module — bridge.js `libraryAt`).
+    const cardAsked = new URLSearchParams(location.search).get("card");
+    loadProjects().then(load).then(() => (cardAsked ? showCard(cardAsked) : null)).catch(failed).finally(() => placeHere.ready());
   });
 })();

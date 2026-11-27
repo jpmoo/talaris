@@ -81,6 +81,33 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
   html.page-notes #body > .pane, html.page-canvas #body > .canvas-pane { flex-direction: column; }
   html.page-notes .editor.mapped .cm-content { padding-right: 8px !important; }
   html.page-notes .pane-bar { flex-wrap: wrap; }
+  /* A page open on a phone: the writing gets the room. Its tags are one line that scrolls along, not a block of
+     wrapped chips; the footer's verbs (New page, Rename, Delete…) are one line too, scrolled along the same way. */
+  html.page-notes .page-tags { flex-wrap: nowrap !important; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    flex: none !important; max-height: none; padding-bottom: 2px; }
+  html.page-notes .page-tags > * { flex: none; }
+  html.page-notes .page-tags .tag-add { min-width: 110px; }
+  html.page-notes footer #actions { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; max-width: 100%; }
+  html.page-notes footer #actions > * { flex: none; }
+  html.page-notes footer { overflow: hidden; }
+  /* A collection's table (Forecast…), too wide for a phone: each row stacked — its title the whole width, then each
+     other column as its name and value, small (taskviews.js gives each cell its column's name). Nothing to the side. */
+  html.page-tasks .tv-table-wrap { overflow-x: hidden; }
+  html.page-tasks .tv-table { width: 100% !important; display: block; }
+  html.page-tasks .tv-table :is(colgroup, thead) { display: none; }
+  html.page-tasks .tv-table tbody { display: block; }
+  html.page-tasks .tv-table tr.tv-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; row-gap: 2px;
+    padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  html.page-tasks .tv-table tr.tv-group { display: block; }
+  html.page-tasks .tv-table tr.tv-group td { display: block; padding: 10px 12px 4px; }
+  html.page-tasks .tv-table tr.tv-row td { display: block; height: auto; padding: 0; border: 0; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); color: var(--muted); }
+  /* An unset date says nothing here: it is set on the task's card, which a press on the row opens. */
+  html.page-tasks .tv-table tr.tv-row td:is(:empty, :has(> .tv-date:empty:only-child)) { display: none; }
+  html.page-tasks .tv-table tr.tv-row td.tv-c-title .tv-title { white-space: normal; }
+  html.page-tasks .tv-table tr.tv-row td.tv-c-title { flex: 1 1 100%; white-space: normal; font-size: var(--t-md); color: var(--text); }
+  html.page-tasks .tv-table tr.tv-row td:not(.tv-c-title):not(.tv-num)[data-label]:not([data-label=""])::before {
+    content: attr(data-label) " "; color: var(--muted); opacity: .75; }
 }
 
 /* ---------------------------------------------------------------- a finger (UX-AUDIT 4.3)
