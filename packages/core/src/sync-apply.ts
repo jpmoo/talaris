@@ -29,6 +29,7 @@
 
 import { applyView } from "./calendar-view.js";
 import { applyClock } from "./clock.js";
+import { applyFeed } from "./calendar-feeds.js";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -126,7 +127,7 @@ export function replacedFor(of?: string): Replaced[] {
 // ------------------------------------------------------------ applying
 
 /** Whether this Talaris knows what a record is about: one from a newer Talaris may not be, yet (sync-folder.ts keeps it). */
-const KINDS = ["runner:", "pstate:", "plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:", "calview:", "clock:"];
+const KINDS = ["runner:", "pstate:", "plugin:", "e:", "page:", "canvas:", "item:", "clink:", "region:", "project:", "pfile:", "sealed:", "file:", "once:", "wallpaper:", "calview:", "clock:", "feed:"];
 export function known(r: Rec): boolean {
   return KINDS.some((k) => r.of.startsWith(k)) || ["merged", "suggest", "prefs"].includes(r.of);
 }
@@ -533,6 +534,8 @@ export function apply(r: Rec): boolean {
         if (r.of === "calview:") return applyView(r);
         // Where the user is, said by the machine that follows them (clock.ts).
         if (r.of === "clock:") return applyClock(r);
+        // A calendar feed brought in or put away on another machine (calendar-feeds.ts).
+        if (r.of.startsWith("feed:")) return applyFeed(r);
         if (r.of.startsWith("wallpaper:")) {
           const ok = typeof r.set?.sha === "string" && writeWallpaper(r.of.slice("wallpaper:".length), r.set.sha);
           // A wallpaper the settings named before its picture had come: the settings taken again, now it is here.

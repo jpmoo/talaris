@@ -31,7 +31,7 @@ screen up.
   {"do": "delete", "req": n, "calendar": id, "uid": …, "rid": …, "which": "this"|"all"}
   {"do": "color", "req": n, "calendar": id, "color": "#rrggbb"}   — kept in EDS, so every
                                                                     app using it sees it too
-  {"do": "subscribe", "req": n, "url": …, "name": …, "color": …}   — a feed (an .ics address,
+  {"do": "subscribe", "req": n, "url": …, "name": …, "color": …, "id"?}  — a feed (an .ics address,
                                                                     webcal:// or https://), read
                                                                     here (Feeds, below): answered
                                                                     once it has been read as one
@@ -258,13 +258,17 @@ class Feeds:
 
     # ---- brought in, put away
 
-    def add(self, req: int, url: str, name: str, color: str) -> None:
+    def add(self, req: int, url: str, name: str, color: str, fid: str = "") -> None:
+        """A feed brought in: by hand (a new id), or as another machine brought it in (its id, so it is the same
+        calendar on both: the core's calendar-feeds.ts)."""
+        if fid and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fid):
+            fid = ""
         address = self._address(url)
         if not address:
             say({"done": {"req": req, "error": "That is not a feed's address (https:// or webcal://)"}})
             return
         for x in self.list:
-            if x["url"] == address:
+            if x["url"] == address or (fid and x["id"] == fid):
                 say({"done": {"req": req, "error": f"Already here, as {x.get('name') or 'a feed'}"}})
                 return
 
@@ -278,7 +282,8 @@ class Feeds:
                 say({"done": {"req": req, "error": error}})
                 return
             import uuid
-            fid = uuid.uuid4().hex[:12]
+            nonlocal fid
+            fid = fid or uuid.uuid4().hex[:12]
             # Its own name, if it gives one (X-WR-CALNAME), when none was typed.
             own = re.search(r"^X-WR-CALNAME:(.+)$", text, re.M)
             label = name.strip() or (own.group(1).strip() if own else "") or (GLib.Uri.parse(address, GLib.UriFlags.ENCODED).get_host() or "Feed")
@@ -915,7 +920,7 @@ class Calendars:
         elif verb == "search":
             self.search(req, str(msg.get("q", ""))[:200])
         elif verb == "subscribe":
-            self.feeds.add(req, str(msg.get("url", ""))[:2000], str(msg.get("name", ""))[:200], str(msg.get("color", "")))
+            self.feeds.add(req, str(msg.get("url", ""))[:2000], str(msg.get("name", ""))[:200], str(msg.get("color", "")), str(msg.get("id", "")))
         elif verb == "unsubscribe":
             self.feeds.remove(req, str(msg.get("calendar", "")))
         elif verb == "create":

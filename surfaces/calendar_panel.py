@@ -166,6 +166,14 @@ class CalendarService(QObject):
         self._queries: dict = {}
         self._lock = threading.Lock()
         self._ask.connect(lambda text: self.send(json.loads(text)))
+        # The feeds, the same on every machine (the core's calendar-feeds.ts): looked at when the calendars change, and every
+        # few minutes for what another machine did.
+        self._feed_req = 6 * MIRROR_REQ
+        self._feed_waiting: dict = {}
+        self._feed_lock = threading.Lock()
+        self._feeds_every = QTimer(self)
+        self._feeds_every.timeout.connect(lambda: threading.Thread(target=self.sync_feeds, daemon=True).start())
+        self._feeds_every.start(5 * 60 * 1000)
         self._start()
 
     def _start(self) -> None:
@@ -231,6 +239,7 @@ class CalendarService(QObject):
                 self.last_calendars = json.dumps(msg["calendars"])
                 self.calendars.emit(self.calendars_now())
                 threading.Thread(target=self._read_shared, daemon=True).start()
+                threading.Thread(target=self.sync_feeds, daemon=True).start()
             elif "events" in msg and msg["events"].get("req") in self._finding:
                 # A search asked from another thread (find_events): handed to it.
                 waiting = self._finding.get(msg["events"].get("req"))
@@ -248,6 +257,11 @@ class CalendarService(QObject):
                 else:
                     self._asked.pop(msg["events"].get("req"), None)
                     self.events.emit(json.dumps(msg["events"]))
+            elif "done" in msg and msg["done"].get("req") in self._feed_waiting:
+                # One of the feeds brought in or put away to match another machine: said in the log, not to a page.
+                what = self._feed_waiting.pop(msg["done"]["req"])
+                if msg["done"].get("error"):
+                    log(f"calendar: feed {what}: {msg['done']['error']}")
             elif "done" in msg:
                 # New's own, and an event's card's in the Library, numbered from where the calendar page's never reach.
                 req = msg["done"].get("req", 0)
@@ -270,6 +284,53 @@ class CalendarService(QObject):
                         {**found, "items": with_talaris_people(query, found.get("items", []))})), daemon=True).start()
             elif msg.get("changed"):
                 self.changed.emit()
+
+    # ---------------------------------------------------------------- feeds, the same everywhere
+
+    def tell_feed(self, fid: str, body: dict) -> None:
+        """A feed changed here by hand (brought in, recolored, put away): said to the core, which sends it on."""
+        status, text = core_call("PUT", f"/calendar/feeds/{fid}", json.dumps(body), timeout=5)
+        if status != 200:
+            log(f"calendar: feed {fid} not told ({status}): {text[:200]}")
+
+    def sync_feeds(self) -> None:
+        """This machine's feeds and the shared list made one (off the GUI thread): what is here and not there is told;
+        what is there and not here is brought in; what is there as put away is put away here."""
+        if not self._feed_lock.acquire(blocking=False):
+            return
+        try:
+            shared = get_json("/calendar/feeds", None, timeout=10)
+            if not isinstance(shared, dict):
+                return
+            try:
+                here = [c for c in json.loads(self.last_calendars or "[]") if c.get("feed")]
+            except (ValueError, TypeError):
+                return
+            mine = {c["id"].removeprefix("feed:"): c for c in here if str(c.get("id", "")).startswith("feed:")}
+            urls = {c.get("url") for c in here}
+            busy = set(self._feed_waiting.values())
+            for fid, c in mine.items():
+                s = shared.get(fid)
+                if not s:
+                    self.tell_feed(fid, {"url": c.get("url", ""), "name": c.get("name", ""), "color": c.get("color", "")})
+                elif s.get("gone") and f"off {fid}" not in busy:
+                    self._feed_do({"do": "unsubscribe", "calendar": f"feed:{fid}"}, f"off {fid}")
+                elif s.get("color") and s["color"] != (c.get("color") or "").lower() and f"color {fid}" not in busy:
+                    self._feed_do({"do": "color", "calendar": f"feed:{fid}", "color": s["color"]}, f"color {fid}")
+            for fid, s in shared.items():
+                if s.get("gone") or fid in mine or s.get("url") in urls or f"in {fid}" in busy:
+                    continue
+                self._feed_do({"do": "subscribe", "id": fid, "url": s.get("url", ""), "name": s.get("name", ""),
+                               "color": s.get("color", "")}, f"in {fid}")
+        except Exception as e:  # noqa: BLE001 — a feed out of step is tried again in a few minutes
+            log(f"calendar: feeds not compared: {e}")
+        finally:
+            self._feed_lock.release()
+
+    def _feed_do(self, msg: dict, what: str) -> None:
+        self._feed_req += 1
+        self._feed_waiting[self._feed_req] = what
+        self._ask.emit(json.dumps({**msg, "req": self._feed_req}))
 
     # ---------------------------------------------------------------- with no accounts: what another machine shared
 
@@ -347,6 +408,9 @@ class CalendarService(QObject):
     def _mirror_out(self, items: list) -> None:
         desktop = self.parent()
         hidden = set(getattr(desktop, "config", {}).get("calendar", {}).get("hidden", []))
+        #: What the shared view leaves out: only what is hidden here. Feeds go in it, as every desktop reads them too
+        #: (calendar-feeds.ts) — for the machines that read none, the web and Morgan.
+        unshown = set(hidden)
         # A feed's events are someone else's, often hundreds of them: not things of yours until one is made yours (calendar.js).
         try:
             hidden |= {c["id"] for c in json.loads(self.last_calendars or "[]") if c.get("feed")}
@@ -358,11 +422,13 @@ class CalendarService(QObject):
         now = time.time() * 1000
         day = 24 * 60 * 60 * 1000
         try:
-            calendars = [c for c in json.loads(self.last_calendars or "[]") if c.get("id") not in hidden]
+            # A feed's address is not the view's to carry (it can be a secret): the feeds' own records carry it.
+            calendars = [{k: v for k, v in c.items() if k not in ("url", "problem")}
+                         for c in json.loads(self.last_calendars or "[]") if c.get("id") not in unshown]
         except (ValueError, TypeError):
             calendars = []
         view = {"from": now - VIEW_BACK_DAYS * day, "to": now + MIRROR_AHEAD_DAYS * day, "calendars": calendars,
-                "items": [e for e in items if e.get("calendar") not in hidden and e.get("end", 0) >= now - VIEW_BACK_DAYS * day]}
+                "items": [e for e in items if e.get("calendar") not in unshown and e.get("end", 0) >= now - VIEW_BACK_DAYS * day]}
 
         # A machine that reads no account shares nothing: its reading would put an empty view over the one a machine
         # with accounts shared, which is what this machine shows (`shared`) and what the web and Morgan read.
@@ -566,6 +632,13 @@ class CalendarBridge(Bridge):
                 self.owner.service._queries[msg.get("req")] = str(msg.get("q", ""))
             if msg.get("do") in ("range", "search"):
                 self.owner.service._asked[msg.get("req")] = msg
+            # A feed put away or recolored by hand: told first, so every machine does the same (and this one is not
+            # handed it back by the list before it hears).
+            cal = str(msg.get("calendar", ""))
+            if msg.get("do") == "unsubscribe" and cal.startswith("feed:"):
+                self.owner.service.tell_feed(cal.removeprefix("feed:"), {"gone": True})
+            if msg.get("do") == "color" and cal.startswith("feed:"):
+                self.owner.service.tell_feed(cal.removeprefix("feed:"), {"color": str(msg.get("color", ""))})
             self.owner.service.send(msg)
 
     @Slot(str, bool)

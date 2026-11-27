@@ -137,7 +137,12 @@ function title() {
   return Kit.month(focus);
 }
 function shown() {
-  return [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined") && !isTaken(e));
+  const on = [...events, ...pluginEvents].filter((e) => !hidden.has(e.calendar) && !muted.has(e.calendar) && (declinedShown || e.mine !== "declined") && !isTaken(e));
+  // A feed of a calendar an account also reads (a published Outlook calendar beside its account): the same meeting,
+  // by its UID and start, shown once — the account's, which has its invitees and can be answered.
+  const isFeed = new Set(calendars.filter((c) => c.feed).map((c) => c.id));
+  const inAccount = new Set(on.filter((e) => !isFeed.has(e.calendar)).map((e) => `${e.uid}@${e.start}`));
+  return on.filter((e) => !isFeed.has(e.calendar) || !inAccount.has(`${e.uid}@${e.start}`));
 }
 // The events on a day: those that start before it ends and end after it starts.
 function onDay(day) {

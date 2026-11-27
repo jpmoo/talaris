@@ -70,8 +70,18 @@ export function viewRange(from: number, to: number) {
   if (!v) return { calendars: [], items: [], by: "", at: "", covers: null };
   return {
     calendars: v.calendars, by: v.by, at: v.at, covers: { from: v.from, to: v.to },
-    items: v.items.filter((e) => e.end > from && e.start < to),
+    items: once(v.calendars, v.items.filter((e) => e.end > from && e.start < to)),
   };
+}
+
+/**
+ * A meeting a feed and an account both have (a published Outlook calendar beside its account), by its UID and start:
+ * the account's kept, which has its invitees.
+ */
+function once(calendars: ViewCalendar[], items: ViewEvent[]): ViewEvent[] {
+  const feed = new Set(calendars.filter((c) => c.feed).map((c) => c.id));
+  const inAccount = new Set(items.filter((e) => !feed.has(e.calendar)).map((e) => `${e.uid}@${e.start}`));
+  return items.filter((e) => !feed.has(e.calendar) || !inAccount.has(`${e.uid}@${e.start}`));
 }
 
 export const hasView = () => existsSync(FILE());

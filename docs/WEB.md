@@ -160,6 +160,14 @@ when.
 - **Read-only for an account's calendar**: a change made on the web is said to
   wait for a desktop machine. Talaris's own calendar is the core's, and changes
   on the web as anywhere.
+- **Feeds are in it, and on every desktop** (2026-11-27). A feed (an .ics
+  address) brought in on one desktop is brought in on each: one sealed `feed:`
+  record a feed (`calendar-feeds.ts`), the same id everywhere, put away
+  everywhere when put away on one; each desktop's calendar panel keeps its own
+  feeds in step with the list. The shared view carries the feeds' events but
+  never their addresses. A meeting both a feed and an account have (a published
+  Outlook calendar beside its account) is shown once, the account's — it has the
+  invitees — by its UID and start, in the view and on the desktop's Calendar.
 - **Later, if wanted:** a calendar's private subscription link read by
   home-server itself, current while the laptop sleeps, read-only.
 

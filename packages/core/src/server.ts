@@ -4,6 +4,7 @@
 import * as clock from "./clock.js";
 import * as review from "./review.js";
 import { publish as publishView, viewRange } from "./calendar-view.js";
+import * as calendarFeeds from "./calendar-feeds.js";
 import * as notesM from "./notes.js";
 import { leavesOut, leftOut, shownSettings } from "./shown.js";
 import { describeProjects, projectAbout, projectProfile, setProjectAbout, summarizeProjects } from "./project-describe.js";
@@ -774,6 +775,9 @@ route("GET", "/plugins/calendars/events", (_r, _p, q) => {
 route("GET", "/plugins/calendars/taken", () => takenElsewhere());
 // The accounts' calendars, shared (calendar-view.ts): published by a desktop machine's calendar, read where there are none.
 route("PUT", "/calendar/view", async (req) => publishView(await json<Parameters<typeof publishView>[0]>(req)));
+// The calendar's feeds, the same on every machine (calendar-feeds.ts): the list, and one brought in, changed or put away.
+route("GET", "/calendar/feeds", () => calendarFeeds.feeds());
+route("PUT", "/calendar/feeds/:id", async (req, [id]) => calendarFeeds.tell(id, await json<Record<string, unknown>>(req)));
 route("GET", "/calendar/view", (_r, _p, q) => viewRange(Number(q.get("from") ?? 0), Number(q.get("to") ?? 0)));
 // The weekly review (review.ts): its state, its schedule, its steps; adopting a task already there as its task.
 route("GET", "/review", () => review.state());
