@@ -338,6 +338,16 @@ async function handle(req, res) {
     const r = await mcp.handle(req, body, PREFIX, oauth.resourceMetadataUrl(PREFIX));
     return send(res, r.status, r.body, "application/json", r.headers ?? {});
   }
+  // A question for Morgan from something that only asks and reads back — an iPhone Shortcut, "Hey Siri, Ask Morgan"
+  // (morgan.mjs, askAndWait). Its own key, made by `talaris-web token siri`: an MCP key is not one.
+  if (path === "/morgan/ask") {
+    if (req.method !== "POST") return send(res, 405, { error: "POST {\"text\": …} here, with Authorization: Bearer <key>" });
+    const key = auth.tokenFor(String(req.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim());
+    if (!key || key.client !== "siri") return send(res, 401, { ok: false, error: "That key is not one for asking Morgan (talaris-web token siri)" });
+    let body;
+    try { body = await bodyOf(req); } catch { return send(res, 400, { ok: false, error: "not JSON" }); }
+    return send(res, 200, await morgan.askAndWait(body?.text));
+  }
   if (path === "/oauth/register" && req.method === "POST") return send(res, 201, oauth.register(await formOf(req)));
   if (path === "/oauth/token" && req.method === "POST") { const r = oauth.token(await formOf(req)); return send(res, r.status, r.body); }
 

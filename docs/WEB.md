@@ -275,6 +275,17 @@ listening and speaking, files from this disk, Morgan's settings, and project
 chat (its brief comes from `core.py`). Voice is a step of its own: the
 browser's microphone to the speech service, and the voice back.
 
+### Asking from Siri (2026-11-27)
+
+iOS lets only Siri listen for a wake word, so "Hey Siri, Ask Morgan" is an iPhone
+Shortcut: Dictate Text, then `POST /talaris/morgan/ask` with `{"text": …}` and
+`Authorization: Bearer <key>`, then Speak Text of the answer's `answer`. The
+key is made by `talaris-web token siri` (only a `siri` key is taken here, not an
+MCP key). The turn is a typed one, through the same list as the web page; the
+answer is what Morgan would say aloud (its `sentence` events), sent back when
+Morgan has written it, or after 25 seconds with `ok: false` and a word to look
+in Talaris.
+
 ## Retiring Hermes
 
 What reaches Hermes besides you must have a Talaris way first, or it breaks:

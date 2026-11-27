@@ -103,3 +103,42 @@ export function hear(fn) {
     if (!hearers.size && stream) { const s = stream; stream = null; s.destroy(); }
   };
 }
+
+// ------------------------------------------------------------ a question from elsewhere (Siri)
+
+/**
+ * A typed turn, waited on: Morgan's answer as it would be spoken (its `sentence` events, markdown gone), for
+ * something that only asks and reads back — "Hey Siri, Ask Morgan", an iPhone Shortcut (docs/WEB.md, *Asking from
+ * Siri*). Answered when Morgan has written its answer, or with what there is after `ms` — a Shortcut does not wait long.
+ */
+export function askAndWait(text, ms = 25_000) {
+  const said = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!said) return Promise.resolve({ ok: false, error: "Nothing was asked" });
+  return new Promise((resolve) => {
+    const sentences = [];
+    let whole = "", started = false, finished = false;
+    const finish = (extra = {}) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      stop();
+      const answer = (sentences.join(" ") || whole.replace(/[*_`#>]/g, "")).replace(/\s+/g, " ").trim();
+      resolve(answer ? { ok: true, answer, ...extra } : { ok: false, error: "Morgan is still working on that. Look in Talaris for the answer.", ...extra });
+    };
+    const stop = hear((line) => {
+      let e;
+      try { e = JSON.parse(line); } catch { return; }
+      if (e.type === "user") started = true;
+      if (!started) return;
+      if (e.type === "sentence" && e.text) sentences.push(e.text);
+      if (e.type === "assistant") { whole = String(e.text ?? ""); finish(); }
+      if (e.type === "state" && e.state === "idle" && (sentences.length || whole)) finish();
+      if (e.type === "state" && e.state === "absent") finish();
+    });
+    const timer = setTimeout(() => finish({ partial: true }), ms);
+    // Followed first, then asked: nothing of the answer is missed.
+    setTimeout(() => command(`type ${said}`).then((r) => {
+      try { const j = JSON.parse(r); if (!j.ok) { finished = true; clearTimeout(timer); stop(); resolve({ ok: false, error: j.error || "Morgan didn't take it" }); } } catch { /* answered below */ }
+    }), 150);
+  });
+}
