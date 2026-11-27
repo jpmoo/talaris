@@ -541,7 +541,9 @@ export function hermesTools(core: Core): HermesTool[] {
       if (inRegion) rows = rows.filter((r) => inRegion!.has(r.id));
       if (!rows.length) return scope ? `No matching tasks in "${scope}".` : "No matching tasks.";
       const shown = rows.slice(0, limit).map((r) => taskLine(r));
-      return shown.join("\n") + (rows.length > limit ? `\n…and ${rows.length - limit} more (raise limit to see them).` : "");
+      // Today said with them, as talaris_tasks does: due dates are read against it, not a day the model supposes.
+      const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      return `Today is ${today} (${localDate()}).\n` + shown.join("\n") + (rows.length > limit ? `\n…and ${rows.length - limit} more (raise limit to see them).` : "");
     });
 
   tool("task_info", "A task's details", true,

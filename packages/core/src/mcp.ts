@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Jeff Moore
 
+import { localDate } from "./localtime.js";
 import { request } from "node:http";
 import { createInterface } from "node:readline";
 import { SOCKET } from "./paths.js";
@@ -334,7 +335,10 @@ TOOLS.push(
       }
       q.set("limit", String(Number(a.limit) || 50));
       const rows = await core<TaskRow[]>("GET", `/tasks/find?${q}`);
-      return rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.";
+      // Today said with them: OVERDUE and due dates are read against it, not against a day the model supposes
+      // (Morgan once called the 25th "yesterday" on the 27th).
+      const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      return `Today is ${today} (${localDate()}).\n` + (rows.length ? `${rows.length} task(s):\n${rows.map(taskLine).join("\n")}` : "No tasks match.");
     },
   },
   {
