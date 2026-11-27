@@ -699,3 +699,31 @@ const Kit = (() => {
     onClock, fromClock, core, draggable, dropZone, halves, carried, twice, ask, asking, unask, ASK_MS, fold, matches, rank, searchBox, debounce, SEARCH_MS, say, empty, caret, keepScroll,
   };
 })();
+
+// What the kit's controls are, said to what reads a page aloud (UX-AUDIT 3.1): a switch is a switch, on or off by its
+// `on`; a segmented control is a group of radio buttons, the one `on` checked. Kept as pages redraw them.
+(() => {
+  const mark = (root) => {
+    for (const sw of root.querySelectorAll ? root.querySelectorAll("button.switch") : []) {
+      if (sw.getAttribute("role") !== "switch") sw.setAttribute("role", "switch");
+      const on = String(sw.classList.contains("on"));
+      if (sw.getAttribute("aria-checked") !== on) sw.setAttribute("aria-checked", on);
+    }
+    for (const seg of root.querySelectorAll ? root.querySelectorAll(".seg") : []) {
+      if (seg.getAttribute("role") !== "radiogroup") seg.setAttribute("role", "radiogroup");
+      for (const b of seg.querySelectorAll(":scope > button")) {
+        if (b.getAttribute("role") !== "radio") b.setAttribute("role", "radio");
+        const on = String(b.classList.contains("on"));
+        if (b.getAttribute("aria-checked") !== on) b.setAttribute("aria-checked", on);
+      }
+    }
+  };
+  const start = () => {
+    mark(document);
+    // At most once a frame, however busily a page redraws.
+    let soon = 0;
+    new MutationObserver(() => { if (!soon) soon = requestAnimationFrame(() => { soon = 0; mark(document); }); })
+      .observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+  };
+  if (document.body) start(); else addEventListener("DOMContentLoaded", start);
+})();

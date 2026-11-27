@@ -46,7 +46,7 @@
   main { user-select: text; -webkit-user-select: text; }
   /* The shell's icon font, so that this window and the panel in the bar use the same icons. */
   .ti { font-family: "morgan-icons"; font-size: 17px; line-height: 1; font-style: normal; font-weight: normal; display: inline-block; }
-  #stateicon { color: var(--accent); }
+  #stateicon { color: var(--accent-text); }
   .icon-btn .ic { width: 16px; height: 16px; }
 
   /* Talaris: no title bar — the bar's button already says who this is and
@@ -63,9 +63,9 @@
   #calendar { position: fixed; bottom: 104px; right: 14px; width: 300px; z-index: 5; padding: 10px 12px 12px; border-radius: var(--radius-control);
               background: var(--panel); border: 1px solid var(--frame); box-shadow: var(--menu-shadow); }
   #calendar[hidden], #daylist[hidden] { display: none; }
-  #unkept { padding: 5px 14px; font-size: 12px; text-align: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  #unkept { padding: 5px 14px; font-size: 12px; text-align: center; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   #unkept[hidden], #deleting[hidden] { display: none; }
-  #incognito.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  #incognito.on { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 25%, transparent); }
   #deleting { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px)); max-height: 70%; overflow: auto; z-index: 9; padding: 14px;
               border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0,0,0,.35); font-size: 13px; }
   #deleting p { margin: 0 0 8px; } #deleting ul { margin: 0 0 10px; padding-left: 18px; font-size: 12px; max-height: 180px; overflow: auto; }
@@ -77,13 +77,13 @@
   #weekdays span { font-size: 10px; color: var(--dim); padding: 2px 0; }
   #days button { padding: 4px 0 3px; border: 0; border-radius: var(--radius-row); background: none; color: var(--text);
                  display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12.5px; min-height: 36px; }
-  #days button:not(:disabled):hover, #days button.picked { background: var(--accent-wash); color: var(--accent); }
+  #days button:not(:disabled):hover, #days button.picked { background: var(--accent-wash); color: var(--accent-text); }
   #days button:disabled { cursor: default; color: var(--dim); }
   #days button.later { opacity: .35; }
   #days button.today { box-shadow: inset 0 0 0 1px var(--accent); }
   #days .dots { display: flex; gap: 2px; height: 5px; }
   #days .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-  #days .dots b { font-size: 9.5px; line-height: 5px; color: var(--accent); font-weight: 500; }
+  #days .dots b { font-size: 9.5px; line-height: 5px; color: var(--accent-text); font-weight: 500; }
   #daylist { max-height: 260px; overflow-y: auto; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
   #daylist .label { padding: 0 10px 2px; }
   #daylist .menu-item { align-items: baseline; }
@@ -109,7 +109,7 @@
              padding: 4px; border-radius: var(--radius-control); background: var(--panel); border: 1px solid var(--frame); box-shadow: var(--menu-shadow); }
   #similar .menu-item { align-items: baseline; }
   #similar .menu-item > span:nth-child(2) { flex: 1; min-width: 0; }
-  #similar .menu-item .score { flex: none; width: 2.6em; color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  #similar .menu-item .score { flex: none; width: 2.6em; color: var(--accent-text); font-variant-numeric: tabular-nums; font-size: 11.5px; }
   #similar .menu-item small { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
   /* Sound is a waveform; thinking is a light going back and forth. */
@@ -123,25 +123,25 @@
   .msg.you { background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--panel); border-color: var(--accent-line); white-space: pre-wrap; }
   .msg.writing { border-color: var(--accent-line); }
   .who { font-size: 11px; font-weight: 500; color: var(--dim); display: flex; }
-  .msg.you .who { color: var(--accent); }
+  .msg.you .who { color: var(--accent-text); }
   .who .time { font-weight: 400; color: var(--dim); opacity: .75; margin-left: 8px; font-size: 10.5px; }
   /* A message's own small controls (copy, the marks): bare glyphs, lit in the accent. */
   .who button { border: 0; border-radius: var(--radius-row); padding: 1px 5px; color: var(--dim); }
-  .who button:hover { color: var(--accent); }
+  .who button:hover { color: var(--accent-text); }
   .who button .ti { font-size: 15px; }
   details.oracle summary .ti { font-size: 14px; vertical-align: -2px; margin-right: 4px; }
   .who button:first-of-type { margin-left: auto; }
   .msg.hidden > .body, .msg.hidden > details { opacity: .4; }
   .review { margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); border: 1px solid var(--danger); background: var(--danger-wash); font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
   .review .row { display: flex; gap: 8px; align-items: center; } .review .words { flex: 1; display: flex; flex-direction: column; } .review small { color: var(--dim); }
-  .msg.hidden .mark.down, .msg.good .mark.up { background: var(--accent-wash); color: var(--accent); }
+  .msg.hidden .mark.down, .msg.good .mark.up { background: var(--accent-wash); color: var(--accent-text); }
   .msg.hidden .who::after { content: "hidden from Morgan"; margin-left: 8px; font-weight: 400; font-style: italic; }
   .body > :first-child { margin-top: 2px; } .body > :last-child { margin-bottom: 2px; }
   .body p { margin: .45em 0; } .body ul, .body ol { margin: .45em 0; padding-left: 1.4em; }
   .body pre { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); padding: 9px 11px; overflow-x: auto; }
   .body code { font: 12.5px ui-monospace, "JetBrains Mono", monospace; background: var(--desk); border-radius: var(--radius-row); padding: 1px 4px; }
   .body pre code { padding: 0; background: none; }
-  .body a { color: var(--accent); }
+  .body a { color: var(--accent-text); }
   .body table { border-collapse: collapse; } .body th, .body td { border: 1px solid var(--line); padding: 3px 8px; }
   .body blockquote { margin: .45em 0; padding-left: .8em; border-left: 3px solid var(--line); color: var(--dim); }
 
@@ -152,7 +152,7 @@
 
   .act { display: flex; gap: 10px; align-items: center; padding: 5px 10px; border-radius: var(--radius-control); font-size: 12.5px;
          border: 1px solid var(--accent-line); background: linear-gradient(var(--accent-hover), var(--accent-hover)), var(--panel); }
-  .act .icon { width: 26px; height: 26px; border-radius: var(--radius-row); display: grid; place-items: center; color: var(--accent); background: var(--accent-strong); }
+  .act .icon { width: 26px; height: 26px; border-radius: var(--radius-row); display: grid; place-items: center; color: var(--accent-text); background: var(--accent-strong); }
   .act .icon .ti { font-size: 15px; }
   .act b { font-weight: 500; } .act span { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .act .words { min-width: 0; display: flex; flex-direction: column; flex: 1; }

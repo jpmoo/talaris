@@ -397,16 +397,40 @@ class Overlay(QObject):
             log(f"{self.NAME}: its page is not answering; put away")
             self.file_away()
 
+    #: Its own idle time, not the panels' one: the launcher and the project switcher, which are pickers, not panels.
+    OWN_IDLE = False
+
+    def idle_ms(self) -> int:
+        """How long it stays out untouched: the panels' one setting (Settings, Panels, Put away), or its own; 0 is never."""
+        if self.OWN_IDLE or not self.IDLE_MS:
+            return self.IDLE_MS
+        return int(self.desktop.config.get("idleSeconds", 300)) * 1000
+
     def touched(self) -> None:
-        if self.up and self.IDLE_MS:
-            self.idle.start(self.IDLE_MS)
+        if self.up and self.idle_ms():
+            self.idle.start(self.idle_ms())
 
     def busy(self) -> bool:
         """Something under way that idling must not interrupt."""
         return False
 
+    #: Asked of the page before it is put away: a page may say it is busy (`talarisBusy()`), and a field with the
+    #: keys — text being typed — always is.
+    BUSY_JS = ("(() => { try { if (window.talarisBusy && window.talarisBusy()) return true; } catch (e) {} "
+               "const a = document.activeElement; return !!(a && a.closest && a.closest('input, textarea, select, [contenteditable=\"\"], [contenteditable=true]')); })()")
+
     def _idle(self) -> None:
         if self.busy():
             self.touched()
             return
-        self.file_away()
+        view = self.window if (self.windowed and self.window) else self._view
+        if view is None:
+            self.file_away()
+            return
+
+        def answered(busy) -> None:
+            if busy:
+                self.touched()
+            elif self.up and not self.windowed:
+                self.file_away()
+        view.page().runJavaScript(self.BUSY_JS, 0, answered)

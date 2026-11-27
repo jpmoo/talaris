@@ -609,7 +609,8 @@
     const task = isTask(r);
     const control = !task ? el("span", { class: "nostat" }) : fmt === "checklist" ? checkEl(r) : chipEl(r);
     const row = el("div", { class: "row" + (r.complete ? " done" : "") + (editing === r.id ? " on" : ""), "data-id": r.id,
-      onclick: () => { if (task) openTask(r.id); },
+      // Anything else a collection holds (a person, a page…) is not Tasks' to open: its card, in the Library.
+      onclick: () => { if (task) openTask(r.id); else if (window.Peek) Peek.openCard(`e:${r.id}`); },
       // Twice: its own card, in the Library.
       ondblclick: () => { if (task && window.Peek) Peek.openCard(`e:${r.id}`); },
       oncontextmenu: (e) => { if (!plain) { rowMenu(e, r); return; } e.preventDefault(); if (isTask(r)) menuAt(e.clientX, e.clientY, statusItems(r)); } },
@@ -701,6 +702,7 @@
     try {
       const made = await newTask(t);
       openTask(made.id);
+      placeholder = { id: made.id, title: t.title };
       const wait = setInterval(() => {
         const box = editing === made.id ? $("sheet").querySelector(".t-title .cm-content") : null;
         if (!box) return;
@@ -734,7 +736,28 @@
 
   // ---------------------------------------------------------------- the task's sheet
 
+  // "+ Task"'s, until it is named (UX-AUDIT 1.2): left as it was made — its card closed, or another opened — it is
+  // taken away again, rather than staying as a "New task" on every machine. As People's "+ Person" is.
+  let placeholder = null;
+  async function dropPlaceholder(except = null) {
+    const p = placeholder;
+    if (!p || p.id === except) return;
+    placeholder = null;
+    // Long enough for a title still being saved (the card saves as you type, a moment after) to have landed.
+    await new Promise((ok) => setTimeout(ok, 1500));
+    try {
+      const o = await api("GET", `/entities/${enc(p.id)}`);
+      const e = o.entity || o;
+      const title = e.properties?.[shape?.titleKey] ?? e.properties?.title ?? e.title ?? "";
+      if (String(title) === p.title) {
+        await api("DELETE", `/entities/${enc(p.id)}`);
+        await refresh();
+      }
+    } catch { /* gone already, or named: kept */ }
+  }
+
   function openTask(id) {
+    if (placeholder && placeholder.id !== id) dropPlaceholder(id);
     // A task opened takes the right side; closed, the project comes back.
     $("psheet").hidden = true;
     editing = id;
@@ -747,6 +770,7 @@
     editing = null;
     cardDrawn = null;
     ThingCard.putAway();
+    dropPlaceholder();
     popAway();
     $("sheet").hidden = true;
     for (const r of document.querySelectorAll(".row.on")) r.classList.remove("on");

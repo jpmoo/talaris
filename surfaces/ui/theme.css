@@ -21,15 +21,16 @@ html, body {
 /* Only 400 and 500 are shipped (tokens.css): anything bolder the engine would fake. */
 b, strong, h1, h2, h3, h4, h5, h6, th { font-weight: 500; }
 :focus { outline: none; }
-:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+/* Where the keys are, plainly: a 2px ring set off by 2px (UX-AUDIT 3.2). */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 textarea, input { user-select: text; -webkit-user-select: text; cursor: text; font: inherit; color: inherit; }
 button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 2px 12px; cursor: pointer; transition: border-color var(--dur), color var(--dur); }
-button:hover { border-color: var(--accent); color: var(--accent); }
+button:hover { border-color: var(--accent); color: var(--accent-text); }
 
 /* The one small letter-spaced heading: a section, a group, a list's name, a dialog's. */
 .label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .title { letter-spacing: 3px; font-size: 14px; text-transform: uppercase; }
-.slash { color: var(--accent); }
+.slash { color: var(--accent-text); }
 
 .xh { position: absolute; width: 11px; height: 11px; pointer-events: none; }
 .xh::before, .xh::after { content: ""; position: absolute; background: var(--muted); }

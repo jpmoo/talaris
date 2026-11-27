@@ -141,7 +141,9 @@ DEFAULTS = {
     "windows": {"gap": 10, "between": 10, "outline": "focus", "border": 2, "motion": "pop", "speed": "normal", "solid": [], "tiling": "tiles", "tilingIn": {}},
     # A pulled drawer files itself after this long with no input. Idle, not a
     # deadline: a fixed timeout fired mid-scroll in the spike.
-    "idleSeconds": 45,
+    # How long a panel stays out untouched, every panel alike (overlay.py, `idle_ms`); 0 is never. A panel in use —
+    # a field being typed in, a page saying it is busy — is never put away (UX-AUDIT 1.3).
+    "idleSeconds": 300,
 }
 
 

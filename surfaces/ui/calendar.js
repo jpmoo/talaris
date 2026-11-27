@@ -94,11 +94,14 @@ const colorOf = (id) => (calendars.find((c) => c.id === id) || {}).color || "var
 
 // ---------------------------------------------------------------- the range on show
 
+const AGENDA_DAYS = 14;
 function span() {
   if (mode === "day") return [startOfDay(focus), addDays(startOfDay(focus), 1)];
   if (mode === "week") { const s = startOfWeek(focus); return [s, addDays(s, 7)]; }
   // Three days from the one in focus: today and the two after it, when it opens on today.
   if (mode === "three") return [startOfDay(focus), addDays(startOfDay(focus), 3)];
+  // The agenda: two weeks from the day in focus, as a list (a phone's way in, UX-AUDIT 4.4).
+  if (mode === "agenda") return [startOfDay(focus), addDays(startOfDay(focus), AGENDA_DAYS)];
   const first = new Date(focus.getFullYear(), focus.getMonth(), 1);
   const s = startOfWeek(first);
   return [s, addDays(s, 42)];
@@ -127,8 +130,8 @@ function fetchRange() {
 }
 function title() {
   if (mode === "day") return focus.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  if (mode === "week" || mode === "three") {
-    const s = mode === "week" ? startOfWeek(focus) : startOfDay(focus), e = addDays(s, mode === "week" ? 6 : 2);
+  if (mode === "week" || mode === "three" || mode === "agenda") {
+    const s = mode === "week" ? startOfWeek(focus) : startOfDay(focus), e = addDays(s, mode === "week" ? 6 : mode === "agenda" ? AGENDA_DAYS - 1 : 2);
     return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   }
   return Kit.month(focus);
@@ -304,7 +307,7 @@ function draw() {
     return;
   }
   $("title").textContent = title();
-  seg("mode", [["day", "Day"], ["three", "3 days"], ["week", "Week"], ["month", "Month"]], mode, (m) => {
+  seg("mode", [["agenda", "Agenda"], ["day", "Day"], ["three", "3 days"], ["week", "Week"], ["month", "Month"]], mode, (m) => {
     mode = m; try { localStorage.setItem("talaris.calendar.mode", m); } catch { /* fine */ }
     draw(); fetchRange();
   });
@@ -320,7 +323,37 @@ function draw() {
       el("p", {}, el("button", { class: "t-btn", onclick: () => bridge.accounts() }, "Add an account"))));
     return;
   }
-  if (mode === "month") drawMonth(view); else drawDays(view, mode === "week" ? 7 : mode === "three" ? 3 : 1);
+  if (mode === "month") drawMonth(view);
+  else if (mode === "agenda") drawAgenda(view);
+  else drawDays(view, mode === "week" ? 7 : mode === "three" ? 3 : 1);
+}
+
+/**
+ * The agenda: day after day as headings, each day's events and then the tasks due that day, nothing cut short —
+ * what fits a narrow screen, where a grid of hours leaves room for three of them. Overdue tasks first, on their own.
+ */
+function drawAgenda(view) {
+  const [start] = span();
+  const today = new Date();
+  const ev = (e) => el("div", { class: "hit", style: `--c:${colorOf(e.calendar)}`, title: e.title, onclick: () => edit(e) },
+    el("span", { class: "sw" }), el("span", { class: "when" }, e.allDay ? "all day" : `${clock(e.start)}`),
+    el("span", { class: "what" }, e.title || "(no title)", e.location ? el("small", {}, e.location) : ""));
+  const tk = (t, late = false) => el("div", { class: "hit task" + (t.complete ? " done" : "") + (late ? " late" : ""), style: "--c:var(--accent)", title: t.title,
+    onclick: () => bridge && bridge.openTask(t.id) },
+    el("span", { class: "sw round" }), el("span", { class: "when" }, late && t.due ? `due ${dayWord(t.due)}` : "task"), el("span", { class: "what" }, t.title || "(untitled)"));
+  const todayIso = iso(today);
+  const late = tasksShown || overdueShown ? tasks.filter((t) => !t.complete && t.due && t.due.slice(0, 10) < todayIso) : [];
+  const box = el("div", { class: "found agenda" });
+  if (late.length && sameDay(start, today)) box.append(el("h3", {}, "Overdue"), ...late.map((t) => tk(t, true)));
+  for (let i = 0; i < AGENDA_DAYS; i++) {
+    const d = addDays(start, i);
+    const day = onDay(d).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
+    const due = tasksShown ? tasks.filter((t) => !t.complete && t.due && t.due.slice(0, 10) === iso(d)) : [];
+    const head = el("h3", { class: sameDay(d, today) ? "today" : "" }, sameDay(d, today) ? `Today · ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
+      : d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }));
+    box.append(head, ...(day.length || due.length ? [...day.map(ev), ...due.map((t) => tk(t))] : [el("div", { class: "quiet" }, "Nothing")]));
+  }
+  view.replaceChildren(box);
 }
 
 // The calendars on show, by account: a key to their colors. Which are on
@@ -657,6 +690,7 @@ sideShown(sideOn);
 $("side-toggle").addEventListener("click", () => { sideOn = !sideOn; sideShown(sideOn); });
 function step(n) {
   if (mode === "day") focus = addDays(focus, n);
+  else if (mode === "agenda") focus = addDays(focus, AGENDA_DAYS * n);
   else if (mode === "week") focus = addDays(focus, 7 * n);
   else if (mode === "three") focus = addDays(focus, 3 * n);
   else focus = new Date(focus.getFullYear(), focus.getMonth() + n, 1);

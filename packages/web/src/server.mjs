@@ -47,7 +47,7 @@ const PAGES = {
   tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks" },
   calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar" },
   notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes", phone: "drawerphone.js" },
-  people: { file: "people.html", panel: "people_panel.py", title: "People" },
+  people: { file: "people.html", panel: "people_panel.py", title: "People", phone: "panes.js", panes: { list: "#list", detail: "#person" } },
   canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas", phone: "drawerphone.js" },
 };
 /** The page a request for a file is, by its file and its query (the two drawers are one file). */
@@ -194,7 +194,7 @@ function pageHtml(name) {
   // Every page as the desktop's window of it (`?window`): there all along, not arriving from the top as a panel over a
   // dimmed screen, and nothing pressed beside it putting it away. A drawer is told which (its query) in the same way.
   const query = [p.query, "window=1"].filter(Boolean).join("&");
-  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules })};` +
+  const ours = `<base href="${PREFIX}/ui/"><script>window.TALARIS_WEB = ${JSON.stringify({ page: name, prefix: PREFIX, title: p.title, modules, ...(p.panes ? { panes: p.panes } : {}) })};` +
     `history.replaceState(null, "", location.pathname + "?${query}");</script>` +
     `<script src="${PREFIX}/web/bridge.js"></script><link rel="stylesheet" href="${PREFIX}/web/web.css">`;
   html = html.replace(/<script src="qrc:\/\/\/qtwebchannel\/qwebchannel\.js"><\/script>/, "");

@@ -51,6 +51,7 @@ class Jump(Overlay):
     UNLOAD_AFTER_MS = 60_000
     TITLE = "Projects"
     IDLE_MS = 60 * 1000
+    OWN_IDLE = True
     # The keyboard is the carousel's while it is out: it was opened by a key, to be answered by keys.
     KEYBOARD = KEYBOARD_EXCLUSIVE
 

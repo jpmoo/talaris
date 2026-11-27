@@ -44,7 +44,7 @@ nav .label + .group { padding-top: 0; }
 nav { overflow-y: auto; }
 nav button { border: 0 !important; text-align: left; border-radius: var(--radius-row) !important; padding: 4px 10px !important; color: var(--text); }
 nav button:hover { background: var(--accent-hover); }
-nav button.on { background: var(--accent-wash); color: var(--accent); }
+nav button.on { background: var(--accent-wash); color: var(--accent-text); }
 main { overflow: auto; padding: 18px 22px; }
 section { display: none; }
 section.on { display: block; }
@@ -63,7 +63,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .stepper { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-row); overflow: hidden; background: var(--desk); }
 .stepper .step-n { width: 52px !important; min-width: 0 !important; text-align: center; border: 0 !important; border-radius: 0 !important; background: transparent !important; padding: 4px 2px !important; }
 .stepper .step-b { background: transparent; border: 0; color: var(--muted); font: inherit; width: 26px; cursor: pointer; }
-.stepper .step-b:hover { color: var(--accent); background: var(--accent-wash); }
+.stepper .step-b:hover { color: var(--accent-text); background: var(--accent-wash); }
 /* One of many (settings.js, dropdown): a button and the theme's own menu under it. */
 .drop-b { min-width: 160px; text-align: left; }
 input[type="range"] { width: 200px; }
@@ -97,7 +97,7 @@ input[type="range"] { width: 200px; }
 .face.on { border-color: var(--accent) !important; background: var(--accent-wash) !important; }
 .keys { width: 100%; border-collapse: collapse; }
 .keys td { padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
-.keys td:first-child { width: 240px; font-variant-numeric: tabular-nums; color: var(--accent); }
+.keys td:first-child { width: 240px; font-variant-numeric: tabular-nums; color: var(--accent-text); }
 /* A setting that only matters when another is on: dimmed, and not to be changed, while that one is off. */
 .row.needs-off { opacity: var(--disabled); pointer-events: none; }
 .row.needs-off .switch, .row.needs-off .seg button { cursor: default; }
@@ -115,7 +115,7 @@ input[type="range"] { width: 200px; }
 .wall.on img, .wall.on .blank { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wall .wn { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wall .ws { font-size: 10.5px; color: var(--muted); letter-spacing: .3px; }
-.wall.on .wn { color: var(--accent); }
+.wall.on .wn { color: var(--accent-text); }
 #acct-cals .cv-swatch { width: 14px; height: 14px; padding: 0; cursor: pointer; flex: none; }
 #acct-cals h3.account { margin: 10px 0 2px; }
 .cal-palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 10px 22px; }
@@ -140,7 +140,7 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .net .what { gap: 6px; }
 .solid-add { gap: 6px !important; }
 .net .what input { width: 150px; }
-.net.current .name { color: var(--accent); }
+.net.current .name { color: var(--accent-text); }
 .net-form { margin: 0 0 10px 18px; padding-left: 12px; border-left: 2px solid var(--line, rgba(127,127,127,.25)); }
 .net-form .row .what input { width: 220px; }
 .net-form [hidden] { display: none !important; }
@@ -191,7 +191,7 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .mg-topic-head:hover { background: var(--accent-hover); }
 .mg-topic-head b { font-weight: 500; }
 .mg-topic-head small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.mg-topic-head.open b { color: var(--accent); }
+.mg-topic-head.open b { color: var(--accent-text); }
 .mg-topic-body { padding: 0 0 10px 24px; display: flex; flex-direction: column; gap: 4px; }
 .mg-topic-body .data-buttons input { min-width: 0; width: 180px; }
 .mg-note-row { display: flex; align-items: flex-start; gap: 6px; }
@@ -225,7 +225,7 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .ty-st .means.unset { color: var(--danger); }
 .ty-st .fin { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .pl-state { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
-.pl-state.running { color: var(--accent); }
+.pl-state.running { color: var(--accent-text); }
 .pl-state.crashed { color: var(--danger); }
 .pl-body { padding: 0 0 12px 18px; }
 .pl-body ul { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; }
@@ -259,7 +259,7 @@ h3.with-btn .t-btn { text-transform: none; letter-spacing: normal; }
 .mg-line { display: flex; gap: 10px; padding: 1px 0; }
 .mg-line .mg-at { flex: none; width: 82px; color: var(--muted); }
 .mg-line span:last-child { white-space: pre-wrap; word-break: break-word; }
-.mg-line.warn span:last-child { color: var(--accent); }
+.mg-line.warn span:last-child { color: var(--accent-text); }
 .mg-line.error span:last-child { color: var(--danger); }
 /* A sheet over the page (the kit's): a document's text, a picture, a merge — wider than a question, its own part scrolling. */
 .kit-sheet.mg-sheet-box { width: min(720px, 86vw); max-width: none; max-height: 82vh; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
@@ -277,7 +277,7 @@ footer #msg.err, .note.err { color: var(--danger); }
 #about .about-logo { width: 260px; height: auto; margin: 0 auto 18px; display: block; }
 :root[data-mode="light"] #about .for-dark, :root:not([data-mode="light"]) #about .for-light { display: none; }
 #about .about-what { font-size: 13px; line-height: 1.6; margin: 0 0 14px; }
-#about .about-link a, #morgan .about-link a { color: var(--accent); text-decoration: none; font-size: 13px; }
+#about .about-link a, #morgan .about-link a { color: var(--accent-text); text-decoration: none; font-size: 13px; }
 #about .about-link a:hover, #morgan .about-link a:hover { text-decoration: underline; }
 #about .about-legal { color: var(--muted); font-size: 11.5px; line-height: 1.6; margin: 22px 0 0; padding-top: 14px; border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
 #about .about-legal a { color: var(--muted); }
@@ -405,7 +405,7 @@ footer #msg.err, .note.err { color: var(--danger); }
       <p class="note" style="margin:0 0 10px">The canvas, the writing surface — and the launcher, Morgan, Settings and the calendar where the Bar page says "Like panels" — come up centered over the dimmed screen, and go on a press off them or Escape. Each one's expand button makes it a window.</p>
       <div class="row"><span class="name">Motion<small>How they come and go</small></span><span class="what"><span class="seg" id="motion"></span></span></div>
       <div class="row"><span class="name">Speed</span><span class="what"><span class="seg" id="speed"></span></span></div>
-      <div class="row"><span class="name">Put away<small>Out, after this long untouched</small></span><span class="what"><input type="range" id="idle" min="15" max="300" step="15"><span class="n" id="idle-n"></span></span></div>
+      <div class="row"><span class="name">Put away<small>Every panel, after this long untouched — never while you are typing in it</small></span><span class="what"><span class="seg" id="idle"></span></span></div>
       <h3>Appearance</h3>
       <div class="row"><span class="name">Outline</span><span class="what"><span class="seg" id="outline"></span></span></div>
       <div class="row"><span class="name">Shadow</span><span class="what"><button class="switch" id="shadow"></button></span></div>

@@ -240,6 +240,7 @@ class Launcher(Overlay):
     TITLE = "Launcher"
     #: An open launcher nobody types into puts itself away.
     IDLE_MS = 60000
+    OWN_IDLE = True
     KEYBOARD = KEYBOARD_EXCLUSIVE
 
     def __init__(self, profile: QWebEngineProfile, desktop, apps: Apps) -> None:

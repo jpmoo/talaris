@@ -85,7 +85,7 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
 .gv-trail { gap: 2px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
 .gv-trail[hidden] { display: none; }
 .gv-trail button { background: none; border: 0; padding: 1px 5px; border-radius: var(--radius-row); color: var(--muted); font: inherit; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gv-trail button:hover { color: var(--accent); background: var(--accent-wash); }
+.gv-trail button:hover { color: var(--accent-text); background: var(--accent-wash); }
 .gv-trail .here { color: var(--text); padding: 1px 5px; }
 .gv-trail .sep { opacity: .6; }
 
@@ -115,7 +115,7 @@ A glance as a piece of a page (glanceview.js): its parts, each by its own class.
 .gv-main .srow .ki svg { width: 14px; height: 14px; }
 .gv-main .srow .title { text-transform: none; letter-spacing: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; background: none; border: 0; padding: 0;
   color: var(--text); text-align: left; font: inherit; cursor: pointer; }
-.gv-main .srow .title:hover { color: var(--accent); }
+.gv-main .srow .title:hover { color: var(--accent-text); }
 .gv-main .srow .why { font-size: 11px; color: var(--muted); margin: 2px 0 4px 21px; line-height: 1.35; }
 .gv-main .srow .ways { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 21px; }
 /* Out of sight, read for its resolved colors. */

@@ -233,7 +233,7 @@ function draw() {
     (motion) => save({ windows: { motion } }));
   seg("win-speed", SPEEDS, cfg.windows.speed || "normal", (speed) => save({ windows: { speed } }));
   needs(["win-speed"], (cfg.windows.motion || "pop") !== "none");
-  slider("idle", cfg.idleSeconds, (v) => (v >= 60 ? `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ""}` : `${v}s`), (v) => save({ idleSeconds: v }));
+  seg("idle", [[60, "1 min"], [300, "5 min"], [900, "15 min"], [1800, "30 min"], [0, "Never"]], Number(cfg.idleSeconds ?? 300), (idleSeconds) => save({ idleSeconds }));
 
   // Keys.
   seg("single-window", [["bring", "Send it to you"], ["go", "Go to it"]], cfg.launcher.singleWindow || "bring", (singleWindow) => save({ launcher: { singleWindow } }));

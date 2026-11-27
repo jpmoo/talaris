@@ -88,7 +88,7 @@
   try {
     if (matchMedia("(max-width: 760px)").matches) {
       const first = (key, value) => { if (localStorage.getItem(key) === null) localStorage.setItem(key, value); };
-      if (WEB.page === "calendar") { first("talaris.calendar.mode", "three"); first("talaris.calendar.side", "0"); }
+      if (WEB.page === "calendar") { first("talaris.calendar.mode", "agenda"); first("talaris.calendar.side", "0"); }
       if (WEB.page === "tasks") first("talaris.tasks.side", "false");
     }
   } catch { /* no storage: the page's own defaults */ }

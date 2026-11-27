@@ -26,6 +26,8 @@
   function said(b) {
     if (b.hasAttribute("title")) {
       b.dataset.tip = b.getAttribute("title");
+      // Its name kept for what reads it aloud: the title was its only one (UX-AUDIT 3.1).
+      if (!b.hasAttribute("aria-label")) b.setAttribute("aria-label", b.dataset.tip);
       b.removeAttribute("title");
     }
     const text = (b.dataset.tip || "").trim();

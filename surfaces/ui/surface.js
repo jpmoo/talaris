@@ -32,6 +32,23 @@ const Surface = (() => {
     set: (f) => { pagePressedAt = f; },
   });
 
+  /**
+   * The accent as words (`--accent-text`): the accent, mixed toward the text until it reads at 4.5:1 on the panel
+   * (WCAG) — a pale accent in light mode would otherwise be words nobody can read (UX-AUDIT 3.3). Fills and lines keep
+   * --accent itself.
+   */
+  function accentText(root) {
+    const css = getComputedStyle(root);
+    const hex = (v) => { const m = String(v).trim().match(/^#([0-9a-f]{6})$/i); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+    const accent = hex(css.getPropertyValue("--accent")), text = hex(css.getPropertyValue("--text")), ground = hex(css.getPropertyValue("--surface"));
+    if (!accent || !text || !ground) return;
+    const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    let mixed = accent;
+    for (let t = 0; t <= 1.0001 && ratio(mixed, ground) < 4.5; t += 0.05) mixed = accent.map((c, i) => Math.round(c + (text[i] - c) * t));
+    root.style.setProperty("--accent-text", `rgb(${mixed.join(",")})`);
+  }
+
   function applyTheme(theme = {}) {
     const root = document.documentElement;
     root.dataset.mode = theme.mode === "light" ? "light" : "dark";
@@ -41,6 +58,7 @@ const Surface = (() => {
       const n = parseInt(theme.accent.slice(1), 16);
       root.style.setProperty("--accent-wash", `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${theme.mode === "light" ? .16 : .14})`);
     }
+    accentText(root);
     // How see-through the panel is (Settings, Panels); paper and bubbles stay solid.
     root.style.setProperty("--alpha", `${theme.panelOpacity ?? 100}%`);
     if (theme.font) root.style.setProperty("--font", `'${theme.font}', system-ui, sans-serif`);

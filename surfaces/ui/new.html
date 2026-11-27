@@ -43,7 +43,7 @@ input.big, .ed-big { font-size: 15px !important; }
 .found { display: flex; flex-direction: column; margin-left: 86px; }
 .found:empty { display: none; }
 .found .menu-item { font-size: 12.5px; text-align: left; display: flex; gap: 8px; }
-.found .menu-item.first { background: var(--accent-wash) !important; color: var(--accent) !important; }
+.found .menu-item.first { background: var(--accent-wash) !important; color: var(--accent-text) !important; }
 .found .menu-item .addr { color: var(--muted); }
 .acts { display: flex; align-items: center; gap: 8px; }
 .acts .spacer { flex: 1; }
@@ -64,6 +64,7 @@ input.big, .ed-big { font-size: 15px !important; }
 <div class="acts">
   <span id="msg"></span>
   <span class="spacer"></span>
+  <button class="t-btn" id="clear" hidden title="Start afresh: what is written here is let go of">Clear</button>
   <button class="t-btn primary" id="make">Make</button>
 </div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>

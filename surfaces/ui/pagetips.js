@@ -63,7 +63,12 @@
     over = el;
     if (!el) { hide(); return; }
     // Moved aside while it is pointed at, so the engine's own tip does not come as well.
-    if (el.hasAttribute("title")) { el.dataset.pageTip = el.getAttribute("title"); el.removeAttribute("title"); }
+    if (el.hasAttribute("title")) {
+      el.dataset.pageTip = el.getAttribute("title");
+      // Its name kept for what reads it aloud, once the title is moved aside (UX-AUDIT 3.1).
+      if (!el.hasAttribute("aria-label") && !el.textContent.trim()) el.setAttribute("aria-label", el.dataset.pageTip);
+      el.removeAttribute("title");
+    }
     clearTimeout(timer);
     if (showing) show(el);
     else timer = setTimeout(() => show(el), REST_MS);

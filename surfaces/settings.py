@@ -186,8 +186,8 @@ def _checked(c: dict) -> str:
         return "A project's tiling is Tiles or Carousel"
     if c["windows"].get("motion", "pop") not in ("slide", "pop", "fade", "draw", "none") or c["windows"].get("speed", "normal") not in speeds:
         return "Windows slide, pop, fade or neither"
-    if not 15 <= int(c["idleSeconds"]) <= 600:
-        return "Idle is between 15 seconds and 10 minutes"
+    if int(c["idleSeconds"]) != 0 and not 30 <= int(c["idleSeconds"]) <= 3600:
+        return "Panels are put away after between 30 seconds and an hour, or never"
     n = c.get("notifications", {})
     if n.get("animation", "slide") not in ("slide", "pop", "fade", "draw") or n.get("outline", "line") not in ("line", "accent", "none"):
         return "Not a notification look"

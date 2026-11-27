@@ -280,6 +280,7 @@
   let loadSeq = 0;
   function choose(id) {
     if (id === chosen && got && !reviewing) return;
+    if (placeholder && id !== placeholder.id) dropPlaceholder(id);
     if (reviewing) { reviewing = false; warnTwice(); }
     $("review").classList.remove("on");
     chosen = id;
@@ -815,13 +816,32 @@
     } catch (e) { failed(e); }
   }
 
+  // A person (or organization) "+" made, still named only "New person": let go of when you move on without naming it,
+  // so abandoned ones do not pile up, sync everywhere, and turn up in search (UX-AUDIT 1.2).
+  let placeholder = null; // {id, title}
+  async function dropPlaceholder(except = null) {
+    const p = placeholder;
+    if (!p || p.id === except) return;
+    placeholder = null;
+    try {
+      const o = await api("GET", `/entities/${encodeURIComponent(p.id)}`);
+      const e = o.entity || o;
+      if (String(e.properties?.[titleKey()] ?? e.properties?.title ?? e.title ?? "") === p.title) {
+        await api("DELETE", `/entities/${encodeURIComponent(p.id)}`);
+        await loadPeople();
+      }
+    } catch { /* gone already, or named: kept */ }
+  }
+
   async function addPerson() {
     try {
+      await dropPlaceholder();
       // In Organizations, an organization: named by its type's organization profile, as everything is.
       const orgTitle = ((orgType && orgType.profiles.organization) || {}).title || "title";
       const made = mode === "orgs" && orgType
         ? await api("POST", "/entities", { type: orgType.id, properties: { [orgTitle]: "New organization" } })
         : await api("POST", "/entities", { role: "person", properties: { [titleKey()]: "New person" } });
+      placeholder = { id: made.id, title: mode === "orgs" && orgType ? "New organization" : "New person" };
       $("q").value = "";
       await loadPeople();
       chosen = null;
@@ -969,6 +989,7 @@
       loadPeople().catch(failed);
     });
     b.leave.connect(() => {
+      dropPlaceholder();
       // The panel's leaving; a window is not going anywhere.
       if (WINDOW) return;
       surface = { ...surface, up: false };

@@ -561,8 +561,27 @@
     say("");
     setTimeout(focusFirst, 0);
   }
-  function reset() {
+  // What was being written stays when New is put away — a click outside, Escape, or its idle time — and is there
+  // again when it opens; only making it, or Clear, starts afresh (UX-AUDIT 1.1). Kept in this page's storage too,
+  // so a restart of the desktop does not lose it either.
+  const DRAFT = "talaris.new.draft";
+  let fresh = false;
+  const hasDraft = () => Object.values(v).some((x) => x !== undefined && x !== null && x !== "" && !(Array.isArray(x) && !x.length));
+  function keepDraft() {
+    try { if (hasDraft()) localStorage.setItem(DRAFT, JSON.stringify({ kind, v })); else localStorage.removeItem(DRAFT); } catch { /* fine */ }
+    $("clear").hidden = !hasDraft();
+  }
+  function clearDraft() {
     v = {};
+    try { localStorage.removeItem(DRAFT); } catch { /* fine */ }
+    $("clear").hidden = true;
+  }
+  function reset() {
+    if (fresh) { clearDraft(); fresh = false; }
+    else if (!hasDraft()) {
+      try { const d = JSON.parse(localStorage.getItem(DRAFT) || "null"); if (d && d.v) { v = d.v; if (d.kind) kind = d.kind; } } catch { /* none */ }
+    }
+    $("clear").hidden = !hasDraft();
     busy = false;
     say("");
     paintKinds();
@@ -769,6 +788,9 @@
   let sentWait = null;
   function done(text, then) {
     say(text);
+    // Made: the next time New opens, it is empty.
+    fresh = true;
+    try { localStorage.removeItem(DRAFT); } catch { /* fine */ }
     // A moment to read that it was made, then away — or to where it lives.
     setTimeout(() => {
       busy = false;
@@ -777,6 +799,11 @@
     }, then ? 150 : 650);
   }
   $("make").addEventListener("click", () => make_(false));
+  $("clear").addEventListener("click", () => { clearDraft(); paint(); say(""); focusSoon(); });
+  // Every change to the form, kept as the draft (a field's own input, a chosen project, a date).
+  document.addEventListener("input", () => setTimeout(keepDraft, 0), true);
+  document.addEventListener("change", () => setTimeout(keepDraft, 0), true);
+  document.addEventListener("click", () => setTimeout(keepDraft, 0), true);
 
   // ---------------------------------------------------------------- keys
 

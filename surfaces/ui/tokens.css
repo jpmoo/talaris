@@ -26,8 +26,14 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --paper: #272a2d;
   --frame: #3a3f44;
   --line: #3a3f44;
+  /* A control's own edge — a button's, a field's, a switch's — at 3:1 on the panel, where the hairline --line (1.45:1)
+     is for rules between things (UX-AUDIT 3.3). */
+  --control-edge: #6a7077;
   --text: #d5d9dc;
-  --muted: #868c92;
+  --muted: #909699;
+  /* The accent as words: the accent itself, unless it is too faint to read on the panel — surface.js mixes it toward
+     the text until it reads at 4.5:1 (a light accent in light mode). Fills and lines keep --accent. */
+  --accent-text: var(--accent);
   --accent: #c98a5b;
   --accent-wash: rgba(201, 138, 91, .14);
   /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
@@ -94,8 +100,12 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --paper: #f3f4f5;
   --frame: #b7bcc1;
   --line: #c3c8cd;
+  --control-edge: #81878e;
   --text: #25292d;
-  --muted: #6c7277;
+  --muted: #5f6368;
+  /* Darker here, to read on the light panel. */
+  --danger: #a3453f;
+  --warn: #8a6a12;
   --accent-wash: rgba(201, 138, 91, .16);
   --tint-5: #a45670;
   --tint-6: #3d817e;

@@ -585,8 +585,29 @@ window.EventCard = (() => {
       if (ctx.hub !== "calendar" && bridge.openEvent && !e.entity) acts.append(el("button", { class: "t-btn", onclick: () => bridge.openEvent(e.calendar, e.uid, new Date(e.start).toISOString()) }, "Open in Calendar"));
     }
     acts.append(el("span", { class: "spacer" }));
-    if (ctx.close) acts.append(el("button", { class: "t-btn", onclick: ctx.close }, "Cancel"));
+    // What waits for Save, said beside it; Cancel asks before letting it go (UX-AUDIT 1.4) — a task's or a person's
+    // card saves as it goes, and an event's that looks the same must not lose what was changed without a word.
+    const unsaved = el("span", { class: "ev-unsaved", hidden: true }, "Unsaved changes");
+    // What Save would send, as it stood when the card was drawn and as it stands now — less what saves as it changes:
+    // its projects, and your own notes when they are kept on its entity (mineKey).
+    const sendable = () => { try { return { calendar: v.calendar, ...collected() }; } catch { return {}; } };
+    const said = (e) => JSON.stringify({ ...e, notes: mineKey ? null : e.notes }); // mineKey may come after the card is drawn
+    const changed = () => !!base && said(sendable()) !== said(base);
+    if (ctx.close) {
+      const cancel = el("button", { class: "t-btn", onclick: () => {
+        if (!editing.readOnly && changed() && !Kit.ask(cancel, { ask: "Discard changes?" })) return;
+        ctx.close();
+      } }, "Cancel");
+      acts.append(unsaved, cancel);
+    }
     if (!editing.readOnly) acts.append(el("button", { class: "t-btn primary", onclick: save }, "Save"));
+    let base = null;
+    // Kept up as the card is used: any press or keystroke in it may have changed something.
+    setTimeout(() => {
+      base = sendable();
+      const look = () => setTimeout(() => { unsaved.hidden = editing.readOnly || !changed(); }, 0);
+      for (const t of ["input", "change", "click"]) acts.parentElement?.addEventListener(t, look, true);
+    }, 0);
 
     function paint() {
       paintRepeats();
