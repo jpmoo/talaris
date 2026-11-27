@@ -288,7 +288,8 @@
     const [l, p, c, oc] = await Promise.all([api("GET", "/lists"), api("GET", "/tasks/projects"), api("GET", "/tasks/column").catch(() => []),
       api("GET", "/tasks/open-counts").catch(() => ({}))]);
     openCounts = oc || {};
-    lists = l || [];
+    // Deleted, its Undo still up (kit.js, undoable): not shown, whatever the core still says.
+    lists = (l || []).filter((x) => !listsGoing.has(x.id));
     projects = p || [];
     column = c || [];
     drawSide();
@@ -467,16 +468,23 @@
   }
 
   // Gone for good: the list only, never what is in it — nor, for a synced one, the collection on the other side.
+  // Gone from sight at once, and deleted once its Undo has gone.
+  const listsGoing = new Set();
   function deleteList(l) {
-    api("DELETE", `/lists/${enc(l.id)}`).then(() => {
-      if (current && current.kind === "list" && current.id === l.id) current = null;
-      return refresh();
-    }).catch(failed);
+    Kit.undoable({
+      text: `${l.name} deleted`,
+      hide: () => { listsGoing.add(l.id); if (current && current.kind === "list" && current.id === l.id) current = null; refresh(); },
+      act: async () => { try { await api("DELETE", `/lists/${enc(l.id)}`); } finally { listsGoing.delete(l.id); } refresh(); },
+      undo: () => { listsGoing.delete(l.id); refresh(); },
+      failed,
+    });
   }
 
   function archiveList(l) {
     api("PATCH", `/lists/${enc(l.id)}`, { archived: true }).then(() => {
       if (current && current.kind === "list" && current.id === l.id) current = null;
+      Kit.undoable({ text: `${l.name} archived`, act: () => {},
+        undo: () => api("PATCH", `/lists/${enc(l.id)}`, { archived: false }).then(refresh).catch(failed) });
       return refresh();
     }).catch(failed);
   }
@@ -736,8 +744,8 @@
 
   // ---------------------------------------------------------------- the task's sheet
 
-  // "+ Task"'s, until it is named (UX-AUDIT 1.2): left as it was made — its card closed, or another opened — it is
-  // taken away again, rather than staying as a "New task" on every machine. As People's "+ Person" is.
+  // "New task"'s, until it is named (UX-AUDIT 1.2): left as it was made — its card closed, or another opened — it is
+  // taken away again, rather than staying as a "New task" on every machine. As People's "New person" is.
   let placeholder = null;
   async function dropPlaceholder(except = null) {
     const p = placeholder;
@@ -1045,7 +1053,7 @@
   $("grow").addEventListener("click", () => bridge && bridge.grow());
   $("close").addEventListener("click", () => bridge && bridge.closeWindow());
   $("grow").innerHTML = Icons.grow();
-  $("grow").title = "Make it a window";
+  $("grow").title = "Open as a window";
   $("grow").hidden = WINDOW;
   $("close").innerHTML = Icons.close();
   $("close").title = "Close";

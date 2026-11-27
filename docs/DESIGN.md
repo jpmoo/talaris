@@ -1452,8 +1452,34 @@ the words are there, and an event's people are the calendar's.
 
 **People, not cards.** An address book's entry is shown as a person, "in your
 address books" — likely the same person, no longer in your address books —
-never as a card. "Card" is kept for what is placed on a canvas, and for the
-Cards style of a list. (In code and the format, a vCard is still a card.)
+never as a card. (In code and the format, a vCard is still a card.)
+*Since 2026-11-26* "card" has a second meaning, and the one most seen: every
+thing's **card** is the one place it is shown whole and edited — in the
+Library, and the same card everywhere else (*the Library at the centre*). A
+canvas's cards and a list's Cards style keep the word; an address book's entry
+still never takes it.
+
+**The words, settled (2026-11-26; UX-AUDIT 2.1).** One thing, one name, in
+everything a person reads; `surfaces/check-look.mjs` fails on the retired ones
+in a page's words.
+
+| Say | Meaning | Not |
+|---|---|---|
+| **Notes** | the module, Super+Shift+W | "the writing surface" |
+| **page** | what Notes holds; New's kind | "note" (for a page) |
+| **Files** | a project's folder, or the Library's Files tab | the system's app |
+| **the file manager** | the system's app, Nautilus or whatever it is | "Files" |
+| **Glance** | the view of what one thing is tied to, opened on it | anything else |
+| **Archive** | archived projects (the launcher's panel) | zip files ("Compressed") |
+| **card** | a thing's own view, the same everywhere | an address book's entry |
+
+**A panel's header, in one order (2026-11-26; UX-AUDIT 2.2, 2.3).** [side
+toggle] title · count · its context (Calendar's dates, Today ‹ › before them) ·
+search, "Find in {panel}" · view controls · the message · — space — · the
+panel's own actions · its one **primary**, "New task", "New person", "New
+event", "Add files…" · grow ("Open as a window") · close. A primary is the
+filled accent with dark text (`.t-btn.primary`); "on" is the accent's wash, so
+a set toggle is never taken for the button that does the thing.
 
 ### Context, Glance on anything, and suggested ties (2026-10-26)
 

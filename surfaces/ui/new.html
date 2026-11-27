@@ -20,34 +20,34 @@ html { background: var(--catch); overflow: hidden; height: 100%; cursor: pointer
 body {
   cursor: default; position: relative; width: min(560px, calc(100% - 32px)); height: auto; max-height: 80vh; overflow: auto; margin: 10vh auto 0; display: flex; flex-direction: column; gap: 12px;
   background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); color: var(--text); border: 1px solid var(--frame); border-radius: var(--radius-panel);
-  box-shadow: var(--menu-shadow); padding: 14px 16px; font-size: 13px;
+  box-shadow: var(--menu-shadow); padding: 14px 16px; font-size: var(--t-md);
 }
 .kinds { display: flex; gap: 4px; }
 .rows { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
-.row > label { width: 78px; flex: none; color: var(--muted); font-size: 12px; }
+.row > label { width: 78px; flex: none; color: var(--muted); font-size: var(--t-sm); }
 .row > .grow { flex: 1; min-width: 0; }
 .row > .spacer { flex: 1; }
 .row .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .col { display: flex; flex-direction: column; gap: 4px; }
 .row > label { align-self: flex-start; padding-top: 7px; }
 input.bad { border-color: var(--danger) !important; }
-input.field { width: 100%; font-size: 13px; }
-input.big, .ed-big { font-size: 15px !important; }
+input.field { width: 100%; font-size: var(--t-md); }
+input.big, .ed-big { font-size: var(--t-lg) !important; }
 .ed { border: 1px solid var(--line); border-radius: var(--radius-row); padding: 3px 8px; background: var(--desk); }
 .ed:focus-within { border-color: var(--accent); }
 .ed-body { min-height: 110px; max-height: 40vh; overflow: auto; }
-.hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.hint { color: var(--muted); font-size: var(--t-sm); white-space: nowrap; }
 .hint.err { color: var(--danger); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .found { display: flex; flex-direction: column; margin-left: 86px; }
 .found:empty { display: none; }
-.found .menu-item { font-size: 12.5px; text-align: left; display: flex; gap: 8px; }
+.found .menu-item { font-size: var(--t-md); text-align: left; display: flex; gap: 8px; }
 .found .menu-item.first { background: var(--accent-wash) !important; color: var(--accent-text) !important; }
 .found .menu-item .addr { color: var(--muted); }
 .acts { display: flex; align-items: center; gap: 8px; }
 .acts .spacer { flex: 1; }
-#msg { font-size: 12px; color: var(--muted); }
+#msg { font-size: var(--t-sm); color: var(--muted); }
 #msg.err { color: var(--danger); }
 .tog { white-space: nowrap; }
 /* A task's status: the circle before its title, as in Tasks (.check). */

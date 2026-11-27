@@ -30,11 +30,11 @@ body { background: var(--catch); cursor: pointer; }
 /* The box's own field: no frame of its own, the panel is its frame. */
 #q, #q:focus {
   flex: 1; background: transparent !important; border: 0 !important; outline: none;
-  color: var(--text) !important; font-size: 18px; letter-spacing: .3px; padding: 2px 0;
+  color: var(--text) !important; font-size: var(--t-xl); letter-spacing: .3px; padding: 2px 0;
 }
 #q::placeholder { color: var(--muted); }
 #show-windows { flex: none; }
-#scope { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+#scope { font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
 
 #filters { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px 2px; }
 #filters[hidden] { display: none; }
@@ -47,24 +47,24 @@ body { background: var(--catch); cursor: pointer; }
 .item .icon img { width: 22px; height: 22px; display: block; }
 .item .icon .ic { width: 16px; height: 16px; }
 .item .text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.item .title { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: normal; font-size: 14px; }
+.item .title { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: normal; font-size: var(--t-md); }
 .item .title b { color: var(--accent-text); font-weight: inherit; }
-.item .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item .kind { font-size: 10px; letter-spacing: 2px; color: var(--muted); flex: none; }
+.item .sub { font-size: var(--t-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .kind { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); flex: none; }
 .item.on .title, .item.on .icon, .item.on .kind { color: var(--accent-text); }
 .item.armed-row .title, .item.armed-row .kind { color: var(--danger); }
 /* An application open in another project, chosen: the dock's three, each with its key. */
 .item .presses { display: flex; gap: 4px; flex: none; }
-.item .presses kbd { font: inherit; font-size: 10px; color: var(--muted); }
+.item .presses kbd { font: inherit; font-size: var(--t-xs); color: var(--muted); }
 /* Open windows: a project's name over its windows, an application's over its own when it has several, each with Close all. */
 .group { display: flex; align-items: center; gap: 8px; padding: 8px 10px 3px; }
 .group .label { flex: 1; }
-.group .n { font-size: 11px; color: var(--muted); }
-.group.app { padding: 2px 10px 2px 34px; font-size: 12.5px; color: var(--muted); }
+.group .n { font-size: var(--t-xs); color: var(--muted); }
+.group.app { padding: 2px 10px 2px 34px; font-size: var(--t-md); color: var(--muted); }
 .group.app .aname { flex: 1; }
 .group.all { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 2px; }
-#foot { display: flex; justify-content: space-between; padding: 6px 14px; border-top: 1px solid var(--line); font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
-#foot .err { color: var(--danger); letter-spacing: 1px; text-transform: none; font-size: 12px; }
+#foot { display: flex; justify-content: space-between; padding: 6px 14px; border-top: 1px solid var(--line); font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+#foot .err { color: var(--danger); letter-spacing: 1px; text-transform: none; font-size: var(--t-sm); }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>

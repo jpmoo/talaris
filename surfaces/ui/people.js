@@ -238,7 +238,7 @@
     seg("mode", [["org", "By Org"], ["az", "A–Z"], ["orgs", "Organizations"]], mode, (m) => { mode = m; store.set("talaris.people.mode", m); drawMode(); drawList(); });
     // Whether someone has a name or an organization says nothing of an organization: in Organizations, put away.
     $("named").hidden = $("orgd").hidden = mode === "orgs";
-    $("add").textContent = mode === "orgs" ? "+ Organization" : "+ Person";
+    $("add").textContent = mode === "orgs" ? "New organization" : "New person";
     $("review").hidden = mode === "orgs";
     seg("named", [["all", "All"], ["named", "Named"], ["unnamed", "No name"]], named, (n) => { named = n; store.set("talaris.people.named", n); drawMode(); drawList(); });
     // Pressed again, the one chosen lets go: everyone.
@@ -252,6 +252,8 @@
   async function loadPeople() {
     [people, orgs] = await Promise.all([api("GET", "/people").then((x) => x || []), api("GET", "/people/organizations").catch(() => [])]);
     orgs = orgs || [];
+    // Deleted, and its Undo still up: not shown, whatever the core still says.
+    if (goingAway.size) { people = people.filter((p) => !goingAway.has(p.id)); orgs = orgs.filter((o) => !goingAway.has(o.id)); }
     myOrgs = orgs.filter((o) => o.mine).map((o) => o.title);
     drawList();
     warnTwice();
@@ -800,20 +802,31 @@
       // Asked by a second press, as every delete is (Kit.twice); a person is not kept in versions, so it says for good.
       Kit.twice(el("button", { class: "t-btn danger" }, "Delete person"), { key: `del-person:${chosen}`, ask: "Delete for good?", act: remove }));
   }
-  async function remove() {
+  // What is deleted, while its Undo is up (Kit.undoable): gone from the list, deleted only once the notice goes.
+  const goingAway = new Set();
+  function remove() {
     const id = chosen;
     // The neighbour below takes its place (or above, for the last).
     const order = (mode === "orgs" ? shownOrgs() : shown()).map((p) => p.id);
     const i = order.indexOf(id);
     const next = order[i + 1] || order[i - 1] || null;
-    try {
-      await api("DELETE", `/entities/${enc(id)}`);
-      got = null;
-      chosen = null;
-      await loadPeople();
-      if (next) choose(next); else drawPerson();
-      say("");
-    } catch (e) { failed(e); }
+    const name = ((mode === "orgs" ? orgs : people).find((p) => p.id === id) || {}).title || (mode === "orgs" ? "The organization" : "The person");
+    Kit.undoable({
+      text: `${name} deleted`,
+      hide: () => {
+        goingAway.add(id);
+        people = people.filter((p) => p.id !== id);
+        orgs = orgs.filter((o) => o.id !== id);
+        got = null;
+        chosen = null;
+        drawList();
+        if (next) choose(next); else drawPerson();
+        say("");
+      },
+      act: async () => { await api("DELETE", `/entities/${enc(id)}`); goingAway.delete(id); await loadPeople(); },
+      undo: async () => { goingAway.delete(id); await loadPeople(); choose(id); },
+      failed,
+    });
   }
 
   // A person (or organization) "+" made, still named only "New person": let go of when you move on without naming it,
@@ -946,7 +959,7 @@
   $("grow").addEventListener("click", () => bridge && bridge.grow());
   $("close").addEventListener("click", () => bridge && bridge.closeWindow());
   $("grow").innerHTML = Icons.grow();
-  $("grow").title = "Make it a window";
+  $("grow").title = "Open as a window";
   $("grow").hidden = WINDOW;
   $("close").innerHTML = Icons.close();
   $("close").title = "Close";

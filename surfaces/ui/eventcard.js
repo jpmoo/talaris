@@ -568,7 +568,12 @@ window.EventCard = (() => {
       const arch = el("button", { class: "t-btn", title: standsFor ? "Archived in Talaris; the feed's or account's event shows again" : "", onclick: () => {
         if (!Kit.ask(arch, { ask: standsFor ? "Remove it from Talaris?" : "Archive it?" })) return;
         api("PATCH", `/entities/${enc(e.entity)}`, { archived: true })
-          .then(() => { if (ctx.saved) ctx.saved(); if (ctx.gone) ctx.gone(); else finish(); }, (x) => say(x.message || (standsFor ? "It was not removed" : "It was not archived"), true));
+          .then(() => {
+            if (ctx.saved) ctx.saved(); if (ctx.gone) ctx.gone(); else finish();
+            // Archived is not gone: taken back, it is as it was (kit.js, undoable).
+            Kit.undoable({ text: `${e.title || "The event"} ${standsFor ? "removed from Talaris" : "archived"}`, act: () => {},
+              undo: () => api("PATCH", `/entities/${enc(e.entity)}`, { archived: false }).then(() => { if (ctx.saved) ctx.saved(); }) });
+          }, (x) => say(x.message || (standsFor ? "It was not removed" : "It was not archived"), true));
       } }, standsFor ? "Remove from Talaris" : "Archive");
       acts.append(arch);
     }

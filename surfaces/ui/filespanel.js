@@ -52,6 +52,18 @@
   let kept = store.get("talaris.files.kept", []);
   let projects = [];
   let rows = [];
+  // What is going, while its Undo is up: rows by key, file lists as `list:<id>`, collections as `coll:<id>`.
+  const goingAway = new Set();
+  /** Gone from sight now, and for real once its Undo has gone (kit.js, undoable); put back if undone or if it fails. */
+  function goLater(keys, text, act, after = () => {}) {
+    Kit.undoable({
+      text,
+      hide: () => { for (const k of keys) goingAway.add(k); after(); load().catch(failed); },
+      act: async () => { try { await act(); } finally { for (const k of keys) goingAway.delete(k); } await load().catch(failed); },
+      undo: () => { for (const k of keys) goingAway.delete(k); load().catch(failed); },
+      failed,
+    });
+  }
   // Read or not: all, read (lit), or not (grey waiting, red unreadable or with nothing in it).
   let readFilter = store.get("talaris.files.read", "all");
   // Picked with Shift or Ctrl (or ⌘): several at once, acted on together; the last picked plainly, the anchor for Shift.
@@ -96,7 +108,7 @@
   // read, are the details' to say, not the list's.
   const MARK = { shortcut: "↗ shortcut", linked: "↗ linked", snapshot: "stored on a task", missing: "missing" };
   const TYPES = [["page", "Pages"], ["canvas", "Canvases"], ["conversation", "Conversations"], ["document", "Documents"], ["spreadsheet", "Spreadsheets"], ["presentation", "Presentations"], ["pdf", "PDFs"], ["image", "Images"],
-    ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Archives"], ["other", "Other"]];
+    ["audio", "Audio"], ["video", "Video"], ["code", "Code"], ["archive", "Compressed"], ["other", "Other"]];
   const TYPE_WORD = Object.fromEntries(TYPES);
   const TYPE_ONE = { page: "Page", canvas: "Canvas", conversation: "Conversation", document: "Document", spreadsheet: "Spreadsheet", presentation: "Presentation",
     pdf: "PDF", image: "Image", audio: "Audio", video: "Video", code: "Code", archive: "Archive", other: "Other" };
@@ -236,8 +248,8 @@
       inProject ? api("GET", `/files/lists?project=${enc(project)}`).catch(() => []) : [],
       api("GET", "/lists").catch(() => collections),
       collection ? api("GET", `/lists/${enc(collection)}`).catch(() => null) : null]);
-    counts = c; lists = l;
-    collections = cl || [];
+    counts = c; lists = (l || []).filter((x) => !goingAway.has(`list:${x.id}`));
+    collections = (cl || []).filter((x) => !goingAway.has(`coll:${x.id}`));
     if (collection) {
       collShown = shownNow;
       if (collShown) collCounts.set(collection, collShown.rows.length);
@@ -252,7 +264,8 @@
     reading = got.reading || reading;
     // Read or not (the book's colour): lit, or grey and red — told here, from what the core says of each.
     const readOk = (r) => asProject() || readFilter === "all" || (readFilter === "read" ? readState[r.key] === "read" : readState[r.key] && readState[r.key] !== "read");
-    rows = got.rows.filter(readOk);
+    // Deleted or put in the trash, its Undo still up (Kit.undoable): not shown, whatever the core still says.
+    rows = got.rows.filter((r) => readOk(r) && !goingAway.has(r.key));
     total = readFilter === "all" ? got.total : rows.length;
     for (const k of [...picked]) if (!rows.some((r) => r.key === k)) picked.delete(k);
     if (got.version !== version) glanceOld = true;
@@ -859,7 +872,7 @@
       const host = $("inline"); host.className = "inline";
       collectionPicker(host, () => entityOfRow(r), r.name.replace(/\.md$/, ""), r.entity || null);
     });
-    if (r.abs && !s.includes("missing")) act("Show in Files", () => bridge.reveal(r.abs, r.project));
+    if (r.abs && !s.includes("missing")) act("Show in the file manager", () => bridge.reveal(r.abs, r.project));
     if (r.abs && !s.includes("missing") && !s.includes("page")) act("Pin to the dock", () => { bridge.pin(r.abs, r.name); say(`${r.name} pinned to the dock, in this project`); });
     if (s.includes("folder") && !s.includes("page")) {
       act("Rename", () => inline("rename", r));
@@ -892,7 +905,7 @@
     if (s.includes("folder") && !s.includes("page")) act("Delete…", (e) => {
       // Asked as everything is asked (kit.js).
       if (!Kit.ask(e.currentTarget, { key: `tr:${r.key}`, ask: "Move it to the trash?" })) return;
-      api("POST", "/files/trash", { project: r.project, path: r.path }).then(() => { say(`${r.name} is in the trash`); chosen = null; return load(); }).catch(failed);
+      goLater([r.key], `${r.name} moved to the trash`, () => api("POST", "/files/trash", { project: r.project, path: r.path }), () => { chosen = null; });
     }, "danger");
 
     // Glance on it, and what it might be connected to (its words read for search: suggest.ts) — by its key there.
@@ -1020,7 +1033,10 @@
     if (trashable.length) act(`Delete…${of(trashable)}`, (e) => {
       // Asked as everything is asked (kit.js).
       if (!Kit.ask(e.currentTarget, { key: "many-tr", ask: `Move ${trashable.length} to the trash?` })) return;
-      done("in the trash", trashable.map((r) => () => api("POST", "/files/trash", { project: r.project, path: r.path })));
+      const these = [...trashable];
+      goLater(these.map((r) => r.key), `${these.length} moved to the trash`, async () => {
+        for (const r of these) { try { await api("POST", "/files/trash", { project: r.project, path: r.path }); } catch (err) { failed(err); } }
+      }, () => { picked.clear(); chosen = null; });
     }, "danger");
     act("Clear the selection", () => { picked.clear(); chosen = null; drawRows(); drawDetail(); });
     const names = list.slice(0, 8).map((r) => el("div", { class: "d-line" }, el("span", { class: "v" }, r.name)));
@@ -1090,7 +1106,9 @@
     act("Delete the list…", (e) => {
       // Asked as everything is asked (kit.js).
       if (!Kit.ask(e.currentTarget, { key: `list:${l.id}`, ask: `Delete ${l.name}${l.children.length ? " and the lists in it" : ""}?` })) return;
-      api("DELETE", `/files/lists/${enc(l.id)}?project=${enc(project)}`).then(() => { say(`${l.name} deleted; what it held is where it was`); filters.list = ""; return load(); }).catch(failed);
+      const inProject = project;
+      goLater([`list:${l.id}`, ...(l.children || []).map((c) => `list:${c.id ?? c}`)], `${l.name} deleted; what it held is where it was`,
+        () => api("DELETE", `/files/lists/${enc(l.id)}?project=${enc(inProject)}`), () => { filters.list = ""; });
     }, "danger");
     $("detail").replaceChildren(...[
       el("h2", {}, l.name),
@@ -1417,7 +1435,8 @@
     act("Delete…", (e) => {
       // Asked as everything is asked (kit.js). The collection only: what is in it is untouched, in Tasks too.
       if (!Kit.ask(e.currentTarget, { key: `coll:${l.id}`, ask: `Delete ${l.name}?` })) return;
-      api("DELETE", `/lists/${enc(l.id)}`).then(() => { say(`${l.name} deleted; what it held is where it was`); collection = null; collShown = null; recount(); return load(); }).catch(failed);
+      goLater([`coll:${l.id}`], `${l.name} deleted; what it held is where it was`, async () => { await api("DELETE", `/lists/${enc(l.id)}`); recount(); },
+        () => { if (collection === l.id) { collection = null; collShown = null; } });
     }, "danger");
     const how = l.membership.mode !== "query" ? "Put together by hand: things are added to it, and taken out, one by one."
       : l.membership.materialized ? "Filled from its rule when it was made or last refreshed, then changed by hand."
@@ -1777,7 +1796,7 @@
   $("grow").addEventListener("click", () => bridge && bridge.grow());
   $("close").addEventListener("click", () => bridge && bridge.closeWindow());
   $("grow").innerHTML = Icons.grow();
-  $("grow").title = "Make it a window";
+  $("grow").title = "Open as a window";
   $("grow").hidden = WINDOW;
   $("close").innerHTML = Icons.close();
   $("close").title = "Close";

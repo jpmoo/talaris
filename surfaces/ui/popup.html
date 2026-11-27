@@ -33,9 +33,9 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #tray-menu { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* The battery's panel: the level large, then what is worth knowing, in pairs. */
 .bat-big { display: flex; align-items: baseline; gap: 10px; padding: 2px 10px 6px; }
-#bat-level { font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
-#bat-when { font-size: 12px; color: var(--muted); }
-.sys { padding: 0 10px 4px; font-size: 12px; }
+#bat-level { font-size: var(--t-2xl); color: var(--text); font-variant-numeric: tabular-nums; }
+#bat-when { font-size: var(--t-sm); color: var(--muted); }
+.sys { padding: 0 10px 4px; font-size: var(--t-sm); }
 .sys-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; }
 .sys-l { color: var(--muted); }
 .sys-v { font-variant-numeric: tabular-nums; }
@@ -53,8 +53,8 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 .sys-top .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sys-top .m { color: var(--muted); text-align: right; }
 .sys-top .c { text-align: right; }
-.sys-top .head { color: var(--muted); font-size: 11px; }
-#bat-rows .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 10px; font-size: 12.5px; }
+.sys-top .head { color: var(--muted); font-size: var(--t-xs); }
+#bat-rows .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 10px; font-size: var(--t-md); }
 #bat-rows .kv span:first-child { color: var(--muted); }
 #bat-profiles { align-self: flex-start; margin: 6px 10px 2px; }
 /* The weather: now, large; then the hours or the days, a row each, scrolling. */
@@ -63,11 +63,11 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #wx-mode { flex: none; }
 .wx-now { display: flex; align-items: center; gap: 12px; padding: 4px 10px 10px; }
 .wx-now .ic { width: 34px; height: 34px; color: var(--accent-text); }
-.wx-now .t { font-size: 28px; color: var(--text); font-variant-numeric: tabular-nums; }
-.wx-now .s { display: flex; flex-direction: column; font-size: 12.5px; color: var(--muted); }
+.wx-now .t { font-size: var(--t-2xl); color: var(--text); font-variant-numeric: tabular-nums; }
+.wx-now .s { display: flex; flex-direction: column; font-size: var(--t-md); color: var(--muted); }
 .wx-now .s b { font-weight: 500; color: var(--text); }
 #wx-rows { flex: 1; min-height: 0; overflow: auto; }
-.wx-row { display: grid; grid-template-columns: 76px 20px 1fr auto; align-items: center; gap: 8px; padding: 4px 10px; font-size: 12.5px;
+.wx-row { display: grid; grid-template-columns: 76px 20px 1fr auto; align-items: center; gap: 8px; padding: 4px 10px; font-size: var(--t-md);
   border-radius: var(--radius-row); font-variant-numeric: tabular-nums; }
 .wx-row:hover { background: var(--accent-wash); }
 .wx-row .when { color: var(--muted); }
@@ -75,7 +75,7 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 .wx-row .sky { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wx-row .temp { color: var(--text); text-align: right; }
 .wx-row .temp .lo { color: var(--muted); margin-left: 6px; }
-.wx-row .rain { color: var(--accent-text); font-size: 11px; margin-left: 6px; }
+.wx-row .rain { color: var(--accent-text); font-size: var(--t-xs); margin-left: 6px; }
 #bat-profiles:empty { display: none; }
 /* The display popup: each display plugged in, and Extend or Mirror. */
 #disp-list .disp { display: flex; justify-content: space-between; gap: 10px; padding: 4px 10px; }
@@ -83,7 +83,7 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #disp-mode { align-self: flex-start; margin: 6px 10px 2px; }
 #project-list { overflow-y: auto; overscroll-behavior: contain; }
 #project-list .menu-item { justify-content: space-between; }
-#project-list .menu-item .code { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+#project-list .menu-item .code { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); }
 #project-list .menu-item { align-items: center; gap: 10px; }
 #project-list .menu-item .thumb { width: 72px; height: 45px; object-fit: cover; border-radius: var(--radius-row); border: 1px solid var(--line); background: var(--desk); flex: none; }
 #project-list .menu-item .pname { flex: 1; text-align: left; }
@@ -98,13 +98,13 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 /* The power menu's items, each with its icon. */
 #power .menu-item .ic, #talaris-panels .menu-item .ic { width: 15px; height: 15px; flex: none; }
 .list .menu-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list .menu-item .meta { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; flex: none; }
+.list .menu-item .meta { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); text-transform: uppercase; flex: none; }
 .list .menu-item.busy { opacity: .6; cursor: progress; }
 /* What a chosen row opens: a password, or what can be done to it. */
 .detail { display: flex; gap: 6px; align-items: center; padding: 2px 10px 8px 34px; flex-wrap: wrap; }
 .detail input { flex: 1; min-width: 0; }
 .foot { display: flex; gap: 6px; padding: 6px 6px 2px; }
-.err { font-size: 12px; padding: 2px 10px; min-height: 0; }
+.err { font-size: var(--t-sm); padding: 2px 10px; min-height: 0; }
 .err:empty { display: none; }
 .menu .hint { display: flex; justify-content: space-between; }
 
@@ -114,7 +114,7 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
    can be done about it. Unread when the list was opened: an accent rule. */
 .hint-acts { display: flex; gap: 12px; }
 .notice.unread { cursor: pointer; }
-#notice-read, #notice-clear, #clip-clear { border: 0 !important; padding: 0 !important; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); background: none; cursor: pointer; }
+#notice-read, #notice-clear, #clip-clear { border: 0 !important; padding: 0 !important; font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); background: none; cursor: pointer; }
 #notice-read:hover, #notice-clear:hover, #clip-clear:hover { color: var(--accent-text); }
 #notice-read[hidden], #notice-clear[hidden], #clip-clear[hidden] { display: none; }
 /* Clipboard history (clipboard.js): Notchnik's grid of square tiles, when under each. */
@@ -130,16 +130,16 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #clipboard .face { position: absolute; inset: 0; }
 /* The words in the middle of the tile, top to bottom (`safe`: what is longer than the tile starts at its top). */
 #clipboard .face.words { padding: 8px 9px; display: flex; flex-direction: column; justify-content: safe center; overflow: hidden; }
-#clipboard .face.words .said { font-size: 11.5px; line-height: 1.32; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
+#clipboard .face.words .said { font-size: var(--t-sm); line-height: 1.32; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 14; -webkit-box-orient: vertical; }
 #clipboard .face.picture img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #clipboard .face.files { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px; text-align: center; }
 #clipboard .face.files .ic { width: 34px; height: 34px; color: var(--muted); }
 #clipboard .face.files.picture { justify-content: flex-end; padding: 0; }
 #clipboard .face.files.picture img { position: absolute; inset: 0; }
-#clipboard .fname { position: relative; font-size: 11.5px; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#clipboard .fname { position: relative; font-size: var(--t-sm); color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #clipboard .face.picture .fname { width: 100%; padding: 3px 6px; background: color-mix(in srgb, var(--surface) 80%, transparent); }
-#clipboard .fmore { font-size: 10.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#clipboard .fmore { font-size: var(--t-xs); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #clipboard .tools { position: absolute; inset: 4px 4px auto; display: flex; gap: 3px; opacity: 0; transition: opacity var(--dur); }
 #clipboard .clip:hover .tools, #clipboard .clip.at .tools { opacity: 1; }
 #clipboard .tools .gap { flex: 1; }
@@ -147,33 +147,33 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
   color: var(--muted); background: color-mix(in srgb, var(--surface) 88%, transparent) !important; }
 #clipboard .tool:hover { color: var(--accent-text); }
 #clipboard .tool svg { width: 13px; height: 13px; }
-#clipboard .tool.armed { width: auto; padding: 0 6px !important; font-size: 10.5px; }
+#clipboard .tool.armed { width: auto; padding: 0 6px !important; font-size: var(--t-xs); }
 /* A pinned tile always shows its pin. */
 #clipboard .clip.pinned .tools { opacity: 1; }
 #clipboard .clip.pinned:not(:hover):not(.at) .tools > :not(.pin) { visibility: hidden; }
 #clipboard .tool.pin.on { color: var(--accent-text); }
 #clipboard .stale { position: absolute; left: 6px; bottom: 6px; color: var(--accent-text); }
 #clipboard .stale svg { width: 14px; height: 14px; display: block; }
-#clipboard .copied { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+#clipboard .copied { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--t-sm); letter-spacing: 2px; text-transform: uppercase;
   color: var(--accent-text); background: color-mix(in srgb, var(--surface) 82%, transparent); opacity: 0; pointer-events: none; transition: opacity var(--dur); }
 #clipboard .clip.flash .copied { opacity: 1; }
-#clipboard .when { font-size: 10.5px; color: var(--muted); text-align: center; margin-top: 3px; font-variant-numeric: tabular-nums; }
+#clipboard .when { font-size: var(--t-xs); color: var(--muted); text-align: center; margin-top: 3px; font-variant-numeric: tabular-nums; }
 #clip-look { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; border-radius: inherit;
   background: color-mix(in srgb, var(--surface) 97%, transparent); }
 #clip-look[hidden] { display: none; }
 #clip-look-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 12px; }
-#clip-look-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 12.5px; color: var(--text); }
+#clip-look-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--t-md); color: var(--text); }
 #clip-look-body img { max-width: 100%; border-radius: var(--radius-row); display: block; margin-bottom: 8px; }
-#clip-look-body .path { font-size: 12px; color: var(--text); overflow-wrap: anywhere; padding: 2px 0; }
+#clip-look-body .path { font-size: var(--t-sm); color: var(--text); overflow-wrap: anywhere; padding: 2px 0; }
 .notice { padding: 7px 10px 8px 10px; border-left: 2px solid transparent; border-radius: var(--radius-row); }
 .notice + .notice { border-top: 1px solid var(--line); border-top-left-radius: 0; border-top-right-radius: 0; }
 .notice.unread { border-left-color: var(--accent); }
-.notice .top { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.notice .top { display: flex; align-items: center; gap: 7px; font-size: var(--t-sm); color: var(--muted); }
 .notice .top img, .notice .top .ic { width: 16px; height: 16px; flex: none; display: block; object-fit: contain; }
 .notice .app { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice .when { flex: none; font-variant-numeric: tabular-nums; }
-.notice .sum { font-weight: 500; font-size: 14px; color: var(--text); margin-top: 4px; overflow-wrap: anywhere; }
-.notice .body { font-size: 13px; color: var(--text); margin-top: 2px; overflow-wrap: anywhere;
+.notice .sum { font-weight: 500; font-size: var(--t-md); color: var(--text); margin-top: 4px; overflow-wrap: anywhere; }
+.notice .body { font-size: var(--t-md); color: var(--text); margin-top: 2px; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .notice .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .notice .acts:empty { display: none; }
@@ -185,12 +185,12 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 .timer .bar > i { width: calc(var(--left, 0) * 100%); transition: width 1s linear; }
 .timer + .timer { margin-top: 2px; }
 .timer .ic { width: 16px; height: 16px; flex: none; color: var(--accent-text); }
-.timer .what { flex: 1; min-width: 0; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timer .what small { display: block; font-size: 11px; color: var(--muted); }
-.timer .left { flex: none; font-size: 13px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.timer .what { flex: 1; min-width: 0; font-size: var(--t-md); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timer .what small { display: block; font-size: var(--t-xs); color: var(--muted); }
+.timer .left { flex: none; font-size: var(--t-md); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
 .timer .t-btn { flex: none; }
 #timers + .hint { margin-top: 6px; }
-#vol-n { width: 30px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#vol-n { width: 30px; text-align: right; font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 </style>
 <link rel="stylesheet" href="kit.css">
 </head>

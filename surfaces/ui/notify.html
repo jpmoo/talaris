@@ -20,22 +20,22 @@ top, the surface as tall as the page says.
 .toast {
   position: relative; overflow: hidden; padding: 9px 12px 11px;
   background: var(--toast-bg); border: 1px solid var(--toast-edge); border-radius: var(--radius-panel); box-shadow: var(--toast-shadow);
-  font: 13px/1.4 var(--font); color: var(--text);
+  font: var(--t-md)/1.4 var(--font); color: var(--text);
 }
 .toast.clickable { cursor: pointer; }
 /* One Talaris means you not to miss (the weekly review opening): in the accent, larger, and staying until answered. */
-.toast.prominent { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--toast-bg)); padding: 12px 14px 14px; }
-.toast.prominent .summary { font-size: 17px; font-weight: 600; color: var(--accent-text); }
-.toast.prominent .body { font-size: 14px; line-height: 1.5; max-height: none; padding-bottom: 3px; }
-.toast.prominent .buttons .t-btn:first-child { background: var(--accent) !important; color: var(--on-accent, #1c1f22) !important; border-color: var(--accent) !important; font-weight: 600; }
-.toast.prominent .buttons .t-btn { font-size: 13px; padding: 5px 14px; }
+.toast.prominent { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent-strong), var(--toast-bg)); padding: 12px 14px 14px; }
+.toast.prominent .summary { font-size: var(--t-xl); font-weight: 500; color: var(--accent-text); }
+.toast.prominent .body { font-size: var(--t-md); line-height: 1.5; max-height: none; padding-bottom: 3px; }
+.toast.prominent .buttons .t-btn:first-child { background: var(--accent) !important; color: var(--on-accent) !important; border-color: var(--accent) !important; font-weight: 500; }
+.toast.prominent .buttons .t-btn { font-size: var(--t-md); padding: 5px 14px; }
 .top { display: flex; align-items: center; gap: 7px; height: 18px; }
 .top .icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
-.top .app { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .app { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .main { display: flex; gap: 10px; margin-top: 5px; }
 .main .image { width: 48px; height: 48px; flex: none; border-radius: var(--radius-row); object-fit: cover; }
 .words { flex: 1; min-width: 0; }
-.summary { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.summary { font-size: var(--t-md); font-weight: 500; overflow-wrap: anywhere; }
 /* Apps send line breaks as newlines as often as <br>. */
 /* A little room below the last line: its descenders are not cut by the clip that keeps a long one short. */
 .body { color: var(--text); white-space: pre-line; overflow-wrap: anywhere; max-height: 8.4em; overflow: hidden; padding-bottom: 2px; }

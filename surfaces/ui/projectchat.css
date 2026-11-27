@@ -4,13 +4,13 @@
 .pchat-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pchat-head .spacer { flex: 1; }
 .pchat-standing { display: flex; gap: 6px; align-items: baseline; min-width: 0; padding: 3px 9px; border-radius: var(--radius-pill);
-  background: var(--accent-wash); font-size: 12px; color: var(--muted); }
-.pchat-standing b { font-weight: 600; color: var(--accent-text); white-space: nowrap; }
+  background: var(--accent-wash); font-size: var(--t-sm); color: var(--muted); }
+.pchat-standing b { font-weight: 500; color: var(--accent-text); white-space: nowrap; }
 .pchat-standing span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pchat-standing.later { background: color-mix(in srgb, var(--muted) 12%, transparent); }
 .pchat-standing.later b { color: var(--muted); }
 .pchat-log { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 80px; max-height: 360px; padding: 2px; }
-.pchat-msg { max-width: 88%; padding: 7px 11px; border-radius: 12px; font-size: 13px; line-height: 1.45; user-select: text; -webkit-user-select: text; }
+.pchat-msg { max-width: 88%; padding: 7px 11px; border-radius: var(--radius-panel); font-size: var(--t-md); line-height: 1.45; user-select: text; -webkit-user-select: text; }
 .pchat-msg.mine { align-self: flex-end; background: var(--accent-strong); color: var(--text); border-bottom-right-radius: 4px; white-space: pre-wrap; }
 .pchat-msg.theirs { align-self: flex-start; background: var(--paper); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .pchat-msg.thinking { color: var(--muted); }
@@ -18,9 +18,9 @@
 .pchat-text > :last-child { margin-bottom: 0; }
 .pchat-text p, .pchat-text ul, .pchat-text ol { margin: 4px 0; }
 .pchat-text ul, .pchat-text ol { padding-left: 18px; }
-.pchat-note { align-self: center; font-size: 12px; color: var(--muted); padding: 6px; text-align: center; }
+.pchat-note { align-self: center; font-size: var(--t-sm); color: var(--muted); padding: 6px; text-align: center; }
 .pchat-compose { display: flex; gap: 6px; align-items: flex-end; }
 .pchat-box { flex: 1; resize: none; min-height: 36px; max-height: 120px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-control);
-  background: var(--paper); outline: none; font-size: 13px; }
+  background: var(--paper); outline: none; font-size: var(--t-md); }
 .pchat-box:focus { border-color: var(--accent-line); }
 .pchat-send { align-self: stretch; }

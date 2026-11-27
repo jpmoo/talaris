@@ -15,7 +15,8 @@ disagree, decide which is right and change the other.
 html, body {
   margin: 0; height: 100%; overflow: clip;
   background: transparent; color: var(--text);
-  font: 14px/1.45 var(--font);
+  /* With its own fallbacks: a page holding an older tokens.css (a renderer's cache) keeps its font, not the engine's serif. */
+  font: var(--t-md, 13.5px)/1.45 var(--font, 'Barlow Semi Condensed', system-ui, sans-serif);
   user-select: none; -webkit-user-select: none; cursor: default;
 }
 /* Only 400 and 500 are shipped (tokens.css): anything bolder the engine would fake. */
@@ -28,8 +29,8 @@ button { font: inherit; color: inherit; background: none; border: 1px solid var(
 button:hover { border-color: var(--accent); color: var(--accent-text); }
 
 /* The one small letter-spaced heading: a section, a group, a list's name, a dialog's. */
-.label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
-.title { letter-spacing: 3px; font-size: 14px; text-transform: uppercase; }
+.label { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+.title { letter-spacing: 3px; font-size: var(--t-md); text-transform: uppercase; }
 .slash { color: var(--accent-text); }
 
 .xh { position: absolute; width: 11px; height: 11px; pointer-events: none; }

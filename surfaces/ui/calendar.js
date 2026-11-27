@@ -747,7 +747,7 @@ $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchT
 $("search").addEventListener("keydown", (e) => { if (e.key === "Escape" && $("search").value) { e.stopPropagation(); $("search").value = ""; search(""); } });
 document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); $("search").select(); } });
 $("grow").innerHTML = Icons.grow();
-$("grow").title = "Make it a window";
+$("grow").title = "Open as a window";
 $("grow").hidden = WINDOW;
 $("close").innerHTML = Icons.close();
 $("close").title = "Close";

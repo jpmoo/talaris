@@ -38,21 +38,21 @@ header .tools { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-ite
 header .corner { flex: none; display: flex; align-items: center; min-height: 28px; }
 /* The actions keep to the right, on whichever line they land. */
 #list-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; white-space: nowrap; }
+header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; white-space: nowrap; }
 header .t-btn { white-space: nowrap; flex: none; }
 header .spacer { flex: 1; }
 header .icon-btn[hidden], header .t-btn[hidden] { display: none !important; }
 header .seg { flex: none; }
-#count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 40%; }
+#count { font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+#msg { font-size: var(--t-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 40%; }
 #msg.err { color: var(--danger); }
-#q { width: 200px; flex: 0 1 200px; min-width: 90px; font-size: 12.5px; }
+#q { width: 200px; flex: 0 1 200px; min-width: 90px; font-size: var(--t-md); }
 
 main { flex: 1; min-height: 0; display: flex; position: relative; }
 
 /* The left: everyone, in groups or by letter. */
 #list { width: 300px; flex: none; border-right: 1px solid var(--line); overflow: auto; outline: none; padding-bottom: 8px; }
-.ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+.ghead { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; }
 .ghead.on .name { color: var(--accent-text); }
 .ghead .name:hover { color: var(--accent-text); }
 .ghead:hover { color: var(--text); }
@@ -60,27 +60,27 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 .ghead .own-mark { color: var(--accent-text); letter-spacing: 1px; }
 .ghead .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ghead .n { letter-spacing: 0; flex: none; }
-.letter { padding: 10px 14px 2px; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+.letter { padding: 10px 14px 2px; font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); }
 .prow { display: flex; align-items: center; gap: 10px; padding: 6px 14px; cursor: pointer; }
 .prow:hover { background: var(--accent-hover); }
 .prow.on { background: var(--accent-wash); }
 #list:focus .prow.on { box-shadow: inset 2px 0 0 var(--accent); }
 .p-main { flex: 1; min-width: 0; }
-.p-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-name { font-size: var(--t-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow.on .p-name { color: var(--accent-text); }
-.p-sub { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-sub { font-size: var(--t-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tie { width: 7px; height: 7px; border-radius: 50%; flex: none; box-sizing: border-box; }
 .tie.tied { background: var(--accent); opacity: .8; }
 .tie.untied { border: 1.5px solid var(--muted); opacity: .7; }
 
 /* The right: the one chosen. */
-#person { flex: 1; min-width: 0; overflow: auto; padding: 14px 18px 24px; font-size: 12.5px; }
+#person { flex: 1; min-width: 0; overflow: auto; padding: 14px 18px 24px; font-size: var(--t-md); }
 /* Contact cards: the ones tied, then likely ones. */
-.hint { color: var(--muted); font-size: 11.5px; }
+.hint { color: var(--muted); font-size: var(--t-sm); }
 .hint.err { color: var(--danger); }
 .card { border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); padding: 8px 10px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
 .card .c-main { flex: 1; min-width: 0; }
-.card .c-name { font-size: 13px; }
+.card .c-name { font-size: var(--t-md); }
 .card .c-line { color: var(--muted); overflow-wrap: anywhere; }
 .card .c-also { color: var(--text); margin-top: 6px; }
 .card.gone { opacity: .75; }
@@ -97,9 +97,9 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
 #twice .t-btn { flex: none; }
 .card .c-acts { display: flex; gap: 6px; flex: none; }
 .card.likely { padding: 6px 10px; align-items: center; }
-.sub-h { font-size: 11.5px; color: var(--muted); margin: 12px 0 6px; }
+.sub-h { font-size: var(--t-sm); color: var(--muted); margin: 12px 0 6px; }
 .nocontact { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); cursor: pointer; width: fit-content; }
-#card-q { width: 260px; font-size: 12.5px; margin-top: 4px; }
+#card-q { width: 260px; font-size: var(--t-md); margin-top: 4px; }
 
 .p-foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
 .p-foot .spacer { flex: 1; }
@@ -115,7 +115,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <div class="tools">
   <h1>People</h1>
   <span id="count"></span>
-  <input type="search" id="q" placeholder="Find" spellcheck="false">
+  <input type="search" id="q" placeholder="Find in People" spellcheck="false">
   <span class="seg" id="mode" title="By organization, A–Z, or the organizations themselves"></span>
   <span class="seg" id="named" title="Known by a name, or only by an address"></span>
   <span class="seg" id="orgd" title="With an organization, or with none"></span>
@@ -123,7 +123,7 @@ main { flex: 1; min-height: 0; display: flex; position: relative; }
   <span class="spacer"></span>
   <span id="list-actions"></span>
   <button class="t-btn" id="review" title="Everyone, looked through for one person entered twice">Review</button>
-  <button class="t-btn" id="add">+ Person</button>
+  <button class="t-btn primary" id="add">New person</button>
   </div>
   <!-- Expand (a panel) or close (a window): the top right corner, however the rest wraps. -->
   <span class="corner"><button class="icon-btn" id="grow"></button><button class="icon-btn" id="close"></button></span>

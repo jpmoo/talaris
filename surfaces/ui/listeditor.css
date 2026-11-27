@@ -20,18 +20,18 @@ of muted labels, choices beside them.
 .le-sheet.busy .le-acts button { pointer-events: none; opacity: var(--disabled); }
 .le-title { margin-bottom: 2px; }
 
-.le-row { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.le-row { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t-md); }
 .le-label { flex: none; width: 74px; padding-top: 5px; color: var(--muted); }
 .le-val { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .le-val > .le-line, .le-val > .le-regions { flex-basis: 100%; }
 .le-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
-.le-then { width: 30px; color: var(--muted); font-size: 11.5px; }
-.le-muted, .le-note { color: var(--muted); font-size: 12px; }
+.le-then { width: 30px; color: var(--muted); font-size: var(--t-sm); }
+.le-muted, .le-note { color: var(--muted); font-size: var(--t-sm); }
 .le-name { flex: 1; padding: 5px 10px; }
-.le-sheet input[type="text"], .qb input[type="text"] { font-size: 12.5px; min-width: 0; }
+.le-sheet input[type="text"], .qb input[type="text"] { font-size: var(--t-md); min-width: 0; }
 .le-sheet [hidden] { display: none !important; }
 
-.le-err { font-size: 12px; color: var(--danger); min-height: 0; }
+.le-err { font-size: var(--t-sm); color: var(--danger); min-height: 0; }
 .le-err:empty { display: none; }
 .le-err.ok { color: var(--muted); }
 .le-acts { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
@@ -40,7 +40,7 @@ of muted labels, choices beside them.
 
 /* ---- pickers: buttons that read like fields ----------------------------- */
 
-.le-pick { max-width: 220px; font-size: 12.5px; }
+.le-pick { max-width: 220px; font-size: var(--t-md); }
 .le-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 
 /* A date: typed, or chosen from the kit's month under it. */
@@ -62,7 +62,7 @@ of muted labels, choices beside them.
 /* ---- the query builder -------------------------------------------------- */
 
 .le-query { padding-left: 82px; }
-.qb { display: flex; flex-direction: column; font-size: 12.5px; }
+.qb { display: flex; flex-direction: column; font-size: var(--t-md); }
 .qb-group { display: flex; flex-direction: column; gap: 6px; }
 .qb-group.nested { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-row); }
 .qb-head { display: flex; align-items: center; gap: 6px; }
@@ -71,10 +71,10 @@ of muted labels, choices beside them.
 .qb-items:empty { display: none; }
 .qb-cond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .qb-cond > input[type="text"]:not(.le-date) { flex: 1; min-width: 90px; }
-.qb-kind { width: 64px; flex: none; color: var(--muted); font-size: 11.5px; letter-spacing: .5px; }
-.qb-raw { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-.qb-add { align-self: flex-start; font-size: 12px !important; }
-.qb-count { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.qb-kind { width: 64px; flex: none; color: var(--muted); font-size: var(--t-sm); letter-spacing: .5px; }
+.qb-raw { color: var(--muted); font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.qb-add { align-self: flex-start; font-size: var(--t-sm) !important; }
+.qb-count { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-top: 8px; font-size: var(--t-sm); color: var(--muted); }
 .qb-count:empty { display: none; }
 .qb-n { color: var(--text); font-variant-numeric: tabular-nums; }
 .qb-some { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }

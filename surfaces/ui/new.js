@@ -38,7 +38,7 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* fine */ } },
   };
 
-  const KINDS = [["task", "Task"], ["event", "Event"], ["contact", "Person"], ["note", "Note"], ["project", "Project"]];
+  const KINDS = [["task", "Task"], ["event", "Event"], ["contact", "Person"], ["note", "Page"], ["project", "Project"]];
   let bridge = null;
   let surface = { up: false };
   let kind = store.get("talaris.new.kind", "task");
@@ -439,7 +439,7 @@
       label: `${x.name}${x.id === surface.project ? " · here" : ""}`, on: x.id === v.project, act: () => { v.project = x.id; paint(); } }))) },
       el("span", { class: "lbl" }, p ? p.name : "Choose a project"));
     return [
-      row("Note", line("title", "Its title", { big: true, spell: true })),
+      row("Page", line("title", "Its title", { big: true, spell: true })),
       row("Project", pick),
       row("", writing("body", "Write — @ to link, or drop a file in", { body: true, files: TalarisFiles(api, () => v.project, () => bridge) })),
       // Kept in the project's Files/ when the note is made, and linked at its end.

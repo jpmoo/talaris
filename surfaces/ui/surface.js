@@ -104,10 +104,10 @@ const Surface = (() => {
   function keyboardButton(bridge) {
     if (!(navigator.maxTouchPoints > 0)) return;
     const css = document.createElement("style");
-    css.textContent = `.kb-btn { position: fixed; z-index: 2147483000; width: 30px; height: 26px; display: none; align-items: center;
-      justify-content: center; border-radius: var(--radius-control, 8px); border: 1px solid var(--line, #444);
-      background: var(--surface, #222); color: var(--muted, #aaa); cursor: pointer; padding: 0; touch-action: none; }
-      .kb-btn.on { color: var(--accent, #c98a5b); border-color: var(--accent, #c98a5b); }
+    css.textContent = `.kb-btn { position: fixed; z-index: 2147483000; width: 30px; height: 26px; display: none; align-items: center; /* look: also on pages without the tokens */
+      justify-content: center; border-radius: var(--radius-control, 8px); border: 1px solid var(--line, #444); /* look: also on pages without the tokens */
+      background: var(--surface, #222); color: var(--muted, #aaa); cursor: pointer; padding: 0; touch-action: none; } /* look: also on pages without the tokens */
+      .kb-btn.on { color: var(--accent, #c98a5b); border-color: var(--accent, #c98a5b); } /* look: also on pages without the tokens */
       .kb-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; }`;
     document.head.appendChild(css);
     const btn = document.createElement("button");

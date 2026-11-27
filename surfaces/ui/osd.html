@@ -24,13 +24,13 @@ html, body { height: 100%; }
 /* The level as a hairline track filled with the accent, the slider's look. */
 #track { flex: 1; }
 #fill { transition: width var(--dur); }
-#n { width: 34px; text-align: right; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
-#osd.muted #n { color: var(--muted); font-size: 10px; letter-spacing: 2px; }
+#n { width: 34px; text-align: right; font-size: var(--t-md); color: var(--text); font-variant-numeric: tabular-nums; }
+#osd.muted #n { color: var(--muted); font-size: var(--t-xs); letter-spacing: 2px; }
 /* A project gone to: its name where the level would be, its code where the number would. */
-#title { flex: 1; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title { flex: 1; font-size: var(--t-lg); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #osd.project #track { display: none; }
 #osd:not(.project) #title { display: none; }
-#osd.project #n { width: auto; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+#osd.project #n { width: auto; font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); }
 </style>
 </head>
 <body>

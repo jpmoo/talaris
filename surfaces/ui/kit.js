@@ -692,7 +692,55 @@ const Kit = (() => {
     return `Open ${host}`;
   }
 
+  // ---------------------------------------------------------------- undo (UX-AUDIT 1.5)
+  //
+  // A delete, an archive, a merge: shown done at once, and done for real only when its notice has gone — eight
+  // seconds with Undo on it, or sooner if the page goes (closed, unloaded, put out of sight on a phone). So what the
+  // core cannot take back (a person deleted, a collection, a merge) can still be, for those seconds. `hide` is what
+  // the page shows meanwhile (the thing gone); `undo` puts it back on show; `act` is the act itself, run once.
+  const UNDO_MS = 8000;
+  const undoing = [];
+  let undoBox = null;
+  function undoable({ text, act, hide, undo, failed, ms = UNDO_MS }) {
+    const job = { done: false, timer: 0, note: null };
+    const end = () => { job.done = true; clearTimeout(job.timer); const i = undoing.indexOf(job); if (i >= 0) undoing.splice(i, 1); job.note?.remove(); };
+    job.run = () => {
+      if (job.done) return;
+      end();
+      Promise.resolve().then(act).catch((e) => { if (failed) failed(e); else console.error(e); if (undo) undo(); });
+    };
+    job.cancel = () => {
+      if (job.done) return;
+      end();
+      try { if (undo) undo(); } catch (e) { console.error(e); }
+    };
+    if (!undoBox || !undoBox.isConnected) {
+      undoBox = el("div", { class: "kit-undo-box", role: "status", "aria-live": "polite" });
+      document.body.append(undoBox);
+    }
+    job.note = el("div", { class: "kit-undo" }, el("span", { class: "kit-undo-text" }, text),
+      el("button", { class: "t-btn", onclick: job.cancel, title: "Ctrl+Z" }, "Undo"));
+    undoBox.append(job.note);
+    try { if (hide) hide(); } catch (e) { console.error(e); }
+    job.timer = setTimeout(job.run, ms);
+    undoing.push(job);
+    return job;
+  }
+  const flushUndo = () => { for (const j of [...undoing]) j.run(); };
+  addEventListener("pagehide", flushUndo);
+  addEventListener("beforeunload", flushUndo);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && window.TALARIS_WEB) flushUndo(); });
+  // Ctrl+Z, outside a field: the latest taken back.
+  document.addEventListener("keydown", (e) => {
+    if (!undoing.length || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault();
+    undoing[undoing.length - 1].cancel();
+  }, true);
+
   return {
+    undoable, UNDO_MS,
     links, linked, linkName,
     place, el, setClock, clock, hour, minutes, day, relDay, ago, stamp, future, left, month, startOfDay, addDays, sameDay, isoDay,
     parseDay, parseTime, pop, popAway, isOpen, openedBy, menu, monthPicker, timeList, DAY_CHIPS,

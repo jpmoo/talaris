@@ -1007,7 +1007,13 @@ window.GlanceView = (o) => {
         const id = `${s.key}|${w.how}|${w.text || ""}`;
         // A merge is asked first, as everything is asked (kit.js).
         return el("button", { class: "t-btn small", title: w.says,
-          onclick: (e) => { if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return; take(s, w); } },
+          onclick: (e) => {
+            if (w.how !== "merge") { take(s, w); return; }
+            if (!Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
+            // Not taken back once done: done when its Undo has gone (kit.js, undoable), the suggestion out of sight meanwhile.
+            const row = e.currentTarget.closest(".ways")?.parentElement;
+            Kit.undoable({ text: "Made one", hide: () => { if (row) row.hidden = true; }, act: () => take(s, w), undo: () => { if (row) row.hidden = false; } });
+          } },
           w.label);
       })));
   }

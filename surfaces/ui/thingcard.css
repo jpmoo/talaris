@@ -5,21 +5,21 @@ Copyright (c) 2026 Jeff Moore
 A thing's card (thingcard.js), as every page that shows one draws it.
 */
 /* A person's mark: two letters on a tint from the id (as the canvas's person card), or their picture. */
-.av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;
+.av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: var(--t-sm); font-weight: 500;
       letter-spacing: .5px; color: var(--text); overflow: hidden; background-size: cover; background-position: center; }
 .av.pic { color: transparent; }
-.av.big { width: 72px; height: 72px; font-size: 24px; border: 0; padding: 0; cursor: pointer; }
+.av.big { width: 72px; height: 72px; font-size: var(--t-2xl); border: 0; padding: 0; cursor: pointer; }
 .av.big:hover { box-shadow: 0 0 0 1px var(--accent); }
 
 .p-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 /* Their name, and under it where else they live ("Open in Hermes Notes"). */
 .p-head .p-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .p-head .p-elsewhere { display: flex; gap: 6px; flex-wrap: wrap; padding-left: 9px; }
-.p-head .name-in { flex: 1; min-width: 0; font-size: 16px !important; padding: 5px 9px; background: transparent !important; border-color: transparent !important; }
+.p-head .name-in { flex: 1; min-width: 0; font-size: var(--t-lg) !important; padding: 5px 9px; background: transparent !important; border-color: transparent !important; }
 .p-head .name-in:hover { border-color: var(--line) !important; }
 .p-head .name-in:focus { background: var(--desk) !important; border-color: var(--accent) !important; }
 section.part { margin-top: 18px; }
-.part > h3 { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 500; }
+.part > h3 { display: flex; align-items: center; gap: 8px; font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 500; }
 .part > h3 .spacer { flex: 1; }
 .fields { display: flex; flex-direction: column; gap: 6px; }
 .f-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
@@ -29,7 +29,7 @@ section.part { margin-top: 18px; }
 .f-row > .grow { flex: 1; min-width: 0; }
 .f-row > .chips { min-height: 28px; }
 .col { display: flex; flex-direction: column; gap: 4px; }
-input.field { width: 100%; font-size: 12.5px; }
+input.field { width: 100%; font-size: var(--t-md); }
 input.field.day { width: 160px; }
 input.field.bad { border-color: var(--danger) !important; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -37,7 +37,7 @@ input.field.bad { border-color: var(--danger) !important; }
 /* A file opens on a press, as a button chip would. */
 .chip.file { cursor: pointer; transition: border-color var(--dur), color var(--dur); }
 .chip.file:hover { border-color: var(--accent); color: var(--accent-text); }
-.f-row .add, .s-row .add { border: 0 !important; padding: 0 6px !important; font-size: 15px; line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
+.f-row .add, .s-row .add { border: 0 !important; padding: 0 6px !important; font-size: var(--t-lg); line-height: 1; color: var(--muted); border-radius: var(--radius-row) !important; background: transparent !important; }
 .f-row .add:hover, .s-row .add:hover { color: var(--accent-text); background: var(--accent-wash) !important; }
 /* The description is the editor (editor.js), so @ works in it: drawn as a field. */
 .ed-field { background: var(--desk); border: 1px solid var(--line); border-radius: var(--radius-row); min-width: 0; }
@@ -45,7 +45,7 @@ input.field.bad { border-color: var(--danger) !important; }
 .ed-field .cm-editor { outline: none; }
 .ed-body { min-height: 80px; }
 .ed-body .cm-content { padding: 6px 8px; min-height: 66px; }
-.part .hint { color: var(--muted); font-size: 11.5px; }
+.part .hint { color: var(--muted); font-size: var(--t-sm); }
 
 /* What it is connected to: grouped by what the other thing is. */
 .c-group { margin-bottom: 10px; }
@@ -60,19 +60,19 @@ input.field.bad { border-color: var(--danger) !important; }
 .c-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
 .c-item:hover { background: var(--accent-wash); color: var(--accent-text); }
 .c-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.c-how { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
 .c-item:hover .c-how { color: inherit; }
 .c-more { display: flex; gap: 6px; margin-top: 4px; }
 .c-more:empty { display: none; }
 
 /* A reference field's small search, in the kit's pop-up. */
 .menu-list { max-height: 260px; overflow: auto; }
-.find { width: 100%; font-size: 12.5px; margin-bottom: 4px; }
+.find { width: 100%; font-size: var(--t-md); margin-bottom: 4px; }
 
 /* A task's: its status and title, a row to each thing it holds, its own buttons at its foot. */
-.t-card { display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+.t-card { display: flex; flex-direction: column; gap: 10px; font-size: var(--t-md); }
 .check { width: 16px; height: 16px; flex: none; margin-top: 2px; padding: 0 !important; border-radius: 50% !important; border: 1.5px solid var(--c, var(--muted)) !important;
-  background: transparent; color: transparent; font-size: 10px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  background: transparent; color: transparent; font-size: var(--t-xs); line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .check:hover { background: color-mix(in srgb, var(--c, var(--accent)) 25%, transparent); }
 .check.on { background: var(--c); color: var(--surface); }
 .t-head { display: flex; align-items: center; gap: 8px; }
@@ -84,21 +84,21 @@ input.field.bad { border-color: var(--danger) !important; }
 .s-row .chips { flex: 1; min-width: 0; }
 .sum { flex: 1; color: var(--text); }
 .sum.none { color: var(--muted); }
-.t-tag-in { flex: 1; min-width: 80px; font-size: 12px; }
+.t-tag-in { flex: 1; min-width: 80px; font-size: var(--t-sm); }
 .t-files .chip { cursor: pointer; max-width: 220px; }
 .t-files .chip:hover .lbl { color: var(--accent-text); }
-.t-files-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
+.t-files-note { flex-basis: 100%; font-size: var(--t-sm); color: var(--muted); }
 .t-files-note.err { color: var(--danger); }
 /* Title and notes are the editor (editor.js), so @ works in them: drawn as fields (kit.css .ed-field). */
-.t-title { flex: 1; font-size: 14px; min-width: 0; }
+.t-title { flex: 1; font-size: var(--t-md); min-width: 0; }
 .t-title .cm-content { padding: 4px 6px; }
-.t-notes { width: 100%; min-height: 110px; font-size: 12.5px; }
+.t-notes { width: 100%; min-height: 110px; font-size: var(--t-md); }
 .t-notes .cm-content { padding: 6px 8px; min-height: 96px; }
 /* The task's own buttons: a row of their own under a rule; each on one line, the row wrapping. */
 .s-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 .s-foot .t-btn { white-space: nowrap; }
 .s-foot .spacer { flex: 1; }
-.t-done { color: var(--muted); font-size: 11.5px; }
+.t-done { color: var(--muted); font-size: var(--t-sm); }
 /* Where a file is: stored on the task only (a paperclip), in this project's folder (a folder), or
    linked from another (an arrow out); a linked one missing from its folder, a red mark and struck through. */
 .chip .fic { display: inline-flex; margin-right: 3px; color: var(--muted); }
@@ -107,45 +107,45 @@ input.field.bad { border-color: var(--danger) !important; }
 .chip.at-project, .chip.at-elsewhere { background: var(--accent-wash); }
 .chip.missing .lbl { text-decoration: line-through; opacity: var(--disabled); }
 .chip .warn-mark { margin-right: 3px; font-weight: 500; color: var(--danger); }
-.s-row > .pick { flex: 1; min-width: 0; font-size: 12.5px; }
+.s-row > .pick { flex: 1; min-width: 0; font-size: var(--t-md); }
 .pick.overdue .lbl { color: var(--danger); }
-.time-in { flex: 0 0 82px; width: 82px; box-sizing: border-box; text-align: center; font-size: 12.5px; }
+.time-in { flex: 0 0 82px; width: 82px; box-sizing: border-box; text-align: center; font-size: var(--t-md); }
 /* Repeat's editor, under its line. */
 .t-rep { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
 .t-rep[hidden] { display: none; }
 .t-rep .s-row > .lab { width: 62px; }
 .t-rep .s-row { flex-wrap: wrap; }
 .t-rep .seg button { padding: 2px 9px !important; }
-.r-n { width: 46px; text-align: center; font-size: 12.5px; }
+.r-n { width: 46px; text-align: center; font-size: var(--t-md); }
 .r-n[hidden], .t-rep .pick[hidden] { display: none; }
-.r-err { color: var(--danger); font-size: 11.5px; }
+.r-err { color: var(--danger); font-size: var(--t-sm); }
 .r-err:empty { display: none; }
 .acts { display: flex; gap: 8px; align-items: center; }
 .acts .spacer { flex: 1; }
 
 /* An event's: a row to each thing it holds, Save at its foot. */
-.ev-card { display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
-.ev-card .row { display: flex; gap: 8px; align-items: center; font-size: 12.5px; flex-wrap: wrap; }
+.ev-card { display: flex; flex-direction: column; gap: 10px; font-size: var(--t-md); }
+.ev-card .row { display: flex; gap: 8px; align-items: center; font-size: var(--t-md); flex-wrap: wrap; }
 .ev-card .row > span:first-child { width: 74px; color: var(--muted); flex: none; }
 .ev-card .row[hidden], .ev-card .pick[hidden], .ev-card input[hidden] { display: none; }
 .ev-card input[type=text] { flex: 1; min-width: 0; }
-.ev-card .pick { flex: 1; min-width: 0; font-size: 12.5px; }
+.ev-card .pick { flex: 1; min-width: 0; font-size: var(--t-md); }
 .ev-card input.time-in { flex: 0 0 96px; width: 96px; text-align: center; }
 .ev-card .seg.off { opacity: var(--disabled); pointer-events: none; }
 .ev-card .seg { flex-wrap: wrap; }
-.ev-card .note-row small, .ev-org { color: var(--muted); font-size: 11.5px; }
+.ev-card .note-row small, .ev-org { color: var(--muted); font-size: var(--t-sm); }
 .ev-card .who { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-row); background: var(--desk); padding: 3px 6px; }
 .ev-card .who input { flex: 1; min-width: 120px; border: 0 !important; background: none !important; padding: 2px !important; }
 .ev-card .chip .st { color: var(--muted); margin-left: 4px; }
 .ev-chips { display: contents; }
 .ev-card .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-.ev-notes { flex: 1; min-width: 0; min-height: 70px; max-height: 30vh; overflow: auto; font-size: 13px; }
-.ev-from-account { flex: 1; min-width: 0; max-height: 30vh; overflow: auto; font-size: 13px; padding: 4px 8px; color: var(--muted); overflow-wrap: anywhere; }
+.ev-notes { flex: 1; min-width: 0; min-height: 70px; max-height: 30vh; overflow: auto; font-size: var(--t-md); }
+.ev-from-account { flex: 1; min-width: 0; max-height: 30vh; overflow: auto; font-size: var(--t-md); padding: 4px 8px; color: var(--muted); overflow-wrap: anywhere; }
 .ev-from-account a { color: var(--accent-text); }
 .ev-from-account p { margin: 0 0 6px; }
 .ev-notes .cm-content { padding: 4px 8px; min-height: 62px; }
 .ev-card .acts { flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
-.ev-card .ev-unsaved { color: var(--muted); font-size: 11.5px; font-style: italic; margin-right: auto; }
+.ev-card .ev-unsaved { color: var(--muted); font-size: var(--t-sm); font-style: italic; margin-right: auto; }
 .ev-card .ev-unsaved[hidden] { display: none; }
 /* Where: the field with a button under it for each link in it; read-only, the words with their links (eventcard.js). */
 .ev-card .ev-where-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }

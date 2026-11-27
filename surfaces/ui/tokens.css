@@ -36,6 +36,8 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --accent-text: var(--accent);
   --accent: #c98a5b;
   --accent-wash: rgba(201, 138, 91, .14);
+  /* Text on a solid accent: a primary button, a badge. Dark in either theme, as the accent is the same in both. */
+  --on-accent: #1c1f22;
   /* Not an accent: the one color that means "this destroys something". Muted, like the rest. */
   --danger: #c26b6b;
   /* A concern, short of trouble: the power button's yellow (sysmon.health). Muted too. */
@@ -50,6 +52,16 @@ its own (they pushed its tool icons off center). theme.css imports it.
   --tint-7: #8a95c9;
   --tint-8: #c99a6b;
   --font: 'Barlow Semi Condensed', system-ui, sans-serif;
+
+  /* Type. Every size is one of these (UX-AUDIT 3.4; check-look.mjs fails on any other in px): a label, small
+     secondary text, the body of rows and cards, a title in a list, a panel's heading, a figure. A glyph sized to
+     its box (a caret, an icon font, a badge's count) is not text, and says so with `look:`. */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-md: 13.5px;
+  --t-lg: 15px;
+  --t-xl: 18px;
+  --t-2xl: 26px;
 
   /* Shape. Every corner is one of these: a panel (the bar's panels, toasts,
      dialogs), a control (icon buttons, menus, pop-ups, cards), a row (list

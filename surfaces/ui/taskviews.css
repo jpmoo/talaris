@@ -8,10 +8,10 @@ edge — and the controls are controls.css's; only what these views add is here.
 Everything is under .tv- so nothing reaches into the panel's other parts.
 */
 
-.tv-root { height: 100%; min-height: 0; display: flex; flex-direction: column; font-size: 13px; }
+.tv-root { height: 100%; min-height: 0; display: flex; flex-direction: column; font-size: var(--t-md); }
 .tv-scroll { overflow: auto; min-height: 0; }
 .tv-spacer { flex: 1; }
-.tv-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tv-count { font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tv-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; display: inline-block; }
 .tv-title { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .tv-title:hover { color: var(--accent-text); }
@@ -30,7 +30,7 @@ Everything is under .tv- so nothing reaches into the panel's other parts.
 
 .tv-toast { position: fixed; z-index: var(--z-tip); left: 50%; bottom: 18px; transform: translateX(-50%); max-width: 80%;
             background: var(--surface); border: 1px solid var(--danger); color: var(--danger); border-radius: var(--radius-panel);
-            box-shadow: var(--menu-shadow); padding: 6px 12px; font-size: 12.5px; }
+            box-shadow: var(--menu-shadow); padding: 6px 12px; font-size: var(--t-md); }
 
 /* ---- dragging ------------------------------------------------------------ */
 
@@ -45,7 +45,7 @@ Everything is under .tv- so nothing reaches into the panel's other parts.
 .tv-table th { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0; text-align: left; font-weight: 400; }
 .tv-table th + th { border-left: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
 .tv-th { display: flex; align-items: center; gap: 4px; width: 100%; border: 0 !important; border-radius: 0 !important; padding: 7px 10px !important;
-         font-size: 10px !important; letter-spacing: 2px; text-transform: uppercase; color: var(--muted) !important; text-align: left; }
+         font-size: var(--t-xs) !important; letter-spacing: 2px; text-transform: uppercase; color: var(--muted) !important; text-align: left; }
 .tv-th:hover { color: var(--accent-text) !important; }
 .tv-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-sortmark { color: var(--accent-text); letter-spacing: 0; }
@@ -57,7 +57,7 @@ Everything is under .tv- so nothing reaches into the panel's other parts.
 .tv-table td { border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding: 4px 10px; height: 32px;
                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .tv-row:hover td { background: var(--accent-hover); }
-.tv-num { color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.tv-num { color: var(--muted); font-size: var(--t-xs); text-align: right; font-variant-numeric: tabular-nums; }
 th.tv-num { padding: 7px 10px !important; }
 .tv-c-title { position: relative; }
 .tv-c-title .tv-title { display: inline-block; max-width: calc(100% - 22px); vertical-align: middle; }
@@ -66,13 +66,13 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-pen:hover { color: var(--accent-text) !important; }
 .tv-c-tags, .tv-c-text, .tv-c-number, .tv-c-ref { cursor: text; }
 .tv-status { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid transparent !important; padding: 1px 8px !important;
-             font-size: 12px; border-radius: var(--radius-pill) !important; background: color-mix(in srgb, var(--c) 16%, transparent) !important; }
+             font-size: var(--t-sm); border-radius: var(--radius-pill) !important; background: color-mix(in srgb, var(--c) 16%, transparent) !important; }
 .tv-status:hover, .tv-status.on { border-color: var(--c) !important; color: var(--text) !important; }
-.tv-date { border: 0 !important; padding: 2px 4px !important; border-radius: var(--radius-row) !important; font-size: 12.5px; min-width: 40px; min-height: 20px; text-align: left; }
+.tv-date { border: 0 !important; padding: 2px 4px !important; border-radius: var(--radius-row) !important; font-size: var(--t-md); min-width: 40px; min-height: 20px; text-align: left; }
 .tv-date:hover { background: var(--accent-wash) !important; }
-.tv-tag { color: var(--muted); font-size: 12px; margin-right: 6px; }
-.tv-in { width: 100%; padding: 2px 6px; font-size: 13px; }
-.tv-group td { background: var(--surface); padding: 8px 10px 4px; cursor: pointer; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.tv-tag { color: var(--muted); font-size: var(--t-sm); margin-right: 6px; }
+.tv-in { width: 100%; padding: 2px 6px; font-size: var(--t-md); }
+.tv-group td { background: var(--surface); padding: 8px 10px 4px; cursor: pointer; font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .tv-group td > * { vertical-align: middle; margin-right: 6px; }
 .tv-group:hover td { color: var(--accent-text); }
 
@@ -90,10 +90,10 @@ th.tv-num { padding: 7px 10px !important; }
 /* The dates whole; what is left of the line, the project, cut short. */
 .tv-meta > span { flex: none; white-space: nowrap; }
 .tv-meta .tv-proj { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tv-meta { display: flex; gap: 8px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+.tv-meta { display: flex; gap: 8px; font-size: var(--t-sm); color: var(--muted); min-width: 0; }
 .tv-proj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-card:not(:hover) > .tv-x { display: none !important; }
-.tv-add input { width: 100%; font-size: 13px; }
+.tv-add input { width: 100%; font-size: var(--t-md); }
 
 /* ---- board --------------------------------------------------------------- */
 
@@ -101,7 +101,7 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-col { flex: 0 0 260px; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius-control);
           border-top: 2px solid var(--c); background: color-mix(in srgb, var(--c) 5%, transparent); }
 .tv-col > header, .tv-region > header, .tv-drawer > header { display: flex; align-items: center; gap: 7px; padding: 7px 10px; flex: none; }
-.tv-col-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-col-label { font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-small { width: 22px !important; height: 22px !important; }
 .tv-col-list, .tv-region-list, .tv-drawer-list { flex: 1; min-height: 40px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px 8px 10px; }
 
@@ -130,7 +130,7 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-matrix.drawer-top .tv-drawer-list, .tv-matrix.drawer-bottom .tv-drawer-list { flex-direction: row; flex-wrap: wrap; align-content: flex-start; }
 .tv-matrix.drawer-top .tv-drawer-list .tv-card, .tv-matrix.drawer-bottom .tv-drawer-list .tv-card { width: 220px; }
 /* Put away: a tab at its edge. */
-.tv-drawer-tab { flex: none; align-self: stretch; border: 0 !important; border-radius: 0 !important; background: transparent; color: var(--muted); font-size: 12px; padding: 6px 8px !important; }
+.tv-drawer-tab { flex: none; align-self: stretch; border: 0 !important; border-radius: 0 !important; background: transparent; color: var(--muted); font-size: var(--t-sm); padding: 6px 8px !important; }
 .tv-drawer-tab:hover { color: var(--accent-text); background: var(--accent-wash); }
 .tv-matrix.drawer-left .tv-drawer-tab, .tv-matrix.drawer-right .tv-drawer-tab { writing-mode: vertical-rl; }
 .tv-matrix.drawer-right .tv-drawer-tab { border-left: 1px solid var(--line) !important; }
@@ -139,25 +139,25 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-matrix.drawer-bottom .tv-drawer-tab { border-top: 1px solid var(--line) !important; }
 .tv-drawer > header .tv-col-label { flex: 1; color: var(--muted); }
 .tv-drawer-search { padding: 0 8px 8px; flex: none; }
-.tv-drawer-search input { width: 100%; font-size: 12.5px; }
+.tv-drawer-search input { width: 100%; font-size: var(--t-md); }
 
 /* ---- calendar ------------------------------------------------------------ */
 
 .tv-cal { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .tv-calbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); flex: none; }
 .tv-calbar .seg button, .tv-calbar .t-btn { white-space: nowrap; }
-.tv-caltitle { font-size: 14px; font-weight: 500; margin-left: 4px; white-space: nowrap; }
-.tv-undated { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tv-caltitle { font-size: var(--t-md); font-weight: 500; margin-left: 4px; white-space: nowrap; }
+.tv-undated { font-size: var(--t-sm); color: var(--muted); white-space: nowrap; }
 .tv-calwrap { flex: 1; display: flex; flex-direction: column; }
 .tv-calgrid { flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto repeat(6, minmax(92px, 1fr)); }
 .tv-calgrid.week { grid-template-rows: auto minmax(320px, 1fr); }
-.tv-calgrid .dow { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tv-calgrid .dow { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .tv-calgrid .dow.today { color: var(--accent-text); }
 .tv-day { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 3px 4px 4px; min-height: 0; min-width: 0;
           display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .tv-day:nth-child(7n) { border-right: 0; }
 .tv-dayhead { display: flex; align-items: center; min-height: 20px; flex: none; }
-.tv-day .n { font-size: 12px; color: var(--muted); padding: 1px 6px; border-radius: var(--radius-pill); }
+.tv-day .n { font-size: var(--t-sm); color: var(--muted); padding: 1px 6px; border-radius: var(--radius-pill); }
 .tv-day.other .n { opacity: .45; }
 .tv-day.today .n { background: var(--accent); color: var(--surface); }
 .tv-dayplus { visibility: hidden; border: 0 !important; padding: 2px !important; color: var(--muted) !important; display: inline-flex; }
@@ -165,14 +165,14 @@ th.tv-num { padding: 7px 10px !important; }
 .tv-dayplus:hover { color: var(--accent-text) !important; }
 .tv-daylist { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: auto; }
 .tv-calgrid.week .tv-daylist { flex: 1; }
-.tv-chip { display: flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 1px 6px; border-radius: var(--radius-row); cursor: grab; min-width: 0;
+.tv-chip { display: flex; align-items: center; gap: 5px; font-size: var(--t-sm); padding: 1px 6px; border-radius: var(--radius-row); cursor: grab; min-width: 0;
            background: var(--accent-wash); border-left: 3px solid var(--accent); }
 .tv-chip .tv-sdot { width: 9px !important; height: 9px; }
 .tv-chip.late { background: var(--danger-wash); border-left-color: var(--danger); }
 .tv-chip:hover { background: var(--accent-strong); }
-.tv-more { font-size: 11px; color: var(--muted); padding: 0 6px; cursor: pointer; }
+.tv-more { font-size: var(--t-xs); color: var(--muted); padding: 0 6px; cursor: pointer; }
 .tv-more:hover { color: var(--accent-text); }
-.tv-day .tv-add input { padding: 2px 6px; font-size: 12px; }
+.tv-day .tv-add input { padding: 2px 6px; font-size: var(--t-sm); }
 
 /* What a title names by @ (mentionchips.js): a chip in the line of words, opening that thing's card. */
 .m-chip { display: inline-flex; align-items: center; vertical-align: baseline; max-width: 100%; margin: 0 1px; padding: 0 7px;

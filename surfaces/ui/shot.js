@@ -60,7 +60,7 @@
   let draft = null;          // the mark being made
   let kept = false;          // saved or copied since the last change
   let tool = "arrow";
-  const COLORS = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#0090ff", "#8e4ec6", "#ffffff", "#111111"];
+  const COLORS = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#0090ff", "#8e4ec6", "#ffffff", "#111111"];  // look: ink drawn on the screenshot
   let color = COLORS[0];
   let size = 1;              // a step: small, medium, large
   const SIZES = [["S", 0.6], ["M", 1], ["L", 1.8]];
@@ -175,14 +175,14 @@
       // Only while it is drawn: what will go, dimmed, and a dashed edge round what stays.
       if (m === draft) {
         const c = cropNow(), r = cropOf(m);
-        ctx.fillStyle = "rgba(0,0,0,.5)";
+        ctx.fillStyle = "rgba(0,0,0,.5)";  // look: ink drawn on the screenshot
         ctx.beginPath();
         ctx.rect(c.x, c.y, c.w, c.h);
         ctx.rect(r.x, r.y, r.w, r.h);
         ctx.fill("evenodd");
         ctx.setLineDash([unit() * 3, unit() * 2]);
         ctx.lineWidth = Math.max(1, unit() * 0.6);
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = "#ffffff";  // look: ink drawn on the screenshot
         ctx.strokeRect(r.x, r.y, r.w, r.h);
       }
     } else if (m.tool === "text") {
@@ -191,7 +191,7 @@
       // Legible on anything: a thin edge in the opposite tone.
       const dark = isDark(m.color);
       ctx.lineWidth = Math.max(2, m.font / 7);
-      ctx.strokeStyle = dark ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.65)";
+      ctx.strokeStyle = dark ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.65)";  // look: ink drawn on the screenshot
       m.text.split("\n").forEach((line, i) => {
         ctx.strokeText(line, m.a.x, m.a.y + i * m.font * 1.2);
         ctx.fillText(line, m.a.x, m.a.y + i * m.font * 1.2);
@@ -400,7 +400,7 @@
       el("span", { id: "zoom" }, `${Math.round(z * 100)}%`),
       msgEl,
       el("span", { class: "spacer" }),
-      el("span", { class: "dim-note", style: "font-size:11px;color:var(--muted)" }, W ? `${cropNow().w} × ${cropNow().h}` : ""),
+      el("span", { class: "dim-note", style: "font-size:var(--t-xs);color:var(--muted)" }, W ? `${cropNow().w} × ${cropNow().h}` : ""),
       el("button", { class: "t-btn", title: "Copy it (Ctrl+C)", onclick: copy }, "Copy"),
       el("button", { class: "t-btn primary", title: "Keep it in Screenshots (Ctrl+S)", onclick: save }, "Save"),
       closeButton());

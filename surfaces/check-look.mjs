@@ -12,7 +12,10 @@
 //   a shadow written out — the menu's or the edge's;
 //   a tint of the accent at its own strength — the four tiers;
 //   a weight over 500 — only 400 and 500 are shipped;
-//   a z-index of 10 or more written as a number — the scale's tokens.
+//   a z-index of 10 or more written as a number — the scale's tokens;
+//   a font size in pixels — the six type tokens, --t-xs to --t-2xl (UX-AUDIT 3.4).
+//
+// The web app's own pages (packages/web/src/public) are held to it too (UX-AUDIT 2.6).
 //
 // A line that must be an exception says so: `look: <why>` in a comment on it.
 // node surfaces/check-look.mjs  (exit 1 on anything found)
@@ -21,6 +24,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const UI = join(new URL(".", import.meta.url).pathname, "ui");
+const WEB = join(new URL(".", import.meta.url).pathname, "..", "packages", "web", "src", "public");
+const ROOT = join(UI, "..", "..");
 // Where the values are defined, and what is not Talaris's to change: the
 // canvas's bundle (only its Talaris block is read), the editor and markdown
 // bundles, the icon set (drawings, not colours), the fonts.
@@ -35,6 +40,9 @@ const RULES = [
   ["accent tint", /color-mix\([^)]*var\(--accent\)\s*\d+%/, (l) => !/@keyframes|^\s*\d+%\s*\{/.test(l)],
   ["weight", /font-weight\s*:\s*(6|7|8|9)\d\d|fontWeight\s*[:=]\s*["']?(6|7|8|9)\d\d|font-weight\s*:\s*bold/i, () => true],
   ["z-index", /z-index\s*:\s*(\d{2,})|zIndex\s*[:=]\s*["']?(\d{2,})/, () => true],
+  // The words retired by the glossary (DESIGN, *The words, settled*), in what a page shows — not in its comments.
+  ["word", /["'>`][^"'<`]*\b(the writing surface|in Files\b)/i, (l) => !/^\s*(\/\/|\*|\/\*|<!--|#)/.test(l)],
+  ["type size", /font-size\s*:\s*\d+(\.\d+)?px|\bfont\s*:\s*(\d{3}\s+)?\d+(\.\d+)?px|fontSize\s*[:=]\s*["'`]\d+(\.\d+)?px/i, () => true],
 ];
 
 function files(dir) {
@@ -60,12 +68,12 @@ function linesOf(path) {
 }
 
 const found = [];
-for (const path of files(UI)) {
+for (const path of [...files(UI), ...files(WEB)]) {
   for (const [n, line] of linesOf(path)) {
     if (/look:\s*\S/.test(line)) continue;
     for (const [what, re, keep] of RULES) {
       const m = line.match(re);
-      if (m && keep(line, m)) found.push(`${relative(UI, path)}:${n}  ${what}  ${line.trim().slice(0, 140)}`);
+      if (m && keep(line, m)) found.push(`${relative(ROOT, path)}:${n}  ${what}  ${line.trim().slice(0, 140)}`);
     }
   }
 }

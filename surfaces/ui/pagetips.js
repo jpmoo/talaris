@@ -25,7 +25,7 @@
     /* The kit's tooltip (.kit-tip), restated for the pages that load only tokens.css (the canvas, notify). */
     .page-tip { position: fixed; z-index: var(--z-tip); max-width: 320px; padding: 4px 8px; border-radius: var(--radius-row); pointer-events: none;
       background: var(--surface); color: var(--text); border: 1px solid var(--frame); box-shadow: var(--menu-shadow);
-      font: 12.5px/1.3 var(--font); white-space: pre-line; }
+      font: var(--t-md)/1.3 var(--font); white-space: pre-line; }
     .page-tip[hidden] { display: none; }`;
   const ready = () => { document.head.append(style); document.body.append(tip); };
   if (document.body) ready(); else addEventListener("DOMContentLoaded", ready);

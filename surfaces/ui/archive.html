@@ -28,46 +28,46 @@ html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
 header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
-header h1 { font-size: 15px; font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
+header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0 2px 0 4px; letter-spacing: .3px; flex: none; }
 header .spacer { flex: 1; }
 header .icon-btn[hidden] { display: none !important; }
-#q { width: 260px; flex: 0 1 260px; min-width: 120px; font-size: 12.5px; }
-#msg { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#q { width: 260px; flex: 0 1 260px; min-width: 120px; font-size: var(--t-md); }
+#msg { font-size: var(--t-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #msg.err { color: var(--danger); }
 
 main { flex: 1; min-height: 0; display: flex; }
 #side { width: 300px; flex: none; border-right: 1px solid var(--line); overflow: auto; padding: 6px 0 12px; }
 #detail { flex: 1; min-width: 0; overflow: auto; padding: 14px 18px 24px; }
 
-.year { padding: 12px 14px 2px; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+.year { padding: 12px 14px 2px; font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); }
 .month { display: block; padding: 6px 14px 2px; }
-.proj { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; background: none; border: 0; padding: 5px 14px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
+.proj { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; background: none; border: 0; padding: 5px 14px; color: var(--text); cursor: pointer; font: inherit; font-size: var(--t-md); }
 .proj:hover { background: var(--accent-hover); }
 .proj.on { background: var(--accent-wash); color: var(--accent-text); }
-.proj small { color: var(--muted); font-size: 11px; }
+.proj small { color: var(--muted); font-size: var(--t-xs); }
 .hit small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-#detail h2 { font-size: 16px; font-weight: 500; margin: 0 0 2px; }
-.meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; overflow-wrap: anywhere; }
+#detail h2 { font-size: var(--t-lg); font-weight: 500; margin: 0 0 2px; }
+.meta { color: var(--muted); font-size: var(--t-sm); margin-bottom: 12px; overflow-wrap: anywhere; }
 .acts { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
 .sec { display: block; margin: 16px 0 4px; }
 .sec .n { margin-left: 6px; letter-spacing: 0; }
-.item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 8px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
+.item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 8px; color: var(--text); cursor: pointer; font: inherit; font-size: var(--t-md); }
 .item:hover { background: var(--accent-hover); }
-.item small { color: var(--muted); font-size: 11px; }
+.item small { color: var(--muted); font-size: var(--t-xs); }
 .kids { margin-left: 16px; }
 
 /* A page or a canvas, read. */
 .reader { border-top: 1px solid var(--line); padding-top: 12px; }
 .reader .rhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.reader .rhead .t { font-size: 15px; flex: 1; min-width: 0; }
-.reader .body { font-size: 14px; line-height: 1.55; }
-.reader .note { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 8px 10px; margin: 0 0 8px; white-space: pre-wrap; font-size: 13px; }
+.reader .rhead .t { font-size: var(--t-lg); flex: 1; min-width: 0; }
+.reader .body { font-size: var(--t-md); line-height: 1.55; }
+.reader .note { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 8px 10px; margin: 0 0 8px; white-space: pre-wrap; font-size: var(--t-md); }
 
 /* Bringing it back when one of its name is in use: asked in the page, with words (.kit-ask-box). */
 .kit-ask-box.sheet { margin: 0 0 16px; }
-.sheet p { margin: 0 0 10px; font-size: 13px; }
-.sheet .conf { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12.5px; border-top: 1px solid var(--line); }
+.sheet p { margin: 0 0 10px; font-size: var(--t-md); }
+.sheet .conf { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: var(--t-md); border-top: 1px solid var(--line); }
 .sheet .conf .path { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 </style>
 <link rel="stylesheet" href="kit.css">

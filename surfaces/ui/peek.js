@@ -280,8 +280,12 @@ window.Peek = (() => {
           const id = `${s.key}|${w.how}|${w.text || ""}`;
           // A merge is asked first, as everything is asked (kit.js).
           return el("button", { class: "t-btn small", title: w.says, onclick: (e) => {
-            if (w.how === "merge" && !Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
-            api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
+            const accept = () => api("POST", "/suggestions/accept", { key, other: s.key, way: w }).then((r) => { if (opts.changed) opts.changed(r); else load(); });
+            if (w.how !== "merge") { accept(); return; }
+            if (!Kit.ask(e.currentTarget, { key: id, ask: "Make them one?" })) return;
+            // Not taken back once done: done when its Undo has gone (kit.js, undoable), the suggestion out of sight meanwhile.
+            const row = e.currentTarget.closest(".peek-ways")?.parentElement;
+            Kit.undoable({ text: "Made one", hide: () => { if (row) row.hidden = true; }, act: accept, undo: () => { if (row) row.hidden = false; } });
           } }, w.label);
         })))));
     };
@@ -296,9 +300,9 @@ window.Peek = (() => {
   style.textContent = `
     .peek { position: fixed; z-index: var(--z-pop); top: 12%; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); max-height: 72%; overflow: auto;
       background: color-mix(in srgb, var(--surface) var(--alpha, 100%), transparent); border: 1px solid var(--frame); border-radius: var(--radius-panel);
-      box-shadow: var(--menu-shadow); padding: 12px 14px; font-size: 12.5px; color: var(--text); }
+      box-shadow: var(--menu-shadow); padding: 12px 14px; font-size: var(--t-md); color: var(--text); }
     .peek-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .peek-title { flex: 1; font-size: 14px; }
+    .peek-title { flex: 1; font-size: var(--t-md); }
     .peek-line { color: var(--muted); margin: 4px 0; }
     .peek-note { margin: 6px 0; max-height: 9em; overflow: auto; }
     .peek-note p { margin: 0 0 4px; } .peek-note a { color: var(--accent-text); }
@@ -308,7 +312,7 @@ window.Peek = (() => {
     .peek-item { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-row); padding: 3px 6px; color: var(--text); cursor: pointer; font: inherit; }
     .peek-item:hover { background: var(--accent-wash); color: var(--accent-text); }
     .peek-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .peek-how { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .peek-how { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; }
     .peek-item:hover .peek-how { color: inherit; }
     .peek-more { display: flex; gap: 6px; margin-top: 4px; }
     .peek-fold { cursor: pointer; }
@@ -320,7 +324,7 @@ window.Peek = (() => {
     .peek-reset { margin-left: auto; letter-spacing: 0; text-transform: none; }
     .peek-srow { padding: 4px 0 6px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
     .peek-stop { display: flex; align-items: center; gap: 4px; }
-    .peek-why { color: var(--muted); font-size: 11px; margin: 0 6px 4px; }
+    .peek-why { color: var(--muted); font-size: var(--t-xs); margin: 0 6px 4px; }
     .peek-ways { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 6px; }
   `;
   document.head.append(style);

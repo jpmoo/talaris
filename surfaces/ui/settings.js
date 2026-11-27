@@ -1467,7 +1467,7 @@ function drawWallpaper(w) {
     onclick: () => { $("wall-picker").classList.remove("open"); bridge.colorWallpaper(wallScope || "", c); } })),
     // Any other color, in a picker of its own: set as you let go.
     el("button", { class: "cv-swatch any" + (anyColor ? " custom is-on on" : ""), title: "Any color", style: anyColor ? `--custom:${color}` : "",
-      onclick: () => { const p = $("wall-picker"); p.classList.toggle("open"); if (p.classList.contains("open")) wallPicker.set(color || "#1e2328"); } }));
+      onclick: () => { const p = $("wall-picker"); p.classList.toggle("open"); if (p.classList.contains("open")) wallPicker.set(color || "#1e2328"); } }));  // look: wallpaper colors, the user's to choose
   if (document.activeElement !== $("wall-hex")) $("wall-hex").value = color;
   $("wall-fit-row").style.display = color ? "none" : "";
   $("wall-preview").src = w.path ? `talaris-ui://wallpaper/?${scoped ? `project=${encodeURIComponent(wallScope)}&` : ""}t=${stamp}` : "";
@@ -1482,12 +1482,12 @@ const wallPicker = makePicker($("wall-picker"), {
   live: (c) => { $("wall-hex").value = c; },
   done: (c) => bridge && bridge.colorWallpaper(wallScope || "", c),
 });
-const WALL_COLORS = ["#111214", "#1e2328", "#2e333b", "#1d2838", "#1f2d27", "#33262b", "#d8d4cc", "#eceef1"];
+const WALL_COLORS = ["#111214", "#1e2328", "#2e333b", "#1d2838", "#1f2d27", "#33262b", "#d8d4cc", "#eceef1"];  // look: wallpaper colors, the user's to choose
 $("wall-hex").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   const v = $("wall-hex").value.trim().toLowerCase();
   if (/^#[0-9a-f]{6}$/.test(v)) bridge.colorWallpaper(wallScope || "", v);
-  else say("A color is like #1e2328", true);
+  else say("A color is like #1e2328", true);  // look: wallpaper colors, the user's to choose
 });
 $("wall-choose").addEventListener("click", () => bridge && bridge.chooseWallpaper(wallScope || ""));
 $("wall-default").addEventListener("click", () => bridge && bridge.defaultWallpaper(wallScope || ""));

@@ -138,7 +138,7 @@ function update(next) {
   for (const [side, px] of Object.entries(state.insets || {})) document.body.style.setProperty(`--in-${side}`, `${px}px`);
   // A panel's one button makes it a window (the expand corners); a window's closes it.
   $("grow").innerHTML = WINDOW ? Icons.close() : Icons.grow();
-  $("grow").title = WINDOW ? "Close" : "Make it a window";
+  $("grow").title = WINDOW ? "Close" : "Open as a window";
   const look = state.look || {};
   document.body.dataset.outline = look.outline || "focus";
   if (look.dismissOutside) document.body.dataset.dismiss = "1"; else delete document.body.dataset.dismiss;
@@ -484,6 +484,7 @@ function pathTo(tree, id, trail = []) {
 
 async function loadCanvas() {
   const tree = await core("GET", `/projects/${here().id}/canvases`);
+  if (goingAway.size) tree.children = pruned(tree.children || [], (n) => goingAway.has(`canvas:${n.id}`));
   canvasTreeCache = tree;
   if (!viewing || !pathTo(tree, viewing)) viewing = tree.id;
   const trail = pathTo(tree, viewing);
@@ -646,13 +647,17 @@ function renameCanvas(node) {
 
 function deleteCanvas(node, parent) {
   const pid = here().id;
-  const gone = () => { viewing = parent ? parent.id : null; loadCanvas(); };
+  const later = (all) => {
+    viewing = parent ? parent.id : null;
+    goLater(`canvas:${node.id}`, `${node.title || "The canvas"}${all ? " and what is inside it" : ""} deleted`,
+      () => core("DELETE", `/projects/${pid}/canvases/${node.id}${all ? "?all=1" : ""}`), () => loadCanvas());
+  };
   // Asked already, by the button's second press; something inside it is asked again here, saying what else goes.
   core("GET", `/projects/${pid}/canvases/${node.id}/below`).then(async ({ count }) => {
-    if (!count) { await core("DELETE", `/projects/${pid}/canvases/${node.id}`); gone(); return; }
+    if (!count) { later(false); return; }
     confirmDelete(`Delete everything inside “${node.title}” too?`,
       `${count === 1 ? "1 canvas is" : `${count} canvases are`} inside it, and ${count === 1 ? "it goes" : "they all go"} with it. A copy of each is kept in its versions.`,
-      async () => { await core("DELETE", `/projects/${pid}/canvases/${node.id}?all=1`); gone(); }, `Delete all ${count + 1}`);
+      async () => later(true), `Delete all ${count + 1}`);
   }).catch((e) => status(e.message, true));
 }
 
@@ -847,8 +852,8 @@ const pageMap = (() => {
     const g = canvas.getContext("2d");
     g.scale(dpr, dpr);
     const css = getComputedStyle(document.documentElement);
-    const ink = css.getPropertyValue("--text-muted").trim() || "#888";
-    const accent = css.getPropertyValue("--accent").trim() || "#c98a5b";
+    const ink = css.getPropertyValue("--muted").trim() || "#888"; // look: only if the token cannot be read
+    const accent = css.getPropertyValue("--accent").trim() || "#c98a5b"; // look: only if the token cannot be read
     lines.forEach((line, i) => {
       const t = line.replace(/\t/g, "  ");
       const indent = t.length - t.trimStart().length;
@@ -1009,7 +1014,7 @@ async function loadWriting() {
     ? new Set((await core("GET", `/tags/things?tag=${encodeURIComponent(filterTag)}&kind=page`).catch(() => [])).filter((x) => x.page && x.page.project === wpid()).map((x) => x.page.path))
     : null;
   // Home's own pages hold its daily notes and its Pages too: the dailies on their tab; its Pages are its pages.
-  const all = dailyOn ? [] : await core("GET", `/projects/${wpid()}/pages`);
+  const all = dailyOn ? [] : pruned(await core("GET", `/projects/${wpid()}/pages`), (n) => goingAway.has(`page:${wpid()}/${n.path}`));
   const pages = inHome() ? [...((all.find((n) => n.path === PAGES) || {}).children || []), ...all.filter((n) => n.path !== DAILY && n.path !== PAGES)] : all;
   // Where the tree's top is: Pages, for Home.
   const root = inHome() ? PAGES : "";
@@ -1081,7 +1086,7 @@ async function loadWriting() {
   scrollBack(tree, listKey, top);
   $("count").textContent = scope === "daily" ? "HOME · DAILY" : `${here().code} · ${count} PAGE${count === 1 ? "" : "S"}`;
   const actions = [sideToggle(tree, LIST_KEY, "list")];
-  if (!dailyOn) actions.push(" ", btn("New page", () => newPage(inHome() ? PAGES : null)));
+  if (!dailyOn) { const nb = btn("New page", () => newPage(inHome() ? PAGES : null)); nb.id = "new-page"; actions.push(" ", nb); }
   // What plugins put on Home's pages (Sync all notes) and on one of them (Sync now): peek.js, as People's and Tasks' are.
   if (scope === "project" && inHome() && window.Peek) {
     actions.push(" ", Peek.actionButtons("notes", null, core, ""));
@@ -1281,6 +1286,26 @@ async function projectsMenu(anchor) {
   Kit.menu(anchor, [home, "sep", ...items], { dots: true });
 }
 
+// ---------------------------------------------------------------- undo
+//
+// A page or a canvas deleted is gone from the tree at once, and deleted for real once its Undo has gone (kit.js,
+// undoable): `page:<project>/<path>` and `canvas:<id>`, while it is up.
+const goingAway = new Set();
+/** The tree without what is going (and what is beneath it, which goes with it). */
+function pruned(nodes, going) {
+  if (!goingAway.size) return nodes;
+  return (nodes || []).filter((n) => !going(n)).map((n) => (n.children ? { ...n, children: pruned(n.children, going) } : n));
+}
+function goLater(key, text, act, reload) {
+  Kit.undoable({
+    text,
+    hide: () => { goingAway.add(key); reload(); },
+    act: async () => { try { await act(); } finally { goingAway.delete(key); } reload(); },
+    undo: () => { goingAway.delete(key); reload(); },
+    failed: (e) => status(e.message, true),
+  });
+}
+
 function deletePage() {
   if (!open) return;
   const title = open.split("/").pop();
@@ -1288,11 +1313,11 @@ function deletePage() {
   const pid = wpid();
   const gone = async (all) => {
     if (saveTimer) { clearTimeout(saveTimer); await save(); }
-    await core("DELETE", `/projects/${pid}/page?path=${encodeURIComponent(path)}${all ? "&all=1" : ""}`);
     if (editor) { editor.destroy(); editor = null; }
     open = null;
     text = "";
-    loadWriting();
+    goLater(`page:${pid}/${path}`, all ? `${title} and the pages beneath it deleted` : `${title} deleted`,
+      () => core("DELETE", `/projects/${pid}/page?path=${encodeURIComponent(path)}${all ? "&all=1" : ""}`), () => loadWriting());
   };
   // Asked already, by the button's second press; pages beneath it are asked about here, saying what else goes.
   core("GET", `/projects/${pid}/page/below?path=${encodeURIComponent(path)}`).then(async ({ pages }) => {

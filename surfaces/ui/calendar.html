@@ -31,7 +31,7 @@ html[data-window] { background: var(--surface); }
 html[data-window] body { width: 100%; height: 100%; margin: 0; box-shadow: none; border: 0; border-radius: 0; }
 
 header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; }
-header h1 { font-size: 15px; font-weight: 500; margin: 0 8px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0 8px 0 4px; letter-spacing: .3px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Narrow (a window half the screen): the buttons keep one line each; the title gives way. */
 header .t-btn, header .seg button { white-space: nowrap; flex: none; }
 header .seg { flex: none; }
@@ -39,21 +39,21 @@ header .seg { flex: none; }
 body.no-side #side { display: none; }
 
 header .spacer { flex: 1; }
-#search { width: 180px; flex: 0 1 180px; min-width: 80px; font-size: 12.5px; }
+#search { width: 180px; flex: 0 1 180px; min-width: 80px; font-size: var(--t-md); }
 /* What a search found (calendar.js, drawFound): events coming up, then past, then tasks. */
 .found { flex: 1; overflow: auto; padding: 6px 18px 18px; }
-.found h3 { font-size: 10px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
+.found h3 { font-size: var(--t-xs); font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
 .found .hit { display: grid; grid-template-columns: 10px 170px 1fr; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: var(--radius-row); cursor: pointer; }
 .found .hit:hover { background: var(--accent-hover); }
 .found .hit .sw { background: var(--c); align-self: center; }
-.found .hit .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.found .hit .when { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 /* The agenda (calendar.js, drawAgenda): the search list's look, with days for headings. */
 .found.agenda { padding: 4px 14px 24px; overflow: auto; height: 100%; box-sizing: border-box; }
 .found.agenda .hit { grid-template-columns: 10px 64px 1fr; }
 .found.agenda h3.today { color: var(--accent-text); }
 .found.agenda .sw.round { border-radius: 50%; }
 .found.agenda .late .when { color: var(--danger); }
-.found.agenda .quiet { color: var(--muted); font-size: 12px; padding: 2px 8px 6px; }
+.found.agenda .quiet { color: var(--muted); font-size: var(--t-sm); padding: 2px 8px 6px; }
 .found .hit .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .found .hit .what small { color: var(--muted); margin-left: 8px; }
 .found .hit.done .what { text-decoration: line-through; opacity: var(--done); }
@@ -64,8 +64,8 @@ header .icon-btn.on { color: var(--accent-text) !important; }
 .seg { display: inline-flex; }
 
 main { flex: 1; min-height: 0; display: flex; }
-#side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px; overflow: auto; font-size: 12.5px; }
-#side h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 400; }
+#side { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 12px; overflow: auto; font-size: var(--t-md); }
+#side h3 { font-size: var(--t-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 400; }
 #side h3:first-child { margin-top: 0; }
 #side h3.fold { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 2px; margin-left: -4px; }
 #side h3.fold:hover { color: var(--text); }
@@ -75,56 +75,56 @@ main { flex: 1; min-height: 0; display: flex; }
 .cal.muted span:last-child { color: var(--muted); }
 .cal.on .sw { background: var(--c); }
 .cal span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#side .add-feed { margin: 6px 4px 0; font-size: 11.5px; padding: 2px 8px; }
+#side .add-feed { margin: 6px 4px 0; font-size: var(--t-sm); padding: 2px 8px; }
 .feed-form { display: flex; flex-direction: column; gap: 6px; padding: 10px; width: 280px; }
-.feed-form label { font-size: 11px; color: var(--muted); }
+.feed-form label { font-size: var(--t-xs); color: var(--muted); }
 .feed-form .row { display: flex; justify-content: flex-end; }
 .feed-colors { display: grid; grid-template-columns: repeat(8, 22px); gap: 6px; }
 .feed-colors .sw { width: 22px; height: 22px; border-radius: var(--radius-row); border: 0; padding: 0; cursor: pointer; }
 .feed-colors .sw.is-on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
-.feed-form .feed-note { font-size: 11.5px; color: var(--muted); min-height: 1em; }
+.feed-form .feed-note { font-size: var(--t-sm); color: var(--muted); min-height: 1em; }
 #view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .note { line-height: 1.6; }
-.note code { user-select: all; background: var(--desk); padding: 2px 6px; border-radius: var(--radius-row); font-size: 12px; }
+.note code { user-select: all; background: var(--desk); padding: 2px 6px; border-radius: var(--radius-row); font-size: var(--t-sm); }
 
 /* Month */
 .month { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto repeat(6, 1fr); min-height: 0; }
-.dow { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.dow { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 4px 2px; min-height: 0; overflow: hidden; cursor: default; display: flex; flex-direction: column; gap: 2px; }
 .cell:nth-child(7n+7) { border-right: 0; }
-.cell .n { font-size: 12px; color: var(--muted); padding: 1px 4px; align-self: flex-start; border-radius: var(--radius-pill); cursor: pointer; }
+.cell .n { font-size: var(--t-sm); color: var(--muted); padding: 1px 4px; align-self: flex-start; border-radius: var(--radius-pill); cursor: pointer; }
 .cell.other .n { opacity: .45; }
 .cell.today .n { background: var(--accent); color: var(--surface); }
 /* The weather, shown (the header's Weather): a day's sky and its high and low; an hour's sky and temperature. Quiet, beside the date. */
 .cell .top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.wx-day { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wx-day { display: inline-flex; align-items: center; gap: 3px; font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wx-day .ic { width: 13px; height: 13px; }
 .wx-day .lo { opacity: .7; }
 .dayhead .wx-day { margin-left: 8px; }
 .col .slot { position: relative; }
-.wx-hour { position: absolute; top: 3px; right: 4px; display: inline-flex; align-items: center; gap: 2px; font-size: 10px;
+.wx-hour { position: absolute; top: 3px; right: 4px; display: inline-flex; align-items: center; gap: 2px; font-size: var(--t-xs);
   color: var(--muted); opacity: .75; font-variant-numeric: tabular-nums; pointer-events: none; }
 .wx-hour .ic { width: 11px; height: 11px; }
 /* An event in a day: its calendar's color, a colored edge. */
-.ev-chip { font-size: 11.5px; padding: 1px 6px; border-radius: var(--radius-row); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+.ev-chip { font-size: var(--t-sm); padding: 1px 6px; border-radius: var(--radius-row); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
         background: color-mix(in srgb, var(--c) 22%, transparent); border-left: 3px solid var(--c); }
 .ev-chip.timed { background: none; }
 .ev-chip:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
-.more { font-size: 11px; color: var(--muted); padding: 0 6px; cursor: pointer; }
+.more { font-size: var(--t-xs); color: var(--muted); padding: 0 6px; cursor: pointer; }
 
 /* Week and day */
 .days { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .dayhead { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; }
-.dayhead div { padding: 6px 8px; font-size: 12px; color: var(--muted); }
+.dayhead div { padding: 6px 8px; font-size: var(--t-sm); color: var(--muted); }
 .dayhead .today { color: var(--accent-text); }
 /* Tasks, above the day's events (calendar.js, taskRow): a bar from available to due. */
 .taskrow { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); row-gap: 3px; padding: 4px 0; border-bottom: 1px solid var(--line); flex: none; max-height: 30vh; overflow-y: auto; }
-.taskrow .lbl { grid-column: 1; font-size: 10px; color: var(--muted); padding: 2px 6px; }
-.tbar { margin: 0 3px; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 3px; border-radius: var(--radius-pill); font-size: 11.5px; cursor: grab; touch-action: none; user-select: none;
+.taskrow .lbl { grid-column: 1; font-size: var(--t-xs); color: var(--muted); padding: 2px 6px; }
+.tbar { margin: 0 3px; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 3px; border-radius: var(--radius-pill); font-size: var(--t-sm); cursor: grab; touch-action: none; user-select: none;
   background: var(--accent-wash); border: 1px solid var(--accent-line); }
 .tbar:hover { background: var(--accent-strong); }
 .tbar .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tbar .tick { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; color: transparent; font-size: 10px; line-height: 1; cursor: pointer; }
+.tbar .tick { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; color: transparent; font-size: var(--t-xs); line-height: 1; cursor: pointer; }
 .tbar .tick:hover { border-color: var(--accent); color: var(--accent-text); }
 .tbar .tick.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .tbar.done { opacity: var(--done); }
@@ -136,13 +136,13 @@ main { flex: 1; min-height: 0; display: flex; }
 .tbar.dragging { cursor: grabbing; z-index: 2; box-shadow: var(--menu-shadow); }
 .allday { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); border-bottom: 1px solid var(--line); flex: none; min-height: 22px; }
 .allday > div { padding: 2px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line); }
-.allday > div:first-child { border-left: 0; font-size: 10px; color: var(--muted); padding: 4px 6px; }
+.allday > div:first-child { border-left: 0; font-size: var(--t-xs); color: var(--muted); padding: 4px 6px; }
 .grid { flex: 1; overflow: auto; position: relative; }
 .hours { display: grid; grid-template-columns: 52px repeat(var(--cols), 1fr); position: relative; }
-.hour { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: 10px; color: var(--muted); padding: 0 6px; text-align: right; }
+.hour { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: var(--t-xs); color: var(--muted); padding: 0 6px; text-align: right; }
 .col { position: relative; border-left: 1px solid var(--line); }
 .col .slot { height: 48px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
-.ev { position: absolute; left: 2px; right: 2px; border-radius: var(--radius-row); padding: 2px 6px; font-size: 11.5px; overflow: hidden; cursor: pointer;
+.ev { position: absolute; left: 2px; right: 2px; border-radius: var(--radius-row); padding: 2px 6px; font-size: var(--t-sm); overflow: hidden; cursor: pointer;
       background: color-mix(in srgb, var(--c) 30%, var(--surface)); border-left: 3px solid var(--c); line-height: 1.3; }
 .ev small { display: block; color: var(--muted); }
 .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--accent); z-index: 2; pointer-events: none; }
@@ -157,7 +157,7 @@ main { flex: 1; min-height: 0; display: flex; }
 .ev-chip.waiting, .ev.waiting { border-left-style: dashed; }
 .ev-chip.declined, .ev.declined { opacity: .5; text-decoration: line-through; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
-#msg { font-size: 12px; color: var(--muted); }
+#msg { font-size: var(--t-sm); color: var(--muted); }
 #msg.err { color: var(--danger); }
 body { position: relative; }
 /* The Sync button: a small mark beside the others', not a large one. */
@@ -175,13 +175,13 @@ body { position: relative; }
   <button class="icon-btn" id="prev" title="Before"></button>
   <button class="icon-btn" id="next" title="After"></button>
   <h1 id="title"></h1>
+  <input type="search" id="search" placeholder="Find in Calendar" spellcheck="false" title="Find events a year either side, and tasks (Ctrl+F)">
+  <span class="seg" id="mode"></span>
   <span id="msg"></span>
   <span class="spacer"></span>
-  <input type="search" id="search" placeholder="Find events and tasks" spellcheck="false" title="Find events a year either side, and tasks (Ctrl+F)">
-  <span class="seg" id="mode"></span>
   <button class="icon-btn" id="resync" title="Sync again: accounts and feeds"></button>
-  <button class="t-btn" id="new">New event</button>
-  <button class="icon-btn" id="grow" title="Full screen"></button>
+  <button class="t-btn primary" id="new">New event</button>
+  <button class="icon-btn" id="grow"></button>
   <button class="icon-btn" id="close" title="Close"></button>
 </header>
 <main>

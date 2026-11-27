@@ -156,18 +156,18 @@
   const style = document.createElement("style");
   style.textContent = `
     .st-rows { display: flex; flex-direction: column; gap: 6px; }
-    .st-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+    .st-row { display: flex; align-items: center; gap: 6px; font-size: var(--t-md); }
     .st-move { display: inline-flex; }
-    .st-move .icon-btn { font-size: 12px; }
+    .st-move .icon-btn { font-size: var(--t-sm); }
     .st-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .st-label { flex: 1; min-width: 90px; font-size: 12.5px; }
+    .st-label { flex: 1; min-width: 90px; font-size: var(--t-md); }
     .st-row.done .st-label { color: var(--muted); }
     .st-swatches { display: inline-flex; gap: 3px; }
     .st-sw { width: 14px; height: 14px; padding: 0; cursor: pointer; }
     .st-means-wrap { position: relative; display: inline-flex; }
     .st-means { white-space: nowrap; }
     .st-means.unset { color: var(--danger) !important; border-color: var(--danger) !important; }
-    .st-hint { margin: -2px 0 8px; font-size: 11.5px; }
+    .st-hint { margin: -2px 0 8px; font-size: var(--t-sm); }
     .st-gone:empty { display: none; }
     .st-gone-head { margin: 6px 0 4px; }
     .st-gone .le-label { text-decoration: line-through; }

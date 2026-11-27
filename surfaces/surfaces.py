@@ -1011,7 +1011,7 @@ class Desktop(QObject):
             {"keys": "Super + V", "does": "Clipboard history"},
             {"keys": "Print Screen", "does": "A screenshot: a region, scrolling, a window, or the whole screen"},
             {"keys": "Super + Shift + C", "does": "The canvas"},
-            {"keys": "Super + Shift + W", "does": "The writing surface"},
+            {"keys": "Super + Shift + W", "does": "Notes"},
             {"keys": "Super + Tab", "does": "The projects, to go to one (again for the next; Space, Home)"},
             {"keys": "Super + Escape", "does": "Put everything away; a fullscreen window back in its place"},
             {"keys": "Super + H", "does": "Hide this window; its dock item brings it back"},
