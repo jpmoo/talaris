@@ -7,6 +7,12 @@ DESIGN.md and WEB.md, the screenshots in `docs/screenshots/`, the code, and the
 web version live in a browser at desktop (1280–1400 px) and phone (375 px) sizes.
 Recommendations only; nothing was changed.
 
+*Since then:* the Top 10 were built on 2026-11-26, and the rest on 2026-11-27.
+Each item outside the Top 10 ends with what was **Done**, or what is
+**Proposed** for a decision where doing it would change how the desktop is used
+day to day. A few parts are owed in `filespanel.js`, which other work was changing
+at the time; each says so where it falls.
+
 ## Summary
 
 **Strongest**
@@ -111,6 +117,10 @@ say(e.message, true)` (e.g. `review.js:34`).
 **Do.** Let an error wrap to two lines, or show the full text in a tip on hover
 and on focus. Map the common core errors (offline, not found, conflict) to plain
 sentences.
+**Done (2026-11-27).** `Kit.say` says an error through `Kit.plain` (not answering,
+signed out, not there any more, changed elsewhere, too large, the core's 5xx) and
+keeps the core's own words in its tip, reachable by Tab; `kit.css` lets an error
+take two lines wherever a page put its line.
 
 ---
 
@@ -176,6 +186,10 @@ hover (`review.html:58`). WEB.md says the order is set by dragging.
 **Do.** Use `Kit.draggable` for order and `.x-btn` for removal. Use `Kit.twice`
 with "Remove from every week?" for template steps; this-week-only steps can stay
 one press.
+**Done (2026-11-27).** Steps are put in order with `Kit.draggable` and the one
+drop line; the × is the `.x-btn`, faded rather than hidden (Tab reaches it) and
+always shown under a finger; an every-week step asks "Remove from every week?";
+a step's words are changed by pressing them.
 
 ### 2.5 Dates are formatted outside the kit — **low / small**
 **Seen.** The kit is meant to word dates one way, but about 12 places format their
@@ -187,6 +201,13 @@ docs screenshot shows a hyphen in the range; the code uses an en dash.
 **Do.** Add `Kit.range(a, b)`, `Kit.dayName(d, style)` and `Kit.monthName` and
 route these through them. Add a `check-look` rule against `toLocale*String(` in
 pages.
+**Done (2026-11-27).** `Kit.range` ("Nov 2 – 8, 2026"), `Kit.fullDay`,
+`Kit.dayName`, `Kit.monthName`, and `Kit.day` with a long weekday, a long month
+or the year always. Every page's dates go through them (Settings' import time
+too, no longer the machine's locale), and `check-look` fails on a page's own
+`toLocaleDateString` or `toLocaleTimeString`. Two exceptions: the bar's clock,
+which keeps the shape Settings gives it (marked `look:`), and `filespanel.js`'s
+day headings, owed (it was being changed by other work; the rule names it).
 
 ### 2.6 The look check is failing, and the web layer is not checked — **medium / small**
 **Seen.** `node surfaces/check-look.mjs` reports 44 hand-written values today: 21
@@ -215,6 +236,12 @@ Calendar, Glance and a Library project have none (`grep ArrowDown`).
 review) and show it in each tip and on the Keys page. Make the launcher footer
 change with the selected row ("Enter open · Shift+Enter glance"). Bring arrow
 keys and Enter to every list through one `Kit.listNav`.
+**Done (2026-11-27).** Super+Shift+T Tasks, P People, L Library, K calendar, R
+weekly review (`surfaces.py`, `PANEL_KEYS`), in the bar's tips and on the Keys
+page. The launcher's footer follows the row chosen ("Shift+Enter Glance", "Shift+Enter
+go there"). `Kit.listNav` (↑ ↓ Home End Enter, one Tab stop at the chosen row) on
+Tasks' side and rows, Calendar's agenda and Glance's list. The Library's project
+view is `filespanel.js`'s and still to do.
 
 ---
 
@@ -293,6 +320,10 @@ check `prefers-reduced-motion`. Several CSS transitions do not: the phone drawer
 in `web.css:28,31`, `--dur` hovers, and the countdown bars.
 **Do.** Add one global `@media (prefers-reduced-motion: reduce) { :root { --dur:
 0s } }` and use `--dur` in `web.css` too.
+**Done (2026-11-27).** In `tokens.css`, which every page and the web load:
+`--dur: 0s`, and every CSS transition and animation all but instant (a hundredth
+of a millisecond, so `animationend` still comes). The web's own motion was
+already on `--dur`.
 
 ---
 
@@ -371,6 +402,19 @@ sync.
 New for the current module. Make Today and the daily page the phone defaults.
 Set `document.title` from `TALARIS_WEB.title`. On wide screens, use a left rail
 instead of a bottom bar.
+**Done, but for Canvas (2026-11-27).** A + in the corner over a phone's list
+presses the page's own New (`PAGES[…].panes.create`: New task, New event, New
+person, New page, New canvas), whose header button a phone then leaves out; it
+shows only while the page offers one (Notes' dailies have none). Tasks opens on
+Today on a phone when there is a starter Today; Notes on today's daily page
+(`panes.start: "detail"`), the calendar of days a step back. Wider than a phone,
+the modules are a rail down the left. Tab titles were already "Tasks · Talaris"
+and so on, and the "joins it once" comment was gone.
+**Proposed — Canvas in the bar.** It is still a seventh module (Morgan made it
+seven). Either drop it from the bottom bar and reach a canvas from a project's
+card in the Library, as WEB.md says, or keep it and change WEB.md's list to say
+so. Which one is a choice about how the phone is used, so it is left to decide;
+WEB.md was outside this change.
 
 ### 4.6 Light and dark disagree between login and app — **low / small**
 **Seen.** Login follows the phone's `prefers-color-scheme` (`login.html:11`). The
@@ -379,6 +423,11 @@ in on white and lands in dark. Login's light surface is pure `#fff`; DESIGN says
 light mode "leans heavily on grays rather than going white".
 **Do.** On the web, let "Follow the system" be the default mode, and give login
 the tokens.
+**Done (2026-11-27).** Login had the tokens already (top 10, item 6). The app on
+the web now takes the browser's `prefers-color-scheme` and follows it as it
+changes (`surface.js`, `modeOf`); the desktop's Mode is the laptop's. The
+drawers take their look through `Surface.applyTheme` rather than a copy of it,
+which also gives them the accent's readable text color.
 
 ### 4.7 Desktop-only actions are shown on the web — **medium / small**
 **Seen.** In a Library project on the web: "Go to this project", "Refresh" and
@@ -388,6 +437,15 @@ the tokens.
 **Do.** Hide any verb the web cannot carry out, through a `Bridge.can(verb)` the
 web bridge answers. Say linked folders are "On the laptop" in muted text, not as
 an error.
+**Done in part (2026-11-27).** `bridge.can(verb)` in the web's bridge says no for
+the verbs that reach the machine itself (going to a project, the file manager, a
+folder on disk, a window, the Archive), and anything marked `data-verb="…"` with
+one is hidden. Tasks asks it. Until `filespanel.js` asks it too (it was being
+changed by other work), `web.css` hides a project's "Go to this project" and a
+linked folder's Refresh, and mutes "not there now". Still owed in `filespanel.js`:
+`bridge.can` on those verbs, and the words "On the laptop". Unlink stays: it is a
+change to the data, which the web can make. The project chat stays: Morgan
+answers on the web now.
 
 ### 4.8 Notes and Canvas lists on a phone — **low / small**
 **Seen.**
@@ -400,6 +458,13 @@ an error.
 **Do.** Use sentence case for the title on a phone and drop the code. Add the
 search box. Match the footers ("New page", "New canvas"; Rename goes in the item's
 menu).
+**Done, but for Rename (2026-11-27).** On a phone the header reads "Home ▾ /
+Canvas" in sentence case, the module's name left to the shell's bar, the code
+hidden; the page's heading is in capitals by its style, not its words, so the
+phone's sentence case is the same words. A find box ("Find in Notes", "Find in
+Canvas") narrows the list as it is typed, on the desktop too. "New canvas inside"
+is "New canvas". Rename stays in the footer: rows have no menu of their own to
+put it in, and Notes has its Rename there too, so the two now match.
 
 ---
 
@@ -422,6 +487,23 @@ icons and the work icons are only separated by the clock.
 - Leave Review's button hidden until a review is open; the notification already
   brings it.
 
+**Proposed (2026-11-27), not done: each changes what the bar is, every day.**
+- *Names, first.* The cheapest step, and one that takes nothing away: a "Show
+  names" switch in Settings › Bar that puts a short word beside each work panel's
+  icon (Tasks, People, Library, Canvas, Notes). Off by default; the keys
+  (Super+Shift+T, P, L, C, W, now said in every tip) are the other way to tell
+  them apart without remembering icons.
+- *One strip for the work panels.* Tasks, People, Library, Notes and Canvas in
+  one segmented group with a hairline round it, so they read as one set apart
+  from Ask, Morgan and New. A look change only; the order stays the person's.
+- *Fewer machine buttons on the right.* Screenshot, Clipboard and Light/dark
+  moved into the power popup by default (Print, Super+V and the popup still reach
+  them), each put back on the bar from Settings › Bar as any item is.
+- *Review only while open.* Already a setting ("only while a review is open");
+  proposed as the default.
+Glance and Archive stay off the bar: Glance is a press on a card or a key, and
+the Archive now has a way in from Tasks (5.3).
+
 ### 5.2 Library, Glance and the card overlap — **medium / medium**
 **Seen.**
 - A Library project shows Overview · Suggestions · Files.
@@ -440,17 +522,47 @@ controls before any content. "Steps 1 2 3" means hops and is not explained.
 - Merge the two "about" blocks into one, with "Written by Morgan / by you".
 - Make chat a tab of the card, not a section of it.
 
+**Done in part (2026-11-27).** The kind chips are one "Kinds ▾" pick (it reads "9
+of 10 kinds ▾" when some are hidden), its pop-up each kind on or off with its
+count and All or None, staying up while they change; in the Glance window it sits
+on the header's row (`glanceview.js`). "Steps 1 2 3" reads "Reach 1 2 3 steps",
+its tip saying what a step is. Still owed in `filespanel.js` (being changed by
+other work): putting the Kinds pick on the Overview's toolbar row
+(`glance.kinds` beside `glance.steps`, as `glance.js` now does) so it stops being
+a row of its own, and the Library list's own kind chips (`filespanel.js:209`)
+made the same pick.
+**Proposed, not done.**
+- *The two "about" blocks into one.* "About it" (written by Morgan or by you)
+  and "What it seems to be about" (worked out from what is in it) are different
+  sources. Proposed: one block, "About it", with the written text first and the
+  worked-out keywords under it as chips, the summary dropped when there is a
+  written one, and a muted "by Morgan" or "by you" beside the heading.
+- *Chat a tab of the card.* Proposed: the card's sections stay, and chat becomes
+  a third tab beside Overview · Suggestions · Files ("Chat"), so a long
+  conversation does not push the card's facts off screen. It changes where you
+  talk with a project, so it is left to decide.
+- *Glance the window and the Library's Overview.* They are the same view
+  (`glanceview.js`) in two places. Proposed: keep both, and let the Glance window
+  be what Super+Shift+G and a card's Glance button open, the Library's Overview
+  its in-place copy; merging them would remove a window the person uses.
+
 ### 5.3 Archive has no home — **low / small**
 **Seen.** The Archive panel is reachable only from a launcher verb
 (`launcher.js:32`).
 **Do.** Put "Archived projects (n)" at the foot of the Library's project list and
 of Tasks' Projects.
+**Done for Tasks (2026-11-27).** "Archived projects" with its count at the foot
+of Tasks' projects opens the Archive panel (`core.Bridge.openArchive`); not on the
+web, which has no Archive (`bridge.can`). Owed in `filespanel.js`: the same row at
+the foot of the Library's projects, calling `bridge.openArchive()`.
 
 ### 5.4 "What is shown" switches are hard to read — **low / small**
 **Seen.** Settings › Panels › "Finished tasks — Hidden" with a switch
 (`settings.html:415`). Is on "hidden" or "shown"?
 **Do.** Use a two-way segment, "Shown · Hidden", or word it "Show finished tasks"
 with on meaning shown.
+**Done (2026-11-27).** Finished tasks and Archived are each a "Shown · Hidden"
+segment; the setting kept is the same (`shown.done`, `shown.archived`).
 
 ---
 
@@ -475,6 +587,23 @@ with on meaning shown.
 - **Doc conflict.** DESIGN *On the web* says "the weekly review brought over
   whole"; *The weekly review* and WEB.md say it stays on the desktop only. Pick
   one sentence. *Low / small.*
+
+**Section 6, as of 2026-11-27.**
+- *Weight:* **done** but for the Library. Panel titles are `--t-xl` (18 px), the
+  size `tokens.css` names for a panel's heading, in Tasks, Calendar, People,
+  Glance, Archive and the weekly review; rows stay `--t-md`, the label `--t-xs`.
+  `filespanel.html`'s `header h1` is still `--t-lg`, owed with the other work
+  there.
+- *Accent pair:* **done.** Settings › Look and feel has "Accent in dark" and
+  "Accent in light", a row of swatches each; the hex field and the picker go with
+  the row last pressed.
+- *Unexplained marks:* **done for People.** The tied and untied marks are named
+  for what reads aloud, and a legend at the foot of the list says what each is.
+  The Library's read marks are `filespanel.js`'s, owed.
+- *Screenshots:* **skipped.** Retaking them means driving the desktop in its
+  demo, which was not to be touched from here.
+- *Doc conflict:* **done.** DESIGN's *On the web* now says the weekly review
+  stays on the desktop.
 
 ---
 
