@@ -41,14 +41,37 @@ const SOCKET = join(process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid()
 /**
  * Each page the web offers: its file, and the desktop panel whose routes it keeps to (its Python's `ALLOWED`).
  * Only these; a page not here is not served.
+ *
+ * `panes`: how the page is one pane at a time on a phone (public/modules.js, the phone's shell) — each a CSS selector,
+ * said here so that nothing is guessed from the page's markup:
+ * - `list` and `detail`: shown one at a time; a press on one of `rows` in the list shows the detail, once the page has
+ *   drawn it (or a moment after, for what was chosen already), as a step in the browser's history — Back, or the
+ *   phone's own back gesture, shows the list again. `opens`: presses outside the list that end in the detail too (a
+ *   new one, made and shown), waited on for as long as the page takes.
+ * - `side`: a column that comes in over the list from the left (the bar's button); a press on one of `sideRows` puts
+ *   it away again.
+ * - `sheets`: what the page itself opens over the list and closes (a task's card, an event's editor): seen as it
+ *   opens, so Back closes it, by `close` — a button of the page's, or `"Escape"` as the page hears it.
+ * - `where`: what the bar says under the title (the project chosen). `hide`: what the bar says already, or a phone has
+ *   no room or no use for. `listOnly`: what belongs to the list (its search, its ways of showing), not shown with the
+ *   detail or a sheet.
  */
 const PAGES = {
-  library: { file: "filespanel.html", panel: "files_panel.py", title: "Library", phone: "phone.js" },
-  tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks" },
-  calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar" },
-  notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes", phone: "drawerphone.js" },
-  people: { file: "people.html", panel: "people_panel.py", title: "People", phone: "panes.js", panes: { list: "#list", detail: "#person" } },
-  canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas", phone: "drawerphone.js" },
+  library: { file: "filespanel.html", panel: "files_panel.py", title: "Library",
+    panes: { side: "#side", sideRows: ".s-item", list: "#middle", detail: "#detail",
+      rows: ".row[data-key], .row.crow, .grow-row, .d-proj", where: "#side .s-item.on .nm",
+      hide: "header h1, #count, #days, #readf, #msg", listOnly: "header" } },
+  tasks: { file: "tasks.html", panel: "tasks_panel.py", title: "Tasks",
+    panes: { side: "#side", sideRows: "#side .item:not(.grp)",
+      sheets: [{ el: "#sheet", close: "Escape" }, { el: "#psheet", close: "#p-close" }], hide: "#side-toggle, #count", listOnly: "header" } },
+  calendar: { file: "calendar.html", panel: "calendar_panel.py", routes: "TASK_ROUTES", title: "Calendar",
+    panes: { side: "#side", sheets: [{ el: "#editor", close: "Escape" }], hide: "#side-toggle" } },
+  notes: { file: "drawer.html", query: "drawer=writing", panel: "workspace.py", routes: "ROUTES", title: "Notes",
+    panes: { list: "#body > .tree", detail: "#body > .pane", rows: ".row, .cal-day", opens: "#new-page", hide: ".side-toggle, #count, #grow, .page-map, .page-map-open" } },
+  people: { file: "people.html", panel: "people_panel.py", title: "People",
+    panes: { list: "#list", detail: "#person", rows: ".prow", opens: "#add", hide: "header h1, #count, header .seg", listOnly: "header, #twice" } },
+  canvas: { file: "drawer.html", query: "drawer=canvas", panel: "workspace.py", routes: "ROUTES", title: "Canvas",
+    panes: { list: "#body > .tree", detail: "#body > .canvas-pane", rows: ".row", hide: ".side-toggle, #count, #grow" } },
 };
 /** The page a request for a file is, by its file and its query (the two drawers are one file). */
 const pageFor = (rel, search) => Object.entries(PAGES).find(([, p]) => p.file === rel && (!p.query || search.includes(p.query)))?.[0];
@@ -202,7 +225,6 @@ function pageHtml(name) {
   html = html.replace(/<\/head>/i, `<link rel="stylesheet" href="${PREFIX}/web/web.css">${APP_HEAD}</head>`);
   // A phone's width, not a desktop's shrunk (without it the iPhone lays the page out 980 wide and scales it down).
   if (!/name="viewport"/.test(html)) html = html.replace(/<head>/i, `<head><meta name="viewport" content="width=device-width, initial-scale=1">`);
-  if (p.phone) html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/${p.phone}"></script></body>`);
   html = html.replace(/<\/body>/i, `<script src="${PREFIX}/web/modules.js"></script></body>`);
   return html;
 }
@@ -271,7 +293,13 @@ async function handle(req, res) {
     const f = fileFrom(PUBLIC, path.slice(5));
     return f ? send(res, 200, readFileSync(f), "image/png", { "cache-control": "max-age=86400" }) : send(res, 404, { error: "not here" });
   }
-  if (path === "/web/passkeys.js") return send(res, 200, readFileSync(BROWSER_PASSKEYS), TYPES[".js"], { "cache-control": "max-age=86400" });
+  // The look the sign-in and consent pages share with the rest (tokens.css, and the typefaces it names): nothing in
+  // them is anyone's, and without them a signed-out page fell back to the system's font and a palette of its own.
+  if (path === "/ui/tokens.css" || /^\/ui\/fonts\/[\w-]+\.woff2$/.test(path)) {
+    const f = fileFrom(UI, path.slice(4));
+    return f ? send(res, 200, readFileSync(f), TYPES[extname(f)], { "cache-control": "max-age=3600" }) : send(res, 404, { error: "not here" });
+  }
+  if (path === "/web/passkeys.js")return send(res, 200, readFileSync(BROWSER_PASSKEYS), TYPES[".js"], { "cache-control": "max-age=86400" });
   if (path.startsWith("/web/login")) {
     const f = fileFrom(PUBLIC, path.slice(5));
     return f ? send(res, 200, readFileSync(f), TYPES[extname(f)] ?? "application/octet-stream") : send(res, 404, { error: "not here" });

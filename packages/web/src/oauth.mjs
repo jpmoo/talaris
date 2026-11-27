@@ -67,12 +67,9 @@ export function consentPage(prefix, q) {
   const fields = ["client_id", "redirect_uri", "state", "code_challenge"].map((k) => `<input type="hidden" name="${k}" value="${esc(p[k] ?? "")}">`).join("");
   const deny = `${p.redirect_uri}${p.redirect_uri.includes("?") ? "&" : "?"}error=access_denied${p.state ? `&state=${encodeURIComponent(p.state)}` : ""}`;
   return { status: 200, html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Allow access to Talaris</title><style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1c1f22;color:#e6e8ea;font:15px/1.5 "Barlow Semi Condensed",system-ui,sans-serif;padding:16px}
-main{max-width:420px;background:#24282c;border:1px solid #3a3f44;border-radius:14px;padding:26px 24px}
-h1{font-size:13px;letter-spacing:4px;text-transform:uppercase;color:#c98a5b;margin:0 0 10px}p{color:#9aa1a8;margin:0 0 18px}
-b{color:#e6e8ea}.row{display:flex;gap:10px;align-items:center}button{padding:10px 20px;border-radius:9px;border:1px solid #c98a5b;background:#c98a5b;color:#1c1f22;font:inherit;font-weight:600;cursor:pointer}
-a{color:#9aa1a8}</style></head><body><main><h1>Talaris</h1>
+<title>Allow access to Talaris</title>
+<script>document.documentElement.dataset.mode = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";</script>
+<link rel="stylesheet" href="${esc(prefix)}/ui/tokens.css"><link rel="stylesheet" href="${esc(prefix)}/web/login.css"></head><body><main><h1>Talaris</h1>
 <p><b>${esc(who)}</b> asks to use your Talaris: your tasks, projects, notes, people, calendar and canvases — reading them and changing them, as you would.</p>
 <p>It gets a key of its own, listed in Talaris and taken back there whenever you like.</p>
 <form method="post" action="${esc(publicBase(prefix))}/oauth/approve"><div class="row">${fields}<button type="submit">Allow</button><a href="${esc(deny)}">Deny</a></div></form>

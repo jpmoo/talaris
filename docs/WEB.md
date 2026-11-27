@@ -102,6 +102,27 @@ the corner of each. **A browser on a larger screen** shows the same modules
 side by side as the desktop's panels do, without the desktop's bar, dock and
 windows.
 
+**One phone shell** (built 2026-11-26, UX-AUDIT 4.2): every module the same way
+on a phone, in `public/modules.js`. A bar along the top — Back on the left, the
+module's name in the middle, what is chosen (the Library's project) under it —
+and one pane at a time: the list; the detail, when something in the list is
+pressed; a sheet the page opens itself (a task's card, an event's editor); or
+the side column, in over the list from the bar's left button. Each step away
+from the list is a step in the browser's history, so the phone's back gesture
+and the browser's Back do what the bar's Back does. Which element is the list,
+the detail, the side and the sheets each page **declares** in `server.mjs`
+(`PAGES[…].panes`, CSS selectors, with the rows whose press shows the detail):
+nothing is guessed from a page's markup, and nothing of the page's own changes.
+A page whose markup moves changes its declaration, in one place.
+
+**Fingers** (UX-AUDIT 4.3): under `(pointer: coarse)` every control is 44 px
+(`--control`), and rows, text buttons and segments as tall; a small × has a
+32 px hit area; the type tokens are a step up (about 1.15 times, which the
+page-wide `zoom` used to do, with its `100vh` and measuring trouble); and under
+`(hover: none)` whatever the desktop shows only under the pointer is shown. The
+sign-in and consent pages load `tokens.css` and the shipped typefaces (served to
+anyone, as nothing in them is anyone's) and use the kit's look.
+
 **What stays on the desktop**: windows, the dock, the bar and their settings;
 opening a file in an application (on the web a file is downloaded or shown);
 the desktop's calendar store and its accounts (on the web, calendars are what
@@ -267,6 +288,8 @@ Each step works on its own; nothing is broken while the next is built.
    `surfaces/ui`, which git does not carry), then restart `talaris-core` and
    `talaris-web`.
 3. **The phone**: the bottom bar, each module laid out for a narrow screen, New.
+   **Begun 2026-11-26**: the bottom bar, and one phone shell for every module
+   (*What it shows*); New, and the wide screen's side-by-side, still to come.
 4. **The weekly review**, in Talaris on the desktop — **done 2026-11-26**.
 5. **The Talaris MCP server**; Claude, Morgan and the Gmail sweep moved to it.
 6. **Sync over HTTPS**, with machine tokens and the plugin lease; Syncthing

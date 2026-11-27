@@ -1,116 +1,120 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The desktop's pages in a browser (docs/WEB.md): the panel is the whole window, and what only the desktop does is not
-   offered — making it a window, closing it, the file manager, bringing files in from the machine's home folder. */
-html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; height: 100vh !important; height: 100dvh !important;
-  max-height: none !important; max-width: none !important; width: auto !important; box-shadow: none !important; }
+   offered — making it a window, closing it, the file manager, bringing files in from the machine's home folder. Every
+   value is the pages' own (tokens.css, which every page loads): this only places things. */
+html.web {
+  /* What the web's own bars take: the modules' along the bottom, and on a phone the shell's along the top. */
+  --sh-top: 0px;
+  --sh-bottom: 56px;
+}
+html.web body { margin: 0 !important; border-radius: 0 !important; border: 0 !important; box-shadow: none !important;
+  max-height: none !important; max-width: none !important; width: auto !important;
+  height: calc(100vh - var(--sh-top) - var(--sh-bottom)) !important; height: calc(100dvh - var(--sh-top) - var(--sh-bottom)) !important; }
 html.web #grow, html.web #close, html.web #reveal, html.web #bring { display: none !important; }
 /* Behind every page, the panel's own ground: the drawers (Notes, Canvas) are see-through on the desktop, over the
    screen, and showed the browser's white above and below them. */
-html.web, html.web body { background: var(--surface, #24282c) !important; }
+html.web, html.web body { background: var(--surface) !important; }
 /* The page's panel placed within the body, not the whole window: the drawers' panel (Notes, Canvas) is placed absolutely,
    and against the window it ran under the modules' bar — its own buttons (the list's button, New page…) with it. */
 html.web body { position: relative; }
+/* Nothing scrolls but the page's own panes. Heights in dvh where the browser has them: on the iPhone 100vh is taller
+   than what shows (Safari's own bars), and the pages ran past the bottom. */
+html.web, html.web body { overflow: hidden; overscroll-behavior: none; }
 
-/* ---------------------------------------------------------------- the phone (docs/WEB.md, What it shows). The Library's one-pane layout is the Library's alone (page-library)
-   One pane at a time: the list; the projects as a drawer from the left (the Projects button); a thing's card over
-   everything when one is chosen, with Back. The type a little larger, for fingers. phone.js says which is out. */
+/* ---------------------------------------------------------------- the modules' bar (modules.js) */
+.web-modules { position: fixed; left: 0; right: 0; bottom: 0; height: var(--sh-bottom); box-sizing: border-box; display: flex; justify-content: center; gap: 4px;
+  padding: 4px 8px env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--line); z-index: var(--z-sheet); }
+.web-modules a { flex: 0 1 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: var(--radius-control); color: var(--muted); text-decoration: none; font-size: var(--t-xs); letter-spacing: .3px; }
+.web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
+.web-modules a.on { color: var(--accent-text); background: var(--accent-wash); }
+.web-modules a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---------------------------------------------------------------- the phone's shell (modules.js; UX-AUDIT 4.2)
+   One pane at a time — the list, the detail, a sheet, or the side column over the list — under a bar with Back on the
+   left and the module's name in the middle. Which pane is which each page declares (server.mjs, PAGES[…].panes); the
+   stylesheet that shows and hides them is made from that, in modules.js. */
+.sh-bar, .sh-scrim { display: none; }
+html.web.sh-phone {
+  --sh-top: calc(48px + env(safe-area-inset-top));
+  --sh-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+html.web.sh-phone body { margin-top: var(--sh-top) !important; }
+html.sh-phone .sh-bar { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 8px;
+  position: fixed; top: 0; left: 0; right: 0; height: var(--sh-top); box-sizing: border-box; padding: env(safe-area-inset-top) 8px 0;
+  background: var(--surface); border-bottom: 1px solid var(--line); z-index: var(--z-sheet); font-family: var(--font); }
+.sh-left { justify-self: start; display: inline-flex; align-items: center; gap: 2px; min-width: 44px; min-height: 44px; padding: 0 10px 0 6px;
+  border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; font-size: var(--t-lg); cursor: pointer; }
+.sh-left[hidden] { display: none; }
+.sh-left svg { width: 18px; height: 18px; display: block; }
+.sh-left.back { color: var(--accent-text); }
+.sh-left.on { color: var(--accent-text); background: var(--accent-wash); }
+.sh-left:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sh-title { grid-column: 2; display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 60vw; line-height: 1.2; }
+.sh-name { font-size: var(--t-lg); font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sh-where { font-size: var(--t-xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sh-where[hidden] { display: none; }
+.sh-right { grid-column: 3; justify-self: end; }
+/* Behind the side column while it is out: a press on it puts the column away. */
+html.sh-phone.sh-side .sh-scrim { display: block; position: fixed; left: 0; right: 0; top: var(--sh-top); bottom: var(--sh-bottom);
+  background: var(--scrim); z-index: calc(var(--z-sheet) - 1); }
+html.sh-phone .web-modules { gap: 2px; padding: 6px 4px env(safe-area-inset-bottom); }
+html.sh-phone .web-modules a { flex: 1 1 0; font-size: var(--t-sm); gap: 4px; }
+html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px; height: 26px; }
+
+/* What each page needs besides its panes, on a phone. */
 @media (max-width: 760px) {
-  html.web body { zoom: 1.18; height: calc(100vh / 1.18) !important; height: calc(100dvh / 1.18) !important; }
-  html.page-library header { flex-wrap: wrap; padding: 8px 10px; }
-  html.page-library header .tools { gap: 6px; }
-  html.page-library #q { flex: 1 1 140px; width: auto; }
-  html.page-library #days, html.page-library #readf, html.page-library #count, html.page-library #msg { display: none !important; }
-  html.page-library main { display: block; position: relative; }
-  html.page-library #middle { position: absolute; inset: 0; }
-  html.page-library #side { position: absolute; inset: 0 auto 0 0; width: 78%; max-width: 300px; z-index: 5; background: var(--surface, #24282c);
-    transform: translateX(-105%); transition: transform .2s ease; box-shadow: 8px 0 24px rgba(0,0,0,.35); }
-  html.page-library.ph-side #side { transform: none; }
-  html.page-library #detail { position: absolute; inset: 0; width: auto; z-index: 6; background: var(--surface, #24282c); border: 0;
-    transform: translateX(105%); transition: transform .2s ease; padding: 10px 14px 40px; }
-  html.page-library.ph-detail #detail { transform: none; }
+  /* Headers wrap rather than run off the right edge, and their search takes what room there is. */
+  html.web body header { flex-wrap: wrap; row-gap: 6px; }
+  html.page-library header .tools { gap: 6px; flex-wrap: wrap; }
+  html.web header input[type="search"] { flex: 1 1 100%; min-width: 0; width: auto; }
+  /* The Library's rows: the name and one column beside it. */
   html.page-library .row { grid-template-columns: 18px minmax(0, 1fr) auto !important; padding: 9px 12px; }
   html.page-library .row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) auto !important; }
   html.page-library .row > :nth-child(n+4) { display: none !important; }
   html.page-library .row.tree > :nth-child(n+5) { display: none !important; }
-  .ph-bar { display: flex; gap: 8px; align-items: center; flex-basis: 100%; }
-  .ph-bar button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--line, #3a3f44);
-    background: none; color: var(--text, #e6e8ea); }
-  .ph-bar .where { color: var(--muted, #9aa1a8); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ph-back { display: none; margin-bottom: 8px; }
-  html.page-library.ph-detail .ph-back { display: inline-block; }
-}
-@media (min-width: 761px) { .ph-bar, .ph-back { display: none !important; } }
-
-/* A page's left column on a phone (Tasks' lists, Calendar's calendars): over the page, not squeezing it, while out;
-   choosing in it puts it away (sidecolumn.js). */
-@media (max-width: 760px) {
-  html.page-tasks main, html.page-calendar main { position: relative; }
-  html.page-tasks header, html.page-calendar header { flex-wrap: wrap; row-gap: 6px; }
-  html.page-tasks header input[type="search"], html.page-calendar header input[type="search"] { flex: 1 1 120px; min-width: 0; width: auto; }
-  html.page-tasks #side, html.page-calendar #side { position: absolute; inset: 0 auto 0 0; width: 80%; max-width: 300px; z-index: 5;
-    background: var(--surface, #24282c); box-shadow: 8px 0 24px rgba(0,0,0,.35); }
-}
-
-/* The modules' bar (modules.js): along the bottom, the page above it. Heights in dvh where the browser has them: on the
-   iPhone 100vh is taller than what shows (Safari's own bars), and the pages ran past the bottom. Nothing scrolls but the page's own panes. */
-html.web, html.web body { overflow: hidden; overscroll-behavior: none; }
-html.web.has-modules body { height: calc(100vh - 56px) !important; height: calc(100dvh - 56px) !important; }
-.web-modules { position: fixed; left: 0; right: 0; bottom: 0; height: 56px; display: flex; justify-content: center; gap: 4px;
-  padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); background: var(--surface, #24282c); border-top: 1px solid var(--line, #3a3f44);
-  z-index: 2147483000; zoom: 1; }
-.web-modules a { flex: 0 1 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  border-radius: 10px; color: var(--muted, #9aa1a8); text-decoration: none; font-size: 11px; letter-spacing: .3px; }
-.web-modules a .ic, .web-modules a svg { width: 20px; height: 20px; }
-.web-modules a.on { color: var(--accent, #c98a5b); background: color-mix(in srgb, var(--accent, #c98a5b) 12%, transparent); }
-@media (max-width: 760px) {
-  html.web.has-modules body { height: calc((100vh - 64px - env(safe-area-inset-bottom)) / 1.18) !important; height: calc((100dvh - 64px - env(safe-area-inset-bottom)) / 1.18) !important; }
-  /* Undoing the page's own enlarging (zoom 1.18 above), then sized for a thumb: 64 high, the icons and names larger. */
-  .web-modules { zoom: 0.8475; box-sizing: border-box; height: calc(75.5px + env(safe-area-inset-bottom)); gap: 2px; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
-  .web-modules a { flex: 1 1 0; font-size: 13px; gap: 4px; }
-  .web-modules a .ic, .web-modules a svg { width: 26px; height: 26px; }
-}
-
-/* Notes and Canvas on a phone (drawerphone.js): the list, or the one open, whole. */
-.dr-back { display: none; }
-@media (max-width: 760px) {
+  html.page-library #detail { padding: 12px 14px 40px; }
+  html.page-people #person { padding: 12px 14px 40px; }
+  /* The drawers' list, whole, even where the desktop's button had put it away (it is hidden on a phone). */
+  html.sh-phone:not(.sh-detail):is(.page-notes, .page-canvas) #body > .tree.hidden { display: block !important; }
   html.page-notes #body, html.page-canvas #body { gap: 0 !important; }
-  html.page-notes #body > .tree, html.page-canvas #body > .tree { flex: 1 1 auto !important; width: auto !important; max-width: none !important; }
-  html.page-notes #body > .pane, html.page-canvas #body > .pane, html.page-canvas #body > .canvas-pane { display: none !important; }
-  html.dr-open #body > .tree { display: none !important; }
-  html.dr-open #body > .pane, html.dr-open #body > .canvas-pane { display: flex !important; flex: 1 1 auto !important; flex-direction: column; min-width: 0; }
-  html.dr-open .dr-back { display: inline-block; position: fixed; top: 6px; right: 8px; z-index: 50; background: var(--surface, #24282c) !important; box-shadow: 0 0 0 6px var(--surface, #24282c); }
-  /* The page's map of its headings sits beside the text on a desktop; on a phone it would leave the text a sliver. */
-  html.page-notes .page-map, html.page-notes .page-map-open { display: none !important; }
+  html.page-notes #body > .pane, html.page-canvas #body > .canvas-pane { flex-direction: column; }
   html.page-notes .editor.mapped .cm-content { padding-right: 8px !important; }
   html.page-notes .pane-bar { flex-wrap: wrap; }
 }
 
-/* A finger has no hover. On an iPhone a touch that reveals something on hover counts as the hover, and the press needs
-   a second touch: what the desktop shows on hover (a page's star in Notes) is simply shown, or not, here. */
-@media (hover: none) {
-  html.page-notes .row .star { visibility: hidden; }
-  html.page-notes .row .star.on { visibility: visible; }
-  html.page-notes .row:hover .star:not(.on) { visibility: hidden; }
-  /* The same in Tasks (a list's ⋯, a row's pen, a day's +) and the Library (a saved search's ✕): shown always rather than
-     on hover, so the first touch is the press. */
-  html.page-tasks #side .item .more { visibility: visible; }
-  html.page-tasks .tv-row .tv-pen { display: none !important; }
-  html.page-tasks .tv-day .tv-dayplus { visibility: visible; }
-  html.page-library .s-item .x-btn { visibility: visible; }
+/* ---------------------------------------------------------------- a finger (UX-AUDIT 4.3)
+   Every control 44 px, a row as tall, and a small × with a 32 px hit area around its drawing. The type a step up from
+   the desk's, as the phone is held further off: the scale's six sizes, each about 1.15 times its desktop size. */
+@media (pointer: coarse) {
+  html.web {
+    --control: 44px;
+    --t-xs: 13px;  /* look: the phone's type scale, a step up from tokens.css's */
+    --t-sm: 14px;  /* look: the phone's type scale */
+    --t-md: 15px;  /* look: the phone's type scale */
+    --t-lg: 17px;  /* look: the phone's type scale */
+    --t-xl: 21px;  /* look: the phone's type scale */
+    --t-2xl: 30px; /* look: the phone's type scale */
+  }
+  html.web .t-btn, html.web .seg button { min-height: 44px; }
+  html.web .t-btn.small { min-height: 36px; }
+  html.web :is(.row, .prow, .s-item, #side .item, .tv-row, .grow-row, .cal-day) { min-height: 44px; box-sizing: border-box; }
+  html.web :is(.row, .prow, .s-item, #side .item, .grow-row) { align-items: center; }
+  html.web .x-btn { position: relative; }
+  html.web .x-btn::after { content: ""; position: absolute; inset: -7px; }
+  /* iOS Safari zooms the page into a field whose type is under 16px, and stays zoomed. */
+  @supports (-webkit-touch-callout: none) {
+    html.web :is(input, select, textarea) { font-size: 16px !important; } /* look: under 16px iOS zooms into the field */
+  }
 }
 
-/* People on a phone (panes.js, UX-AUDIT 4.1): the list, or a person's card whole, with Back. */
-.pn-back { display: none; }
-@media (max-width: 760px) {
-  html.page-people main { display: block; position: relative; }
-  html.page-people #list { position: absolute; inset: 0; width: auto !important; border: 0; }
-  html.page-people #person { position: absolute; inset: 0; display: none; padding: 44px 14px 40px; }
-  html.page-people.pn-open #list { display: none; }
-  html.page-people.pn-open #person { display: block; }
-  html.page-people header { flex-wrap: wrap; row-gap: 6px; }
-  html.page-people header input[type="search"] { flex: 1 1 120px; min-width: 0; width: auto; }
-  html.pn-open .pn-back { display: inline-block; position: fixed; top: 6px; left: 8px; z-index: 50;
-    background: var(--surface, #24282c) !important; box-shadow: 0 0 0 6px var(--surface, #24282c); }
+/* A finger has no hover. What the desktop shows only under the pointer is simply shown: on a phone a touch that reveals
+   something counts as the hover, and the press needs a second touch. One rule, for every such control. */
+@media (hover: none) {
+  html.web :is(.c-row .x-btn, .row.crow .x-btn, .s-item .x-btn, #side .item .more, .tv-day .tv-dayplus, .row .star, .step .ctl) { visibility: visible !important; opacity: 1 !important; }
+  /* A task row's pen opens what a press on the row opens: not shown, so the row is one target. */
+  html.page-tasks .tv-row .tv-pen { display: none !important; }
 }
+
 /* Calendar on the web: the accounts' calendars are a desktop machine's reading, not this page's to sync (WEB.md). */
 html.page-calendar #resync { display: none !important; }
