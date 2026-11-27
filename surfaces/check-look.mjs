@@ -44,9 +44,8 @@ const RULES = [
   ["z-index", /z-index\s*:\s*(\d{2,})|zIndex\s*[:=]\s*["']?(\d{2,})/, () => true],
   // The words retired by the glossary (DESIGN, *The words, settled*), in what a page shows — not in its comments.
   ["word", /["'>`][^"'<`]*\b(the writing surface|in Files\b)/i, (l) => !/^\s*(\/\/|\*|\/\*|<!--|#)/.test(l)],
-  // filespanel.js's one (its day headings) is owed: that file was being changed by other work when this rule came in
-  // (2026-11-27). Route it through Kit.day and take it out of this exception.
-  ["date wording", /\.toLocale(Date|Time)String\(/, (l, m, path) => !path.endsWith("/kit.js") && !path.endsWith("/filespanel.js")],
+  // A date said by the kit (Kit.day, Kit.range…), never by a page's own toLocale…String.
+  ["date wording", /\.toLocale(Date|Time)String\(/, (l, m, path) => !path.endsWith("/kit.js")],
   ["type size", /font-size\s*:\s*\d+(\.\d+)?px|\bfont\s*:\s*(\d{3}\s+)?\d+(\.\d+)?px|fontSize\s*[:=]\s*["'`]\d+(\.\d+)?px/i, () => true],
 ];
 

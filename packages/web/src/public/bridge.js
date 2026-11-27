@@ -83,7 +83,7 @@
    * yes) and leaves out what it would offer; and anything a page marks `data-verb="…"` with one of these is hidden here
    * without asking.
    */
-  const DESKTOP_ONLY = new Set(["goProject", "reveal", "showFolder", "openPath", "chooseFolder", "grow", "closeWindow", "openArchive"]);
+  const DESKTOP_ONLY = new Set(["goProject", "reveal", "showFolder", "openPath", "chooseFolder", "grow", "closeWindow", "openArchive", "refreshFolder"]);
   const can = (verb) => !DESKTOP_ONLY.has(String(verb));
   {
     const style = document.createElement("style");

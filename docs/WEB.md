@@ -81,7 +81,7 @@ listed, named and removable in Settings.
 
 ## What it shows
 
-**Five modules, and the Library as the hub.** On the web, and above all on the
+**Seven modules, and the Library as the hub.** On the web, and above all on the
 phone, Talaris is what you do away from the desk:
 
 | | |
@@ -92,15 +92,19 @@ phone, Talaris is what you do away from the desk:
 | **Notes** | Today's daily note, a project's pages; written in the same editor. |
 | **People** | A person's or an organization's card. |
 | **Canvas** | Seen whole and moved around; a note added or edited. Drawing and laying out are for a bigger screen and a pen. |
+| **Morgan** | The conversation, typed or spoken (*Morgan on the web*, below); a project's chat on its card. |
 
 **One card per thing**, the same cards as the desktop (`thingcard.js`,
 `taskcard.js`, `eventcard.js`): not a second set for the web.
 
 **The phone** has a bar along the bottom — Library, Tasks, Calendar, Notes,
-People — with Canvas reached from a project or a card, and **New** (the +) in
-the corner of each. **A browser on a larger screen** shows the same modules
-side by side as the desktop's panels do, without the desktop's bar, dock and
-windows.
+People, Canvas, Morgan — kept clear of the screen's rounded corners and home bar
+(`viewport-fit=cover`, the safe areas), and **New** (the +) in the corner over
+each list, pressing the page's own New (`PAGES[…].panes.create`). Some open on
+their detail rather than their list (`panes.start: "detail"`): Tasks on Today,
+Notes on today's daily page. **A browser on a larger screen** has the modules
+as a rail down the left and each page as the desktop's window of it, without the
+desktop's bar, dock and windows.
 
 **One phone shell** (built 2026-11-26, UX-AUDIT 4.2): every module the same way
 on a phone, in `public/modules.js`. A bar along the top — Back on the left, the
@@ -126,7 +130,9 @@ anyone, as nothing in them is anyone's) and use the kit's look.
 **What stays on the desktop**: windows, the dock, the bar and their settings;
 opening a file in an application (on the web a file is downloaded or shown);
 the desktop's calendar store and its accounts (on the web, calendars are what
-came through sync); the pen; Morgan's voice. Settings on the web is only what
+came through sync); the pen; the desktop's verbs that reach the machine itself —
+going to a project's workspace, the file manager, a linked folder looked at again
+(`bridge.can`, and `data-verb` on what a page offers: left out, not refused). Settings on the web is only what
 is the web's: passkeys, sessions, machines, and the recovery key.
 
 ## Calendar

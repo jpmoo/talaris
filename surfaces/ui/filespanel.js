@@ -183,7 +183,7 @@
     const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(f.when.at);
     if (!m) return f.done ? "done" : "";
     const d = new Date(+m[1], m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0));
-    const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }) });
+    const day = Kit.day(d);
     const said = [f.when.word, day, m[4] ? Kit.clock(d) : ""].filter(Boolean).join(" ");
     return f.done ? `${said}, done` : said;
   }
@@ -205,19 +205,45 @@
       el("span", { class: "line" }, f.before, el("mark", {}, f.hit), f.after));
     const here = got.found.filter((f) => f.here), rest = got.found.filter((f) => !f.here);
     const part = (name, list) => (list.length ? [el("div", { class: "s-head" }, name), ...list.map(row)] : []);
-    const types = el("div", { class: "gv-kinds" }, SAID_TYPES.map(([k, name, color]) =>
-      el("button", { class: `chip kchip${saidOff.has(k) ? "" : " on"}${got.kinds[k] ? "" : " none"}`, title: `${saidOff.has(k) ? "Show" : "Hide"} ${name.toLowerCase()}`,
-        onclick: () => { if (saidOff.has(k)) saidOff.delete(k); else saidOff.add(k); drawSaid(); } },
-        el("span", { class: "dot", style: `background: var(--k-${color})` }), name, el("span", { class: "n" }, String(got.kinds[k] || 0)))),
-      // Beside the chips, as a glance's: every one on, it turns them all off; otherwise, all on.
-      el("button", { class: "t-btn small kall", title: saidOff.size ? "Show every kind" : "Hide every kind", onclick: () => {
-        if (saidOff.size) saidOff.clear(); else for (const [k] of SAID_TYPES) saidOff.add(k);
-        drawSaid();
-      } }, saidOff.size ? "All" : "None"));
+    // The kinds found: one pick with their counts, as a glance's (glanceview.js, UX-AUDIT 5.2), not a row of chips.
+    const types = el("div", { class: "gv-kinds" }, kindsPick(got.kinds));
     if (!got.found.length) { host.replaceChildren(el("div", { class: "said-head" }, `No results of those kinds for “${words}”`), types); return; }
     host.replaceChildren(el("div", { class: "said-head" }, `${got.total} result${got.total === 1 ? "" : "s"} for “${words}”${got.more ? `, the first ${got.found.length} shown` : ""}`), types,
       ...(oneProject() ? [...part(`In ${projectName(project)}`, here), ...part(here.length ? "Elsewhere" : `Elsewhere, none in ${projectName(project)}`, rest)] : got.found.map(row)));
   }
+  /**
+   * Find's kinds: "Kinds ▾" (or "3 of 10 kinds ▾"), whose pop-up has a row for each kind with how many were found, each
+   * on or off, and All or None. Up while kinds are turned on and off: drawn again in place as Find draws again.
+   */
+  let saidKindsOpen = null;
+  function kindsPick(counts) {
+    const total = SAID_TYPES.length, shown = total - SAID_TYPES.filter(([k]) => saidOff.has(k)).length;
+    const list = () => el("div", { class: "menu-list gv-kinds-list" },
+      ...SAID_TYPES.map(([k, name, color]) => {
+        const n = counts[k] || 0;
+        return el("button", { class: "menu-item" + (saidOff.has(k) ? "" : " on") + (n ? "" : " none"), role: "menuitemcheckbox", "aria-checked": String(!saidOff.has(k)),
+          onclick: (e) => { e.stopPropagation(); if (saidOff.has(k)) saidOff.delete(k); else saidOff.add(k); drawSaid(); } },
+          el("span", { class: "tick" }, saidOff.has(k) ? "" : "✓"), el("span", { class: "dot", style: `background: var(--k-${color})` }),
+          el("span", { class: "lbl" }, name), el("span", { class: "n" }, String(n)));
+      }),
+      el("div", { class: "menu-sep" }),
+      el("button", { class: "t-btn small kall", title: saidOff.size ? "Show every kind" : "Hide every kind", onclick: (e) => {
+        e.stopPropagation();
+        if (saidOff.size) saidOff.clear(); else for (const [k] of SAID_TYPES) saidOff.add(k);
+        drawSaid();
+      } }, saidOff.size ? "All" : "None"));
+    const pick = el("button", { class: "t-btn small pick kpick" + (shown < total ? " on" : ""), "aria-haspopup": "true", title: "Which kinds of thing are shown" },
+      shown === total ? "Kinds ▾" : `${shown} of ${total} kinds ▾`);
+    pick.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (saidKindsOpen) { Kit.popAway(); return; }
+      saidKindsOpen = list();
+      Kit.pop(pick, saidKindsOpen, { onClose: () => { saidKindsOpen = null; } });
+    });
+    if (saidKindsOpen && saidKindsOpen.isConnected) { const next = list(); saidKindsOpen.replaceWith(next); saidKindsOpen = next; }
+    return pick;
+  }
+
   /** What the middle shows, and the buttons that are about it: none of them while finding. */
   function showFinding() {
     const on = finding(), others = asProject(), coll = Boolean(collection);
@@ -355,7 +381,9 @@
     $("side").replaceChildren(...[
       ...section("projects", "Projects", [
         item("All projects", project === "" && !collection, () => setProject(""), null, c.all),
-        ...projects.map((p) => item(p.name, project === p.id && !collection, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0))]),
+        ...projects.map((p) => item(p.name, project === p.id && !collection, () => setProject(p.id), p.id === here ? el("span", { class: "here" }, "here") : null, c.projects[p.id] ?? 0)),
+        // The archived ones, at the foot (UX-AUDIT 5.3): the Archive panel, the desktop's (not on the web: data-verb).
+        bridge && bridge.openArchive ? (() => { const a = item("Archived projects", false, () => bridge.openArchive(), null, undefined); a.dataset.verb = "openArchive"; a.classList.add("archived-foot"); a.title = "Browse them, search them, bring one back"; return a; })() : null].filter(Boolean)),
       // Collections, Tasks' as well as any other: of any kind of thing, belonging to no project. Not the lists below,
       // which are one project's grouping of its files.
       ...section("collections", "Collections", collections.map((l) => item(l.name, collection === l.id, () => openCollection(l.id),
@@ -426,7 +454,7 @@
     const st = readState[r.key];
     const b = el("span", { class: `book ${st || "none"}`, title: st === "read" ? (readAbout[r.key] || "Read") : st === "waiting" ? "Not read yet. Settings → Data sets when files are read."
       : st === "nowords" ? "No words in it, so it's found by its name only" : st === "unreadable" ? "Can't be read, so it's found by its name only" : "" });
-    if (st) b.innerHTML = Icons.book();
+    if (st) { b.innerHTML = Icons.book(); b.setAttribute("role", "img"); b.setAttribute("aria-label", b.title || st); }
     return b;
   }
 
@@ -612,7 +640,7 @@
         (about) => api("PUT", `/projects/${enc(id)}/about`, { about })));
     }).catch(() => {});
     const acts = [];
-    if (!p.home && id !== surface.project) acts.push(el("button", { class: "t-btn small", onclick: () => bridge.goProject(id) }, "Go to this project"));
+    if (!p.home && id !== surface.project) acts.push(el("button", { class: "t-btn small", "data-verb": "goProject", onclick: () => bridge.goProject(id) }, "Go to this project"));
     // Shown as a whole, its glance is here already.
     if (window.Peek && bridge.glanceAt && !whole()) acts.push(Peek.glanceButton(key, glanceAt, "t-btn small"));
     const linkedHost = el("div", { class: "d-linked" });
@@ -663,10 +691,15 @@
       if (project !== id || chosen) return;
       const home = (p) => p.replace(/^\/home\/[^/]+/, "~");
       const files = (n) => `${n} file${n === 1 ? "" : "s"}`;
+      // A linked folder or file is on the desktop machine that linked it: from the web (bridge.can) it is not missing,
+      // only elsewhere, and only that machine can look at it again.
+      const elsewhere = Boolean(bridge && bridge.can && !bridge.can("refreshFolder"));
+      const where = (path, exists, more) => el("small", { class: exists || elsewhere ? "" : "bad" },
+        exists ? `${home(path)}${more ? ` · ${more}` : ""}` : `${home(path)} · ${elsewhere ? "on a desktop machine" : "not there now"}`);
       const folders = got.folders.map((f) => el("div", { class: "d-link" },
         el("span", { class: "nm", title: f.folder }, el("b", {}, f.folder.split("/").pop()),
-          el("small", { class: f.exists ? "" : "bad" }, f.exists ? `${home(f.folder)} · ${files(f.files)}` : `${home(f.folder)} · not there now`)),
-        el("button", { class: "t-btn small", title: "Look at it now for what is new or gone", onclick: async (e) => {
+          where(f.folder, f.exists, files(f.files))),
+        el("button", { class: "t-btn small", "data-verb": "refreshFolder", title: "Look at it now for what is new or gone", onclick: async (e) => {
           e.currentTarget.disabled = true;
           try { const r = await api("POST", "/files/folder/refresh", { project: id, path: f.folder }); say(r.changed ? `${files(r.changed)} changed` : "Up to date"); } catch (x) { failed(x); }
           reload();
@@ -678,7 +711,7 @@
         } }, "Unlink")));
       const singles = got.files.map((f) => el("div", { class: "d-link" },
         el("span", { class: "nm", title: f.path }, el("b", {}, f.name),
-          el("small", { class: f.exists ? "" : "bad" }, f.exists ? home(f.path) : `${home(f.path)} · not there now`)),
+          where(f.path, f.exists, "")),
         el("button", { class: "t-btn small", title: "Take it out of this project; the file stays where it is", onclick: async (e) => {
           if (!Kit.ask(e.currentTarget, { key: `unlink:${f.entity}`, ask: "Unlink it?" })) return;
           try { await api("DELETE", `/files/shortcut/${enc(f.entity)}`); say(`${f.name} unlinked; the file is where it was`); } catch (x) { failed(x); }
@@ -1843,7 +1876,7 @@
     still: () => (surface.motion || {}).motion === "none",
     opener: { card: (key) => showCard(key, true).catch(failed) },
   });
-  $("glance").append(el("div", { class: "g-bar" }, glance.view, glance.mine, glance.steps, glance.refresh), glance.kinds, glance.trail, glance.main);
+  $("glance").append(el("div", { class: "g-bar" }, glance.view, glance.mine, glance.steps, glance.kinds, glance.refresh), glance.trail, glance.main);
 
   // ---------------------------------------------------------------- everything suggested in a project
 
