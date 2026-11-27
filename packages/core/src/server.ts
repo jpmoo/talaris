@@ -760,6 +760,9 @@ route("GET", "/demo", () => ({ on: inDemo, root: inDemo ? DEMO_ROOT : null }));
 route("GET", "/plugins", () => plugins.listPlugins());
 route("GET", "/plugins/tools", () => plugins.pluginTools());
 route("GET", "/plugins/apps", () => plugins.pluginApps());
+// The plugins installed and turned off: a card leaves out the ways back they wrote (`<id>:link`, peek.js), so a plugin
+// retired (Hermes Notes' sync) is not still offered — what it wrote is kept, and shown again if it is turned on.
+route("GET", "/plugins/links", () => ({ off: plugins.listPlugins().filter((p) => !p.enabled).map((p) => p.id) }));
 // The calendars the core keeps or brings: Talaris's own (own-calendar.ts) first, then the plugins'.
 route("GET", "/plugins/calendars", () => [ownCalendar(), ...plugins.pluginCalendars()]);
 route("GET", "/plugins/calendars/events", (_r, _p, q) => {

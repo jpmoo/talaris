@@ -64,9 +64,25 @@ window.Peek = (() => {
     const out = [];
     for (const [k, v] of Object.entries((entity && entity.properties) || {})) {
       if (!/^[a-z0-9-]+:link$/.test(k) || !v || typeof v.url !== "string" || !/^https?:\/\//.test(v.url)) continue;
-      out.push({ url: v.url, label: typeof v.label === "string" && v.label.trim() ? v.label.trim() : new URL(v.url).host });
+      const plugin = k.slice(0, -":link".length);
+      if (off && off.has(plugin)) continue;
+      out.push({ url: v.url, label: typeof v.label === "string" && v.label.trim() ? v.label.trim() : new URL(v.url).host, plugin });
     }
     return out;
+  }
+  // The plugins installed and turned off (the core's /plugins/links): their ways back are not offered — Hermes Notes'
+  // sync, retired, still has its link on everything it carried. Asked once by whatever reaches the core first (a card's
+  // actions, a peek), and again after a while, as a plugin may be turned on or off meanwhile.
+  let off = null, asking = null, lastApi = null;
+  function knowOff(api) {
+    if (api) lastApi = api;
+    if (off) return Promise.resolve(off);
+    if (!lastApi) return null;
+    if (!asking) {
+      asking = Promise.resolve(lastApi("GET", "/plugins/links")).then((r) => new Set((r && r.off) || [])).catch(() => new Set())
+        .then((set) => { off = set; asking = null; setTimeout(() => { off = null; }, 5 * 60_000); return set; });
+    }
+    return asking;
   }
   /*
    * What plugins put on a sheet (`[[actions]]` in a plugin.toml, the core's
@@ -81,6 +97,7 @@ window.Peek = (() => {
   /** `onChoose(button, said)`: the page's chooser, for what a press leaves to decide right there (a decision `on` this place). */
   function actionButtons(kind, entityId, api, cls = "t-btn", onDone = null, onChoose = null) {
     const holder = el("span", { class: "plugin-actions" });
+    if (api) knowOff(api);
     if ((!entityId && !LISTS.includes(kind)) || !api) return holder;
     api("GET", `/plugins/actions?kind=${encodeURIComponent(kind)}${entityId ? `&entity=${encodeURIComponent(entityId)}` : ""}`).then((actions) => {
       holder.replaceChildren(...(actions || []).map((a) => {
@@ -116,8 +133,12 @@ window.Peek = (() => {
     return holder;
   }
   /** "Open in …" buttons for those links; `open(url)` is the page's way to the browser. */
-  function elsewhereButtons(entity, open, cls = "t-btn") {
-    return elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, onclick: () => open(l.url) }, `Open in ${l.label}`));
+  function elsewhereButtons(entity, open, cls = "t-btn", api = null) {
+    const known = knowOff(api);
+    const buttons = elsewhere(entity).map((l) => el("button", { class: cls, title: l.url, "data-plugin": l.plugin, hidden: !off, onclick: () => open(l.url) }, `Open in ${l.label}`));
+    // Not yet known whether its plugin is on: shown once it is, and taken away if it is off.
+    if (!off && known) known.then((set) => { for (const b of buttons) { if (set.has(b.dataset.plugin)) b.remove(); else b.hidden = false; } });
+    return buttons;
   }
   // Glance on a thing (glance_panel.py, open_on): what it is tied to, and what it might be. `go` is the page's bridge's glanceAt.
   // How this page opens Glance, once it has its bridge: what a card's own button uses, wherever the card was asked for.
@@ -180,6 +201,7 @@ window.Peek = (() => {
     if (cardVia) { openCard(`e:${id}`); return; }
     let got;
     try { got = await api("GET", `/entities/${encodeURIComponent(id)}?shown=1`); } catch { return; }
+    await knowOff(api);
     if (!card) {
       card = el("div", { class: "peek", role: "dialog" });
       document.body.append(card);

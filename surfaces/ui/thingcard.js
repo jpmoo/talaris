@@ -245,7 +245,7 @@ window.ThingCard = (() => {
       const glance = ctx.glance || (bridge && bridge.glanceAt ? (k) => bridge.glanceAt(k) : null);
       // Where else they live (a sync's way back to them), under their name.
       // And what plugins put on a person (Sync now), filled in when the core answers.
-      const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small"), org ? null : Peek.actionButtons("person", id, api, "t-btn small"),
+      const elsewhere = window.Peek ? [...Peek.elsewhereButtons(got.entity, (u) => bridge && bridge.openUrl(u), "t-btn small", api), org ? null : Peek.actionButtons("person", id, api, "t-btn small"),
         Peek.glanceButton(`e:${id}`, glance, "t-btn small"),
         ctx.hub === "people" || !bridge.thing ? null : el("button", { class: "t-btn small", title: "The address books, and more that can be done with them", onclick: () => bridge.thing("person", id) }, "Open in People")].filter(Boolean) : [];
       return el("div", { class: "p-head" }, av, elsewhere.length ? el("div", { class: "p-name" }, name, el("div", { class: "p-elsewhere" }, ...elsewhere)) : name);

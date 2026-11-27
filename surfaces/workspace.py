@@ -42,7 +42,7 @@ class DrawerBridge(Bridge):
     """The canvas's and the writing surface's bridge: the routes they and the canvas inside them use, and no others."""
     ROUTES = re.compile(
         r"^/(projects|entities|tasks|tags|mentionables|people/find)(/|$|\?)"
-        r"|^/plugins/actions(\?|$)|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$"
+        r"|^/plugins/actions(\?|$)|^/plugins/links$|^/plugins/[a-z0-9-]+/actions/[a-z0-9-]+$"
         r"|^/files/[0-9a-f]{64}$|^/files/unbacked$|^/meaning(\?|$)"
         # Attach (attach.js): the Library read, and a file moved here or a shortcut made, as the picker asks.
         r"|^/files(\?|$)|^/files/(move|shortcut)$")

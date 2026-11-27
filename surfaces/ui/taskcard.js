@@ -426,7 +426,7 @@ window.TaskCard = (() => {
     const foot = el("div", { class: "s-foot" },
       el("span", { class: "t-done" }, stamp.day ? `Done ${Kit.day(stamp.day, { weekday: false })}${stamp.time != null ? ` · ${timeLabel(stamp.time)}` : ""}` : ""),
       el("span", { class: "spacer" }),
-      window.Peek ? [...Peek.elsewhereButtons(entity(), (u) => bridge && bridge.openUrl(u)), Peek.actionButtons("task", id, api, "t-btn", () => ctx.redraw()), Peek.glanceButton(`e:${id}`, glance)].filter(Boolean) : [],
+      window.Peek ? [...Peek.elsewhereButtons(entity(), (u) => bridge && bridge.openUrl(u), "t-btn", api), Peek.actionButtons("task", id, api, "t-btn", () => ctx.redraw()), Peek.glanceButton(`e:${id}`, glance)].filter(Boolean) : [],
       el("button", { class: "t-btn", onclick: () => update({ archived: !entity().archived }) }, entity().archived ? "Unarchive" : "Archive"));
 
     // Its own buttons with what they act on; what it is connected to, and might be, after them.
