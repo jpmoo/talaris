@@ -430,6 +430,13 @@ class Bridge(QObject):
             self.owner.file_away()
         return desktop
 
+    @Slot()
+    def openArchive(self) -> None:  # noqa: N802 — called from the page by this name
+        """The archived projects (the Archive panel), from the foot of a list of projects (UX-AUDIT 5.3)."""
+        desktop = self._going()
+        if desktop:
+            desktop.archive.show("")
+
     @Slot(str, result=str)
     def archiveProject(self, project: str) -> str:  # noqa: N802 — called from the page by this name
         """A project archived, from Tasks' project sheet: its folder to the archive, out of every list."""

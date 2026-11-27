@@ -321,8 +321,8 @@ footer #msg.err, .note.err { color: var(--danger); }
       <h2>Look and feel</h2>
       <div class="row"><span class="name">Projects<small id="desktops-note">Each its own desktop</small></span><span class="what"><span class="seg" id="win-desktops"></span></span></div>
       <div class="row"><span class="name">Mode</span><span class="what"><span class="seg" id="mode"></span></span></div>
-      <div class="row"><span class="name">Accent<small>Each mode keeps its own</small></span><span class="what"><span class="seg" id="accent-for"></span></span></div>
-      <div class="row"><span class="name"></span><span class="what"><span class="swatches" id="swatches"></span><input id="hex" spellcheck="false" maxlength="7"></span></div>
+      <div class="row" id="accent-dark"><span class="name">Accent in dark<small>Each mode keeps its own</small></span><span class="what"><span class="swatches" id="swatches-dark"></span></span></div>
+      <div class="row" id="accent-light"><span class="name">Accent in light</span><span class="what"><span class="swatches" id="swatches-light"></span><input id="hex" spellcheck="false" maxlength="7" aria-label="The accent as #rrggbb"></span></div>
       <div id="picker" class="picker"><div class="sv"><span class="knob"></span></div><div class="hue"><span class="knob"></span></div><div class="picked"></div></div>
       <div class="row"><span class="name">Screen corners<small>Rounded, over everything; 0 is square</small></span><span class="what"><input type="range" id="screen-corners" min="0" max="32" step="1"><span class="n" id="screen-corners-n"></span></span></div>
       <div class="row"><span class="name">External display<small>A display plugged in: a screen of its own beside this one, or a copy of this one</small></span><span class="what"><span class="seg" id="screen-external"></span></span></div>
@@ -412,8 +412,8 @@ footer #msg.err, .note.err { color: var(--danger); }
       <div class="row"><span class="name">Opacity<small>Everything that opens from the bar, dropdowns too; the writing page, the canvas and Morgan's messages stay solid</small></span><span class="what"><input type="range" id="panels-op" min="30" max="100" step="5"><span class="n" id="panels-op-n"></span></span></div>
       <h3>What is shown</h3>
       <p class="note">Left out of Glance, of what something is connected to, and of what it might be connected to. Nothing is changed: the launcher, @ and search still find it, and a list says how many it left out.</p>
-      <div class="row"><span class="name">Finished tasks<small>Hidden</small></span><span class="what"><button class="switch" id="shown-done"></button></span></div>
-      <div class="row"><span class="name">Archived<small>Hidden</small></span><span class="what"><button class="switch" id="shown-archived"></button></span></div>
+      <div class="row"><span class="name">Finished tasks</span><span class="what"><span class="seg" id="shown-done"></span></span></div>
+      <div class="row"><span class="name">Archived</span><span class="what"><span class="seg" id="shown-archived"></span></span></div>
       <div class="row"><span class="name">Older than<small>Hidden when it last changed before this</small></span><span class="what"><span class="seg" id="shown-older"></span></span></div>
     </section>
     <section id="windows">

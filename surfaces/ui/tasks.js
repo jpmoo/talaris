@@ -423,7 +423,16 @@
       projHead,
       addingProject ? newProjectRow() : null,
       projectRows(isOn),
+      archivedRow(),
     ].flat().filter((x) => x != null));
+  }
+  // At the foot of the projects, the archived ones (UX-AUDIT 5.3): the Archive panel had no way in but the launcher.
+  // Not on the web, which has no Archive (bridge.can).
+  function archivedRow() {
+    const n = projects.filter((p) => p.archived).length;
+    if (!n || !bridge || (bridge.can && !bridge.can("openArchive"))) return null;
+    return el("div", { class: "item archived-foot", title: "Browse them, search them, bring one back", onclick: () => bridge.openArchive() },
+      el("span", { class: "name" }, "Archived projects"), el("span", { class: "n" }, String(n)));
   }
 
   function renameRow(l) {

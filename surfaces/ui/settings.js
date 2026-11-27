@@ -78,21 +78,27 @@ function draw() {
   }
   // Which mode's accent is being set: the one in use, unless the other is asked for.
   if (!accentFor) accentFor = t.mode === "light" ? "light" : "dark";
-  // Switching which mode's accent: an open picker shows that mode's color.
-  seg("accent-for", [["dark", "Dark"], ["light", "Light"]], accentFor, (m) => {
-    accentFor = m;
-    draw();
-    if ($("picker").classList.contains("open")) picker.set(editedAccent());
-  });
-  const now = editedAccent();
-  // The tuner's five, then the picker for any other — wearing the custom
-  // accent once one is chosen.
-  const custom = !ACCENTS.includes(now);
-  const pick = el("button", { class: "cv-swatch any" + (custom ? " custom is-on" : ""), title: "Any color", style: custom ? `--custom:${now}` : "",
-    onclick: () => { $("picker").classList.toggle("open"); if ($("picker").classList.contains("open")) picker.set(now); } });
-  $("swatches").replaceChildren(...ACCENTS.map((c) => el("button", { class: "cv-swatch" + (c === now ? " is-on" : ""), style: `background:${c}`, title: c,
-    onclick: () => { $("picker").classList.remove("open"); saveAccent(c); } })), pick);
-  if (document.activeElement !== $("hex")) $("hex").value = now;
+  // Each mode's accent on a row of its own, "Accent in dark" and "Accent in light" (UX-AUDIT 6): two rows of
+  // swatches, where a Dark · Light pick one row under Mode's own Dark · Light chose which was being set. The tuner's
+  // five, then the picker for any other — wearing the custom accent once one is chosen. The hex field and the picker
+  // go with the row last pressed.
+  for (const m of ["dark", "light"]) {
+    const now = editedAccent(m);
+    const custom = !ACCENTS.includes(now);
+    const pick = el("button", { class: "cv-swatch any" + (custom ? " custom is-on" : ""), title: "Any color", style: custom ? `--custom:${now}` : "",
+      onclick: () => {
+        const again = accentFor === m && $("picker").classList.contains("open");
+        accentFor = m;
+        draw();
+        $("picker").classList.toggle("open", !again);
+        if (!again) picker.set(editedAccent());
+      } });
+    $(`swatches-${m}`).replaceChildren(...ACCENTS.map((c) => el("button", { class: "cv-swatch" + (c === now ? " is-on" : ""), style: `background:${c}`, title: c,
+      onclick: () => { accentFor = m; $("picker").classList.remove("open"); saveAccent(c); } })), pick);
+  }
+  $(`accent-${accentFor}`).querySelector(".what").append($("hex"));
+  $(`accent-${accentFor}`).after($("picker"));
+  if (document.activeElement !== $("hex")) $("hex").value = editedAccent();
   seg("motion", [["slide", "Slide"], ["chaos", "Draw"], ["none", "None"]], t.motion === "draw" ? "chaos" : t.motion || "slide", (motion) => save({ theme: { motion } }));
   const SPEEDS = [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"], ["fastest", "Very fast"]];
   seg("speed", SPEEDS, t.motionSpeed || "normal", (motionSpeed) => save({ theme: { motionSpeed } }));
@@ -111,8 +117,9 @@ function draw() {
   seg("screen-external", [["extend", "Extend"], ["mirror", "Mirror"]], (cfg.screen || {}).external || "mirror", (external) => save({ screen: { external } }));
   slider("screen-corners", (cfg.screen || {}).corners ?? 12, (v) => (Number(v) ? `${v}px` : "Square"), (corners) => save({ screen: { corners } }));
   const sh = cfg.shown || {};
-  $("shown-done").classList.toggle("on", !!sh.done);
-  $("shown-archived").classList.toggle("on", !!sh.archived);
+  // Said both ways, not a switch whose "on" had to be guessed at (UX-AUDIT 5.4): `done: true` is hidden.
+  seg("shown-done", [[false, "Shown"], [true, "Hidden"]], !!sh.done, (done) => save({ shown: { done } }));
+  seg("shown-archived", [[false, "Shown"], [true, "Hidden"]], !!sh.archived, (archived) => save({ shown: { archived } }));
   seg("shown-older", [[0, "Show all"], [30, "A month"], [90, "3 months"], [180, "6 months"], [365, "A year"], [730, "2 years"]], sh.olderThan || 0,
     (olderThan) => save({ shown: { olderThan } }));
   seg("bar-shape", [["strip", "Strip"], ["floating", "Floating"]], cfg.bar.shape, (shape) => save({ bar: { shape } }));
@@ -242,8 +249,6 @@ function draw() {
 }
 
 $("shadow").addEventListener("click", () => save({ panels: { shadow: !cfg.panels.shadow } }));
-$("shown-done").addEventListener("click", () => save({ shown: { done: !(cfg.shown || {}).done } }));
-$("shown-archived").addEventListener("click", () => save({ shown: { archived: !(cfg.shown || {}).archived } }));
 for (const part of ["bar", "dock"]) $(`${part}-shadow`).addEventListener("click", () => save({ [part]: { shadow: !cfg[part].shadow } }));
 $("seconds").addEventListener("click", () => save({ clock: { seconds: !cfg.clock.seconds } }));
 $("bar-hide").addEventListener("click", () => save({ bar: { autohide: !cfg.bar.autohide } }));
@@ -504,9 +509,9 @@ for (const [id, key] of [["lc-on", "on"], ["lc-weather", "weather"], ["lc-zone",
 // which the process keeps in step; the other mode's is its own key.
 let accentFor = "";
 const inUse = () => accentFor === ((cfg && cfg.theme.mode === "light") ? "light" : "dark");
-function editedAccent() {
+function editedAccent(mode = accentFor) {
   const t = cfg.theme;
-  return (accentFor === "light" ? t.accentLight : t.accentDark) || t.accent;
+  return (mode === "light" ? t.accentLight : t.accentDark) || t.accent;
 }
 function saveAccent(c) {
   save({ theme: inUse() ? { accent: c } : { [accentFor === "light" ? "accentLight" : "accentDark"]: c } });
