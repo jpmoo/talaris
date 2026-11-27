@@ -145,6 +145,9 @@ html.sh-phone .web-modules a .ic, html.sh-phone .web-modules a svg { width: 26px
 
 /* Calendar on the web: the accounts' calendars are a desktop machine's reading, not this page's to sync (WEB.md). */
 html.page-calendar #resync { display: none !important; }
+/* On a phone the calendar is swiped, a day or a week on or back (calendar.js, the touch swipe): no arrows beside its
+   dates. Today stays, to come back. */
+html.sh-phone.page-calendar :is(#prev, #next) { display: none !important; }
 
 /* Morgan on the web: typed (morgan.mjs). What hears and speaks, picks from this machine's disk, or is Morgan's
    settings or a window's is the desktop's. */

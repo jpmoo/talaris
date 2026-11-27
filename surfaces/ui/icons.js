@@ -142,8 +142,11 @@ const Icons = (() => {
   // A book (Library's books, read or waiting).
   const book = () => svg('<path d="M2.5 3.2c2-.9 3.8-.9 5.5.3v9.8c-1.7-1.2-3.5-1.2-5.5-.3z"/><path d="M13.5 3.2c-2-.9-3.8-.9-5.5.3v9.8c1.7-1.2 3.5-1.2 5.5-.3z"/>');
   // Before and after (a month, a week): chevrons. A lock (a network with a password).
-  const prev = () => svg('<path d="M10 3.5 5.5 8l4.5 4.5"/>');
-  const next = () => svg('<path d="M6 3.5 10.5 8 6 12.5"/>');
+  // Smaller than their button, as a chevron is beside a date: drawn full size they filled it, and read as heavy
+  // beside the date they step (Calendar's header, Notes' days and months).
+  const smaller = (body) => `<g transform="translate(8 8) scale(.68) translate(-8 -8)" stroke-width="1.9">${body}</g>`;
+  const prev = () => svg(smaller('<path d="M10 3.5 5.5 8l4.5 4.5"/>'));
+  const next = () => svg(smaller('<path d="M6 3.5 10.5 8 6 12.5"/>'));
   const lock = () => svg('<rect x="4" y="7.5" width="8" height="6" rx="1"/><path d="M5.8 7.5V5.5a2.2 2.2 0 0 1 4.4 0v2"/>');
   // The launcher's kinds: a sum (=), something to do (an arrow), something said, an event.
   const sum = () => svg('<path d="M3.5 6h9M3.5 10h9"/>');
