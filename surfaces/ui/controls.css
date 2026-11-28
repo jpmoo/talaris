@@ -71,7 +71,10 @@ without editing four thousand lines of fork.
 .icon-btn:disabled { opacity: var(--disabled); cursor: default; }
 /* Sized, not left to the browser: Chromium fills the button with an svg that has only a viewBox, Safari draws it
    nothing wide (the phone's date arrows were empty boxes). The size Chromium gave them, now said. */
-.icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; width: 100%; height: 100%; flex: none; }
+.icon-btn svg, .shape-pick svg, .tools .tool svg { display: block; flex: none; }
+/* Only an icon with no size of its own fills the button (the 16-grid bar icons); the frame's grow, shrink and close
+   say 13 and keep it. */
+.icon-btn svg:not([width]), .shape-pick svg:not([width]), .tools .tool svg:not([width]) { width: 100%; height: 100%; }
 
 /* ---- bar items --------------------------------------------------------- */
 
