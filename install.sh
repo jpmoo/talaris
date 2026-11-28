@@ -79,6 +79,7 @@ REQUIRED=(
 )
 OPTIONALS=(
   "bluez|Bluetooth"
+  "squeekboard|the on-screen keyboard, on a touchscreen (keyboard.py)"
   "gammastep|the night light"
   "power-profiles-daemon|power profiles (Settings, Power)"
   "poppler-utils|reading PDFs, for search by meaning"
