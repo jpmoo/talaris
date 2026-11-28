@@ -1759,7 +1759,7 @@ function drawBt(b) {
   }));
   if (!(b.paired || []).length) $("bt-mine").replaceChildren(Kit.empty("None paired"));
   $("bt-near").replaceChildren(...(b.nearby || []).map((d) =>
-    netRow(d.name, d.mac, "", el("button", { class: "t-btn", onclick: () => btSend({ verb: "pair", mac: d.mac }, `Pairing with ${d.name}…`) }, "Pair"))));
+    netRow(d.name, d.mac, "", el("button", { class: "t-btn", onclick: () => btSend({ verb: "pair", mac: d.mac, name: d.name }, `Pairing with ${d.name}…`) }, "Pair"))));
   if (!(b.nearby || []).length) $("bt-near").replaceChildren(el("p", { class: "note" }, "Nothing found yet. Put the device in pairing mode, then look."));
 }
 

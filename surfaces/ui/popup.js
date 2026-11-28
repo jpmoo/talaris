@@ -424,7 +424,7 @@ function drawBlue() {
     for (const d of blue.nearby) {
       const key = `bt:${d.mac}`;
       rows.push(row(Icons.bluetooth(false), d.name, open.busy === key ? "PAIRING" : "PAIR", {
-        busy: open.busy === key, onclick: () => sendBt({ verb: "pair", mac: d.mac }, key),
+        busy: open.busy === key, onclick: () => sendBt({ verb: "pair", mac: d.mac, name: d.name }, key),
       }));
     }
   }

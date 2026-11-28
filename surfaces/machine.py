@@ -499,9 +499,92 @@ def bluetooth_state(scan_seconds: int = 0) -> dict:
     taken = {d["mac"] for d in paired}
     # Nearby: what a scan turned up and is not already yours. A device with
     # no name shows its address as its name, and is not worth a row.
-    nearby = [{"mac": mac, "name": name} for mac, name in _bt_devices()
-              if mac not in taken and name.replace("-", ":").upper() != mac.upper()]
+    # One row a name: a device that keeps its address private (most keyboards and mice on Bluetooth Low Energy) takes a
+    # new one each time it is put in pairing mode, and bluetoothd remembers the old for a while. Pairing finds it by
+    # name as it is now (_bt_pair), so which of its addresses the row carries does not matter.
+    named = {}
+    for mac, name in _bt_devices():
+        if mac not in taken and name.replace("-", ":").upper() != mac.upper():
+            named[name] = mac
+    paired_names = {d["name"] for d in paired}
+    nearby = [{"mac": mac, "name": name} for name, mac in named.items() if name not in paired_names]
     return {"present": True, "on": True, "visible": visible, "alias": alias, "paired": paired, "nearby": nearby}
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m|\r")
+_DEVICE_LINE = re.compile(r"Device ((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s*(.*)$", re.I)
+
+
+def _bt_pair(mac: str, name: str, tell=lambda _said: None, look: float = 30) -> str:
+    """
+    Pair a device as it is now, in one bluetoothctl session: looked for until it is heard — at the address the panel
+    showed, or by its name at another (a keyboard on Bluetooth Low Energy takes a new address each time it is put in
+    pairing mode, and the one the panel had may be gone) — then the looking stopped and that address paired at once,
+    trusted so it may come back by itself, and connected. Pairing a remembered address with nothing looking failed
+    as "not available"; looking while pairing, on the Pi's radio, broke the link as it formed.
+    A code to type on the device is said through `tell`. Answers the reason it failed, or empty.
+    """
+    try:
+        p = subprocess.Popen(["bluetoothctl"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, bufsize=1)
+    except OSError as e:
+        return str(e)
+    import queue
+    lines: queue.Queue = queue.Queue()
+    threading.Thread(target=lambda: [lines.put(_ANSI.sub("", ln)) for ln in p.stdout], daemon=True).start()
+
+    def say(command: str) -> None:
+        try:
+            p.stdin.write(command + "\n")
+            p.stdin.flush()
+        except (OSError, ValueError):
+            pass
+
+    names = {m.upper(): n for m, n in _bt_devices()}
+    for command in ("agent KeyboardDisplay", "default-agent", "pairable on", "scan on"):
+        say(command)
+    target, paired, reason = "", False, "It was not heard: is it in pairing mode?"
+    end = time.monotonic() + look
+    try:
+        while time.monotonic() < end:
+            try:
+                line = lines.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            m = _DEVICE_LINE.search(line)
+            if not target and m:
+                addr, rest = m.group(1).upper(), m.group(2).strip()
+                if "[NEW]" in line and rest and not rest.startswith(("RSSI", "TxPower", "ManufacturerData")):
+                    names[addr] = rest
+                heard = "[NEW]" in line or "RSSI" in line
+                if heard and (addr == mac.upper() or (name and names.get(addr) == name)):
+                    target = addr
+                    say("scan off")
+                    time.sleep(1)
+                    say(f"pair {target}")
+                    end = time.monotonic() + 45
+                continue
+            code = re.search(r"(?:Passkey|PIN code):?\s*(\d{4,6})", line, re.I)
+            if target and code:
+                tell(f"Type {code.group(1)} on it, then Enter")
+            if target and not paired and ("Pairing successful" in line or "AlreadyExists" in line):
+                paired = True
+                say(f"trust {target}")
+                say(f"connect {target}")
+                end = time.monotonic() + 15
+            elif target and not paired and "Failed to pair" in line:
+                reason = line.split("Failed to pair:", 1)[-1].strip().removeprefix("org.bluez.Error.")
+                break
+            elif paired and ("Connection successful" in line or "Connected: yes" in line):
+                return ""
+        return "" if paired else reason
+    finally:
+        say("scan off")
+        say("quit")
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
 
 
 class _Panel(QRunnable):
@@ -728,11 +811,10 @@ class Machine(QObject):
             work = lambda: _ran("bluetoothctl", verb, mac)
         elif mac and _MAC.match(mac) and verb in ("connect", "disconnect", "forget", "pair"):
             if verb == "pair":
-                # Pair, trust so it may come back by itself, then connect. A
-                # device that wants a PIN confirmed needs the full tool.
-                work = lambda: (_ran("bluetoothctl", "--timeout", "20", "pair", mac, timeout=25)
-                                or _ran("bluetoothctl", "trust", mac)
-                                or _ran("bluetoothctl", "--timeout", "15", "connect", mac, timeout=20))
+                # Found as it is now, then paired, trusted and connected (_bt_pair); a code to type is said on the panel.
+                name = str(r.get("name", ""))[:248]
+                tell = lambda said: self.panel.emit(json.dumps({"kind": "bluetooth", "state": bluetooth_state(), "error": said}))
+                work = lambda: _bt_pair(mac, name, tell)
             elif verb == "forget":
                 work = lambda: _ran("bluetoothctl", "remove", mac)
             else:
