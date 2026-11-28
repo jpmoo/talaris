@@ -116,8 +116,9 @@ def _checked(c: dict) -> str:
         return area in TYPE_AREAS and isinstance(v, (int, float)) and not isinstance(v, bool) and TYPE_MIN <= v <= TYPE_MAX
     if t.get("fontSize", "medium") not in ZOOMS or not all(_size_ok(a, v) for a, v in c.get("text", {}).items()):
         return "Text is small, medium, large or extra large"
-    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n")
-    if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])) or not all(x in ("bright", "net-n") for x in c["bar"].get("shown", [])):
+    BAR_ITEMS = ("where", "ask", "new", "morgan", "people", "files", "tasks", "canvas", "writing", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n", "rotate")
+    # What is off until asked for (ui/barlayout.js, OPT_IN): the turn button too, where no sensor turns the screen.
+    if not all(x in BAR_ITEMS for x in c["bar"].get("hidden", [])) or not all(x in ("bright", "net-n", "rotate") for x in c["bar"].get("shown", [])):
         return "Not something the bar shows"
     if c["bar"].get("weatherShows", "both") not in ("sky", "temp", "both"):
         return "The weather shows its conditions, its temperature, or both"
@@ -127,7 +128,7 @@ def _checked(c: dict) -> str:
         return "The notifications' badge is a dot, a dot and a number, or none"
     # The order of each region (ui/barlayout.js): only its own items, each once.
     regions = {"start": ("where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing"), "middle": ("clock", "weather"),
-               "end": ("loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "bat", "settings", "bell", "power")}
+               "end": ("loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "rotate", "bat", "settings", "bell", "power")}
     order = c["bar"].get("order") or {}
     if not isinstance(order, dict) or any(r not in regions or not isinstance(ids, list) or len(set(ids)) != len(ids)
                                           or not all(i in regions[r] for i in ids) for r, ids in order.items()):
