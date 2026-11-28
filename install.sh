@@ -53,6 +53,7 @@ REQUIRED=(
   "gir1.2-ebook-1.2|contacts (Evolution Data Server)"
   "gir1.2-ebookcontacts-1.2|contacts (Evolution Data Server)"
   "gir1.2-goa-1.0|accounts (GNOME Online Accounts)"
+  "gir1.2-secret-1|Talaris's keys in the login keyring (packages/core/keyring.py)"
   "gnome-online-accounts-gtk|adding Google, Microsoft and other accounts"
   "evolution-ews|Microsoft 365 calendars"
   "libglib2.0-bin|gdbus, gio, gsettings: notifications, trash, settings"
