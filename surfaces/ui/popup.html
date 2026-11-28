@@ -81,7 +81,9 @@ body[data-popup="tray"] #tray, body[data-popup="trayicons"] #trayicons, body[dat
 #disp-list .disp { display: flex; justify-content: space-between; gap: 10px; padding: 4px 10px; }
 #disp-list .disp .k { color: var(--muted); font-variant-numeric: tabular-nums; }
 #disp-mode { align-self: flex-start; margin: 6px 10px 2px; }
-#project-list { overflow-y: auto; overscroll-behavior: contain; }
+/* As tall as its projects, up to most of the screen (popup.js) — and shorter still where the popup is: on a short
+   screen (the deck's 800) the list with the heading and the buttons outgrew the popup and ran out of its bottom. */
+#project-list { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 #project-list .menu-item { justify-content: space-between; }
 #project-list .menu-item .code { font-size: var(--t-xs); letter-spacing: 2px; color: var(--muted); }
 #project-list .menu-item { align-items: center; gap: 10px; }
