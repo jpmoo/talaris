@@ -15,7 +15,7 @@ const BarLayout = (() => {
   const REGIONS = {
     start: ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "review"],
     middle: ["clock", "weather"],
-    end: ["loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "bat", "settings", "bell", "power"],
+    end: ["loc", "tray", "shot", "clipboard", "theme", "net", "bt", "vol", "bright", "rotate", "bat", "settings", "bell", "power"],
   };
 
   /**
@@ -24,10 +24,15 @@ const BarLayout = (() => {
    * names it.
    */
   const OPT_IN = ["bright", "net-n"];
-  const isShown = (id, look) => (OPT_IN.includes(id) ? (look.shown || []).includes(id) : !(look.hidden || []).includes(id));
+  /**
+   * Turning the screen (rotation.py) is off until asked for, except where a sensor turns it already (`sensor`): there
+   * it was always on the bar, and stays so until hidden.
+   */
+  const optIn = (id, sensor) => OPT_IN.includes(id) || (id === "rotate" && !sensor);
+  const isShown = (id, look, sensor = false) => (optIn(id, sensor) ? (look.shown || []).includes(id) : !(look.hidden || []).includes(id));
   /** The bar's settings with `id` shown or not: the change to save. */
-  function showing(id, on, look) {
-    if (OPT_IN.includes(id)) {
+  function showing(id, on, look, sensor = false) {
+    if (optIn(id, sensor)) {
       const shown = new Set(look.shown || []);
       if (on) shown.add(id); else shown.delete(id);
       return { shown: [...shown] };

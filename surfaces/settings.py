@@ -643,6 +643,8 @@ class Settings(Overlay):
                 "blueBubbles": bluebubbles.server() is not None,
                 # Whether this machine can say which way up it is: Look's "Turn with the device" only where it can.
                 "canRotate": rotation.available(),
+                # Whether there is a built-in screen the bar's button can turn, sensor or not (Settings, Bar).
+                "canTurn": rotation.can_turn(),
                 # Whether Carousel can be had here (tiling.py): the scrolling layout's plugin installed.
                 "canCarousel": __import__("tiling").available(),
                 # The project in front: its own tiling is set beside the machine's default.

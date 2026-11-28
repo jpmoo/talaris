@@ -33,7 +33,7 @@ $("clipboard").innerHTML = Icons.clipboard();
 $("shot").innerHTML = Icons.camera();
 
 /** What can be left off the bar (Settings, Bar). Settings itself cannot: it is the way back. */
-const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "review", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n"];
+const BAR_ITEMS = ["where", "ask", "morgan", "new", "tasks", "people", "files", "canvas", "writing", "review", "day", "time", "weather", "loc", "theme", "net", "bt", "vol", "bat", "bat-n", "shot", "clipboard", "bell", "power", "net-n", "vol-n", "bright", "bright-n", "rotate"];
 
 function onState(s) {
   const folded = !!(state.look || {}).trayFold;
@@ -92,7 +92,7 @@ function onState(s) {
   drawn($("theme"), dark ? Icons.moon() : Icons.sun());
   $("theme").title = dark ? "Dark — switch to light" : "Light — switch to dark";
   // What Settings, Bar has left out, and the space between what is left.
-  const hidden = new Set(BAR_ITEMS.filter((id) => !BarLayout.isShown(id, s.look || {})));
+  const hidden = new Set(BAR_ITEMS.filter((id) => !BarLayout.isShown(id, s.look || {}, !!(s.rotation || {}).sensor)));
   // Morgan's button only where Morgan is installed (morgan.py, installed): it is a companion of its own.
   if (s.morganHere === false) hidden.add("morgan");
   // On one desktop the panels are in the Talaris menu (the pill), not each a button: Morgan and New stay.
@@ -110,7 +110,8 @@ function onState(s) {
   $("loc").hidden = !where.looking;
   if (where.looking) { drawn($("loc"), Icons.pin_place()); $("loc").title = "Something is using your location"; }
   $("clock").classList.toggle("bar-hidden", hidden.has("day") && hidden.has("time"));
-  // Turning the screen (rotation.py): wherever it can turn. A press turns it a quarter and holds it there; while it
+  // Turning the screen (rotation.py): wherever there is a built-in screen to turn, and Settings, Bar shows it (by
+  // itself where a sensor turns it, by choice elsewhere). A press turns it a quarter and holds it there; while it
   // would follow the device and is held, a right-click follows the device again.
   // The on-screen keyboard (keyboard.py), where there is one: up or away, into whatever has the keys. A field's own
   // button does the same where there is a field; this one is there for every other place (a page, a canvas).

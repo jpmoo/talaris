@@ -18,8 +18,11 @@ monitor line is where the screen starts, and where it goes back to when this
 is turned off. A config reload puts Hyprland's own back, so the orientation
 is asked for again after one.
 
-Only on a machine with an accelerometer: Settings shows the switch there and
-nowhere else (`available`).
+Following the device only on a machine with an accelerometer: Settings shows
+the switch there and nowhere else (`available`). The bar's button, which turns
+the screen a quarter by hand, is wherever there is a built-in screen to turn
+(`can_turn`) — a panel on a Pi has no sensor — and on the bar as Settings, Bar
+says: by itself where a sensor turns the screen, by choice elsewhere.
 """
 
 from __future__ import annotations
@@ -118,6 +121,11 @@ def flat() -> bool:
         # Within about 25° of lying flat.
         return z * z > 4 * (x * x + y * y)
     return False
+
+
+def can_turn() -> bool:
+    """Whether there is a built-in screen to turn by the bar's button: with a sensor or without (a panel on a Pi)."""
+    return _built_in() is not None
 
 
 def _built_in() -> dict | None:
@@ -229,7 +237,8 @@ class Rotation(QObject):
                 self.process = None
             self.orientation = ""
         turned = self.desktop.config.get("screen", {}).get("turned")
-        if self.locked and isinstance(turned, int) and available():
+        # Turned by the button, with a sensor or without: kept turned across restarts.
+        if self.locked and isinstance(turned, int):
             self._set(turned)
 
     def _start(self) -> None:
@@ -323,8 +332,11 @@ class Rotation(QObject):
         self.desktop.bar.bridge.state.emit(json.dumps(self.desktop.bar.describe()))
 
     def describe(self) -> dict:
-        """For the bar's button: shown wherever the screen can turn; whether it follows the device, and is held."""
-        return {"on": available(), "auto": self.on(), "locked": self.locked}
+        """
+        For the bar's button: there wherever there is a built-in screen to turn (`on`), shown by Settings, Bar — by
+        itself where a sensor turns it (`sensor`), by choice elsewhere; whether it follows the device, and is held.
+        """
+        return {"on": can_turn(), "sensor": available(), "auto": self.on(), "locked": self.locked}
 
     def _set(self, transform: int) -> None:
         """The built-in screen at this transform, and its touchscreen and stylus with it."""

@@ -328,6 +328,9 @@ function drawClipboard() {
 let blueBubbles = false;
 // Whether this machine can say which way up it is (rotation.py): Look's "Turn with the device" only where it can.
 let canRotate = false;
+// Whether there is a built-in screen to turn by the bar's button (rotation.py), with a sensor or without: Settings,
+// Bar offers the button only there.
+let canTurn = false;
 let canCarousel = false;
 // The project in front ({id, name}): its own tiling is set beside the default.
 let projectNow = { id: "", name: "" };
@@ -2170,6 +2173,7 @@ const BAR_UNITS = {
   loc: ["Location in use", [["loc", ""]]], tray: ["Tray", []], shot: ["Screenshot", [["shot", ""]]], clipboard: ["Clipboard", [["clipboard", ""]]],
   theme: ["Light/dark", [["theme", ""]]], net: ["Wi-Fi", [["net", ""], ["net-n", "Percent"]]], bt: ["Bluetooth", [["bt", ""]]],
   vol: ["Volume", [["vol", ""], ["vol-n", "Percent"]]], bright: ["Brightness", [["bright", ""], ["bright-n", "Percent"]]],
+  rotate: ["Turn the screen", [["rotate", ""]]],
   bat: ["Battery", [["bat", ""], ["bat-n", "Percent"]]], settings: ["Settings", []], bell: ["Notifications", [["bell", ""]]], power: ["Power", [["power", ""]]],
 };
 const REGION_NAMES = { start: "Left", middle: "Middle", end: "Right" };
@@ -2180,12 +2184,12 @@ const REGION_NAMES = { start: "Left", middle: "Middle", end: "Right" };
  */
 function drawBarShown() {
   // Shown or not as the bar has it (barlayout.js): what is off until asked for, by `shown`; the rest by `hidden`.
-  const hidden = new Set(Object.keys(BAR_UNITS).flatMap((u) => BAR_UNITS[u][1].map(([id]) => id)).filter((id) => !BarLayout.isShown(id, cfg.bar)));
+  const hidden = new Set(Object.keys(BAR_UNITS).flatMap((u) => BAR_UNITS[u][1].map(([id]) => id)).filter((id) => !BarLayout.isShown(id, cfg.bar, canRotate)));
   const ov = cfg.overlays || {};
   const order = cfg.bar.order || {};
   const switchFor = (id, label) => {
     const sw = el("button", { class: "switch" + (hidden.has(id) ? "" : " on"), title: label || "Shown" });
-    sw.addEventListener("click", () => save({ bar: BarLayout.showing(id, hidden.has(id), cfg.bar) }));
+    sw.addEventListener("click", () => save({ bar: BarLayout.showing(id, hidden.has(id), cfg.bar, canRotate) }));
     return label ? [el("small", { class: "note", style: "margin:0" }, label), sw] : [sw];
   };
   const row = (region, unit) => {
@@ -2246,7 +2250,7 @@ function drawBarShown() {
   trayItems.classList.add("tray-items");
   $("bar-shown").replaceChildren(...Object.keys(BarLayout.REGIONS).flatMap((region) => [
     el("h3", { class: "bar-region" }, REGION_NAMES[region]),
-    ...BarLayout.ordered(region, order).filter((u) => u !== "morgan" || morganHere).flatMap((u) => (u === "tray" ? [row(region, u), trayItems] : [row(region, u)])),
+    ...BarLayout.ordered(region, order).filter((u) => (u !== "morgan" || morganHere) && (u !== "rotate" || canTurn)).flatMap((u) => (u === "tray" ? [row(region, u), trayItems] : [row(region, u)])),
   ]));
 }
 
@@ -2427,6 +2431,7 @@ Surface.connect({
     showMorgan();
     if (had !== morganHere && $("morgan").classList.contains("on")) loadMorgan();
     if (canRotate !== !!s.canRotate) { canRotate = !!s.canRotate; if (cfg) draw(); }
+    if (canTurn !== !!s.canTurn) { canTurn = !!s.canTurn; if (cfg) draw(); }
     if (canCarousel !== !!s.canCarousel) { canCarousel = !!s.canCarousel; if (cfg) draw(); }
     if (s.project && s.project.id !== projectNow.id) { projectNow = s.project; if (cfg) draw(); }
     if (blueBubbles !== !!s.blueBubbles) { blueBubbles = !!s.blueBubbles; if (cfg) drawClipboard(); }
